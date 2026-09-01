@@ -2,7 +2,14 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { SyntaxResourceCatalog, SyntaxResourceScope } from '@shared/types/syntax-resources'
-import { emptySyntaxCatalog } from './syntax-resource-import-utils'
+import { isEnoent } from '@shared/utils/node-error'
+import {
+  chargeSyntaxReadBudget,
+  createSyntaxReadBudget,
+  emptySyntaxCatalog,
+  type SyntaxReadBudget,
+} from './syntax-resource-import-utils'
+import { SyntaxSourceValidationError } from './syntax-source-errors'
 
 const PROJECT_RESOURCE_FILE_LIMIT = 20
 const PROJECT_RESOURCE_PARSE_CONCURRENCY = 4
@@ -14,10 +21,11 @@ const PROJECT_CATALOG_MAX_RESOURCES = 200
 export type SyntaxSourceParser = (
   filePath: string,
   scope: SyntaxResourceScope,
+  readBudget?: SyntaxReadBudget,
 ) => Promise<SyntaxResourceCatalog>
 
 interface ProjectResourceInputBudget {
-  remainingBytes: number
+  readonly readBudget: SyntaxReadBudget
   remainingEntries: number
 }
 
@@ -42,10 +50,7 @@ async function chargeProjectResourceInput(
   const stats = await fs.lstat(resourcePath)
   if (stats.isSymbolicLink()) return
   if (stats.isFile()) {
-    if (stats.size > budget.remainingBytes) {
-      throw new Error('Project syntax resource inputs exceed the aggregate byte limit.')
-    }
-    budget.remainingBytes -= stats.size
+    chargeSyntaxReadBudget(budget.readBudget, stats.size)
     return
   }
   if (!stats.isDirectory()) return
@@ -64,9 +69,12 @@ async function chargeProjectResourceInput(
   }
 }
 
-async function assertProjectResourceInputCapacity(resourcePaths: readonly string[]) {
+async function assertProjectResourceInputCapacity(
+  resourcePaths: readonly string[],
+  readBudget: SyntaxReadBudget,
+) {
   const budget = {
-    remainingBytes: PROJECT_CATALOG_MAX_BYTES,
+    readBudget,
     remainingEntries: PROJECT_CATALOG_MAX_INPUT_ENTRIES,
   }
   for (const resourcePath of resourcePaths) {
@@ -74,27 +82,45 @@ async function assertProjectResourceInputCapacity(resourcePaths: readonly string
   }
 }
 
+async function readProjectResourceRoot(root: string): Promise<readonly Dirent[]> {
+  try {
+    const realRoot = await fs.realpath(root)
+    if (realRoot !== path.resolve(root)) return []
+    return (await fs.readdir(realRoot, { withFileTypes: true }))
+      .filter((entry) => !entry.isSymbolicLink())
+      .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+  } catch (error) {
+    if (isEnoent(error)) return []
+    throw error
+  }
+}
+
 async function parseProjectResources(
   resourcePaths: readonly string[],
   parseSource: SyntaxSourceParser,
+  readBudget: SyntaxReadBudget,
 ): Promise<readonly SyntaxResourceCatalog[]> {
   const parsedByIndex = new Map<number, SyntaxResourceCatalog>()
   let catalogBytes = 0
   let resourceCount = 0
-  let capacityError: Error | null = null
+  let stopped = false
   async function parseChain(index: number): Promise<void> {
-    if (capacityError) return
+    if (stopped) return
     const resourcePath = resourcePaths[index]
     if (!resourcePath) return
     let parsed: SyntaxResourceCatalog
     try {
-      parsed = await parseSource(resourcePath, 'project')
-    } catch {
+      parsed = await parseSource(resourcePath, 'project', readBudget)
+    } catch (error) {
+      if (!(error instanceof SyntaxSourceValidationError)) {
+        stopped = true
+        throw error
+      }
       // One malformed project resource does not hide the remaining catalog.
       await parseChain(index + PROJECT_RESOURCE_PARSE_CONCURRENCY)
       return
     }
-    if (capacityError) return
+    if (stopped) return
     const nextResourceCount =
       parsed.themes.length + parsed.languages.length + parsed.appearances.length
     const nextBytes = Buffer.byteLength(JSON.stringify(parsed), 'utf8')
@@ -102,8 +128,8 @@ async function parseProjectResources(
       resourceCount + nextResourceCount > PROJECT_CATALOG_MAX_RESOURCES ||
       catalogBytes + nextBytes > PROJECT_CATALOG_MAX_BYTES
     ) {
-      capacityError = new Error('Project syntax resources exceed the aggregate catalog limit.')
-      throw capacityError
+      stopped = true
+      throw new Error('Project syntax resources exceed the aggregate catalog limit.')
     }
     resourceCount += nextResourceCount
     catalogBytes += nextBytes
@@ -132,26 +158,22 @@ export async function readProjectSyntaxCatalog(
     path.join(projectRoot, '.openwaggle', 'languages'),
     path.join(projectRoot, '.openwaggle', 'syntax'),
   ]
-  const entriesByRoot = await Promise.all(
-    roots.map(async (root): Promise<readonly Dirent[]> => {
-      try {
-        const realRoot = await fs.realpath(root)
-        if (realRoot !== path.resolve(root)) return []
-        return (await fs.readdir(realRoot, { withFileTypes: true })).filter(
-          (entry) => !entry.isSymbolicLink(),
-        )
-      } catch {
-        return []
-      }
-    }),
-  )
+  const entriesByRoot = await Promise.all(roots.map(readProjectResourceRoot))
   const resourcePaths = entriesByRoot
     .flatMap((entries, rootIndex) =>
       entries.map((entry) => path.join(roots[rootIndex] ?? projectPath, entry.name)),
     )
     .slice(0, PROJECT_RESOURCE_FILE_LIMIT)
-  await assertProjectResourceInputCapacity(resourcePaths)
-  for (const parsed of await parseProjectResources(resourcePaths, parseSource)) {
+  const preflightBudget = createSyntaxReadBudget(
+    PROJECT_CATALOG_MAX_BYTES,
+    'Project syntax resource inputs exceed the aggregate byte limit.',
+  )
+  await assertProjectResourceInputCapacity(resourcePaths, preflightBudget)
+  const readBudget = createSyntaxReadBudget(
+    PROJECT_CATALOG_MAX_BYTES,
+    'Project syntax resource reads exceed the aggregate byte limit.',
+  )
+  for (const parsed of await parseProjectResources(resourcePaths, parseSource, readBudget)) {
     catalog.themes.push(...parsed.themes)
     catalog.languages.push(...parsed.languages)
     catalog.appearances.push(...parsed.appearances)

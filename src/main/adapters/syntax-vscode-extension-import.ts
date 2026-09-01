@@ -7,6 +7,7 @@ import {
   ARCHIVE_ENTRY_LIMIT,
   ARCHIVE_EXPANDED_LIMIT_BYTES,
   appearanceVariantFromUiTheme,
+  chargeSyntaxReadBudget,
   confinedExtensionPath,
   createThemeIncludeBudget,
   emptySyntaxCatalog,
@@ -16,6 +17,7 @@ import {
   readBoundedFile,
   resolveThemeDeclaration,
   SYNTAX_IMPORT_RESOURCE_KIND_LIMIT,
+  type SyntaxReadBudget,
   safeArchivePath,
   type ThemeIncludeBudget,
 } from './syntax-resource-import-utils'
@@ -47,11 +49,26 @@ function canDestroyStream(
   return 'destroy' in stream && typeof stream.destroy === 'function'
 }
 
-function readBoundedArchiveText(entry: JSZip.JSZipObject, budget: ArchiveExpansionBudget) {
+function readBoundedArchiveText(
+  entry: JSZip.JSZipObject,
+  budget: ArchiveExpansionBudget,
+  readBudget?: SyntaxReadBudget,
+) {
   return new Promise<string>((resolve, reject) => {
     const chunks: Buffer[] = []
     const stream = entry.nodeStream('nodebuffer')
     stream.on('data', (chunk: Buffer) => {
+      try {
+        if (readBudget) chargeSyntaxReadBudget(readBudget, chunk.byteLength)
+      } catch (error) {
+        if (canDestroyStream(stream)) {
+          stream.destroy(error instanceof Error ? error : new Error(String(error)))
+        } else {
+          stream.pause()
+          reject(error)
+        }
+        return
+      }
       budget.expandedBytes += chunk.byteLength
       if (budget.expandedBytes > ARCHIVE_EXPANDED_LIMIT_BYTES) {
         const error = new Error('Expanded syntax archive exceeds the size limit.')
@@ -215,7 +232,11 @@ async function importExtensionResources(
   return catalog
 }
 
-export async function parseUnpackedSyntaxExtension(directory: string, scope: SyntaxResourceScope) {
+export async function parseUnpackedSyntaxExtension(
+  directory: string,
+  scope: SyntaxResourceScope,
+  readBudget?: SyntaxReadBudget,
+) {
   const packageRoot = await fs.realpath(directory)
   const readConfinedText = async (resourcePath: string, budget?: ThemeIncludeBudget) => {
     const realResourcePath = await fs.realpath(resourcePath)
@@ -223,11 +244,11 @@ export async function parseUnpackedSyntaxExtension(directory: string, scope: Syn
     if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
       throw new Error('Syntax extension resource symlink leaves its package.')
     }
-    return (await readBoundedFile(realResourcePath, budget)).toString('utf8')
+    return (await readBoundedFile(realResourcePath, budget, readBudget)).toString('utf8')
   }
   const manifestPath = path.join(packageRoot, 'package.json')
   const manifest = extensionManifest(
-    parseJsonText((await readBoundedFile(manifestPath)).toString('utf8')),
+    parseJsonText((await readBoundedFile(manifestPath, undefined, readBudget)).toString('utf8')),
     path.basename(packageRoot),
   )
   const reader: ExtensionResourceReader = {
@@ -241,8 +262,12 @@ export async function parseUnpackedSyntaxExtension(directory: string, scope: Syn
   return importExtensionResources(manifest, reader, scope)
 }
 
-export async function parseVsixSyntaxExtension(filePath: string, scope: SyntaxResourceScope) {
-  const archive = await JSZip.loadAsync(await readBoundedFile(filePath))
+export async function parseVsixSyntaxExtension(
+  filePath: string,
+  scope: SyntaxResourceScope,
+  readBudget?: SyntaxReadBudget,
+) {
+  const archive = await JSZip.loadAsync(await readBoundedFile(filePath, undefined, readBudget))
   const entries = Object.values(archive.files)
   if (entries.length > ARCHIVE_ENTRY_LIMIT) {
     throw new Error('Theme archive contains too many files.')
@@ -253,7 +278,7 @@ export async function parseVsixSyntaxExtension(filePath: string, scope: SyntaxRe
   if (!packageEntry) throw new Error('VSIX does not contain extension/package.json.')
   const expansionBudget: ArchiveExpansionBudget = { expandedBytes: 0 }
   const manifest = extensionManifest(
-    parseJsonText(await readBoundedArchiveText(packageEntry, expansionBudget)),
+    parseJsonText(await readBoundedArchiveText(packageEntry, expansionBudget, readBudget)),
     path.basename(filePath),
   )
   const reader: ExtensionResourceReader = {
@@ -269,7 +294,7 @@ export async function parseVsixSyntaxExtension(filePath: string, scope: SyntaxRe
       }
       const entry = archive.file(safePath)
       if (!entry) throw new Error(`VSIX syntax resource is missing: ${safePath}`)
-      return readBoundedArchiveText(entry, expansionBudget)
+      return readBoundedArchiveText(entry, expansionBudget, readBudget)
     },
     sourcePath: (resourcePath) => `${filePath}#${resourcePath}`,
   }

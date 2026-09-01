@@ -25,8 +25,32 @@ export interface ThemeIncludeBudget {
   jsonValues: number
 }
 
+export class SyntaxReadBudgetExceededError extends Error {
+  override readonly name = 'SyntaxReadBudgetExceededError'
+  readonly code = 'SYNTAX_READ_BUDGET_EXCEEDED'
+}
+
+export interface SyntaxReadBudget {
+  readonly exceededMessage: string
+  remainingBytes: number
+}
+
 export function createThemeIncludeBudget(): ThemeIncludeBudget {
   return { bytes: 0, jsonValues: 0 }
+}
+
+export function createSyntaxReadBudget(
+  maximumBytes: number,
+  exceededMessage: string,
+): SyntaxReadBudget {
+  return { exceededMessage, remainingBytes: maximumBytes }
+}
+
+export function chargeSyntaxReadBudget(budget: SyntaxReadBudget, bytes: number) {
+  if (bytes > budget.remainingBytes) {
+    throw new SyntaxReadBudgetExceededError(budget.exceededMessage)
+  }
+  budget.remainingBytes -= bytes
 }
 
 function assertSyntaxSourceComplexity(value: unknown, budget?: ThemeIncludeBudget) {
@@ -135,14 +159,22 @@ export function parseJsonText(source: string, budget?: ThemeIncludeBudget) {
   return parsed
 }
 
-export async function readBoundedFile(filePath: string, budget?: ThemeIncludeBudget) {
+export async function readBoundedFile(
+  filePath: string,
+  budget?: ThemeIncludeBudget,
+  readBudget?: SyntaxReadBudget,
+) {
   const stats = await fs.stat(filePath)
   if (!stats.isFile()) throw new Error('Theme import source must be a file.')
   if (stats.size > IMPORT_SIZE_LIMIT_BYTES) throw new Error('Theme import exceeds the size limit.')
+  if (readBudget) chargeSyntaxReadBudget(readBudget, stats.size)
   if (budget && budget.bytes + stats.size > ARCHIVE_EXPANDED_LIMIT_BYTES) {
     throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')
   }
   const data = await fs.readFile(filePath)
+  if (readBudget && data.byteLength > stats.size) {
+    chargeSyntaxReadBudget(readBudget, data.byteLength - stats.size)
+  }
   if (budget) {
     if (budget.bytes + data.byteLength > ARCHIVE_EXPANDED_LIMIT_BYTES) {
       throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')

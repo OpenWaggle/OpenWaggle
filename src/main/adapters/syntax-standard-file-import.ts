@@ -10,13 +10,18 @@ import {
   parseTextMatePlist,
   readBoundedFile,
   resolveThemeDeclaration,
+  type SyntaxReadBudget,
 } from './syntax-resource-import-utils'
 import { normalizedTheme } from './syntax-theme-normalization'
 
-export async function parseJsonSyntaxFile(filePath: string, scope: SyntaxResourceScope) {
+export async function parseJsonSyntaxFile(
+  filePath: string,
+  scope: SyntaxResourceScope,
+  readBudget?: SyntaxReadBudget,
+) {
   const includeBudget = createThemeIncludeBudget()
   const raw = parseJsonText(
-    (await readBoundedFile(filePath, includeBudget)).toString('utf8'),
+    (await readBoundedFile(filePath, includeBudget, readBudget)).toString('utf8'),
     includeBudget,
   )
   if (!isRecord(raw)) throw new Error('Theme JSON must contain an object.')
@@ -48,7 +53,7 @@ export async function parseJsonSyntaxFile(filePath: string, scope: SyntaxResourc
       const cached = parsedByPath.get(resourcePath)
       if (cached !== undefined) return cached
       const value = parseJsonText(
-        (await readBoundedFile(resourcePath, includeBudget)).toString('utf8'),
+        (await readBoundedFile(resourcePath, includeBudget, readBudget)).toString('utf8'),
         includeBudget,
       )
       if (!isRecord(value)) throw new Error('VS Code theme declaration must contain an object.')
@@ -78,8 +83,14 @@ export async function parseJsonSyntaxFile(filePath: string, scope: SyntaxResourc
   }
 }
 
-export async function parseTextMateSyntaxFile(filePath: string, scope: SyntaxResourceScope) {
-  const raw: unknown = parseTextMatePlist((await readBoundedFile(filePath)).toString('utf8'))
+export async function parseTextMateSyntaxFile(
+  filePath: string,
+  scope: SyntaxResourceScope,
+  readBudget?: SyntaxReadBudget,
+) {
+  const raw: unknown = parseTextMatePlist(
+    (await readBoundedFile(filePath, undefined, readBudget)).toString('utf8'),
+  )
   if (isRecord(raw) && typeof raw.scopeName === 'string' && Array.isArray(raw.patterns)) {
     return {
       themes: [],

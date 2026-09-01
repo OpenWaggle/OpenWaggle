@@ -2,12 +2,15 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { SyntaxResourceCatalog, SyntaxThemeResource } from '@shared/types/syntax-resources'
+import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PROJECT_CATALOG_MAX_BYTES,
   readProjectSyntaxCatalog,
   type SyntaxSourceParser,
 } from '../syntax-resource-project-catalog'
+import { SyntaxSourceValidationError } from '../syntax-source-errors'
+import { parseSyntaxThemeSource } from '../syntax-theme-import'
 
 const EMPTY_CATALOG = {
   themes: [],
@@ -111,6 +114,77 @@ describe('project syntax catalog capacity', () => {
     expect(parseSource).not.toHaveBeenCalled()
   })
 
+  it('charges repeated reads of an include excluded by top-level resource selection', async () => {
+    const themesDirectory = path.join(projectPath, '.openwaggle', 'themes')
+    await fs.mkdir(themesDirectory, { recursive: true })
+    const childTheme = (include: string, foreground: string) =>
+      JSON.stringify({
+        name: `Child ${foreground}`,
+        include,
+        tokenColors: [{ scope: 'keyword', settings: { foreground } }],
+      })
+    await Promise.all([
+      fs.writeFile(
+        path.join(themesDirectory, '00-child-a.json'),
+        childTheme('./zz-shared-base.json', '#ff0000'),
+      ),
+      fs.writeFile(
+        path.join(themesDirectory, '01-child-b.json'),
+        childTheme('./zz-shared-base.json', '#00ff00'),
+      ),
+      ...Array.from({ length: 18 }, (_, index) =>
+        fs.writeFile(path.join(themesDirectory, `${String(index + 2).padStart(2, '0')}.json`), ''),
+      ),
+    ])
+    const paddingLength = Math.floor(PROJECT_CATALOG_MAX_BYTES / 2) + 1_024
+    await fs.writeFile(
+      path.join(themesDirectory, 'zz-shared-base.json'),
+      JSON.stringify({
+        name: 'Shared base',
+        tokenColors: [{ scope: 'string', settings: { foreground: '#0000ff' } }],
+        padding: 'x'.repeat(paddingLength),
+      }),
+    )
+
+    let caught: unknown
+    try {
+      await readProjectSyntaxCatalog(projectPath, parseSyntaxThemeSource)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toEqual(
+      expect.objectContaining({ message: expect.stringContaining('aggregate byte limit') }),
+    )
+  })
+
+  it('charges expanded VSIX resources to the project read budget', async () => {
+    const archive = new JSZip()
+    archive.file(
+      'extension/package.json',
+      JSON.stringify({
+        publisher: 'acme',
+        name: 'project-budget',
+        contributes: { themes: [{ label: 'Large', path: './themes/large.json' }] },
+      }),
+    )
+    archive.file(
+      'extension/themes/large.json',
+      JSON.stringify({
+        name: 'Large',
+        tokenColors: [{ scope: 'keyword', settings: { foreground: '#ff0000' } }],
+        padding: 'x'.repeat(PROJECT_CATALOG_MAX_BYTES + 1_024),
+      }),
+    )
+    const archivePath = path.join(projectPath, '.openwaggle', 'themes', 'large.vsix')
+    await fs.mkdir(path.dirname(archivePath), { recursive: true })
+    await fs.writeFile(archivePath, await archive.generateAsync({ type: 'nodebuffer' }))
+
+    await expect(readProjectSyntaxCatalog(projectPath, parseSyntaxThemeSource)).rejects.toThrow(
+      'aggregate byte limit',
+    )
+  })
+
   it('does not follow symlinks outside an unpacked extension during preflight', async () => {
     const outsidePath = await sparseResource('outside.json', PROJECT_CATALOG_MAX_BYTES + 1)
     const extensionPath = path.join(projectPath, '.openwaggle', 'themes', 'confined-extension')
@@ -172,7 +246,7 @@ describe('project syntax catalog capacity', () => {
     let calls = 0
     const parseSource: SyntaxSourceParser = vi.fn(async () => {
       calls += 1
-      if (calls === 1) throw new Error('Malformed project resource')
+      if (calls === 1) throw new SyntaxSourceValidationError('Malformed project resource')
       return EMPTY_CATALOG
     })
 
