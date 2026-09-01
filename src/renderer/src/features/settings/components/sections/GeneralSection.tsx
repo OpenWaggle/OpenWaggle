@@ -2,7 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { PERCENT_BASE } from '@shared/constants/math'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -102,12 +102,16 @@ function CompactionThresholdSetting() {
   const [compactionThresholdDraft, setCompactionThresholdDraft] = useState(
     String(compactionThresholdPercent),
   )
+  const [isPersistingCompactionThreshold, setIsPersistingCompactionThreshold] = useState(false)
+  const isPersistingCompactionThresholdRef = useRef(false)
 
   useEffect(() => {
     setCompactionThresholdDraft(String(compactionThresholdPercent))
   }, [compactionThresholdPercent])
 
   const commitCompactionThreshold = () => {
+    if (isPersistingCompactionThresholdRef.current) return
+
     const percent = Number(compactionThresholdDraft)
     const isValid =
       Number.isInteger(percent) &&
@@ -121,9 +125,16 @@ function CompactionThresholdSetting() {
 
     setCompactionThresholdDraft(String(percent))
     if (percent === compactionThresholdPercent) return
-    void setCompactionThresholdPercent(percent).catch(() => {
-      setCompactionThresholdDraft(String(compactionThresholdPercent))
-    })
+    isPersistingCompactionThresholdRef.current = true
+    setIsPersistingCompactionThreshold(true)
+    void setCompactionThresholdPercent(percent)
+      .catch(() => {
+        setCompactionThresholdDraft(String(compactionThresholdPercent))
+      })
+      .finally(() => {
+        isPersistingCompactionThresholdRef.current = false
+        setIsPersistingCompactionThreshold(false)
+      })
   }
 
   return (
@@ -151,6 +162,7 @@ function CompactionThresholdSetting() {
               min={MIN_COMPACTION_THRESHOLD_PERCENT}
               max={PERCENT_BASE}
               step={1}
+              disabled={isPersistingCompactionThreshold}
               value={compactionThresholdDraft}
               onChange={(event) => setCompactionThresholdDraft(event.currentTarget.value)}
               onBlur={commitCompactionThreshold}

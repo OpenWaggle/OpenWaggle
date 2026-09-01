@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UpdateStatus } from '@shared/types/updater'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Hoisted mock handles ---
@@ -32,6 +32,16 @@ import { usePreferencesStore } from '../../state/preferences-store'
 import { GeneralSection } from '../sections/GeneralSection'
 
 const setCompactionThresholdPercentMock = vi.fn()
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 
 describe('GeneralSection', () => {
   beforeEach(() => {
@@ -92,6 +102,33 @@ describe('GeneralSection', () => {
 
     expect(threshold).toHaveValue(80)
     expect(setCompactionThresholdPercentMock).not.toHaveBeenCalled()
+  })
+
+  it('serializes threshold writes so an in-flight failure cannot race a newer value', async () => {
+    const firstWrite = deferred<void>()
+    setCompactionThresholdPercentMock.mockReturnValueOnce(firstWrite.promise)
+    render(<GeneralSection />)
+
+    const threshold = screen.getByRole('spinbutton', {
+      name: 'Automatic compaction threshold',
+    })
+    fireEvent.change(threshold, { target: { value: '70' } })
+    fireEvent.blur(threshold)
+
+    expect(threshold).toBeDisabled()
+    fireEvent.change(threshold, { target: { value: '60' } })
+    fireEvent.blur(threshold)
+    expect(setCompactionThresholdPercentMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstWrite.reject(new Error('older write failed'))
+      await firstWrite.promise.catch(() => undefined)
+    })
+
+    expect(threshold).not.toBeDisabled()
+    fireEvent.change(threshold, { target: { value: '60' } })
+    fireEvent.blur(threshold)
+    expect(setCompactionThresholdPercentMock).toHaveBeenNthCalledWith(2, 60)
   })
 
   it('renders the "About & Updates" section heading', () => {
