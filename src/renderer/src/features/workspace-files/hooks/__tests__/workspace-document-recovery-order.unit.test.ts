@@ -44,6 +44,7 @@ function createRecoveryContext(file: WorkspaceTextFileReadResult) {
     latestContent: { current: 'recovered draft' },
     latestSnapshot: { current: null },
     savedContent: { current: 'disk' },
+    encoding: { current: file.fidelity.encoding },
     inFlight: { current: null },
     pending: { current: [] },
     conflict: { current: true },

@@ -31,7 +31,8 @@ export function WorkspaceFileEditor({
   }
 
   async function reopenWithEncoding(encoding: WorkspaceTextEncoding) {
-    if (editing.status !== 'saved') {
+    const discardDraft = editing.status !== 'saved'
+    if (discardDraft) {
       const confirmed = await api.showConfirm(
         'Discard the current draft and reopen this file?',
         `OpenWaggle will decode ${file.path} as ${workspaceEncodingLabel(encoding)}.`,
@@ -39,7 +40,7 @@ export function WorkspaceFileEditor({
       if (!confirmed) return
     }
     try {
-      await editing.reopenWithEncoding(encoding)
+      await editing.reopenWithEncoding(encoding, discardDraft)
     } catch (error) {
       showToast(error instanceof Error ? error.message : String(error), 'error')
     }

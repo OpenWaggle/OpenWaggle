@@ -43,6 +43,7 @@ function contextFixture(
     persistedVersion: { current: 0 },
     revision: { current: 'revision-1' },
     savedContent: { current: 'before' },
+    encoding: { current: 'utf-8' },
     saving: { current: false },
     setChangeSequence: vi.fn(),
     setContent: vi.fn(),

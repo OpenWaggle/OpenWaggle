@@ -25,6 +25,7 @@ export function acceptDiskDocument(
   context.latestContent.current = next.content
   context.latestSnapshot.current = null
   context.savedContent.current = next.content
+  context.encoding.current = next.fidelity.encoding
   context.setEditorRevision(next.revision)
   context.setContent(next.content)
   context.setSavedContent(next.content)
@@ -100,6 +101,7 @@ async function restoreWorkspaceDraftOverDiskNow(context: WorkspaceSaveQueueConte
       context.latestContent.current = latestDraft
       context.latestSnapshot.current = null
       context.savedContent.current = draft
+      context.encoding.current = saved.encoding
       context.setContent(latestDraft)
       context.setEditorRevision(saved.revision)
       context.setSavedContent(draft)

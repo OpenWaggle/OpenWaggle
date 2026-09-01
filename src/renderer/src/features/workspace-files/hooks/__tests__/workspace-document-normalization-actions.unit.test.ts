@@ -48,6 +48,7 @@ describe('workspace document normalization actions', () => {
       latestContent: { current: file.content },
       latestSnapshot: { current: () => liveContent },
       savedContent: { current: file.content },
+      encoding: { current: file.fidelity.encoding },
       saving: { current: false },
       inFlight: { current: null },
       pending: { current: [] },
@@ -78,7 +79,7 @@ describe('workspace document normalization actions', () => {
       size: file.content.length,
       modifiedAt: 3,
       revision: 'lf-revision',
-      encoding: 'utf-8',
+      encoding: 'utf-16le',
       lineEnding: 'lf',
     })
     await normalizingToLf
@@ -106,6 +107,7 @@ describe('workspace document normalization actions', () => {
         expectedRevision: 'lf-revision',
         baseVersion: 3,
         normalizeLineEnding: 'crlf',
+        targetEncoding: 'utf-16le',
         batches: [expect.objectContaining({ version: 4 })],
       }),
     )

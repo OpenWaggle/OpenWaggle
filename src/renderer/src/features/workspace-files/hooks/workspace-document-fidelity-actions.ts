@@ -41,7 +41,7 @@ async function applyWorkspaceLineEndingNormalization(
     expectedRevision: context.revision.current,
     baseVersion: context.persistedVersion.current,
     normalizeLineEnding: lineEnding,
-    targetEncoding: context.file.fidelity.encoding,
+    targetEncoding: context.encoding.current,
     batches: [
       {
         version,
@@ -61,6 +61,7 @@ async function applyWorkspaceLineEndingNormalization(
       const hasPostNormalizationEdits = latestContent !== currentContent
       context.revision.current = saved.revision
       context.persistedVersion.current = saved.version
+      context.encoding.current = saved.encoding
       context.nextVersion.current =
         saved.version + (hasPostNormalizationEdits ? POST_NORMALIZATION_NEXT_VERSION_OFFSET : 1)
       context.pending.current = hasPostNormalizationEdits
@@ -115,13 +116,14 @@ async function applyWorkspaceLineEndingNormalization(
 async function reopenWorkspaceDocumentWithEncodingNow(
   context: WorkspaceSaveQueueContext,
   encoding: WorkspaceTextEncoding,
+  discardDraft: boolean,
 ) {
   const contentBeforeReopen = captureWorkspaceDocumentSnapshot(context)
-  if (
+  const hasUnsavedDraft =
     context.conflict.current ||
     context.pending.current.length > 0 ||
     contentBeforeReopen !== context.savedContent.current
-  ) {
+  if (hasUnsavedDraft && !discardDraft) {
     persistPendingJournal(context)
     throw new Error('Save or resolve your current edits before reopening with another encoding.')
   }
@@ -141,9 +143,10 @@ async function reopenWorkspaceDocumentWithEncodingNow(
 export function reopenWorkspaceDocumentWithEncoding(
   context: WorkspaceSaveQueueContext,
   encoding: WorkspaceTextEncoding,
+  discardDraft = false,
 ) {
   return runWorkspaceQueueOperation(context, () =>
-    reopenWorkspaceDocumentWithEncodingNow(context, encoding),
+    reopenWorkspaceDocumentWithEncodingNow(context, encoding, discardDraft),
   )
 }
 
@@ -163,6 +166,7 @@ async function applyWorkspaceDocumentEncoding(
     .with('saved', (saved) => {
       context.revision.current = saved.revision
       context.persistedVersion.current = saved.version
+      context.encoding.current = saved.encoding
       context.setEncoding(saved.encoding)
       context.setLineEnding(saved.lineEnding)
       context.setStatus('saved')

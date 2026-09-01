@@ -53,6 +53,7 @@ describe('workspace document fidelity actions', () => {
       latestContent: { current: file.content },
       latestSnapshot: { current: () => file.content },
       savedContent: { current: file.content },
+      encoding: { current: file.fidelity.encoding },
       inFlight: { current: null },
       pending: { current: [] },
       conflict: { current: false },
@@ -95,7 +96,7 @@ describe('workspace document fidelity actions', () => {
     )
   })
 
-  it('serializes encoding selections so the latest selection wins', async () => {
+  it('serializes confirmed draft-discard selections so the latest encoding wins', async () => {
     const firstRead = Promise.withResolvers<WorkspaceFileReadResult>()
     const secondRead = Promise.withResolvers<WorkspaceFileReadResult>()
     const file = fromPartial<WorkspaceTextFileReadResult>({
@@ -115,11 +116,19 @@ describe('workspace document fidelity actions', () => {
       revision: { current: file.revision },
       persistedVersion: { current: file.documentVersion },
       nextVersion: { current: file.documentVersion + 1 },
-      latestContent: { current: file.content },
+      latestContent: { current: 'unsaved draft' },
       latestSnapshot: { current: null },
       savedContent: { current: file.content },
+      encoding: { current: file.fidelity.encoding },
       inFlight: { current: null },
-      pending: { current: [] },
+      pending: {
+        current: [
+          {
+            version: file.documentVersion + 1,
+            changes: [{ rangeOffset: 0, rangeLength: file.content.length, text: 'unsaved draft' }],
+          },
+        ],
+      },
       conflict: { current: false },
       mounted: { current: true },
       setContent,
@@ -136,9 +145,9 @@ describe('workspace document fidelity actions', () => {
       .mockReturnValueOnce(firstRead.promise)
       .mockReturnValueOnce(secondRead.promise)
 
-    const selectingUtf16 = reopenWorkspaceDocumentWithEncoding(context, 'utf-16le')
+    const selectingUtf16 = reopenWorkspaceDocumentWithEncoding(context, 'utf-16le', true)
     await vi.waitFor(() => expect(readWorkspaceFileWithEncoding).toHaveBeenCalledOnce())
-    const selectingUtf8Bom = reopenWorkspaceDocumentWithEncoding(context, 'utf-8-bom')
+    const selectingUtf8Bom = reopenWorkspaceDocumentWithEncoding(context, 'utf-8-bom', true)
     expect(readWorkspaceFileWithEncoding).toHaveBeenCalledOnce()
     firstRead.resolve(
       fromPartial<WorkspaceTextFileReadResult>({
@@ -186,6 +195,7 @@ describe('workspace document fidelity actions', () => {
       latestContent: { current: file.content },
       latestSnapshot: { current: () => liveContent },
       savedContent: { current: file.content },
+      encoding: { current: file.fidelity.encoding },
       saving: { current: false },
       inFlight: { current: null },
       pending: { current: [] },

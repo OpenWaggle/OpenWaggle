@@ -37,6 +37,7 @@ export interface WorkspaceSaveQueueContext {
   readonly latestContent: MutableCell<string>
   readonly latestSnapshot: MutableCell<(() => string) | null>
   readonly savedContent: MutableCell<string>
+  readonly encoding: MutableCell<WorkspaceTextFileReadResult['fidelity']['encoding']>
   readonly saving: MutableCell<boolean>
   readonly inFlight: MutableCell<Promise<void> | null>
   readonly pending: MutableCell<WorkspaceDocumentEditBatch[]>
@@ -256,6 +257,7 @@ async function flushWorkspaceEditLoop(context: WorkspaceSaveQueueContext) {
           context.revision.current = savedResult.revision
           context.persistedVersion.current = savedResult.version
           context.savedContent.current = savingContent
+          context.encoding.current = savedResult.encoding
           if (context.mounted.current) context.setSavedContent(savingContent)
           cacheSavedWorkspaceFile(context, savingContent, savedResult)
           if (context.mounted.current) {

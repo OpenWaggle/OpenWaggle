@@ -52,6 +52,7 @@ function useSaveQueueValues(projectPath: string, file: WorkspaceTextFileReadResu
   const latestContent = useRef(initial.content)
   const latestSnapshot = useRef<(() => string) | null>(null)
   const savedContentRef = useRef(file.content)
+  const encodingRef = useRef(file.fidelity.encoding)
   const saving = useRef(false)
   const inFlight = useRef<Promise<void> | null>(null)
   const pending = useRef(initial.batches)
@@ -67,6 +68,7 @@ function useSaveQueueValues(projectPath: string, file: WorkspaceTextFileReadResu
     latestContent,
     latestSnapshot,
     savedContent: savedContentRef,
+    encoding: encodingRef,
     saving,
     inFlight,
     pending,
@@ -123,6 +125,7 @@ function useSaveQueueLifecycle(context: WorkspaceSaveQueueContext, changeSequenc
     context.latestContent.current = file.content
     context.latestSnapshot.current = null
     context.savedContent.current = file.content
+    context.encoding.current = file.fidelity.encoding
     context.setEditorRevision(file.revision)
     context.setContent(file.content)
     context.setSavedContent(file.content)
@@ -183,8 +186,8 @@ export function useWorkspaceFileSaveQueue(projectPath: string, file: WorkspaceTe
     handleChange: (changes: readonly WorkspaceDocumentChange[], readSource: () => string) =>
       recordWorkspaceDocumentChange(context, changes, readSource),
     reloadFromDisk: () => reloadWorkspaceDocument(context),
-    reopenWithEncoding: (encoding: WorkspaceTextEncoding) =>
-      reopenWorkspaceDocumentWithEncoding(context, encoding),
+    reopenWithEncoding: (encoding: WorkspaceTextEncoding, discardDraft = false) =>
+      reopenWorkspaceDocumentWithEncoding(context, encoding, discardDraft),
     saveWithEncoding: (encoding: WorkspaceTextEncoding) =>
       saveWorkspaceDocumentWithEncoding(context, encoding),
     lineEnding: state.lineEnding,
