@@ -142,16 +142,16 @@ export class OpenWaggleApp {
       evidenceError = error
     } finally {
       if (options.forceProcessTermination) {
-        await this.forceCloseForCleanup()
+        this.forceCloseForCleanup()
       } else {
         await this.closeForCleanup()
+        await fs.rm(this.userDataDir, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 250,
+        })
       }
-      await fs.rm(this.userDataDir, {
-        recursive: true,
-        force: true,
-        maxRetries: 10,
-        retryDelay: 250,
-      })
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)
@@ -164,20 +164,21 @@ export class OpenWaggleApp {
     if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return
 
     console.warn('[electron-qa] graceful close timed out; terminating the temporary test app')
-    await this.terminateProcessTree()
+    this.terminateProcessTree()
     await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
   }
 
-  private async forceCloseForCleanup(): Promise<void> {
-    console.warn('[electron-qa] force-terminating the temporary test app before closing Playwright')
-    await this.terminateProcessTree()
-    await completesWithin(this.close().catch(() => undefined), QA_FORCED_CLOSE_WAIT_MS)
+  private forceCloseForCleanup(): void {
+    console.warn(
+      `[electron-qa] force-terminating the temporary test app; retaining disposable profile ${this.userDataDir}`,
+    )
+    this.terminateProcessTree()
   }
 
-  private async terminateProcessTree(): Promise<void> {
+  private terminateProcessTree(): void {
     const childProcess = this.app.process()
     try {
-      childProcess.kill()
+      childProcess.kill('SIGKILL')
     } catch {
       // The process may have exited while cleanup was capturing evidence.
     }
