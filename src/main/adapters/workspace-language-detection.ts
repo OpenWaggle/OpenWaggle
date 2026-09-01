@@ -9,8 +9,14 @@ interface AssociationCacheEntry {
 
 const associationCache = new Map<string, AssociationCacheEntry>()
 const GLOBSTAR_DIRECTORY_END_OFFSET = 2
-const MAX_ASSOCIATION_MATCH_STEPS = 256
+const MAX_ASSOCIATION_BRACE_ALTERNATIVES = 256
+const MAX_ASSOCIATION_SIMPLE_PATTERNS = 256
 const MAX_VSCODE_SETTINGS_BYTES = 1024 * 1024
+
+interface AssociationMatchBudget {
+  remainingBraceAlternatives: number
+  remainingSimplePatterns: number
+}
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -78,29 +84,43 @@ function globRegularExpression(glob: string) {
   }
 }
 
+function matchesRegularAssociationPattern(
+  glob: string,
+  candidate: string,
+  budget: AssociationMatchBudget,
+  expanded: boolean,
+) {
+  if (!expanded) {
+    if (budget.remainingSimplePatterns <= 0) return false
+    budget.remainingSimplePatterns -= 1
+  }
+  return globRegularExpression(glob)?.test(candidate) ?? false
+}
+
 function matchesAssociationPattern(
   glob: string,
   candidate: string,
-  budget: { remaining: number },
+  budget: AssociationMatchBudget,
+  expanded = false,
 ): boolean {
   const opening = glob.indexOf('{')
-  if (opening < 0) return globRegularExpression(glob)?.test(candidate) ?? false
+  if (opening < 0) return matchesRegularAssociationPattern(glob, candidate, budget, expanded)
   const closing = glob.indexOf('}', opening + 1)
-  if (closing < 0) return globRegularExpression(glob)?.test(candidate) ?? false
+  if (closing < 0) return matchesRegularAssociationPattern(glob, candidate, budget, expanded)
   const alternatives = glob.slice(opening + 1, closing).split(',')
   if (alternatives.length <= 1 || alternatives.some((alternative) => !alternative)) {
-    return globRegularExpression(glob)?.test(candidate) ?? false
+    return matchesRegularAssociationPattern(glob, candidate, budget, expanded)
   }
   const prefix = glob.slice(0, opening)
   const suffix = glob.slice(closing + 1)
   return alternatives.some((alternative) => {
-    if (budget.remaining <= 0) return false
-    budget.remaining -= 1
-    return matchesAssociationPattern(`${prefix}${alternative}${suffix}`, candidate, budget)
+    if (budget.remainingBraceAlternatives <= 0) return false
+    budget.remainingBraceAlternatives -= 1
+    return matchesAssociationPattern(`${prefix}${alternative}${suffix}`, candidate, budget, true)
   })
 }
 
-function matchesAssociation(glob: string, candidate: string, budget: { remaining: number }) {
+function matchesAssociation(glob: string, candidate: string, budget: AssociationMatchBudget) {
   return matchesAssociationPattern(glob, candidate, budget)
 }
 
@@ -141,7 +161,10 @@ export async function vscodeLanguageAssociation(projectRoot: string, relativePat
   const normalized = relativePath.replaceAll('\\', '/')
   const basename = normalized.slice(normalized.lastIndexOf('/') + 1)
   const associations = await vscodeAssociations(projectRoot)
-  const matchBudget = { remaining: MAX_ASSOCIATION_MATCH_STEPS }
+  const matchBudget = {
+    remainingBraceAlternatives: MAX_ASSOCIATION_BRACE_ALTERNATIVES,
+    remainingSimplePatterns: MAX_ASSOCIATION_SIMPLE_PATTERNS,
+  }
   for (const [glob, language] of Object.entries(associations)) {
     const candidate = glob.includes('/') ? normalized : basename
     if (matchesAssociation(glob, candidate, matchBudget)) return language

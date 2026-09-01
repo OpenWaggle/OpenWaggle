@@ -9,6 +9,7 @@ import {
   workspaceFilePreviewKind,
 } from './workspace-file-content'
 import { resolveExistingWorkspaceFile } from './workspace-file-paths'
+import { vscodeLanguageAssociation } from './workspace-language-detection'
 
 const FILE_KIND_SAMPLE_BYTES = 8 * 1024
 const TEXT_ENCODING_MARKER_BYTES = 3
@@ -99,6 +100,9 @@ export async function readWorkspaceFilePage(input: {
     }
     const decoded = decodeCompletePage(pageBuffer, marker.encoding)
     const endOffset = decodeOffset + decoded.bytesDecoded
+    const language =
+      (await vscodeLanguageAssociation(resolved.projectRoot, resolved.relativePath)) ??
+      LANGUAGE_BY_EXTENSION[extension]
     return {
       path: resolved.relativePath,
       size: resolved.stats.size,
@@ -107,7 +111,7 @@ export async function readWorkspaceFilePage(input: {
       nextOffset: endOffset < resolved.stats.size ? endOffset : null,
       content: decoded.content,
       encoding: marker.encoding,
-      ...(LANGUAGE_BY_EXTENSION[extension] ? { language: LANGUAGE_BY_EXTENSION[extension] } : {}),
+      ...(language ? { language } : {}),
     }
   } finally {
     await handle.close()

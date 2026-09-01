@@ -145,6 +145,7 @@ describe('FilesystemWorkspaceFileLive', () => {
     await fs.mkdir(path.join(projectPath, 'config'), { recursive: true })
     await fs.writeFile(path.join(projectPath, 'src', 'ocean.theme'), 'export const blue = true\n')
     await fs.writeFile(path.join(projectPath, 'src', 'math.spec'), 'export const sum = 2\n')
+    await fs.writeFile(path.join(projectPath, 'src', 'large.theme'), 'x'.repeat(1024 * 1024 + 1))
     await fs.writeFile(path.join(projectPath, 'page.templ'), '<main>Root</main>\n')
     await fs.writeFile(path.join(projectPath, 'src', 'page.templ'), '<main>Nested</main>\n')
     await fs.writeFile(path.join(projectPath, 'config', 'app.conf'), 'enabled = true\n')
@@ -164,12 +165,20 @@ describe('FilesystemWorkspaceFileLive', () => {
     const nestedTemplate = await runWithWorkspaceFiles((service) =>
       service.readFile({ projectPath, path: 'src/page.templ' }),
     )
+    const largeTheme = await runWithWorkspaceFiles((service) =>
+      service.readFile({ projectPath, path: 'src/large.theme' }),
+    )
+    const largeThemePage = await runWithWorkspaceFiles((service) =>
+      service.readPage({ projectPath, path: 'src/large.theme', offset: 0, limit: 64 }),
+    )
 
     expect(theme).toMatchObject({ previewKind: 'text', language: 'typescript' })
     expect(config).toMatchObject({ previewKind: 'text', language: 'toml' })
     expect(testFile).toMatchObject({ previewKind: 'text', language: 'javascript' })
     expect(rootTemplate).toMatchObject({ previewKind: 'text', language: 'html' })
     expect(nestedTemplate).toMatchObject({ previewKind: 'text', language: 'html' })
+    expect(largeTheme).toMatchObject({ previewKind: 'oversized', language: 'typescript' })
+    expect(largeThemePage).toMatchObject({ language: 'typescript' })
   })
 
   it('infers extensionless scripts from their shebang', async () => {

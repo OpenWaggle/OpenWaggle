@@ -5,9 +5,12 @@ import { api } from '@/shared/lib/ipc'
 import { removeDraftJournal } from '../lib/workspace-draft-journal'
 import {
   captureWorkspaceDocumentSnapshot,
+  persistPendingJournal,
   preserveFailedDraft,
   type WorkspaceSaveQueueContext,
 } from './workspace-save-queue'
+
+const POST_RESTORE_NEXT_VERSION_OFFSET = 2
 
 export function acceptDiskDocument(
   context: WorkspaceSaveQueueContext,
@@ -66,20 +69,38 @@ export async function restoreWorkspaceDraftOverDisk(context: WorkspaceSaveQueueC
   })
   matchBy(result, 'status')
     .with('saved', (saved) => {
+      const latestDraft = captureWorkspaceDocumentSnapshot(context)
+      const hasPostRestoreEdits = latestDraft !== draft
       context.revision.current = saved.revision
       context.persistedVersion.current = saved.version
-      context.nextVersion.current = saved.version + 1
-      context.pending.current = []
+      context.nextVersion.current =
+        saved.version + (hasPostRestoreEdits ? POST_RESTORE_NEXT_VERSION_OFFSET : 1)
+      context.pending.current = hasPostRestoreEdits
+        ? [
+            {
+              version: saved.version + 1,
+              changes: [{ rangeOffset: 0, rangeLength: draft.length, text: latestDraft }],
+            },
+          ]
+        : []
       context.conflict.current = false
+      context.latestContent.current = latestDraft
+      context.latestSnapshot.current = null
       context.savedContent.current = draft
+      context.setContent(latestDraft)
       context.setEditorRevision(saved.revision)
       context.setSavedContent(draft)
       context.setEncoding(saved.encoding)
       context.setLineEnding(saved.lineEnding)
-      context.setStatus('saved')
+      context.setStatus(hasPostRestoreEdits ? 'dirty' : 'saved')
       context.setErrorMessage(null)
       context.setConflictDiskContent(null)
-      removeDraftJournal(window.localStorage, context.projectPath, context.file.path)
+      if (hasPostRestoreEdits) {
+        persistPendingJournal(context)
+        context.setChangeSequence((current) => current + 1)
+      } else {
+        removeDraftJournal(window.localStorage, context.projectPath, context.file.path)
+      }
       context.queryClient.setQueryData(
         queryKeys.workspaceFile(context.projectPath, context.file.path),
         {

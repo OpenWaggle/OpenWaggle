@@ -7,6 +7,7 @@ import { vscodeLanguageAssociation } from '../workspace-language-detection'
 const REPEATED_BRACE_GROUPS = 25
 const ASSOCIATION_STRESS_COUNT = 4_000
 const SINGLE_BRACE_ALTERNATIVE_COUNT = 100_000
+const SIMPLE_ASSOCIATION_STRESS_COUNT = 50_000
 
 describe('workspace language detection', () => {
   let projectPath = ''
@@ -71,6 +72,21 @@ describe('workspace language detection', () => {
     )
 
     await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).resolves.toBe('html')
+  })
+
+  it('bounds regex work across large lists of simple association patterns', async () => {
+    const simpleAssociations = Object.fromEntries(
+      Array.from({ length: SIMPLE_ASSOCIATION_STRESS_COUNT }, (_, index) => [
+        `x${String(index)}`,
+        'p',
+      ]),
+    )
+    await fs.writeFile(
+      path.join(projectPath, '.vscode', 'settings.json'),
+      JSON.stringify({ 'files.associations': simpleAssociations }),
+    )
+
+    await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).resolves.toBeNull()
   })
 
   it('skips malformed character-class ranges and continues to later associations', async () => {

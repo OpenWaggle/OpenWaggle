@@ -121,7 +121,9 @@ async function textReadResult(input: {
 async function oversizedReadResult(input: {
   readonly base: WorkspaceFileReadBase
   readonly extension: string
+  readonly projectRoot: string
   readonly realFilePath: string
+  readonly relativePath: string
 }): Promise<WorkspaceFileReadResult> {
   const handle = await fs.open(input.realFilePath, 'r')
   const sample = Buffer.alloc(Math.min(FILE_KIND_SAMPLE_BYTES, input.base.size))
@@ -143,13 +145,14 @@ async function oversizedReadResult(input: {
       reason: 'This binary file is too large to preview safely in memory.',
     }
   }
+  const language =
+    (await vscodeLanguageAssociation(input.projectRoot, input.relativePath)) ??
+    LANGUAGE_BY_EXTENSION[input.extension]
   return {
     ...input.base,
     previewKind: 'oversized',
     reason: 'This text file is larger than 1 MiB. Browse it in paged source view.',
-    ...(LANGUAGE_BY_EXTENSION[input.extension]
-      ? { language: LANGUAGE_BY_EXTENSION[input.extension] }
-      : {}),
+    ...(language ? { language } : {}),
   }
 }
 
@@ -178,7 +181,9 @@ export async function readWorkspaceFile(
     return oversizedReadResult({
       base,
       extension,
+      projectRoot: resolved.projectRoot,
       realFilePath: resolved.realFilePath,
+      relativePath: resolved.relativePath,
     })
   }
   const data = await fs.readFile(resolved.realFilePath)
