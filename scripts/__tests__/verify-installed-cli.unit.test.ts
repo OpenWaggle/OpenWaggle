@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   assertInstalledCliResponse,
+  InstalledCliProcessTreeExitUnprovenError,
   runInstalledCli,
   verifyInstalledCli,
 } from '../verify-installed-cli'
@@ -112,5 +113,32 @@ describe('installed CLI verification', () => {
         shutdownAndRemoveProfile: async () => Promise.reject(cleanupFailure),
       }),
     ).rejects.toMatchObject({ errors: [cliFailure, cleanupFailure] })
+  })
+
+  it('drains but retains the profile when process-tree exit is unproven', async () => {
+    const cleanupFailure = new Error('process tree remains alive')
+    const cliFailure = new InstalledCliProcessTreeExitUnprovenError(
+      [new Error('CLI timeout'), cleanupFailure],
+      'tree exit unproven',
+    )
+    const shutdownProfile = vi.fn(async () => undefined)
+    const shutdownAndRemoveProfile = vi.fn(async () => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(
+        verifyInstalledCli('/installed/openwaggle', 'win32', {
+          createProfile: async () => 'D:\\retained-profile',
+          runCli: async () => Promise.reject(cliFailure),
+          shutdownProfile,
+          shutdownAndRemoveProfile,
+        }),
+      ).rejects.toBe(cliFailure)
+    } finally {
+      error.mockRestore()
+    }
+
+    expect(shutdownProfile).toHaveBeenCalledWith('D:\\retained-profile')
+    expect(shutdownAndRemoveProfile).not.toHaveBeenCalled()
   })
 })

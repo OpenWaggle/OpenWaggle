@@ -1,4 +1,4 @@
-export const SESSION_HOST_SCHEMA_REVISION = 6
+export const SESSION_HOST_SCHEMA_REVISION = 7
 export const SESSION_HOST_BASELINE_MIGRATION_ID = 26
 export const SESSION_HOST_BASELINE_MIGRATION_NAME = 'session-host-v2-target-schema'
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v6'

@@ -107,23 +107,9 @@ export function sessionExportOperationSummary(
   options: { readonly includeQueueBodies: boolean },
 ): SessionExportOperationSummary {
   const manifest = record.manifest
-    ? {
-        ...record.manifest,
-        queue: options.includeQueueBodies
-          ? record.manifest.queue
-          : {
-              ...record.manifest.queue,
-              bodyScope: 'omitted-by-choice' as const,
-              omittedBodyCount:
-                record.manifest.queue.omittedBodyCount +
-                record.manifest.queue.items.filter((item) => item.intent !== undefined).length,
-              items: record.manifest.queue.items.map((item) => {
-                const { intent, ...metadata } = item
-                void intent
-                return metadata
-              }),
-            },
-      }
+    ? options.includeQueueBodies
+      ? record.manifest
+      : sessionExportManifestWithoutQueueBodies(record.manifest)
     : undefined
   return {
     exportOperationId: record.exportOperationId,
@@ -141,5 +127,25 @@ export function sessionExportOperationSummary(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(record.completedAt === undefined ? {} : { completedAt: record.completedAt }),
+  }
+}
+
+export function sessionExportManifestWithoutQueueBodies(
+  manifest: NonNullable<SessionExportOperationRecord['manifest']>,
+) {
+  return {
+    ...manifest,
+    queue: {
+      ...manifest.queue,
+      bodyScope: 'omitted-by-choice' as const,
+      omittedBodyCount:
+        manifest.queue.omittedBodyCount +
+        manifest.queue.items.filter((item) => item.intent !== undefined).length,
+      items: manifest.queue.items.map((item) => {
+        const { intent, ...metadata } = item
+        void intent
+        return metadata
+      }),
+    },
   }
 }

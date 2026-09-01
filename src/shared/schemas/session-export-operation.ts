@@ -133,7 +133,12 @@ export const exportListQuerySchema = Schema.Struct({
   sessionId: Schema.String,
   limit: Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_EXPORT_OPERATION_QUERY_LIMIT)),
   cursor: Schema.optional(boundedCursor),
-  statuses: Schema.optional(Schema.Array(exportOperationStatusSchema).pipe(Schema.minItems(1))),
+  statuses: Schema.optional(
+    Schema.Array(exportOperationStatusSchema).pipe(
+      Schema.minItems(1),
+      Schema.maxItems(SESSION_EXPORT_OPERATION_STATUSES.length),
+    ),
+  ),
   includeQueueBodies: Schema.optional(Schema.Boolean),
 })
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { sessionsToolExportOperationParameters } from '../sessions-tool-export-operation-parameters'
 import { buildSessionsToolExportOperationPayload } from '../sessions-tool-export-operation-payload'
 
 describe('Sessions tool durable export selection', () => {
+  it('advertises every durable export status, including installation', () => {
+    expect(JSON.stringify(sessionsToolExportOperationParameters)).toContain('installing')
+  })
+
   it('propagates explicit queue-body access to export history reads', () => {
     expect(
       buildSessionsToolExportOperationPayload(

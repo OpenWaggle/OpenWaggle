@@ -69,9 +69,11 @@ Usage:
     [--scope active-branch|tree] [--branch <branch-id>] [--include-queue-bodies]
     [--resource <relative-path>]... [--overwrite]
   openwaggle sessions export list <session-id> [--status <status>]... [--limit <n>] [--cursor <cursor>]
-  openwaggle sessions export read|cancel <session-id> <export-operation-id>
+    [--include-queue-bodies]
+  openwaggle sessions export read <session-id> <export-operation-id> [--include-queue-bodies]
+  openwaggle sessions export cancel <session-id> <export-operation-id>
   openwaggle sessions export wait <session-id> <export-operation-id> --timeout-ms <ms>
-    [--after-host <id> --after-sequence <n>]
+    [--after-host <id> --after-sequence <n>] [--include-queue-bodies]
   openwaggle sessions export watch <session-id> [export-operation-id]
     [--after-host <id> --after-sequence <n>]
   openwaggle sessions status <session-id>

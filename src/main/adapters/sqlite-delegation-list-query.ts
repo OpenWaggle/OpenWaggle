@@ -21,9 +21,10 @@ export function listDelegations(
   const workingPath = request.query.workingPath ?? null
   const workerSessionId = request.query.workerSessionId ?? null
   const statesSelected = request.query.states?.length ? 1 : 0
-  const states: readonly DelegationState[] = request.query.states?.length
+  const requestedStates: readonly DelegationState[] = request.query.states?.length
     ? request.query.states
     : ['working']
+  const states: readonly DelegationState[] = [...new Set(requestedStates)]
   const cursorUpdatedAt = cursor?.updatedAt ?? null
   const cursorDelegationId = cursor?.delegationId ?? null
   return Effect.gen(function* () {

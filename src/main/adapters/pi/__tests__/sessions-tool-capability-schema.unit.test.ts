@@ -51,6 +51,17 @@ describe('Sessions tool capability schema', () => {
     expect(actions).toContain('exports_list')
     expect(actions).toContain('exports_read')
     expect(actions).toContain('exports_wait')
+
+    const exportOnly = exposedActions(
+      sessionsToolSchemaForCapabilities({
+        capabilities: ['sessions:export'],
+        modelMultiAgentEnabled: true,
+      }),
+    )
+    expect(exportOnly).toContain('export_cancel')
+    expect(exportOnly).not.toContain('exports_list')
+    expect(exportOnly).not.toContain('exports_read')
+    expect(exportOnly).not.toContain('exports_wait')
   })
 
   it('removes model spawning without disabling unrelated Session operations', () => {

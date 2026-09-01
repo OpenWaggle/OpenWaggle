@@ -54,9 +54,9 @@ const REQUIRED_CAPABILITIES = new Map<string, readonly SessionCapability[]>([
   ['export', ['sessions:export', 'sessions:read']],
   ['export_create', ['sessions:export', 'sessions:read']],
   ['export_cancel', ['sessions:export']],
-  ['exports_list', ['sessions:export']],
-  ['exports_read', ['sessions:export']],
-  ['exports_wait', ['sessions:export']],
+  ['exports_list', ['sessions:export', 'sessions:read']],
+  ['exports_read', ['sessions:export', 'sessions:read']],
+  ['exports_wait', ['sessions:export', 'sessions:read']],
   ['wait', ['sessions:read']],
 ])
 

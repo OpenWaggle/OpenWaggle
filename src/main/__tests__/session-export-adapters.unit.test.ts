@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
-import { buildMcpSessionPayloadV2 } from '../openwaggle-mcp-session-input-v2'
+import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from '../openwaggle-mcp-session-input-v2'
 import { buildSessionsCliPayload } from '../sessions-cli'
 
 describe('Session export adapters', () => {
@@ -103,15 +103,50 @@ describe('Session export adapters', () => {
     ).toMatchObject({ request: { command: { operation: 'export-cancel' } } })
   })
 
-  it('maps explicit queue-body access through MCP export history', () => {
-    expect(
-      buildMcpSessionPayloadV2({
-        operation: 'exports-read',
+  it.each(['exports-list', 'exports-read', 'exports-wait'] as const)(
+    'maps explicit queue-body access through the public MCP %s schema',
+    (operation) => {
+      const input = sessionInputSchemaV2.parse({
+        operation,
         sessionId: 'worker',
-        exportOperationId: 'export-1',
+        ...(operation === 'exports-list' ? {} : { exportOperationId: 'export-1' }),
+        ...(operation === 'exports-wait' ? { timeoutMs: 1_000 } : {}),
         includeQueueBodies: true,
-      }),
-    ).toMatchObject({
+      })
+      expect(buildMcpSessionPayloadV2(input)).toMatchObject({
+        request: {
+          query: {
+            operation,
+            sessionId: 'worker',
+            includeQueueBodies: true,
+          },
+        },
+      })
+    },
+  )
+
+  it.each(['list', 'export-cancel'] as const)(
+    'rejects queue-body access on unrelated MCP %s inputs',
+    (operation) => {
+      expect(
+        sessionInputSchemaV2.safeParse({
+          operation,
+          sessionId: 'worker',
+          exportOperationId: 'export-1',
+          includeQueueBodies: true,
+        }).success,
+      ).toBe(false)
+    },
+  )
+
+  it('maps an explicit MCP export-history read after strict parsing', () => {
+    const input = sessionInputSchemaV2.parse({
+      operation: 'exports-read',
+      sessionId: 'worker',
+      exportOperationId: 'export-1',
+      includeQueueBodies: true,
+    })
+    expect(buildMcpSessionPayloadV2(input)).toMatchObject({
       request: {
         query: {
           operation: 'exports-read',

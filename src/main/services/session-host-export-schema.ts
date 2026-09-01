@@ -23,6 +23,7 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
     snapshot_state_revision INTEGER,
     snapshot_captured_at INTEGER,
     manifest_json TEXT,
+    manifest_summary_json TEXT,
     artifact_sha256 TEXT,
     artifact_size_bytes INTEGER CHECK (artifact_size_bytes IS NULL OR artifact_size_bytes >= 0),
     records_written INTEGER NOT NULL DEFAULT 0 CHECK (records_written >= 0),
@@ -38,9 +39,11 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
     UNIQUE (caller_id, session_id, idempotency_key),
     CHECK (
       (snapshot_high_water_mark IS NULL AND snapshot_state_revision IS NULL
-        AND snapshot_captured_at IS NULL AND manifest_json IS NULL)
+        AND snapshot_captured_at IS NULL AND manifest_json IS NULL
+        AND manifest_summary_json IS NULL)
       OR (snapshot_high_water_mark IS NOT NULL AND snapshot_state_revision IS NOT NULL
-        AND snapshot_captured_at IS NOT NULL AND manifest_json IS NOT NULL)
+        AND snapshot_captured_at IS NOT NULL AND manifest_json IS NOT NULL
+        AND manifest_summary_json IS NOT NULL)
     ),
     CHECK (
       (artifact_sha256 IS NULL AND artifact_size_bytes IS NULL)
@@ -51,6 +54,16 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
       OR (status IN ('queued', 'running', 'installing', 'cancelling') AND completed_at IS NULL)
     )
   )
+  `,
+  `
+  CREATE VIEW session_export_operation_summaries AS
+  SELECT id, caller_id, session_id, idempotency_key, format, destination_path,
+    destination_root, resource_source_root, temporary_path, overwrite_existing,
+    branch_scope, branch_id, include_queue_bodies, resources_json, status,
+    manifest_summary_json AS manifest_json, artifact_sha256, artifact_size_bytes,
+    records_written, resources_written, bytes_written, cancel_requested, execution_token,
+    cleanup_pending, error_json, created_at, updated_at, completed_at
+  FROM session_export_operations
   `,
   `
   CREATE INDEX idx_session_export_operations_session_updated

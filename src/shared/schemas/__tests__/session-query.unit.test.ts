@@ -1,4 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { DELEGATION_STATES } from '../../types/session-collaboration'
+import {
+  DELEGATION_CONFLICT_KINDS,
+  DELEGATION_CONFLICT_STATUSES,
+} from '../../types/session-delegation-query'
+import { SESSION_EXPORT_OPERATION_STATUSES } from '../../types/session-export-operation'
 import {
   SESSION_QUERY_MAX_CURSOR_LENGTH,
   SESSION_QUERY_MAX_PATH_LENGTH,
@@ -157,6 +163,44 @@ describe('Session query v2 boundary', () => {
       exportOperationId: 'export-1',
       includeQueueBodies: true,
     })
+  })
+
+  it('rejects duplicate finite filters beyond their enum cardinality', () => {
+    const request = (query: Record<string, unknown>) => ({
+      contractVersion: 2,
+      requestId: 'bounded-filter',
+      query,
+    })
+
+    expect(() =>
+      decodeSessionQueryRequest(
+        request({
+          operation: 'exports-list',
+          sessionId: 'session-1',
+          limit: 20,
+          statuses: Array(SESSION_EXPORT_OPERATION_STATUSES.length + 1).fill('running'),
+        }),
+      ),
+    ).toThrow()
+    expect(() =>
+      decodeSessionQueryRequest(
+        request({
+          operation: 'delegations-list',
+          limit: 20,
+          states: Array(DELEGATION_STATES.length + 1).fill('working'),
+        }),
+      ),
+    ).toThrow()
+    expect(() =>
+      decodeSessionQueryRequest(
+        request({
+          operation: 'delegations-conflicts',
+          limit: 20,
+          kinds: Array(DELEGATION_CONFLICT_KINDS.length + 1).fill('live-overlap'),
+          statuses: Array(DELEGATION_CONFLICT_STATUSES.length + 1).fill('unacknowledged'),
+        }),
+      ),
+    ).toThrow()
   })
 
   it('decodes bounded multi-Session waits and requires the selected revision threshold', () => {

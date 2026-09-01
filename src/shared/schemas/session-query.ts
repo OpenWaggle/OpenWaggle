@@ -1,5 +1,6 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
+import { DELEGATION_STATES } from '@shared/types/session-collaboration'
 import {
   DELEGATION_CONFLICT_KINDS,
   DELEGATION_CONFLICT_STATUSES,
@@ -126,7 +127,9 @@ const sessionQuerySchema = Schema.Union(
     workingPath: Schema.optional(pathValue),
     parentSessionId: Schema.optional(Schema.String),
     workerSessionId: Schema.optional(Schema.String),
-    states: Schema.optional(Schema.Array(delegationStateSchema)),
+    states: Schema.optional(
+      Schema.Array(delegationStateSchema).pipe(Schema.maxItems(DELEGATION_STATES.length)),
+    ),
   }),
   Schema.Struct({
     operation: Schema.Literal('delegations-read'),
@@ -145,8 +148,16 @@ const sessionQuerySchema = Schema.Union(
     parentSessionId: Schema.optional(Schema.String),
     workerSessionId: Schema.optional(Schema.String),
     delegationId: Schema.optional(Schema.String),
-    kinds: Schema.optional(Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_KINDS))),
-    statuses: Schema.optional(Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_STATUSES))),
+    kinds: Schema.optional(
+      Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_KINDS)).pipe(
+        Schema.maxItems(DELEGATION_CONFLICT_KINDS.length),
+      ),
+    ),
+    statuses: Schema.optional(
+      Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_STATUSES)).pipe(
+        Schema.maxItems(DELEGATION_CONFLICT_STATUSES.length),
+      ),
+    ),
   }),
   Schema.Struct({
     operation: Schema.Literal('wait'),

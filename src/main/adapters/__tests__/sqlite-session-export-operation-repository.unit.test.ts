@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionExportManifest } from '@shared/types/session-export'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -21,10 +22,18 @@ const manifest: SessionExportManifest = {
   activeTurnIncomplete: false,
   queue: {
     state: 'running',
-    pendingCount: 0,
-    bodyScope: 'omitted-by-choice',
+    pendingCount: 1,
+    bodyScope: 'included',
     omittedBodyCount: 0,
-    items: [],
+    items: [
+      {
+        followUpId: 'follow-up-1',
+        position: 0,
+        createdAt: 19,
+        deliveryState: 'pending',
+        intent: { text: 'stored queue body' },
+      },
+    ],
   },
 }
 
@@ -106,6 +115,21 @@ describe('SQLite Session export operation repository', () => {
       progress: { recordsWritten: 12, resourcesWritten: 0, bytesWritten: 2048 },
       completedAt: 14,
     })
+    const persisted = await active.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{
+          readonly manifest_json: string
+          readonly manifest_summary_json: string
+        }>`
+          SELECT manifest_json, manifest_summary_json
+          FROM session_export_operations
+          WHERE id = ${result.created.operation.exportOperationId}
+        `
+      }),
+    )
+    expect(persisted[0]?.manifest_json).toContain('stored queue body')
+    expect(persisted[0]?.manifest_summary_json).not.toContain('stored queue body')
   })
 
   it('turns running exports back into queued work and finishes requested cancellation', async () => {

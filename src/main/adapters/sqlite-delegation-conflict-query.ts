@@ -90,7 +90,7 @@ function kindSelection(query: ConflictRequest['query']) {
   const defaultKinds: readonly DelegationConflictKind[] = ['live-overlap']
   return {
     selected: query.kinds?.length ? 1 : 0,
-    kinds: query.kinds?.length ? query.kinds : defaultKinds,
+    kinds: [...new Set(query.kinds?.length ? query.kinds : defaultKinds)],
   }
 }
 

@@ -18,6 +18,8 @@ interface CliResult {
   readonly stderr: string
 }
 
+export class InstalledCliProcessTreeExitUnprovenError extends AggregateError {}
+
 interface RunInstalledCliOptions {
   readonly maxOutputBytes?: number
   readonly timeoutMs?: number
@@ -33,6 +35,7 @@ interface VerifyInstalledCliDependencies {
     platform: NodeJS.Platform,
   ) => Promise<CliResult>
   readonly shutdownAndRemoveProfile?: (userDataRoot: string) => Promise<void>
+  readonly shutdownProfile?: (userDataRoot: string) => Promise<void>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -79,7 +82,7 @@ export function runInstalledCli(
         () => reject(failure),
         (cleanupError: unknown) =>
           reject(
-            new AggregateError(
+            new InstalledCliProcessTreeExitUnprovenError(
               [failure, cleanupError],
               'Installed OpenWaggle CLI failed and process-tree cleanup was not proven.',
             ),
@@ -150,6 +153,10 @@ async function defaultShutdownAndRemoveProfile(userDataRoot: string) {
   )
 }
 
+async function defaultShutdownProfile(userDataRoot: string) {
+  await shutdownSessionHostForQa(userDataRoot, async () => undefined)
+}
+
 export async function verifyInstalledCli(
   command: string,
   platform: NodeJS.Platform = process.platform,
@@ -161,6 +168,7 @@ export async function verifyInstalledCli(
   const executeCli = dependencies.runCli ?? runInstalledCli
   const shutdownAndRemoveProfile =
     dependencies.shutdownAndRemoveProfile ?? defaultShutdownAndRemoveProfile
+  const shutdownProfile = dependencies.shutdownProfile ?? defaultShutdownProfile
   const userDataRoot = await createProfile()
   const environment = {
     ...buildSafeElectronEnvironment({}),
@@ -181,6 +189,20 @@ export async function verifyInstalledCli(
     assertInstalledCliResponse(result.stdout, platform)
   } catch (error) {
     primaryFailure = { error }
+  }
+
+  if (primaryFailure?.error instanceof InstalledCliProcessTreeExitUnprovenError) {
+    console.error(`[release-qa] retained installed-CLI profile: ${userDataRoot}`)
+    try {
+      await shutdownProfile(userDataRoot)
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [primaryFailure.error, cleanupError],
+        'Installed CLI process-tree exit and Session Host shutdown both remain unproven.',
+        { cause: cleanupError },
+      )
+    }
+    throw primaryFailure.error
   }
 
   try {

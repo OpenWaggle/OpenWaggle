@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -6,6 +6,10 @@ import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
+import {
+  type StoppableChild,
+  trackWindowsProcessTreeThroughExit,
+} from './child-process-lifecycle'
 import {
   type CompleteLiveQaCleanupInput,
   type LiveQaLifecycleState,
@@ -19,7 +23,6 @@ import {
   stopChild,
   waitForHost,
 } from './live-session-orchestration-support'
-import { snapshotWindowsProcessTree } from './windows-process-tree'
 
 const ARGUMENT_SEPARATOR = '--'
 const FIRST_USER_ARGUMENT_INDEX = 2
@@ -124,7 +127,7 @@ function seedLegacyDatabase(databasePath: string) {
   }
 }
 
-function waitForExit(child: ChildProcess) {
+function waitForExit(child: StoppableChild) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -245,12 +248,15 @@ export async function runPackagedSessionHostStartupScenario(
       await waitForHost(cliExecutable, environment)
       const secondGui = await launchGui(input.executable, environment, packagedGuiArguments())
       state.guiLogs.push(secondGui.logs)
-      const secondGuiWindowsSnapshot =
-        process.platform === 'win32' && secondGui.child.pid !== undefined
-          ? await snapshotWindowsProcessTree(secondGui.child.pid)
-          : undefined
+      let secondGuiWindowsSnapshot
       try {
-        await waitForExit(secondGui.child)
+        if (process.platform === 'win32') {
+          secondGuiWindowsSnapshot = await trackWindowsProcessTreeThroughExit(secondGui.child, {
+            waitForExit,
+          })
+        } else {
+          await waitForExit(secondGui.child)
+        }
       } finally {
         await stopChild(secondGui.child, {
           windowsProcessTreeSnapshot: secondGuiWindowsSnapshot,

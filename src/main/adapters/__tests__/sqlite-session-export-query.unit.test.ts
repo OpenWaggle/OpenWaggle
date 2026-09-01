@@ -182,7 +182,7 @@ describe('SQLite Session export query', () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'large-operation-list.sqlite'))
     runtimes.push(runtime)
     const largeText = 'x'.repeat(20 * 1024 * 1024)
-    const manifest = JSON.stringify({
+    const manifestValue = {
       schemaVersion: 1,
       sessionId: 'worker',
       title: 'Large export',
@@ -212,6 +212,20 @@ describe('SQLite Session export query', () => {
           },
         ],
       },
+    }
+    const manifest = JSON.stringify(manifestValue)
+    const manifestSummary = JSON.stringify({
+      ...manifestValue,
+      queue: {
+        ...manifestValue.queue,
+        bodyScope: 'omitted-by-choice',
+        omittedBodyCount: 1,
+        items: manifestValue.queue.items.map((item) => {
+          const { intent, ...metadata } = item
+          void intent
+          return metadata
+        }),
+      },
     })
     await runtime.runPromise(
       Effect.gen(function* () {
@@ -222,6 +236,7 @@ describe('SQLite Session export query', () => {
               id, caller_id, session_id, idempotency_key, request_json, format,
               destination_path, temporary_path, overwrite_existing, branch_scope,
               include_queue_bodies, resources_json, status, manifest_json,
+              manifest_summary_json,
               snapshot_high_water_mark, snapshot_state_revision, snapshot_captured_at,
               records_written, resources_written, bytes_written, created_at, updated_at,
               completed_at
@@ -229,7 +244,7 @@ describe('SQLite Session export query', () => {
               ${`export-large-${index}`}, ${'cli'}, ${'worker'}, ${`key-large-${index}`},
               ${'{}'}, ${'jsonl'}, ${`/tmp/large-${index}.jsonl`},
               ${`/tmp/large-${index}.jsonl.tmp`}, ${0}, ${'tree'}, ${1}, ${'[]'},
-              ${'completed'}, ${manifest}, ${1}, ${0}, ${1}, ${1}, ${0}, ${1},
+              ${'completed'}, ${manifest}, ${manifestSummary}, ${1}, ${0}, ${1}, ${1}, ${0}, ${1},
               ${index + 1}, ${index + 1}, ${index + 1}
             )
           `
@@ -245,7 +260,7 @@ describe('SQLite Session export query', () => {
     if (redacted.outcome.operation !== 'exports-list' || !('exports' in redacted.outcome)) {
       throw new Error('Expected redacted export operation list.')
     }
-    expect(redacted.outcome.exports).toHaveLength(1)
+    expect(redacted.outcome.exports).toHaveLength(3)
     expect(redacted.outcome.exports[0]?.manifest?.queue.items[0]).not.toHaveProperty('intent')
     expect(redacted.outcome.exports[0]?.manifest?.queue).toMatchObject({
       bodyScope: 'omitted-by-choice',

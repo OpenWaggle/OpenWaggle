@@ -17,6 +17,7 @@ import {
 } from './sqlite-session-export-artifact-preparation'
 import {
   type SessionExportOperationRow,
+  sessionExportManifestWithoutQueueBodies,
   sessionExportOperationRecord,
 } from './sqlite-session-export-operation-row'
 import { recoverExportOperationsAfterHostLoss } from './sqlite-session-export-recovery'
@@ -165,14 +166,17 @@ function persistSnapshot(
   now: number,
 ) {
   const manifestJson = canonicalJson(manifest)
+  const manifestSummaryJson = canonicalJson(sessionExportManifestWithoutQueueBodies(manifest))
   return sql`
     UPDATE session_export_operations
     SET snapshot_high_water_mark = ${manifest.snapshot.nodeHighWaterMark},
       snapshot_state_revision = ${manifest.snapshot.stateRevision},
       snapshot_captured_at = ${manifest.snapshot.capturedAt}, manifest_json = ${manifestJson},
+      manifest_summary_json = ${manifestSummaryJson},
       updated_at = ${now}
     WHERE id = ${operationId} AND status = ${'running'}
-      AND (manifest_json IS NULL OR manifest_json = ${manifestJson})
+      AND (manifest_json IS NULL OR (manifest_json = ${manifestJson}
+        AND manifest_summary_json = ${manifestSummaryJson}))
   `.pipe(Effect.asVoid)
 }
 

@@ -33,6 +33,7 @@ import { startSessionsCliIfRequested } from './sessions-cli-entry'
 const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const STARTUP_TIMING_PRECISION = 1
+const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
 
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
 const importAgentRunServiceModule = () => import('./application/agent-run-service')
@@ -272,7 +273,13 @@ function startApp() {
   if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {
     if (!app.requestSingleInstanceLock()) {
       logger.warn('Another OpenWaggle instance is already running; quitting this instance')
-      app.quit()
+      if (env.OPENWAGGLE_AUTOMATION === '1') {
+        // Packaged release QA snapshots the Windows process tree before this expected fast exit.
+        // Keep the root observable longer than the bounded CIM snapshot command.
+        setTimeout(() => app.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS)
+      } else {
+        app.quit()
+      }
       return
     }
     app.on('second-instance', focusExistingWindow)

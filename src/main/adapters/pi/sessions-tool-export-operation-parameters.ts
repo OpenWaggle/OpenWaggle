@@ -31,6 +31,7 @@ export const sessionsToolExportOperationParameters = [
         Type.Union([
           Type.Literal('queued'),
           Type.Literal('running'),
+          Type.Literal('installing'),
           Type.Literal('cancelling'),
           Type.Literal('completed'),
           Type.Literal('failed'),

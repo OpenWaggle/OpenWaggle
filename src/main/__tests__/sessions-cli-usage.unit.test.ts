@@ -28,4 +28,16 @@ describe('Sessions CLI usage', () => {
     expect(usage).toContain('delegation propose-amendment')
     expect(usage).toContain('delegation verify')
   })
+
+  it('documents queue-body access on each durable export-history read', () => {
+    const usage = sessionsCliUsage()
+
+    expect(usage).toContain(
+      'sessions export list <session-id> [--status <status>]... [--limit <n>] [--cursor <cursor>]\n    [--include-queue-bodies]',
+    )
+    expect(usage).toContain(
+      'sessions export read <session-id> <export-operation-id> [--include-queue-bodies]',
+    )
+    expect(usage).toContain('[--after-host <id> --after-sequence <n>] [--include-queue-bodies]')
+  })
 })
