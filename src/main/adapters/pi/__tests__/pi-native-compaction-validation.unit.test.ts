@@ -143,9 +143,19 @@ describe('Pi native compaction response validation', () => {
 
     const result = await compactNative()
 
-    expect(result.details).toMatchObject({
+    expect(result.details).toEqual({
+      schemaVersion: 1,
       mechanism: 'native',
-      items: [retainedMessage, VALID_COMPACTION_ITEM],
+      identity: expect.any(Object),
+      items: [
+        {
+          type: 'message',
+          role: 'user',
+          status: 'completed',
+          content: retainedMessage.content,
+        },
+        VALID_COMPACTION_ITEM,
+      ],
     })
   })
 
@@ -169,6 +179,76 @@ describe('Pi native compaction response validation', () => {
       mechanism: 'native',
       identity: expect.any(Object),
       items: [VALID_COMPACTION_ITEM],
+    })
+  })
+
+  it('canonicalizes retained messages and content before request replay', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        makeCompactResponse([
+          {
+            type: 'message',
+            id: 'msg_1',
+            role: 'user',
+            status: 'completed',
+            response_only: 'strip message field',
+            content: [
+              {
+                type: 'input_text',
+                text: 'Keep this context',
+                annotations: [],
+              },
+              {
+                type: 'input_image',
+                detail: 'high',
+                file_id: null,
+                image_url: 'https://example.test/context.png',
+                response_only: 'strip image field',
+              },
+              {
+                type: 'input_file',
+                detail: 'low',
+                file_id: 'file_1',
+                filename: 'context.pdf',
+                response_only: 'strip file field',
+              },
+            ],
+          },
+          VALID_COMPACTION_ITEM,
+        ]),
+      ),
+    )
+
+    const result = await compactNative()
+
+    expect(result.details).toEqual({
+      schemaVersion: 1,
+      mechanism: 'native',
+      identity: expect.any(Object),
+      items: [
+        {
+          type: 'message',
+          role: 'user',
+          status: 'completed',
+          content: [
+            { type: 'input_text', text: 'Keep this context' },
+            {
+              type: 'input_image',
+              detail: 'high',
+              file_id: null,
+              image_url: 'https://example.test/context.png',
+            },
+            {
+              type: 'input_file',
+              detail: 'low',
+              file_id: 'file_1',
+              filename: 'context.pdf',
+            },
+          ],
+        },
+        VALID_COMPACTION_ITEM,
+      ],
     })
   })
 

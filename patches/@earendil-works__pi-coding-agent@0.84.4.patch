@@ -990,7 +990,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -598,6 +662,72 @@ Summarize the prefix to provide context for the retained suffix:
+@@ -598,6 +662,109 @@ Summarize the prefix to provide context for the retained suffix:
  - [Information needed to understand the retained recent work]
  
  Be concise. Focus on what's needed to understand the kept suffix.`;
@@ -1051,6 +1051,43 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
 +        encrypted_content: item.encrypted_content,
 +    };
 +}
++function toNativeReplacementRequestContent(content) {
++    switch (content.type) {
++        case "input_text":
++            return { type: "input_text", text: content.text };
++        case "input_image":
++            return {
++                type: "input_image",
++                detail: content.detail,
++                ...(content.file_id !== undefined ? { file_id: content.file_id } : {}),
++                ...(content.image_url !== undefined ? { image_url: content.image_url } : {}),
++            };
++        case "input_file":
++            return {
++                type: "input_file",
++                ...(content.detail !== undefined ? { detail: content.detail } : {}),
++                ...(content.file_data !== undefined ? { file_data: content.file_data } : {}),
++                ...(content.file_id !== undefined ? { file_id: content.file_id } : {}),
++                ...(content.file_url !== undefined ? { file_url: content.file_url } : {}),
++                ...(content.filename !== undefined ? { filename: content.filename } : {}),
++            };
++        default:
++            throw new Error("Native compaction response contained unsupported retained content");
++    }
++}
++function toNativeReplacementRequestMessage(item) {
++    return {
++        type: "message",
++        role: "user",
++        ...(item.status !== undefined ? { status: item.status } : {}),
++        content: item.content.map(toNativeReplacementRequestContent),
++    };
++}
++function toNativeReplacementRequestItem(item) {
++    return isNativeCompactionItem(item)
++        ? toNativeCompactionRequestItem(item)
++        : toNativeReplacementRequestMessage(item);
++}
 +function isNativeReplacementItem(item) {
 +    return isRecord(item) && (isNativeCompactionItem(item) || isNativeReplacementMessage(item));
 +}
@@ -1063,7 +1100,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,8 +736,58 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,8 +773,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1107,9 +1144,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
 +                    schemaVersion: 1,
 +                    mechanism: "native",
 +                    identity: nativeCompactionIdentity(model, apiKey, headers),
-+                    items: response.output.map((item) => isNativeCompactionItem(item)
-+                        ? toNativeCompactionRequestItem(item)
-+                        : item),
++                    items: response.output.map(toNativeReplacementRequestItem),
 +                },
 +            };
 +        }
@@ -1124,7 +1159,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -641,7 +821,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +856,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
