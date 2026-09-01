@@ -1,8 +1,8 @@
-import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
+import { closeElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { MainWindowPage } from '../page-models/main-window.page'
@@ -11,127 +11,11 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
-const QA_GRACEFUL_CLOSE_MS = 10_000
-const QA_FORCED_CLOSE_WAIT_MS = 5_000
+const USER_DATA_REMOVE_RETRIES = 3
+const USER_DATA_REMOVE_RETRY_DELAY_MS = 500
 
 interface CleanupOptions {
   readonly forceProcessTermination?: boolean
-}
-
-async function completesWithin(operation: Promise<unknown>, timeoutMs: number) {
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      operation.then(() => true),
-      new Promise<false>((resolve) => {
-        timeout = setTimeout(() => resolve(false), timeoutMs)
-      }),
-    ])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
-}
-
-interface ProcessResult {
-  readonly code: number | null
-  readonly stdout: string
-}
-
-async function runBoundedProcess(
-  command: string,
-  args: readonly string[],
-  timeoutMs = QA_FORCED_CLOSE_WAIT_MS,
-): Promise<ProcessResult | null> {
-  return new Promise((resolve) => {
-    const child = spawn(command, [...args], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      windowsHide: true,
-    })
-    let settled = false
-    let stdout = ''
-    const finish = (result: ProcessResult | null) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      resolve(result)
-    }
-    child.stdout?.setEncoding('utf8')
-    child.stdout?.on('data', (chunk: string) => {
-      stdout += chunk
-    })
-    child.once('error', () => finish(null))
-    child.once('close', (code) => finish({ code, stdout }))
-    const timeout = setTimeout(() => {
-      try {
-        child.kill()
-      } catch {
-        // The helper may have exited between the timer and kill.
-      }
-      finish(null)
-    }, timeoutMs)
-  })
-}
-
-async function captureWindowsProcessTree(rootProcessId: number): Promise<readonly number[]> {
-  const script = [
-    `$targetProcessId = ${String(rootProcessId)}`,
-    '$allProcesses = @(Get-CimInstance Win32_Process)',
-    '$tree = [System.Collections.Generic.List[int]]::new()',
-    '$tree.Add([int]$targetProcessId)',
-    'for ($index = 0; $index -lt $tree.Count; $index++) {',
-    '  $parentProcessId = $tree[$index]',
-    '  foreach ($candidate in $allProcesses) {',
-    '    $candidateId = [int]$candidate.ProcessId',
-    '    if ([int]$candidate.ParentProcessId -eq $parentProcessId -and -not $tree.Contains($candidateId)) {',
-    '      $tree.Add($candidateId)',
-    '    }',
-    '  }',
-    '}',
-    'Write-Output ($tree -join ",")',
-  ].join('; ')
-  const result = await runBoundedProcess('powershell.exe', [
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    script,
-  ])
-  if (result?.code !== 0) return []
-  return result.stdout
-    .trim()
-    .split(',')
-    .map((value) => Number.parseInt(value, 10))
-    .filter((value) => Number.isSafeInteger(value) && value > 0)
-}
-
-async function stopWindowsProcessTree(processIds: readonly number[]): Promise<boolean> {
-  if (processIds.length === 0) return false
-  const ids = [...new Set(processIds)].reverse().map(String).join(',')
-  const script = [
-    `$processIds = @(${ids})`,
-    'foreach ($processId in $processIds) {',
-    '  Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue',
-    '}',
-  ].join('; ')
-  const result = await runBoundedProcess('powershell.exe', [
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    script,
-  ])
-  return result?.code === 0
-}
-
-function processClose(childProcess: ChildProcess): Promise<void> {
-  return new Promise((resolve) => {
-    childProcess.once('close', () => resolve())
-    const exited = childProcess.exitCode !== null || childProcess.signalCode !== null
-    const readablePipesClosed = [childProcess.stdout, childProcess.stderr]
-      .filter((stream) => stream !== null)
-      .every((stream) => stream.destroyed || stream.readableEnded)
-    const writablePipeClosed =
-      childProcess.stdin === null || childProcess.stdin.destroyed || childProcess.stdin.writableEnded
-    if (exited && readablePipesClosed && writablePipeClosed) resolve()
-  })
 }
 
 function evidenceDirectory() {
@@ -202,14 +86,16 @@ export class OpenWaggleApp {
       } else {
         console.error('[electron-qa] launch failed before Electron created a page')
       }
-      await app?.close().catch(() => undefined)
+      if (app !== null) {
+        await closeElectronApplication(app)
+      }
       await fs.rm(userDataDir, { recursive: true, force: true })
       throw error
     }
   }
 
   async restart(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
@@ -220,7 +106,7 @@ export class OpenWaggleApp {
   }
 
   async close(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {
@@ -240,104 +126,36 @@ export class OpenWaggleApp {
     } catch (error) {
       evidenceError = error
     } finally {
-      let canRemoveUserData = true
       if (options.forceProcessTermination) {
-        canRemoveUserData = await this.forceCloseForCleanup()
-      } else {
-        canRemoveUserData = await this.closeForCleanup()
+        console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
+        await this.app
+          .evaluate(() => {
+            setImmediate(() => process.exit(0))
+          })
+          .catch(() => undefined)
       }
-      if (canRemoveUserData) {
-        await fs.rm(this.userDataDir, {
-          recursive: true,
-          force: true,
-          maxRetries: 10,
-          retryDelay: 250,
-        })
+      await this.close().catch(() => undefined)
+      // A just-killed process tree can hold handles on the user-data dir for a moment;
+      // a bounded retry keeps that race from failing an otherwise-passing test.
+      let attempt = 0
+      while (true) {
+        try {
+          await fs.rm(this.userDataDir, { recursive: true, force: true })
+          break
+        } catch (error) {
+          if (attempt >= USER_DATA_REMOVE_RETRIES) {
+            throw error
+          }
+          attempt += 1
+          await this.currentWindow
+            .waitForTimeout(USER_DATA_REMOVE_RETRY_DELAY_MS)
+            .catch(() => undefined)
+        }
       }
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)
       expect.soft(evidenceError, 'Electron QA must capture its final screenshot').toBeUndefined()
-    }
-  }
-
-  private async closeForCleanup(): Promise<boolean> {
-    const childProcess = this.app.process()
-    const windowsProcessTree =
-      process.platform === 'win32' && childProcess.pid
-        ? await captureWindowsProcessTree(childProcess.pid)
-        : []
-    const closeOperation = this.close().catch(() => undefined)
-    if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return true
-
-    console.warn('[electron-qa] graceful close timed out; terminating the temporary test app')
-    const terminated = await this.terminateProcessTree(childProcess, windowsProcessTree)
-    const forcedClosed = await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
-    if (!terminated || !forcedClosed) {
-      console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
-    }
-    return terminated && forcedClosed
-  }
-
-  private async forceCloseForCleanup(): Promise<boolean> {
-    console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
-    const childProcess = this.app.process()
-    const processClosed = processClose(childProcess)
-    const windowsProcessTree =
-      process.platform === 'win32' && childProcess.pid
-        ? await captureWindowsProcessTree(childProcess.pid)
-        : []
-    const exitRequest = this.app
-      .evaluate(() => {
-        setImmediate(() => process.exit(0))
-      })
-      .catch(() => undefined)
-    await completesWithin(exitRequest, QA_FORCED_CLOSE_WAIT_MS)
-    this.disconnectNodeInspector()
-    if (await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)) {
-      return process.platform !== 'win32' || stopWindowsProcessTree(windowsProcessTree)
-    }
-
-    console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
-    const terminated = await this.terminateProcessTree(childProcess, windowsProcessTree)
-    const forcedClosed = await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)
-    if (!terminated || !forcedClosed) {
-      console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
-    }
-    return terminated && forcedClosed
-  }
-
-  private disconnectNodeInspector(): void {
-    // Playwright launches Electron with --inspect and, on Windows, through a shell.
-    // After process.exit() Electron waits for that debugger to disconnect, so the
-    // shell never closes unless the in-process Playwright server releases its Node
-    // inspector transport. app.process() relies on the same collocated-server hook.
-    const clientConnection = Reflect.get(this.app, '_connection')
-    if (typeof clientConnection !== 'object' || clientConnection === null) return
-    const toImpl = Reflect.get(clientConnection, 'toImpl')
-    if (typeof toImpl !== 'function') return
-    const serverApplication = Reflect.apply(toImpl, clientConnection, [this.app])
-    if (typeof serverApplication !== 'object' || serverApplication === null) return
-    const nodeConnection = Reflect.get(serverApplication, '_nodeConnection')
-    if (typeof nodeConnection !== 'object' || nodeConnection === null) return
-    const close = Reflect.get(nodeConnection, 'close')
-    if (typeof close === 'function') Reflect.apply(close, nodeConnection, [])
-  }
-
-  private async terminateProcessTree(
-    childProcess: ChildProcess,
-    windowsProcessTree: readonly number[],
-  ): Promise<boolean> {
-    if (process.platform === 'win32') {
-      if (windowsProcessTree.length === 0) return false
-      return stopWindowsProcessTree(windowsProcessTree)
-    }
-    try {
-      childProcess.kill('SIGKILL')
-      return true
-    } catch {
-      // The process may have exited while cleanup was capturing evidence.
-      return childProcess.exitCode !== null || childProcess.signalCode !== null
     }
   }
 
