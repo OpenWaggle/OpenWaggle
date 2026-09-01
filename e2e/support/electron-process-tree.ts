@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile)
 const ELECTRON_CLOSE_TIMEOUT_MS = 10_000
 const POST_KILL_EXIT_WAIT_MS = 5_000
 const POST_KILL_POLL_MS = 250
+const PROCESS_COMMAND_TIMEOUT_MS = 5_000
 const PROCESS_LIST_MAX_BUFFER_BYTES = 10_000_000
 const PROCESS_ENTRY_FIELD_COUNT = 3
 
@@ -67,15 +68,20 @@ async function listWindowsProcessEntries() {
       '-Command',
       'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress',
     ],
-    { maxBuffer: PROCESS_LIST_MAX_BUFFER_BYTES },
+    { maxBuffer: PROCESS_LIST_MAX_BUFFER_BYTES, timeout: PROCESS_COMMAND_TIMEOUT_MS },
   )
   return parseProcessEntries(JSON.parse(stdout))
 }
 
 async function listUnixProcessEntries() {
-  const { stdout } = await execFileAsync('ps', ['-ax', '-o', 'pid=,ppid=,comm='], {
-    maxBuffer: PROCESS_LIST_MAX_BUFFER_BYTES,
-  })
+  const { stdout } = await execFileAsync(
+    'ps',
+    ['-ax', '-o', 'pid=,ppid=,comm='],
+    {
+      maxBuffer: PROCESS_LIST_MAX_BUFFER_BYTES,
+      timeout: PROCESS_COMMAND_TIMEOUT_MS,
+    },
+  )
   const entries: ProcessEntry[] = []
   for (const line of stdout.split('\n')) {
     const fields = line.trim().split(/\s+/u)
@@ -157,11 +163,11 @@ async function reportSurvivorTree(
 async function killProcessTree(rootPid: number, descendants: readonly ProcessEntry[]) {
   if (process.platform === 'win32') {
     // /T walks the tree from the root; /F forces termination.
-    await execFileAsync('taskkill', ['/PID', String(rootPid), '/T', '/F']).catch(
-      (error: unknown) => {
-        console.error(`[electron-qa] taskkill for pid=${rootPid} failed`, error)
-      },
-    )
+    await execFileAsync('taskkill', ['/PID', String(rootPid), '/T', '/F'], {
+      timeout: PROCESS_COMMAND_TIMEOUT_MS,
+    }).catch((error: unknown) => {
+      console.error(`[electron-qa] taskkill for pid=${rootPid} failed`, error)
+    })
     return
   }
   for (const entry of [...descendants].reverse()) {
@@ -187,6 +193,7 @@ async function killProcessTree(rootPid: number, descendants: readonly ProcessEnt
  */
 export async function closeElectronApplication(app: ElectronApplication): Promise<void> {
   const rootPid = app.process().pid
+  if (rootPid === undefined) throw new Error('Electron process has no pid.')
   let closeRejection: unknown
   const closePromise = app.close().catch((error: unknown) => {
     closeRejection = error
@@ -225,6 +232,29 @@ export async function closeElectronApplication(app: ElectronApplication): Promis
   // exit is the authoritative teardown boundary after the bounded graceful-close attempt.
 }
 
+/**
+ * Terminates an automation-only Electron application without asking Playwright to close it.
+ * On Windows, `ElectronApplication.close()` can remain pending after the underlying process has
+ * already exited, which keeps the Playwright worker alive through its teardown timeout. Tests
+ * that intentionally skip app quit handlers use this bounded process-tree path instead.
+ */
+export async function forceCloseElectronApplication(app: ElectronApplication): Promise<void> {
+  const rootPid = app.process().pid
+  if (rootPid === undefined) throw new Error('Electron process has no pid.')
+  let descendants: readonly ProcessEntry[] = []
+  // Windows taskkill /T walks descendants itself. Skipping the CIM query removes an unnecessary
+  // failure point from the force-only path while Unix still needs an explicit child snapshot.
+  if (process.platform !== 'win32') {
+    try {
+      descendants = await listDescendantEntries(rootPid)
+    } catch (error) {
+      console.error('[electron-qa] failed to enumerate the Electron process tree', error)
+    }
+  }
+  await killProcessTree(rootPid, descendants)
+  await waitForTreeExit(rootPid)
+}
+
 /*
  * Signals are delivered asynchronously: SIGKILL returning does not mean the processes are
  * gone, and `cleanup()` immediately removes the user-data dir the tree may still hold
@@ -244,5 +274,5 @@ async function waitForTreeExit(rootPid: number) {
       setTimeout(resolve, POST_KILL_POLL_MS)
     })
   }
-  console.error(`[electron-qa] pid=${rootPid} still alive after the post-kill wait.`)
+  throw new Error(`[electron-qa] pid=${rootPid} still alive after the post-kill wait.`)
 }

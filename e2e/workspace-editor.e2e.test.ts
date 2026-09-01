@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { rendererLongTaskBudget, syntaxCompletionTimeout } from './support/performance-budgets'
 import { seedSingleSession } from './support/session-fixtures'
@@ -145,6 +145,21 @@ function syntaxSourceKeys(page: Page) {
       ? value.filter((entry): entry is string => typeof entry === 'string')
       : []
   })
+}
+
+async function scrollSourceViewport(page: Page, scrollSurface: Locator, ratio: number) {
+  const bounds = await scrollSurface.boundingBox()
+  if (bounds === null) throw new Error('Expected the source viewport to have visible bounds.')
+  const scroll = await scrollSurface.evaluate((element, targetRatio) => {
+    const current = element.scrollTop
+    const maximum = Math.max(0, element.scrollHeight - element.clientHeight)
+    return { current, target: Math.floor(maximum * targetRatio) }
+  }, ratio)
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+  await page.mouse.wheel(0, Math.max(1, scroll.target - scroll.current))
+  await expect
+    .poll(() => scrollSurface.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(scroll.current)
 }
 
 async function beginSourceSurfaceMeasurement(page: Page, label: string) {
@@ -413,10 +428,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       const previousLineOffset = Number(
         await sourceView.getAttribute('data-syntax-line-offset'),
       )
-      await scrollSurface.evaluate((element, ratio) => {
-        element.scrollTop = element.scrollHeight * ratio
-        element.dispatchEvent(new Event('scroll', { bubbles: true }))
-      }, position)
+      await scrollSourceViewport(page, scrollSurface, position)
       await expect
         .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
