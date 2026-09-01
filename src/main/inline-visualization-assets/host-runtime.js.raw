@@ -106,6 +106,16 @@
     const height = Math.min(10000, Math.max(0, bottom - bodyRect.top));
     post('openwaggle:inline-visualization:resize', { height: Math.ceil(height) });
   };
+  const requestFrame = requestAnimationFrame;
+  let sizeReportScheduled = false;
+  const scheduleSizeReport = () => {
+    if (sizeReportScheduled) return;
+    sizeReportScheduled = true;
+    requestFrame(() => {
+      sizeReportScheduled = false;
+      reportSize();
+    });
+  };
 
   const applyTheme = (theme) => {
     if (!theme || typeof theme !== 'object') return;
@@ -246,6 +256,7 @@
     post('openwaggle:inline-visualization:open-link', { url: target.href });
   });
 
+  let flushVisualizationState = () => {};
   const sendFollowUpMessage = (message) => {
     const prompt = typeof message === 'string' ? message : message && message.prompt;
     if (
@@ -257,6 +268,7 @@
       return Promise.resolve(false);
     }
     if (pendingFollowUps.size > 0) return Promise.resolve(false);
+    flushVisualizationState();
     const title = typeof message === 'object' && message && typeof message.title === 'string'
       ? message.title
       : undefined;
@@ -277,15 +289,94 @@
       });
     });
   };
+  const MAX_VISUALIZATION_STATE_BYTES = 16 * 1024;
+  const jsonStringify = JSON.stringify;
+  const jsonParse = JSON.parse;
+  const stringCharCodeAt = String.prototype.charCodeAt;
+  const arrayIsArray = Array.isArray;
+  const objectKeys = Object.keys;
+  const objectGetPrototypeOf = Object.getPrototypeOf;
+  const objectPrototype = Object.prototype;
+  const weakSetHas = WeakSet.prototype.has;
+  const weakSetAdd = WeakSet.prototype.add;
+  const weakSetDelete = WeakSet.prototype.delete;
+  let pendingVisualizationState;
+  let visualizationStateScheduled = false;
+  const utf8ByteLength = (value) => {
+    let bytes = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const code = applyIntrinsic(stringCharCodeAt, value, [index]);
+      if (code <= 0x7f) bytes += 1;
+      else if (code <= 0x7ff) bytes += 2;
+      else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length) {
+        const next = applyIntrinsic(stringCharCodeAt, value, [index + 1]);
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          bytes += 4;
+          index += 1;
+        } else bytes += 3;
+      } else bytes += 3;
+      if (bytes > MAX_VISUALIZATION_STATE_BYTES) return bytes;
+    }
+    return bytes;
+  };
+  const isJsonValue = (value, seen = new WeakSet(), depth = 0) => {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+    if (typeof value === 'number') return numberIsFinite(value);
+    if (typeof value !== 'object' || depth > 20) return false;
+    if (applyIntrinsic(weakSetHas, seen, [value])) return false;
+    applyIntrinsic(weakSetAdd, seen, [value]);
+    if (arrayIsArray(value)) {
+      for (let index = 0; index < value.length; index += 1) {
+        if (!isJsonValue(value[index], seen, depth + 1)) return false;
+      }
+      applyIntrinsic(weakSetDelete, seen, [value]);
+      return true;
+    }
+    const prototype = objectGetPrototypeOf(value);
+    if (prototype !== objectPrototype && prototype !== null) return false;
+    const keys = applyIntrinsic(objectKeys, Object, [value]);
+    for (let index = 0; index < keys.length; index += 1) {
+      if (!isJsonValue(value[keys[index]], seen, depth + 1)) return false;
+    }
+    applyIntrinsic(weakSetDelete, seen, [value]);
+    return true;
+  };
+  const setVisualizationState = (state) => {
+    let serialized;
+    let snapshot;
+    try {
+      if (!isJsonValue(state)) return false;
+      serialized = applyIntrinsic(jsonStringify, JSON, [state]);
+      if (
+        typeof serialized !== 'string' ||
+        utf8ByteLength(serialized) > MAX_VISUALIZATION_STATE_BYTES
+      ) return false;
+      snapshot = applyIntrinsic(jsonParse, JSON, [serialized]);
+    } catch {
+      return false;
+    }
+    pendingVisualizationState = snapshot;
+    if (visualizationStateScheduled) return true;
+    visualizationStateScheduled = true;
+    enqueueMicrotask(() => flushVisualizationState());
+    return true;
+  };
+  flushVisualizationState = () => {
+    if (!visualizationStateScheduled) return;
+    visualizationStateScheduled = false;
+    const latest = pendingVisualizationState;
+    pendingVisualizationState = undefined;
+    post('openwaggle:inline-visualization:state', { state: latest });
+  };
   Object.defineProperty(window, 'openai', {
     configurable: false,
     enumerable: true,
     writable: false,
-    value: Object.freeze({ sendFollowUpMessage }),
+    value: Object.freeze({ sendFollowUpMessage, setVisualizationState }),
   });
 
   addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
+    if (!event.isTrusted || event.key !== 'Escape') return;
     hideTooltip();
     post('openwaggle:inline-visualization:dismiss');
   });
@@ -298,13 +389,12 @@
   addEventListener('unhandledrejection', () => {
     post('openwaggle:inline-visualization:error', { reason: 'crashed' });
   });
-  addEventListener('openwaggle:visualization-error', (event) => {
+  const sourceError = document.querySelector('meta[name="openwaggle-visualization-error"]');
+  if (sourceError && typeof sourceError.content === 'string') {
     post('openwaggle:inline-visualization:error', {
-      reason: event.detail && typeof event.detail.reason === 'string'
-        ? event.detail.reason
-        : 'read-failed',
+      reason: sourceError.content || 'read-failed',
     });
-  });
+  }
 
   addEventListener('DOMContentLoaded', () => {
     post('openwaggle:inline-visualization:ready');
@@ -313,16 +403,17 @@
     }
     reportSize();
     if (typeof ResizeObserver === 'function') {
-      new ResizeObserver(reportSize).observe(document.body);
+      new ResizeObserver(scheduleSizeReport).observe(document.body);
     }
     if (typeof MutationObserver === 'function') {
-      new MutationObserver(reportSize).observe(document.body, {
+      new MutationObserver(scheduleSizeReport).observe(document.body, {
         attributes: true,
+        attributeFilter: ['class', 'style', 'hidden', 'open'],
         childList: true,
         subtree: true,
         characterData: true,
       });
     }
   }, { once: true });
-  addEventListener('load', reportSize, { once: true });
+  addEventListener('load', scheduleSizeReport, { once: true });
 })();

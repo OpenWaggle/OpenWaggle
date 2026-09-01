@@ -1,4 +1,7 @@
-import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
+import {
+  INLINE_VISUALIZATION_PROTOCOL,
+  MAX_INLINE_VISUALIZATION_PATH_LENGTH,
+} from '@shared/constants/inline-visualization'
 import { SessionId } from '@shared/types/brand'
 import type {
   InlineVisualizationFrameRegisterInput,
@@ -18,7 +21,6 @@ const JAVASCRIPT_CONTENT_TYPE = 'text/javascript; charset=utf-8'
 const CSS_CONTENT_TYPE = 'text/css; charset=utf-8'
 const HTTP_NOT_FOUND_STATUS = 404
 const MAX_SESSION_ID_LENGTH = 256
-const MAX_SOURCE_PATH_LENGTH = 32_768
 const FRAME_HOST_PATTERN =
   /^frame-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const FRAME_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -31,16 +33,19 @@ const CDN_SOURCES = [
   'https://fonts.gstatic.com',
   'https://unpkg.com',
 ] as const
+const LOCAL_RESOURCE_SOURCES = ['blob:', 'data:'] as const
 const SCRIPT_SOURCES = [
   "'unsafe-inline'",
   "'unsafe-eval'",
   "'wasm-unsafe-eval'",
   `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`,
+  ...LOCAL_RESOURCE_SOURCES,
   ...CDN_SOURCES,
 ] as const
 const STYLE_SOURCES = [
   "'unsafe-inline'",
   `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`,
+  ...LOCAL_RESOURCE_SOURCES,
   ...CDN_SOURCES,
 ] as const
 const IMAGE_SOURCES = ['data:', 'blob:', ...CDN_SOURCES] as const
@@ -51,7 +56,7 @@ export const VISUALIZATION_CONTENT_SECURITY_POLICY = [
   `script-src-elem ${SCRIPT_SOURCES.join(' ')}`,
   `style-src ${STYLE_SOURCES.join(' ')}`,
   `img-src ${IMAGE_SOURCES.join(' ')}`,
-  `font-src ${CDN_SOURCES.join(' ')}`,
+  `font-src ${LOCAL_RESOURCE_SOURCES.join(' ')} ${CDN_SOURCES.join(' ')}`,
   `media-src data: blob: ${CDN_SOURCES.join(' ')}`,
   'connect-src blob: data:',
   `worker-src 'none'`,
@@ -76,6 +81,7 @@ let registrationSequence = 0
 
 interface RegisteredInlineVisualizationFrame {
   readonly registrationId: string
+  readonly ownerId: number
   readonly sessionId: SessionId
   readonly sourcePath: string
 }
@@ -84,19 +90,24 @@ const registeredFrames = new Map<string, RegisteredInlineVisualizationFrame>()
 
 export function registerInlineVisualizationFrame(
   input: InlineVisualizationFrameRegisterInput,
+  ownerId: number,
 ): InlineVisualizationFrameRegisterResult {
   if (!FRAME_ID_PATTERN.test(input.frameId)) throw new Error('Invalid visualization frame id')
   if (!input.sessionId || String(input.sessionId).length > MAX_SESSION_ID_LENGTH) {
     throw new Error('Invalid visualization session id')
   }
-  if (!input.sourcePath || input.sourcePath.length > MAX_SOURCE_PATH_LENGTH) {
+  if (!input.sourcePath || input.sourcePath.length > MAX_INLINE_VISUALIZATION_PATH_LENGTH) {
     throw new Error('Invalid visualization source path')
   }
   registrationSequence += 1
   const frameHost = `${INLINE_VISUALIZATION_PROTOCOL.FRAME_HOST_PREFIX}${input.frameId}`
+  if (registeredFrames.has(frameHost)) {
+    throw new Error('Visualization frame id is already registered')
+  }
   const registrationId = `visualization-frame-registration-${String(registrationSequence)}`
   registeredFrames.set(frameHost, {
     registrationId,
+    ownerId,
     sessionId: SessionId(input.sessionId),
     sourcePath: input.sourcePath,
   })
@@ -106,10 +117,20 @@ export function registerInlineVisualizationFrame(
   }
 }
 
-export function unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput) {
+export function unregisterInlineVisualizationFrame(
+  input: InlineVisualizationFrameUnregisterInput,
+  ownerId: number,
+) {
   const frameHost = `${INLINE_VISUALIZATION_PROTOCOL.FRAME_HOST_PREFIX}${input.frameId}`
-  if (registeredFrames.get(frameHost)?.registrationId === input.registrationId) {
+  const registration = registeredFrames.get(frameHost)
+  if (registration?.registrationId === input.registrationId && registration.ownerId === ownerId) {
     registeredFrames.delete(frameHost)
+  }
+}
+
+export function unregisterInlineVisualizationFramesForOwner(ownerId: number) {
+  for (const [frameHost, registration] of registeredFrames) {
+    if (registration.ownerId === ownerId) registeredFrames.delete(frameHost)
   }
 }
 
@@ -153,14 +174,22 @@ function isBaseStyleRequest(requestUrl: string) {
   )
 }
 
+function escapeHtmlAttribute(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
 function visualizationDocument(frameHost: string, contents: string, errorReason?: string) {
   const frameOrigin = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${frameHost}`
   const lucideUrl = `${frameOrigin}${INLINE_VISUALIZATION_PROTOCOL.LUCIDE_PATH}`
   const baseStyleUrl = `${frameOrigin}${INLINE_VISUALIZATION_PROTOCOL.BASE_STYLE_PATH}`
-  const errorRuntime = errorReason
-    ? `<script>dispatchEvent(new CustomEvent('openwaggle:visualization-error',{detail:{reason:${JSON.stringify(errorReason)}}}))</script>`
+  const errorMetadata = errorReason
+    ? `<meta name="openwaggle-visualization-error" content="${escapeHtmlAttribute(errorReason)}">`
     : ''
-  return `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${baseStyleUrl}"><script src="${lucideUrl}"></script>${HOST_RUNTIME}</head><body>${contents}${errorRuntime}</body></html>`
+  return `<!doctype html><html><head><meta charset="utf-8">${errorMetadata}<link rel="stylesheet" href="${baseStyleUrl}"><script src="${lucideUrl}"></script>${HOST_RUNTIME}</head><body>${contents}</body></html>`
 }
 
 function visualizationResponse(document: string) {

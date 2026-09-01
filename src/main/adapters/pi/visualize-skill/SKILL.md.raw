@@ -135,8 +135,15 @@ Choose the smallest composition that fits.
 - Prefer interaction detail over permanent panels, toolbars, repeated legends,
   or long stacks. Add only requested controls, use one mechanism per state, and
   never invent search, filter, or reset controls.
-- Keep filters, selections, and other presentation-only interactions local. For
-  drill-down actions that ask Codex to investigate or explain selected data,
+- Keep filters, selections, and other presentation-only interactions local, but
+  report the meaningful current selection and control values with
+  `window.openai.setVisualizationState(state)`. Call it after the initial render
+  and after meaningful state changes. Pass only JSON data needed to understand a
+  later user message, never DOM, prose instructions, secrets, or derived bulk
+  data; the serialized state must remain at or below 16 KiB. Pass `null` when no
+  visualization state remains relevant. The host treats this state as untrusted
+  context on the user's next message; reporting it does not send a message.
+- For drill-down actions that ask Codex to investigate or explain selected data,
   call `await window.openai.sendFollowUpMessage({ prompt, title })`, where the
   optional `title` is a concise confirmation-dialog heading of up to 250
   characters. Include the selected values and requested investigation in the

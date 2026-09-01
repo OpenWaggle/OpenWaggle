@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Button } from '@/shared/ui/Button'
 import { useMessageQueueStore } from '../../state/message-queue-store'
 
 const apiMock = vi.hoisted(() => ({
@@ -87,7 +88,9 @@ describe('InlineVisualization', () => {
     apiMock.saveInlineVisualizationDownload.mockResolvedValue(true)
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
+    vi.unstubAllGlobals()
     document.documentElement.style.removeProperty('--color-bg')
     document.documentElement.style.removeProperty('--color-text-primary')
     apiMock.showConfirm.mockReset()
@@ -265,22 +268,44 @@ describe('InlineVisualization', () => {
 
   it('uses modal semantics, focus containment, and focus restoration when expanded', async () => {
     render(
-      <InlineVisualization
-        sessionId={SessionId('session-visualization-1')}
-        interactionSessionId={SessionId('session-visualization-1')}
-        reference={{ path: '/repo/wide-map.html', title: 'Wide map', mode: 'wide' }}
-      />,
+      <main data-testid="app-shell">
+        <Button variant="unstyled" type="button" data-testid="background-control">
+          Background control
+        </Button>
+        <div
+          data-testid="chat-column"
+          data-chat-transcript-container
+          style={{ containerType: 'inline-size' }}
+        >
+          <InlineVisualization
+            sessionId={SessionId('session-visualization-1')}
+            interactionSessionId={SessionId('session-visualization-1')}
+            reference={{ path: '/repo/wide-map.html', title: 'Wide map', mode: 'wide' }}
+          />
+        </div>
+      </main>,
     )
-    await visualizationFrame('Wide map')
+    const frame = await visualizationFrame('Wide map')
+    const chatColumn = screen.getByTestId('chat-column')
+    expect(chatColumn).toContainElement(frame)
     const expandButton = screen.getByRole('button', { name: 'Expand visualization' })
     expandButton.focus()
     fireEvent.click(expandButton)
 
     const dialog = screen.getByRole('dialog', { name: 'Wide map' })
     const closeButton = screen.getByRole('button', { name: 'Close expanded visualization' })
+    const focusLayer = document.querySelector('[data-visualization-focus-layer="true"]')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(focusLayer).toBe(dialog)
+    expect(focusLayer?.parentElement).toBe(chatColumn)
+    expect(focusLayer).toContainElement(frame)
+    expect(chatColumn).toHaveStyle({ containerType: 'normal' })
+    expect(screen.getByTestId('background-control')).toHaveProperty('inert', true)
     expect(closeButton).toHaveFocus()
-    fireEvent.click(closeButton)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(chatColumn).toContainElement(frame)
+    expect(frame).toBe(await visualizationFrame('Wide map'))
+    expect(chatColumn).toHaveStyle({ containerType: 'inline-size' })
     expect(expandButton).toHaveFocus()
   })
 })

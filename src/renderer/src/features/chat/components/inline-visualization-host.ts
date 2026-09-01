@@ -1,7 +1,8 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
-import { useMessageQueueStore } from '../state/message-queue-store'
+import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 
 const MAX_EXTERNAL_LINK_LENGTH = 8_192
 const MAX_FOLLOW_UP_LENGTH = 50_000
@@ -9,6 +10,36 @@ const MAX_FOLLOW_UP_TITLE_LENGTH = 250
 const MAX_DOWNLOAD_NAME_LENGTH = 250
 const MAX_DOWNLOAD_MIME_TYPE_LENGTH = 250
 const MAX_DOWNLOAD_BASE64_LENGTH = 7_000_000
+type VisualizationFollowUpDispatcher = (payload: AgentSendPayload) => Promise<boolean>
+const followUpDispatchers = new Map<SessionId, VisualizationFollowUpDispatcher>()
+
+export function registerVisualizationFollowUpDispatcher(
+  sessionId: SessionId,
+  dispatcher: VisualizationFollowUpDispatcher,
+) {
+  followUpDispatchers.set(sessionId, dispatcher)
+  return () => {
+    if (followUpDispatchers.get(sessionId) === dispatcher) followUpDispatchers.delete(sessionId)
+  }
+}
+
+export async function deliverVisualizationFollowUp(input: {
+  readonly isIdle: boolean
+  readonly payload: AgentSendPayload
+  readonly send: (payload: AgentSendPayload) => Promise<void>
+  readonly enqueue: (payload: AgentSendPayload) => void
+}) {
+  if (!input.isIdle) {
+    input.enqueue(input.payload)
+    return true
+  }
+  try {
+    await input.send(input.payload)
+    return true
+  } catch {
+    return false
+  }
+}
 
 const THEME_TOKEN_SOURCES = [
   ['--background', '--color-bg'],
@@ -95,12 +126,13 @@ export async function sendBrokeredVisualizationFollowUp(input: {
   const confirmed = await api.showConfirm(title, prompt)
   if (!confirmed) return false
   const thinkingLevel = usePreferencesStore.getState().settings.thinkingLevel
-  useMessageQueueStore.getState().enqueue(input.sessionId, {
+  const payload = withInlineVisualizationContext(input.sessionId, {
     text: prompt,
     thinkingLevel,
     attachments: [],
   })
-  return true
+  const dispatcher = followUpDispatchers.get(input.sessionId)
+  return dispatcher ? dispatcher(payload) : false
 }
 
 export async function saveBrokeredVisualizationDownload(input: {

@@ -1,6 +1,8 @@
 import { match } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
+import type { JsonValue } from '@shared/types/json'
 import { isRecord } from '@shared/utils/validation'
+import { decodeInlineVisualizationState } from '../state/inline-visualization-state'
 import {
   openBrokeredVisualizationLink,
   saveBrokeredVisualizationDownload,
@@ -20,18 +22,22 @@ interface FrameMessageContext {
   readonly interactionSessionId: SessionId | null
   readonly capability: { current: string | null }
   readonly brokerPending: { current: boolean }
+  readonly acceptMessage: () => boolean
   readonly clearHealthCheckTimeout: () => void
+  readonly flushStateChange: () => void
   readonly sendTheme: () => void
   readonly postToFrame: (message: Record<string, unknown>) => void
   readonly setErrorReason: (reason: string) => void
   readonly setHeight: (height: number) => void
   readonly onDismiss: () => void
+  readonly scheduleStateChange: (state: JsonValue | null) => void
 }
 
 export function handleInlineVisualizationFrameMessage(
   value: unknown,
   context: FrameMessageContext,
 ) {
+  if (!context.acceptMessage()) return
   if (!isRecord(value)) return
   if (value.type === 'openwaggle:inline-visualization:bootstrap') {
     if (typeof value.capability !== 'string' || value.capability.length < MIN_CAPABILITY_LENGTH) {
@@ -68,6 +74,7 @@ export function handleInlineVisualizationFrameMessage(
         return
       }
       if (value.title !== undefined && typeof value.title !== 'string') return
+      context.flushStateChange()
       context.brokerPending.current = true
       void sendBrokeredVisualizationFollowUp({
         sessionId: context.interactionSessionId,
@@ -112,6 +119,14 @@ export function handleInlineVisualizationFrameMessage(
     .with('openwaggle:inline-visualization:resize', () => {
       const height = boundedVisualizationHeight(value.height)
       if (height !== null) context.setHeight(height)
+    })
+    .with('openwaggle:inline-visualization:state', () => {
+      if (value.state === null) {
+        context.scheduleStateChange(null)
+        return
+      }
+      const state = decodeInlineVisualizationState(value.state)
+      if (state !== null) context.scheduleStateChange(state)
     })
     .with('openwaggle:inline-visualization:dismiss', context.onDismiss)
     .otherwise(() => undefined)

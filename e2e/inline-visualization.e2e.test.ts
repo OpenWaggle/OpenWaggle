@@ -80,12 +80,14 @@ function visualizationSource() {
     }, 50);
   });
   let count = 0;
+  status.dataset.stateReport = window.openai.setVisualizationState({ count, expanded: false }) ? 'accepted' : 'rejected';
   document.querySelector('#counter').addEventListener('click', (event) => {
     count += 1;
     event.currentTarget.textContent = 'Count ' + count;
     const existing = document.querySelector('#expansion');
     if (existing) {
       existing.remove();
+      window.openai.setVisualizationState({ count, expanded: false });
       return;
     }
     const expansion = document.createElement('div');
@@ -93,6 +95,7 @@ function visualizationSource() {
     expansion.style.height = '480px';
     expansion.textContent = 'Local state retained';
     document.querySelector('main').appendChild(expansion);
+    window.openai.setVisualizationState({ count, expanded: true });
   });
   document.querySelector('#navigate').addEventListener('click', () => {
     location.assign('https://example.com/escape-attempt');
@@ -102,6 +105,7 @@ function visualizationSource() {
 
 async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   const page = app.window()
+  await app.resizeMainWindow(760, 620)
   const iframe = page.locator(`iframe[title="${FRAME_TITLE}"]`)
   await expect(iframe).toBeVisible()
   await expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin')
@@ -121,6 +125,7 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(status).toHaveAttribute('data-relative-resource', 'blocked')
   await expect(status).toHaveAttribute('data-capability-attack', 'sent')
   await expect(status).toHaveAttribute('data-early-capability-attack', 'sent')
+  await expect(status).toHaveAttribute('data-state-report', 'accepted')
   await expect(iframe).not.toHaveCSS('height', '9999px')
   const navigationButton = frame.getByRole('button', { name: 'Attempt navigation' })
   // The hidden Electron window cannot acquire OS focus, so exercise the same
@@ -139,6 +144,49 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
     const heightAfter = await iframe.evaluate((element) => element.getBoundingClientRect().height)
     expect(heightAfter).toBeGreaterThan(heightBefore)
   }).toPass()
+
+  await page.getByRole('button', { name: 'Expand visualization' }).click()
+  const focusLayer = page.locator('[data-visualization-focus-layer="true"]')
+  const dialog = page.getByRole('dialog', { name: FRAME_TITLE })
+  await expect(focusLayer).toBeVisible()
+  await expect(dialog).toBeVisible()
+  await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  const dialogBounds = await dialog.boundingBox()
+  expect(dialogBounds?.x).toBeLessThan(24)
+  expect(dialogBounds?.width).toBeGreaterThan(viewport.width - 48)
+  await app.captureEvidence('openwaggle-inline-visualization-expanded')
+  expect(
+    await page.getByRole('button', { name: 'New session' }).first().evaluate((element) => {
+      let current: HTMLElement | null = element
+      while (current) {
+        if (current.inert) return true
+        current = current.parentElement
+      }
+      return false
+    }),
+  ).toBe(true)
+  await page.evaluate(() => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  await expect(focusLayer).toHaveCount(0)
+  await expect(page.getByRole('region', { name: FRAME_TITLE })).toBeVisible()
+  await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
+  const feedback = 'The selected visualization state should keep the expanded section.'
+  await app.mainWindow().messageInput().fill(feedback)
+  await app.mainWindow().submitComposer()
+  await expect
+    .poll(() => app.readAgentSendProbe())
+    .toMatchObject({
+      payload: {
+        text: feedback,
+        visualizationContext: {
+          sourcePath: expect.stringContaining(SOURCE_NAME),
+          title: FRAME_TITLE,
+          state: { count: 1, expanded: true },
+        },
+      },
+    })
   const heightExpanded = await iframe.evaluate((element) => element.getBoundingClientRect().height)
   await frame.getByRole('button', { name: 'Count 1' }).evaluate((element: HTMLElement) => {
     element.click()
@@ -158,6 +206,18 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
     timeout: 10_000,
   })
   await expect(iframe).toHaveCount(0)
+}
+
+async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
+  const page = app.window()
+  const input = app.mainWindow().messageInput()
+  await input.fill('/vis')
+  const menu = page.getByRole('menu', { name: 'Slash command menu' })
+  await expect(menu).toBeVisible()
+  const visualize = menu.getByRole('menuitem', { name: /Visualize/u })
+  await expect(visualize).toContainText('/visualize')
+  await visualize.click()
+  await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
 }
 
 async function openVisualizationThread(app: OpenWaggleApp) {
@@ -188,10 +248,13 @@ test('renders a persistent interactive visualization inside the isolated Electro
     })
 
     await app.restart()
+    await app.installAgentSendProbe()
     await openVisualizationThread(app)
+    await expectVisualizeSlashCommand(app)
     await expectSecureInteractiveVisualization(app)
 
     await app.restart()
+    await app.installAgentSendProbe()
     await openVisualizationThread(app)
     await expectSecureInteractiveVisualization(app)
   } finally {

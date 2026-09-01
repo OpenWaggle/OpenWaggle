@@ -216,6 +216,14 @@ _Avoid_: extension-injected transcript content, renderer-authored visualization
 The versioned, OpenWaggle-owned sandbox and host runtime shared by every Inline visualization. Installed extensions cannot add globals, resource origins, styles, IPC methods, or permissions to this environment, so replay and authority do not depend on which extensions are installed.
 _Avoid_: extension-augmented visualization sandbox, per-extension CSP
 
+**Visualization focus layer**:
+The app-wide modal presentation of an Inline visualization. It promotes the same mounted frame in place, without reparenting or frame navigation, so local interaction state survives the transition and narrow chat layouts do not constrain the visual.
+_Avoid_: widened transcript card, second visualization frame, visualization route
+
+**Inline visualization state snapshot**:
+A bounded JSON value that an Inline visualization explicitly reports through its authenticated host runtime to describe its current semantic selection, filters, or controls. OpenWaggle scopes the untrusted snapshot to the active session and source, and attaches the most recently updated mounted snapshot as clearly delimited user context when that user next addresses the agent. It is not DOM capture, trusted instruction, or durable transcript state.
+_Avoid_: visualization DOM scrape, hidden system prompt, trusted widget state
+
 **Blocking agent-loop interaction**:
 An Interactive agent-loop contribution that pauses agent progress until the user responds.
 _Avoid_: hidden prompt

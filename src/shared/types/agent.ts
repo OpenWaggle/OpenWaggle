@@ -1,4 +1,5 @@
 import type { MessageId, SessionId } from './brand'
+import type { JsonValue } from './json'
 import type { SupportedModelId } from './llm'
 import type { ThinkingLevel } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
@@ -74,6 +75,13 @@ export interface AgentSendPayload {
   readonly thinkingLevel: ThinkingLevel
   readonly attachments: readonly PreparedAttachment[]
   readonly waggle?: WaggleInvocation
+  readonly visualizationContext?: InlineVisualizationContext
+}
+
+export interface InlineVisualizationContext {
+  readonly title: string
+  readonly sourcePath: string
+  readonly state: JsonValue
 }
 
 export interface CompactionSummaryMetadata {

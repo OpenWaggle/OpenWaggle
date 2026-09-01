@@ -12,12 +12,23 @@ import type { PiModel } from '../pi-provider-catalog'
 import { buildPiPromptInput, type PiPromptInput } from '../pi-runtime-input'
 import type { PiCustomContent } from './message-parts'
 
-function piPromptInputToCustomContent(input: PiPromptInput): PiCustomContent {
+function piPromptInputToCustomContent(
+  input: PiPromptInput,
+  includeVisualizationContext = false,
+): PiCustomContent {
+  const text = [
+    input.text,
+    ...(includeVisualizationContext && input.visualizationContext
+      ? [input.visualizationContext]
+      : []),
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   if (input.images.length === 0) {
-    return input.text
+    return text
   }
 
-  return input.text ? [{ type: 'text', text: input.text }, ...input.images] : [...input.images]
+  return text ? [{ type: 'text', text }, ...input.images] : [...input.images]
 }
 
 function buildWaggleTurnPayload(
@@ -109,6 +120,7 @@ export async function sendInitialWaggleMessages(input: {
             turnNumber: 0,
           }),
         ),
+        true,
       ),
       display: false,
       details: buildTurnDetails({ meta: input.meta, fallbackRunId: input.runId }),
@@ -131,7 +143,7 @@ export function buildWaggleTurnCustomMessage(input: {
 
   return {
     customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
-    content: piPromptInputToCustomContent(buildPiPromptInput(input.model, turnPayload)),
+    content: piPromptInputToCustomContent(buildPiPromptInput(input.model, turnPayload), true),
     display: false,
     details: {
       ...buildTurnDetails({ meta: input.meta, fallbackRunId: input.runId }),

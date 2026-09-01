@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ensurePiVisualizeSkill } from '../pi-visualize-skill'
+import { ensurePiVisualizeSkill, getPiVisualizeSkillDiagnostic } from '../pi-visualize-skill'
 
 const execFileAsync = promisify(execFile)
 const temporaryRoots: string[] = []
@@ -33,6 +33,8 @@ describe('Pi Visualize skill', () => {
     expect(skill).toContain('## Inline HTML output contract')
     expect(skill).toContain('[data-tooltip-placement]')
     expect(skill).toContain('window.openai.sendFollowUpMessage')
+    expect(skill).toContain('window.openai.setVisualizationState')
+    expect(skill).toContain('16 KiB')
     expect(skill.split('\n').length).toBeGreaterThan(450)
     expect((await fs.lstat(agentDir)).isDirectory()).toBe(true)
   })
@@ -56,6 +58,19 @@ describe('Pi Visualize skill', () => {
     )
     await expect(fs.stat(path.join(outsideRoot, 'visualize', 'SKILL.md'))).rejects.toMatchObject({
       code: 'ENOENT',
+    })
+  })
+
+  it('reports an explicit command diagnostic when the bundled skill cannot be prepared', async () => {
+    const parent = await temporaryRoot()
+    const agentDir = path.join(parent, 'agent-file')
+    await fs.writeFile(agentDir, 'not a directory', 'utf8')
+
+    await expect(getPiVisualizeSkillDiagnostic(agentDir)).resolves.toMatchObject({
+      id: 'visualize',
+      enabled: false,
+      loadStatus: 'error',
+      hasScripts: true,
     })
   })
 

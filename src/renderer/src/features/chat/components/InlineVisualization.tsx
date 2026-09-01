@@ -3,11 +3,17 @@ import type {
   InlineVisualizationFrameRegisterResult,
   InlineVisualizationReference,
 } from '@shared/types/inline-visualization'
+import type { JsonValue } from '@shared/types/json'
 import { Maximize2, X } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import {
+  clearInlineVisualizationState,
+  reportInlineVisualizationState,
+} from '../state/inline-visualization-state'
 import { unavailableVisualizationMessage } from './inline-visualization-host'
+import { useInlineVisualizationFocusLayer } from './use-inline-visualization-focus-layer'
 import { useInlineVisualizationFrame } from './use-inline-visualization-frame'
 import { useInlineVisualizationModal } from './use-inline-visualization-modal'
 import { useInlineVisualizationRegistration } from './use-inline-visualization-registration'
@@ -72,7 +78,11 @@ function VisualizationContent({
   }
   if (!registration) {
     return (
-      <div role="status" className="flex min-h-40 items-center p-4 text-sm text-text-tertiary">
+      <div
+        role="status"
+        className="flex min-h-40 items-center p-4 text-sm text-text-tertiary"
+        style={{ height: `${String(height)}px` }}
+      >
         Loading visualization…
       </div>
     )
@@ -91,6 +101,55 @@ function VisualizationContent({
   )
 }
 
+function VisualizationSurface({
+  expanded,
+  mode,
+  sectionRef,
+  title,
+  sourcePath,
+  onDismiss,
+  children,
+}: {
+  readonly expanded: boolean
+  readonly mode: InlineVisualizationReference['mode']
+  readonly sectionRef: React.RefObject<HTMLElement | null>
+  readonly title: string
+  readonly sourcePath: string
+  readonly onDismiss: () => void
+  readonly children: React.ReactNode
+}) {
+  const accessibilityProps = expanded
+    ? ({ role: 'dialog', 'aria-modal': true } as const)
+    : ({ role: 'region' } as const)
+  return (
+    <section
+      ref={sectionRef}
+      aria-label={title}
+      {...accessibilityProps}
+      data-visualization-path={sourcePath}
+      data-visualization-focus-layer={expanded ? 'true' : undefined}
+      className={cn(
+        'inline-visualization-surface overflow-hidden bg-bg-secondary p-0 text-text-primary',
+        !expanded && 'relative left-1/2 mx-0 my-3 -translate-x-1/2 rounded-lg border border-border',
+        !expanded && mode === 'wide' && 'inline-visualization-wide',
+        expanded &&
+          'inline-visualization-expanded fixed inset-0 z-[80] m-0 h-dvh w-screen max-w-none overflow-hidden rounded-none border-0 bg-bg/60 backdrop-blur-[2px]',
+      )}
+    >
+      {expanded ? (
+        <Button
+          variant="unstyled"
+          type="button"
+          aria-label="Dismiss expanded visualization"
+          className="absolute inset-0 cursor-default"
+          onClick={onDismiss}
+        />
+      ) : null}
+      {children}
+    </section>
+  )
+}
+
 export function InlineVisualization({
   sessionId,
   interactionSessionId,
@@ -103,58 +162,81 @@ export function InlineVisualization({
   const title = reference.title ?? 'Interactive visualization'
   const sectionRef = useRef<HTMLElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const [expanded, setExpanded] = useState(false)
-  const dismiss = useCallback(() => setExpanded(false), [])
-  const { registration, registrationError, retryRegistration } = useInlineVisualizationRegistration(
-    { sectionRef, sessionId, sourcePath: reference.path },
+  const [stateInstanceId] = useState(() => crypto.randomUUID())
+  const stateScope = `${interactionSessionId ?? ''}\u0000${reference.path}\u0000${title}`
+  const { expanded, expand, dismiss } = useInlineVisualizationFocusLayer(sectionRef)
+  const { registration, registrationError, releaseRegistration, retryRegistration } =
+    useInlineVisualizationRegistration({
+      sectionRef,
+      sessionId,
+      sourcePath: reference.path,
+    })
+  const handleStateChange = useCallback(
+    (state: JsonValue | null) => {
+      clearInlineVisualizationState(stateInstanceId)
+      if (state === null || interactionSessionId === null) return
+      reportInlineVisualizationState({
+        instanceId: stateInstanceId,
+        sessionId: interactionSessionId,
+        sourcePath: reference.path,
+        title,
+        state,
+      })
+    },
+    [interactionSessionId, reference.path, stateInstanceId, title],
   )
+  const handleUnavailable = useCallback(() => {
+    clearInlineVisualizationState(stateInstanceId)
+    releaseRegistration()
+  }, [releaseRegistration, stateInstanceId])
   const { frameRef, height, errorReason, handleLoad, reset } = useInlineVisualizationFrame({
     interactionSessionId,
     frameUrl: registration?.frameUrl ?? null,
     registrationId: registration?.registrationId ?? null,
     onDismiss: dismiss,
+    onUnavailable: handleUnavailable,
+    onStateChange: handleStateChange,
   })
 
-  useInlineVisualizationModal({ expanded, sectionRef, closeButtonRef })
+  useEffect(() => {
+    if (stateScope.length > 0) clearInlineVisualizationState(stateInstanceId)
+    return () => clearInlineVisualizationState(stateInstanceId)
+  }, [stateInstanceId, stateScope])
+
+  useEffect(() => {
+    if (!registration) clearInlineVisualizationState(stateInstanceId)
+  }, [registration, stateInstanceId])
+
+  useInlineVisualizationModal({ expanded, sectionRef, closeButtonRef, onDismiss: dismiss })
 
   const retry = () => {
+    clearInlineVisualizationState(stateInstanceId)
     reset()
     retryRegistration()
   }
   const unavailableReason = errorReason ?? (registrationError ? 'read-failed' : null)
-  const accessibilityProps = expanded
-    ? ({ role: 'dialog', 'aria-modal': true } as const)
-    : ({ role: 'region' } as const)
 
   return (
-    <>
-      {expanded ? (
-        <Button
-          variant="unstyled"
-          type="button"
-          aria-label="Dismiss expanded visualization"
-          data-visualization-backdrop="true"
-          className="fixed inset-0 z-40 bg-bg/60"
-          onClick={dismiss}
-        />
-      ) : null}
-      <section
-        ref={sectionRef}
-        aria-label={title}
-        {...accessibilityProps}
-        data-visualization-path={reference.path}
+    <VisualizationSurface
+      expanded={expanded}
+      mode={reference.mode}
+      sectionRef={sectionRef}
+      title={title}
+      sourcePath={reference.path}
+      onDismiss={dismiss}
+    >
+      <div
         className={cn(
-          'inline-visualization-surface relative left-1/2 my-3 -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-bg-secondary',
-          reference.mode === 'wide' && 'inline-visualization-wide',
+          'contents',
           expanded &&
-            'inline-visualization-expanded fixed top-4 bottom-4 left-1/2 z-50 m-0 -translate-x-1/2 overflow-auto bg-bg shadow-2xl',
+            'absolute inset-2 block overflow-auto rounded-xl border border-border bg-bg shadow-2xl sm:inset-4',
         )}
       >
         {reference.mode === 'wide' ? (
           <VisualizationToolbar
             expanded={expanded}
             buttonRef={closeButtonRef}
-            onToggle={() => setExpanded((value) => !value)}
+            onToggle={expanded ? dismiss : expand}
           />
         ) : null}
         <VisualizationContent
@@ -167,7 +249,7 @@ export function InlineVisualization({
           onLoad={handleLoad}
           onRetry={retry}
         />
-      </section>
-    </>
+      </div>
+    </VisualizationSurface>
   )
 }

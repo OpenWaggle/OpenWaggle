@@ -5,3 +5,5 @@ export const INLINE_VISUALIZATION_PROTOCOL = {
   LUCIDE_PATH: '/lucide.js',
   BASE_STYLE_PATH: '/base.css',
 } as const
+
+export const MAX_INLINE_VISUALIZATION_PATH_LENGTH = 32_768

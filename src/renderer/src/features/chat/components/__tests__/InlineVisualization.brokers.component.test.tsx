@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearInlineVisualizationStatesForTests } from '../../state/inline-visualization-state'
 import { useMessageQueueStore } from '../../state/message-queue-store'
 
 const apiMock = vi.hoisted(() => ({
@@ -15,6 +16,12 @@ const apiMock = vi.hoisted(() => ({
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
 import { InlineVisualization } from '../InlineVisualization'
+import {
+  deliverVisualizationFollowUp,
+  registerVisualizationFollowUpDispatcher,
+} from '../inline-visualization-host'
+
+let unregisterFollowUpDispatcher: (() => void) | null = null
 
 async function visualizationFrame(title: string) {
   const element = await screen.findByTitle(title)
@@ -83,8 +90,11 @@ describe('InlineVisualization brokers', () => {
   })
 
   afterEach(() => {
+    unregisterFollowUpDispatcher?.()
+    unregisterFollowUpDispatcher = null
     for (const mock of Object.values(apiMock)) mock.mockReset()
     useMessageQueueStore.setState({ queues: new Map() })
+    clearInlineVisualizationStatesForTests()
   })
 
   it('opens a network link only after the user confirms the brokered request', async () => {
@@ -241,9 +251,20 @@ describe('InlineVisualization brokers', () => {
     expect(apiMock.openExternal).not.toHaveBeenCalled()
   })
 
-  it('reads from the owning session but queues a confirmed follow-up for the active session', async () => {
+  it('reads from the owning session but sends a confirmed follow-up to the idle active session', async () => {
     const sourceSessionId = SessionId('source-session')
     const activeSessionId = SessionId('active-session')
+    const send = vi.fn(async () => undefined)
+    unregisterFollowUpDispatcher = registerVisualizationFollowUpDispatcher(
+      activeSessionId,
+      (payload) =>
+        deliverVisualizationFollowUp({
+          isIdle: true,
+          payload,
+          send,
+          enqueue: vi.fn(),
+        }),
+    )
     apiMock.showConfirm.mockResolvedValue(true)
     render(
       <InlineVisualization
@@ -261,6 +282,10 @@ describe('InlineVisualization brokers', () => {
     const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
     act(() => {
       dispatchFrameMessage(frame, {
+        type: 'openwaggle:inline-visualization:state',
+        state: { selectedService: 'api' },
+      })
+      dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:follow-up',
         requestId: 'follow-up-request-1',
         prompt: 'Investigate the selected service.',
@@ -273,9 +298,17 @@ describe('InlineVisualization brokers', () => {
         'Investigate selection?',
         'Investigate the selected service.',
       )
-      expect(useMessageQueueStore.getState().queues.get(activeSessionId)?.[0]?.payload.text).toBe(
-        'Investigate the selected service.',
-      )
+      expect(send).toHaveBeenCalledWith({
+        text: 'Investigate the selected service.',
+        thinkingLevel: expect.any(String),
+        attachments: [],
+        visualizationContext: {
+          title: 'Follow-up map',
+          sourcePath: '/repo/follow-up-map.html',
+          state: { selectedService: 'api' },
+        },
+      })
+      expect(useMessageQueueStore.getState().queues.has(activeSessionId)).toBe(false)
       expect(useMessageQueueStore.getState().queues.has(sourceSessionId)).toBe(false)
       expect(postMessage).toHaveBeenCalledWith(
         {

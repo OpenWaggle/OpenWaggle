@@ -29,7 +29,7 @@ export function useCommandPaletteKeyboard({
 
   function moveHighlight(delta: 1 | -1) {
     if (items.length === 0) return
-    setHighlightIndex(nextHighlightIndex(highlightIndex, delta, items.length))
+    setHighlightIndex(nextEnabledHighlightIndex(items, highlightIndex, delta))
     scrollHighlightedIntoView()
   }
 
@@ -45,13 +45,13 @@ export function useCommandPaletteKeyboard({
       })
       .with('Enter', () => {
         const selectedItem = items[highlightIndex]
-        if (!selectedItem) return
+        if (!selectedItem || selectedItem.disabled) return
         event.preventDefault()
         selectedItem.action()
       })
       .with('Tab', () => {
         const selectedItem = items[highlightIndex]
-        if (!selectedItem) return
+        if (!selectedItem || selectedItem.disabled) return
         event.preventDefault()
         selectedItem.action()
       })
@@ -76,4 +76,17 @@ export function useCommandPaletteKeyboard({
 function nextHighlightIndex(currentIndex: number, delta: 1 | -1, itemCount: number) {
   if (delta === 1) return (currentIndex + 1) % itemCount
   return currentIndex === 0 ? itemCount - 1 : currentIndex - 1
+}
+
+function nextEnabledHighlightIndex(
+  items: readonly CommandPaletteItem[],
+  currentIndex: number,
+  delta: 1 | -1,
+) {
+  let candidate = currentIndex
+  for (let attempts = 0; attempts < items.length; attempts += 1) {
+    candidate = nextHighlightIndex(candidate, delta, items.length)
+    if (!items[candidate]?.disabled) return candidate
+  }
+  return currentIndex
 }

@@ -19,6 +19,8 @@ import {
   inlineVisualizationUrl,
   registerInlineVisualizationFrame,
   registerInlineVisualizationProtocolOnce,
+  unregisterInlineVisualizationFrame,
+  unregisterInlineVisualizationFramesForOwner,
   VISUALIZATION_CONTENT_SECURITY_POLICY,
 } from '../inline-visualization-protocol'
 
@@ -44,7 +46,13 @@ describe('inline visualization protocol', () => {
     })
     expect(unregisteredResponse.status).toBe(404)
     expect(readSource).not.toHaveBeenCalled()
-    registerInlineVisualizationFrame({ frameId, sessionId, sourcePath })
+    const initialRegistration = registerInlineVisualizationFrame(
+      { frameId, sessionId, sourcePath },
+      11,
+    )
+    expect(() => registerInlineVisualizationFrame({ frameId, sessionId, sourcePath }, 12)).toThrow(
+      'already registered',
+    )
 
     const response = await handler?.({
       url: inlineVisualizationUrl(frameId),
@@ -57,6 +65,11 @@ describe('inline visualization protocol', () => {
     expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain(
       "script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
     )
+    for (const directive of ['script-src', 'script-src-elem', 'style-src', 'font-src']) {
+      expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toMatch(
+        new RegExp(`${directive}[^;]*blob:[^;]*data:`),
+      )
+    }
     for (const origin of CODEX_VISUALIZATION_CDN_ORIGINS) {
       expect(VISUALIZATION_CONTENT_SECURITY_POLICY).toContain(origin)
     }
@@ -107,11 +120,18 @@ describe('inline visualization protocol', () => {
     expect(sharedOriginResponse.status).toBe(404)
 
     readSource.mockResolvedValue({ status: 'unavailable', reason: 'missing' })
-    registerInlineVisualizationFrame({
-      frameId,
-      sessionId,
-      sourcePath: '/repo/missing-map.html',
-    })
+    unregisterInlineVisualizationFrame(
+      { frameId, registrationId: initialRegistration.registrationId },
+      11,
+    )
+    const missingRegistration = registerInlineVisualizationFrame(
+      {
+        frameId,
+        sessionId,
+        sourcePath: '/repo/missing-map.html',
+      },
+      11,
+    )
     const unavailableResponse = await handler?.({
       url: inlineVisualizationUrl(frameId),
     })
@@ -122,5 +142,29 @@ describe('inline visualization protocol', () => {
     const unavailableDocument = await unavailableResponse.text()
     expect(unavailableDocument).toContain('openwaggle:inline-visualization:error')
     expect(unavailableDocument).toContain('missing')
+    unregisterInlineVisualizationFrame(
+      { frameId, registrationId: missingRegistration.registrationId },
+      11,
+    )
+    const ownerRegistration = registerInlineVisualizationFrame(
+      { frameId, sessionId, sourcePath },
+      41,
+    )
+
+    unregisterInlineVisualizationFrame(
+      { frameId, registrationId: ownerRegistration.registrationId },
+      42,
+    )
+    unregisterInlineVisualizationFramesForOwner(42)
+    await expect(handler?.({ url: inlineVisualizationUrl(frameId) })).resolves.not.toHaveProperty(
+      'status',
+      404,
+    )
+
+    unregisterInlineVisualizationFramesForOwner(41)
+    await expect(handler?.({ url: inlineVisualizationUrl(frameId) })).resolves.toHaveProperty(
+      'status',
+      404,
+    )
   })
 })

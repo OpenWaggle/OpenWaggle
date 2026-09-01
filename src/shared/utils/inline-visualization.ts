@@ -1,11 +1,13 @@
-import { INLINE_VISUALIZATION_PROTOCOL } from '../constants/inline-visualization'
+import {
+  INLINE_VISUALIZATION_PROTOCOL,
+  MAX_INLINE_VISUALIZATION_PATH_LENGTH,
+} from '../constants/inline-visualization'
 import type { InlineVisualizationReference } from '../types/inline-visualization'
 import { isRecord } from './validation'
 
 export const VISUALIZE_REFERENCE_START = 'visualize'
 export const VISUALIZE_REFERENCE_END = ''
 const VISUALIZE_REFERENCE_KEYS = new Set(['path', 'title', 'mode'])
-const MAX_VISUALIZATION_PATH_LENGTH = 32_768
 const MAX_VISUALIZATION_TITLE_LENGTH = 250
 
 export function isAbsoluteVisualizationPath(value: string) {
@@ -21,7 +23,7 @@ function isValidVisualizationPath(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.length > 0 &&
-    value.length <= MAX_VISUALIZATION_PATH_LENGTH &&
+    value.length <= MAX_INLINE_VISUALIZATION_PATH_LENGTH &&
     !value.includes('\0') &&
     isAbsoluteVisualizationPath(value)
   )

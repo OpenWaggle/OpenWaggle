@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
 import baseStyles from '../../inline-visualization-assets/base.css.raw?raw'
 import renderScriptSource from './visualize-skill/render.py.raw?raw'
@@ -84,4 +86,32 @@ export function ensurePiVisualizeSkill(agentDir: string) {
   })
   pendingSkillPreparation.set(normalizedAgentDir, preparation)
   return preparation
+}
+
+/**
+ * The command palette keeps the built-in authoring command discoverable even though its
+ * skill lives in Pi's agent directory rather than the project skill catalog. Surface a
+ * concrete load error when that runtime resource cannot be prepared so the command never
+ * looks usable while silently doing nothing.
+ */
+export async function getPiVisualizeSkillDiagnostic(
+  agentDir = getAgentDir(),
+): Promise<SkillDiscoveryItem | null> {
+  try {
+    await ensurePiVisualizeSkill(agentDir)
+    return null
+  } catch (error) {
+    const folderPath = path.join(path.resolve(agentDir), BUILT_IN_SKILLS_DIRECTORY, 'visualize')
+    return {
+      id: 'visualize',
+      name: 'Visualize',
+      description: 'Built-in visualization authoring is unavailable',
+      folderPath,
+      skillPath: path.join(folderPath, 'SKILL.md'),
+      hasScripts: true,
+      enabled: false,
+      loadStatus: 'error',
+      loadError: error instanceof Error ? error.message : String(error),
+    }
+  }
 }

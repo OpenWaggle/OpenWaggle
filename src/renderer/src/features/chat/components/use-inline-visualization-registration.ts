@@ -1,26 +1,23 @@
 import type { SessionId } from '@shared/types/brand'
 import type { InlineVisualizationFrameRegisterResult } from '@shared/types/inline-visualization'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
 function useNearViewport(elementRef: React.RefObject<HTMLElement | null>) {
   const [nearViewport, setNearViewport] = useState(() => !('IntersectionObserver' in window))
   useEffect(() => {
-    if (nearViewport || !('IntersectionObserver' in window)) return
+    if (!('IntersectionObserver' in window)) return
     const element = elementRef.current
     if (!element) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setNearViewport(true)
-          observer.disconnect()
-        }
+        setNearViewport(entries.some((entry) => entry.isIntersecting))
       },
       { rootMargin: '400px' },
     )
     observer.observe(element)
     return () => observer.disconnect()
-  }, [elementRef, nearViewport])
+  }, [elementRef])
   return nearViewport
 }
 
@@ -35,9 +32,14 @@ export function useInlineVisualizationRegistration(input: {
     null,
   )
   const [registrationError, setRegistrationError] = useState<string | null>(null)
+  const [enabled, setEnabled] = useState(true)
+  const releaseRegistration = useCallback(() => {
+    setRegistration(null)
+    setEnabled(false)
+  }, [])
 
   useEffect(() => {
-    if (!nearViewport) return
+    if (!nearViewport || !enabled) return
     let active = true
     let activeRegistration: InlineVisualizationFrameRegisterResult | null = null
     setRegistration(null)
@@ -70,13 +72,15 @@ export function useInlineVisualizationRegistration(input: {
         })
       }
     }
-  }, [frameId, input.sessionId, input.sourcePath, nearViewport])
+  }, [enabled, frameId, input.sessionId, input.sourcePath, nearViewport])
 
   return {
-    registration,
+    registration: nearViewport && enabled ? registration : null,
     registrationError,
+    releaseRegistration,
     retryRegistration() {
       setRegistrationError(null)
+      setEnabled(true)
       setFrameId(globalThis.crypto.randomUUID())
     },
   }

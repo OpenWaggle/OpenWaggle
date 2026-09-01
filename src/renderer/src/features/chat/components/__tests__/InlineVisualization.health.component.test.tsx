@@ -52,6 +52,32 @@ function dispatchResourceLimit(frame: HTMLIFrameElement) {
   )
 }
 
+function dispatchResize(frame: HTMLIFrameElement, height: number) {
+  const url = new URL(frame.src)
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: frame.contentWindow,
+      origin: `${url.protocol}//${url.host}`,
+      data: {
+        type: 'openwaggle:inline-visualization:resize',
+        capability: 'test-capability-1234567890',
+        height,
+      },
+    }),
+  )
+}
+
+function dispatchUnauthenticatedMessage(frame: HTMLIFrameElement) {
+  const url = new URL(frame.src)
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: frame.contentWindow,
+      origin: `${url.protocol}//${url.host}`,
+      data: { type: 'fragment-controlled-flood' },
+    }),
+  )
+}
+
 describe('InlineVisualization health checks', () => {
   beforeEach(() => {
     apiMock.registerInlineVisualizationFrame.mockImplementation(
@@ -120,5 +146,43 @@ describe('InlineVisualization health checks', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
     expect(screen.queryByTitle('Resource-heavy map')).toBeNull()
+    expect(apiMock.unregisterInlineVisualizationFrame).toHaveBeenCalledOnce()
+  })
+
+  it('removes a frame that floods authenticated telemetry', async () => {
+    render(
+      <InlineVisualization
+        sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
+        reference={{ path: '/repo/flood-map.html', title: 'Flood map' }}
+      />,
+    )
+    await act(async () => undefined)
+    const frame = currentVisualizationFrame('Flood map')
+    act(() => {
+      dispatchReady(frame)
+      for (let index = 0; index < 200; index += 1) dispatchResize(frame, 320 + index)
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
+    expect(apiMock.unregisterInlineVisualizationFrame).toHaveBeenCalledOnce()
+  })
+
+  it('removes a frame that floods messages before authenticating', async () => {
+    render(
+      <InlineVisualization
+        sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
+        reference={{ path: '/repo/unauthenticated-flood.html', title: 'Flood map' }}
+      />,
+    )
+    await act(async () => undefined)
+    const frame = currentVisualizationFrame('Flood map')
+    act(() => {
+      for (let index = 0; index < 200; index += 1) dispatchUnauthenticatedMessage(frame)
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
+    expect(apiMock.unregisterInlineVisualizationFrame).toHaveBeenCalledOnce()
   })
 })

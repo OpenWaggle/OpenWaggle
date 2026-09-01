@@ -7,6 +7,7 @@ import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
+import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { flushDraftWorktreePlanToSession } from '@/features/git'
 import { useWaggleStore } from '@/features/waggle/state'
@@ -65,7 +66,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       await sendMessageToSession(sessionId, payload, null)
       return
     }
-    await sendMessage(payload)
+    await sendMessage(withInlineVisualizationContext(activeSessionId, payload))
   }
 
   async function handleSendText(content: string) {
@@ -90,7 +91,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       await sendMessageToSession(sessionId, payload, config)
       return
     }
-    await sendWaggleMessage(payload, config)
+    await sendWaggleMessage(withInlineVisualizationContext(activeSessionId, payload), config)
   }
 
   return { handleSend, handleSendText, handleSendWaggle }

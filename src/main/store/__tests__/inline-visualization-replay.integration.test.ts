@@ -38,16 +38,22 @@ afterEach(async () => {
 
 describe('inline visualization replay', () => {
   it('replays a persisted reference against its live session source after restart', async () => {
-    const session = await createSession({
+    const sourceSession = await createSession({
+      projectPath: '/tmp/project-visualization-replay',
+      piSessionId: 'pi-session-visualization-source',
+      piSessionFile: '/tmp/pi-session-visualization-source.jsonl',
+    })
+    const replaySession = await createSession({
       projectPath: '/tmp/project-visualization-replay',
       piSessionId: 'pi-session-visualization-replay',
       piSessionFile: '/tmp/pi-session-visualization-replay.jsonl',
     })
-    const sessionId = SessionId(String(session.id))
+    const sourceSessionId = SessionId(String(sourceSession.id))
+    const replaySessionId = SessionId(String(replaySession.id))
     const sourceDirectory = lifecyclePath.join(
       state.userDataDir,
       'visualizations',
-      String(sessionId),
+      String(sourceSessionId),
     )
     await lifecycleFs.mkdir(sourceDirectory, { recursive: true })
     const sourcePath = lifecyclePath.join(sourceDirectory, 'restart-map.html')
@@ -55,7 +61,7 @@ describe('inline visualization replay', () => {
     const reference = `visualize${JSON.stringify({ path: sourcePath, title: 'Restart map' })}`
 
     await persistSessionSnapshot({
-      sessionId,
+      sessionId: replaySessionId,
       piSessionId: 'pi-session-visualization-replay',
       piSessionFile: '/tmp/pi-session-visualization-replay.jsonl',
       activeNodeId: 'assistant-visualization',
@@ -68,7 +74,7 @@ describe('inline visualization replay', () => {
           role: 'assistant',
           timestampMs: 10,
           contentJson: JSON.stringify({ parts: [{ type: 'text', text: reference }] }),
-          metadataJson: JSON.stringify({ visualizationSessionId: 'source-session' }),
+          metadataJson: JSON.stringify({ visualizationSessionId: sourceSessionId }),
           pathDepth: 0,
           createdOrder: 0,
         },
@@ -76,7 +82,7 @@ describe('inline visualization replay', () => {
     })
 
     await persistSessionSnapshot({
-      sessionId,
+      sessionId: replaySessionId,
       piSessionId: 'pi-session-visualization-replay',
       piSessionFile: '/tmp/pi-session-visualization-replay.jsonl',
       activeNodeId: 'assistant-visualization',
@@ -98,14 +104,16 @@ describe('inline visualization replay', () => {
 
     const { runAppEffect, resetAppRuntimeForTests } = await import('../../runtime')
     await resetAppRuntimeForTests()
-    const reloaded = await getSessionDetail(sessionId)
+    const reloaded = await getSessionDetail(replaySessionId)
     const { readInlineVisualizationSource } = await import(
       '../../application/inline-visualization-source-service'
     )
-    const liveSource = await runAppEffect(readInlineVisualizationSource({ sessionId, sourcePath }))
+    const liveSource = await runAppEffect(
+      readInlineVisualizationSource({ sessionId: sourceSessionId, sourcePath }),
+    )
 
     expect(reloaded?.messages[0]?.parts).toEqual([{ type: 'text', text: reference }])
-    expect(reloaded?.messages[0]?.metadata?.visualizationSessionId).toBe('source-session')
+    expect(reloaded?.messages[0]?.metadata?.visualizationSessionId).toBe(sourceSessionId)
     expect(liveSource).toMatchObject({
       status: 'loaded',
       contents: '<main>Live after restart</main>',

@@ -1,125 +1,6 @@
 import vm from 'node:vm'
-import { describe, expect, it, vi } from 'vitest'
-import hostRuntime from '../inline-visualization-assets/host-runtime.js.raw?raw'
-
-interface RuntimeWindow {
-  readonly openai?: {
-    readonly sendFollowUpMessage: (message: string) => Promise<boolean>
-  }
-}
-
-function runtimeHarness(nativeActivationIsActive = false, supportsLongTaskAccounting = true) {
-  const postedMessages: unknown[] = []
-  const listeners = new Map<string, Array<(event: { source?: unknown; data?: unknown }) => void>>()
-  const documentListeners = new Map<string, Array<(event: { isTrusted?: boolean }) => void>>()
-  const parent = { postMessage: (message: unknown) => postedMessages.push(message) }
-  class NativeUserActivation {
-    get isActive() {
-      return nativeActivationIsActive
-    }
-  }
-  const navigator: { userActivation: { readonly isActive: boolean } } = {
-    userActivation: new NativeUserActivation(),
-  }
-  const runtimeWindow: RuntimeWindow = {}
-  let performanceNow = 0
-  const performanceObserverCallbacks: Array<
-    (list: { getEntries: () => Array<{ duration: number }> }) => void
-  > = []
-  class RuntimePerformanceObserver {
-    static supportedEntryTypes = ['longtask']
-
-    constructor(callback: (list: { getEntries: () => Array<{ duration: number }> }) => void) {
-      performanceObserverCallbacks.push(callback)
-    }
-
-    observe() {}
-  }
-  class RuntimePerformanceEntry {
-    constructor(private readonly durationValue: number) {}
-
-    get duration() {
-      return this.durationValue
-    }
-  }
-  class RuntimePerformanceObserverEntryList {
-    constructor(private readonly entries: RuntimePerformanceEntry[]) {}
-
-    getEntries() {
-      return this.entries
-    }
-  }
-  const context = vm.createContext({
-    crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
-    parent,
-    document: {
-      body: {
-        children: [],
-        getBoundingClientRect: () => ({ bottom: 0, top: 0 }),
-      },
-      addEventListener: vi.fn(
-        (type: string, listener: (event: { isTrusted?: boolean }) => void) => {
-          documentListeners.set(type, [...(documentListeners.get(type) ?? []), listener])
-        },
-      ),
-    },
-    navigator,
-    window: runtimeWindow,
-    Element: class Element {},
-    HTMLAnchorElement: class HTMLAnchorElement {},
-    matchMedia: vi.fn(() => ({ matches: false })),
-    addEventListener: vi.fn(
-      (type: string, listener: (event: { source?: unknown; data?: unknown }) => void) => {
-        listeners.set(type, [...(listeners.get(type) ?? []), listener])
-      },
-    ),
-    setTimeout,
-    clearTimeout,
-    queueMicrotask,
-    PerformanceObserver: supportsLongTaskAccounting ? RuntimePerformanceObserver : undefined,
-    PerformanceEntry: RuntimePerformanceEntry,
-    PerformanceObserverEntryList: RuntimePerformanceObserverEntryList,
-    performance: { now: () => performanceNow },
-  })
-  vm.runInContext(hostRuntime, context)
-  const dispatchHostMessage = (data: unknown) => {
-    for (const listener of listeners.get('message') ?? []) listener({ source: parent, data })
-  }
-  const dispatchTrustedDocumentEvent = (type: string, fragmentHandler: () => void) => {
-    for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: true })
-    fragmentHandler()
-  }
-  const dispatchWindowEvent = (type: string) => {
-    for (const listener of listeners.get(type) ?? []) listener({})
-  }
-  const dispatchSyntheticDocumentEvent = (type: string, fragmentHandler: () => void) => {
-    for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: false })
-    fragmentHandler()
-  }
-  const dispatchLongTasks = (...durations: number[]) => {
-    for (const callback of performanceObserverCallbacks) {
-      callback(
-        new RuntimePerformanceObserverEntryList(
-          durations.map((duration) => new RuntimePerformanceEntry(duration)),
-        ),
-      )
-    }
-  }
-  return {
-    advanceRuntimeTime: (milliseconds: number) => {
-      performanceNow += milliseconds
-    },
-    context,
-    dispatchWindowEvent,
-    dispatchHostMessage,
-    dispatchLongTasks,
-    dispatchSyntheticDocumentEvent,
-    dispatchTrustedDocumentEvent,
-    navigator,
-    postedMessages,
-    runtimeWindow,
-  }
-}
+import { describe, expect, it } from 'vitest'
+import { runtimeHarness } from './inline-visualization-host-runtime.test-harness'
 
 describe('inline visualization host runtime', () => {
   it('does not report readiness until fragment parsing reaches DOMContentLoaded', () => {
@@ -134,6 +15,18 @@ describe('inline visualization host runtime', () => {
     dispatchWindowEvent('DOMContentLoaded')
     expect(postedMessages).toContainEqual(
       expect.objectContaining({ type: 'openwaggle:inline-visualization:ready' }),
+    )
+  })
+
+  it('accepts Escape dismissal only from a trusted keyboard event', () => {
+    const { dispatchWindowEvent, postedMessages } = runtimeHarness()
+    dispatchWindowEvent('keydown', { key: 'Escape', isTrusted: false })
+    expect(postedMessages).not.toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:dismiss' }),
+    )
+    dispatchWindowEvent('keydown', { key: 'Escape', isTrusted: true })
+    expect(postedMessages).toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:dismiss' }),
     )
   })
 

@@ -7,6 +7,7 @@ import {
   useSessionContextRow,
 } from '@/features/git'
 import { usePreferencesStore } from '@/features/settings/state'
+import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 
 interface UseComposerSendGateInput {
   readonly activeSessionId: SessionId | null
@@ -64,7 +65,11 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
         startFromOrigin: strip.startFromOrigin,
       })
     }
-    await input.onSend(payload)
+    await input.onSend(
+      input.activeSessionId
+        ? withInlineVisualizationContext(input.activeSessionId, payload)
+        : payload,
+    )
   }
   return { strip, guardedSend, sendBlockedReason }
 }
