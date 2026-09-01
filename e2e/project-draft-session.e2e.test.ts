@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Locator, test } from '@playwright/test'
@@ -10,6 +11,24 @@ const SOURCE_THREAD_TITLE = 'Source Existing Conversation'
 const TARGET_THREAD_TITLE = 'Target Existing Conversation'
 const SOURCE_THREAD_BODY = 'source-transcript-body-before-draft'
 const TARGET_THREAD_BODY = 'target-transcript-body-before-draft'
+
+function initializeRepository(projectPath: string) {
+  execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
+  execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=OpenWaggle E2E',
+      '-c',
+      'user.email=e2e@openwaggle.test',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'Initial commit',
+    ],
+    { cwd: projectPath, stdio: 'ignore' },
+  )
+}
 
 async function expectHitTestVisible(locator: Locator) {
   await expect(locator).toBeVisible()
@@ -32,6 +51,8 @@ test('project-level new session opens a draft in the selected repository', async
     const targetProjectPath = path.join(app.userDataDir, TARGET_PROJECT_LABEL)
     await fs.mkdir(sourceProjectPath, { recursive: true })
     await fs.mkdir(targetProjectPath, { recursive: true })
+    initializeRepository(sourceProjectPath)
+    initializeRepository(targetProjectPath)
 
     await seedSessions(app.userDataDir, [
       {
