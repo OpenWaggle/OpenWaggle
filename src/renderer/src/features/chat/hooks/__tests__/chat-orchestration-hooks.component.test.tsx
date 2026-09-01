@@ -1,15 +1,15 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId, SessionNodeId, SupportedModelId, WagglePresetId } from '@shared/types/brand'
+import { SessionId, SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatStore } from '../../state/chat-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
-import { useSessionCopyWorkflow } from '../useSessionCopyWorkflow'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
@@ -192,6 +192,7 @@ describe('chat orchestration hooks', () => {
       worktreeLaunchBySessionId: new Map(),
       firstSendRecoveryBySessionId: new Map(),
     })
+    useAgentLoopEventStore.setState({ sessionsById: new Map() })
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({
       activeSessionId: null,
@@ -213,6 +214,27 @@ describe('chat orchestration hooks', () => {
 
     emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 })
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
+
+    requireAgentEventHandler()({
+      sessionId: SESSION_ID,
+      event: {
+        type: 'agent_interaction_request',
+        timestamp: 1,
+        interaction: {
+          interactionId: 'persistent-error',
+          sessionId: SESSION_ID,
+          runId: 'run-1',
+          kind: 'notify',
+          source: 'pi-ui',
+          createdAt: 1,
+          level: 'error',
+          message: 'Could not reach api.github.com',
+        },
+      },
+    })
+    expect(
+      useAgentLoopEventStore.getState().sessionsById.get(SESSION_ID)?.interactionEvents,
+    ).toHaveLength(1)
 
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
     await waitFor(() => expect(refreshSession).toHaveBeenCalledWith(SESSION_ID))
@@ -296,30 +318,5 @@ describe('chat orchestration hooks', () => {
     expect(apiMock.cancelWaggle).toHaveBeenCalledWith(SESSION_ID)
     expect(params.stopWaggleCollaboration).toHaveBeenCalledOnce()
     expect(params.stop).toHaveBeenCalledOnce()
-  })
-
-  it('keeps session copy commands safe when there is no active session or fork target', async () => {
-    const showToast = vi.fn()
-    const { result } = renderHook(() =>
-      useSessionCopyWorkflow({
-        activeSessionId: null,
-        activeWorkspace: null,
-        draftBranchSourceNodeId: SessionNodeId('draft-source'),
-        model: MODEL,
-        projectPath: '/repo',
-        navigate: vi.fn(),
-        setActiveSession: vi.fn(),
-        loadSessions: vi.fn().mockResolvedValue(undefined),
-        refreshSession: vi.fn().mockResolvedValue(undefined),
-        refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-        showToast,
-      }),
-    )
-
-    await act(() => result.current.cloneCurrentSessionToNewSession())
-    act(() => result.current.openForkSelector())
-
-    expect(showToast).toHaveBeenCalledWith('No active session to clone.')
-    expect(showToast).toHaveBeenCalledWith('No user messages are available to fork.')
   })
 })

@@ -17,6 +17,7 @@ import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
 import { registerShellHandlers } from './shell-handler'
 import { registerSkillsHandlers } from './skills-handler'
+import { registerSyntaxThemeHandlers } from './syntax-themes-handler'
 import { registerTerminalHandlers } from './terminal-handler'
 import { registerUpdaterHandlers } from './updater-handler'
 import { registerVoiceHandlers } from './voice-handler'
@@ -30,6 +31,7 @@ export function registerAllIpcHandlers(): void {
   registerAuthHandlers()
   registerAgentHandlers()
   registerSettingsHandlers()
+  registerSyntaxThemeHandlers()
   registerSessionsHandlers()
   registerSessionDetailsHandlers()
   registerAttachmentHandlers()

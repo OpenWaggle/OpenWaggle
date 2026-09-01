@@ -1,10 +1,14 @@
 import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
+import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
+
+type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 
 /** The ordinary case: main ran the turn. */
 const DELIVERED_REPORT = { outcome: 'delivered' } as const
@@ -127,7 +131,10 @@ vi.mock('@/features/chat/state/chat-store', () => ({
 
 const { useAgentChat } = await import('../useAgentChat')
 
-function emitAgentEvent(payload: unknown) {
+function emitAgentEvent(payload: AgentEventPayload) {
+  // WorkspaceShell owns the durable session-scoped event listener in production. This focused hook
+  // harness mirrors that listener while still delivering the event to useAgentChat's stream logic.
+  useAgentLoopEventStore.getState().applyEvent(payload.sessionId, payload.event)
   for (const handler of agentEventHandlers) {
     handler(payload)
   }
@@ -261,6 +268,7 @@ export function installUseAgentChatTestLifecycle() {
     useChatStoreMock.mockClear()
     agentEventHandlers.length = 0
     runCompletedHandlers.length = 0
+    useAgentLoopEventStore.setState({ sessionsById: new Map() })
     useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
   })
 }

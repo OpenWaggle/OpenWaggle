@@ -19,6 +19,12 @@ import {
   type ShortcutCommand,
   shortcutBindingKey,
 } from '@shared/types/shortcuts'
+import {
+  DEFAULT_SYNTAX_THEME_SELECTIONS,
+  SYNTAX_APPEARANCE_VARIANTS,
+  type SyntaxAppearanceVariant,
+  type SyntaxThemeSelections,
+} from '@shared/types/syntax'
 import { includes } from '@shared/utils/validation'
 
 export function isObjectRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -59,6 +65,29 @@ export function isValidDiffSyntaxTheme(value: unknown) {
 
 export function resolveDiffSyntaxTheme(raw: unknown) {
   return isValidDiffSyntaxTheme(raw) ? raw : DEFAULT_SETTINGS.diffSyntaxTheme
+}
+
+const MAX_SYNTAX_THEME_ID_LENGTH = 240
+
+function isSyntaxThemeId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= MAX_SYNTAX_THEME_ID_LENGTH
+  )
+}
+
+export function resolveSyntaxThemeSelections(raw: unknown): SyntaxThemeSelections {
+  if (!isObjectRecord(raw)) return DEFAULT_SYNTAX_THEME_SELECTIONS
+
+  const resolved: Record<SyntaxAppearanceVariant, string> = {
+    ...DEFAULT_SYNTAX_THEME_SELECTIONS,
+  }
+  for (const variant of SYNTAX_APPEARANCE_VARIANTS) {
+    const value = raw[variant]
+    if (isSyntaxThemeId(value)) resolved[variant] = value.trim()
+  }
+  return resolved
 }
 
 export function isValidDiffView(value: unknown) {

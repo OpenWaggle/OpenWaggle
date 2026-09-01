@@ -53,11 +53,13 @@ test('switches threads immediately from the preloaded session read model', async
 
     const mainWindow = app.mainWindow()
     await mainWindow.openThread(FIRST_THREAD_TITLE)
+    await expect(mainWindow.page.getByText(FIRST_THREAD_BODY)).toBeVisible()
     const firstBodyText = await mainWindow.page.locator('body').textContent()
     expect(firstBodyText).toContain(FIRST_THREAD_BODY)
     expect(firstBodyText).not.toContain(SECOND_THREAD_BODY)
 
     await mainWindow.openThread(SECOND_THREAD_TITLE)
+    await expect(mainWindow.page.getByText(SECOND_THREAD_BODY)).toBeVisible()
     const secondBodyText = await mainWindow.page.locator('body').textContent()
     expect(secondBodyText).toContain(SECOND_THREAD_BODY)
     expect(secondBodyText).not.toContain(FIRST_THREAD_BODY)

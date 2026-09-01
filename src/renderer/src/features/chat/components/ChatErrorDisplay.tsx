@@ -19,6 +19,7 @@ import {
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useUIStore } from '@/shell/ui-store'
 import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 
@@ -191,9 +192,12 @@ export function ChatErrorDisplay({
                 Show details
               </Button>
               {showDetails && (
-                <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-xs text-text-tertiary font-mono whitespace-pre-wrap break-all">
+                <PlainTextBlock
+                  reason="error"
+                  className="mt-1.5 max-h-40 bg-bg/50 text-text-tertiary break-all"
+                >
                   {displayDetails}
-                </pre>
+                </PlainTextBlock>
               )}
             </div>
           )}

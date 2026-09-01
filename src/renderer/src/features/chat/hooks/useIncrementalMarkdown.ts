@@ -4,11 +4,8 @@ import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
-import type { Highlighter } from 'shiki'
 import { unified } from 'unified'
 import { safeMarkdownSanitizeSchema } from '@/shared/lib/markdown-safety'
-import { applyShikiToHast } from '@/shared/lib/shiki/rehype-shiki-plugin'
-import type { ShikiCache } from '@/shared/lib/shiki/shiki-cache'
 
 /** Unified processor that parses markdown → HAST and sanitizes. */
 const prefixProcessor = unified()
@@ -17,51 +14,12 @@ const prefixProcessor = unified()
   .use(remarkRehype)
   .use(rehypeSanitize, safeMarkdownSanitizeSchema)
 
-const CODE_FENCE_RE = /^`{3,}/gm
-const DOUBLE_NEWLINE_LENGTH = '\n\n'.length
-const FENCE_PARITY_DIVISOR = 2
+const FENCE_TRAILING_GROUP = 2
 
 interface IncrementalMarkdownResult {
   prefixHast: Root | null
   tail: string
   prefixKey: string
-}
-
-interface ShikiOptions {
-  highlighter: Highlighter | undefined
-  cache: ShikiCache
-}
-
-/**
- * Count opening/closing code fence markers (lines starting with 3+ backticks)
- * in the given text. An odd count means the text ends inside an open fence.
- */
-function countCodeFences(text: string) {
-  const matches = text.match(CODE_FENCE_RE)
-  return matches ? matches.length : 0
-}
-
-/**
- * Find the last `\n\n` boundary in `text` that is NOT inside a code fence.
- * Returns the index immediately after the `\n\n` (so prefix = text.slice(0, idx)
- * includes the trailing newlines), or -1 if no valid split point exists.
- */
-export function findSplitIndex(text: string): number {
-  let pos = text.length
-
-  while (pos > 0) {
-    const idx = text.lastIndexOf('\n\n', pos - 1)
-    if (idx === -1) return -1
-
-    const before = text.slice(0, idx)
-    if (countCodeFences(before) % FENCE_PARITY_DIVISOR === 0) {
-      return idx + DOUBLE_NEWLINE_LENGTH
-    }
-
-    pos = idx
-  }
-
-  return -1
 }
 
 /** Parse markdown text to sanitized HAST synchronously via unified. */
@@ -70,23 +28,92 @@ function parseToHast(markdown: string) {
   return prefixProcessor.runSync(mdast)
 }
 
+function containsReferenceDefinition(markdown: string) {
+  return prefixProcessor.parse(markdown).children.some((node) => node.type === 'definition')
+}
+
 // ---------------------------------------------------------------------------
 // Incremental split state — tracks scan progress to avoid O(n²) rescanning
 // ---------------------------------------------------------------------------
 
 interface SplitScanState {
-  /** The text length we have scanned up to. */
-  scannedLength: number
-  /** Cumulative fence count across all scanned text (up to scannedLength). */
-  fenceCount: number
+  /** The exact string scanned previously. Kept by reference for append detection. */
+  scannedText: string
+  /** Absolute start of the partial line that has not received a newline yet. */
+  processedLength: number
+  /** CommonMark fenced-code delimiter currently open, if any. */
+  fence: { readonly character: '`' | '~'; readonly length: number } | null
   /** Last valid split index found (or -1). */
   lastSplitIdx: number
 }
 
-const INITIAL_SPLIT_STATE: SplitScanState = { scannedLength: 0, fenceCount: 0, lastSplitIdx: -1 }
+interface FenceRun {
+  readonly character: '`' | '~'
+  readonly length: number
+  readonly trailing: string
+}
+
+const INITIAL_SPLIT_STATE: SplitScanState = {
+  scannedText: '',
+  processedLength: 0,
+  fence: null,
+  lastSplitIdx: -1,
+}
 
 function preservedSplit(state: SplitScanState, text: string) {
   return state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length ? state.lastSplitIdx : -1
+}
+
+function fenceRun(line: string): FenceRun | null {
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line)
+  if (!match?.[1]) return null
+  const delimiter = match[1]
+  const character = delimiter[0]
+  if (character !== '`' && character !== '~') return null
+  return {
+    character,
+    length: delimiter.length,
+    trailing: match[FENCE_TRAILING_GROUP] ?? '',
+  }
+}
+
+function scanAppendedLines(text: string, initial: SplitScanState): SplitScanState {
+  let cursor = initial.processedLength
+  let fence = initial.fence
+  let lastSplitIdx = initial.lastSplitIdx
+  while (cursor < text.length) {
+    const newline = text.indexOf('\n', cursor)
+    if (newline < 0) break
+    const line = text.slice(cursor, newline).replace(/\r$/u, '')
+    const delimiter = fenceRun(line)
+    cursor = newline + 1
+    if (fence) {
+      if (
+        delimiter?.character === fence.character &&
+        delimiter.length >= fence.length &&
+        delimiter.trailing.trim().length === 0
+      ) {
+        fence = null
+      }
+      continue
+    }
+    if (delimiter) {
+      const validBacktickInfo = delimiter.character !== '`' || !delimiter.trailing.includes('`')
+      if (validBacktickInfo) {
+        fence = { character: delimiter.character, length: delimiter.length }
+      }
+      continue
+    }
+    if (line.length === 0) {
+      lastSplitIdx = newline + 1
+    }
+  }
+  return { scannedText: text, processedLength: cursor, fence, lastSplitIdx }
+}
+
+/** Return the last complete paragraph boundary outside a CommonMark fenced code block. */
+export function findSplitIndex(text: string): number {
+  return scanAppendedLines(text, INITIAL_SPLIT_STATE).lastSplitIdx
 }
 
 interface SplitScanResult {
@@ -96,8 +123,8 @@ interface SplitScanResult {
 
 /**
  * Incrementally find the split index by only scanning new text.
- * Uses cumulative fence count to determine parity without re-scanning the
- * entire prefix. Falls back to a full scan on non-monotonic text changes.
+ * Carries the active CommonMark fence state without re-scanning the entire
+ * prefix. Falls back to a full scan on non-monotonic text changes.
  *
  * Pure: returns the next scan state instead of mutating it, so render stays
  * free of ref writes (react-doctor/no-ref-current-in-render). The caller
@@ -106,54 +133,13 @@ interface SplitScanResult {
  * Amortized O(delta) per call where delta = new tokens since last call.
  */
 function scanSplitIndex(text: string, state: SplitScanState): SplitScanResult {
-  if (text.length <= state.scannedLength) {
-    // Text shrunk or unchanged — full reset
-    const lastSplitIdx = findSplitIndex(text)
-    return {
-      splitIdx: lastSplitIdx,
-      next: { scannedLength: text.length, fenceCount: countCodeFences(text), lastSplitIdx },
-    }
+  if (text === state.scannedText) {
+    return { splitIdx: preservedSplit(state, text), next: state }
   }
 
-  // Text grew — only scan the delta for fences
-  const delta = text.slice(state.scannedLength)
-  const fenceCount = state.fenceCount + countCodeFences(delta)
-  const scannedLength = text.length
-
-  // If total fence count is odd, we're inside an open code block —
-  // no valid split can exist beyond the last known one.
-  if (fenceCount % FENCE_PARITY_DIVISOR !== 0) {
-    return {
-      splitIdx: preservedSplit(state, text),
-      next: { scannedLength, fenceCount, lastSplitIdx: state.lastSplitIdx },
-    }
-  }
-
-  // Total fence count is even — search backward from end of NEW text only
-  // for `\n\n` boundaries. We only need to search within the delta region
-  // plus a small overlap (to catch \n\n that straddles the boundary).
-  const searchStart = Math.max(0, scannedLength - delta.length - DOUBLE_NEWLINE_LENGTH)
-  let pos = text.length
-  while (pos > searchStart) {
-    const idx = text.lastIndexOf('\n\n', pos - 1)
-    if (idx === -1 || idx < searchStart) break
-
-    // Fence count up to this candidate = total fences minus fences after candidate.
-    // Since total is even AND we're searching backward, the last `\n\n` where
-    // fences-before is even is our split point.
-    const fencesBefore = fenceCount - countCodeFences(text.slice(idx))
-    if (fencesBefore % FENCE_PARITY_DIVISOR === 0) {
-      const lastSplitIdx = idx + DOUBLE_NEWLINE_LENGTH
-      return { splitIdx: lastSplitIdx, next: { scannedLength, fenceCount, lastSplitIdx } }
-    }
-    pos = idx
-  }
-
-  // No new valid split in the delta — preserve previous result
-  return {
-    splitIdx: preservedSplit(state, text),
-    next: { scannedLength, fenceCount, lastSplitIdx: state.lastSplitIdx },
-  }
+  const base = text.startsWith(state.scannedText) ? state : INITIAL_SPLIT_STATE
+  const next = scanAppendedLines(text, base)
+  return { splitIdx: preservedSplit(next, text), next }
 }
 
 // ---------------------------------------------------------------------------
@@ -174,18 +160,17 @@ interface ComputedMarkdown {
 interface ComputeInput {
   readonly text: string
   readonly isStreaming: boolean
-  readonly shikiOptions: ShikiOptions
   readonly prefixState: PrefixState | null
   readonly splitState: SplitScanState
 }
 
 /** Pure split/parse step: derives the result and the next cache state. */
 function computeIncrementalMarkdown(input: ComputeInput): ComputedMarkdown {
-  const { text, isStreaming, shikiOptions, prefixState, splitState } = input
+  const { text, isStreaming, prefixState, splitState } = input
 
   if (!isStreaming) {
     // Clear incremental state so it doesn't hold stale data between messages
-    const stale = splitState.scannedLength > 0
+    const stale = splitState.processedLength > 0
     return {
       result: { prefixHast: null, tail: text, prefixKey: '' },
       nextPrefixState: stale ? null : prefixState,
@@ -220,11 +205,16 @@ function computeIncrementalMarkdown(input: ComputeInput): ComputedMarkdown {
   // (Reusing the same reference would be treated as "unchanged" by React
   // Compiler auto-memoization and skip the re-render.)
   if (prefixState && prefixText.startsWith(prefixState.text)) {
-    const newHast = parseToHast(prefixText.slice(prefixState.text.length))
-    applyShikiToHast(newHast, {
-      highlighter: shikiOptions.highlighter,
-      cache: shikiOptions.cache,
-    })
+    const appendedText = prefixText.slice(prefixState.text.length)
+    if (containsReferenceDefinition(appendedText)) {
+      const hast = parseToHast(prefixText)
+      return {
+        result: { prefixHast: hast, tail, prefixKey: prefixText },
+        nextPrefixState: { text: prefixText, hast },
+        nextSplitState,
+      }
+    }
+    const newHast = parseToHast(appendedText)
     const combined: Root = {
       type: 'root',
       children: [...prefixState.hast.children, ...newHast.children],
@@ -237,14 +227,7 @@ function computeIncrementalMarkdown(input: ComputeInput): ComputedMarkdown {
   }
 
   // Full re-parse (first time or non-monotonic change)
-  // INVARIANT: `applyShikiToHast` mutates the tree. The mutated tree is stored
-  // as the prefix state and never passed back through `applyShikiToHast` again —
-  // same-prefix checks return early above, before reaching this block.
   const hast = parseToHast(prefixText)
-  applyShikiToHast(hast, {
-    highlighter: shikiOptions.highlighter,
-    cache: shikiOptions.cache,
-  })
   return {
     result: { prefixHast: hast, tail, prefixKey: prefixText },
     nextPrefixState: { text: prefixText, hast },
@@ -267,24 +250,18 @@ function computeIncrementalMarkdown(input: ComputeInput): ComputedMarkdown {
 export function useIncrementalMarkdown(
   text: string,
   isStreaming: boolean,
-  shikiOptions: ShikiOptions,
 ): IncrementalMarkdownResult {
   const prefixStateRef = useRef<PrefixState | null>(null)
   const splitStateRef = useRef<SplitScanState>({ ...INITIAL_SPLIT_STATE })
-  const highlighterRef = useRef(shikiOptions.highlighter)
 
   const computed = computeIncrementalMarkdown({
     text,
     isStreaming,
-    shikiOptions,
-    // A highlighter change (e.g. undefined -> loaded) invalidates the prefix cache.
-    prefixState:
-      highlighterRef.current === shikiOptions.highlighter ? prefixStateRef.current : null,
+    prefixState: prefixStateRef.current,
     splitState: splitStateRef.current,
   })
 
   useEffect(() => {
-    highlighterRef.current = shikiOptions.highlighter
     prefixStateRef.current = computed.nextPrefixState
     splitStateRef.current = computed.nextSplitState
   })

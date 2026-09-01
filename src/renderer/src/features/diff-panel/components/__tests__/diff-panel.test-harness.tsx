@@ -1,5 +1,5 @@
 import type { GitFileDiff, GitStatusSummary } from '@shared/types/git'
-import type { ReactNode } from 'react'
+import { type ReactNode, type Ref, useImperativeHandle, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 
 /**
@@ -16,7 +16,12 @@ export interface StubAnnotation {
   readonly metadata?: { readonly kind: string; readonly commentId?: string }
 }
 
-interface StubCodeViewProps {
+export function StubWorkerPoolContextProvider({ children }: { readonly children: ReactNode }) {
+  return children
+}
+
+export interface StubCodeViewProps {
+  ref?: Ref<StubCodeViewHandle>
   items: readonly {
     id: string
     fileDiff: { name: string }
@@ -31,13 +36,21 @@ interface StubCodeViewProps {
 
 const STUB_SELECTED_LINE = 8
 
+interface StubCodeViewHandle {
+  scrollTo: (target: { readonly id: string }) => void
+}
+
 export function StubCodeView({
+  ref,
   items,
   renderAnnotation,
   onSelectedLinesChange,
 }: StubCodeViewProps) {
+  const [scrolledItemId, setScrolledItemId] = useState<string | null>(null)
+  useImperativeHandle(ref, () => ({ scrollTo: (target) => setScrolledItemId(target.id) }), [])
   return (
-    <div data-testid="code-view">
+    <div data-scrolled-item-id={scrolledItemId ?? undefined} data-testid="code-view">
+      <code data-testid="code-view-ready" />
       {items.map((item) => (
         <div key={item.id}>
           <Button

@@ -5,9 +5,9 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
-import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import {
@@ -37,17 +37,9 @@ import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
 
 export type { AgentChatStatus, AgentCompactionStatus } from './useAgentChat.types'
 
-function valueForSession<T extends readonly unknown[]>(
-  valuesBySessionId: ReadonlyMap<SessionId, T>,
-  sessionId: SessionId | null,
-  empty: T,
-) {
-  if (sessionId === null) {
-    return empty
-  }
-
-  return valuesBySessionId.get(sessionId) ?? empty
-}
+const EMPTY_AGENT_INTERACTIONS: readonly AgentLoopInteraction[] = []
+const EMPTY_AGENT_CUSTOM_MESSAGES: AgentChatReturn['agentCustomMessages'] = []
+const EMPTY_AGENT_INTERACTION_EVENTS: AgentChatReturn['agentInteractionEvents'] = []
 
 export function useAgentChat(
   sessionId: SessionId | null,
@@ -61,6 +53,9 @@ export function useAgentChat(
   const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
   const setRunCompactionStatus = useBackgroundRunStore((state) => state.setRunCompactionStatus)
   const setFirstSendRecovery = useBackgroundRunStore((state) => state.setFirstSendRecovery)
+  const agentLoopSessionState = useAgentLoopEventStore((state) =>
+    sessionId ? state.sessionsById.get(sessionId) : undefined,
+  )
   const optimisticUserMessages = useOptimisticUserMessageStore(
     selectOptimisticUserMessages(sessionId),
   )
@@ -71,27 +66,18 @@ export function useAgentChat(
   const [messagesBySessionId, setMessagesBySessionId] = useState(
     () => new Map<SessionId, UIMessage[]>(),
   )
-  const [agentInteractionsBySessionId, setAgentInteractionsBySessionId] = useState(
-    () => new Map<SessionId, readonly AgentLoopInteraction[]>(),
-  )
-  const [agentCustomMessagesBySessionId, setAgentCustomMessagesBySessionId] = useState(
-    () => new Map<SessionId, readonly AgentTransportCustomEvent[]>(),
-  )
-  const [agentInteractionEventsBySessionId, setAgentInteractionEventsBySessionId] = useState(
-    () => new Map<SessionId, AgentChatReturn['agentInteractionEvents']>(),
-  )
   const [status, setStatus] = useState<AgentChatStatus>('ready')
   const [error, setError] = useState<Error | undefined>(undefined)
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const [compactionStatus, setCompactionStatus] = useState<AgentCompactionStatus | null>(null)
   const messagesBySessionIdRef = useRef(messagesBySessionId)
-  const agentInteractionsBySessionIdRef = useRef(agentInteractionsBySessionId)
-  const agentCustomMessagesBySessionIdRef = useRef(agentCustomMessagesBySessionId)
-  const agentInteractionEventsBySessionIdRef = useRef(agentInteractionEventsBySessionId)
-  const messages = valueForSession(messagesBySessionId, sessionId, EMPTY_UI_MESSAGES)
-  const agentInteractions = valueForSession(agentInteractionsBySessionId, sessionId, [])
-  const agentCustomMessages = valueForSession(agentCustomMessagesBySessionId, sessionId, [])
-  const agentInteractionEvents = valueForSession(agentInteractionEventsBySessionId, sessionId, [])
+  const messages = sessionId
+    ? (messagesBySessionId.get(sessionId) ?? EMPTY_UI_MESSAGES)
+    : EMPTY_UI_MESSAGES
+  const agentInteractions = agentLoopSessionState?.interactions ?? EMPTY_AGENT_INTERACTIONS
+  const agentCustomMessages = agentLoopSessionState?.customMessages ?? EMPTY_AGENT_CUSTOM_MESSAGES
+  const agentInteractionEvents =
+    agentLoopSessionState?.interactionEvents ?? EMPTY_AGENT_INTERACTION_EVENTS
   const isLoading = backgroundStreaming || (status !== 'ready' && status !== 'error')
   const isSessionIdle = !isLoading
 
@@ -125,23 +111,11 @@ export function useAgentChat(
 
   useLayoutEffect(() => {
     messagesBySessionIdRef.current = messagesBySessionId
-    agentInteractionsBySessionIdRef.current = agentInteractionsBySessionId
-    agentCustomMessagesBySessionIdRef.current = agentCustomMessagesBySessionId
-    agentInteractionEventsBySessionIdRef.current = agentInteractionEventsBySessionId
     currentSessionIdRef.current = sessionId
     statusRef.current = status
     backgroundStreamingRef.current = backgroundStreaming
     messagesRef.current = messages
-  }, [
-    messagesBySessionId,
-    agentInteractionsBySessionId,
-    agentCustomMessagesBySessionId,
-    agentInteractionEventsBySessionId,
-    sessionId,
-    status,
-    backgroundStreaming,
-    messages,
-  ])
+  }, [messagesBySessionId, sessionId, status, backgroundStreaming, messages])
 
   const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
     messages,
@@ -215,16 +189,10 @@ export function useAgentChat(
       compactionSummaryCountAtStartRef,
       compactionStatusRef,
       terminalRunErrorRef,
-      agentInteractionsBySessionIdRef,
-      agentCustomMessagesBySessionIdRef,
-      agentInteractionEventsBySessionIdRef,
       messagesBySessionIdRef,
       setMessagesBySessionId,
       setRunRenderMessages,
       setError,
-      setAgentInteractionsBySessionId,
-      setAgentCustomMessagesBySessionId,
-      setAgentInteractionEventsBySessionId,
       setStatus,
       setCompactionStatus: updateCompactionStatus,
       setBackgroundStreaming,

@@ -14,7 +14,7 @@ const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
   { api: 'Electron dialog', pattern: /\bdialog\s*\.\s*show[A-Z][\w]*\s*\(/gu },
   {
     api: 'Electron shell UI',
-    pattern: /\bshell\s*\.\s*(?:beep|openExternal|openPath|showItemInFolder)\s*\(/gu,
+    pattern: /\bshell\s*\.\s*(?:beep|openExternal|openPath|showItemInFolder|trashItem)\s*\(/gu,
   },
   {
     api: 'Electron window construction',
@@ -24,6 +24,10 @@ const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
     api: 'BrowserWindow reveal',
     pattern:
       /\b(?:[A-Za-z_$][\w$]*Window|window)\s*\.\s*(?:focus|restore|show|showInactive)\s*\(\s*\)/gu,
+  },
+  {
+    api: 'detached external application',
+    pattern: /\bdetached\s*:\s*true\b/gu,
   },
   { api: 'application focus', pattern: /\bapp\s*\.\s*focus\s*\(/gu },
   { api: 'native notification', pattern: /\bnew\s+Notification\s*\(/gu },
