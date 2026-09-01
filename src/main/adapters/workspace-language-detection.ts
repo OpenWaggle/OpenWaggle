@@ -9,6 +9,7 @@ interface AssociationCacheEntry {
 
 const associationCache = new Map<string, AssociationCacheEntry>()
 const GLOBSTAR_DIRECTORY_END_OFFSET = 2
+const MAX_ASSOCIATION_MATCH_STEPS = 256
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -45,24 +46,32 @@ function globRegularExpression(glob: string) {
   return new RegExp(`${pattern}$`, 'u')
 }
 
-function expandBraceAlternatives(glob: string): readonly string[] {
+function matchesAssociationPattern(
+  glob: string,
+  candidate: string,
+  budget: { remaining: number },
+): boolean {
+  if (budget.remaining <= 0) return false
+  budget.remaining -= 1
   const opening = glob.indexOf('{')
-  if (opening < 0) return [glob]
+  if (opening < 0) return globRegularExpression(glob).test(candidate)
   const closing = glob.indexOf('}', opening + 1)
-  if (closing < 0) return [glob]
+  if (closing < 0) return globRegularExpression(glob).test(candidate)
   const alternatives = glob.slice(opening + 1, closing).split(',')
-  if (alternatives.length <= 1 || alternatives.some((alternative) => !alternative)) return [glob]
+  if (alternatives.length <= 1 || alternatives.some((alternative) => !alternative)) {
+    return globRegularExpression(glob).test(candidate)
+  }
   const prefix = glob.slice(0, opening)
   const suffix = glob.slice(closing + 1)
-  return alternatives.flatMap((alternative) =>
-    expandBraceAlternatives(`${prefix}${alternative}${suffix}`),
+  return alternatives.some((alternative) =>
+    matchesAssociationPattern(`${prefix}${alternative}${suffix}`, candidate, budget),
   )
 }
 
 function matchesAssociation(glob: string, candidate: string) {
-  return expandBraceAlternatives(glob).some((pattern) =>
-    globRegularExpression(pattern).test(candidate),
-  )
+  return matchesAssociationPattern(glob, candidate, {
+    remaining: MAX_ASSOCIATION_MATCH_STEPS,
+  })
 }
 
 function parsedAssociations(source: string) {

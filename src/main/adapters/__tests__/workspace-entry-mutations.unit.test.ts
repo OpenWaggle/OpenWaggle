@@ -34,6 +34,18 @@ describe('workspace entry mutations', () => {
         }),
       ).rejects.toThrow('The destination cannot contain the source entry.')
 
+      if (process.platform === 'linux') {
+        await fs.symlink('src', path.join(projectPath, 'SRC'), 'dir')
+      }
+      await expect(
+        mutate({
+          projectPath,
+          path: 'src/alpha.ts',
+          targetPath: 'SRC',
+          overwrite: true,
+        }),
+      ).rejects.toThrow('The destination cannot contain the source entry.')
+
       await expect(fs.readFile(path.join(projectPath, 'src', 'alpha.ts'), 'utf8')).resolves.toBe(
         'export const alpha = 1\n',
       )

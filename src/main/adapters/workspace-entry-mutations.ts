@@ -7,6 +7,7 @@ import type {
   WorkspaceEntryMutationResult,
 } from '@shared/types/workspace-files'
 import { trashItem } from '../desktop-ui'
+import { isPathInsideDirectory } from '../utils/project-path-validation'
 import {
   removeWorkspaceDocumentSessions,
   retargetWorkspaceDocumentSessions,
@@ -32,6 +33,16 @@ async function destinationRefersToSource(
   try {
     const targetStats = await fs.stat(targetPath)
     return targetStats.dev === source.stats.dev && targetStats.ino === source.stats.ino
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : null
+    if (code === 'ENOENT') return false
+    throw error
+  }
+}
+
+async function destinationContainsSource(targetPath: string, sourcePath: string) {
+  try {
+    return isPathInsideDirectory(await fs.realpath(targetPath), sourcePath)
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? error.code : null
     if (code === 'ENOENT') return false
@@ -120,6 +131,9 @@ export async function moveWorkspaceEntry(
       }
       throw new Error('The destination refers to the source entry.')
     }
+    if (await destinationContainsSource(target.targetPath, source.realPath)) {
+      throw new Error('The destination cannot contain the source entry.')
+    }
     await removeExistingDestination(target.targetPath, input.overwrite)
     await fs.rename(source.realPath, target.targetPath)
     retargetWorkspaceDocumentSessions(source.projectRoot, source.relativePath, target.relativePath)
@@ -151,6 +165,9 @@ export async function duplicateWorkspaceEntry(
     })
     if (await destinationRefersToSource(target.targetPath, source)) {
       throw new Error('A file cannot be duplicated onto itself.')
+    }
+    if (await destinationContainsSource(target.targetPath, source.realPath)) {
+      throw new Error('The destination cannot contain the source entry.')
     }
     await removeExistingDestination(target.targetPath, input.overwrite)
     await fs.cp(source.realPath, target.targetPath, {
