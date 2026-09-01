@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '../../state/message-queue-store'
@@ -49,8 +49,19 @@ function dispatchFrameMessage(
   )
 }
 
-function activateFrame(frame: HTMLIFrameElement) {
-  dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' })
+async function activateFrame(frame: HTMLIFrameElement) {
+  const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
+  fireEvent.load(frame)
+  act(() => {
+    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' })
+  })
+  await waitFor(() => {
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:theme' }),
+      frameOrigin(frame),
+    )
+  })
+  postMessage.mockRestore()
 }
 
 describe('InlineVisualization brokers', () => {
@@ -84,8 +95,8 @@ describe('InlineVisualization brokers', () => {
     )
     const frame = await visualizationFrame('Link map')
 
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:open-link',
         url: 'https://example.com/details',
@@ -110,8 +121,8 @@ describe('InlineVisualization brokers', () => {
       />,
     )
     const frame = await visualizationFrame('Single-flight map')
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:open-link',
         url: 'https://example.com/first',
@@ -133,8 +144,8 @@ describe('InlineVisualization brokers', () => {
       />,
     )
     const frame = await visualizationFrame('Download map')
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:download',
         suggestedName: 'selection.csv',
@@ -166,8 +177,8 @@ describe('InlineVisualization brokers', () => {
     )
     const frame = await visualizationFrame('Link map')
 
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:open-link',
         url,
@@ -190,8 +201,8 @@ describe('InlineVisualization brokers', () => {
     )
     const frame = await visualizationFrame('Follow-up map')
 
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:follow-up',
         requestId: 'follow-up-request-1',
