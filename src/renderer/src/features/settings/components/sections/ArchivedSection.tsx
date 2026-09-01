@@ -1,12 +1,11 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useComposerStore } from '@/features/composer/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { groupSessionsByProject } from '@/features/sidebar/lib'
 import {
   archivedSessionBranchesQueryOptions,
-  archivedSessionsQueryOptions,
   useArchivedDeleteSessionMutation,
   useRestoreSessionBranchMutation,
   useUnarchiveSessionMutation,
@@ -32,12 +31,15 @@ function getArchivedQueryError(archivedError: unknown, archivedBranchesError: un
 }
 
 export function ArchivedSection() {
-  const archivedQuery = useQuery(archivedSessionsQueryOptions())
-  const archivedBranchesQuery = useQuery(archivedSessionBranchesQueryOptions())
+  const archivedBranchesQuery = useInfiniteQuery(archivedSessionBranchesQueryOptions())
   const unarchiveMutation = useUnarchiveSessionMutation()
   const restoreBranchMutation = useRestoreSessionBranchMutation()
   const deleteMutation = useArchivedDeleteSessionMutation()
   const loadSessions = useSessionStore((state) => state.loadSessions)
+  const archived = useSessionStore((state) => state.archivedSessions)
+  const archivedSessionsNextCursor = useSessionStore((state) => state.archivedSessionsNextCursor)
+  const archivedSessionsLoadingMore = useSessionStore((state) => state.archivedSessionsLoadingMore)
+  const loadMoreArchivedSessions = useSessionStore((state) => state.loadMoreArchivedSessions)
   const [actionError, setActionError] = useState<string | null>(null)
 
   function handleRestore(id: SessionId) {
@@ -77,6 +79,7 @@ export function ArchivedSection() {
           .mutateAsync(id)
           .then(() => {
             useComposerStore.getState().clearScopedDraftsForSession(String(id))
+            void loadSessions()
           })
           .catch((error: unknown) => {
             setActionError(
@@ -89,7 +92,7 @@ export function ArchivedSection() {
       })
   }
 
-  if (archivedQuery.isPending || archivedBranchesQuery.isPending) {
+  if (archivedBranchesQuery.isPending) {
     return (
       <div className="flex items-center justify-center py-20 text-text-muted text-xs">
         Loading archived sessions…
@@ -97,9 +100,9 @@ export function ArchivedSection() {
     )
   }
 
-  const archived = archivedQuery.data ?? []
-  const archivedBranchSessions = archivedBranchesQuery.data ?? []
-  const queryError = getArchivedQueryError(archivedQuery.error, archivedBranchesQuery.error)
+  const archivedBranchSessions =
+    archivedBranchesQuery.data?.pages.flatMap((page) => page.sessions) ?? []
+  const queryError = getArchivedQueryError(null, archivedBranchesQuery.error)
   const hasArchivedItems = archived.length > 0 || archivedBranchSessions.length > 0
 
   if (queryError && !hasArchivedItems) {
@@ -116,13 +119,25 @@ export function ArchivedSection() {
 
   return (
     <ArchivedSectionContent
-      groups={groupSessionsByProject(archived)}
+      groups={groupSessionsByProject([...archived])}
       branchGroups={groupArchivedBranchesByProject(archivedBranchSessions)}
       actionError={actionError}
       queryError={queryError}
       onRestore={handleRestore}
       onDelete={handleDelete}
       onRestoreBranch={handleRestoreBranch}
+      pagination={{
+        hasMore: archivedSessionsNextCursor !== null || archivedBranchesQuery.hasNextPage === true,
+        isLoading: archivedSessionsLoadingMore || archivedBranchesQuery.isFetchingNextPage,
+        onLoadMore: async () => {
+          await Promise.all([
+            archivedSessionsNextCursor ? loadMoreArchivedSessions() : Promise.resolve(),
+            archivedBranchesQuery.hasNextPage
+              ? archivedBranchesQuery.fetchNextPage().then(() => undefined)
+              : Promise.resolve(),
+          ])
+        },
+      }}
     />
   )
 }

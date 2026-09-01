@@ -12,10 +12,18 @@ import { SqliteSessionSemanticProjection } from '../src/main/adapters/sqlite-ses
 import { SqliteSessionTranscriptSemanticProjection } from '../src/main/adapters/sqlite-session-transcript-semantic-projection'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../src/main/services/database-constants'
+import {
+  BENCHMARK_QUERY_PAGE_SIZE,
+  BENCHMARK_SESSION_ID,
+  benchmarkTranscriptTerminalCursor,
+  COMMON_LEXICAL_TERM,
+  RARE_LEXICAL_TERM,
+  validateSessionDiscoveryBenchmarkPreflight,
+} from './benchmark-session-discovery-preflight'
 
 const MEASURED_RUNS = 20
 const WARMUP_RUNS = 3
-const PAGE_SIZE = 50
+const PAGE_SIZE = BENCHMARK_QUERY_PAGE_SIZE
 const P95 = 0.95
 
 export function benchmarkPercentile(values: readonly number[], fraction: number) {
@@ -184,20 +192,40 @@ export async function benchmarkSessionDiscoveryQueries(
         }),
       ),
     )
-  const transcript = () =>
+  const transcript = (afterCreatedOrder?: number) =>
     runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         readItems(sql, {
           contractVersion: SESSION_QUERY_CONTRACT_VERSION,
           requestId: 'benchmark-transcript',
-          query: { operation: 'items', sessionId: 'session-000000', limit: PAGE_SIZE },
+          query: {
+            operation: 'items',
+            sessionId: BENCHMARK_SESSION_ID,
+            limit: PAGE_SIZE,
+            ...(afterCreatedOrder === undefined ? {} : { afterCreatedOrder }),
+          },
         }),
       ),
     )
-  const coldStartedAt = performance.now()
-  await list(sparseWorkingPath)
-  const coldWorkingPathListMs = performance.now() - coldStartedAt
   try {
+    const coldStartedAt = performance.now()
+    const coldSparseWorkingPathList = await list(sparseWorkingPath)
+    const coldWorkingPathListMs = performance.now() - coldStartedAt
+    const preflight = {
+      list: await list(),
+      sparseWorkingPathList: coldSparseWorkingPathList,
+      missingWorkingPathList: await list('/benchmark/missing'),
+      rareLexical: await lexical(RARE_LEXICAL_TERM, 'benchmark-preflight-rare-lexical'),
+      commonLexical: await lexical(COMMON_LEXICAL_TERM, 'benchmark-preflight-common-lexical'),
+      transcriptHead: await transcript(),
+    }
+    const terminalCursor = benchmarkTranscriptTerminalCursor(preflight.transcriptHead)
+    validateSessionDiscoveryBenchmarkPreflight({
+      ...preflight,
+      transcriptTerminal: await transcript(terminalCursor.afterCreatedOrder),
+      sparseWorkingPath,
+    })
+
     return {
       coldWorkingPathListMs,
       list: await measure(() => list()),

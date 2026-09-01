@@ -76,6 +76,7 @@ describe('useWorkspaceLifecycle', () => {
     await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
     lifecycleMocks.loadChatSessions.mockClear()
     lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshCatalogSessions.mockClear()
     lifecycleMocks.refreshSession.mockClear()
     lifecycleMocks.refreshSessionTree.mockClear()
     lifecycleMocks.invalidateQueries.mockClear()
@@ -111,8 +112,10 @@ describe('useWorkspaceLifecycle', () => {
       },
     })
 
-    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
-    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
+    await waitFor(() => expect(lifecycleMocks.refreshCatalogSessions).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshCatalogSessions).toHaveBeenCalledWith([SessionId('session-1')])
+    expect(lifecycleMocks.loadSessionTrees).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
@@ -124,6 +127,7 @@ describe('useWorkspaceLifecycle', () => {
     await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
     lifecycleMocks.loadChatSessions.mockClear()
     lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshCatalogSessions.mockClear()
     lifecycleMocks.refreshSession.mockClear()
     lifecycleMocks.refreshSessionTree.mockClear()
 
@@ -139,15 +143,16 @@ describe('useWorkspaceLifecycle', () => {
         change: 'updated',
       },
     })
-    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
+    await waitFor(() => expect(lifecycleMocks.refreshCatalogSessions).toHaveBeenCalledOnce())
     expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
-    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadSessionTrees).not.toHaveBeenCalled()
 
     resyncHandler({ reason: 'slow-consumer' })
-    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
-    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledTimes(2)
+    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
   })
 
   it('loads project syntax resources when direct review changes working trees', async () => {

@@ -167,11 +167,14 @@ export function buildSidebarStateCounts(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
 ): readonly SidebarStateCount[] {
-  const counts = new Map<SidebarRowState, number>()
+  return buildSidebarStateCountsFromStates(
+    sessions.flatMap((session) => (session.archived === true ? [] : [stateOf(session)])),
+  )
+}
 
-  for (const session of sessions) {
-    if (session.archived === true) continue
-    const state = stateOf(session)
+export function buildSidebarStateCountsFromStates(states: Iterable<SidebarRowState>) {
+  const counts = new Map<SidebarRowState, number>()
+  for (const state of states) {
     if (ROW_STATE_META[state].shortLabel === '') continue
     counts.set(state, (counts.get(state) ?? 0) + 1)
   }

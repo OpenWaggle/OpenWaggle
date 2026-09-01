@@ -14,6 +14,7 @@ import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from './session-host-transc
 import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 
 const NEW_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('new')
+export const SESSION_DISCOVERY_DELETION_TOMBSTONE_LIMIT = 1_024
 
 export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
@@ -28,6 +29,7 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     model_revision TEXT NOT NULL,
     dimensions INTEGER NOT NULL CHECK (dimensions > 0),
     snapshot_revision INTEGER NOT NULL DEFAULT 0,
+    deletion_compaction_revision INTEGER NOT NULL DEFAULT 0,
     prepared_count INTEGER NOT NULL DEFAULT 0,
     pending_count INTEGER NOT NULL DEFAULT 0,
     preparation_operation_id TEXT,
@@ -143,6 +145,22 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     WHERE singleton = 1
     ON CONFLICT(session_id) DO UPDATE SET
       snapshot_revision = excluded.snapshot_revision;
+    UPDATE session_semantic_discovery_state
+    SET deletion_compaction_revision = MAX(
+      deletion_compaction_revision,
+      COALESCE((
+        SELECT snapshot_revision
+        FROM session_discovery_embedding_deletions
+        ORDER BY snapshot_revision DESC, session_id DESC
+        LIMIT 1 OFFSET ${SESSION_DISCOVERY_DELETION_TOMBSTONE_LIMIT}
+      ), deletion_compaction_revision)
+    )
+    WHERE singleton = 1;
+    DELETE FROM session_discovery_embedding_deletions
+    WHERE snapshot_revision <= COALESCE((
+      SELECT deletion_compaction_revision
+      FROM session_semantic_discovery_state WHERE singleton = 1
+    ), 0);
   END
   `,
   `

@@ -40,6 +40,7 @@ describe('McpAppHost', () => {
       <McpAppHost
         descriptor={{
           serverInstanceId: 'server-1',
+          serverConfigHash: 'server-config-hash',
           serverLabel: 'weather',
           toolHandle: 'weather_handle',
           toolName: 'show_weather',

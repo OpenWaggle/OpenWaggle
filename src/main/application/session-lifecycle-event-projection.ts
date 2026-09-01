@@ -5,6 +5,13 @@ import { publishSessionHostEvent } from '../session-host/session-host-events'
 
 export function publishLifecycleResponse(response: SessionLifecycleResponse) {
   if (response.replayed || response.outcome.effect === 'rejected') return
+  if (response.outcome.effect === 'spawned-worker') {
+    publishSessionHostEvent({
+      kind: 'session-list-changed',
+      sessionId: response.outcome.parentSessionId,
+      change: 'updated',
+    })
+  }
   publishSessionHostEvent({
     kind: 'session-list-changed',
     sessionId: response.outcome.sessionId,

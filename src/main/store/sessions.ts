@@ -11,6 +11,7 @@ export {
   restoreSessionBranch,
 } from './sessions/branch-operations'
 export {
+  listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
   listSessionCatalogPage,
   listSessionsByIds,

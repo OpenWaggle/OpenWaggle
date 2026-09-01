@@ -22,7 +22,7 @@ type ChatLifecycle = Pick<
 >
 type SessionTreeLifecycle = Pick<
   ReturnType<typeof useSessions>,
-  'loadSessions' | 'refreshSessionTree'
+  'loadSessions' | 'refreshCatalogSessions' | 'refreshSessionTree'
 >
 
 interface PendingSessionHostRefresh {
@@ -47,6 +47,7 @@ function useSessionHostRefresh(input: {
   readonly activeSessionId: ChatLifecycle['activeSessionId']
   readonly loadChatSessions: ChatLifecycle['loadSessions']
   readonly loadSessionTrees: SessionTreeLifecycle['loadSessions']
+  readonly refreshCatalogSessions: SessionTreeLifecycle['refreshCatalogSessions']
   readonly refreshSession: ChatLifecycle['refreshSession']
   readonly refreshSessionTree: SessionTreeLifecycle['refreshSessionTree']
   readonly updateSessionTitle: ChatLifecycle['updateSessionTitle']
@@ -55,6 +56,7 @@ function useSessionHostRefresh(input: {
     activeSessionId,
     loadChatSessions,
     loadSessionTrees,
+    refreshCatalogSessions,
     refreshSession,
     refreshSessionTree,
     updateSessionTitle,
@@ -84,6 +86,7 @@ function useSessionHostRefresh(input: {
       const pending = pendingRefresh.current
       pending.scheduled = false
       const refreshCatalog = pending.catalog
+      const catalogSessionIds = [...pending.sessionIds].map(SessionId)
       const refreshActive = activeSessionId ? pending.sessionIds.has(activeSessionId) : false
       const queueSessionIds = [...pending.queueSessionIds]
       pending.catalog = false
@@ -93,8 +96,7 @@ function useSessionHostRefresh(input: {
         void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
       }
       if (refreshCatalog) {
-        void loadChatSessions()
-        void loadSessionTrees()
+        void refreshCatalogSessions(catalogSessionIds)
       }
       if (refreshActive && activeSessionId) {
         void refreshSession(activeSessionId)
@@ -130,14 +132,7 @@ function useSessionHostRefresh(input: {
       pendingRefresh.current.queueSessionIds.clear()
       unsubscribe()
     }
-  }, [
-    activeSessionId,
-    loadChatSessions,
-    loadSessionTrees,
-    queryClient,
-    refreshSession,
-    refreshSessionTree,
-  ])
+  }, [activeSessionId, refreshCatalogSessions, queryClient, refreshSession, refreshSessionTree])
   useEffect(() => {
     return api.onSessionHostResyncRequired(() => {
       const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(
@@ -171,7 +166,11 @@ export function useWorkspaceLifecycle(): void {
     refreshSession,
     updateSessionTitle,
   } = useChat()
-  const { loadSessions: loadSessionTrees, refreshSessionTree } = useSessions()
+  const {
+    loadSessions: loadSessionTrees,
+    refreshCatalogSessions,
+    refreshSessionTree,
+  } = useSessions()
   const {
     refreshStatus: refreshGitStatus,
     refreshBranches: refreshGitBranches,
@@ -199,6 +198,7 @@ export function useWorkspaceLifecycle(): void {
     activeSessionId,
     loadChatSessions,
     loadSessionTrees,
+    refreshCatalogSessions,
     refreshSession,
     refreshSessionTree,
     updateSessionTitle,

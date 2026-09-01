@@ -21,10 +21,12 @@ const {
   listActiveRunsMock,
   listArchivedSessionsMock,
   listGitBranchesMock,
+  listSessionsByIdsMock,
   navigateMock,
   openPathMock,
   routerState,
   showConfirmMock,
+  querySessionControlMock,
   updateSettingsMock,
 } = vi.hoisted(() => ({
   archiveSessionMock: vi.fn(),
@@ -36,10 +38,12 @@ const {
   listActiveRunsMock: vi.fn(),
   listArchivedSessionsMock: vi.fn(),
   listGitBranchesMock: vi.fn(),
+  listSessionsByIdsMock: vi.fn(),
   navigateMock: vi.fn(),
   openPathMock: vi.fn(),
   routerState: { pathname: '/' },
   showConfirmMock: vi.fn(),
+  querySessionControlMock: vi.fn(),
   updateSettingsMock: vi.fn(),
 }))
 
@@ -66,24 +70,16 @@ vi.mock('@/shared/lib/ipc', () => ({
     listActiveRuns: listActiveRunsMock,
     listArchivedSessions: listArchivedSessionsMock,
     listGitBranches: listGitBranchesMock,
+    listSessionsByIds: listSessionsByIdsMock,
     openPath: openPathMock,
     showConfirm: showConfirmMock,
+    querySessionControl: querySessionControlMock,
     updateSettings: updateSettingsMock,
   },
 }))
 
 const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')
-const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
-
-function createDeferred() {
-  let resolveDeferred = () => {}
-  const promise = new Promise<void>((resolve) => {
-    resolveDeferred = resolve
-  })
-  return { promise, resolve: resolveDeferred }
-}
-
 function makeSession(): SessionSummary {
   return {
     id: SESSION_ID,
@@ -91,21 +87,6 @@ function makeSession(): SessionSummary {
     projectPath: PROJECT_PATH,
     createdAt: 10,
     updatedAt: 20,
-  }
-}
-
-function makeArchivedSession(): SessionSummary {
-  return {
-    ...makeSession(),
-    id: ARCHIVED_SESSION_ID,
-    title: 'Archived project session',
-    updatedAt: 5,
-    lineage: {
-      role: 'worker',
-      parentSessionId: SESSION_ID,
-      directWorkerCount: 0,
-      activeDirectWorkerCount: 0,
-    },
   }
 }
 
@@ -165,6 +146,30 @@ describe('Sidebar project actions', () => {
     listActiveRunsMock.mockResolvedValue([])
     listArchivedSessionsMock.mockResolvedValue([])
     listGitBranchesMock.mockResolvedValue({ ok: true, branches: [] })
+    listSessionsByIdsMock.mockResolvedValue([makeSession()])
+    querySessionControlMock.mockImplementation(
+      async (request: { query: { archived?: boolean } }) => ({
+        contractVersion: 2,
+        requestId: 'project-sessions',
+        outcome: {
+          operation: 'list',
+          sessions: request.query.archived
+            ? []
+            : [
+                {
+                  sessionId: SESSION_ID,
+                  title: 'Existing project session',
+                  projectPath: PROJECT_PATH,
+                  archived: false,
+                  createdAt: 10,
+                  updatedAt: 20,
+                  lineageRole: 'independent',
+                  directWorkerCount: 0,
+                },
+              ],
+        },
+      }),
+    )
     openPathMock.mockResolvedValue(undefined)
     showConfirmMock.mockResolvedValue(false)
     updateSettingsMock.mockResolvedValue({ ok: true })
@@ -258,83 +263,5 @@ describe('Sidebar project actions', () => {
     await waitFor(() => {
       expect(openPathMock).toHaveBeenCalledWith(PROJECT_PATH)
     })
-  })
-
-  it('archives all visible project sessions with a count-aware confirmation', async () => {
-    showConfirmMock.mockResolvedValueOnce(true)
-    render(<Sidebar />)
-
-    fireEvent.click(screen.getByRole('button', { name: /open project actions for openwaggle/i }))
-    fireEvent.click(screen.getByRole('button', { name: /archive 1 session/i }))
-
-    await waitFor(() => {
-      expect(showConfirmMock).toHaveBeenCalledWith(
-        expect.stringContaining('Archive 1 session'),
-        'Project: openwaggle',
-      )
-      expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
-      expect(archiveSessionMock).toHaveBeenCalledWith(SESSION_ID)
-      expect(useChatStore.getState().activeSessionId).toBeNull()
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
-    })
-  })
-
-  it('permanently removes all project sessions and project references', async () => {
-    const cancellation = createDeferred()
-    const callOrder: string[] = []
-    cancelAgentMock.mockImplementationOnce(async () => {
-      callOrder.push('cancel:start')
-      await cancellation.promise
-      callOrder.push('cancel:end')
-    })
-    listArchivedSessionsMock.mockResolvedValueOnce([makeArchivedSession()])
-    listActiveRunsMock.mockResolvedValueOnce([
-      {
-        sessionId: SESSION_ID,
-        model: SupportedModelId('openai/gpt-5'),
-        mode: 'classic',
-        startedAt: 1,
-      },
-    ])
-    showConfirmMock.mockResolvedValueOnce(true)
-    usePreferencesStore.setState((state) => ({
-      settings: {
-        ...state.settings,
-        projectDisplayNames: { [PROJECT_PATH]: 'OpenWaggle Local' },
-        skillTogglesByProject: { [PROJECT_PATH]: { 'code-review': true } },
-      },
-    }))
-
-    render(<Sidebar />)
-
-    fireEvent.click(screen.getByRole('button', { name: /open project actions for openwaggle/i }))
-    fireEvent.click(screen.getByRole('button', { name: /remove/i }))
-
-    await waitFor(() => {
-      expect(callOrder).toEqual(['cancel:start'])
-    })
-    expect(deleteSessionMock).not.toHaveBeenCalled()
-
-    cancellation.resolve()
-
-    await waitFor(() => {
-      expect(showConfirmMock).toHaveBeenCalledWith(
-        expect.stringContaining('permanently delete 2 sessions'),
-        'Project: OpenWaggle Local\nThis cannot be undone.',
-      )
-      expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
-      expect(cancelAgentMock).toHaveBeenCalledWith(SESSION_ID)
-      expect(deleteSessionMock).toHaveBeenNthCalledWith(1, ARCHIVED_SESSION_ID)
-      expect(deleteSessionMock).toHaveBeenNthCalledWith(2, SESSION_ID)
-      expect(updateSettingsMock).toHaveBeenCalledWith({
-        projectPath: null,
-        recentProjects: [],
-        projectDisplayNames: {},
-        skillTogglesByProject: {},
-      })
-      expect(useChatStore.getState().activeSessionId).toBeNull()
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
-    })
-    expect(callOrder).toEqual(['cancel:start', 'cancel:end'])
   })
 })

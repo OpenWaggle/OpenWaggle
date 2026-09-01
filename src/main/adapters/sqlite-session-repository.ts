@@ -35,6 +35,10 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       repositoryOperation('listHiveSessionCatalogPage', () =>
         deps.store.listHiveSessionCatalogPage(sessionId, limit, cursor),
       ),
+    listArchivedBranchCatalogPage: (limit, cursor) =>
+      repositoryOperation('listArchivedSessionBranchCatalogPage', () =>
+        deps.store.listArchivedSessionBranchCatalogPage(limit, cursor),
+      ),
     listArchivedBranches: (limit) =>
       repositoryOperation('listArchivedSessionBranches', () =>
         deps.store.listArchivedSessionBranches(limit),
@@ -55,6 +59,7 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
     | 'listCatalogPage'
     | 'listByIds'
     | 'listHiveCatalogPage'
+    | 'listArchivedBranchCatalogPage'
     | 'listArchivedBranches'
     | 'getTree'
     | 'getWorkspace'

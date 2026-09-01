@@ -1,13 +1,50 @@
 import type { RepositoryPath } from '@shared/types/brand'
-import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
+import { RepositoryPath as makeRepositoryPath, SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import {
+  SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_DISCOVERY_LIMIT,
+} from '@shared/types/session-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { api } from '@/shared/lib/ipc'
 import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
+const SESSION_HYDRATION_BATCH_SIZE = 100
 
-interface SidebarProjectActionDeps {
+async function listProjectSessionSummaries(path: string) {
+  const ids: SessionId[] = []
+  for (const archived of [false, true]) {
+    let cursor: string | undefined
+    do {
+      const response = await api.querySessionControl({
+        contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+        requestId: crypto.randomUUID(),
+        query: {
+          operation: 'list',
+          projectPath: path,
+          archived,
+          limit: SESSION_QUERY_DISCOVERY_LIMIT,
+          ...(cursor ? { cursor } : {}),
+        },
+      })
+      if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
+        throw new Error('Project Session listing returned an unexpected response.')
+      }
+      ids.push(...response.outcome.sessions.map((session) => SessionId(session.sessionId)))
+      cursor = response.outcome.nextCursor
+    } while (cursor)
+  }
+  const sessions: SessionSummary[] = []
+  for (let offset = 0; offset < ids.length; offset += SESSION_HYDRATION_BATCH_SIZE) {
+    sessions.push(
+      ...(await api.listSessionsByIds(ids.slice(offset, offset + SESSION_HYDRATION_BATCH_SIZE))),
+    )
+  }
+  return sessions
+}
+
+export interface SidebarProjectActionDeps {
   readonly activeSessionId: string | null
   readonly displayProjectName: (path: string) => string
   readonly expandProject: (path: string) => void
@@ -18,27 +55,11 @@ interface SidebarProjectActionDeps {
   readonly refreshGit: (path: RepositoryPath | null) => void
   readonly removeProjectReferences: (path: string) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
-  readonly sessions: readonly SessionSummary[]
   readonly setProjectDisplayName: (path: string, name: string) => Promise<void>
   readonly setProjectPath: (path: string) => Promise<void>
   readonly showToast: (message: string) => void
   readonly startDraftSession: (projectPath: string | null) => void
   readonly clearTransientDraftContext: () => void
-}
-
-function projectSessionsForPath(
-  sessions: readonly SessionSummary[],
-  archivedSessions: readonly SessionSummary[],
-  path: string,
-) {
-  const byId = new Map<string, SessionSummary>()
-  for (const session of sessions) {
-    if (session.projectPath === path) byId.set(String(session.id), session)
-  }
-  for (const session of archivedSessions) {
-    if (session.projectPath === path) byId.set(String(session.id), session)
-  }
-  return [...byId.values()]
 }
 
 function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
@@ -83,11 +104,8 @@ async function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
   deps.refreshGit(makeRepositoryPath(path))
 }
 
-async function archiveProjectSessions(
-  deps: SidebarProjectActionDeps,
-  path: string,
-  projectSessions: readonly SessionSummary[],
-) {
+async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: string) {
+  const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   if (sessionCount === 0) return
 
@@ -108,8 +126,7 @@ async function archiveProjectSessions(
 }
 
 async function removeProject(deps: SidebarProjectActionDeps, path: string) {
-  const archivedSessions = await api.listArchivedSessions()
-  const projectSessions = projectSessionsForPath(deps.sessions, archivedSessions, path)
+  const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
     `Remove ${deps.displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
@@ -140,8 +157,8 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
 
 export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
   return {
-    archiveSessions(path: string, projectSessions: readonly SessionSummary[]) {
-      void archiveProjectSessions(deps, path, projectSessions).catch((error: unknown) => {
+    archiveSessions(path: string, _projectSessions: readonly SessionSummary[]) {
+      void archiveProjectSessions(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to archive project sessions: ${errorMessage(error)}`)
       })
     },

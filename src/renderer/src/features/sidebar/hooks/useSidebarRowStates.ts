@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import {
   buildProjectRollUp,
-  buildSidebarStateCounts,
+  buildSidebarStateCountsFromStates,
   resolveSidebarRowState,
   resolveVisibleSessionStatus,
   type SidebarRowState,
@@ -25,6 +25,20 @@ export function useSidebarRowStates(sessions: readonly SessionSummary[]) {
 
   return useMemo(() => {
     const byId = new Map<string, SidebarRowState>()
+
+    for (const [sessionId, status] of statuses) {
+      byId.set(
+        String(sessionId),
+        resolveSidebarRowState({
+          status: resolveVisibleSessionStatus({
+            status,
+            completedAt: completedAt.get(sessionId),
+            lastVisitedAt: lastVisitedAt.get(sessionId),
+          }),
+          hasInterruptedRun: false,
+        }),
+      )
+    }
 
     for (const session of sessions) {
       const id = SessionId(String(session.id))
@@ -48,7 +62,8 @@ export function useSidebarRowStates(sessions: readonly SessionSummary[]) {
 
     return {
       stateOf,
-      chipCounts: buildSidebarStateCounts(sessions, stateOf),
+      stateBySessionId: byId,
+      chipCounts: buildSidebarStateCountsFromStates(byId.values()),
       rollUpFor: (projectSessions: readonly SessionSummary[]) =>
         buildProjectRollUp(projectSessions, stateOf),
     }

@@ -70,6 +70,7 @@ import type { AgentPhaseState } from './phase'
 import type {
   PinnedSession,
   PinnedSessionMove,
+  SessionCatalogPage,
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
@@ -188,7 +189,7 @@ export interface OpenWaggleApi
   listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
-  listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
+  listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
     sessionId: SessionId,

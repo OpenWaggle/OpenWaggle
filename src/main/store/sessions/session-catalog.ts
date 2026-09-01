@@ -7,8 +7,13 @@ import type {
 } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
-import { sessionSummaryColumns } from './hydration'
-import { hydrateSessionNavigationRows } from './session-list'
+import {
+  attachArchivedBranchState,
+  hydrateSessionRows,
+  sessionIdsForQuery,
+  sessionSummaryColumns,
+} from './hydration'
+import { hydrateSessionNavigationRows, loadArchivedBranchRows } from './session-list'
 import type { SessionSummaryRow } from './types'
 
 interface SessionCatalogCursor {
@@ -135,6 +140,41 @@ export async function listHiveSessionCatalogPage(
         context,
         workers: workerPage.sessions,
         ...(workerPage.nextCursor ? { nextCursor: workerPage.nextCursor } : {}),
+      }
+    }),
+  )
+}
+
+/** Keyset page of active Sessions that contain at least one archived branch. */
+export async function listArchivedSessionBranchCatalogPage(
+  limit: number,
+  encodedCursor?: string,
+): Promise<SessionCatalogPage> {
+  const cursor = decodeCatalogCursor(encodedCursor)
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<SessionSummaryRow>`
+        SELECT ${sessionSummaryColumns(sql)} FROM sessions
+        WHERE archived = 0
+          AND EXISTS (
+            SELECT 1 FROM session_branches
+            WHERE session_branches.session_id = sessions.id
+              AND session_branches.archived_at IS NOT NULL
+          )
+          AND (${cursor?.updatedAt ?? null} IS NULL
+            OR updated_at < ${cursor?.updatedAt ?? null}
+            OR (updated_at = ${cursor?.updatedAt ?? null} AND id < ${cursor?.sessionId ?? null}))
+        ORDER BY updated_at DESC, id DESC LIMIT ${limit + 1}
+      `
+      const page = catalogPage(hydrateSessionRows(rows) ?? [], limit)
+      if (page.sessions.length === 0) return page
+      return {
+        ...page,
+        sessions: attachArchivedBranchState(
+          page.sessions,
+          yield* loadArchivedBranchRows(sql, sessionIdsForQuery(page.sessions)),
+        ),
       }
     }),
   )

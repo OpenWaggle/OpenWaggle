@@ -9,6 +9,8 @@ export interface SessionsReturn {
   activeWorkspace: ReturnType<typeof useSessionStore.getState>['activeWorkspace']
   draftBranch: ReturnType<typeof useSessionStore.getState>['draftBranch']
   loadSessions: () => Promise<void>
+  loadMoreSessions: () => Promise<void>
+  refreshCatalogSessions: (sessionIds: readonly SessionId[]) => Promise<void>
   refreshSessionTree: (sessionId: SessionId | null) => Promise<void>
   refreshSessionWorkspace: (
     sessionId: SessionId | null,
@@ -29,6 +31,8 @@ export function useSessions(): SessionsReturn {
   const activeWorkspace = useSessionStore((s) => s.activeWorkspace)
   const draftBranch = useSessionStore((s) => s.draftBranch)
   const loadSessions = useSessionStore((s) => s.loadSessions)
+  const loadMoreSessions = useSessionStore((s) => s.loadMoreSessions)
+  const refreshCatalogSessions = useSessionStore((s) => s.refreshCatalogSessions)
   const refreshSessionTree = useSessionStore((s) => s.refreshSessionTree)
   const refreshSessionWorkspace = useSessionStore((s) => s.refreshSessionWorkspace)
   const refreshSessionsAndTree = useSessionStore((s) => s.refreshSessionsAndTree)
@@ -42,6 +46,8 @@ export function useSessions(): SessionsReturn {
     activeWorkspace,
     draftBranch,
     loadSessions,
+    loadMoreSessions,
+    refreshCatalogSessions,
     refreshSessionTree,
     refreshSessionWorkspace,
     refreshSessionsAndTree,

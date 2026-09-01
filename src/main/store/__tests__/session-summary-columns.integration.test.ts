@@ -6,7 +6,11 @@ import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSession, setSessionWorktree } from '../session-details'
-import { listHiveSessionCatalogPage, listSessionCatalogPage } from '../sessions/session-catalog'
+import {
+  listArchivedSessionBranchCatalogPage,
+  listHiveSessionCatalogPage,
+  listSessionCatalogPage,
+} from '../sessions/session-catalog'
 import { listSessions } from '../sessions/session-list'
 import { SESSION_SUMMARY_COLUMN_NAMES } from '../sessions/types'
 import { runStoreEffect } from '../store-runtime'
@@ -120,6 +124,13 @@ describe('session summary columns survive the live SQL path', () => {
             '/repo/catalog', printf('Catalog %04d', value), 0, value, value, NULL, NULL, 'local'
           FROM generated
         `)
+        yield* sql.unsafe(`
+          INSERT INTO session_branches (
+            id, session_id, name, is_main, created_at, updated_at, archived_at
+          )
+          SELECT 'branch-' || id, id, 'Archived branch', 0, created_at, updated_at, updated_at
+          FROM sessions WHERE id LIKE 'catalog-____'
+        `)
       }),
     )
 
@@ -130,6 +141,15 @@ describe('session summary columns survive the live SQL path', () => {
     expect(new Set([...first.sessions, ...second.sessions].map((session) => session.id)).size).toBe(
       150,
     )
+
+    const archivedBranchesFirst = await listArchivedSessionBranchCatalogPage(75)
+    const archivedBranchesSecond = await listArchivedSessionBranchCatalogPage(
+      75,
+      archivedBranchesFirst.nextCursor,
+    )
+    expect(archivedBranchesFirst.sessions).toHaveLength(75)
+    expect(archivedBranchesSecond.sessions).toHaveLength(75)
+    expect(archivedBranchesFirst.sessions[0]?.branches).toHaveLength(1)
 
     await runStoreEffect(
       Effect.gen(function* () {

@@ -93,7 +93,7 @@ export function Header() {
   const activeBranchName = gitStatus?.branch ?? null
   const title = activeSessionTree?.session.title ?? activeSession?.title ?? 'New session'
   const currentSessionIdentity = sessionIdentity(
-    [...sessions, ...archivedSessions],
+    [...(activeSession ? [activeSession] : []), ...sessions, ...archivedSessions],
     activeSessionId,
   )
 

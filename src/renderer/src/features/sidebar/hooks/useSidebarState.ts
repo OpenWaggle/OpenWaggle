@@ -14,6 +14,7 @@ import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
 import { activeViewFromPathname } from './sidebar-view'
+import { useRemoteSidebarSessions } from './useRemoteSidebarSessions'
 import { useSidebarRowStates } from './useSidebarRowStates'
 
 type SidebarSessionsState = ReturnType<typeof useSessions>
@@ -97,7 +98,25 @@ export function useSidebarState() {
    * which spun the renderer.
    */
   const normalizedQuery = searchQuery.trim().toLowerCase()
+  const sidebarProjectPaths = useMemo(
+    () => [
+      ...recentProjects,
+      ...sessions.sessions.flatMap((session) =>
+        session.projectPath === null ? [] : [session.projectPath],
+      ),
+    ],
+    [recentProjects, sessions.sessions],
+  )
+  const remoteSessions = useRemoteSidebarSessions({
+    query: searchQuery,
+    filterState,
+    stateBySessionId: rowStates.stateBySessionId,
+    loadedSessions: sessions.sessions,
+    projectPaths: sidebarProjectPaths,
+    projectDisplayNames,
+  })
   const visibleSessions = useMemo(() => {
+    if (remoteSessions.active) return remoteSessions.sessions
     if (filterState === null && normalizedQuery === '') return sessions.sessions
     return sessions.sessions.filter((session) => {
       if (filterState !== null && rowStates.stateOf(session) !== filterState) return false
@@ -112,7 +131,15 @@ export function useSidebarState() {
         custom.toLowerCase().includes(normalizedQuery)
       )
     })
-  }, [sessions.sessions, filterState, normalizedQuery, rowStates, projectDisplayNames])
+  }, [
+    sessions.sessions,
+    filterState,
+    normalizedQuery,
+    rowStates,
+    projectDisplayNames,
+    remoteSessions.active,
+    remoteSessions.sessions,
+  ])
 
   /*
    * Positions come from the unfiltered section, then the rows are narrowed for display. A Pinned
@@ -155,6 +182,9 @@ export function useSidebarState() {
     isProjectCollapsed: (path: string) => !isProjectExpanded(projectExpandedByPath, path),
     matchingActiveSessionTree: activeSession.matchingActiveSessionTree,
     matchingActiveWorkspace: activeSession.matchingActiveWorkspace,
+    loadMoreVisibleSessions: remoteSessions.active
+      ? remoteSessions.loadMore
+      : sessions.loadMoreSessions,
     navigate,
     pinnedRows,
     pinnedSortMenuOpen,

@@ -24,6 +24,7 @@ interface WorkspaceLifecycleMocks {
   readonly refreshSession: Mock
   readonly updateSessionTitle: Mock
   readonly loadSessionTrees: Mock
+  readonly refreshCatalogSessions: Mock
   readonly refreshSessionTree: Mock
   readonly refreshGitStatus: Mock
   readonly refreshGitBranches: Mock
@@ -61,6 +62,7 @@ const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
     refreshSession: vi.fn().mockResolvedValue(undefined),
     updateSessionTitle: vi.fn(),
     loadSessionTrees: vi.fn().mockResolvedValue(undefined),
+    refreshCatalogSessions: vi.fn().mockResolvedValue(undefined),
     refreshSessionTree: vi.fn().mockResolvedValue(undefined),
     refreshGitStatus: vi.fn().mockResolvedValue(undefined),
     refreshGitBranches: vi.fn().mockResolvedValue(undefined),
@@ -151,6 +153,7 @@ vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
   useSessions: () => ({
     loadSessions: lifecycleMocks.loadSessionTrees,
+    refreshCatalogSessions: lifecycleMocks.refreshCatalogSessions,
     refreshSessionTree: lifecycleMocks.refreshSessionTree,
     sessions: [],
   }),
@@ -183,6 +186,7 @@ export function resetWorkspaceLifecycleMocks() {
   lifecycleMocks.loadChatSessions.mockClear()
   lifecycleMocks.startDraftSession.mockClear()
   lifecycleMocks.loadSessionTrees.mockClear()
+  lifecycleMocks.refreshCatalogSessions.mockClear()
   lifecycleMocks.refreshSession.mockClear()
   lifecycleMocks.refreshGitStatus.mockClear()
   lifecycleMocks.refreshGitBranches.mockClear()

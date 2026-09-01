@@ -1,4 +1,4 @@
-import type { SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -17,8 +17,11 @@ export interface SessionCatalogState {
   archivedSessionsNextCursor: string | null
   hiveWorkersNextCursor: string | null
   sessionsLoadingMore: boolean
+  archivedSessionsLoadingMore: boolean
   loadSessions: () => Promise<void>
   loadMoreSessions: () => Promise<void>
+  refreshCatalogSessions: (sessionIds: readonly SessionId[]) => Promise<void>
+  loadMoreArchivedSessions: () => Promise<void>
   loadHiveSessions: (sessionId: SessionId) => Promise<void>
   loadMoreHiveSessions: (sessionId: SessionId) => Promise<void>
 }
@@ -71,11 +74,47 @@ async function loadCatalog(set: CatalogSet) {
       sessionsNextCursor: active.nextCursor ?? null,
       archivedSessionsNextCursor: archived.nextCursor ?? null,
       sessionsLoadingMore: false,
+      archivedSessionsLoadingMore: false,
     })
   } catch (error) {
     if (requestId !== latestCatalogRequestId) return
     set({ sessionsLoadingMore: false })
     logger.error('Failed to load Session catalog', { error: String(error) })
+  }
+}
+
+async function refreshCatalogSessions(
+  set: CatalogSet,
+  get: CatalogGet,
+  sessionIds: readonly SessionId[],
+) {
+  const requestedIds = [...new Set(sessionIds.map(String))].map(SessionId)
+  if (requestedIds.length === 0) return
+  const refreshed: SessionSummary[] = []
+  for (let offset = 0; offset < requestedIds.length; offset += PAGE_SIZE) {
+    refreshed.push(...(await api.listSessionsByIds(requestedIds.slice(offset, offset + PAGE_SIZE))))
+  }
+  const requested = new Set(requestedIds.map(String))
+  set((state) => ({
+    sessions: appendUnique(
+      state.sessions.filter((session) => !requested.has(String(session.id))),
+      refreshed.filter((session) => session.archived !== true),
+    ),
+    archivedSessions: appendUnique(
+      state.archivedSessions.filter((session) => !requested.has(String(session.id))),
+      refreshed.filter((session) => session.archived === true),
+    ),
+  }))
+  const hiveContextSessionId = get().hiveContextSessionId
+  if (
+    hiveContextSessionId &&
+    refreshed.some(
+      (session) =>
+        session.id === hiveContextSessionId ||
+        session.lineage?.parentSessionId === hiveContextSessionId,
+    )
+  ) {
+    await get().loadHiveSessions(hiveContextSessionId)
   }
 }
 
@@ -89,6 +128,7 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
     archivedSessionsNextCursor: null,
     hiveWorkersNextCursor: null,
     sessionsLoadingMore: false,
+    archivedSessionsLoadingMore: false,
     loadSessions: () => loadCatalog(set),
     async loadMoreSessions() {
       const cursor = get().sessionsNextCursor
@@ -96,7 +136,10 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       set({ sessionsLoadingMore: true })
       try {
         const page = await api.listSessionCatalogPage(false, PAGE_SIZE, cursor)
-        if (get().sessionsNextCursor !== cursor) return
+        if (get().sessionsNextCursor !== cursor) {
+          set({ sessionsLoadingMore: false })
+          return
+        }
         set((state) => ({
           sessions: appendUnique(state.sessions, page.sessions),
           sessionsNextCursor: page.nextCursor ?? null,
@@ -105,6 +148,27 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       } catch (error) {
         set({ sessionsLoadingMore: false })
         logger.error('Failed to load more Sessions', { error: String(error) })
+      }
+    },
+    refreshCatalogSessions: (sessionIds) => refreshCatalogSessions(set, get, sessionIds),
+    async loadMoreArchivedSessions() {
+      const cursor = get().archivedSessionsNextCursor
+      if (!cursor || get().archivedSessionsLoadingMore) return
+      set({ archivedSessionsLoadingMore: true })
+      try {
+        const page = await api.listSessionCatalogPage(true, PAGE_SIZE, cursor)
+        if (get().archivedSessionsNextCursor !== cursor) {
+          set({ archivedSessionsLoadingMore: false })
+          return
+        }
+        set((state) => ({
+          archivedSessions: appendUnique(state.archivedSessions, page.sessions),
+          archivedSessionsNextCursor: page.nextCursor ?? null,
+          archivedSessionsLoadingMore: false,
+        }))
+      } catch (error) {
+        set({ archivedSessionsLoadingMore: false })
+        logger.error('Failed to load more archived Sessions', { error: String(error) })
       }
     },
     async loadHiveSessions(sessionId) {

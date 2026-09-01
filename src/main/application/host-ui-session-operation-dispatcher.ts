@@ -7,6 +7,7 @@ import { SessionProjectionRepository } from '../ports/session-projection-reposit
 import { SessionRepository } from '../ports/session-repository'
 import type { SettingsService } from '../services/settings-service'
 import {
+  listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
   listSessionCatalogPage,
   listSessionsByIds,
@@ -58,12 +59,11 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:list-archived', () => listArchivedSessions(args))
     .with('sessions:update-title', () => updateSessionTitle(args))
     .with('sessions:set-authorization-mode', () => setAuthorizationMode(args))
-    .with('sessions:list', 'sessions:list-archived-branches', (matchedChannel) =>
-      listRepositorySessions(matchedChannel, args),
-    )
+    .with('sessions:list', () => listRepositorySessions(args))
     .with('sessions:list-by-ids', () => listSessionsByIds(args))
     .with('sessions:list-page', () => listSessionCatalogPage(args))
     .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
+    .with('sessions:list-archived-branches', () => listArchivedSessionBranchCatalogPage(args))
     .with('sessions:get-tree', () => getSessionTree(args))
     .with('sessions:get-workspace', () => getSessionWorkspace(args))
     .with('sessions:navigate-tree', () => navigateSessionTree(args))
@@ -126,19 +126,12 @@ function updateSessionTitle(args: readonly unknown[]) {
   })
 }
 
-function listRepositorySessions(
-  channel: 'sessions:list' | 'sessions:list-archived-branches',
-  args: readonly unknown[],
-) {
+function listRepositorySessions(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireOptionalArgCount(args, 0, 1)
     const limit = yield* validateListLimit(args[0])
     const repository = yield* SessionRepository
-    return [
-      ...(channel === 'sessions:list'
-        ? yield* repository.list(limit)
-        : yield* repository.listArchivedBranches(limit)),
-    ]
+    return [...(yield* repository.list(limit))]
   })
 }
 

@@ -62,3 +62,18 @@ export function listHiveSessionCatalogPage(args: readonly unknown[]) {
     return yield* repository.listHiveCatalogPage(sessionId, limit, cursor)
   })
 }
+
+export function listArchivedSessionBranchCatalogPage(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    if (args.length < 1 || args.length > TWO_ARGUMENTS) {
+      return yield* invalid('Expected 1 or 2 arguments.')
+    }
+    const limit = yield* validateLimit(args[0])
+    const cursor = yield* validateCursor(args[1])
+    const repository = yield* SessionRepository
+    if (!repository.listArchivedBranchCatalogPage) {
+      return yield* invalid('Archived branch pagination is unavailable.')
+    }
+    return yield* repository.listArchivedBranchCatalogPage(limit, cursor)
+  })
+}

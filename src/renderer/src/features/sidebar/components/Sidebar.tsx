@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
@@ -19,7 +19,6 @@ const SESSION_LOAD_MORE_THRESHOLD_PX = 240
 
 export function Sidebar() {
   const controller = useSidebarController()
-  const loadMoreSessions = useSessionStore((state) => state.loadMoreSessions)
   // Each row shows its own working tree, so load status for every listed session's
   // working path (de-duplicated: local-mode sessions in one project share a tree).
   useSessionGitIndicators([
@@ -82,7 +81,9 @@ export function Sidebar() {
             onScroll={(event) => {
               const element = event.currentTarget
               const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
-              if (remaining < SESSION_LOAD_MORE_THRESHOLD_PX) void loadMoreSessions()
+              if (remaining < SESSION_LOAD_MORE_THRESHOLD_PX) {
+                void controller.loadMoreVisibleSessions()
+              }
             }}
           >
             <SidebarPinnedSection

@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionCatalogPage, SessionDetail, SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
 
@@ -11,9 +11,11 @@ import { useChatStore } from '../chat-store'
 
 const mockApi = {
   listSessionDetails: vi.fn(),
-  listSessionCatalogPage: vi.fn(async (..._args: unknown[]) => ({ sessions: [] })),
+  listSessionCatalogPage: vi.fn(
+    async (..._args: [boolean, number, string?]): Promise<SessionCatalogPage> => ({ sessions: [] }),
+  ),
   listPinnedSessions: vi.fn(async () => []),
-  listSessionsByIds: vi.fn(async () => []),
+  listSessionsByIds: vi.fn(async (_ids: readonly SessionId[]): Promise<SessionSummary[]> => []),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
@@ -23,9 +25,10 @@ const mockApi = {
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
-    listSessionCatalogPage: (...args: unknown[]) => mockApi.listSessionCatalogPage(...args),
-    listPinnedSessions: (...args: unknown[]) => mockApi.listPinnedSessions(...args),
-    listSessionsByIds: (...args: unknown[]) => mockApi.listSessionsByIds(...args),
+    listSessionCatalogPage: (archived: boolean, limit: number, cursor?: string) =>
+      mockApi.listSessionCatalogPage(archived, limit, cursor),
+    listPinnedSessions: () => mockApi.listPinnedSessions(),
+    listSessionsByIds: (ids: readonly SessionId[]) => mockApi.listSessionsByIds(ids),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),

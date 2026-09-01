@@ -54,7 +54,10 @@ export interface IpcSessionInvokeChannelMap {
     args: [sessionId: SessionId, limit: number, cursor?: string]
     return: HiveSessionCatalogPage
   }
-  'sessions:list-archived-branches': { args: [limit?: number]; return: SessionSummary[] }
+  'sessions:list-archived-branches': {
+    args: [limit: number, cursor?: string]
+    return: SessionCatalogPage
+  }
   'sessions:get-tree': { args: [sessionId: SessionId]; return: SessionTree | null }
   'sessions:get-workspace': {
     args: [sessionId: SessionId, selection?: SessionWorkspaceSelection]

@@ -70,6 +70,18 @@ const sessionRepository = SessionRepository.of({
       },
     ]),
   listArchivedBranches: () => Effect.succeed([]),
+  listArchivedBranchCatalogPage: (limit, cursor) =>
+    Effect.succeed({
+      sessions: [
+        {
+          id: SessionId('session-archived-branch'),
+          title: `Archived branches ${String(limit)}`,
+          projectPath: cursor ?? null,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+    }),
   getTree: () => Effect.succeed(null),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: () => Effect.void,
@@ -118,6 +130,23 @@ describe('Host-backed Session GUI operation dispatcher', () => {
     await expect(runWithoutRequirements(effect)).resolves.toEqual([
       expect.objectContaining({ id: SessionId('session-1'), title: 'Session 25' }),
     ])
+  })
+
+  it('dispatches archived branch catalog pages with a bounded cursor', async () => {
+    const effect = dispatchHostBackedSessionGuiOperation('sessions:list-archived-branches', [
+      100,
+      'next-page',
+    ]).pipe(Effect.provideService(SessionRepository, sessionRepository))
+
+    await expect(runWithoutRequirements(effect)).resolves.toEqual({
+      sessions: [
+        expect.objectContaining({
+          id: SessionId('session-archived-branch'),
+          title: 'Archived branches 100',
+          projectPath: 'next-page',
+        }),
+      ],
+    })
   })
 
   it('executes Local UI mutations independently from Electron IPC', async () => {

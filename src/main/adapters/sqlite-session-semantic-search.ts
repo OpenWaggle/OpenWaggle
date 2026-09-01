@@ -3,11 +3,11 @@ import type { LocalSessionProfileAuthority } from '@shared/types/local-session-p
 import type { SemanticDiscoveryReadiness, SessionQuerySummary } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
+import { decodeFloat32Vector } from './session-flat-vector-index'
 import {
-  decodeFloat32Vector,
-  SessionFlatVectorIndex,
-  type SessionVectorRecord,
-} from './session-flat-vector-index'
+  type SemanticIndexRefresh,
+  SessionSemanticIndexSnapshotCache,
+} from './session-semantic-index-snapshot-cache'
 import { sessionSemanticQueryInferenceGate } from './session-semantic-inference-gate'
 import type { DiscoverySearchRequest } from './sqlite-session-discovery-window'
 import {
@@ -23,69 +23,12 @@ interface StoredVectorRow {
   readonly vector: Uint8Array
 }
 
-interface SemanticIndexRefresh {
-  readonly revision: number
-  readonly rebuild: boolean
-  readonly records: readonly SessionVectorRecord[]
-  readonly deletedSessionIds: readonly string[]
-}
-
 interface SemanticSessionFilter {
   readonly allowedSessionIds?: ReadonlySet<string>
   readonly excludedSessionIds?: ReadonlySet<string>
 }
 
 const FRESHNESS_POLL_INTERVAL_MS = 50
-
-export class SessionSemanticIndexSnapshotCache {
-  readonly #refreshLock = Effect.runSync(Effect.makeSemaphore(1))
-  readonly #index = new SessionFlatVectorIndex()
-  #loadedRevision = -1
-
-  search<Error, Requirements>(input: {
-    readonly minimumRevision: number
-    readonly refresh: (
-      afterRevision: number,
-    ) => Effect.Effect<SemanticIndexRefresh, Error, Requirements>
-    readonly query: Float32Array
-    readonly limit: number
-    readonly allowedSessionIds?: ReadonlySet<string>
-    readonly excludedSessionIds?: ReadonlySet<string>
-  }): Effect.Effect<
-    { readonly revision: number; readonly matches: ReturnType<SessionFlatVectorIndex['search']> },
-    Error,
-    Requirements
-  > {
-    return this.#refreshLock.withPermits(1)(
-      Effect.gen(this, function* () {
-        if (input.minimumRevision > this.#loadedRevision) {
-          const refresh = yield* input.refresh(this.#loadedRevision)
-          if (refresh.revision > this.#loadedRevision) {
-            if (refresh.rebuild) this.#index.replace(refresh.records)
-            else {
-              for (const record of refresh.records) this.#index.upsert(record)
-              for (const sessionId of refresh.deletedSessionIds) this.#index.remove(sessionId)
-            }
-            this.#loadedRevision = refresh.revision
-          }
-        }
-        return {
-          revision: this.#loadedRevision,
-          matches: this.#index.search(
-            input.query,
-            input.limit,
-            input.allowedSessionIds,
-            input.excludedSessionIds,
-          ),
-        }
-      }),
-    )
-  }
-
-  diagnostics() {
-    return { loadedRevision: this.#loadedRevision, recordCount: this.#index.size }
-  }
-}
 
 function loadEligibleSemanticSessionIds(
   sql: SqlClient.SqlClient,
@@ -131,6 +74,8 @@ function loadEligibleSemanticSessionIds(
     })),
   )
 }
+
+export { SessionSemanticIndexSnapshotCache } from './session-semantic-index-snapshot-cache'
 
 function loadSemanticSessionRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   if (sessionIds.length === 0) return Effect.succeed<readonly SessionQuerySummaryRow[]>([])
@@ -209,6 +154,7 @@ export class SqliteSessionSemanticSearch {
       const snapshot = yield* this.#snapshots.search({
         minimumRevision: readiness.snapshotRevision ?? 0,
         refresh: (afterRevision) => this.#loadIndexRefresh(afterRevision),
+        acknowledge: (revision) => this.#acknowledgeIndexRevision(revision),
         query: vector,
         limit,
         ...sessionFilter,
@@ -244,7 +190,10 @@ export class SqliteSessionSemanticSearch {
   #loadIndexRefresh(afterRevision: number) {
     return this.sql.withTransaction(
       Effect.gen(this, function* () {
-        const revisions = yield* this.sql<{ readonly revision: number }>`
+        const revisions = yield* this.sql<{
+          readonly revision: number
+          readonly deletion_compaction_revision: number
+        }>`
           SELECT MAX(
             COALESCE((
               SELECT MAX(snapshot_revision) FROM session_discovery_embeddings
@@ -256,10 +205,15 @@ export class SqliteSessionSemanticSearch {
               WHERE singleton = 1 AND model_id = ${this.model.metadata.id}
                 AND model_revision = ${this.model.metadata.revision}
             ), 0)
-          ) AS revision
+          ) AS revision,
+          COALESCE((
+            SELECT deletion_compaction_revision FROM session_semantic_discovery_state
+            WHERE singleton = 1
+          ), 0) AS deletion_compaction_revision
         `
         const revision = revisions[0]?.revision ?? 0
-        const rebuild = afterRevision < 0
+        const deletionCompactionRevision = revisions[0]?.deletion_compaction_revision ?? 0
+        const rebuild = afterRevision < 0 || afterRevision < deletionCompactionRevision
         if (revision <= afterRevision) {
           return {
             revision,
@@ -296,6 +250,22 @@ export class SqliteSessionSemanticSearch {
           })),
           deletedSessionIds: deleted.map((row) => row.session_id),
         } satisfies SemanticIndexRefresh
+      }),
+    )
+  }
+
+  #acknowledgeIndexRevision(revision: number) {
+    return this.sql.withTransaction(
+      Effect.gen(this, function* () {
+        yield* this.sql`
+          UPDATE session_semantic_discovery_state
+          SET deletion_compaction_revision = MAX(deletion_compaction_revision, ${revision})
+          WHERE singleton = 1
+        `
+        yield* this.sql`
+          DELETE FROM session_discovery_embedding_deletions
+          WHERE snapshot_revision <= ${revision}
+        `
       }),
     )
   }

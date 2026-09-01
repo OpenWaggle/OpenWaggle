@@ -32,6 +32,7 @@ const headerMocks = vi.hoisted(() => {
     commit: vi.fn().mockResolvedValue({ ok: true, commitHash: 'abc123', summary: 'abc123' }),
     toggleDiff: vi.fn(),
     toggleSessionTree: vi.fn(),
+    omitSessionFromCatalog: false,
     useArchivedSession: false,
     useIndependentSession: false,
   }
@@ -39,7 +40,23 @@ const headerMocks = vi.hoisted(() => {
 
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({
-    activeSession: { title: 'Fallback title' },
+    activeSession: {
+      id: SessionId('session-1'),
+      title: 'Fallback title',
+      lineage: headerMocks.useIndependentSession
+        ? {
+            role: 'independent' as const,
+            directWorkerCount: 0,
+            activeDirectWorkerCount: 0,
+            agentDefinitionName: 'security-reviewer',
+          }
+        : {
+            role: 'queen' as const,
+            directWorkerCount: 2,
+            activeDirectWorkerCount: 1,
+            agentDefinitionName: 'release-lead',
+          },
+    },
     activeSessionId: SessionId('session-1'),
   }),
 }))
@@ -114,8 +131,10 @@ vi.mock('@/features/sessions/hooks', () => ({
           },
     }
     return {
-      sessions: headerMocks.useArchivedSession ? [] : [session],
-      archivedSessions: headerMocks.useArchivedSession ? [session] : [],
+      sessions:
+        headerMocks.useArchivedSession || headerMocks.omitSessionFromCatalog ? [] : [session],
+      archivedSessions:
+        headerMocks.useArchivedSession && !headerMocks.omitSessionFromCatalog ? [session] : [],
       activeSessionTree: {
         session: {
           id: SessionId('session-1'),
@@ -162,6 +181,7 @@ describe('Header', () => {
     headerMocks.toggleSessionTree.mockClear()
     headerMocks.useArchivedSession = false
     headerMocks.useIndependentSession = false
+    headerMocks.omitSessionFromCatalog = false
   })
 
   it('renders session/project context and wires app-level controls', async () => {
@@ -213,5 +233,15 @@ describe('Header', () => {
     expect(screen.getByText('security-reviewer')).toBeInTheDocument()
     expect(screen.queryByText('Queen')).not.toBeInTheDocument()
     expect(screen.queryByText('Worker')).not.toBeInTheDocument()
+  })
+
+  it('uses selected Session detail when an archived Session is beyond the first catalog page', () => {
+    headerMocks.useArchivedSession = true
+    headerMocks.omitSessionFromCatalog = true
+
+    render(<Header />)
+
+    expect(screen.getByText('Queen')).toBeInTheDocument()
+    expect(screen.getByText('release-lead')).toBeInTheDocument()
   })
 })

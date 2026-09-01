@@ -257,7 +257,7 @@ function loadSessionsWithArchivedBranches(sql: SqlClient.SqlClient, limit?: numb
   `
 }
 
-function loadArchivedBranchRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+export function loadArchivedBranchRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   return sql<SessionBranchRow>`
     SELECT
       id,
