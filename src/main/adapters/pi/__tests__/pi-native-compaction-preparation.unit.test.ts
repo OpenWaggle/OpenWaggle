@@ -9,6 +9,35 @@ import {
 } from './pi-native-compaction-test-fixtures'
 
 describe('Pi native compaction preparation', () => {
+  it('uses mechanism-specific overhead for native and portable reconstruction', () => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({ role: 'user', content: 'old-user-'.repeat(10), timestamp: 1 })
+    sessionManager.appendMessage(makeAssistant('old-assistant-'.repeat(6), 2))
+    sessionManager.appendCompaction(
+      'Native compaction checkpoint',
+      'native-replacement',
+      80_000,
+      NATIVE_DETAILS,
+    )
+    sessionManager.appendMessage({ role: 'user', content: 'new-user-'.repeat(6), timestamp: 3 })
+    sessionManager.appendMessage(makeAssistant('new-assistant-'.repeat(4), 4))
+
+    const preparation = prepareCompaction(
+      sessionManager.getBranch(),
+      { ...COMPACTION_SETTINGS, reserveTokens: 20, keepRecentTokens: 1 },
+      makeNativeModel({
+        baseUrl: 'https://target.example.test/v1',
+        contextWindow: 500,
+        maxTokens: 20,
+      }),
+      { nativeRequestOverheadTokens: 400 },
+    )
+
+    expect(JSON.stringify(preparation?.messagesForNativeCompaction)).not.toContain('old-user')
+    expect(JSON.stringify(preparation?.messagesForNativeCompaction)).toContain('new-user')
+    expect(JSON.stringify(preparation?.portableFallback?.messagesToSummarize)).toContain('old-user')
+  })
+
   it('can replace an opaque checkpoint even when Portable would retain all recent raw turns', () => {
     const sessionManager = SessionManager.inMemory('/repo')
     sessionManager.appendMessage({ role: 'user', content: 'old context', timestamp: 1 })

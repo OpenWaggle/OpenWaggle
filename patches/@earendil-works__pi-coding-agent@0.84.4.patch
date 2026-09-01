@@ -12,7 +12,7 @@ index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..cc3b45b94f8ff61464a2a4103c1d1887
          await this.finishSessionReplacement(options?.withSession);
          return { cancelled: false };
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..ed664632aecc3483b647878aab0e9390dd519992 100644
+index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..66b6ad527a9b9cd1ec45bba5ac5beda02bcce507 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -108,6 +108,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -35,9 +35,18 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..ed664632aecc3483b647878aab0e9390
      /**
       * Send a prompt to the agent.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc757d72067 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e6e3426e0 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
+@@ -22,7 +22,7 @@ import { sleep } from "../utils/sleep.js";
+ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
+ import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
+ import { executeBashWithOperations } from "./bash-executor.js";
+-import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, shouldCompact, } from "./compaction/index.js";
++import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimatePortableCompactionRequestOverheadTokens, estimateTokens, generateBranchSummary, prepareCompaction, selectCompactionMechanism, shouldCompact, } from "./compaction/index.js";
+ import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.js";
+ import { exportSessionToHtml } from "./export-html/index.js";
+ import { createToolHtmlRenderer } from "./export-html/tool-renderer.js";
 @@ -31,7 +31,7 @@ import { emitSessionShutdownEvent } from "./extensions/runner.js";
  import { ModelRegistry } from "./model-registry.js";
  import { expandPromptTemplate } from "./prompt-templates.js";
@@ -93,7 +102,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
  // ============================================================================
  // Constants
  // ============================================================================
-@@ -83,6 +128,7 @@ export class AgentSession {
+@@ -83,6 +122,7 @@ export class AgentSession {
      _unsubscribeAgent;
      _eventListeners = [];
      _isAgentRunActive = false;
@@ -101,7 +110,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      _idleWaitPromise;
      _resolveIdleWait;
      /** Tracks pending steering messages for UI display. Removed when delivered. */
-@@ -126,6 +172,8 @@ export class AgentSession {
+@@ -126,6 +166,8 @@ export class AgentSession {
      _extensionErrorListener;
      _extensionErrorUnsubscriber;
      _modelRuntime;
@@ -110,7 +119,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      // Tool registry for extension getTools/setTools
      _toolRegistry = new Map();
      _toolDefinitions = new Map();
-@@ -144,6 +192,8 @@ export class AgentSession {
+@@ -144,6 +186,8 @@ export class AgentSession {
          this._customTools = config.customTools ?? [];
          this._cwd = config.cwd;
          this._modelRuntime = config.modelRuntime;
@@ -119,7 +128,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
          this._extensionRunnerRef = config.extensionRunnerRef;
          this._initialActiveToolNames = config.initialActiveToolNames;
          this._allowedToolNames = config.allowedToolNames ? new Set(config.allowedToolNames) : undefined;
-@@ -197,21 +247,41 @@ export class AgentSession {
+@@ -197,21 +241,41 @@ export class AgentSession {
              return this._getRequiredRequestAuth(model);
          }
          try {
@@ -168,7 +177,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      /**
       * Install tool hooks once on the Agent instance.
       *
-@@ -286,12 +356,17 @@ export class AgentSession {
+@@ -286,12 +350,17 @@ export class AgentSession {
          };
      }
      _installAgentNextTurnRefresh() {
@@ -187,7 +196,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
              return {
-@@ -305,6 +380,12 @@ export class AgentSession {
+@@ -305,6 +374,12 @@ export class AgentSession {
                  thinkingLevel: this.agent.state.thinkingLevel,
              };
          };
@@ -200,7 +209,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      // =========================================================================
      // Event Subscription
-@@ -772,6 +853,10 @@ export class AgentSession {
+@@ -772,6 +847,10 @@ export class AgentSession {
      async _runAgentPrompt(messages) {
          this._isAgentRunActive = true;
          try {
@@ -211,7 +220,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              await this.agent.prompt(messages);
              while (await this._handlePostAgentRun()) {
                  await this.agent.continue();
-@@ -784,6 +869,13 @@ export class AgentSession {
+@@ -784,6 +863,13 @@ export class AgentSession {
              await this._emitAgentSettled();
          }
      }
@@ -225,7 +234,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      async _handlePostAgentRun() {
          const msg = this._lastAssistantMessage;
          this._lastAssistantMessage = undefined;
-@@ -802,12 +894,13 @@ export class AgentSession {
+@@ -802,12 +888,13 @@ export class AgentSession {
              });
              this._retryAttempt = 0;
          }
@@ -241,7 +250,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      /**
       * Send a prompt to the agent.
-@@ -888,12 +981,9 @@ export class AgentSession {
+@@ -888,12 +975,9 @@ export class AgentSession {
                  }
                  throw new Error(formatNoApiKeyFoundMessage(this.model.provider));
              }
@@ -257,7 +266,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              // Build messages array (custom message if any, then user message)
              messages = [];
              // Add user message
-@@ -1118,6 +1208,7 @@ export class AgentSession {
+@@ -1118,6 +1202,7 @@ export class AgentSession {
              }
          }
          else if (options?.triggerTurn) {
@@ -265,7 +274,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              await this._runAgentPrompt(appMessage);
          }
          else if (this.isStreaming) {
-@@ -1250,13 +1341,13 @@ export class AgentSession {
+@@ -1250,13 +1335,13 @@ export class AgentSession {
       * @throws Error if no auth is configured for the model
       */
      async setModel(model, options = {}) {
@@ -283,7 +292,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -1265,7 +1356,7 @@ export class AgentSession {
+@@ -1265,7 +1350,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -292,7 +301,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -1305,10 +1396,13 @@ export class AgentSession {
+@@ -1305,10 +1390,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -307,7 +316,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -1319,8 +1413,8 @@ export class AgentSession {
+@@ -1319,8 +1407,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -318,7 +327,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -1333,9 +1427,12 @@ export class AgentSession {
+@@ -1333,9 +1421,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -332,7 +341,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -1343,8 +1440,8 @@ export class AgentSession {
+@@ -1343,8 +1434,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -343,7 +352,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1448,7 +1545,7 @@ export class AgentSession {
+@@ -1448,7 +1539,7 @@ export class AgentSession {
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
      async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
@@ -352,24 +361,34 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      /**
       * Manually compact the session context.
-@@ -1474,10 +1571,14 @@ export class AgentSession {
+@@ -1474,10 +1565,24 @@ export class AgentSession {
              if (!this.model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
 +            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this._selectedModel ?? this.model);
 +            this.agent.state.model = requestModel;
-+            const projectedContext = this.sessionManager.buildSessionContext(requestModel);
++            const nativeInstructions = customInstructions?.trim()
++                ? `${this.agent.state.systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
++                : this.agent.state.systemPrompt;
++            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(nativeInstructions, [], []);
++            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
++                ? nativeRequestOverheadTokens
++                : estimatePortableCompactionRequestOverheadTokens(customInstructions);
++            const projectedContext = this.sessionManager.buildSessionContext(requestModel, { requestOverheadTokens });
 +            this.agent.state.messages = projectedContext.messages;
 +            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
              const pathEntries = this.sessionManager.getBranch();
              const settings = this.settingsManager.getCompactionSettings();
 -            const preparation = prepareCompaction(pathEntries, settings);
-+            const preparation = prepareCompaction(pathEntries, settings, requestModel);
++            const preparation = prepareCompaction(pathEntries, settings, requestModel, {
++                nativeRequestOverheadTokens,
++                portableCustomInstructions: customInstructions,
++            });
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -1530,13 +1629,12 @@ export class AgentSession {
+@@ -1530,13 +1635,12 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -386,15 +405,15 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1549,6 +1647,7 @@ export class AgentSession {
+@@ -1547,6 +1651,7 @@ export class AgentSession {
+                 });
+             }
              const compactionResult = {
 +                entryId: savedCompactionEntryId,
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-                 estimatedTokensAfter,
-                 usage,
-@@ -1625,7 +1724,7 @@ export class AgentSession {
+@@ -1625,7 +1730,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -403,7 +422,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
          const settings = this.settingsManager.getCompactionSettings();
          if (!settings.enabled)
              return false;
-@@ -1656,6 +1754,9 @@ export class AgentSession {
+@@ -1656,6 +1761,9 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -413,7 +432,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
                  return await this._runAutoCompaction("overflow", false);
              }
              if (this._overflowRecoveryAttempted) {
-@@ -1715,7 +1816,7 @@ export class AgentSession {
+@@ -1715,7 +1823,7 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -422,31 +441,34 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              return await this._runAutoCompaction("threshold", false);
          }
          return false;
-@@ -1733,6 +1834,7 @@ export class AgentSession {
-     async _runAutoCompaction(reason, willRetry) {
+@@ -1734,13 +1842,24 @@ export class AgentSession {
          const settings = this.settingsManager.getCompactionSettings();
          let started = false;
          let fromExtension = false;
 +        let completedWillRetry = false;
          try {
              if (!this.model) {
-@@ -1738,9 +1840,13 @@ export class AgentSession {
-             if (!this.model) {
                  return false;
              }
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
 +            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this._selectedModel ?? this.model);
 +            this.agent.state.model = requestModel;
-+            const projectedContext = this.sessionManager.buildSessionContext(requestModel);
++            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(this.agent.state.systemPrompt, [], []);
++            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
++                ? nativeRequestOverheadTokens
++                : estimatePortableCompactionRequestOverheadTokens();
++            const projectedContext = this.sessionManager.buildSessionContext(requestModel, { requestOverheadTokens });
 +            this.agent.state.messages = projectedContext.messages;
 +            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
              const pathEntries = this.sessionManager.getBranch();
 -            const preparation = prepareCompaction(pathEntries, settings);
-+            const preparation = prepareCompaction(pathEntries, settings, requestModel);
++            const preparation = prepareCompaction(pathEntries, settings, requestModel, {
++                nativeRequestOverheadTokens,
++            });
              if (!preparation) {
                  return false;
              }
-@@ -1817,13 +1922,12 @@ export class AgentSession {
+@@ -1817,13 +1936,12 @@ export class AgentSession {
                  });
                  return false;
              }
@@ -463,17 +485,15 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1835,8 +1942,9 @@ export class AgentSession {
+@@ -1834,6 +1952,7 @@ export class AgentSession {
+                 });
              }
              const result = {
 +                entryId: savedCompactionEntryId,
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-                 estimatedTokensAfter,
-                 usage,
-                 details,
-@@ -1843,17 +1951,9 @@ export class AgentSession {
+@@ -1843,15 +1962,7 @@ export class AgentSession {
              };
              this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
              if (willRetry) {
@@ -490,9 +510,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
                  return true;
              }
              // Auto-compaction can complete while follow-up/steering/custom messages are waiting.
-             // Continue once so queued messages are delivered.
-             return this.agent.hasQueuedMessages();
-@@ -1884,6 +1982,18 @@ export class AgentSession {
+@@ -1884,6 +1995,18 @@ export class AgentSession {
          }
          finally {
              this._autoCompactionAbortController = undefined;
@@ -511,7 +529,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
          }
      }
      /**
-@@ -1976,7 +2090,7 @@ export class AgentSession {
+@@ -1976,7 +2099,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -520,7 +538,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2529,7 +2639,7 @@ export class AgentSession {
+@@ -2529,7 +2652,7 @@ export class AgentSession {
              let summaryDetails;
              let summaryUsage;
              if (options.summarize && entriesToSummarize.length > 0 && !extensionSummary) {
@@ -529,7 +547,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
                  const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(model);
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
-@@ -2605,7 +2708,7 @@ export class AgentSession {
+@@ -2605,7 +2728,7 @@ export class AgentSession {
                  this.sessionManager.appendLabelChange(targetId, label);
              }
              // Update agent state
@@ -539,10 +557,10 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc7
              // Emit session_tree event
              await this._extensionRunner.emit({
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c5115433e 100644
+index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..626d0be5f3557b227294e6e09a1453bfb708d6ae 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
-@@ -12,6 +12,8 @@ export interface CompactionDetails {
+@@ -16,6 +16,8 @@ export interface CompactionDetails {
  }
  /** Result from compact() - SessionManager adds uuid/parentUuid when saving */
  export interface CompactionResult<T = unknown> {
@@ -551,7 +569,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c
      summary: string;
      firstKeptEntryId: string;
      tokensBefore: number;
-@@ -29,6 +29,7 @@ export interface CompactionSettings {
+@@ -29,6 +31,7 @@ export interface CompactionSettings {
      enabled: boolean;
      reserveTokens: number;
      keepRecentTokens: number;
@@ -559,7 +577,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c
  }
  export declare const DEFAULT_COMPACTION_SETTINGS: CompactionSettings;
  /**
-@@ -55,6 +56,7 @@ export declare function estimateContextTokens(messages: AgentMessage[]): Context
+@@ -55,6 +58,7 @@ export declare function estimateContextTokens(messages: AgentMessage[]): Context
   * Check if compaction should trigger based on context usage.
   */
  export declare function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean;
@@ -567,7 +585,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c
  /**
   * Estimate token count for a message using chars/4 heuristic.
   * This is conservative (overestimates tokens).
-@@ -118,6 +120,8 @@ export interface CompactionPreparation {
+@@ -118,6 +122,8 @@ export interface CompactionPreparation {
      firstKeptEntryId: string;
      /** Messages that will be summarized and discarded */
      messagesToSummarize: AgentMessage[];
@@ -576,7 +594,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c
      /** Messages that will be turned into turn prefix summary (if splitting) */
      turnPrefixMessages: AgentMessage[];
      /** Whether this is a split turn (cut point in middle of turn) */
-@@ -129,8 +133,10 @@ export interface CompactionPreparation {
+@@ -129,8 +135,15 @@ export interface CompactionPreparation {
      fileOps: FileOperations;
      /** Compaction settions from settings.jsonl	*/
      settings: CompactionSettings;
@@ -584,22 +602,28 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c
 +    portableFallback?: CompactionPreparation;
  }
 -export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings): CompactionPreparation | undefined;
-+export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings, model?: Model<any>): CompactionPreparation | undefined;
++export interface CompactionPreparationOptions {
++    nativeRequestOverheadTokens?: number;
++    portableCustomInstructions?: string;
++}
++export declare function estimatePortableCompactionRequestOverheadTokens(customInstructions?: string, previousSummary?: string, messages?: AgentMessage[]): number;
++export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings, model?: Model<any>, requestOptions?: CompactionPreparationOptions): CompactionPreparation | undefined;
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -139,5 +145,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -139,5 +152,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
 -export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
+\ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6ef03c05c 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d9291cd62 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
-@@ -4,7 +4,8 @@
+@@ -4,10 +4,11 @@
   * Pure functions for compaction logic. The session manager handles I/O,
   * and after compaction the session is reloaded.
   */
@@ -608,7 +632,11 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
 +import { compactResponses } from "@earendil-works/pi-ai/api/openai-responses";
  import { completeSimple } from "@earendil-works/pi-ai/compat";
  import { convertToLlm } from "../messages.js";
- import { buildSessionContext, sessionEntryToContextMessages, } from "../session-manager.js";
+-import { buildSessionContext, sessionEntryToContextMessages, } from "../session-manager.js";
++import { buildSessionContext, estimateReconstructionMessageTokens, sessionEntryToContextMessages, } from "../session-manager.js";
+ import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, SUMMARIZATION_SYSTEM_PROMPT, serializeConversation, } from "./utils.js";
+ /**
+  * Extract file operations from messages and previous compaction entries.
 @@ -75,6 +76,7 @@ export const DEFAULT_COMPACTION_SETTINGS = {
      enabled: true,
      reserveTokens: 16384,
@@ -783,16 +811,49 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
  /**
   * Returns an error message when a summarization response cannot safely be persisted.
-@@ -514,7 +514,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
+@@ -484,24 +484,22 @@ function buildSummarizationContext(promptText) {
+         ],
+     };
+ }
+-/** Generate or update a conversation summary and return its provider usage. */
+-export async function generateSummaryWithUsage(currentMessages, model, reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
+-    const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
+-    // Use update prompt if we have a previous summary, otherwise initial prompt
++function buildSummaryPrompt(currentMessages, customInstructions, previousSummary) {
+     let basePrompt = previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
+     if (customInstructions) {
+         basePrompt = `${basePrompt}\n\nAdditional focus: ${customInstructions}`;
+     }
+-    // Serialize conversation to text so model doesn't try to continue it
+-    // Convert to LLM messages first (handles custom types like bashExecution, custom, etc.)
+-    const llmMessages = convertToLlm(currentMessages);
+-    const conversationText = serializeConversation(llmMessages);
+-    // Build the prompt with conversation wrapped in tags
++    const conversationText = serializeConversation(convertToLlm(currentMessages));
+     let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
+     if (previousSummary) {
+         promptText += `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n`;
+     }
+-    promptText += basePrompt;
++    return promptText + basePrompt;
++}
++/** Generate or update a conversation summary and return its provider usage. */
++export async function generateSummaryWithUsage(currentMessages, model, reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
++    const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
++    const promptText = buildSummaryPrompt(currentMessages, customInstructions, previousSummary);
+     const completionOptions = createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId);
+     const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
+     const failure = getSummarizationFailure(response, "Summarization");
+@@ -514,7 +512,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
      const textContent = contentText(response.content);
      return { text: textContent, usage: response.usage };
  }
 -export function prepareCompaction(pathEntries, settings) {
-+function prepareCompactionProjection(pathEntries, settings, model, allowNativeProjection) {
++function prepareCompactionProjection(pathEntries, settings, model, allowNativeProjection, requestOptions) {
      if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
          return undefined;
      }
-@@ -525,17 +525,42 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -525,17 +523,61 @@ export function prepareCompaction(pathEntries, settings) {
              break;
          }
      }
@@ -823,7 +884,26 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
      const boundaryEnd = pathEntries.length;
 -    const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries).messages).tokens;
 -    const cutPoint = findCutPoint(pathEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
-+    const targetContext = buildSessionContext(pathEntries, undefined, undefined, projectionModel);
++    const nativeCompaction = allowNativeProjection && model && selectCompactionMechanism(model) === "native";
++    let requestOverheadTokens = nativeCompaction
++        ? requestOptions.nativeRequestOverheadTokens
++        : estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions, previousSummary);
++    let targetContext = buildSessionContext(pathEntries, undefined, undefined, projectionModel, {
++        requestOverheadTokens,
++    });
++    if (!nativeCompaction) {
++        const maxPortableRefits = targetContext.messages.length + 1;
++        for (let attempt = 0; attempt < maxPortableRefits; attempt++) {
++            const serializedRequestOverheadTokens = estimatePortableCompactionRequestOverheadTokens(requestOptions.portableCustomInstructions, previousSummary, targetContext.messages);
++            if (serializedRequestOverheadTokens <= requestOverheadTokens) {
++                break;
++            }
++            requestOverheadTokens = serializedRequestOverheadTokens;
++            targetContext = buildSessionContext(pathEntries, undefined, undefined, projectionModel, {
++                requestOverheadTokens,
++            });
++        }
++    }
 +    const messagesForNativeCompaction = targetContext.messages;
 +    const tokensBefore = estimateContextTokens(messagesForNativeCompaction).tokens;
 +    if (prevCompactionIndex < 0 && targetContext.reconstruction) {
@@ -840,17 +920,16 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
      // Get UUID of first kept entry
      const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
      if (!firstKeptEntry?.id) {
-@@ -559,7 +584,8 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -559,7 +601,7 @@ export function prepareCompaction(pathEntries, settings) {
                  turnPrefixMessages.push(msg);
          }
      }
 -    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0) {
-+    const nativeCompaction = allowNativeProjection && model && selectCompactionMechanism(model) === "native";
 +    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0 && !nativeCompaction) {
          return undefined;
      }
      // Extract file operations from messages and previous compaction
-@@ -573,6 +599,7 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -573,6 +615,7 @@ export function prepareCompaction(pathEntries, settings) {
      return {
          firstKeptEntryId,
          messagesToSummarize,
@@ -858,24 +937,33 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -581,6 +608,16 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -581,6 +624,25 @@ export function prepareCompaction(pathEntries, settings) {
          settings,
      };
  }
-+export function prepareCompaction(pathEntries, settings, model) {
-+    const preparation = prepareCompactionProjection(pathEntries, settings, model, true);
++export function estimatePortableCompactionRequestOverheadTokens(customInstructions, previousSummary, messages = []) {
++    const summaryPrompt = buildSummaryPrompt(messages, customInstructions, previousSummary);
++    const conversationText = serializeConversation(convertToLlm(messages));
++    const turnPrefixPrompt = `<conversation>\n${conversationText}\n</conversation>\n\n${TURN_PREFIX_SUMMARIZATION_PROMPT}`;
++    const serializedRequestTokens = Math.ceil(SUMMARIZATION_SYSTEM_PROMPT.length / 4) +
++        Math.max(Math.ceil(summaryPrompt.length / 4), Math.ceil(turnPrefixPrompt.length / 4));
++    const reconstructionTokens = messages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++    return Math.max(0, serializedRequestTokens - reconstructionTokens);
++}
++export function prepareCompaction(pathEntries, settings, model, requestOptions = {}) {
++    const preparation = prepareCompactionProjection(pathEntries, settings, model, true, requestOptions);
 +    if (!preparation || !model || selectCompactionMechanism(model) !== "native") {
 +        return preparation;
 +    }
 +    return {
 +        ...preparation,
-+        portableFallback: prepareCompactionProjection(pathEntries, settings, model, false),
++        portableFallback: prepareCompactionProjection(pathEntries, settings, model, false, requestOptions),
 +    };
 +}
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -598,6 +635,65 @@ Summarize the prefix to provide context for the retained suffix:
+@@ -598,6 +660,65 @@ Summarize the prefix to provide context for the retained suffix:
  - [Information needed to understand the retained recent work]
  
  Be concise. Focus on what's needed to understand the kept suffix.`;
@@ -941,7 +1029,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,8 +702,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,8 +727,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1000,7 +1088,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -641,7 +785,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +810,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -1239,7 +1327,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..17881551cf5302d61d8319e1858cb62a2607ec71 100644
+index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c7337035625e2486c 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -1325,7 +1413,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..17881551cf5302d61d8319e1858cb62a
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..e9584ffd9a5bdbe69eb0d5cb2b9a0ddc8708649b 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26eb391d7b 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
@@ -1602,7 +1690,7 @@ index f0f936eb01afe5d158f1834c5e40421e36af0d24..21e6273e14519b83313f3162c37abb24
      }
      getBranchSummarySettings() {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3e9241dc237322f9ba64aac399f4eda31ac4715c..36c899bbf278e0f56714eb0d1f5e7a6427768899 100644
+index 3e9241dc237322f9ba64aac399f4eda31ac4715c..f03d0312bdfbc252d491a3f49752f44e5620e5a3 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -2,7 +2,7 @@ export { type Args, parseArgs } from "./cli/args.ts";
@@ -1624,7 +1712,7 @@ index 3e9241dc237322f9ba64aac399f4eda31ac4715c..36c899bbf278e0f56714eb0d1f5e7a64
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..f6d35f13f244eeef699a1a00cda4ef35753bea3a 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..220a877171eb2000ac504f55ef6b4f1735769f5d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD

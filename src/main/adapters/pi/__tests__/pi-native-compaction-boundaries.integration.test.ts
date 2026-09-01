@@ -1,4 +1,4 @@
-import { fauxAssistantMessage } from '@earendil-works/pi-ai'
+import { contentText, fauxAssistantMessage } from '@earendil-works/pi-ai'
 import type { SessionCompactEvent } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -127,8 +127,8 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     const providerBaseUrls: string[] = []
     const providerContexts: string[] = []
     const thresholdResponse = fauxAssistantMessage('Context ready for portable fallback')
-    thresholdResponse.usage.input = 80
-    thresholdResponse.usage.totalTokens = 80
+    thresholdResponse.usage.input = 960
+    thresholdResponse.usage.totalTokens = 960
     thresholdResponse.timestamp = Date.now() + 60_000
     const portableFailure = fauxAssistantMessage('')
     portableFailure.stopReason = 'error'
@@ -142,6 +142,7 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     const { session } = await createNativeSession({
       directory,
       compactionEvents: events,
+      contextWindow: 1_200,
       authBaseUrlResolver: () => {
         if (!boundaryPhase) return 'https://endpoint-a.example.test/v1'
         boundaryResolutions += 1
@@ -172,6 +173,66 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     expect(providerContexts[0]).not.toContain('cmp_1')
   })
 
+  it('fits a 404 portable fallback using its own request framing', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-portable-budget-')
+    const endpoint = 'https://endpoint-a.example.test/v1'
+    const contextWindow = 800
+    const portablePrompts: string[] = []
+    const portableRequestTokens: number[] = []
+    vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }))
+    const { session, sessionManager } = await createNativeSession({
+      directory,
+      compactionEvents: [],
+      authBaseUrl: endpoint,
+      contextWindow,
+      initialContext: `LONG-HISTORY ${'verbose context '.repeat(100)}`,
+      systemPrompt: 'Native-only project instruction. '.repeat(120),
+      responses: Array.from({ length: 2 }, () => (context, options) => {
+        portablePrompts.push(JSON.stringify(context))
+        const serializedRequest = [
+          `system:${context.systemPrompt}`,
+          ...context.messages.map(
+            (message) => `${message.role}:${contentText(message.content, '')}`,
+          ),
+        ].join('\n\n')
+        portableRequestTokens.push(
+          Math.ceil(serializedRequest.length / 4) + (options?.maxTokens ?? 0),
+        )
+        return fauxAssistantMessage('Portable checkpoint')
+      }),
+    })
+    for (let index = 0; index < 120; index += 1) {
+      sessionManager.appendMessage({
+        role: 'user',
+        content: `SHORT-HISTORY-${index}`,
+        timestamp: index * 2 + 2,
+      })
+      sessionManager.appendMessage(fauxAssistantMessage('x', { timestamp: index * 2 + 3 }))
+    }
+    sessionManager.appendCompaction('Native compaction checkpoint', 'native-replacement', 800, {
+      schemaVersion: 1,
+      mechanism: 'native',
+      identity: {
+        api: 'openai-responses',
+        provider: 'native-provider',
+        baseUrl: endpoint,
+        compactionBaseUrl: endpoint,
+        modelId: 'native-model',
+      },
+      items: [{ type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' }],
+    })
+    sessionManager.appendMessage({ role: 'user', content: 'Recent request', timestamp: 2 })
+    sessionManager.appendMessage(fauxAssistantMessage('Recent response', { timestamp: 3 }))
+
+    await session.compact()
+
+    expect(portablePrompts.some((prompt) => prompt.includes('SHORT-HISTORY'))).toBe(true)
+    expect(
+      portablePrompts.every((prompt) => !prompt.includes('Native-only project instruction')),
+    ).toBe(true)
+    expect(portableRequestTokens.every((tokens) => tokens <= contextWindow)).toBe(true)
+  })
+
   it('removes a reconstructed overflow response after the final endpoint refresh', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-overflow-refresh-')
     const events: SessionCompactEvent[] = []
@@ -187,6 +248,7 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     const { session } = await createNativeSession({
       directory,
       compactionEvents: events,
+      systemPrompt: 'Native compaction test prompt',
       authBaseUrlResolver: () => {
         if (!overflowReturned) return 'https://endpoint-a.example.test/v1'
         boundaryResolutions += 1

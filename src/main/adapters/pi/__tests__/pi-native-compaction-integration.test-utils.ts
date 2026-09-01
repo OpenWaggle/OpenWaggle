@@ -42,6 +42,8 @@ export async function createNativeSession(options: {
   }
   responses?: FauxResponseStep[]
   contextWindow?: number
+  systemPrompt?: string
+  initialContext?: string
   cancelAutomaticCompaction?: boolean
 }) {
   const faux = fauxProvider({
@@ -139,6 +141,7 @@ export async function createNativeSession(options: {
     agentDir: options.directory,
     settingsManager,
     extensionFactories: [extension],
+    systemPrompt: options.systemPrompt,
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
@@ -146,7 +149,11 @@ export async function createNativeSession(options: {
   })
   await resourceLoader.reload()
   const sessionManager = SessionManager.inMemory(options.directory)
-  sessionManager.appendMessage({ role: 'user', content: 'Initial context', timestamp: 1 })
+  sessionManager.appendMessage({
+    role: 'user',
+    content: options.initialContext ?? 'Initial context',
+    timestamp: 1,
+  })
   const result = await createAgentSession({
     cwd: options.directory,
     agentDir: options.directory,
@@ -158,7 +165,7 @@ export async function createNativeSession(options: {
     noTools: 'all',
   })
   sessions.push(result.session)
-  return { ...result, faux, modelRuntime }
+  return { ...result, faux, modelRuntime, sessionManager }
 }
 
 export function nativeCompactionFetch(requestBodies?: string[], failFrom?: number) {
