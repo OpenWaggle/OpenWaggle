@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -53,4 +54,16 @@ describe('VS Code syntax extension import limits', () => {
       'must not be a symbolic link',
     )
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a FIFO extension manifest without waiting for a writer',
+    async () => {
+      const manifestPath = path.join(temporaryRoot, 'package.json')
+      const result = spawnSync('mkfifo', [manifestPath])
+      expect(result.status).toBe(0)
+
+      await expect(parseSyntaxThemeSource(temporaryRoot, 'user')).rejects.toThrow('must be a file')
+    },
+    1_000,
+  )
 })

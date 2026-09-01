@@ -176,7 +176,9 @@ export async function readBoundedFile(
   try {
     handle = await fs.open(
       filePath,
-      fsConstants.O_RDONLY | (followSymbolicLink ? 0 : fsConstants.O_NOFOLLOW),
+      fsConstants.O_RDONLY |
+        fsConstants.O_NONBLOCK |
+        (followSymbolicLink ? 0 : fsConstants.O_NOFOLLOW),
     )
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ELOOP') {
