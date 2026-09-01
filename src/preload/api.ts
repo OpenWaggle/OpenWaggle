@@ -263,12 +263,28 @@ export const api: OpenWaggleApi = {
   suggestFiles: invoke('composer:file-suggest'),
 
   // Workspace files
+  listSyntaxThemes: invoke('syntax-themes:list'),
+  selectSyntaxThemeImport: invoke('syntax-themes:select-import'),
+  applySyntaxThemeImport: invoke('syntax-themes:apply-import'),
+  removeSyntaxTheme: invoke('syntax-themes:remove'),
   searchWorkspaceFiles: invoke('workspace-files:search'),
   searchWorkspaceContent: invoke('workspace-files:search-content'),
   cancelWorkspaceContentSearch: invoke('workspace-files:cancel-content-search'),
   readWorkspaceFile: invoke('workspace-files:read'),
+  readWorkspaceFileWithEncoding: invoke('workspace-files:read-with-encoding'),
   writeWorkspaceFile: invoke('workspace-files:write'),
+  applyWorkspaceDocumentEdits: invoke('workspace-files:apply-document-edits'),
+  listWorkspaceExternalEditors: invoke('workspace-files:list-external-editors'),
   openWorkspaceFileExternal: invoke('workspace-files:open-external'),
+  createWorkspaceEntry: invoke('workspace-files:create-entry'),
+  moveWorkspaceEntry: invoke('workspace-files:move-entry'),
+  duplicateWorkspaceEntry: invoke('workspace-files:duplicate-entry'),
+  trashWorkspaceEntry: invoke('workspace-files:trash-entry'),
+  revealWorkspaceEntry: invoke('workspace-files:reveal-entry'),
+  watchWorkspaceFiles: invoke('workspace-files:watch'),
+  unwatchWorkspaceFiles: invoke('workspace-files:unwatch'),
+  onWorkspaceFilesChanged: on('workspace-files:changed'),
+  readWorkspaceFilePage: invoke('workspace-files:read-page'),
 
   // Auto-updater
   checkForUpdates: invoke('updater:check'),

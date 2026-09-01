@@ -184,3 +184,33 @@
   flex-direction: column;
   gap: calc(var(--ow-spacing) * 1);
 }
+
+.ow-extension-root .ow-syntax-block {
+  background: var(--ow-color-surface);
+  border: 1px solid var(--ow-color-border);
+  border-radius: var(--ow-radius-md);
+  box-sizing: border-box;
+  color: var(--ow-color-text-subtle);
+  font-family: var(--ow-font-family-mono);
+  font-size: var(--ow-text-sm);
+  line-height: var(--ow-text-sm--line-height);
+  margin: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: calc(var(--ow-spacing) * 3);
+  white-space: pre;
+}
+
+.ow-extension-root .ow-syntax-block[data-ow-wrap="true"] {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ow-extension-root .ow-syntax-line-number {
+  color: var(--ow-color-text-dim);
+  display: inline-block;
+  margin-right: calc(var(--ow-spacing) * 4);
+  text-align: right;
+  user-select: none;
+  width: calc(var(--ow-spacing) * 10);
+}

@@ -95,6 +95,7 @@ export function RightSidebarSheet({ children, open, onOpenChange }: RightSidebar
         ref={asideRef}
         aria-label="Right sidebar"
         aria-modal="true"
+        data-right-sidebar-panel="true"
         className={cn(
           'absolute inset-y-0 right-0 m-0 min-w-0 max-w-none overflow-hidden border-l border-border bg-diff-bg p-0 text-inherit shadow-2xl shadow-bg/30 transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : 'translate-x-full',

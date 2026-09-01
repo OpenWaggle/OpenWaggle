@@ -1,14 +1,17 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsRouteSurface } from '../-settings-route-surface'
 import { SkillsRouteSurface } from '../-skills-route-surface'
 
-let pathname = '/settings/general'
+interface RouterState {
+  readonly location: { readonly pathname: string }
+}
+
+const routeMocks = vi.hoisted(() => ({ pathname: '/settings/general' }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useRouterState: <T,>(input: {
-    readonly select: (state: { readonly location: { readonly pathname: string } }) => T
-  }) => input.select({ location: { pathname } }),
+  useRouterState: <T,>(input: { readonly select: (state: RouterState) => T }) =>
+    input.select({ location: { pathname: routeMocks.pathname } }),
 }))
 
 vi.mock('@/features/settings/components', () => ({
@@ -25,24 +28,28 @@ vi.mock('@/shell', () => ({
   SETTINGS_TABS: ['general', 'waggle', 'extensions', 'mcp', 'archived', 'connections'] as const,
 }))
 
-describe('settings route surfaces', () => {
-  it('derives the settings tab from the current route when the route contains a tab segment', () => {
-    pathname = '/settings/extensions'
+describe('settings and skills route surfaces', () => {
+  beforeEach(() => {
+    routeMocks.pathname = '/settings/general'
+  })
+
+  it('derives the settings tab from the route tab segment', async () => {
+    routeMocks.pathname = '/settings/extensions'
 
     render(<SettingsRouteSurface tab="general" />)
 
-    expect(screen.getByText('Settings tab: extensions')).toBeInTheDocument()
+    expect(await screen.findByText('Settings tab: extensions')).toBeInTheDocument()
   })
 
-  it('falls back to the route-provided settings tab for non-tab paths', () => {
-    pathname = '/settings/unknown'
+  it('falls back to the provided settings tab for non-tab paths', async () => {
+    routeMocks.pathname = '/settings/unknown'
 
     render(<SettingsRouteSurface tab="waggle" />)
 
-    expect(screen.getByText('Settings tab: waggle')).toBeInTheDocument()
+    expect(await screen.findByText('Settings tab: waggle')).toBeInTheDocument()
   })
 
-  it('wraps the skills panel in its route surface', () => {
+  it('wraps the skills panel', () => {
     render(<SkillsRouteSurface />)
 
     expect(screen.getByText('Skills panel')).toBeInTheDocument()

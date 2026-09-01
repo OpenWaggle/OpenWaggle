@@ -9,8 +9,8 @@ import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
 import { SessionMessageImages } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
-import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
+import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-components'
 import { Button } from '@/shared/ui/Button'
 import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { renderTextWithMentions } from './MentionText'
@@ -53,11 +53,10 @@ function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
   return <li>{processChildrenForComposerReferences(children)}</li>
 }
 
-const userMarkdownComponents: Components = {
-  ...safeMarkdownComponents,
+const userMarkdownComponents: Components = createSyntaxMarkdownComponents({
   p: UserMarkdownParagraph,
   li: UserMarkdownListItem,
-}
+})
 
 function isAttachmentText(content: string) {
   return content.startsWith(ATTACHMENT_TEXT_PREFIX)

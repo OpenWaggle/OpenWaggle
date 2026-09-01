@@ -8,29 +8,16 @@ import { GitBranch, GitCompare } from 'lucide-react'
 import React from 'react'
 import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { useMessageCollapse } from '../hooks/useMessageCollapse'
 import { AgentLabel } from './AgentLabel'
 import { CollapsibleDetails } from './CollapsibleDetails'
 import { StreamingText } from './StreamingText'
 import { ToolCallRouter } from './ToolCallRouter'
 
-const JSON_STRINGIFY_INDENT = 2
-
 export interface WaggleInfo {
   agentLabel: string
   agentColor: WaggleAgentColor
-}
-
-function stringifyToolResultContent(content: unknown) {
-  if (typeof content === 'string') {
-    return content
-  }
-
-  try {
-    return JSON.stringify(content, null, JSON_STRINGIFY_INDENT)
-  } catch {
-    return String(content)
-  }
 }
 
 function StandaloneToolResult({
@@ -45,7 +32,11 @@ function StandaloneToolResult({
       <div className="mb-2 text-xs uppercase tracking-wide text-text-tertiary">
         Tool result · {state}
       </div>
-      <StreamingText text={stringifyToolResultContent(content)} />
+      {typeof content === 'string' ? (
+        <StreamingText text={content} />
+      ) : (
+        <StructuredPayload value={content} className="max-h-80" />
+      )}
     </div>
   )
 }

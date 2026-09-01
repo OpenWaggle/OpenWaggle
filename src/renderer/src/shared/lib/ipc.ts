@@ -44,4 +44,6 @@ function createApiProxy(base?: OpenWaggleApi) {
   return new Proxy<OpenWaggleApi>(Object.create(null), handler)
 }
 
-export const api: OpenWaggleApi = createApiProxy(window.api)
+export const api: OpenWaggleApi = createApiProxy(
+  typeof window === 'undefined' ? undefined : window.api,
+)

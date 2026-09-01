@@ -49,3 +49,29 @@ export function validateRequiredProjectPath(
     return validated
   })
 }
+
+export function validateAuthorizedProjectPath(
+  projectPath: string | null | undefined,
+  authorizedProjectPaths: readonly (string | null | undefined)[],
+): Effect.Effect<string, Error> {
+  return Effect.gen(function* () {
+    const validatedProjectPath = yield* validateRequiredProjectPath(projectPath)
+    const exactMatch = authorizedProjectPaths.some((candidate) => {
+      const normalized = candidate?.trim()
+      return normalized
+        ? path.isAbsolute(normalized) && path.resolve(normalized) === validatedProjectPath
+        : false
+    })
+    if (exactMatch) return validatedProjectPath
+    const authorizedRealPaths = yield* Effect.all(
+      authorizedProjectPaths.map((candidate) =>
+        validateProjectPath(candidate).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
+      ),
+      { concurrency: 'unbounded' },
+    )
+    if (authorizedRealPaths.includes(validatedProjectPath)) {
+      return validatedProjectPath
+    }
+    return yield* Effect.fail(new Error('Project path is not authorized for workspace access.'))
+  })
+}

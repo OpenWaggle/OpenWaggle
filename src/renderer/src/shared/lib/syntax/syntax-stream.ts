@@ -1,0 +1,1 @@
+export const SYNTAX_REQUEST_TIMEOUT_MS = 4_000

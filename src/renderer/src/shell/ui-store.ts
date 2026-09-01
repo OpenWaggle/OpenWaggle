@@ -71,6 +71,7 @@ interface UIState {
   feedbackCooldownActive: boolean
   lastRightSidebarPanel: RightSidebarPanel
   resourceViewer: { readonly sessionId: string; readonly resourceId: string } | null
+  workspaceTreeOpen: boolean
 
   toggleSidebar: () => void
   toggleTerminal: () => void
@@ -93,6 +94,7 @@ interface UIState {
   setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
   openResourceViewer: (sessionId: string, resourceId: string) => void
   closeResourceViewer: () => void
+  toggleWorkspaceTree: () => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -115,6 +117,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   feedbackCooldownActive: false,
   lastRightSidebarPanel: 'diff',
   resourceViewer: null,
+  workspaceTreeOpen: true,
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -217,6 +220,10 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeResourceViewer() {
     set({ resourceViewer: null })
+  },
+
+  toggleWorkspaceTree() {
+    set({ workspaceTreeOpen: !get().workspaceTreeOpen })
   },
 }))
 

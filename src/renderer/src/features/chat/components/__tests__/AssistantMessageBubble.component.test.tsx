@@ -35,22 +35,12 @@ vi.mock('../../hooks/useMessageCollapse', () => ({
 vi.mock('@/features/session-summary', () => ({ SessionMessageImages: () => null }))
 
 vi.mock('../StreamingText', () => ({
-  StreamingText: ({
-    text,
-    visualizationSessionId,
-    visualizationInteractionSessionId,
-  }: {
-    text: string
-    visualizationSessionId?: string
-    visualizationInteractionSessionId?: string
-  }) => (
-    <div
-      data-testid="streaming-text"
-      data-visualization-session={visualizationSessionId}
-      data-visualization-interaction-session={visualizationInteractionSessionId}
-    >
-      {text}
-    </div>
+  StreamingText: ({ text }: { text: string }) => <div data-testid="streaming-text">{text}</div>,
+}))
+
+vi.mock('@/shared/ui/StructuredPayload', () => ({
+  StructuredPayload: ({ value }: { value: unknown }) => (
+    <div data-testid="structured-payload">{JSON.stringify(value)}</div>
   ),
 }))
 
@@ -103,11 +93,11 @@ function toolCallPart(name: string, id = 'tc-1'): ChatToolCallPart {
   return { type: 'tool-call', id, name, arguments: '{}', state: 'output-available' }
 }
 
-function toolResultPart(toolCallId: string): ChatToolResultPart {
+function toolResultPart(toolCallId: string, content: unknown = 'ok'): ChatToolResultPart {
   return {
     type: 'tool-result',
     toolCallId,
-    content: 'ok',
+    content,
     state: 'output-available',
   }
 }
@@ -202,24 +192,6 @@ describe('AssistantMessageBubble', () => {
     expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello world')
   })
 
-  it('uses persisted visualization ownership for a copied assistant message', () => {
-    const message = {
-      ...createMessage('m1', [textPart('Copied visualization')]),
-      metadata: { visualizationSessionId: SessionId('source-session') },
-    }
-
-    renderAssistantMessage({ message })
-
-    expect(screen.getByTestId('streaming-text')).toHaveAttribute(
-      'data-visualization-session',
-      'source-session',
-    )
-    expect(screen.getByTestId('streaming-text')).toHaveAttribute(
-      'data-visualization-interaction-session',
-      defaultSessionId,
-    )
-  })
-
   it('does not render empty text parts', () => {
     const message = createMessage('m1', [textPart('   '), textPart('Visible')])
     renderAssistantMessage({ message })
@@ -240,10 +212,14 @@ describe('AssistantMessageBubble', () => {
     expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(3)
     expect(screen.getByText('internal reasoning')).toBeInTheDocument()
     expect(screen.getByText('Tool result · output-available')).toBeInTheDocument()
-    const streamedParts = screen.getAllByTestId('streaming-text')
-    expect(streamedParts[0]).toHaveAttribute('data-visualization-session', defaultSessionId)
-    expect(streamedParts[1]).not.toHaveAttribute('data-visualization-session')
-    expect(streamedParts[2]).not.toHaveAttribute('data-visualization-session')
+  })
+
+  it('routes a standalone structured tool result through the structured payload adapter', () => {
+    const message = createMessage('m1', [toolResultPart('tc-1', { answer: 42 })])
+    renderAssistantMessage({ message })
+
+    expect(screen.getByTestId('structured-payload')).toHaveTextContent('{"answer":42}')
+    expect(screen.queryByTestId('streaming-text')).not.toBeInTheDocument()
   })
 
   it('renders all parts when canCollapseDetails=false', () => {

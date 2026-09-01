@@ -287,7 +287,7 @@ async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   await expect(menu).toBeVisible()
   const visualize = menu.getByRole('menuitem', { name: /Visualize/u })
   await expect(visualize).toContainText('/visualize')
-  await visualize.click()
+  await input.press('Enter')
   await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
 }
 

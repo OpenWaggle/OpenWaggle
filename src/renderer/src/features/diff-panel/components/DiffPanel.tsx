@@ -1,12 +1,9 @@
-import type { CodeViewHandle } from '@pierre/diffs/react'
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { GitStackedAction, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useDiffPanelGitActions } from '@/features/diff-panel/hooks/useDiffPanelGitActions'
-import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
-import { codeViewItemId } from '@/features/diff-panel/lib/code-view-items'
 import {
   selectThreadDiffScopeSelection,
   useDiffScopeStore,
@@ -198,7 +195,6 @@ export function DiffPanel({
   onSendMessage,
   refreshToken = 0,
 }: DiffPanelProps) {
-  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
   const scopeByThreadKey = useDiffScopeStore((s) => s.byThreadKey)
   const selectGitScope = useDiffScopeStore((s) => s.selectGitScope)
   const selectBranchBaseRef = useDiffScopeStore((s) => s.selectBranchBaseRef)
@@ -233,6 +229,10 @@ export function DiffPanel({
     showToast,
   })
 
+  const [fileNavigation, setFileNavigation] = useState<{
+    readonly path: string
+    readonly requestId: number
+  } | null>(null)
   /**
    * Commit-bearing actions must collect an explicit message first (review B2);
    * everything else dispatches immediately.
@@ -258,15 +258,15 @@ export function DiffPanel({
         />
       ) : null}
       <DiffReviewBody
-        viewerRef={viewerRef}
         files={fileDiffs}
         isLoading={isLoading}
         loadError={loadError}
         onRetryLoad={displayed.retryLoad}
         onSendMessage={onSendMessage}
         onFileClick={(path) =>
-          viewerRef.current?.scrollTo({ type: 'item', id: codeViewItemId(path), align: 'start' })
+          setFileNavigation((current) => ({ path, requestId: (current?.requestId ?? 0) + 1 }))
         }
+        fileNavigation={fileNavigation}
         reviewKeys={{ reviewKey, keyForSession }}
       />
       <DiffBottomBar

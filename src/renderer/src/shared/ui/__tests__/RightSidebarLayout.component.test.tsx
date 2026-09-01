@@ -178,6 +178,7 @@ describe('RightSidebarLayout', () => {
     renderLayout(true, onOpenChange)
 
     expect(document.querySelector('[data-right-sidebar-shell="true"]')).toBeVisible()
+    expect(document.querySelector('[data-right-sidebar-panel="true"]')).toBeVisible()
     expect(screen.getByText('Main content').parentElement).toHaveAttribute('inert')
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
 

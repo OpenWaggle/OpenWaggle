@@ -1,4 +1,5 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "__OPENWAGGLE_TAILWIND_SOURCE__";
 @plugin "tailwindcss-animate";
 
 /*
@@ -111,6 +112,14 @@
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
+  --font-document: var(--font-sans);
+  --font-terminal: var(--font-mono);
+  --font-document-size: 14px;
+  --font-document-line-height: 1.5;
+  --font-code-size: 12px;
+  --font-code-line-height: 20px;
+  --font-terminal-size: 14px;
+  --font-code-ligatures: none;
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(1 / 0.75);
   --text-sm: 0.875rem;
@@ -264,6 +273,12 @@
    * amber accent on the panel's primary interaction.
    */
   .diff-chrome {
+    --diffs-font-family: var(--font-mono);
+    --diffs-header-font-family: var(--font-sans);
+    --diffs-font-size: var(--font-code-size);
+    --diffs-line-height: var(--font-code-line-height);
+    --diffs-font-features: var(--font-code-ligatures);
+
     /* Surfaces */
     --diffs-bg-context-override: var(--color-diff-bg);
     --diffs-bg-context-gutter-override: var(--color-diff-header-bg);
@@ -340,15 +355,17 @@
   /* Code blocks */
   pre code {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    line-height: var(--text-sm--line-height);
+    font-size: var(--font-code-size);
+    line-height: var(--font-code-line-height);
+    font-variant-ligatures: var(--font-code-ligatures);
   }
 
   /* Markdown prose */
   .prose {
     color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    line-height: var(--text-sm--line-height);
+    font-family: var(--font-document);
+    font-size: var(--font-document-size);
+    line-height: var(--font-document-line-height);
   }
 
   .prose p {
@@ -367,6 +384,7 @@
     padding: 0.15em 0.4em;
     border-radius: 6px;
     color: var(--color-text-secondary);
+    font-variant-ligatures: var(--font-code-ligatures);
   }
 
   /* Code blocks */
@@ -385,6 +403,9 @@
     border: none;
     border-radius: 0;
     color: inherit;
+  }
+  .prose .markdown-code-block {
+    margin-block: 0.85em;
   }
 
   /* Lists */
@@ -561,6 +582,9 @@
     padding: 0.75em;
     border-radius: 8px;
   }
+  .prose-user .markdown-code-block {
+    margin-block: 0.5em;
+  }
   .prose-user h1,
   .prose-user h2,
   .prose-user h3,
@@ -610,6 +634,21 @@
   .prose-thinking blockquote {
     border-left-color: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
   }
+}
+
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  scroll-behavior: auto;
+  animation: none;
+  transition-duration: 0.01ms;
+}
+
+.syntax-typography {
+  font-family: var(--font-mono);
+  font-size: var(--font-code-size);
+  line-height: var(--font-code-line-height);
+  font-variant-ligatures: var(--font-code-ligatures);
 }
 
 @layer components {
@@ -750,6 +789,14 @@
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
+  --font-document: var(--font-sans);
+  --font-terminal: var(--font-mono);
+  --font-document-size: 14px;
+  --font-document-line-height: 1.5;
+  --font-code-size: 12px;
+  --font-code-line-height: 20px;
+  --font-terminal-size: 14px;
+  --font-code-ligatures: none;
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(1 / 0.75);
   --text-sm: 0.875rem;

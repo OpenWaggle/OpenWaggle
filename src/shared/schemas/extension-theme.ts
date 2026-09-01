@@ -103,7 +103,7 @@ export const extensionThemeCssVariablesSchema: Schema.Schema<OpenWaggleExtension
   extensionThemeTokensSchema
 
 export const extensionThemeSchema: Schema.Schema<OpenWaggleExtensionTheme> = Schema.Struct({
-  colorScheme: Schema.Literal('dark', 'light'),
+  colorScheme: Schema.Literal('dark', 'light', 'high-contrast-dark', 'high-contrast-light'),
   tokens: extensionThemeTokensSchema,
   cssVariables: extensionThemeCssVariablesSchema,
 })
