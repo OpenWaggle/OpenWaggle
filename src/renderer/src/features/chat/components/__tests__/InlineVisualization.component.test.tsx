@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '../../state/message-queue-store'
@@ -47,8 +47,21 @@ function dispatchFrameMessage(
   )
 }
 
-function activateFrame(frame: HTMLIFrameElement, capability = 'test-capability-1234567890') {
-  dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' }, capability)
+async function activateFrame(frame: HTMLIFrameElement, capability = 'test-capability-1234567890') {
+  const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
+  fireEvent.load(frame)
+  act(() => {
+    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' }, capability)
+  })
+  await waitFor(() => {
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:theme' }),
+      frameOrigin(frame),
+    )
+  })
+  const calls = postMessage.mock.calls.map((call) => [...call])
+  postMessage.mockRestore()
+  return calls
 }
 
 function visualizationFrameWindow(frame: HTMLIFrameElement) {
@@ -129,7 +142,9 @@ describe('InlineVisualization', () => {
           data: { type: 'openwaggle:inline-visualization:resize', height: 640 },
         }),
       )
-      activateFrame(frame)
+    })
+    await activateFrame(frame)
+    act(() => {
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:resize',
         height: 12_000,
@@ -147,8 +162,8 @@ describe('InlineVisualization', () => {
       />,
     )
     const frame = await visualizationFrame('Security map')
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       window.dispatchEvent(
         new MessageEvent('message', {
           source: visualizationFrameWindow(frame),
@@ -199,14 +214,9 @@ describe('InlineVisualization', () => {
       />,
     )
     const frame = await visualizationFrame('Theme map')
-    const frameWindow = visualizationFrameWindow(frame)
-    const postMessage = vi.spyOn(frameWindow, 'postMessage')
+    const postMessageCalls = await activateFrame(frame)
 
-    act(() => {
-      activateFrame(frame)
-    })
-
-    expect(postMessage).toHaveBeenCalledWith(
+    expect(postMessageCalls).toContainEqual([
       expect.objectContaining({
         type: 'openwaggle:inline-visualization:theme',
         theme: expect.objectContaining({
@@ -217,7 +227,7 @@ describe('InlineVisualization', () => {
         }),
       }),
       frameOrigin(frame),
-    )
+    ])
   })
 
   it('shows a stable retry fallback when the live source is missing', async () => {
@@ -230,8 +240,8 @@ describe('InlineVisualization', () => {
     const frame = await visualizationFrame('Missing map')
     const previousOrigin = frameOrigin(frame)
 
+    await activateFrame(frame)
     act(() => {
-      activateFrame(frame)
       dispatchFrameMessage(frame, {
         type: 'openwaggle:inline-visualization:error',
         reason: 'missing',
