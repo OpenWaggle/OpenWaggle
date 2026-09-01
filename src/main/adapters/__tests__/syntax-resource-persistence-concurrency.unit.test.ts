@@ -75,6 +75,51 @@ describe('syntax resource persistence concurrency', () => {
     })
   })
 
+  it('serializes catalog reads with resource-directory mutations', async () => {
+    const firstPath = path.join(temporaryRoot, 'first.json')
+    const secondPath = path.join(temporaryRoot, 'second.json')
+    await fs.writeFile(firstPath, JSON.stringify(theme('First', '#111111')))
+    await fs.writeFile(secondPath, JSON.stringify(theme('Second', '#222222')))
+    const firstCatalog = await parseSyntaxThemeSource(firstPath, 'user')
+    const secondCatalog = await parseSyntaxThemeSource(secondPath, 'user')
+    await applySyntaxThemePreview(resourcesDirectory, {
+      token: 'first',
+      sourcePath: firstPath,
+      ...firstCatalog,
+      replacements: [],
+      warnings: [],
+    })
+
+    const copyCompleted = Promise.withResolvers<void>()
+    const continueApply = Promise.withResolvers<void>()
+    const originalCopy = fs.cp.bind(fs)
+    vi.spyOn(fs, 'cp').mockImplementation(async (source, destination, options) => {
+      await originalCopy(source, destination, options)
+      copyCompleted.resolve()
+      await continueApply.promise
+    })
+
+    const applyPromise = applySyntaxThemePreview(resourcesDirectory, {
+      token: 'second',
+      sourcePath: secondPath,
+      ...secondCatalog,
+      replacements: [],
+      warnings: [],
+    })
+    await copyCompleted.promise
+    let listSettled = false
+    const listPromise = listInstalledSyntaxThemes(resourcesDirectory).finally(() => {
+      listSettled = true
+    })
+    await Promise.resolve()
+    expect(listSettled).toBe(false)
+
+    continueApply.resolve()
+    await applyPromise
+    const listed = await listPromise
+    expect(listed.themes.map((resource) => resource.label).sort()).toEqual(['First', 'Second'])
+  })
+
   it('retains and reports the backup when installation and rollback both fail', async () => {
     const firstPath = path.join(temporaryRoot, 'first.json')
     const replacementPath = path.join(temporaryRoot, 'replacement.json')

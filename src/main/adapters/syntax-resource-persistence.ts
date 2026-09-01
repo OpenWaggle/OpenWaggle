@@ -208,7 +208,9 @@ export async function listInstalledSyntaxResources(
   projectPath: string | null | undefined,
   parseSource: SyntaxSourceParser,
 ): Promise<SyntaxResourceCatalog> {
-  const globalResources = await readInstalledResourceCatalog(resourcesDirectory)
+  const globalResources = await withSyntaxResourceDirectoryLock(resourcesDirectory, () =>
+    readInstalledResourceCatalog(resourcesDirectory),
+  )
   if (!projectPath) return globalResources
   return mergeSyntaxResourceCatalogs(
     globalResources,
