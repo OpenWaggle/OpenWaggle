@@ -147,6 +147,34 @@ describe('SourceView virtualization', () => {
     pending[0]?.()
   })
 
+  it('clamps a stale viewport when a long source is replaced by a shorter source', async () => {
+    const longSource = Array.from(
+      { length: 1_000 },
+      (_, index) => `long line ${String(index)}`,
+    ).join('\n')
+    const view = render(
+      <SourceView source={longSource} language="typescript" ariaLabel="Replacing source" />,
+    )
+    const section = screen.getByRole('region', { name: 'Replacing source' })
+    const scroller = section.querySelector('[data-source-scroller]')
+    if (!(scroller instanceof HTMLElement)) throw new Error('Expected a source scroller.')
+
+    scroller.scrollTop = 10_000
+    fireEvent.scroll(scroller)
+    await waitFor(() => expect(screen.getByText('long line 500')).toBeInTheDocument())
+
+    expect(() =>
+      view.rerender(
+        <SourceView
+          source={'short line 0\nshort line 1'}
+          language="typescript"
+          ariaLabel="Replacing source"
+        />,
+      ),
+    ).not.toThrow()
+    await waitFor(() => expect(section).toHaveTextContent('short line 1'))
+  })
+
   it('copies the complete source even when the last lines are not mounted', () => {
     const source = Array.from({ length: 10_000 }, (_, index) => `copy line ${String(index)}`).join(
       '\n',

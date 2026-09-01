@@ -13,7 +13,7 @@ import {
   postFrameMessage,
 } from './extension-frame-host'
 import { handleFrameInvoke } from './extension-frame-invocation'
-import { highlightExtensionSyntax } from './extension-syntax-sdk'
+import { createExtensionFrameSyntaxRequests } from './extension-frame-syntax-requests'
 
 const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:'])
 const logger = createRendererLogger('extension-frame')
@@ -192,6 +192,7 @@ interface FrameMountRuntime {
   active: boolean
   configured: boolean
   reportedHeight: number | null
+  readonly syntaxRequests: ReturnType<typeof createExtensionFrameSyntaxRequests>
 }
 
 function createFrameMessageHandler(
@@ -237,15 +238,22 @@ function createFrameMessageHandler(
         input.onSurfaceAction?.(message.actionId, message.payload)
       })
       .with('syntax-highlight', (message) => {
-        void highlightExtensionSyntax(message.input).then((result) => {
-          if (!runtime.active) return
-          postFrameMessage(currentFrameWindow, input.frameId, {
-            type: 'syntax-highlight-result',
-            requestId: message.requestId,
-            result,
-          })
-        })
+        runtime.syntaxRequests.highlight(
+          message.requestId,
+          message.input,
+          () => runtime.active,
+          (result) => {
+            postFrameMessage(currentFrameWindow, input.frameId, {
+              type: 'syntax-highlight-result',
+              requestId: message.requestId,
+              result,
+            })
+          },
+        )
       })
+      .with('syntax-highlight-cancel', (message) =>
+        runtime.syntaxRequests.cancel(message.requestId),
+      )
       .with('invoke', (message) => {
         void handleFrameInvoke({
           entry: input.entry,
@@ -264,7 +272,12 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
     return
   }
 
-  const runtime: FrameMountRuntime = { active: true, configured: false, reportedHeight: null }
+  const runtime: FrameMountRuntime = {
+    active: true,
+    configured: false,
+    reportedHeight: null,
+    syntaxRequests: createExtensionFrameSyntaxRequests(),
+  }
   const frame = input.frame
   const resolvedModuleUrl = input.moduleUrl
   if (!frame || resolvedModuleUrl === null) {
@@ -307,6 +320,7 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
 
   return () => {
     runtime.active = false
+    runtime.syntaxRequests.dispose()
     const currentFrameWindow = frame.contentWindow
     if (currentFrameWindow) {
       postFrameMessage(currentFrameWindow, input.frameId, { type: 'dispose' })

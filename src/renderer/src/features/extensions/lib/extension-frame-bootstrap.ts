@@ -6,6 +6,7 @@ import {
 import { createOpenWaggleExtensionSharedModules } from '@shared/extension-context'
 import type {
   OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightOptions,
   OpenWaggleExtensionSyntaxHighlightResult,
 } from '@shared/extension-sdk'
 import { createPlainExtensionSyntaxResult } from '@shared/extension-sdk'
@@ -37,6 +38,7 @@ type ExtensionFrameChildMessage =
       readonly requestId: string
       readonly input: OpenWaggleExtensionSyntaxHighlightInput
     }
+  | { readonly type: 'syntax-highlight-cancel'; readonly requestId: string }
 
 let activeConfig: ExtensionFrameConfig | null = null
 let cleanup: (() => void) | null = null
@@ -51,6 +53,7 @@ const pendingSyntaxHighlights = new Map<
   {
     readonly input: OpenWaggleExtensionSyntaxHighlightInput
     readonly resolve: (result: OpenWaggleExtensionSyntaxHighlightResult) => void
+    readonly removeAbortListener: () => void
   }
 >()
 const frameId = frameIdFromLocation()
@@ -134,6 +137,7 @@ function stopResizeObserver() {
 function runCleanup() {
   stopResizeObserver()
   for (const pending of pendingSyntaxHighlights.values()) {
+    pending.removeAbortListener()
     pending.resolve(
       createPlainExtensionSyntaxResult({
         ...pending.input,
@@ -163,11 +167,37 @@ function invoke(input: ExtensionSdkInvokeRequest) {
   })
 }
 
-function highlightSyntax(input: OpenWaggleExtensionSyntaxHighlightInput) {
+function highlightSyntax(
+  input: OpenWaggleExtensionSyntaxHighlightInput,
+  options?: OpenWaggleExtensionSyntaxHighlightOptions,
+) {
   const requestId = `syntax-${String(++invokeSequence)}`
+  if (options?.signal?.aborted) {
+    return Promise.resolve(
+      createPlainExtensionSyntaxResult({ ...input, diagnostic: 'Syntax request was cancelled.' }),
+    )
+  }
   post({ type: 'syntax-highlight', requestId, input })
   return new Promise<OpenWaggleExtensionSyntaxHighlightResult>((resolve) => {
-    pendingSyntaxHighlights.set(requestId, { input, resolve })
+    const cancel = () => {
+      const pending = pendingSyntaxHighlights.get(requestId)
+      if (!pending) return
+      pendingSyntaxHighlights.delete(requestId)
+      pending.removeAbortListener()
+      post({ type: 'syntax-highlight-cancel', requestId })
+      resolve(
+        createPlainExtensionSyntaxResult({
+          ...input,
+          diagnostic: 'Syntax request was cancelled.',
+        }),
+      )
+    }
+    options?.signal?.addEventListener('abort', cancel, { once: true })
+    pendingSyntaxHighlights.set(requestId, {
+      input,
+      resolve,
+      removeAbortListener: () => options?.signal?.removeEventListener('abort', cancel),
+    })
   })
 }
 
@@ -220,6 +250,7 @@ function handleParentMessage(root: HTMLElement, event: MessageEvent<unknown>) {
     const pending = pendingSyntaxHighlights.get(message.requestId)
     if (!pending) return
     pendingSyntaxHighlights.delete(message.requestId)
+    pending.removeAbortListener()
     pending.resolve(message.result)
     return
   }

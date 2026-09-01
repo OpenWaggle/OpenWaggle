@@ -1,5 +1,6 @@
 import type {
   OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightOptions,
   OpenWaggleExtensionSyntaxHighlightResult,
   OpenWaggleExtensionSyntaxSdk,
 } from '@shared/extension-sdk'
@@ -25,6 +26,7 @@ function inputLanguage(input: OpenWaggleExtensionSyntaxHighlightInput) {
 
 export async function highlightExtensionSyntax(
   input: OpenWaggleExtensionSyntaxHighlightInput,
+  options?: OpenWaggleExtensionSyntaxHighlightOptions,
 ): Promise<OpenWaggleExtensionSyntaxHighlightResult> {
   const language = inputLanguage(input)
   const result = await syntaxService.highlight({
@@ -32,6 +34,7 @@ export async function highlightExtensionSyntax(
     language,
     theme: currentSyntaxTheme(),
     priority: input.priority ?? 'visible',
+    signal: options?.signal,
   })
   return {
     status: result.status,

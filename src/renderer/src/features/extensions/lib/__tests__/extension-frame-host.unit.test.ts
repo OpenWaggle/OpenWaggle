@@ -105,6 +105,18 @@ describe('extension frame host helpers', () => {
     expect(decodeExtensionFrameMessage(message, 'frame-1')).toBeNull()
   })
 
+  it('decodes request-scoped syntax cancellation for the mounted frame only', () => {
+    const message = {
+      channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+      frameId: 'frame-1',
+      type: 'syntax-highlight-cancel',
+      requestId: 'request-1',
+    }
+
+    expect(decodeExtensionFrameMessage(message, 'frame-1')).toEqual(message)
+    expect(decodeExtensionFrameMessage(message, 'frame-2')).toBeNull()
+  })
+
   it('posts typed configure messages to the frame window', () => {
     const frameWindow = {
       postMessage: vi.fn(),

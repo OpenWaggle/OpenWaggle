@@ -23,9 +23,14 @@ export interface OpenWaggleExtensionSyntaxHighlightResult {
   readonly diagnostic?: string
 }
 
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+  readonly signal?: AbortSignal
+}
+
 export interface OpenWaggleExtensionSyntaxSdk {
   readonly highlight: (
     input: OpenWaggleExtensionSyntaxHighlightInput,
+    options?: OpenWaggleExtensionSyntaxHighlightOptions,
   ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>
 }
 

@@ -1,6 +1,7 @@
 import { EXTENSION_FRAME_SURFACE_ACTION } from '@shared/constants/extension-frame'
 import type {
   OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightOptions,
   OpenWaggleExtensionSyntaxHighlightResult,
 } from '@shared/extension-sdk'
 import { createExtensionBrokerSdkFromInvoke } from '@shared/extension-sdk'
@@ -27,6 +28,7 @@ function frameSurfaceSdk(
   post: FramePost,
   highlightSyntax: (
     input: OpenWaggleExtensionSyntaxHighlightInput,
+    options?: OpenWaggleExtensionSyntaxHighlightOptions,
   ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>,
 ): ExtensionFrameSdk['surface'] {
   return {
@@ -54,6 +56,7 @@ export function createFrameExtensionSdk(input: {
   readonly invokeBroker: (input: ExtensionSdkInvokeRequest) => Promise<ExtensionInvokeResult>
   readonly highlightSyntax: (
     input: OpenWaggleExtensionSyntaxHighlightInput,
+    options?: OpenWaggleExtensionSyntaxHighlightOptions,
   ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>
   readonly post: FramePost
 }): ExtensionFrameSdk {

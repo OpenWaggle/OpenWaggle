@@ -70,6 +70,12 @@ const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
     priority: Schema.optional(Schema.Literal('visible', 'near-viewport', 'background')),
   }),
 })
+const extensionFrameSyntaxHighlightCancelMessageSchema = Schema.Struct({
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
+  type: Schema.Literal('syntax-highlight-cancel'),
+  requestId: Schema.String,
+})
 const extensionFrameMessageSchema = Schema.Union(
   extensionFrameReadyMessageSchema,
   extensionFrameMountedMessageSchema,
@@ -79,6 +85,7 @@ const extensionFrameMessageSchema = Schema.Union(
   extensionFrameResizeMessageSchema,
   extensionFrameSurfaceActionMessageSchema,
   extensionFrameSyntaxHighlightMessageSchema,
+  extensionFrameSyntaxHighlightCancelMessageSchema,
 )
 const extensionMountInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,

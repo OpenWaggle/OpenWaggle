@@ -9,11 +9,12 @@ interface SourceViewport {
 }
 
 function visibleLineRange(viewport: SourceViewport, lineCount: number, lineHeight: number) {
-  const first = Math.floor(viewport.scrollTop / lineHeight)
+  const first = Math.min(Math.max(0, lineCount - 1), Math.floor(viewport.scrollTop / lineHeight))
   const visibleCount = Math.ceil(viewport.height / lineHeight)
+  const start = Math.max(0, first - SOURCE_VIEW_OVERSCAN_LINES)
   return {
-    start: Math.max(0, first - SOURCE_VIEW_OVERSCAN_LINES),
-    end: Math.min(lineCount, first + visibleCount + SOURCE_VIEW_OVERSCAN_LINES),
+    start,
+    end: Math.max(start, Math.min(lineCount, first + visibleCount + SOURCE_VIEW_OVERSCAN_LINES)),
   }
 }
 

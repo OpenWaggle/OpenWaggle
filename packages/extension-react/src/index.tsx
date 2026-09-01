@@ -65,22 +65,27 @@ function useExtensionSyntaxResult({
 
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
     if (!enabled) {
       return () => {
         active = false
+        controller.abort()
       }
     }
     setResult(createPlainExtensionSyntaxResult({ source, language }))
-    void syntax.highlight({ source, language, path, priority: 'visible' }).then(
-      (next) => {
-        if (active) setResult(next)
-      },
-      () => {
-        if (active) setResult(createPlainExtensionSyntaxResult({ source, language }))
-      },
-    )
+    void syntax
+      .highlight({ source, language, path, priority: 'visible' }, { signal: controller.signal })
+      .then(
+        (next) => {
+          if (active) setResult(next)
+        },
+        () => {
+          if (active) setResult(createPlainExtensionSyntaxResult({ source, language }))
+        },
+      )
     return () => {
       active = false
+      controller.abort()
     }
   }, [enabled, language, path, source, syntax])
   return enabled ? result : undefined
@@ -200,10 +205,13 @@ export function SourceView({
   })
   const [scrollTop, setScrollTop] = useState(0)
   const lineCount = Math.max(1, result?.lines.length ?? sourceLineCount)
-  const firstVisible = Math.floor(scrollTop / SOURCE_VIEW_LINE_HEIGHT_PX)
+  const firstVisible = Math.min(lineCount - 1, Math.floor(scrollTop / SOURCE_VIEW_LINE_HEIGHT_PX))
   const start = Math.max(0, firstVisible - SOURCE_VIEW_OVERSCAN_LINES)
   const visibleLines = Math.ceil(SOURCE_VIEW_HEIGHT_PX / SOURCE_VIEW_LINE_HEIGHT_PX)
-  const end = Math.min(lineCount, firstVisible + visibleLines + SOURCE_VIEW_OVERSCAN_LINES)
+  const end = Math.max(
+    start,
+    Math.min(lineCount, firstVisible + visibleLines + SOURCE_VIEW_OVERSCAN_LINES),
+  )
   const visibleRows = useMemo(
     () =>
       result?.lines.slice(start, end) ??
