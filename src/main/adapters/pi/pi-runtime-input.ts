@@ -46,12 +46,12 @@ function buildImageContent(
   }
 }
 
-function modelSupportsImage(model: PiModel) {
+function modelSupportsImage(model: Pick<PiModel, 'input'>) {
   return model.input.includes('image')
 }
 
 export function buildPiPromptInput(
-  model: PiModel,
+  model: Pick<PiModel, 'input'>,
   payload: HydratedAgentSendPayload,
 ): PiPromptInput {
   const textParts: string[] = []

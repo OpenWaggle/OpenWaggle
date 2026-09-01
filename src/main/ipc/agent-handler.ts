@@ -26,9 +26,11 @@ import {
   cancelAgentLoopInteractionsForRun,
   submitAgentLoopInteractionResponse,
 } from '../application/agent-loop-interaction-broker'
+import { hydrateAgentRunPayload } from '../application/agent-run/kernel'
 import { executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
+import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   clearAgentPhase,
@@ -89,8 +91,10 @@ function registerAgentRunHandlers() {
 
         const abortController = new AbortController()
         const runId = randomUUID()
+        const controlRef: { current: AgentKernelRunControl | null } = { current: null }
         activeRuns.register(sessionId, abortController, {
           model,
+          controlRef,
         })
 
         startStreamBuffer(sessionId, model, 'classic')
@@ -109,6 +113,11 @@ function registerAgentRunHandlers() {
             model,
             signal: abortController.signal,
             onEvent: onEventWithUsageCapture,
+            onControlAvailable: (control) => {
+              if (activeRuns.isCurrent(sessionId, abortController)) {
+                controlRef.current = control
+              }
+            },
             onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(sessionId, progress),
             onTitleAssigned: (title) => {
               broadcastToWindows('sessions:title-updated', { sessionId, title })
@@ -271,13 +280,18 @@ function registerAgentCompactionHandlers() {
 }
 
 function registerAgentSteeringHandlers() {
-  typedHandle('agent:steer', (_event, sessionId: SessionId) =>
-    Effect.sync(() => {
-      if (cancelSessionRuns(sessionId)) {
-        emitCancelledCompletion(sessionId)
+  typedHandle('agent:steer', (_event, sessionId: SessionId, payload: AgentSendPayload) =>
+    Effect.gen(function* () {
+      const validatedPayload = toAgentSendPayload(
+        decodeUnknownOrThrow(agentSendPayloadSchema, payload),
+      )
+      const control = activeRuns.get(sessionId)?.metadata.controlRef?.current
+      if (!control) {
+        return yield* Effect.fail(new Error('The active agent run is not ready for steering.'))
       }
-
-      return { preserved: false }
+      const hydratedPayload = yield* hydrateAgentRunPayload(validatedPayload)
+      yield* Effect.promise(() => control.steer(hydratedPayload))
+      return { preserved: true }
     }),
   )
 }

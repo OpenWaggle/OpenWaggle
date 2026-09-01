@@ -69,7 +69,7 @@ export interface IpcCoreInvokeChannelMap {
     return: undefined
   }
   'agent:steer': {
-    args: [sessionId: SessionId]
+    args: [sessionId: SessionId, payload: AgentSendPayload]
     return: { preserved: boolean }
   }
   'agent:respond-interaction': {

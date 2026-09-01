@@ -38,6 +38,7 @@ export async function runPiSession(
     payload: input.payload,
     signal: input.signal,
     onEvent: input.onEvent,
+    ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,

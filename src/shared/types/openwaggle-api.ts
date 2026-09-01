@@ -104,7 +104,7 @@ export interface OpenWaggleApi
     model: SupportedModelId,
   ): Promise<AgentSendReport>
   cancelAgent(sessionId?: SessionId): Promise<void>
-  steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
+  steerAgent(sessionId: SessionId, payload: AgentSendPayload): Promise<{ preserved: boolean }>
   respondAgentInteraction(
     input: AgentLoopInteractionResponseInput,
   ): Promise<AgentLoopInteractionSubmitResult>

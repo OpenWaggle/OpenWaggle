@@ -263,12 +263,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     resetRunUiState(params)
   }
 
-  async function steer() {
+  async function steer(payload: AgentSendPayload) {
     if (sessionId) {
-      await api.steerAgent(sessionId)
+      await api.steerAgent(sessionId, payload)
     }
-    settlePendingRun(refs)
-    resetRunUiState(params)
   }
 
   return {

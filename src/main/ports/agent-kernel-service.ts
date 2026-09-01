@@ -29,6 +29,10 @@ export interface AgentKernelSessionSnapshot {
   readonly activeNodeId: string | null
 }
 
+export interface AgentKernelRunControl {
+  readonly steer: (payload: HydratedAgentSendPayload) => Promise<void>
+}
+
 export interface AgentKernelRunInput {
   readonly session: SessionDetail
   readonly runId: string
@@ -39,6 +43,7 @@ export interface AgentKernelRunInput {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
   readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly waggle?: AgentKernelWaggleRunOptions
 }

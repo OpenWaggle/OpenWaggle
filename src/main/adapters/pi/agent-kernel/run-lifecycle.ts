@@ -22,6 +22,7 @@ import {
   type OpenWaggleAgentSessionOptions,
 } from '../pi-session-lifecycle'
 import { logger } from './constants'
+import { createPiRunControl } from './pi-run-control'
 import {
   buildFailedRunAfterSettlement,
   buildFailedSubscribedRunResult,
@@ -52,9 +53,19 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
   readonly signal: AgentKernelRunInput['signal']
   readonly onEvent: AgentKernelRunInput['onEvent']
+  readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly visualizationDirectory?: string
+}
+
+function exposePiRunControl(
+  input: CreatePiRunSessionRuntimeInput,
+  model: PiModel,
+  session: AgentSession,
+) {
+  input.onControlAvailable?.(createPiRunControl(session, model))
+  return { model, session }
 }
 
 function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
@@ -134,7 +145,7 @@ export async function createPiRunSessionRuntime(
       openWaggleUi,
     })
 
-    return { model: selectedRuntime.runtime.model, session }
+    return exposePiRunControl(input, selectedRuntime.runtime.model, session)
   } catch (error) {
     if (selectedRuntime.enabledOpenWaggleExtensionPackagePaths.length === 0) {
       throw error
@@ -154,7 +165,7 @@ export async function createPiRunSessionRuntime(
       openWaggleUi,
     })
 
-    return { model: fallbackRuntime.model, session }
+    return exposePiRunControl(input, fallbackRuntime.model, session)
   }
 }
 

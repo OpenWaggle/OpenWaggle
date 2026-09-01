@@ -80,6 +80,7 @@ export interface FakeRunSession {
   readonly abort: () => Promise<undefined>
   readonly prompt: (text: string) => Promise<void>
   readonly sendCustomMessage: (message: unknown, options: unknown) => Promise<void>
+  readonly sendUserMessage: (content: unknown, options: unknown) => Promise<void>
   readonly setModel: (model: FakeModel) => Promise<void>
   readonly subscribe: (listener: unknown) => () => void
 }
@@ -199,6 +200,7 @@ export function createFakeSession(
         )
       }
     }),
+    sendUserMessage: vi.fn(async () => undefined),
     subscribe: vi.fn(() => unsubscribe),
   }
 }

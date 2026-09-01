@@ -83,6 +83,7 @@ export interface UIMessageMetadata {
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata
+  readonly steerDelivery?: 'waiting-for-compaction' | 'sending'
 }
 
 export interface UIMessage {

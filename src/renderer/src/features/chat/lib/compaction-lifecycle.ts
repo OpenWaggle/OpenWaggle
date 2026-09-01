@@ -36,6 +36,10 @@ export function getTimelineCompactionStatus(
   return status?.type === 'retrying' ? status.previousCompactionStatus : status
 }
 
+export function isCompactionRunning(status: AgentCompactionStatus | null) {
+  return getTimelineCompactionStatus(status)?.timeline.at(-1)?.phase === 'running'
+}
+
 function statusFromTimeline(
   timeline: readonly AgentCompactionTimelineItem[],
   suppressAnnouncement = false,

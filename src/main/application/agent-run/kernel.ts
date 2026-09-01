@@ -34,6 +34,7 @@ export function runAgentKernel(
       compactionThresholdPercent: preflight.compactionThresholdPercent,
       signal: input.signal,
       onEvent: input.onEvent,
+      ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
       ...(input.onWorktreeLaunch ? { onWorktreeLaunch: input.onWorktreeLaunch } : {}),
       ...(preflight.skillToggles ? { skillToggles: preflight.skillToggles } : {}),
       ...(preflight.enabledOpenWaggleExtensionPackagePaths

@@ -1,5 +1,15 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints } from 'lucide-react'
+import {
+  Check,
+  Clock3,
+  Copy,
+  FileDown,
+  FileText,
+  GitBranch,
+  GitFork,
+  Image,
+  Waypoints,
+} from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -169,6 +179,8 @@ export function UserMessageBubble({
   )
   const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
   const attachmentParts = textParts.filter((p) => isAttachmentText(p.content))
+  const isSteerPreview = message.metadata?.steerDelivery !== undefined
+  const isWaitingForCompaction = message.metadata?.steerDelivery === 'waiting-for-compaction'
 
   function handleCopy() {
     copy(contentParts.map((p) => p.content).join('\n'))
@@ -200,8 +212,14 @@ export function UserMessageBubble({
         ) : (
           <UserMessageContent message={message} contentParts={contentParts} />
         )}
+        {isWaitingForCompaction ? (
+          <div className="mt-1.5 flex items-center justify-end gap-1 text-xs text-text-tertiary">
+            <Clock3 className="size-3" />
+            <span>Will send after compaction</span>
+          </div>
+        ) : null}
         <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
-          {onBranchFromMessage ? (
+          {onBranchFromMessage && !isSteerPreview ? (
             <Button
               variant="unstyled"
               type="button"
@@ -213,7 +231,7 @@ export function UserMessageBubble({
             </Button>
           ) : null}
 
-          {onForkFromMessage ? (
+          {onForkFromMessage && !isSteerPreview ? (
             <Button
               variant="unstyled"
               type="button"

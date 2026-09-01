@@ -15,6 +15,7 @@ import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { isCompactionRunning } from '../lib/compaction-lifecycle'
 import { buildDiffSection } from '../lib/diff-section'
 import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
@@ -109,7 +110,6 @@ export function useChatPanelSections(): ChatPanelSections {
   const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
 
-  // Scope waggle status to the active session — other sessions see 'idle'
   const waggleOwningId = waggleActiveCollaborationId ?? waggleConfigSessionId
   const waggleStatus: WaggleCollaborationStatus =
     waggleOwningId && waggleOwningId !== activeSessionId ? 'idle' : waggleStoreStatus
@@ -164,10 +164,10 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const { isSteering, handleSteer } = useSteerWorkflow({
     activeSessionId,
+    isCompacting: isCompactionRunning(compactionStatus),
     steer,
     previewSteeredUserTurn,
     withDeferredSnapshotRefresh,
-    handleSendWithWaggle: sendWorkflow.sendWithWaggle,
     showToast,
   })
 

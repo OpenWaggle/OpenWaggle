@@ -117,7 +117,7 @@ test('composer context meter updates from usage reported before the run settles'
   }
 })
 
-test('automatic compaction appears as an animated transcript message instead of a composer dock', async () => {
+test('automatic compaction stays in the transcript and defers explicit steering there', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-compaction-timeline-e2e-')
 
   try {
@@ -137,6 +137,7 @@ test('automatic compaction appears as an animated transcript message instead of 
       },
     ])
     await app.restart()
+    await app.installAgentSendProbe()
     await app.mainWindow().openThread(COMPACTION_TIMELINE_THREAD_TITLE)
 
     const runtime = await app.mainWindow().page.evaluate(async (title) => {
@@ -168,6 +169,19 @@ test('automatic compaction appears as an animated transcript message instead of 
     await expect(page.getByRole('log').getByText('Thinking...')).toHaveCount(0)
     await expect(page.getByText('Auto-compacting…')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Cancel compaction' })).toHaveCount(0)
+
+    await page.getByRole('textbox', { name: 'Message input' }).fill('continue')
+    await page.getByRole('button', { name: 'Add message' }).click()
+
+    await expect(page.getByText('Queued', { exact: true })).toBeVisible()
+    await expect(page.getByText('Queued until compaction finishes')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Steer' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Steer' }).click()
+
+    await expect(page.getByRole('log').getByText('continue', { exact: true })).toBeVisible()
+    await expect(page.getByText('Will send after compaction')).toBeVisible()
+    await expect(page.getByText('Queued', { exact: true })).toHaveCount(0)
   } finally {
     await app.cleanup()
   }

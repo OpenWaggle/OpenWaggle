@@ -216,6 +216,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     signal: input.signal,
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
+    ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,

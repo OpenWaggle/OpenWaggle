@@ -120,7 +120,6 @@ export function useAgentChat(
   const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
     messages,
     sessionId,
-    isSessionIdle,
     buildClientUserMessage,
     messagesRef,
   )

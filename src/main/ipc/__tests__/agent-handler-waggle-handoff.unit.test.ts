@@ -94,6 +94,7 @@ function registerHandlers() {
   return {
     cancel: registeredHandler('agent:cancel'),
     send: registeredHandler('agent:send-message'),
+    steer: registeredHandler('agent:steer'),
   }
 }
 
@@ -224,5 +225,32 @@ describe('agent handler Waggle handoff lifecycle', () => {
       expect.objectContaining({ type: 'agent_end', reason: 'aborted' }),
     )
     expect(mocks.emitRunCompleted).toHaveBeenCalledOnce()
+  })
+
+  it('delivers steering through the active run control without cancelling the run', async () => {
+    const nativeSteer = vi.fn(async () => undefined)
+    mocks.executeAgentRun.mockImplementation((input) =>
+      Effect.async((resume) => {
+        input.onControlAvailable?.({ steer: nativeSteer })
+        input.signal.addEventListener(
+          'abort',
+          () => resume(Effect.succeed({ outcome: 'aborted' })),
+          { once: true },
+        )
+      }),
+    )
+    const { cancel, send, steer } = registerHandlers()
+    const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+    await vi.waitFor(() => expect(mocks.executeAgentRun).toHaveBeenCalledOnce())
+
+    const result = await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))
+
+    expect(result).toEqual({ preserved: true })
+    expect(nativeSteer).toHaveBeenCalledWith(PAYLOAD)
+    expect(activeRuns.has(SESSION_ID)).toBe(true)
+    expect(mocks.emitRunCompleted).not.toHaveBeenCalled()
+
+    await Effect.runPromise(cancel({}, SESSION_ID))
+    await run
   })
 })

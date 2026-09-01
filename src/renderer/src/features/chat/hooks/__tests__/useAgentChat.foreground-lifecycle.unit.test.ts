@@ -15,7 +15,7 @@ import {
 
 describe('useAgentChat foreground lifecycle', () => {
   installUseAgentChatTestLifecycle()
-  it('settles a foreground send when the run is steered', async () => {
+  it('sends native steering without settling the active foreground state', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
         SessionId('session-1'),
@@ -25,18 +25,19 @@ describe('useAgentChat foreground lifecycle', () => {
       ),
     )
 
-    let sendPromise: Promise<void> | null = null
     await act(async () => {
-      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+      emitAgentEvent({
+        sessionId: SessionId('session-1'),
+        event: { type: 'compaction_start', reason: 'threshold', timestamp: 1 },
+      })
     })
 
     await act(async () => {
-      await result.current.steer()
-      await sendPromise
+      await result.current.steer(SEND_PAYLOAD)
     })
 
-    expect(apiMock.steerAgent).toHaveBeenCalledWith(SessionId('session-1'))
-    expect(result.current.status).toBe('ready')
+    expect(apiMock.steerAgent).toHaveBeenCalledWith(SessionId('session-1'), SEND_PAYLOAD)
+    expect(result.current.status).toBe('compacting')
   })
 
   it('surfaces compaction lifecycle events as foreground activity', async () => {

@@ -11,6 +11,10 @@ import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
 import type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
+import type {
+  OptimisticSteerPreviewController,
+  SteerDeliveryState,
+} from './useOptimisticSteeredTurn'
 
 export type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
 
@@ -29,10 +33,13 @@ export interface AgentChatReturn {
   isLoading: boolean
   status: AgentChatStatus
   stop: () => void
-  steer: () => Promise<void>
+  steer: (payload: AgentSendPayload) => Promise<void>
   error: Error | undefined
   withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
-  previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
+  previewSteeredUserTurn: (
+    payload: AgentSendPayload,
+    deliveryState: SteerDeliveryState,
+  ) => OptimisticSteerPreviewController
   backgroundStreaming: boolean
   streamSignalVersion: number
   compactionStatus: AgentCompactionStatus | null

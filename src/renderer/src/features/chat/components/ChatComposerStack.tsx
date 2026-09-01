@@ -189,8 +189,7 @@ export function ChatComposerStack({
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}
-          isStreaming={status === 'streaming' || status === 'submitted'}
-          isCompacting={status === 'compacting' || status === 'retrying'}
+          isStreaming={status !== 'ready' && status !== 'error'}
         />
         <BranchSummaryPrompt
           onNoSummary={onSkipBranchSummary}

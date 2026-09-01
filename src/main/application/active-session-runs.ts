@@ -1,9 +1,11 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { ActiveRunManager } from './active-run-manager'
 
 interface AgentRunMetadata {
   readonly model: SupportedModelId
+  readonly controlRef?: { current: AgentKernelRunControl | null }
 }
 
 const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
