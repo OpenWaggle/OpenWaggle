@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { boundGeneratedSessionTitle } from '@shared/session-title'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { SessionLifecycleRepositoryError } from '../errors'
@@ -65,7 +66,9 @@ function persistSessionMetadata(
 ) {
   const command = input.request.command
   const title =
-    command.operation === 'spawn' ? command.delegation.objective : (command.title ?? 'New session')
+    command.operation === 'spawn'
+      ? boundGeneratedSessionTitle(command.delegation.objective)
+      : (command.title ?? 'New session')
   const environmentMode = workspace.kind === 'managed-worktree' ? 'worktree' : 'local'
   const worktreePath =
     workspace.kind === 'managed-worktree' && workspace.lifecycle_state === 'ready'

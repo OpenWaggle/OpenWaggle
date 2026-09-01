@@ -248,7 +248,29 @@ describe('SQLite Session report target selection', () => {
             'direct-worker',
           ),
         )
-        return { candidates, denied, authorized, upstream, directWorker }
+        const mcpAuthority = {
+          ...reportAuthority({ sessionIds: ['session-worker'] }),
+          profileId: 'mcp:test',
+        }
+        const mcpWorkerReference = yield* reports.execute(
+          reportInput(
+            { type: 'worker-reference', reference: 'Direct Worker' },
+            mcpAuthority,
+            'mcp-worker-reference',
+          ),
+        )
+        const mcpUpstream = yield* reports.execute(
+          reportInput({ type: 'upstream' }, mcpAuthority, 'mcp-upstream'),
+        )
+        return {
+          candidates,
+          denied,
+          authorized,
+          upstream,
+          directWorker,
+          mcpWorkerReference,
+          mcpUpstream,
+        }
       }).pipe(Effect.provide(layer)),
     )
 
@@ -270,6 +292,14 @@ describe('SQLite Session report target selection', () => {
     expect(result.directWorker.outcome).toMatchObject({
       effect: 'accepted-report',
       targetSessionIds: ['direct-worker'],
+    })
+    expect(result.mcpWorkerReference.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'target_not_found',
+    })
+    expect(result.mcpUpstream.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'target_not_authorized',
     })
   })
 })

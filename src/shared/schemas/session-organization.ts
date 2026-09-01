@@ -1,9 +1,10 @@
 import { Schema } from '@shared/schema'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 
 export const sessionRenameCommandSchema = Schema.Struct({
   operation: Schema.Literal('rename'),
   sessionId: Schema.String,
-  title: Schema.String.pipe(Schema.minLength(1)),
+  title: Schema.String.pipe(Schema.minLength(1), Schema.maxLength(SESSION_TITLE_MAX_LENGTH)),
 })
 
 export const sessionArchiveCommandSchema = Schema.Struct({

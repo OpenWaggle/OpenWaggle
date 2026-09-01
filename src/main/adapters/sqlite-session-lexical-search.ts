@@ -7,8 +7,6 @@ import type { DiscoverySearchRequest, DiscoverySearchRow } from './sqlite-sessio
 import { authorizedSessionScope } from './sqlite-session-query-support'
 import {
   loadSeedTranscriptTerm,
-  loadTranscriptMatchRowids,
-  SESSION_TRANSCRIPT_LEXICAL_MATCH_SCAN_LIMIT,
   transcriptSessionCtes,
 } from './sqlite-session-transcript-search-query'
 
@@ -42,12 +40,12 @@ function lexicalSearchParameters(request: DiscoverySearchRequest) {
     ),
   ]
   const fullTranscript = request.query.searchScope === 'full-transcript' ? 1 : 0
-  const termTranscriptSearch = fullTranscript === 1 && !explicitPhrase && transcriptTerms.length > 0
+  const termTranscriptSearch = fullTranscript === 1 && transcriptTerms.length > 0
   return {
     exactQuery,
     ftsQuery: lexicalFtsQuery(exactQuery),
     fullTranscript,
-    phraseTranscriptSearch: fullTranscript === 1 && !termTranscriptSearch ? 1 : 0,
+    phraseTranscriptSearch: fullTranscript === 1 && explicitPhrase ? 1 : 0,
     termTranscriptSearch: termTranscriptSearch ? 1 : 0,
     transcriptTerms,
     includeArchived: request.query.includeArchived ? 1 : 0,
@@ -122,21 +120,14 @@ export function loadLexicalDiscoveryRows(
 ) {
   const allowed = authorizedSessionScope(authority)
   const parameters = lexicalSearchParameters(request)
-  const { ftsQuery, includeArchived, phraseTranscriptSearch } = parameters
+  const { includeArchived } = parameters
   const candidates = lexicalCandidateRows(sql, parameters, allowed.all === 1)
   return Effect.gen(function* () {
-    const transcriptMatchRowids = yield* loadTranscriptMatchRowids(
-      sql,
-      authority,
-      request,
-      parameters,
-    )
     const seedTranscriptTerm = yield* loadSeedTranscriptTerm(sql, parameters)
     const transcriptCtes = transcriptSessionCtes(
       sql,
       request,
       parameters,
-      transcriptMatchRowids,
       seedTranscriptTerm,
       allowed.all === 1,
     )
@@ -149,14 +140,7 @@ export function loadLexicalDiscoveryRows(
         OR sessions.id IN ${sql.in(allowed.sessionIds)}
         OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id)
           IN ${sql.in(allowed.hiveRootSessionIds)})
-    ), ${transcriptCtes}, transcript_candidates AS MATERIALIZED (
-      SELECT session_node_search.rowid AS search_rowid,
-        session_node_search.session_id
-      FROM session_node_search
-      WHERE session_node_search.session_id IN (SELECT session_id FROM transcript_sessions)
-        AND ${phraseTranscriptSearch} = 1 AND session_node_search MATCH ${ftsQuery}
-      LIMIT ${SESSION_TRANSCRIPT_LEXICAL_MATCH_SCAN_LIMIT}
-    ), candidates AS (
+    ), ${transcriptCtes}, candidates AS (
       ${candidates}
       UNION ALL
       SELECT session_id, score, ${'transcript'}, snippet, 0
@@ -167,28 +151,17 @@ export function loadLexicalDiscoveryRows(
         MAX(snippet) AS snippet, MAX(exact_match) AS exact_match
       FROM candidates GROUP BY session_id
     ), transcript_matches AS (
-      SELECT session_id, MIN(search_rowid) AS search_rowid
-      FROM transcript_candidates GROUP BY session_id
-    ), term_transcript_matches AS (
       SELECT session_id, first_node_id, first_created_order, first_run_id
-      FROM term_transcript_sessions
+      FROM transcript_sessions
     )
     SELECT sessions.id AS session_id, sessions.title, sessions.project_path, sessions.archived,
       sessions.created_at, sessions.updated_at, matches.score,
       matches.matched_fields,
-      COALESCE(
-        matches.snippet,
-        substr(transcript_search.content, 1, 1000)
-      ) AS snippet,
+      matches.snippet,
       matches.exact_match,
-      COALESCE(term_transcript_matches.first_node_id, transcript_nodes.id) AS transcript_node_id,
-      COALESCE(
-        term_transcript_matches.first_run_id,
-        json_extract(transcript_nodes.metadata_json, '$.openWaggle.runId')
-      ) AS transcript_run_id,
-      COALESCE(
-        term_transcript_matches.first_created_order, transcript_nodes.created_order
-      ) AS transcript_created_order,
+      transcript_matches.first_node_id AS transcript_node_id,
+      transcript_matches.first_run_id AS transcript_run_id,
+      transcript_matches.first_created_order AS transcript_created_order,
       session_spawn_lineage.parent_session_id, session_spawn_lineage.hive_root_session_id,
       (SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
         WHERE direct_lineage.parent_session_id = sessions.id) AS direct_worker_count,
@@ -199,10 +172,6 @@ export function loadLexicalDiscoveryRows(
     LEFT JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
     LEFT JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
     LEFT JOIN transcript_matches ON transcript_matches.session_id = sessions.id
-    LEFT JOIN term_transcript_matches ON term_transcript_matches.session_id = sessions.id
-    LEFT JOIN session_node_search AS transcript_search
-      ON transcript_search.rowid = transcript_matches.search_rowid
-    LEFT JOIN session_nodes AS transcript_nodes ON transcript_nodes.id = transcript_search.node_id
     WHERE (${includeArchived} = 1 OR sessions.archived = 0)
       AND (${request.query.projectPath ?? null} IS NULL OR sessions.project_path = ${request.query.projectPath ?? null})
       AND (${request.query.workingPath ?? null} IS NULL OR EXISTS (

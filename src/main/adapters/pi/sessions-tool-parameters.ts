@@ -1,5 +1,6 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import { DELEGATION_STATES } from '@shared/types/session-collaboration'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
@@ -39,7 +40,7 @@ export const sessionsToolParameters = Type.Union([
   Type.Object({
     action: Type.Literal('create'),
     projectPath: Type.Optional(Type.String()),
-    title: Type.Optional(Type.String()),
+    title: Type.Optional(Type.String({ maxLength: SESSION_TITLE_MAX_LENGTH })),
     workspace: rootWorkspace,
     workspaceId: Type.Optional(Type.String()),
     baseRef: Type.Optional(Type.String()),
@@ -51,7 +52,7 @@ export const sessionsToolParameters = Type.Union([
     sessionId: Type.Optional(Type.String()),
     targetNodeId: Type.Optional(Type.String()),
     position: Type.Optional(Type.Union([Type.Literal('before'), Type.Literal('at')])),
-    title: Type.Optional(Type.String()),
+    title: Type.Optional(Type.String({ maxLength: SESSION_TITLE_MAX_LENGTH })),
     workspace: Type.Optional(
       Type.Union([
         Type.Literal('share-source'),
@@ -68,7 +69,7 @@ export const sessionsToolParameters = Type.Union([
     action: Type.Literal('launch'),
     objective: Type.String({ minLength: 1 }),
     projectPath: Type.Optional(Type.String()),
-    title: Type.Optional(Type.String()),
+    title: Type.Optional(Type.String({ maxLength: SESSION_TITLE_MAX_LENGTH })),
     workspace: rootWorkspace,
     workspaceId: Type.Optional(Type.String()),
     baseRef: Type.Optional(Type.String()),
@@ -161,7 +162,7 @@ export const sessionsToolParameters = Type.Union([
   Type.Object({
     action: Type.Literal('rename'),
     sessionId: Type.String(),
-    title: Type.String({ minLength: 1 }),
+    title: Type.String({ minLength: 1, maxLength: SESSION_TITLE_MAX_LENGTH }),
   }),
   Type.Object({
     action: Type.Union([Type.Literal('archive'), Type.Literal('unarchive')]),

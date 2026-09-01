@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSession, updateSessionTitle } from '../session-details'
@@ -54,5 +55,16 @@ describe('Session projection title report references', () => {
       ),
     )
     expect(references).toEqual([{ normalized_reference: 'generated worker title' }])
+  })
+
+  it('rejects an internal projection title that cannot be a report reference', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/project-title-bound',
+      piSessionId: 'pi-session-title-bound',
+    })
+
+    await expect(
+      updateSessionTitle(session.id, 'x'.repeat(SESSION_TITLE_MAX_LENGTH + 1)),
+    ).rejects.toThrow(`Session title cannot exceed ${SESSION_TITLE_MAX_LENGTH} characters.`)
   })
 })

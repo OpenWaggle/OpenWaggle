@@ -2,12 +2,13 @@ import {
   hasUniqueCollaborationStrings,
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { z } from 'zod'
 
 export const MCP_SESSION_INPUT_LIMITS_V2 = {
   idLength: 512,
-  titleLength: 1_024,
+  titleLength: SESSION_TITLE_MAX_LENGTH,
   textLength: 131_072,
   itemTextLength: 16_384,
   arrayItems: SESSION_COLLABORATION_COLLECTION_LIMIT,

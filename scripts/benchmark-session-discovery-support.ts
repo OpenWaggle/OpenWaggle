@@ -8,9 +8,9 @@ import { SQLITE_PREPARE_CACHE_SIZE } from '../src/main/services/database-constan
 import { sessionTranscriptSearchContentSql } from '../src/main/services/session-host-search-schema'
 import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../src/main/services/session-host-target-schema'
 import { SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT } from '../src/main/services/session-transcript-search-projection'
+import { populateSessionTranscriptTermCatalog } from '../src/main/session-host/session-transcript-term-cutover'
 
 const BENCHMARK_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
-const BENCHMARK_ID_DIGIT_COUNT = 8
 
 export function benchmarkPercentile(values: readonly number[], fraction: number) {
   const sorted = values.toSorted((left, right) => left - right)
@@ -30,17 +30,14 @@ export function initializeSessionDiscoveryBenchmarkTargetSchema(database: Databa
 
 export function populateSessionDiscoveryBenchmarkSearchIndexes(
   database: DatabaseSync,
-  input: {
-    readonly sessionCount: number
-    readonly messageCount: number
-    readonly skewedSessionMessageCount: number
-  },
 ) {
   database.exec(`
     INSERT INTO session_title_search (session_id, title)
     SELECT id, title FROM sessions;
     INSERT INTO session_node_search (session_id, node_id, content)
     SELECT session_id, id, ${BENCHMARK_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
+    INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
+    SELECT node_id, session_id, rowid FROM session_node_search;
     INSERT INTO session_node_discovery_search (session_id, node_id, content)
     SELECT session_id, id, ${BENCHMARK_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
     INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
@@ -52,56 +49,7 @@ export function populateSessionDiscoveryBenchmarkSearchIndexes(
       FROM session_node_search
     ) GROUP BY session_id, chunk_ordinal;
   `)
-  const baseOccurrences = Math.floor(input.messageCount / input.sessionCount)
-  database
-    .prepare(`
-      INSERT INTO session_transcript_term_documents (session_id, token_count)
-      SELECT id, ? * 4 + CASE WHEN id = 'session-000000' THEN ? * 5 ELSE 0 END
-      FROM sessions
-    `)
-    .run(baseOccurrences, input.skewedSessionMessageCount)
-  database
-    .prepare(`
-      INSERT INTO session_transcript_terms (
-        term, session_id, occurrences, first_node_id, first_created_order
-      )
-      SELECT term, sessions.id,
-        ? + CASE
-          WHEN sessions.id = 'session-000000' AND term IN ('ordinary', 'message')
-            THEN ? - 1
-          ELSE 0
-        END,
-        printf('node-%08d', CAST(substr(sessions.id, 9) AS INTEGER)), 0
-      FROM sessions
-      CROSS JOIN (
-        SELECT 'ordinary' AS term UNION ALL SELECT 'project'
-        UNION ALL SELECT 'implementation' UNION ALL SELECT 'message'
-      )
-    `)
-    .run(baseOccurrences, input.skewedSessionMessageCount)
-  database
-    .prepare(`
-      INSERT INTO session_transcript_terms (
-        term, session_id, occurrences, first_node_id, first_created_order
-      ) VALUES
-        ('skewed', 'session-000000', ?, 'skew-node-00000000', ?),
-        ('long', 'session-000000', ?, 'skew-node-00000000', ?),
-        ('session', 'session-000000', ?, 'skew-node-00000000', ?),
-        ('terminal', 'session-000000', 1, ?, ?),
-        ('marker', 'session-000000', 1, ?, ?)
-    `)
-    .run(
-      input.skewedSessionMessageCount,
-      baseOccurrences,
-      input.skewedSessionMessageCount,
-      baseOccurrences,
-      input.skewedSessionMessageCount,
-      baseOccurrences,
-      `skew-node-${String(input.skewedSessionMessageCount - 1).padStart(BENCHMARK_ID_DIGIT_COUNT, '0')}`,
-      baseOccurrences + input.skewedSessionMessageCount - 1,
-      `skew-node-${String(input.skewedSessionMessageCount - 1).padStart(BENCHMARK_ID_DIGIT_COUNT, '0')}`,
-      baseOccurrences + input.skewedSessionMessageCount - 1,
-    )
+  populateSessionTranscriptTermCatalog(database)
 }
 
 export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {

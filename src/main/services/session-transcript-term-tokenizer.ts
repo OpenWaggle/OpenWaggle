@@ -1,8 +1,15 @@
 const UNICODE61_TOKEN_PATTERN = /[\p{L}\p{N}\p{Co}]+/gu
 const COMBINING_MARK_PATTERN = /\p{M}+/gu
+const LATIN_CHARACTER_PATTERN = /\p{Script=Latin}/u
 
-/** Locale-stable approximation of SQLite unicode61 with remove_diacritics=2. */
+function normalizeUnicode61Character(character: string) {
+  return LATIN_CHARACTER_PATTERN.test(character)
+    ? character.normalize('NFD').replace(COMBINING_MARK_PATTERN, '')
+    : character
+}
+
+/** Locale-stable unicode61 normalization without deleting non-Latin combining marks. */
 export function tokenizeSessionTranscriptTerms(value: string) {
-  const normalized = value.normalize('NFD').replace(COMBINING_MARK_PATTERN, '').toLowerCase()
+  const normalized = [...value].map(normalizeUnicode61Character).join('').toLowerCase()
   return normalized.match(UNICODE61_TOKEN_PATTERN) ?? []
 }

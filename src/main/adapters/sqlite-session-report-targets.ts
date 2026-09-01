@@ -23,6 +23,10 @@ interface ReportCandidateRow {
 // the remainder of a large same-name catalog into the report transaction.
 const REPORT_REFERENCE_CANDIDATE_LIMIT = 2
 
+function implicitLineageAllowed(authority: LocalSessionProfileAuthority | undefined) {
+  return authority?.profileId.startsWith('mcp:') !== true ? 1 : 0
+}
+
 function referenceCandidates(rows: readonly ReportCandidateRow[]): AuthorizedReportCandidate[] {
   return rows.map((row) => ({
     sessionId: SessionId(row.session_id),
@@ -40,9 +44,12 @@ function loadLineageCandidate(
   sql: SqlClient.SqlClient,
   source: ReportSourceRow,
   target: Extract<SessionControlReportTarget, { readonly type: 'upstream' | 'queen' }>,
+  authority: LocalSessionProfileAuthority | undefined,
 ) {
   const targetId = lineageTargetId(source, target)
   if (!targetId) return Effect.succeed<readonly ReportCandidateRow[]>([])
+  const allowed = authorizedSessionScope(authority)
+  const lineageAllowed = implicitLineageAllowed(authority)
   return sql<ReportCandidateRow>`
     SELECT sessions.id AS session_id, sessions.title,
       CASE WHEN json_valid(session_execution_profiles.profile_json)
@@ -50,10 +57,20 @@ function loadLineageCandidate(
         ELSE NULL
       END AS agent_name
     FROM sessions
+    LEFT JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = sessions.id
     LEFT JOIN session_execution_profiles
       ON session_execution_profiles.session_id = sessions.id
     WHERE sessions.id = ${targetId}
       AND sessions.id <> ${source.session_id}
+      AND (
+        ${lineageAllowed} = 1
+        OR
+        ${allowed.all} = 1
+        OR sessions.project_path IN ${sql.in(allowed.projectPaths)}
+        OR sessions.id IN ${sql.in(allowed.sessionIds)}
+        OR lineage.hive_root_session_id IN ${sql.in(allowed.hiveRootSessionIds)}
+        OR sessions.id IN ${sql.in(allowed.hiveRootSessionIds)}
+      )
     LIMIT 1
   `
 }
@@ -69,6 +86,7 @@ function loadExplicitCandidates(
   ]
   if (requestedIds.length === 0) return Effect.succeed<readonly ReportCandidateRow[]>([])
   const allowed = authorizedSessionScope(authority)
+  const lineageAllowed = implicitLineageAllowed(authority)
   return sql<ReportCandidateRow>`
     SELECT sessions.id AS session_id, sessions.title,
       CASE WHEN json_valid(session_execution_profiles.profile_json)
@@ -82,9 +100,11 @@ function loadExplicitCandidates(
     WHERE sessions.id IN (SELECT value FROM json_each(${JSON.stringify(requestedIds)}))
       AND sessions.id <> ${source.session_id}
       AND (
-        sessions.id = ${source.parent_session_id}
-        OR sessions.id = ${source.hive_root_session_id}
-        OR lineage.parent_session_id = ${source.session_id}
+        (${lineageAllowed} = 1 AND (
+          sessions.id = ${source.parent_session_id}
+          OR sessions.id = ${source.hive_root_session_id}
+          OR lineage.parent_session_id = ${source.session_id}
+        ))
         OR ${allowed.all} = 1
         OR sessions.project_path IN ${sql.in(allowed.projectPaths)}
         OR sessions.id IN ${sql.in(allowed.sessionIds)}
@@ -101,6 +121,7 @@ function loadReferenceCandidates(
   authority: LocalSessionProfileAuthority | undefined,
 ) {
   const allowed = authorizedSessionScope(authority)
+  const lineageAllowed = implicitLineageAllowed(authority)
   const normalizedReference = normalizeSessionReportReference(target.reference)
   return sql<ReportCandidateRow>`
     SELECT DISTINCT sessions.id AS session_id, sessions.title,
@@ -116,9 +137,11 @@ function loadReferenceCandidates(
     WHERE report_references.normalized_reference = ${normalizedReference}
       AND sessions.id <> ${source.session_id}
       AND (
-        sessions.id = ${source.parent_session_id}
-        OR sessions.id = ${source.hive_root_session_id}
-        OR lineage.parent_session_id = ${source.session_id}
+        (${lineageAllowed} = 1 AND (
+          sessions.id = ${source.parent_session_id}
+          OR sessions.id = ${source.hive_root_session_id}
+          OR lineage.parent_session_id = ${source.session_id}
+        ))
         OR ${allowed.all} = 1
         OR sessions.project_path IN ${sql.in(allowed.projectPaths)}
         OR sessions.id IN ${sql.in(allowed.sessionIds)}
@@ -140,7 +163,7 @@ export function loadAuthorizedReportCandidates(
   const { source, target } = input
   const rows =
     target.type === 'upstream' || target.type === 'queen'
-      ? loadLineageCandidate(sql, source, target)
+      ? loadLineageCandidate(sql, source, target, input.authority)
       : target.type === 'session' || target.type === 'sessions'
         ? loadExplicitCandidates(sql, source, target, input.authority)
         : loadReferenceCandidates(sql, source, target, input.authority)

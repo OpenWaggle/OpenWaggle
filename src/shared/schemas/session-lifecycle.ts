@@ -5,6 +5,7 @@ import {
   hasUniqueCollaborationStrings,
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import type {
   SessionLifecycleOutcome,
@@ -53,7 +54,7 @@ const forkWorkspaceSchema = Schema.Union(
 const createCommandSchema = Schema.Struct({
   operation: Schema.Literal('create'),
   projectPath: projectPathSchema,
-  title: Schema.optional(Schema.String),
+  title: Schema.optional(Schema.String.pipe(Schema.maxLength(SESSION_TITLE_MAX_LENGTH))),
   workspace: Schema.optional(launchWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
 })
@@ -61,7 +62,7 @@ const createCommandSchema = Schema.Struct({
 const launchCommandSchema = Schema.Struct({
   operation: Schema.Literal('launch'),
   projectPath: projectPathSchema,
-  title: Schema.optional(Schema.String),
+  title: Schema.optional(Schema.String.pipe(Schema.maxLength(SESSION_TITLE_MAX_LENGTH))),
   workspace: Schema.optional(launchWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
@@ -122,7 +123,7 @@ const forkCommandSchema = Schema.Struct({
   sourceSessionId: Schema.String,
   targetNodeId: Schema.optional(Schema.String),
   position: Schema.optional(Schema.Literal('before', 'at')),
-  title: Schema.optional(Schema.String),
+  title: Schema.optional(Schema.String.pipe(Schema.maxLength(SESSION_TITLE_MAX_LENGTH))),
   workspace: Schema.optional(forkWorkspaceSchema),
 })
 

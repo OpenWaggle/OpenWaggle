@@ -16,15 +16,8 @@ import {
   sessionDiscoveryBenchmarkCounts,
   sessionDiscoveryBenchmarkQueryExecutor,
 } from './benchmark-session-discovery-support'
+import { sessionDiscoveryBenchmarkMode } from './benchmark-session-discovery-mode'
 
-const STANDARD_SESSION_COUNT = 100_000
-const STANDARD_MESSAGE_COUNT = 10_000_000
-const STANDARD_SKEWED_SESSION_MESSAGE_COUNT = 10_000
-const SMOKE_SESSION_COUNT = 1_000
-const SMOKE_MESSAGE_COUNT = 100_000
-const SMOKE_SKEWED_SESSION_MESSAGE_COUNT = 1_000
-const QUERY_SCALE_MESSAGE_COUNT = STANDARD_SESSION_COUNT
-const QUERY_SCALE_SKEWED_SESSION_MESSAGE_COUNT = 1_000
 const MEASURED_RUNS = 20
 const WARMUP_RUNS = 3
 const PAGE_SIZE = 50
@@ -104,7 +97,7 @@ function populate(
         'message', 'message', 'assistant', ? + value,
         json_object('text', CASE WHEN value = ? - 1
           THEN 'skewed long session terminal marker'
-          ELSE 'skewed long session ordinary message'
+          ELSE 'ordinary ordinary ordinary ordinary ordinary'
         END), '{}', NULL, ? + value, ? + value
       FROM sequence
     `)
@@ -137,11 +130,7 @@ function populate(
     `)
     .run(messageCount, sessionCount)
   initializeSessionDiscoveryBenchmarkTargetSchema(database)
-  populateSessionDiscoveryBenchmarkSearchIndexes(database, {
-    sessionCount,
-    messageCount,
-    skewedSessionMessageCount,
-  })
+  populateSessionDiscoveryBenchmarkSearchIndexes(database)
   database.exec('COMMIT; PRAGMA optimize;')
 }
 
@@ -183,8 +172,8 @@ async function benchmarkQueries(databasePath: string) {
         }),
       ),
     )
-  const fullTranscript = () =>
-    runtime.run(
+  const fullTranscript = async () => {
+    const rows = await runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         loadLexicalDiscoveryRows(sql, undefined, {
           contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -199,6 +188,11 @@ async function benchmarkQueries(databasePath: string) {
         }),
       ),
     )
+    if (rows[0]?.session_id !== 'session-000000') {
+      throw new Error('Full-transcript benchmark did not rank the skewed Session first.')
+    }
+    return rows
+  }
   const transcript = async () => {
     const response = await runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
@@ -235,19 +229,8 @@ async function benchmarkQueries(databasePath: string) {
 }
 
 async function main() {
-  const smoke = process.argv.includes('--smoke')
-  const queryScale = process.argv.includes('--query-scale')
-  const sessionCount = smoke ? SMOKE_SESSION_COUNT : STANDARD_SESSION_COUNT
-  const messageCount = smoke
-    ? SMOKE_MESSAGE_COUNT
-    : queryScale
-      ? QUERY_SCALE_MESSAGE_COUNT
-      : STANDARD_MESSAGE_COUNT
-  const skewedSessionMessageCount = smoke
-    ? SMOKE_SKEWED_SESSION_MESSAGE_COUNT
-    : queryScale
-      ? QUERY_SCALE_SKEWED_SESSION_MESSAGE_COUNT
-      : STANDARD_SKEWED_SESSION_MESSAGE_COUNT
+  const { name, sessionCount, messageCount, skewedSessionMessageCount } =
+    sessionDiscoveryBenchmarkMode(process.argv)
   const root = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-benchmark-'))
   const databasePath = path.join(root, 'sessions.sqlite')
   let database = new DatabaseSync(databasePath)
@@ -274,7 +257,7 @@ async function main() {
     process.stdout.write(
       `${JSON.stringify(
         {
-          mode: smoke ? 'smoke' : queryScale ? 'query-scale' : 'standard',
+          mode: name,
           corpus,
           skewedSessionMessageCount,
           buildMs,
@@ -295,7 +278,7 @@ async function main() {
     )
     if (!passed) process.exitCode = 1
   } finally {
-    database.close()
+    if (database.isOpen) database.close()
     await rm(root, { recursive: true, force: true })
   }
 }

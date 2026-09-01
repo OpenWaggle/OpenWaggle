@@ -210,9 +210,8 @@ function readLegacyRows(database: DatabaseSync) {
     FROM session_active_runs ORDER BY run_id
   `)
     .all()
-  if (!Array.isArray(sessionValues) || !Array.isArray(activeRunValues)) {
+  if (!Array.isArray(sessionValues) || !Array.isArray(activeRunValues))
     throw new Error('Legacy Session rows could not be read.')
-  }
   return {
     sessions: sessionValues.map(decodeLegacySession),
     activeRuns: activeRunValues.map(decodeLegacyActiveRun),
@@ -287,6 +286,8 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
     INSERT INTO session_title_search (session_id, title) SELECT id, title FROM sessions;
     INSERT INTO session_node_search (session_id, node_id, content)
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
+    INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
+    SELECT node_id, session_id, rowid FROM session_node_search;
     INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
     SELECT session_id, chunk_ordinal, GROUP_CONCAT(content, char(10))
     FROM (

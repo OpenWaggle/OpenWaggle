@@ -191,7 +191,7 @@ For `create`, `launch`, `fork`, `spawn`, and `handoff`, set `workspace: "new-wor
 
 `launch` and `spawn` accept `yolo: true` for a per-Run override. `start`, `follow-up`, and `replace` accept either `yolo: true` or `runAuthorizationOverride`; the caller must hold the matching authorization grant. `promote` requires `sessionId`, `followUpId`, and `expectedRunId`, and fails rather than steering a different Run when that Run id is stale.
 
-`search` accepts `message`, optional `searchMode`, and `fullTranscript`. Discovery search defaults to hybrid mode; `fullTranscript: true` defaults to lexical mode and requires transcript-read authority. Explicit semantic or hybrid full-transcript searches use the bounded, authorized lazy transcript projection described in the Sessions CLI guide. Transcript matches include node, Run when known, and durable-order attribution.
+`search` accepts `message`, optional `searchMode`, and `fullTranscript`. Discovery search defaults to hybrid mode; `fullTranscript: true` defaults to lexical mode and requires transcript-read authority. Explicit semantic or hybrid full-transcript searches use the bounded, authorized lazy transcript projection described in the Sessions CLI guide. Single-term and quoted transcript matches include node, Run when known, and durable-order attribution; unquoted multi-term matches may aggregate evidence across several items and therefore omit a misleading single-node attribution.
 
 The public tool input is strict: unknown fields, including unknown fields inside interaction responses, Delegation specifications, evidence, and claims, are rejected. This makes misspelled controls fail visibly instead of being silently ignored.
 

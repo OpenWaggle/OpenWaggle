@@ -1,89 +1,44 @@
-import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
-import { tokenizeSessionTranscriptTerms } from '../services/session-transcript-term-tokenizer'
+import type { DatabaseSync } from 'node:sqlite'
 
-const CUTOVER_TERM_SOURCE_PAGE_SIZE = 64
+const CUTOVER_VOCABULARY_TABLE = 'session_node_search_cutover_vocabulary'
 
-interface CutoverTermSourceRow {
-  readonly searchRowid: number
-  readonly sessionId: string
-  readonly nodeId: string
-  readonly content: string
-  readonly createdOrder: number
-  readonly runId: string | null
-}
-
-function cutoverTermSourceRow(row: Record<string, SQLOutputValue>): CutoverTermSourceRow {
-  if (
-    typeof row.search_rowid !== 'number' ||
-    typeof row.session_id !== 'string' ||
-    typeof row.node_id !== 'string' ||
-    typeof row.content !== 'string' ||
-    typeof row.created_order !== 'number' ||
-    (row.run_id !== null && typeof row.run_id !== 'string')
-  ) {
-    throw new Error('Session transcript term cutover read an invalid source row.')
-  }
-  return {
-    searchRowid: row.search_rowid,
-    sessionId: row.session_id,
-    nodeId: row.node_id,
-    content: row.content,
-    createdOrder: row.created_order,
-    runId: row.run_id,
-  }
-}
-
+/** Builds the complete term catalog with SQLite's own unicode61 tokenizer in set-based SQL. */
 export function populateSessionTranscriptTermCatalog(database: DatabaseSync) {
   database.exec(`
+    CREATE VIRTUAL TABLE temp.${CUTOVER_VOCABULARY_TABLE}
+    USING fts5vocab(main, session_node_search, 'instance');
+
     INSERT INTO session_transcript_term_documents (session_id, token_count)
-    SELECT id, 0 FROM sessions;
-  `)
-  const selectPage = database.prepare(`
-    SELECT session_node_search.rowid AS search_rowid, session_node_search.session_id,
-      session_node_search.node_id, session_node_search.content, session_nodes.created_order,
-      json_extract(session_nodes.metadata_json, '$.openWaggle.runId') AS run_id
-    FROM session_node_search
-    JOIN session_nodes ON session_nodes.id = session_node_search.node_id
-    WHERE session_node_search.rowid > ?
-    ORDER BY session_node_search.rowid
-    LIMIT ?
-  `)
-  const incrementDocument = database.prepare(`
-    UPDATE session_transcript_term_documents
-    SET token_count = token_count + ? WHERE session_id = ?
-  `)
-  const upsertTerm = database.prepare(`
+    SELECT sessions.id, COALESCE(token_counts.token_count, 0)
+    FROM sessions
+    LEFT JOIN (
+      SELECT search.session_id, COUNT(*) AS token_count
+      FROM temp.${CUTOVER_VOCABULARY_TABLE} AS vocabulary
+      JOIN session_node_search AS search ON search.rowid = vocabulary.doc
+      GROUP BY search.session_id
+    ) AS token_counts ON token_counts.session_id = sessions.id;
+
+    WITH term_groups AS (
+      SELECT vocabulary.term, search.session_id, COUNT(*) AS occurrences,
+        MIN(printf('%020d:%s', nodes.created_order, search.node_id)) AS evidence_key
+      FROM temp.${CUTOVER_VOCABULARY_TABLE} AS vocabulary
+      JOIN session_node_search AS search ON search.rowid = vocabulary.doc
+      JOIN session_nodes AS nodes ON nodes.id = search.node_id
+      GROUP BY vocabulary.term, search.session_id
+    )
     INSERT INTO session_transcript_terms (
-      term, session_id, occurrences, first_node_id, first_created_order, first_run_id
-    ) VALUES (?, ?, 1, ?, ?, ?)
-    ON CONFLICT(term, session_id) DO UPDATE SET
-      occurrences = session_transcript_terms.occurrences + 1,
-      first_node_id = CASE
-        WHEN excluded.first_created_order < session_transcript_terms.first_created_order
-          THEN excluded.first_node_id
-        ELSE session_transcript_terms.first_node_id
-      END,
-      first_run_id = CASE
-        WHEN excluded.first_created_order < session_transcript_terms.first_created_order
-          THEN excluded.first_run_id
-        ELSE session_transcript_terms.first_run_id
-      END,
-      first_created_order = MIN(
-        session_transcript_terms.first_created_order, excluded.first_created_order
-      )
+      term, session_id, occurrences, first_node_id, first_created_order, first_run_id,
+      term_frequency
+    )
+    SELECT term_groups.term, term_groups.session_id, term_groups.occurrences,
+      nodes.id, nodes.created_order,
+      json_extract(nodes.metadata_json, '$.openWaggle.runId'),
+      CAST(term_groups.occurrences AS REAL) / documents.token_count
+    FROM term_groups
+    JOIN session_nodes AS nodes ON nodes.id = substr(term_groups.evidence_key, 22)
+    JOIN session_transcript_term_documents AS documents
+      ON documents.session_id = term_groups.session_id;
+
+    DROP TABLE temp.${CUTOVER_VOCABULARY_TABLE};
   `)
-  let afterRowid = 0
-  while (true) {
-    const rows = selectPage.all(afterRowid, CUTOVER_TERM_SOURCE_PAGE_SIZE).map(cutoverTermSourceRow)
-    if (rows.length === 0) break
-    for (const row of rows) {
-      const terms = tokenizeSessionTranscriptTerms(row.content)
-      incrementDocument.run(terms.length, row.sessionId)
-      for (const term of terms) {
-        upsertTerm.run(term, row.sessionId, row.nodeId, row.createdOrder, row.runId)
-      }
-      afterRowid = row.searchRowid
-    }
-    if (rows.length < CUTOVER_TERM_SOURCE_PAGE_SIZE) break
-  }
 }

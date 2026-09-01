@@ -30,7 +30,7 @@ describe('Session transcript term tokenizer', () => {
         );
         CREATE VIRTUAL TABLE transcript_vocabulary USING fts5vocab(transcript, 'row');
       `)
-      const input = 'CAFÉ—Review_42 中文 Привет'
+      const input = 'CAFÉ—Review_42 中文 Привет Йога Иога άλφα किताब'
       database.prepare('INSERT INTO transcript (content) VALUES (?)').run(input)
       const sqliteTerms = database
         .prepare('SELECT term FROM transcript_vocabulary ORDER BY term')
