@@ -70,6 +70,7 @@ export type UIMessagePart =
 export interface ChatCompactionSummaryMetadata {
   readonly summary: string
   readonly tokensBefore: number
+  readonly reason?: 'manual' | 'threshold' | 'overflow'
 }
 
 export interface ChatBranchSummaryMetadata {

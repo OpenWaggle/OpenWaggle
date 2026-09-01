@@ -3,6 +3,7 @@ import { seedSessions } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
 
 const LIVE_USAGE_THREAD_TITLE = 'Live context usage'
+const COMPACTION_TIMELINE_THREAD_TITLE = 'Compaction timeline'
 const LIVE_USAGE_PERCENT = 37
 
 async function openGeneralSettings(app: OpenWaggleApp) {
@@ -94,6 +95,62 @@ test('composer context meter updates from usage reported before the run settles'
       .locator('xpath=../..')
     await expect(meter).toHaveAttribute('title', /\(37\.0%\)$/u)
     await expect(meter.getByText('37', { exact: true })).toBeVisible()
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('automatic compaction appears as an animated transcript message instead of a composer dock', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-compaction-timeline-e2e-')
+
+  try {
+    await seedSessions(app.userDataDir, [
+      {
+        title: COMPACTION_TIMELINE_THREAD_TITLE,
+        projectPath: app.userDataDir,
+        updatedAt: Date.now(),
+        messages: [
+          {
+            id: 'compaction-timeline-user-message',
+            role: 'user',
+            createdAt: Date.now(),
+            parts: [{ type: 'text', text: 'Keep working through compaction.' }],
+          },
+        ],
+      },
+    ])
+    await app.restart()
+    await app.mainWindow().openThread(COMPACTION_TIMELINE_THREAD_TITLE)
+
+    const runtime = await app.mainWindow().page.evaluate(async (title) => {
+      const [settings, sessions] = await Promise.all([
+        window.api.getSettings(),
+        window.api.listSessionDetails(),
+      ])
+      const session = sessions.find((candidate) => candidate.title === title)
+      if (!session) throw new Error('Expected seeded compaction session')
+      return { sessionId: session.id, model: settings.selectedModel }
+    }, COMPACTION_TIMELINE_THREAD_TITLE)
+
+    await app.emitAgentEvent({
+      sessionId: runtime.sessionId,
+      event: {
+        type: 'compaction_start',
+        reason: 'threshold',
+        timestamp: Date.now(),
+        model: runtime.model,
+      },
+    })
+
+    const page = app.mainWindow().page
+    const timelineStatus = page.locator(
+      '[data-compaction-timeline-state="automatic-running"]',
+    )
+    await expect(timelineStatus).toContainText('Context automatically compacting')
+    await expect(timelineStatus.locator('.compaction-shimmer')).toBeVisible()
+    await expect(page.getByRole('log').getByText('Thinking...')).toHaveCount(0)
+    await expect(page.getByText('Auto-compacting…')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Cancel compaction' })).toHaveCount(0)
   } finally {
     await app.cleanup()
   }

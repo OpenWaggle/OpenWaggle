@@ -35,6 +35,7 @@ function getChatRowKey(row: ChatRow) {
     )
     .with('branch-summary', (value) => `branch-summary:${value.id}`)
     .with('compaction-summary', (value) => `compaction:${value.id}`)
+    .with('compaction-status', (value) => `compaction-status:${value.id}`)
     .with('phase-indicator', (value) => `phase:${value.label}`)
     .with('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
     .with('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)

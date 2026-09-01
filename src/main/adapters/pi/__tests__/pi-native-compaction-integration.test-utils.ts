@@ -41,11 +41,13 @@ export async function createNativeSession(options: {
     executed?: boolean
   }
   responses?: FauxResponseStep[]
+  contextWindow?: number
+  cancelAutomaticCompaction?: boolean
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
     provider: 'native-provider',
-    models: [{ id: 'native-model', contextWindow: 100, maxTokens: 20 }],
+    models: [{ id: 'native-model', contextWindow: options.contextWindow ?? 100, maxTokens: 20 }],
   })
   const nativeModel = {
     ...faux.getModel(),
@@ -93,6 +95,11 @@ export async function createNativeSession(options: {
     pi.on('session_compact', (event) => {
       options.compactionEvents.push(event)
     })
+    if (options.cancelAutomaticCompaction) {
+      pi.on('session_before_compact', (event) =>
+        event.reason === 'manual' ? undefined : { cancel: true },
+      )
+    }
     if (options.providerReloadState) {
       pi.registerCommand('reload-native-provider', {
         description: 'Reload the native provider fixture',

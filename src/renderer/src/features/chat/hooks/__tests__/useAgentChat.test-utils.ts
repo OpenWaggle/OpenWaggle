@@ -27,7 +27,7 @@ const {
   const runCompletedHandlers: Array<(payload: unknown) => void> = []
   const runRenderSnapshots = new Map<
     string,
-    { readonly messages: readonly unknown[]; updatedAt: number }
+    { readonly messages: readonly unknown[]; compactionStatus: unknown; updatedAt: number }
   >()
   const getRunRenderSnapshotMock = vi.fn(
     (sessionId: SessionId) => runRenderSnapshots.get(String(sessionId)) ?? null,
@@ -35,8 +35,14 @@ const {
   const setRunRenderMessagesMock = vi.fn((sessionId: SessionId, messages: readonly unknown[]) => {
     runRenderSnapshots.set(String(sessionId), {
       messages: [...messages],
+      compactionStatus: runRenderSnapshots.get(String(sessionId))?.compactionStatus ?? null,
       updatedAt: Date.now(),
     })
+  })
+  const setRunCompactionStatusMock = vi.fn((sessionId: SessionId, compactionStatus: unknown) => {
+    const existing = runRenderSnapshots.get(String(sessionId))
+    if (!existing) return
+    runRenderSnapshots.set(String(sessionId), { ...existing, compactionStatus })
   })
   const hasActiveRunMock = vi.fn((_id: SessionId) => false)
   const firstSendRecoveryCalls: Array<readonly [SessionId, unknown]> = []
@@ -49,6 +55,7 @@ const {
         getRunRenderSnapshot: (sessionId: SessionId) => unknown
         hasActiveRun: (sessionId: SessionId) => boolean
         setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
+        setRunCompactionStatus: (sessionId: SessionId, status: unknown) => void
         setFirstSendRecovery: typeof setFirstSendRecoveryMock
       }) => unknown,
     ) =>
@@ -56,6 +63,7 @@ const {
         getRunRenderSnapshot: getRunRenderSnapshotMock,
         hasActiveRun: hasActiveRunMock,
         setRunRenderMessages: setRunRenderMessagesMock,
+        setRunCompactionStatus: setRunCompactionStatusMock,
         setFirstSendRecovery: setFirstSendRecoveryMock,
       }),
   )

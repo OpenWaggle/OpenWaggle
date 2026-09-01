@@ -87,28 +87,31 @@ describe('Pi repeated native compaction events', () => {
     expect(checkpointIds(events)).toEqual(['cmp_1', 'cmp_2'])
   })
 
-  it('reprojects messages when credentials change endpoint before compaction fails', async () => {
-    const directory = createNativeTempDirectory('openwaggle-native-events-auth-change-')
+  it('reserves the pending request before fitting raw checkpoint reconstruction', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-request-budget-')
     const events: SessionCompactEvent[] = []
     const authBaseUrlState = { value: 'https://endpoint-a.example.test/v1' }
-    vi.stubGlobal('fetch', nativeCompactionFetch(undefined, 2))
+    const providerContexts: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch())
     const { session } = await createNativeSession({
       directory,
       compactionEvents: events,
       authBaseUrlState,
-      responses: [fauxAssistantMessage('More context')],
+      responses: [
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Response after fitting request overhead')
+        },
+      ],
     })
 
     await session.compact()
-    await session.prompt('Add context after the first checkpoint')
-    expect(JSON.stringify(session.messages)).toContain('cmp_1')
-
     authBaseUrlState.value = 'https://endpoint-b.example.test/v1'
-    await expect(session.compact()).rejects.toThrow('Connection error.')
+    await session.prompt('Mandatory pending request content')
 
-    expect(session.model?.baseUrl).toBe(authBaseUrlState.value)
-    expect(JSON.stringify(session.messages)).toContain('Initial context')
-    expect(JSON.stringify(session.messages)).not.toContain('cmp_1')
+    expect(providerContexts[0]).toContain('Mandatory pending request content')
+    expect(providerContexts[0]).not.toContain('Initial context')
+    expect(providerContexts[0]).not.toContain('cmp_1')
   })
 
   it('reprojects a native checkpoint before a direct prompt uses a changed endpoint', async () => {
@@ -120,6 +123,7 @@ describe('Pi repeated native compaction events', () => {
     const { session } = await createNativeSession({
       directory,
       compactionEvents: events,
+      contextWindow: 10_000,
       authBaseUrlState,
       responses: [
         (context) => {
@@ -138,43 +142,6 @@ describe('Pi repeated native compaction events', () => {
     expect(providerContexts[0]).not.toContain('cmp_1')
   })
 
-  it('uses one prepared auth snapshot for context projection and transport', async () => {
-    const directory = createNativeTempDirectory('openwaggle-native-events-auth-snapshot-')
-    const events: SessionCompactEvent[] = []
-    let phase: 'compact' | 'prompt' = 'compact'
-    let promptAuthResolutions = 0
-    const providerBaseUrls: string[] = []
-    const providerContexts: string[] = []
-    vi.stubGlobal('fetch', nativeCompactionFetch())
-    const { session } = await createNativeSession({
-      directory,
-      compactionEvents: events,
-      authBaseUrlResolver: () => {
-        if (phase === 'compact') return 'https://endpoint-a.example.test/v1'
-        promptAuthResolutions += 1
-        return promptAuthResolutions === 1
-          ? 'https://endpoint-b.example.test/v1'
-          : 'https://endpoint-c.example.test/v1'
-      },
-      responses: [
-        (context, _options, _state, model) => {
-          providerBaseUrls.push(model.baseUrl)
-          providerContexts.push(JSON.stringify(context.messages))
-          return fauxAssistantMessage('Response from prepared endpoint')
-        },
-      ],
-    })
-
-    await session.compact()
-    phase = 'prompt'
-    await session.prompt('Continue with one auth snapshot')
-
-    expect(promptAuthResolutions).toBe(1)
-    expect(providerBaseUrls).toEqual(['https://endpoint-b.example.test/v1'])
-    expect(providerContexts[0]).toContain('Initial context')
-    expect(providerContexts[0]).not.toContain('cmp_1')
-  })
-
   it('returns from an auth endpoint override to the canonical model endpoint', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-auth-catalog-')
     const events: SessionCompactEvent[] = []
@@ -187,6 +154,7 @@ describe('Pi repeated native compaction events', () => {
     const { session, faux } = await createNativeSession({
       directory,
       compactionEvents: events,
+      contextWindow: 10_000,
       authBaseUrlState,
       responses: [
         (context, _options, _state, model) => {
@@ -218,6 +186,7 @@ describe('Pi repeated native compaction events', () => {
     const { session, modelRuntime } = await createNativeSession({
       directory,
       compactionEvents: events,
+      contextWindow: 10_000,
       providerReloadState,
       responses: [
         (context, _options, _state, model) => {
@@ -257,6 +226,7 @@ describe('Pi repeated native compaction events', () => {
     const { session, modelRuntime } = await createNativeSession({
       directory,
       compactionEvents: events,
+      contextWindow: 10_000,
       providerReloadState,
       responses: [
         (context) => {

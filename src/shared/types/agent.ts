@@ -79,6 +79,7 @@ export interface AgentSendPayload {
 export interface CompactionSummaryMetadata {
   readonly summary: string
   readonly tokensBefore: number
+  readonly reason?: 'manual' | 'threshold' | 'overflow'
 }
 
 export interface BranchSummaryMetadata {

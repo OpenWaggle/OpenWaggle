@@ -12,7 +12,7 @@ index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..cc3b45b94f8ff61464a2a4103c1d1887
          await this.finishSessionReplacement(options?.withSession);
          return { cancelled: false };
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..7ea7bdf161fea3e215f5d488128c3853ac92c79d 100644
+index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..ed664632aecc3483b647878aab0e9390dd519992 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -108,6 +108,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -26,11 +26,82 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..7ea7bdf161fea3e215f5d488128c3853
      sessionManager: SessionManager;
      settingsManager: SettingsManager;
      cwd: string;
+@@ -351,6 +355,7 @@ export declare class AgentSession {
+     private _normalizePromptGuidelines;
+     private _rebuildSystemPrompt;
+     private _runAgentPrompt;
++    private _prepareNewTurn;
+     private _handlePostAgentRun;
+     /**
+      * Send a prompt to the agent.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f777e81ce 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..8ab4165fc0e661cf835865a17c0e9bc757d72067 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -126,6 +126,8 @@ export class AgentSession {
+@@ -31,7 +31,7 @@ import { emitSessionShutdownEvent } from "./extensions/runner.js";
+ import { ModelRegistry } from "./model-registry.js";
+ import { expandPromptTemplate } from "./prompt-templates.js";
+ import { exportSessionToJsonl } from "./session-export.js";
+-import { getLatestCompactionEntry } from "./session-manager.js";
++import { estimateReconstructionMessageTokens, getLatestCompactionEntry } from "./session-manager.js";
+ import { createSyntheticSourceInfo } from "./source-info.js";
+ import { buildSystemPrompt } from "./system-prompt.js";
+ import { createLocalBashOperations } from "./tools/bash.js";
+@@ -68,6 +68,45 @@ function estimateMessagesTokens(messages) {
+     }
+     return tokens;
+ }
++function estimateRequestOverheadTokens(systemPrompt, tools, messages) {
++    let toolSchema = "";
++    try {
++        toolSchema = JSON.stringify(tools ?? []);
++    }
++    catch {
++        // Cyclic extension metadata is not part of the provider-facing JSON schema.
++    }
++    const framingChars = (systemPrompt?.length ?? 0) + toolSchema.length;
++    const requestMessages = Array.isArray(messages) ? messages : [messages];
++    return Math.ceil(framingChars / 4) + requestMessages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++}
++function isRequestTurnStart(message) {
++    return message.role === "user" || message.role === "custom" || message.role === "bashExecution" ||
++        message.role === "branchSummary" || message.role === "compactionSummary";
++}
++function fitMessagesToRequestBudget(messages, model, systemPrompt, tools) {
++    if (!model || !Number.isFinite(model.contextWindow))
++        return messages;
++    const units = [];
++    const lastAssistantIndex = messages.findLastIndex((message) => message.role === "assistant");
++    const mandatorySuffixIndex = messages.findIndex((message, index) => index > lastAssistantIndex && (message.role === "user" || message.role === "custom"));
++    for (const [index, message] of messages.entries()) {
++        const isMandatoryRequestSuffix = mandatorySuffixIndex >= 0 && index >= mandatorySuffixIndex;
++        if ((!isMandatoryRequestSuffix && isRequestTurnStart(message)) || index === mandatorySuffixIndex || units.length === 0)
++            units.push([]);
++        units[units.length - 1].push(message);
++    }
++    const framingTokens = estimateRequestOverheadTokens(systemPrompt, tools, []);
++    const safetyReserve = Math.ceil(Math.max(0, model.contextWindow) * 0.25);
++    const outputReserve = Number.isFinite(model.maxTokens) ? Math.max(0, model.maxTokens) : 0;
++    const inputBudget = Math.max(0, model.contextWindow - Math.max(safetyReserve, outputReserve + framingTokens));
++    const estimateUnitTokens = (unit) => unit.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++    let totalTokens = units.reduce((total, unit) => total + estimateUnitTokens(unit), 0);
++    while (totalTokens > inputBudget && units.length > 1) {
++        totalTokens -= estimateUnitTokens(units.shift());
++    }
++    return units.flat();
++}
+ // ============================================================================
+ // Constants
+ // ============================================================================
+@@ -83,6 +128,7 @@ export class AgentSession {
+     _unsubscribeAgent;
+     _eventListeners = [];
+     _isAgentRunActive = false;
++    _requestRequiresReconstructionFit = false;
+     _idleWaitPromise;
+     _resolveIdleWait;
+     /** Tracks pending steering messages for UI display. Removed when delivered. */
+@@ -126,6 +172,8 @@ export class AgentSession {
      _extensionErrorListener;
      _extensionErrorUnsubscriber;
      _modelRuntime;
@@ -39,7 +110,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      // Tool registry for extension getTools/setTools
      _toolRegistry = new Map();
      _toolDefinitions = new Map();
-@@ -144,6 +146,8 @@ export class AgentSession {
+@@ -144,6 +192,8 @@ export class AgentSession {
          this._customTools = config.customTools ?? [];
          this._cwd = config.cwd;
          this._modelRuntime = config.modelRuntime;
@@ -48,7 +119,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
          this._extensionRunnerRef = config.extensionRunnerRef;
          this._initialActiveToolNames = config.initialActiveToolNames;
          this._allowedToolNames = config.allowedToolNames ? new Set(config.allowedToolNames) : undefined;
-@@ -197,21 +201,39 @@ export class AgentSession {
+@@ -197,21 +247,41 @@ export class AgentSession {
              return this._getRequiredRequestAuth(model);
          }
          try {
@@ -87,15 +158,23 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
 +                (requestModel.compat?.compactionBaseUrl ?? requestModel.baseUrl) ||
 +            currentModel.compat?.supportsCompaction !== requestModel.compat?.supportsCompaction;
 +        this.agent.state.model = requestModel;
++        const projectedContext = this.sessionManager.buildSessionContext(requestModel);
++        this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
 +        if (identityChanged) {
-+            this.agent.state.messages = this.sessionManager.buildSessionContext(requestModel).messages;
++            this.agent.state.messages = projectedContext.messages;
 +        }
 +        return identityChanged;
 +    }
      /**
       * Install tool hooks once on the Agent instance.
       *
-@@ -291,7 +313,11 @@ export class AgentSession {
+@@ -286,12 +356,17 @@ export class AgentSession {
+         };
+     }
+     _installAgentNextTurnRefresh() {
++        const previousTransformContext = this.agent.transformContext;
+         const previousPrepareNextTurnWithContext = this.agent.prepareNextTurnWithContext ??
+             (this.agent.prepareNextTurn
                  ? async (_turn, signal) => await this.agent.prepareNextTurn?.(signal)
                  : undefined);
          this.agent.prepareNextTurnWithContext = async (turn, signal) => {
@@ -108,7 +187,45 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
              return {
-@@ -802,12 +828,13 @@ export class AgentSession {
+@@ -305,6 +380,12 @@ export class AgentSession {
+                 thinkingLevel: this.agent.state.thinkingLevel,
+             };
+         };
++        this.agent.transformContext = async (messages, signal) => {
++            const transformed = previousTransformContext ? await previousTransformContext(messages, signal) : messages;
++            return this._requestRequiresReconstructionFit
++                ? fitMessagesToRequestBudget(transformed, this.model, this.agent.state.systemPrompt, this.agent.state.tools)
++                : transformed;
++        };
+     }
+     // =========================================================================
+     // Event Subscription
+@@ -772,6 +853,10 @@ export class AgentSession {
+     async _runAgentPrompt(messages) {
+         this._isAgentRunActive = true;
+         try {
++            const requestOverheadTokens = estimateRequestOverheadTokens(this.agent.state.systemPrompt, this.agent.state.tools, messages);
++            const projectedContext = this.sessionManager.buildSessionContext(this.model, { requestOverheadTokens });
++            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
++            this.agent.state.messages = projectedContext.messages;
+             await this.agent.prompt(messages);
+             while (await this._handlePostAgentRun()) {
+                 await this.agent.continue();
+@@ -784,6 +869,13 @@ export class AgentSession {
+             await this._emitAgentSettled();
+         }
+     }
++    async _prepareNewTurn() {
++        await this._refreshRequestModelContext();
++        const lastAssistant = this._findLastAssistantMessage();
++        if (lastAssistant) {
++            await this._checkCompaction(lastAssistant, false);
++        }
++    }
+     async _handlePostAgentRun() {
+         const msg = this._lastAssistantMessage;
+         this._lastAssistantMessage = undefined;
+@@ -802,12 +894,13 @@ export class AgentSession {
              });
              this._retryAttempt = 0;
          }
@@ -124,15 +241,31 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      }
      /**
       * Send a prompt to the agent.
-@@ -888,6 +915,7 @@ export class AgentSession {
+@@ -888,12 +981,9 @@ export class AgentSession {
                  }
                  throw new Error(formatNoApiKeyFoundMessage(this.model.provider));
              }
-+            await this._refreshRequestModelContext();
-             // Check if we need to compact before sending (catches aborted responses).
-             // The user's new prompt is sent below, so do not call agent.continue() here.
-             const lastAssistant = this._findLastAssistantMessage();
-@@ -1250,13 +1278,13 @@ export class AgentSession {
+-            // Check if we need to compact before sending (catches aborted responses).
+-            // The user's new prompt is sent below, so do not call agent.continue() here.
+-            const lastAssistant = this._findLastAssistantMessage();
+-            if (lastAssistant) {
+-                await this._checkCompaction(lastAssistant, false);
+-            }
++            // Use the same endpoint refresh and pre-turn compaction boundary as
++            // trigger-turn custom messages before appending the new request.
++            await this._prepareNewTurn();
+             // Build messages array (custom message if any, then user message)
+             messages = [];
+             // Add user message
+@@ -1118,6 +1208,7 @@ export class AgentSession {
+             }
+         }
+         else if (options?.triggerTurn) {
++            await this._prepareNewTurn();
+             await this._runAgentPrompt(appMessage);
+         }
+         else if (this.isStreaming) {
+@@ -1250,13 +1341,13 @@ export class AgentSession {
       * @throws Error if no auth is configured for the model
       */
      async setModel(model, options = {}) {
@@ -150,7 +283,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -1265,7 +1293,7 @@ export class AgentSession {
+@@ -1265,7 +1356,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -159,7 +292,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -1305,10 +1333,13 @@ export class AgentSession {
+@@ -1305,10 +1396,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -174,7 +307,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -1319,8 +1350,8 @@ export class AgentSession {
+@@ -1319,8 +1413,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -185,7 +318,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -1333,9 +1364,12 @@ export class AgentSession {
+@@ -1333,9 +1427,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -199,7 +332,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -1343,8 +1377,8 @@ export class AgentSession {
+@@ -1343,8 +1440,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -210,7 +343,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1448,7 +1482,7 @@ export class AgentSession {
+@@ -1448,7 +1545,7 @@ export class AgentSession {
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
      async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
@@ -219,14 +352,16 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      }
      /**
       * Manually compact the session context.
-@@ -1474,10 +1508,12 @@ export class AgentSession {
+@@ -1474,10 +1571,14 @@ export class AgentSession {
              if (!this.model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
 +            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this._selectedModel ?? this.model);
 +            this.agent.state.model = requestModel;
-+            this.agent.state.messages = this.sessionManager.buildSessionContext(requestModel).messages;
++            const projectedContext = this.sessionManager.buildSessionContext(requestModel);
++            this.agent.state.messages = projectedContext.messages;
++            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
              const pathEntries = this.sessionManager.getBranch();
              const settings = this.settingsManager.getCompactionSettings();
 -            const preparation = prepareCompaction(pathEntries, settings);
@@ -234,14 +369,14 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -1530,13 +1566,12 @@ export class AgentSession {
+@@ -1530,13 +1629,12 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
 -            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
 -            const newEntries = this.sessionManager.getEntries();
 -            const sessionContext = this.sessionManager.buildSessionContext();
-+            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
++            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, "manual");
 +            const sessionContext = this.sessionManager.buildSessionContext(requestModel);
              this.agent.state.messages = sessionContext.messages;
              const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
@@ -251,7 +386,15 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1625,7 +1660,7 @@ export class AgentSession {
+@@ -1549,6 +1647,7 @@ export class AgentSession {
+             const compactionResult = {
++                entryId: savedCompactionEntryId,
+                 summary,
+                 firstKeptEntryId,
+                 tokensBefore,
+                 estimatedTokensAfter,
+                 usage,
+@@ -1625,7 +1724,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -260,7 +403,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
          const settings = this.settingsManager.getCompactionSettings();
          if (!settings.enabled)
              return false;
-@@ -1656,6 +1691,9 @@ export class AgentSession {
+@@ -1656,6 +1754,9 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -270,7 +413,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
                  return await this._runAutoCompaction("overflow", false);
              }
              if (this._overflowRecoveryAttempted) {
-@@ -1715,7 +1753,7 @@ export class AgentSession {
+@@ -1715,7 +1816,7 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -279,28 +422,38 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              return await this._runAutoCompaction("threshold", false);
          }
          return false;
-@@ -1738,9 +1776,11 @@ export class AgentSession {
+@@ -1733,6 +1834,7 @@ export class AgentSession {
+     async _runAutoCompaction(reason, willRetry) {
+         const settings = this.settingsManager.getCompactionSettings();
+         let started = false;
+         let fromExtension = false;
++        let completedWillRetry = false;
+         try {
+             if (!this.model) {
+@@ -1738,9 +1840,13 @@ export class AgentSession {
              if (!this.model) {
                  return false;
              }
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
 +            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this._selectedModel ?? this.model);
 +            this.agent.state.model = requestModel;
-+            this.agent.state.messages = this.sessionManager.buildSessionContext(requestModel).messages;
++            const projectedContext = this.sessionManager.buildSessionContext(requestModel);
++            this.agent.state.messages = projectedContext.messages;
++            this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
              const pathEntries = this.sessionManager.getBranch();
 -            const preparation = prepareCompaction(pathEntries, settings);
 +            const preparation = prepareCompaction(pathEntries, settings, requestModel);
              if (!preparation) {
                  return false;
              }
-@@ -1817,13 +1857,12 @@ export class AgentSession {
+@@ -1817,13 +1922,12 @@ export class AgentSession {
                  });
                  return false;
              }
 -            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
 -            const newEntries = this.sessionManager.getEntries();
 -            const sessionContext = this.sessionManager.buildSessionContext();
-+            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
++            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, reason);
 +            const sessionContext = this.sessionManager.buildSessionContext(requestModel);
              this.agent.state.messages = sessionContext.messages;
              const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
@@ -310,7 +463,55 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1976,7 +2015,7 @@ export class AgentSession {
+@@ -1835,8 +1942,9 @@ export class AgentSession {
+             }
+             const result = {
++                entryId: savedCompactionEntryId,
+                 summary,
+                 firstKeptEntryId,
+                 tokensBefore,
+                 estimatedTokensAfter,
+                 usage,
+                 details,
+@@ -1843,17 +1951,9 @@ export class AgentSession {
+             };
+             this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
+             if (willRetry) {
+-                const messages = this.agent.state.messages;
+-                const lastMsg = messages[messages.length - 1];
+-                // The overflow response was persisted on message_end before _checkCompaction() removed it
+-                // from agent state. Rebuilding state from the new compaction can restore that kept entry,
+-                // leaving an assistant as the final message. agent.continue() rejects that state, so remove
+-                // the retriable error or truncated-length response again before continuing the interrupted turn.
+-                if (lastMsg?.role === "assistant" && (lastMsg.stopReason === "error" || lastMsg.stopReason === "length")) {
+-                    this.agent.state.messages = messages.slice(0, -1);
+-                }
++                completedWillRetry = true;
+                 return true;
+             }
+             // Auto-compaction can complete while follow-up/steering/custom messages are waiting.
+             // Continue once so queued messages are delivered.
+             return this.agent.hasQueuedMessages();
+@@ -1884,6 +1982,18 @@ export class AgentSession {
+         }
+         finally {
+             this._autoCompactionAbortController = undefined;
++            if (this.model) {
++                await this._refreshRequestModelContext();
++            }
++            if (completedWillRetry) {
++                const messages = this.agent.state.messages;
++                const lastMsg = messages[messages.length - 1];
++                // Endpoint refresh can reconstruct the persisted overflow response. Remove it only
++                // after the final projection so agent.continue() always receives a user-final context.
++                if (lastMsg?.role === "assistant" && (lastMsg.stopReason === "error" || lastMsg.stopReason === "length")) {
++                    this.agent.state.messages = messages.slice(0, -1);
++                }
++            }
+         }
+     }
+     /**
+@@ -1976,7 +2090,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -319,7 +520,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2529,7 +2568,7 @@ export class AgentSession {
+@@ -2529,7 +2639,7 @@ export class AgentSession {
              let summaryDetails;
              let summaryUsage;
              if (options.summarize && entriesToSummarize.length > 0 && !extensionSummary) {
@@ -328,7 +529,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
                  const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(model);
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
-@@ -2605,7 +2644,7 @@ export class AgentSession {
+@@ -2605,7 +2708,7 @@ export class AgentSession {
                  this.sessionManager.appendLabelChange(targetId, label);
              }
              // Update agent state
@@ -338,9 +539,18 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              // Emit session_tree event
              await this._extensionRunner.emit({
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..f93c79ca8ef99f3bd60acebf883509213b4fd1cb 100644
+index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..878ddc0977fddd1e1373b4ed520a4f9c5115433e 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
+@@ -12,6 +12,8 @@ export interface CompactionDetails {
+ }
+ /** Result from compact() - SessionManager adds uuid/parentUuid when saving */
+ export interface CompactionResult<T = unknown> {
++    /** Persisted compaction entry ID, populated by AgentSession lifecycle results. */
++    entryId?: string;
+     summary: string;
+     firstKeptEntryId: string;
+     tokensBefore: number;
 @@ -29,6 +29,7 @@ export interface CompactionSettings {
      enabled: boolean;
      reserveTokens: number;
@@ -386,7 +596,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..f93c79ca8ef99f3bd60acebf88350921
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..12ea6cef4b0ea81166c9028fec03395e0694f41d 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..1baabab4339f549e7a29d72a0022b3b6ef03c05c 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -806,45 +1016,47 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..12ea6cef4b0ea81166c9028fec03395e
  }
  /**
 diff --git a/dist/core/messages.d.ts b/dist/core/messages.d.ts
-index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..13ac751e092f60aac80544daddea0a6d74731ef3 100644
+index a38bc241173d0e8885a9f64724ad8cd7e9e9d239..1c1b4301d1d97d91eb1dd9fedc9e785dff434569 100644
 --- a/dist/core/messages.d.ts
 +++ b/dist/core/messages.d.ts
-@@ -47,6 +47,7 @@ export interface CompactionSummaryMessage {
+@@ -47,6 +47,8 @@ export interface CompactionSummaryMessage {
      role: "compactionSummary";
      summary: string;
      tokensBefore: number;
 +    details?: unknown;
++    reason?: "manual" | "threshold" | "overflow";
      timestamp: number;
  }
  declare module "@earendil-works/pi-agent-core" {
-@@ -62,7 +63,7 @@ declare module "@earendil-works/pi-agent-core" {
+@@ -62,7 +64,7 @@ declare module "@earendil-works/pi-agent-core" {
   */
  export declare function bashExecutionToText(msg: BashExecutionMessage): string;
  export declare function createBranchSummaryMessage(summary: string, fromId: string, timestamp: string): BranchSummaryMessage;
 -export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string): CompactionSummaryMessage;
-+export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string, details?: unknown): CompactionSummaryMessage;
++export declare function createCompactionSummaryMessage(summary: string, tokensBefore: number, timestamp: string, details?: unknown, reason?: "manual" | "threshold" | "overflow"): CompactionSummaryMessage;
  /** Convert CustomMessageEntry to AgentMessage format */
  export declare function createCustomMessage(customType: string, content: string | (TextContent | ImageContent)[], display: boolean, details: unknown | undefined, timestamp: string): CustomMessage;
  /**
 diff --git a/dist/core/messages.js b/dist/core/messages.js
-index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..5a9982b7832119bc180e538dc085c155803bd9ba 100644
+index 69923d6ba8d48ab2508c49d14fa054f28d5b4a2e..14355e6e7cb20235b96c5ae358002eb48cf0d839 100644
 --- a/dist/core/messages.js
 +++ b/dist/core/messages.js
-@@ -45,11 +45,12 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
+@@ -45,11 +45,13 @@ export function createBranchSummaryMessage(summary, fromId, timestamp) {
          timestamp: new Date(timestamp).getTime(),
      };
  }
 -export function createCompactionSummaryMessage(summary, tokensBefore, timestamp) {
-+export function createCompactionSummaryMessage(summary, tokensBefore, timestamp, details) {
++export function createCompactionSummaryMessage(summary, tokensBefore, timestamp, details, reason) {
      return {
          role: "compactionSummary",
          summary: summary,
          tokensBefore,
 +        details,
++        reason,
          timestamp: new Date(timestamp).getTime(),
      };
  }
-@@ -101,6 +102,31 @@ export function convertToLlm(messages) {
+@@ -101,6 +103,31 @@ export function convertToLlm(messages) {
                      timestamp: m.timestamp,
                  };
              case "compactionSummary":
@@ -1027,7 +1239,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..234907fe1b8a8246da11f97a55f5a936e99637cd 100644
+index 8cdfbdec42f696b8cd6b762a92180a81ec142433..17881551cf5302d61d8319e1858cb62a2607ec71 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -1037,7 +1249,16 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..234907fe1b8a8246da11f97a55f5a936
  import { type BashExecutionMessage, type CustomMessage } from "./messages.ts";
  export declare const CURRENT_SESSION_VERSION = 3;
  export interface SessionHeader {
-@@ -121,6 +121,22 @@ export interface SessionContext {
+@@ -44,6 +44,8 @@ export interface CompactionEntry<T = unknown> extends SessionEntryBase {
+     usage?: Usage;
+     /** True if generated by an extension, undefined/false if pi-generated (backward compatible) */
+     fromHook?: boolean;
++    /** Why compaction ran. Missing on sessions created before reason tracking. */
++    reason?: "manual" | "threshold" | "overflow";
+ }
+ export interface BranchSummaryEntry<T = unknown> extends SessionEntryBase {
+     type: "branch_summary";
+@@ -121,6 +123,23 @@ export interface SessionContext {
          provider: string;
          modelId: string;
      } | null;
@@ -1057,15 +1278,18 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..234907fe1b8a8246da11f97a55f5a936
 +}
 +export interface BuildSessionContextOptions {
 +    forceNativeReconstruction?: boolean;
++    requestOverheadTokens?: number;
  }
  export interface SessionInfo {
      path: string;
-@@ -157,13 +173,13 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
+@@ -157,13 +176,15 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
 -export declare function buildContextEntries(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionEntry[];
 +export declare function buildContextEntries(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>): SessionEntry[];
++/** Conservative model-facing token estimate used while fitting reconstructed history. */
++export declare function estimateReconstructionMessageTokens(message: AgentMessage): number;
  /**
   * Build the session context from entries using tree traversal.
   * If leafId is provided, walks from that entry to root.
@@ -1076,7 +1300,16 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..234907fe1b8a8246da11f97a55f5a936
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -263,12 +279,12 @@ export declare class SessionManager {
+@@ -220,7 +241,7 @@ export declare class SessionManager {
+     /** Append a model change as child of current leaf, then advance leaf. Returns entry id. */
+     appendModelChange(provider: string, modelId: string): string;
+     /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
+-    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage): string;
++    appendCompaction<T = unknown>(summary: string, firstKeptEntryId: string, tokensBefore: number, details?: T, fromHook?: boolean, usage?: Usage, reason?: "manual" | "threshold" | "overflow"): string;
+     /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
+     appendCustomEntry(customType: string, data?: unknown): string;
+     /** Append a session info entry (e.g., display name). Returns entry id. */
+@@ -263,12 +284,12 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -1087,12 +1320,12 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..234907fe1b8a8246da11f97a55f5a936
       * Uses tree traversal from current leaf.
       */
 -    buildSessionContext(): SessionContext;
-+    buildSessionContext(targetModel?: Model<any>): SessionContext;
++    buildSessionContext(targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionContext;
      /**
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd881a80265 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..e9584ffd9a5bdbe69eb0d5cb2b9a0ddc8708649b 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
@@ -1100,7 +1333,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
      }
      if (entry.type === "compaction") {
 -        return [createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp)];
-+        return [createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp, entry.details)];
++        return [createCompactionSummaryMessage(entry.summary, entry.tokensBefore, entry.timestamp, entry.details, entry.reason)];
      }
      return [];
  }
@@ -1143,11 +1376,11 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
      const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
      if (compactionIdx < 0) {
          return path;
-@@ -224,15 +247,123 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -224,15 +247,121 @@ export function buildContextEntries(entries, leafId, byId) {
      contextEntries.push(...path.slice(compactionIdx + 1));
      return contextEntries;
  }
-+function estimateReconstructionMessageTokens(message) {
++export function estimateReconstructionMessageTokens(message) {
 +    const contentChars = (content) => {
 +        if (typeof content === "string")
 +            return content.length;
@@ -1178,7 +1411,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
 +    else if (message.role === "bashExecution") {
 +        chars = (message.command?.length ?? 0) + (message.output?.length ?? 0);
 +    }
-+    else if (message.role === "branchSummary") {
++    else if (message.role === "branchSummary" || message.role === "compactionSummary") {
 +        chars = message.summary?.length ?? 0;
 +    }
 +    return Math.ceil(chars / 3);
@@ -1199,7 +1432,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
 +        message.role === "branchSummary" ||
 +        message.role === "compactionSummary";
 +}
-+function fitNativeReconstruction(entries, sourceCompaction, targetModel) {
++function fitNativeReconstruction(entries, sourceCompaction, targetModel, requestOverheadTokens = 0) {
 +    const units = [];
 +    let currentUnit = [];
 +    for (const entry of entries) {
@@ -1217,8 +1450,9 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
 +    const contextWindow = Number.isFinite(targetModel.contextWindow) ? Math.max(0, targetModel.contextWindow) : Number.POSITIVE_INFINITY;
 +    const outputReserve = Number.isFinite(targetModel.maxTokens) ? Math.max(0, targetModel.maxTokens) : 0;
 +    const safetyReserve = Number.isFinite(contextWindow) ? Math.ceil(contextWindow * 0.25) : 0;
++    const requestReserve = Number.isFinite(requestOverheadTokens) ? Math.max(0, requestOverheadTokens) : 0;
 +    const inputBudget = Number.isFinite(contextWindow)
-+        ? Math.max(0, contextWindow - Math.max(outputReserve, safetyReserve))
++        ? Math.max(0, contextWindow - Math.max(outputReserve + requestReserve, safetyReserve))
 +        : Number.POSITIVE_INFINITY;
 +    let totalTokens = unitTokens.reduce((total, tokens) => total + tokens, 0);
 +    let firstKeptUnit = 0;
@@ -1228,9 +1462,6 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
 +    }
 +    const keptItems = units.slice(firstKeptUnit).flat();
 +    const messages = keptItems.flatMap((item) => item.messages);
-+    if (firstKeptUnit === 0) {
-+        return { messages };
-+    }
 +    const droppedItems = units.slice(0, firstKeptUnit).flat();
 +    const firstKeptEntry = keptItems.find((item) => item.messages.length > 0)?.entry;
 +    const droppedThroughEntry = [...droppedItems].reverse().find((item) => item.messages.length > 0)?.entry;
@@ -1262,14 +1493,31 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
 +    const sourceCompaction = [...path].reverse().find((entry) => entry.type === "compaction");
 +    if (targetModel && sourceCompaction &&
 +        (forceNativeReconstruction || !isCompatibleNativeCompaction(sourceCompaction, targetModel))) {
-+        const fitted = fitNativeReconstruction(contextEntries, sourceCompaction, targetModel);
++        const fitted = fitNativeReconstruction(contextEntries, sourceCompaction, targetModel, options.requestOverheadTokens);
 +        return { ...fitted, thinkingLevel, model };
 +    }
 +    const messages = contextEntries.flatMap(sessionEntryToContextMessages);
      return { messages, thinkingLevel, model };
  }
  /**
-@@ -957,15 +1088,34 @@ export class SessionManager {
+@@ -802,7 +931,7 @@ export class SessionManager {
+         return entry.id;
+     }
+     /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
+-    appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook, usage) {
++    appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromHook, usage, reason) {
+         const entry = {
+             type: "compaction",
+             id: generateId(this.byId),
+@@ -814,6 +943,7 @@ export class SessionManager {
+             details,
+             usage,
+             fromHook,
++            reason,
+         };
+         this._appendEntry(entry);
+         return entry.id;
+@@ -957,15 +1087,34 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -1284,8 +1532,8 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..60de79e427a39e2cd90f720e561f2bd8
       */
 -    buildSessionContext() {
 -        return buildSessionContext(this.getEntries(), this.leafId, this.byId);
-+    buildSessionContext(targetModel) {
-+        const context = buildSessionContext(this.getEntries(), this.leafId, this.byId, targetModel);
++    buildSessionContext(targetModel, options) {
++        const context = buildSessionContext(this.getEntries(), this.leafId, this.byId, targetModel, options);
 +        const reconstruction = context.reconstruction;
 +        if (reconstruction) {
 +            const alreadyRecorded = this.getBranch().some((entry) => entry.type === "custom" &&
@@ -1354,7 +1602,7 @@ index f0f936eb01afe5d158f1834c5e40421e36af0d24..21e6273e14519b83313f3162c37abb24
      }
      getBranchSummarySettings() {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3e9241dc237322f9ba64aac399f4eda31ac4715c..950b8b571e6c5ed4de3718b8600325093a3fe1e2 100644
+index 3e9241dc237322f9ba64aac399f4eda31ac4715c..36c899bbf278e0f56714eb0d1f5e7a6427768899 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -2,7 +2,7 @@ export { type Args, parseArgs } from "./cli/args.ts";
@@ -1366,8 +1614,17 @@ index 3e9241dc237322f9ba64aac399f4eda31ac4715c..950b8b571e6c5ed4de3718b860032509
  export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
  export type { AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BuildSystemPromptOptions, CompactOptions, ContextEvent, ContextUsage, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, MessageEndEvent, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, SessionBeforeCompactEvent, SessionBeforeForkEvent, SessionBeforeSwitchEvent, SessionBeforeTreeEvent, SessionCompactEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolInfo, ToolRenderResultOptions, ToolResultEvent, TurnEndEvent, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
+@@ -16,7 +16,7 @@ export { DefaultPackageManager } from "./core/package-manager.ts";
+ export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.ts";
+ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
+ export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
+-export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, type CompactionEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
++export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, type CompactionEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, estimateReconstructionMessageTokens, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
+ export { type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
+ export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
+ export { createSyntheticSourceInfo } from "./core/source-info.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..387378ff8e94f458c756e818b1f70f7f4feca528 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..f6d35f13f244eeef699a1a00cda4ef35753bea3a 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -1379,3 +1636,16 @@ index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..387378ff8e94f458c756e818b1f70f7f
  export { createEventBus } from "./core/event-bus.js";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
  export { convertToLlm } from "./core/messages.js";
+@@ -17,10 +17,10 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
+ // SDK for programmatic usage
+ export { AgentSessionRuntime,
+ // Factory
+-createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool,
++createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool,
+ // Tool factories (for custom cwd)
+ createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
+-export { buildContextEntries, buildSessionContext, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
++export { buildContextEntries, buildSessionContext, CURRENT_SESSION_VERSION, estimateReconstructionMessageTokens, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
+ export { SettingsManager, } from "./core/settings-manager.js";
+ // Skills
+ export { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";

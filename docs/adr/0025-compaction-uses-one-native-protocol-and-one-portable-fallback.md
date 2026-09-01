@@ -35,7 +35,7 @@ OpenWaggle exposes one **Compaction policy**. Pi satisfies it through exactly tw
 - An opaque item is replayable only when the active runtime declares the same **Compaction compatibility identity**. Model names, provider names, and generic Responses support do not establish compatibility.
 - When the user switches to an incompatible model, Pi performs **Target-model reconstruction** from the authoritative branch. Only the target model may create the replacement projection. The previous model is never called, so switching still works when its credits or credentials are exhausted.
 - If the target cannot fit the full reconstruction input, Pi follows Codex's local overflow recovery: remove the oldest complete model-facing units and retry until the request fits or no valid reduction remains. This changes only the attempted projection input; the authoritative branch remains intact.
-- The reconstruction input budget reserves the larger of the target model's maximum output or 25 percent of its context window for output, system instructions, tool schemas, and transport framing. Its provider-independent character estimate uses three characters per token and includes serialized reasoning signatures that the target transport will replay. User, custom, bash-execution, branch-summary, and compaction-summary messages begin complete retention units.
+- The reconstruction input budget reserves the larger of 25 percent of the target context window or the target model's maximum output plus the actual pending request overhead. That overhead includes the active system prompt, serialized tool schemas, and pending user or custom messages, so switching to a smaller model cannot let reconstructed history crowd mandatory request content out of the first call. Its provider-independent history estimate uses three characters per token and includes serialized reasoning signatures that the target transport will replay. User, custom, bash-execution, branch-summary, and compaction-summary messages begin complete retention units.
 - Projection metadata and diagnostics record the source-entry boundary used by a reduced reconstruction, making any omitted model-facing range auditable without changing the composer surfaces.
 - Migration failure leaves the durable branch intact and does not silently discard context.
 
@@ -46,7 +46,7 @@ The model-facing implementation belongs in Pi core and its provider transports. 
 - The user-facing setting is a global user preference expressed as a percentage of the active model's advertised context window and defaults to 80 percent.
 - Every project and session inherits the current global value. V1 has no project-level or session-level threshold override.
 - Pi converts the configured percentage to a token threshold for the active model and compacts at the earlier of that threshold or its reserve-token safety boundary. High user values therefore cannot consume the response headroom required for a usable next model call.
-- The current Composer context meter continues to show usage and context-window information. The current Compaction status strip continues to show its generic activity state and stop action. Neither surface gains threshold, mechanism, or provider information.
+- The current Composer context meter continues to show usage and context-window information. Compaction progress appears only as Codex-style inline transcript activity; it does not add a composer status strip, threshold, mechanism, or provider information.
 - The versioned Portable compaction envelope layout is an implementation detail governed by these durability and replay rules, not another product policy.
 
 **Automatic compaction follows Codex's turn-boundary scheduling.**
@@ -55,6 +55,7 @@ The model-facing implementation belongs in Pi core and its provider transports. 
 - After a sampling request and its tools finish, Pi evaluates the updated context. It compacts mid-turn only when model, tool, or queued-input follow-up requires another sampling request.
 - If the threshold is crossed by the final sampling request of a completed turn, Pi does not compact while the session is idle. The next turn performs the pre-turn compaction.
 - Compaction never interrupts an active model stream. The inline compaction completes at the safe boundary and the pending turn or continuation then resumes.
+- OpenWaggle mirrors Codex's transcript treatment: an active compaction is a quiet animated timeline row, and completion replaces it with `Context compacted` or `Context automatically compacted`. The composer keeps its existing context meter but does not grow a separate compaction dock.
 
 ## Alternatives rejected
 

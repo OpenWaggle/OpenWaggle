@@ -137,6 +137,61 @@ describe('useBackgroundRunStore', () => {
     ])
   })
 
+  it('creates a session-owned snapshot when compaction starts without an agent run', () => {
+    useBackgroundRunStore.getState().applyRunRenderEvent(SESSION_B, {
+      type: 'compaction_start',
+      reason: 'manual',
+      timestamp: 10,
+    })
+
+    expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_B)).toMatchObject({
+      messages: [],
+      compactionStatus: {
+        type: 'compacting',
+        reason: 'manual',
+        timeline: [{ id: '10:0', phase: 'running', reason: 'manual' }],
+      },
+    })
+  })
+
+  it('retains ordered compaction lifecycle rows across route-owned snapshots', () => {
+    useBackgroundRunStore
+      .getState()
+      .setRunRenderMessages(SESSION_A, [userMessage('user-a', 'Prompt A')])
+
+    useBackgroundRunStore.getState().applyRunRenderEvent(SESSION_A, {
+      type: 'compaction_start',
+      reason: 'threshold',
+      timestamp: 10,
+    })
+    useBackgroundRunStore.getState().applyRunRenderEvent(SESSION_A, {
+      type: 'compaction_end',
+      reason: 'threshold',
+      result: {},
+      aborted: false,
+      willRetry: false,
+      timestamp: 11,
+    })
+
+    expect(
+      useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_A)?.compactionStatus,
+    ).toEqual({
+      type: 'completed',
+      reason: 'threshold',
+      summaryCountAtStart: 0,
+      timeline: [
+        {
+          id: '10:0',
+          phase: 'completed',
+          reason: 'threshold',
+          summaryCountAtStart: 0,
+          expectedSummaryCount: 1,
+          messageCountAtStart: 1,
+        },
+      ],
+    })
+  })
+
   it('stores and clears the worktree launch state by owning session', () => {
     const launch: WorktreeLaunchSnapshot = {
       status: 'running',

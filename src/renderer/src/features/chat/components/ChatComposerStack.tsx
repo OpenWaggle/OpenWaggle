@@ -177,7 +177,7 @@ export function ChatComposerStack({
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
 
       <div className={`${CHAT_CONTENT_FRAME_CLASS} pb-5`} data-chat-composer-form="true">
-        {compactionStatus ? (
+        {compactionStatus?.type === 'retrying' ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
         <QueuedMessages

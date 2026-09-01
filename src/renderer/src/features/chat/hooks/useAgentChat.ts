@@ -1,8 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type {
-  AgentLoopInteraction,
-  AgentLoopInteractionResponse,
-} from '@shared/types/agent-loop-interaction'
+import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -17,13 +14,13 @@ import {
   selectOptimisticUserMessages,
   useOptimisticUserMessageStore,
 } from '@/features/chat/state/optimistic-user-message-store'
-import { api } from '@/shared/lib/ipc'
 import { buildClientUserMessage } from '../lib/useAgentChat.utils'
 import {
   type RunCompletionEffectContext,
   useAgentEventEffects,
   useSessionHydrationEffects,
 } from './useAgentChat.effects'
+import { respondAgentInteraction } from './useAgentChat.interactions'
 import { EMPTY_UI_MESSAGES } from './useAgentChat.message-cache'
 import { createAgentRunControls } from './useAgentChat.run-controls'
 import { StreamSignalVersionStore } from './useAgentChat.stream-signal'
@@ -52,22 +49,6 @@ function valueForSession<T extends readonly unknown[]>(
   return valuesBySessionId.get(sessionId) ?? empty
 }
 
-async function respondAgentInteraction(
-  interaction: AgentLoopInteraction,
-  response: AgentLoopInteractionResponse,
-) {
-  const result = await api.respondAgentInteraction({
-    sessionId: interaction.sessionId,
-    runId: interaction.runId,
-    interactionId: interaction.interactionId,
-    kind: interaction.kind,
-    response,
-  })
-  if (!result.ok) {
-    throw new Error(result.error.message)
-  }
-}
-
 export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
@@ -78,6 +59,7 @@ export function useAgentChat(
   const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
   const getRunRenderSnapshot = useBackgroundRunStore((state) => state.getRunRenderSnapshot)
   const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
+  const setRunCompactionStatus = useBackgroundRunStore((state) => state.setRunCompactionStatus)
   const setFirstSendRecovery = useBackgroundRunStore((state) => state.setFirstSendRecovery)
   const optimisticUserMessages = useOptimisticUserMessageStore(
     selectOptimisticUserMessages(sessionId),
@@ -120,6 +102,12 @@ export function useAgentChat(
   const foregroundStreamActiveRef = useRef(false)
   const foregroundSessionIdRef = useRef<SessionId | null>(null)
   const terminalRunErrorRef = useRef<Error | undefined>(undefined)
+  const compactionSummaryCountAtStartRef = useRef(0)
+  const compactionStatusRef = useRef<AgentCompactionStatus | null>(null)
+  const updateCompactionStatus = (nextStatus: AgentCompactionStatus | null) => {
+    compactionStatusRef.current = nextStatus
+    setCompactionStatus(nextStatus)
+  }
   const backgroundReconnectSessionIdRef = useRef<SessionId | null>(null)
   const [streamSignalVersionRef] = useState(() => new StreamSignalVersionStore())
   const streamSignalVersion = useSyncExternalStore(
@@ -186,7 +174,7 @@ export function useAgentChat(
     setBackgroundStreaming,
     setError,
     setStatus,
-    setCompactionStatus,
+    setCompactionStatus: updateCompactionStatus,
     addOptimisticUserMessage,
     upsertSession,
   })
@@ -201,6 +189,7 @@ export function useAgentChat(
     pendingRunWaiterRef,
     terminalRunErrorRef,
     streamSignalVersionRef,
+    compactionSummaryCountAtStartRef,
     lastHydratedSessionIdRef,
     lastHydratedSnapshotKeyRef,
     lastHydratedOptimisticKeyRef,
@@ -210,7 +199,8 @@ export function useAgentChat(
     setMessagesBySessionId,
     setRunRenderMessages,
     setBackgroundStreaming,
-    setCompactionStatus,
+    setCompactionStatus: updateCompactionStatus,
+    setRunCompactionStatus,
     setStatus,
     setError,
   }))
@@ -222,6 +212,8 @@ export function useAgentChat(
       backgroundStreamingRef,
       backgroundReconnectSessionIdRef,
       streamSignalVersionRef,
+      compactionSummaryCountAtStartRef,
+      compactionStatusRef,
       terminalRunErrorRef,
       agentInteractionsBySessionIdRef,
       agentCustomMessagesBySessionIdRef,
@@ -234,7 +226,7 @@ export function useAgentChat(
       setAgentCustomMessagesBySessionId,
       setAgentInteractionEventsBySessionId,
       setStatus,
-      setCompactionStatus,
+      setCompactionStatus: updateCompactionStatus,
       setBackgroundStreaming,
     }),
   )
@@ -250,7 +242,7 @@ export function useAgentChat(
     deferredSnapshotRefreshCountRef,
     statusRef,
     setBackgroundStreaming,
-    setCompactionStatus,
+    setCompactionStatus: updateCompactionStatus,
     setStatus,
     agentRunActionsRef,
   }))

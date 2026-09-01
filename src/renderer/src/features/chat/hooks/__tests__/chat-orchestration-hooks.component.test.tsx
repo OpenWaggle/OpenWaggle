@@ -71,6 +71,10 @@ function requireRunCompletedHandler() {
   return handler
 }
 
+function emitAgentEvent(event: AgentEventPayload['event']) {
+  requireAgentEventHandler()({ sessionId: SESSION_ID, event })
+}
+
 function payload(text: string): AgentSendPayload {
   return { text, thinkingLevel: 'medium', attachments: [] }
 }
@@ -138,6 +142,14 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
     handleSend: vi.fn().mockResolvedValue(undefined),
     handleSendWaggle: vi.fn().mockResolvedValue(undefined),
     model: MODEL,
+    messages: [
+      {
+        id: 'persisted-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Existing transcript' }],
+        createdAt: new Date(1),
+      },
+    ],
     phase: { reset: vi.fn() },
     projectPath: '/tmp/project',
     refreshSession: vi.fn().mockResolvedValue(undefined),
@@ -199,10 +211,7 @@ describe('chat orchestration hooks', () => {
     )
     useBackgroundRunStore.getState().setRunRenderMessages(SESSION_ID, [])
 
-    requireAgentEventHandler()({
-      sessionId: SESSION_ID,
-      event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 },
-    })
+    emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 })
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
 
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
@@ -227,6 +236,9 @@ describe('chat orchestration hooks', () => {
     expect(params.refreshSession).toHaveBeenCalledWith(SESSION_ID)
     expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID)
     expect(params.handleSend).not.toHaveBeenCalled()
+    expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_ID)?.messages).toEqual(
+      params.messages,
+    )
   })
 
   it('sends through Waggle when the one-shot payload includes a preset', async () => {

@@ -5,6 +5,7 @@ import {
 } from '@/features/chat/lib/agent-error-store'
 import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
 import { capAgentInteractionEvents } from '@/features/chat/lib/notification-stack-model'
+import { handleCompactionEndEvent } from './useAgentChat.compaction-events'
 import { updateMessagesForSession } from './useAgentChat.message-cache'
 import type { AgentEventPayload, AgentStreamEventContext } from './useAgentChat.types'
 
@@ -42,28 +43,15 @@ function handleAgentStartEvent(context: AgentStreamEventContext) {
   }
 }
 
-function handleCompactionEndEvent(
-  event: Extract<AgentEventPayload['event'], { readonly type: 'compaction_end' }>,
-  context: AgentStreamEventContext,
-) {
-  signalStreamChange(context)
-  context.setCompactionStatus(null)
-  const hasCompactionError = event.errorMessage !== undefined && !event.aborted
-  if (hasCompactionError) {
-    const nextError = new Error(event.errorMessage)
-    context.setError(nextError)
-    context.setStatus('error')
-    return
-  }
-  setReadyIfNoActiveRun(context)
-}
-
 function handleAutoRetryEndEvent(
   event: Extract<AgentEventPayload['event'], { readonly type: 'auto_retry_end' }>,
   context: AgentStreamEventContext,
 ) {
   signalStreamChange(context)
-  context.setCompactionStatus(null)
+  const retryStatus = context.compactionStatusRef.current
+  context.setCompactionStatus(
+    retryStatus?.type === 'retrying' ? retryStatus.previousCompactionStatus : retryStatus,
+  )
   const hasRetryError = !event.success && event.finalError !== undefined
   if (hasRetryError) {
     const nextError = new Error(event.finalError)
@@ -180,9 +168,38 @@ function handleForegroundAgentStateEvent(
     .with('agent_start', () => handleAgentStartEvent(context))
     .with('compaction_start', (value) => {
       signalStreamChange(context)
+      const currentMessages =
+        context.messagesBySessionIdRef.current.get(context.subscribedSessionId) ?? []
+      const summaryCountAtStart = currentMessages.filter(
+        (message) => message.metadata?.compactionSummary !== undefined,
+      ).length
+      const current = context.compactionStatusRef.current
+      const priorStatus = current?.type === 'retrying' ? current.previousCompactionStatus : current
+      const priorTimeline = priorStatus?.timeline ?? []
+      const expectedSummaryCount = Math.max(
+        summaryCountAtStart + 1,
+        (priorTimeline.at(-1)?.expectedSummaryCount ?? summaryCountAtStart) + 1,
+      )
+      const timeline = [
+        ...priorTimeline,
+        {
+          id: `${String(value.timestamp)}:${String(summaryCountAtStart)}`,
+          phase: 'running' as const,
+          reason: value.reason,
+          summaryCountAtStart,
+          expectedSummaryCount,
+          messageCountAtStart: currentMessages.length,
+        },
+      ]
+      context.compactionSummaryCountAtStartRef.current = summaryCountAtStart
       context.setError(undefined)
       context.setStatus('compacting')
-      context.setCompactionStatus({ type: 'compacting', reason: value.reason })
+      context.setCompactionStatus({
+        type: 'compacting',
+        reason: value.reason,
+        summaryCountAtStart,
+        timeline,
+      })
     })
     .with('compaction_end', (value) => handleCompactionEndEvent(value, context))
     .with('auto_retry_start', (value) => {
@@ -194,6 +211,10 @@ function handleForegroundAgentStateEvent(
         maxAttempts: value.maxAttempts,
         delayMs: value.delayMs,
         errorMessage: value.errorMessage,
+        previousCompactionStatus:
+          context.compactionStatusRef.current?.type === 'retrying'
+            ? context.compactionStatusRef.current.previousCompactionStatus
+            : context.compactionStatusRef.current,
       })
     })
     .with('auto_retry_end', (value) => handleAutoRetryEndEvent(value, context))

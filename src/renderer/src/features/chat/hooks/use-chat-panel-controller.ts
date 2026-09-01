@@ -145,6 +145,7 @@ export function useChatPanelSections(): ChatPanelSections {
     extensionContributions: extensionContributionsQuery.data ?? null,
     handleSend,
     handleSendWaggle,
+    messages,
     model,
     phase,
     projectPath,
@@ -253,6 +254,7 @@ export function useChatPanelSections(): ChatPanelSections {
     userDidSend,
     onUserDidSendConsumed,
     streamSignalVersion,
+    compactionStatus,
   })
 
   const composer = useComposerSection({

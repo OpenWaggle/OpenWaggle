@@ -94,12 +94,14 @@ describe('Pi entry projection', () => {
         items: [{ type: 'compaction', encrypted_content: 'opaque' }],
       },
       fromHook: true,
+      reason: 'threshold',
     })
     expect(compactionProjection).toMatchObject({ kind: 'compaction_summary', role: null })
     expect(JSON.parse(compactionProjection.contentJson)).toMatchObject({
       summary: 'summary',
       tokensBefore: 12,
       details: { schemaVersion: 1, mechanism: 'native' },
+      reason: 'threshold',
     })
     expect(
       projectionForPiEntry({

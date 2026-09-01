@@ -6,12 +6,23 @@ import { useChatScrollBehaviour } from '../hooks/useChatScrollBehaviour'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatTranscriptSectionState } from '../model'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
+import { compactionTimelineLabel } from './CompactionTimelineRow'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { TranscriptWindow } from './TranscriptWindow'
 import { WelcomeScreen } from './WelcomeScreen'
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
+}
+
+function latestCompactionAnnouncement(rows: ChatTranscriptSectionState['chatRows']) {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const candidate = rows[index]
+    if (candidate?.type === 'compaction-status' && candidate.announce) {
+      return compactionTimelineLabel(candidate.state)
+    }
+  }
+  return ''
 }
 
 function TranscriptExtensionCards({
@@ -170,6 +181,9 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div aria-atomic="true" aria-live="polite" className="sr-only">
+        {latestCompactionAnnouncement(rows)}
+      </div>
       <div ref={scrollerRef} {...scrollerProps}>
         <div ref={contentRef} className="flex min-h-full flex-col">
           {/*

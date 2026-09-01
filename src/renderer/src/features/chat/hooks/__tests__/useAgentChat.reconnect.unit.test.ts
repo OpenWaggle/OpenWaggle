@@ -165,6 +165,7 @@ describe('useAgentChat reconnect', () => {
     const backgroundRun = createDeferred<BackgroundRunSnapshot>()
     apiMock.getBackgroundRun.mockReturnValue(backgroundRun.promise)
     runRenderSnapshots.set('session-1', {
+      compactionStatus: null,
       updatedAt: 1,
       messages: [
         {

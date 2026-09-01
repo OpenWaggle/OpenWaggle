@@ -17,6 +17,7 @@ export function useBackgroundRunMonitor(): void {
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const applyRunRenderEvent = useBackgroundRunStore((s) => s.applyRunRenderEvent)
   const clearRunRenderSnapshot = useBackgroundRunStore((s) => s.clearRunRenderSnapshot)
+  const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
   const removeActiveRun = useBackgroundRunStore((s) => s.removeActiveRun)
   const initialize = useBackgroundRunStore((s) => s.initialize)
   const refreshSession = useChatStore((s) => s.refreshSession)
@@ -27,11 +28,23 @@ export function useBackgroundRunMonitor(): void {
 
   // Track stream lifecycle globally
   useEffect(() => {
+    const compactionOnlySessionIds = new Set<string>()
     const unsubEvent = api.onAgentEvent((payload) => {
       if (payload.event.type === 'agent_start') {
+        compactionOnlySessionIds.delete(payload.sessionId)
+        addActiveRun(payload.sessionId)
+      }
+      if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
+        compactionOnlySessionIds.add(payload.sessionId)
         addActiveRun(payload.sessionId)
       }
       applyRunRenderEvent(payload.sessionId, payload.event)
+      if (
+        payload.event.type === 'compaction_end' &&
+        compactionOnlySessionIds.delete(payload.sessionId)
+      ) {
+        removeActiveRun(payload.sessionId)
+      }
       if (isTerminalTransportEvent(payload.event)) {
         removeActiveRun(payload.sessionId)
       }
@@ -48,5 +61,12 @@ export function useBackgroundRunMonitor(): void {
       unsubEvent()
       unsubCompleted()
     }
-  }, [addActiveRun, applyRunRenderEvent, clearRunRenderSnapshot, refreshSession, removeActiveRun])
+  }, [
+    addActiveRun,
+    applyRunRenderEvent,
+    clearRunRenderSnapshot,
+    hasActiveRun,
+    refreshSession,
+    removeActiveRun,
+  ])
 }

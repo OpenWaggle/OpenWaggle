@@ -31,6 +31,12 @@ export interface PiEntryProjection {
   readonly metadataJson: string
 }
 
+function compactionReason(value: unknown) {
+  if (typeof value !== 'object' || value === null || !('reason' in value)) return null
+  const reason = value.reason
+  return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : null
+}
+
 function userMessageProjection(value: PiUserMessage): PiEntryProjection {
   return {
     kind: 'user_message',
@@ -88,6 +94,7 @@ function compactionSummaryMessageProjection(value: PiCompactionSummaryMessage): 
     contentJson: buildRawNodeContentJson({
       summary: value.summary,
       tokensBefore: value.tokensBefore,
+      reason: compactionReason(value),
     }),
     metadataJson: '{}',
   }
@@ -176,6 +183,7 @@ function compactionEntryProjection(
       tokensBefore: entry.tokensBefore,
       details: toJsonValue(entry.details ?? null),
       fromHook: entry.fromHook ?? false,
+      reason: compactionReason(entry),
     }),
     metadataJson: '{}',
   }
