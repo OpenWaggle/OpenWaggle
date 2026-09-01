@@ -338,7 +338,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..147f88d5dc9fe7c7452812e6cd85b42f
              // Emit session_tree event
              await this._extensionRunner.emit({
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ef5600927bafe257ab9ee5f92019f9d1381c7a2 100644
+index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..f93c79ca8ef99f3bd60acebf883509213b4fd1cb 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -29,6 +29,7 @@ export interface CompactionSettings {
@@ -366,25 +366,27 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ef5600927bafe257ab9ee5f92019f9d
      /** Messages that will be turned into turn prefix summary (if splitting) */
      turnPrefixMessages: AgentMessage[];
      /** Whether this is a split turn (cut point in middle of turn) */
-@@ -130,7 +134,7 @@ export interface CompactionPreparation {
+@@ -129,8 +133,10 @@ export interface CompactionPreparation {
+     fileOps: FileOperations;
      /** Compaction settions from settings.jsonl	*/
      settings: CompactionSettings;
++    /** Raw-history preparation used only when a declared Native endpoint is unavailable. */
++    portableFallback?: CompactionPreparation;
  }
 -export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings): CompactionPreparation | undefined;
 +export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings, model?: Model<any>): CompactionPreparation | undefined;
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -139,5 +143,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -139,5 +145,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
 -export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
 +export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
-\ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6fc8783bb 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..12ea6cef4b0ea81166c9028fec03395e0694f41d 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,8 @@
@@ -576,18 +578,28 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6
      return { text: textContent, usage: response.usage };
  }
 -export function prepareCompaction(pathEntries, settings) {
-+export function prepareCompaction(pathEntries, settings, model) {
++function prepareCompactionProjection(pathEntries, settings, model, allowNativeProjection) {
      if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
          return undefined;
      }
-@@ -529,13 +529,32 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -525,17 +525,42 @@ export function prepareCompaction(pathEntries, settings) {
+             break;
+         }
+     }
++    const projectionModel = !allowNativeProjection && model
++        ? {
++            ...model,
++            compat: { ...(model.compat ?? {}), supportsCompaction: false },
++        }
++        : model;
+     let previousSummary;
      let boundaryStart = 0;
      if (prevCompactionIndex >= 0) {
          const prevCompaction = pathEntries[prevCompactionIndex];
 -        previousSummary = prevCompaction.summary;
 -        const firstKeptEntryIndex = pathEntries.findIndex((entry) => entry.id === prevCompaction.firstKeptEntryId);
 -        boundaryStart = firstKeptEntryIndex >= 0 ? firstKeptEntryIndex : prevCompactionIndex + 1;
-+        if (!isCompatibleNativeDetails(prevCompaction.details, model)) {
++        if (!isCompatibleNativeDetails(prevCompaction.details, projectionModel)) {
 +            // The source checkpoint cannot seed a target projection. Start from
 +            // the append-only raw branch and let only the target model compact it.
 +            prevCompactionIndex = -1;
@@ -601,7 +613,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6
      const boundaryEnd = pathEntries.length;
 -    const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries).messages).tokens;
 -    const cutPoint = findCutPoint(pathEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
-+    const targetContext = buildSessionContext(pathEntries, undefined, undefined, model);
++    const targetContext = buildSessionContext(pathEntries, undefined, undefined, projectionModel);
 +    const messagesForNativeCompaction = targetContext.messages;
 +    const tokensBefore = estimateContextTokens(messagesForNativeCompaction).tokens;
 +    if (prevCompactionIndex < 0 && targetContext.reconstruction) {
@@ -618,17 +630,17 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6
      // Get UUID of first kept entry
      const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
      if (!firstKeptEntry?.id) {
-@@ -559,7 +578,8 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -559,7 +584,8 @@ export function prepareCompaction(pathEntries, settings) {
                  turnPrefixMessages.push(msg);
          }
      }
 -    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0) {
-+    const nativeCompaction = model && selectCompactionMechanism(model) === "native";
++    const nativeCompaction = allowNativeProjection && model && selectCompactionMechanism(model) === "native";
 +    if (messagesToSummarize.length === 0 && turnPrefixMessages.length === 0 && !nativeCompaction) {
          return undefined;
      }
      // Extract file operations from messages and previous compaction
-@@ -573,6 +593,7 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -573,6 +599,7 @@ export function prepareCompaction(pathEntries, settings) {
      return {
          firstKeptEntryId,
          messagesToSummarize,
@@ -636,7 +648,24 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -598,6 +619,59 @@ Summarize the prefix to provide context for the retained suffix:
+@@ -581,6 +608,16 @@ export function prepareCompaction(pathEntries, settings) {
+         settings,
+     };
+ }
++export function prepareCompaction(pathEntries, settings, model) {
++    const preparation = prepareCompactionProjection(pathEntries, settings, model, true);
++    if (!preparation || !model || selectCompactionMechanism(model) !== "native") {
++        return preparation;
++    }
++    return {
++        ...preparation,
++        portableFallback: prepareCompactionProjection(pathEntries, settings, model, false),
++    };
++}
+ // ============================================================================
+ // Main compaction function
+ // ============================================================================
+@@ -598,6 +635,65 @@ Summarize the prefix to provide context for the retained suffix:
  - [Information needed to understand the retained recent work]
  
  Be concise. Focus on what's needed to understand the kept suffix.`;
@@ -693,58 +722,75 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..bc7089906584b891a3338acbd5d457e6
 +function isNativeReplacementItem(item) {
 +    return isRecord(item) && (isNativeCompactionItem(item) || isNativeReplacementMessage(item));
 +}
++const NATIVE_ENDPOINT_UNAVAILABLE_STATUSES = new Set([404, 405, 501]);
++function isNativeEndpointUnavailable(error) {
++    return (isRecord(error) &&
++        typeof error.status === "number" &&
++        NATIVE_ENDPOINT_UNAVAILABLE_STATUSES.has(error.status));
++}
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,7 +680,46 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,8 +702,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
 -export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
+-    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
 +export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId, systemPrompt = "") {
++    let selectedPreparation = preparation;
 +    if (selectCompactionMechanism(model) === "native") {
-+        const nativeInstructions = customInstructions?.trim()
-+            ? `${systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
-+            : systemPrompt;
-+        const response = await compactResponses(model, {
-+            systemPrompt: nativeInstructions,
-+            messages: convertToLlm(preparation.messagesForNativeCompaction),
-+        }, {
-+            apiKey,
-+            headers,
-+            signal,
-+            env,
-+            sessionId,
-+            retryPolicy: retry,
-+            retryCallbacks: callbacks,
-+        });
-+        if (!Array.isArray(response.output) ||
-+            !response.output.some((item) => isRecord(item) && isNativeCompactionItem(item))) {
-+            throw new Error("Native compaction response did not contain a valid compaction item");
++        try {
++            const nativeInstructions = customInstructions?.trim()
++                ? `${systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
++                : systemPrompt;
++            const response = await compactResponses(model, {
++                systemPrompt: nativeInstructions,
++                messages: convertToLlm(preparation.messagesForNativeCompaction),
++            }, {
++                apiKey,
++                headers,
++                signal,
++                env,
++                sessionId,
++                retryPolicy: retry,
++                retryCallbacks: callbacks,
++            });
++            if (!Array.isArray(response.output) ||
++                !response.output.some((item) => isRecord(item) && isNativeCompactionItem(item))) {
++                throw new Error("Native compaction response did not contain a valid compaction item");
++            }
++            const compactionItemCount = response.output.filter((item) => isRecord(item) && isNativeCompactionItem(item)).length;
++            if (!response.output.every(isNativeReplacementItem) ||
++                compactionItemCount !== 1 ||
++                !isNativeCompactionItem(response.output.at(-1))) {
++                throw new Error("Native compaction response did not contain only valid replacement items");
++            }
++            return {
++                summary: "Native compaction checkpoint",
++                firstKeptEntryId: "native-replacement",
++                tokensBefore: preparation.tokensBefore,
++                usage: nativeCompactionUsage(response.usage, model),
++                details: {
++                    schemaVersion: 1,
++                    mechanism: "native",
++                    identity: nativeCompactionIdentity(model),
++                    items: response.output,
++                },
++            };
 +        }
-+        const compactionItemCount = response.output.filter((item) => isRecord(item) && isNativeCompactionItem(item)).length;
-+        if (!response.output.every(isNativeReplacementItem) ||
-+            compactionItemCount !== 1 ||
-+            !isNativeCompactionItem(response.output.at(-1))) {
-+            throw new Error("Native compaction response did not contain only valid replacement items");
++        catch (error) {
++            if (signal?.aborted || !isNativeEndpointUnavailable(error) || !preparation.portableFallback) {
++                throw error;
++            }
++            selectedPreparation = preparation.portableFallback;
 +        }
-+        return {
-+            summary: "Native compaction checkpoint",
-+            firstKeptEntryId: "native-replacement",
-+            tokensBefore: preparation.tokensBefore,
-+            usage: nativeCompactionUsage(response.usage, model),
-+            details: {
-+                schemaVersion: 1,
-+                mechanism: "native",
-+                identity: nativeCompactionIdentity(model),
-+                items: response.output,
-+            },
-+        };
 +    }
-     const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
++    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = selectedPreparation;
      // Generate summaries and merge into one
      let summary;
-@@ -641,7 +754,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+     let summaryUsage;
+@@ -641,7 +785,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,

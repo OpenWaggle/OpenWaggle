@@ -44,7 +44,20 @@ export async function runPiSession(
     ...(input.mcpExtensionFactory ? { extensionFactories: [input.mcpExtensionFactory] } : {}),
   })
 
-  const unsubscribe = session.subscribe(createSessionListener(input, input.runId))
+  const unsubscribe = session.subscribe(
+    createSessionListener(
+      {
+        ...input,
+        getContextWindow: (provider, modelId) => {
+          const activeModel = session.model
+          return activeModel?.provider === provider && activeModel.id === modelId
+            ? activeModel.contextWindow
+            : undefined
+        },
+      },
+      input.runId,
+    ),
+  )
   const result = await runSubscribedPiOperation({
     runInput: input,
     session,

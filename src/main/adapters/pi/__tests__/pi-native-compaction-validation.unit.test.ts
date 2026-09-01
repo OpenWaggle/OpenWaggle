@@ -149,19 +149,6 @@ describe('Pi native compaction response validation', () => {
     })
   })
 
-  it('propagates an endpoint failure without silently invoking Portable', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => makeCompactResponse([], 400)),
-    )
-    const portableStream = vi.fn(() => {
-      throw new Error('Portable must not run')
-    })
-
-    await expect(compactNative(portableStream)).rejects.toThrow('native endpoint unavailable')
-    expect(portableStream).not.toHaveBeenCalled()
-  })
-
   it('rejects an empty replacement window', async () => {
     vi.stubGlobal(
       'fetch',

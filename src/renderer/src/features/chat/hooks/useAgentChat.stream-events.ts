@@ -207,6 +207,7 @@ function handleForegroundAgentStateEvent(
       'message_start',
       'message_update',
       'message_end',
+      'context_usage',
       'tool_execution_start',
       'tool_execution_update',
       'tool_execution_end',

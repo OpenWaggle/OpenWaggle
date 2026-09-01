@@ -230,6 +230,12 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       {
         ...input,
         model: initialRuntimeModel,
+        getContextWindow: (provider, modelId) => {
+          const activeModel = session.model
+          return activeModel?.provider === provider && activeModel.id === modelId
+            ? activeModel.contextWindow
+            : undefined
+        },
         onEvent: (event) =>
           input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
       },

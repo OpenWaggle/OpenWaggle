@@ -28,7 +28,7 @@ export function makeNativeModel(
 }
 
 export function makePreparation(): Parameters<typeof compact>[0] {
-  return {
+  const portableFallback: Parameters<typeof compact>[0] = {
     firstKeptEntryId: 'kept-entry',
     messagesToSummarize: [{ role: 'user', content: 'Old context', timestamp: 1 }],
     messagesForNativeCompaction: [{ role: 'user', content: 'All context', timestamp: 1 }],
@@ -37,6 +37,10 @@ export function makePreparation(): Parameters<typeof compact>[0] {
     tokensBefore: 80_000,
     fileOps: { read: new Set<string>(), written: new Set<string>(), edited: new Set<string>() },
     settings: COMPACTION_SETTINGS,
+  }
+  return {
+    ...portableFallback,
+    portableFallback,
   }
 }
 

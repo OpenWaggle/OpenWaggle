@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test'
+import { seedSessions } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
+
+const LIVE_USAGE_THREAD_TITLE = 'Live context usage'
+const LIVE_USAGE_PERCENT = 37
 
 async function openGeneralSettings(app: OpenWaggleApp) {
   const page = app.mainWindow().page
@@ -31,6 +35,65 @@ test('global automatic compaction threshold defaults to 80 percent and persists'
     page = await openGeneralSettings(app)
     threshold = page.getByRole('spinbutton', { name: 'Automatic compaction threshold' })
     await expect(threshold).toHaveValue('73')
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('composer context meter updates from usage reported before the run settles', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-context-meter-live-e2e-')
+
+  try {
+    await seedSessions(app.userDataDir, [
+      {
+        title: LIVE_USAGE_THREAD_TITLE,
+        projectPath: app.userDataDir,
+        updatedAt: Date.now(),
+        messages: [
+          {
+            id: 'live-usage-user-message',
+            role: 'user',
+            createdAt: Date.now(),
+            parts: [{ type: 'text', text: 'Track this long-running turn.' }],
+          },
+        ],
+      },
+    ])
+    await app.restart()
+    await app.mainWindow().openThread(LIVE_USAGE_THREAD_TITLE)
+
+    const runtime = await app.mainWindow().page.evaluate(async (title) => {
+      const [settings, sessions] = await Promise.all([
+        window.api.getSettings(),
+        window.api.listSessionDetails(),
+      ])
+      const session = sessions.find((candidate) => candidate.title === title)
+      if (!session) {
+        throw new Error('Expected seeded session')
+      }
+      return {
+        sessionId: session.id,
+        model: settings.selectedModel,
+      }
+    }, LIVE_USAGE_THREAD_TITLE)
+
+    await app.emitAgentEvent({
+      sessionId: runtime.sessionId,
+      event: {
+        type: 'context_usage',
+        tokens: 37_000,
+        contextWindow: 100_000,
+        model: runtime.model,
+        timestamp: Date.now(),
+      },
+    })
+
+    const meter = app
+      .mainWindow()
+      .page.getByRole('img', { name: 'Context usage meter' })
+      .locator('xpath=../..')
+    await expect(meter).toHaveAttribute('title', /\(37\.0%\)$/u)
+    await expect(meter.getByText('37', { exact: true })).toBeVisible()
   } finally {
     await app.cleanup()
   }

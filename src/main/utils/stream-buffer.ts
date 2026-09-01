@@ -194,7 +194,7 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       }
     })
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))
-    .with('message_end', () => undefined)
+    .with('message_end', 'context_usage', () => undefined)
     .with('tool_execution_start', 'tool_execution_update', (value) => {
       updateBufferedParts(sessionId, (parts) =>
         upsertToolCallPart({

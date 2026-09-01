@@ -88,6 +88,7 @@ export function updatePhaseFromTransportEvent(
       'turn_end',
       'message_start',
       'message_end',
+      'context_usage',
       'tool_execution_start',
       'tool_execution_update',
       'tool_execution_end',

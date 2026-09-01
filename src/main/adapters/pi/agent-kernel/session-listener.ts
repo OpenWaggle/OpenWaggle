@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import { type AgentSessionEvent, calculateContextTokens } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
+import { createModelRef } from '@shared/types/llm'
 import { toJsonValue } from '../pi-message-mapper'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
 import { handleMessageStart, handleMessageUpdate } from './assistant-events'
@@ -88,6 +89,23 @@ function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionE
     timestamp: Date.now(),
     model: state.input.model,
   })
+  const contextTokens = calculateContextTokens(event.message.usage)
+  const contextWindow = state.input.getContextWindow?.(event.message.provider, event.message.model)
+  if (
+    event.message.stopReason !== 'error' &&
+    event.message.stopReason !== 'aborted' &&
+    contextTokens > 0 &&
+    contextWindow &&
+    contextWindow > 0
+  ) {
+    emitEvent(state.input.onEvent, {
+      type: 'context_usage',
+      tokens: contextTokens,
+      contextWindow,
+      timestamp: Date.now(),
+      model: createModelRef(event.message.provider, event.message.model),
+    })
+  }
   state.currentMessageId = null
 }
 

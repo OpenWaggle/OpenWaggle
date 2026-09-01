@@ -5,6 +5,7 @@ import type { AgentTransportEvent } from '@shared/types/stream'
 
 export interface SessionListenerInput {
   readonly model: SupportedModelId
+  readonly getContextWindow?: (provider: string, modelId: string) => number | undefined
   readonly onEvent: (event: AgentTransportEvent) => void
 }
 
