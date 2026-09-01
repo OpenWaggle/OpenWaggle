@@ -112,11 +112,19 @@ async function applyWorkspaceLineEndingNormalization(
     .exhaustive()
 }
 
-export async function reopenWorkspaceDocumentWithEncoding(
+async function reopenWorkspaceDocumentWithEncodingNow(
   context: WorkspaceSaveQueueContext,
   encoding: WorkspaceTextEncoding,
 ) {
   const contentBeforeReopen = captureWorkspaceDocumentSnapshot(context)
+  if (
+    context.conflict.current ||
+    context.pending.current.length > 0 ||
+    contentBeforeReopen !== context.savedContent.current
+  ) {
+    persistPendingJournal(context)
+    throw new Error('Save or resolve your current edits before reopening with another encoding.')
+  }
   const next = await api.readWorkspaceFileWithEncoding(
     context.projectPath,
     context.file.path,
@@ -128,6 +136,15 @@ export async function reopenWorkspaceDocumentWithEncoding(
     throw new Error('The file changed while reopening. Your newer edits were kept; try again.')
   }
   acceptDiskDocument(context, next)
+}
+
+export function reopenWorkspaceDocumentWithEncoding(
+  context: WorkspaceSaveQueueContext,
+  encoding: WorkspaceTextEncoding,
+) {
+  return runWorkspaceQueueOperation(context, () =>
+    reopenWorkspaceDocumentWithEncodingNow(context, encoding),
+  )
 }
 
 async function applyWorkspaceDocumentEncoding(
