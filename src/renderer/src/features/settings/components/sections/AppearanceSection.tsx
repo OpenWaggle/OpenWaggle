@@ -2,44 +2,57 @@ import type { DiffSyntaxTheme, DiffView } from '@shared/types/settings'
 import { DIFF_SYNTAX_THEMES, DIFF_VIEWS } from '@shared/types/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { Button } from '@/shared/ui/Button'
+import type { SettingsChoice } from './SettingsChoiceGroup'
+import { SettingsChoiceGroup } from './SettingsChoiceGroup'
 import { SyntaxThemePreview } from './SyntaxThemePreview'
 
-const SYNTAX_THEME_LABELS: Record<DiffSyntaxTheme, string> = {
-  'pierre-dark': 'Default',
-  'pierre-dark-soft': 'Soft',
-  'pierre-dark-vibrant': 'Vibrant',
-  'pierre-dark-protanopia-deuteranopia': 'Protanopia / deuteranopia safe',
-  'pierre-dark-tritanopia': 'Tritanopia safe',
+type ChoiceDetails<TValue extends number | string> = Omit<SettingsChoice<TValue>, 'value'>
+
+const DIFF_VIEW_DETAILS: Record<DiffView, ChoiceDetails<DiffView>> = {
+  unified: {
+    label: 'Unified',
+    description: 'One column, additions and deletions interleaved.',
+  },
+  split: {
+    label: 'Split',
+    description: 'Side-by-side, old on the left and new on the right.',
+  },
 }
 
-const SYNTAX_THEME_DESCRIPTIONS: Record<DiffSyntaxTheme, string> = {
-  'pierre-dark': 'Balanced contrast for everyday review.',
-  'pierre-dark-soft': 'Lower contrast, easier on long reading sessions.',
-  'pierre-dark-vibrant': 'Higher saturation for stronger token separation.',
-  'pierre-dark-protanopia-deuteranopia': 'Avoids red/green pairs that are hard to distinguish.',
-  'pierre-dark-tritanopia': 'Avoids blue/yellow pairs that are hard to distinguish.',
+const SYNTAX_THEME_DETAILS: Record<DiffSyntaxTheme, ChoiceDetails<DiffSyntaxTheme>> = {
+  'pierre-dark': {
+    label: 'Default',
+    description: 'Balanced contrast for everyday review.',
+  },
+  'pierre-dark-soft': {
+    label: 'Soft',
+    description: 'Lower contrast, easier on long reading sessions.',
+  },
+  'pierre-dark-vibrant': {
+    label: 'Vibrant',
+    description: 'Higher saturation for stronger token separation.',
+  },
+  'pierre-dark-protanopia-deuteranopia': {
+    label: 'Protanopia / deuteranopia safe',
+    description: 'Avoids red/green pairs that are hard to distinguish.',
+  },
+  'pierre-dark-tritanopia': {
+    label: 'Tritanopia safe',
+    description: 'Avoids blue/yellow pairs that are hard to distinguish.',
+  },
 }
 
-const DIFF_VIEW_LABELS: Record<DiffView, string> = {
-  unified: 'Unified',
-  split: 'Split',
-}
+const DIFF_VIEW_CHOICES: readonly SettingsChoice<DiffView>[] = DIFF_VIEWS.map((value) => ({
+  value,
+  ...DIFF_VIEW_DETAILS[value],
+}))
 
-const DIFF_VIEW_DESCRIPTIONS: Record<DiffView, string> = {
-  unified: 'One column, additions and deletions interleaved.',
-  split: 'Side-by-side, old on the left and new on the right.',
-}
+const SYNTAX_THEME_CHOICES: readonly SettingsChoice<DiffSyntaxTheme>[] = DIFF_SYNTAX_THEMES.map(
+  (value) => ({ value, ...SYNTAX_THEME_DETAILS[value] }),
+)
 
 const ROW_CLASS =
   'flex w-full items-center justify-between border-b border-border px-5 py-3 text-left last:border-b-0 hover:bg-bg-hover'
-
-function RadioDot({ active }: { readonly active: boolean }) {
-  return (
-    <div
-      className={`size-3 shrink-0 rounded-full border ${active ? 'border-accent bg-accent' : 'border-border-light'}`}
-    />
-  )
-}
 
 /**
  * Appearance settings.
@@ -65,26 +78,11 @@ export function AppearanceSection() {
         <p className="text-xs text-text-tertiary">
           Applies to the diff panel. The panel's own toggles change this same setting.
         </p>
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          {DIFF_VIEWS.map((view) => (
-            <Button
-              variant="unstyled"
-              type="button"
-              key={view}
-              aria-pressed={diffView === view}
-              onClick={() => void setDiffView(view)}
-              className={ROW_CLASS}
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium text-text-primary">
-                  {DIFF_VIEW_LABELS[view]}
-                </span>
-                <span className="text-xs text-text-tertiary">{DIFF_VIEW_DESCRIPTIONS[view]}</span>
-              </div>
-              <RadioDot active={diffView === view} />
-            </Button>
-          ))}
-        </div>
+        <SettingsChoiceGroup
+          choices={DIFF_VIEW_CHOICES}
+          value={diffView}
+          onSelect={(view) => void setDiffView(view)}
+        />
       </div>
 
       <div className="space-y-3">
@@ -128,28 +126,11 @@ export function AppearanceSection() {
           Colours code text inside diffs. The panel's own colours follow the app appearance.
         </p>
         <SyntaxThemePreview theme={diffSyntaxTheme} />
-        <div className="overflow-hidden rounded-lg border border-border bg-bg">
-          {DIFF_SYNTAX_THEMES.map((theme) => (
-            <Button
-              variant="unstyled"
-              type="button"
-              key={theme}
-              aria-pressed={diffSyntaxTheme === theme}
-              onClick={() => void setDiffSyntaxTheme(theme)}
-              className={ROW_CLASS}
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium text-text-primary">
-                  {SYNTAX_THEME_LABELS[theme]}
-                </span>
-                <span className="text-xs text-text-tertiary">
-                  {SYNTAX_THEME_DESCRIPTIONS[theme]}
-                </span>
-              </div>
-              <RadioDot active={diffSyntaxTheme === theme} />
-            </Button>
-          ))}
-        </div>
+        <SettingsChoiceGroup
+          choices={SYNTAX_THEME_CHOICES}
+          value={diffSyntaxTheme}
+          onSelect={(theme) => void setDiffSyntaxTheme(theme)}
+        />
       </div>
     </div>
   )

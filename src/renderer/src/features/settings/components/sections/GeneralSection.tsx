@@ -1,5 +1,4 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { PERCENT_BASE } from '@shared/constants/math'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -7,11 +6,29 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
-import { TextInput } from '@/shared/ui/TextInput'
 import { AgentAccessSection } from './AgentAccessSection'
+import type { SettingsChoice } from './SettingsChoiceGroup'
+import { SettingsChoiceGroup } from './SettingsChoiceGroup'
 
 const logger = createRendererLogger('settings')
-const MIN_COMPACTION_THRESHOLD_PERCENT = 1
+
+const COMPACTION_THRESHOLD_CHOICES: readonly SettingsChoice<number>[] = [
+  {
+    value: 70,
+    label: '70%',
+    description: 'Compact earlier to leave more room for long turns and tool output.',
+  },
+  {
+    value: 80,
+    label: '80%',
+    description: 'Balanced context retention and room for the next model request.',
+  },
+  {
+    value: 90,
+    label: '90%',
+    description: 'Keep more context, with less room available for the next request.',
+  },
+]
 
 function useAppVersion() {
   const [version, setVersion] = useState('…')
@@ -99,38 +116,17 @@ function CompactionThresholdSetting() {
   const setCompactionThresholdPercent = usePreferencesStore(
     (state) => state.setCompactionThresholdPercent,
   )
-  const [compactionThresholdDraft, setCompactionThresholdDraft] = useState(
-    String(compactionThresholdPercent),
-  )
   const [isPersistingCompactionThreshold, setIsPersistingCompactionThreshold] = useState(false)
   const isPersistingCompactionThresholdRef = useRef(false)
 
-  useEffect(() => {
-    setCompactionThresholdDraft(String(compactionThresholdPercent))
-  }, [compactionThresholdPercent])
-
-  const commitCompactionThreshold = () => {
+  const selectCompactionThreshold = (percent: number) => {
     if (isPersistingCompactionThresholdRef.current) return
-
-    const percent = Number(compactionThresholdDraft)
-    const isValid =
-      Number.isInteger(percent) &&
-      percent >= MIN_COMPACTION_THRESHOLD_PERCENT &&
-      percent <= PERCENT_BASE
-
-    if (!isValid) {
-      setCompactionThresholdDraft(String(compactionThresholdPercent))
-      return
-    }
-
-    setCompactionThresholdDraft(String(percent))
     if (percent === compactionThresholdPercent) return
+
     isPersistingCompactionThresholdRef.current = true
     setIsPersistingCompactionThreshold(true)
     void setCompactionThresholdPercent(percent)
-      .catch(() => {
-        setCompactionThresholdDraft(String(compactionThresholdPercent))
-      })
+      .catch(() => undefined)
       .finally(() => {
         isPersistingCompactionThresholdRef.current = false
         setIsPersistingCompactionThreshold(false)
@@ -140,42 +136,15 @@ function CompactionThresholdSetting() {
   return (
     <div className="space-y-3">
       <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
-      <div className="overflow-hidden rounded-lg border border-border bg-bg">
-        <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
-          <div className="flex flex-col gap-0.5">
-            <label
-              htmlFor="compaction-threshold-percent"
-              className="text-xs font-medium text-text-primary"
-            >
-              Automatic compaction threshold
-            </label>
-            <span id="compaction-threshold-description" className="text-xs text-text-tertiary">
-              Compact before the next model request when context reaches this percentage.
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <TextInput
-              id="compaction-threshold-percent"
-              aria-describedby="compaction-threshold-description"
-              type="number"
-              inputMode="numeric"
-              min={MIN_COMPACTION_THRESHOLD_PERCENT}
-              max={PERCENT_BASE}
-              step={1}
-              disabled={isPersistingCompactionThreshold}
-              value={compactionThresholdDraft}
-              onChange={(event) => setCompactionThresholdDraft(event.currentTarget.value)}
-              onBlur={commitCompactionThreshold}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur()
-              }}
-              inputSize="sm"
-              className="w-16 text-right tabular-nums"
-            />
-            <span className="text-xs text-text-secondary">%</span>
-          </div>
-        </div>
-      </div>
+      <p className="text-xs text-text-tertiary">
+        Compact before the next model request when context reaches the selected percentage.
+      </p>
+      <SettingsChoiceGroup
+        choices={COMPACTION_THRESHOLD_CHOICES}
+        value={compactionThresholdPercent}
+        disabled={isPersistingCompactionThreshold}
+        onSelect={selectCompactionThreshold}
+      />
     </div>
   )
 }

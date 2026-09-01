@@ -72,36 +72,22 @@ describe('GeneralSection', () => {
     })
   })
 
-  it('updates the global automatic compaction threshold', () => {
+  it('offers the global automatic compaction threshold as appearance-style choices', () => {
     render(<GeneralSection />)
 
-    const threshold = screen.getByRole('spinbutton', { name: 'Automatic compaction threshold' })
+    const early = screen.getByRole('button', { name: /70%/i })
+    const balanced = screen.getByRole('button', { name: /80%/i })
+    const late = screen.getByRole('button', { name: /90%/i })
+
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('slider')).not.toBeInTheDocument()
-    expect(threshold).toHaveAttribute('min', '1')
-    expect(threshold).toHaveAttribute('max', '100')
-    expect(threshold).toHaveAttribute('step', '1')
+    expect(early).toHaveAttribute('aria-pressed', 'false')
+    expect(balanced).toHaveAttribute('aria-pressed', 'true')
+    expect(late).toHaveAttribute('aria-pressed', 'false')
 
-    fireEvent.change(threshold, {
-      target: { value: '75' },
-    })
-    expect(setCompactionThresholdPercentMock).not.toHaveBeenCalled()
+    fireEvent.click(early)
 
-    fireEvent.blur(threshold)
-
-    expect(setCompactionThresholdPercentMock).toHaveBeenCalledWith(75)
-  })
-
-  it('restores the saved compaction threshold when the number is invalid', () => {
-    render(<GeneralSection />)
-
-    const threshold = screen.getByRole('spinbutton', {
-      name: 'Automatic compaction threshold',
-    })
-    fireEvent.change(threshold, { target: { value: '101' } })
-    fireEvent.blur(threshold)
-
-    expect(threshold).toHaveValue(80)
-    expect(setCompactionThresholdPercentMock).not.toHaveBeenCalled()
+    expect(setCompactionThresholdPercentMock).toHaveBeenCalledWith(70)
   })
 
   it('serializes threshold writes so an in-flight failure cannot race a newer value', async () => {
@@ -109,15 +95,13 @@ describe('GeneralSection', () => {
     setCompactionThresholdPercentMock.mockReturnValueOnce(firstWrite.promise)
     render(<GeneralSection />)
 
-    const threshold = screen.getByRole('spinbutton', {
-      name: 'Automatic compaction threshold',
-    })
-    fireEvent.change(threshold, { target: { value: '70' } })
-    fireEvent.blur(threshold)
+    const early = screen.getByRole('button', { name: /70%/i })
+    const late = screen.getByRole('button', { name: /90%/i })
+    fireEvent.click(early)
 
-    expect(threshold).toBeDisabled()
-    fireEvent.change(threshold, { target: { value: '60' } })
-    fireEvent.blur(threshold)
+    expect(early).toBeDisabled()
+    expect(late).toBeDisabled()
+    fireEvent.click(late)
     expect(setCompactionThresholdPercentMock).toHaveBeenCalledTimes(1)
 
     await act(async () => {
@@ -125,10 +109,10 @@ describe('GeneralSection', () => {
       await firstWrite.promise.catch(() => undefined)
     })
 
-    expect(threshold).not.toBeDisabled()
-    fireEvent.change(threshold, { target: { value: '60' } })
-    fireEvent.blur(threshold)
-    expect(setCompactionThresholdPercentMock).toHaveBeenNthCalledWith(2, 60)
+    expect(early).not.toBeDisabled()
+    expect(late).not.toBeDisabled()
+    fireEvent.click(late)
+    expect(setCompactionThresholdPercentMock).toHaveBeenNthCalledWith(2, 90)
   })
 
   it('renders the "About & Updates" section heading', () => {
