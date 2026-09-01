@@ -70,7 +70,12 @@ function globRegularExpression(glob: string) {
     }
     pattern += escapeRegularExpression(character ?? '')
   }
-  return new RegExp(`${pattern}$`, 'u')
+  try {
+    return new RegExp(`${pattern}$`, 'u')
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
+  }
 }
 
 function matchesAssociationPattern(
@@ -79,20 +84,20 @@ function matchesAssociationPattern(
   budget: { remaining: number },
 ): boolean {
   const opening = glob.indexOf('{')
-  if (opening < 0) return globRegularExpression(glob).test(candidate)
+  if (opening < 0) return globRegularExpression(glob)?.test(candidate) ?? false
   const closing = glob.indexOf('}', opening + 1)
-  if (closing < 0) return globRegularExpression(glob).test(candidate)
+  if (closing < 0) return globRegularExpression(glob)?.test(candidate) ?? false
   const alternatives = glob.slice(opening + 1, closing).split(',')
   if (alternatives.length <= 1 || alternatives.some((alternative) => !alternative)) {
-    return globRegularExpression(glob).test(candidate)
+    return globRegularExpression(glob)?.test(candidate) ?? false
   }
-  if (budget.remaining <= 0) return false
-  budget.remaining -= 1
   const prefix = glob.slice(0, opening)
   const suffix = glob.slice(closing + 1)
-  return alternatives.some((alternative) =>
-    matchesAssociationPattern(`${prefix}${alternative}${suffix}`, candidate, budget),
-  )
+  return alternatives.some((alternative) => {
+    if (budget.remaining <= 0) return false
+    budget.remaining -= 1
+    return matchesAssociationPattern(`${prefix}${alternative}${suffix}`, candidate, budget)
+  })
 }
 
 function matchesAssociation(glob: string, candidate: string, budget: { remaining: number }) {
