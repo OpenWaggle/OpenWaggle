@@ -24,16 +24,18 @@ function currentVisualizationFrame(title: string) {
 
 function dispatchReady(frame: HTMLIFrameElement) {
   const url = new URL(frame.src)
-  window.dispatchEvent(
-    new MessageEvent('message', {
-      source: frame.contentWindow,
-      origin: `${url.protocol}//${url.host}`,
-      data: {
-        type: 'openwaggle:inline-visualization:ready',
-        capability: 'test-capability-1234567890',
-      },
-    }),
-  )
+  for (const type of [
+    'openwaggle:inline-visualization:bootstrap',
+    'openwaggle:inline-visualization:ready',
+  ]) {
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: frame.contentWindow,
+        origin: `${url.protocol}//${url.host}`,
+        data: { type, capability: 'test-capability-1234567890' },
+      }),
+    )
+  }
 }
 
 describe('InlineVisualization health checks', () => {

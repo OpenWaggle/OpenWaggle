@@ -269,4 +269,5 @@
     }
   }, { once: true });
   addEventListener('load', reportSize, { once: true });
+  post('openwaggle:inline-visualization:bootstrap');
 })();

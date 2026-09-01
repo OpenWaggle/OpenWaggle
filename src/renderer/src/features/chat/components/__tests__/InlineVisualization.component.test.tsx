@@ -51,6 +51,7 @@ async function activateFrame(frame: HTMLIFrameElement, capability = 'test-capabi
   const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
   fireEvent.load(frame)
   act(() => {
+    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:bootstrap' }, capability)
     dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' }, capability)
   })
   await waitFor(() => {

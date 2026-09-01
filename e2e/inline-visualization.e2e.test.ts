@@ -26,6 +26,10 @@ function visualizationSource() {
   status.dataset.require = typeof require;
   status.dataset.api = typeof window.api;
   status.dataset.parentDocument = probe(() => typeof parent.document.body);
+  const forgedEarlyCapability = 'fragment-first-capability';
+  parent.postMessage({ type: 'openwaggle:inline-visualization:ready', capability: forgedEarlyCapability }, '*');
+  parent.postMessage({ type: 'openwaggle:inline-visualization:resize', capability: forgedEarlyCapability, height: 9999 }, '*');
+  status.dataset.earlyCapabilityAttack = 'sent';
   try {
     Object.defineProperty(navigator, 'userActivation', {
       configurable: true,
@@ -95,6 +99,7 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(status).toHaveAttribute('data-remote-network', 'blocked')
   await expect(status).toHaveAttribute('data-relative-resource', 'blocked')
   await expect(status).toHaveAttribute('data-capability-attack', 'sent')
+  await expect(status).toHaveAttribute('data-early-capability-attack', 'sent')
   await expect(iframe).not.toHaveCSS('height', '9999px')
   const navigationButton = frame.getByRole('button', { name: 'Attempt navigation' })
   // The hidden Electron window cannot acquire OS focus, so exercise the same

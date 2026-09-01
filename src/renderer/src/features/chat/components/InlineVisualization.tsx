@@ -51,7 +51,7 @@ function VisualizationContent({
 }: {
   readonly registration: InlineVisualizationFrameRegisterResult | null
   readonly unavailableReason: string | null
-  readonly frameRef: React.Ref<HTMLIFrameElement>
+  readonly frameRef: React.RefObject<HTMLIFrameElement | null>
   readonly title: string
   readonly mode: InlineVisualizationReference['mode']
   readonly height: number

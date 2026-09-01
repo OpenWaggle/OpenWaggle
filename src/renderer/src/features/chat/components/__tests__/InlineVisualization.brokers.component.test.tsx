@@ -54,6 +54,7 @@ async function activateFrame(frame: HTMLIFrameElement) {
   const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
   fireEvent.load(frame)
   act(() => {
+    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:bootstrap' })
     dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' })
   })
   await waitFor(() => {
@@ -113,7 +114,7 @@ describe('InlineVisualization brokers', () => {
     })
   })
 
-  it('latches the first frame capability and rejects a later forged ready message', async () => {
+  it('rejects a forged ready before the trusted bootstrap capability', async () => {
     apiMock.showConfirm.mockResolvedValue(true)
     render(
       <InlineVisualization
@@ -123,7 +124,6 @@ describe('InlineVisualization brokers', () => {
     )
     const frame = await visualizationFrame('Capability map')
 
-    await activateFrame(frame)
     act(() => {
       dispatchFrameMessage(
         frame,
@@ -141,6 +141,8 @@ describe('InlineVisualization brokers', () => {
     })
 
     expect(apiMock.showConfirm).not.toHaveBeenCalled()
+
+    await activateFrame(frame)
 
     act(() => {
       dispatchFrameMessage(frame, {

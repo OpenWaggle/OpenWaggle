@@ -33,12 +33,18 @@ export function handleInlineVisualizationFrameMessage(
   context: FrameMessageContext,
 ) {
   if (!isRecord(value)) return
-  if (value.type === 'openwaggle:inline-visualization:ready') {
+  if (value.type === 'openwaggle:inline-visualization:bootstrap') {
     if (typeof value.capability !== 'string' || value.capability.length < MIN_CAPABILITY_LENGTH) {
       return
     }
     if (context.capability.current !== null) return
     context.capability.current = value.capability
+    return
+  }
+  if (value.type === 'openwaggle:inline-visualization:ready') {
+    if (value.capability !== context.capability.current || context.capability.current === null) {
+      return
+    }
     context.clearHealthCheckTimeout()
     context.sendTheme()
     return

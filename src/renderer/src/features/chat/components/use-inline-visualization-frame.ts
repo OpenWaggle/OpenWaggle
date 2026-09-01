@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   subscribeInlineVisualizationFrame,
   subscribeInlineVisualizationTheme,
@@ -22,7 +22,7 @@ export function useInlineVisualizationFrame(input: {
   readonly registrationId: string | null
   readonly onDismiss: () => void
 }) {
-  const frameElementRef = useRef<HTMLIFrameElement>(null)
+  const frameRef = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(DEFAULT_VISUALIZATION_HEIGHT)
   const [errorReason, setErrorReason] = useState<string | null>(null)
   const healthCheckTimeoutRef = useRef<number | null>(null)
@@ -45,10 +45,7 @@ export function useInlineVisualizationFrame(input: {
   const postToFrame = useCallback(
     (message: Record<string, unknown>) => {
       if (!input.frameUrl) return
-      frameElementRef.current?.contentWindow?.postMessage(
-        message,
-        customProtocolOrigin(input.frameUrl),
-      )
+      frameRef.current?.contentWindow?.postMessage(message, customProtocolOrigin(input.frameUrl))
     },
     [input.frameUrl],
   )
@@ -69,22 +66,21 @@ export function useInlineVisualizationFrame(input: {
     }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
   }, [clearHealthCheckTimeout, input.registrationId])
 
-  const frameRef = useCallback(
-    (frame: HTMLIFrameElement | null) => {
-      frameElementRef.current = frame
-      clearHealthCheckTimeout()
-      if (!frame || !input.frameUrl || !input.registrationId) return
-
-      armHealthCheckTimeout()
-      frame.src = input.frameUrl
-    },
-    [armHealthCheckTimeout, clearHealthCheckTimeout, input.frameUrl, input.registrationId],
-  )
-
-  useEffect(() => {
-    const frameWindow = frameElementRef.current?.contentWindow
-    if (!frameWindow || !input.frameUrl || !input.registrationId) return
+  useLayoutEffect(() => {
+    const frame = frameRef.current
+    if (!frame || !input.frameUrl || !input.registrationId) return
+    clearHealthCheckTimeout()
+    clearHealthCheckInterval()
     capabilityRef.current = null
+    brokerPendingRef.current = false
+    armHealthCheckTimeout()
+    frame.src = input.frameUrl
+
+    const frameWindow = frame.contentWindow
+    if (!frameWindow) {
+      setErrorReason('unresponsive')
+      return clearHealthCheckTimeout
+    }
     const origin = customProtocolOrigin(input.frameUrl)
     const unsubscribeFrame = subscribeInlineVisualizationFrame(frameWindow, origin, (event) => {
       handleInlineVisualizationFrameMessage(event.data, {
@@ -100,7 +96,6 @@ export function useInlineVisualizationFrame(input: {
       })
     })
     const unsubscribeTheme = subscribeInlineVisualizationTheme(sendTheme)
-    clearHealthCheckInterval()
     healthCheckIntervalRef.current = window.setInterval(() => {
       armHealthCheckTimeout()
       postToFrame({ type: 'openwaggle:inline-visualization:health-check' })
@@ -126,7 +121,6 @@ export function useInlineVisualizationFrame(input: {
   ])
 
   const handleLoad = () => {
-    capabilityRef.current = null
     armHealthCheckTimeout()
     postToFrame({ type: 'openwaggle:inline-visualization:health-check' })
   }

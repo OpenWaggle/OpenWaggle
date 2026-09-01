@@ -81,6 +81,9 @@ describe('inline visualization host runtime', () => {
   it('does not report readiness until fragment parsing reaches DOMContentLoaded', () => {
     const { dispatchWindowEvent, postedMessages } = runtimeHarness()
 
+    expect(postedMessages).toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:bootstrap' }),
+    )
     expect(postedMessages).not.toContainEqual(
       expect.objectContaining({ type: 'openwaggle:inline-visualization:ready' }),
     )
