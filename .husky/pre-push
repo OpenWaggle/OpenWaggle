@@ -1,3 +1,9 @@
+# Git exports GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE into hook processes. Linked worktrees
+# export an absolute GIT_DIR, which breaks any child that runs `git` in its own temporary
+# repositories (conventional-commit fixtures, worktree fixtures). Strip them so `pnpm`
+# runs see a normal repository discovery environment.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+
 MAIN_BRANCH_REF='refs/heads/main'
 IS_MAIN_PUSH=0
 
