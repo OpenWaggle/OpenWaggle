@@ -1,3 +1,5 @@
+export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
+
 export interface SessionControlQueueWithdrawCommand {
   readonly operation: 'queue-withdraw'
   readonly sessionId: string

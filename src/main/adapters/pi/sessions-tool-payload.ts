@@ -162,7 +162,7 @@ function delegationListQuery(input: DelegationListInput, source: SessionsToolSou
     ...delegationCatalogFilter(input, source),
     ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
     ...(input.workerSessionId ? { workerSessionId: input.workerSessionId } : {}),
-    ...(input.states ? { states: input.states } : {}),
+    ...(input.states ? { states: [...new Set(input.states)] } : {}),
   }
 }
 
@@ -175,8 +175,8 @@ function delegationConflictsQuery(input: DelegationConflictsInput, source: Sessi
     ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
     ...(input.workerSessionId ? { workerSessionId: input.workerSessionId } : {}),
     ...(input.delegationId ? { delegationId: input.delegationId } : {}),
-    ...(input.kinds ? { kinds: input.kinds } : {}),
-    ...(input.statuses ? { statuses: input.statuses } : {}),
+    ...(input.kinds ? { kinds: [...new Set(input.kinds)] } : {}),
+    ...(input.statuses ? { statuses: [...new Set(input.statuses)] } : {}),
   }
 }
 

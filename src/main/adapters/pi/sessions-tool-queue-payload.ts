@@ -28,14 +28,14 @@ export function buildSessionsToolQueuePayload(input: QueueInput): LocalSessionCo
       ? {
           operation: 'queue-withdraw' as const,
           sessionId: input.sessionId,
-          followUpIds: input.followUpIds,
+          followUpIds: [...new Set(input.followUpIds)],
         }
       : input.action === 'queue_reorder'
         ? {
             operation: 'queue-reorder' as const,
             sessionId: input.sessionId,
             expectedQueueRevision: input.queueRevision,
-            orderedFollowUpIds: input.followUpIds,
+            orderedFollowUpIds: [...new Set(input.followUpIds)],
           }
         : input.action === 'queue_update_authorization'
           ? {

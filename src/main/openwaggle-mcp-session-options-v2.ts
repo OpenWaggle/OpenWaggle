@@ -9,6 +9,10 @@ function append(options: Map<string, string[]>, name: string, values: readonly s
   for (const value of values) options.set(name, [...(options.get(name) ?? []), value])
 }
 
+function appendUnique(options: Map<string, string[]>, name: string, values: readonly string[]) {
+  append(options, name, [...new Set(values)])
+}
+
 function addBaseOptions(options: Map<string, string[]>, input: SessionToolInputV2) {
   for (const [name, value] of [
     [
@@ -112,10 +116,10 @@ export function mcpSessionCliOptionsV2(input: SessionToolInputV2, message?: stri
   addCollaborationOptions(options, input)
   append(options, 'deliverable', input.deliverables ?? [])
   append(options, 'accept', input.acceptanceCriteria ?? [])
-  append(options, 'state', input.states ?? [])
-  append(options, 'kind', input.conflictKinds ?? [])
-  append(options, 'status', input.conflictStatuses ?? [])
-  append(options, 'status', input.exportStatuses ?? [])
+  appendUnique(options, 'state', input.states ?? [])
+  appendUnique(options, 'kind', input.conflictKinds ?? [])
+  appendUnique(options, 'status', input.conflictStatuses ?? [])
+  appendUnique(options, 'status', input.exportStatuses ?? [])
   if (input.operation === 'spawn') append(options, 'resource', input.resourceReferences ?? [])
   if (input.operation === 'export-create') append(options, 'resource', input.exportResources ?? [])
   const messageOperations = new Set([

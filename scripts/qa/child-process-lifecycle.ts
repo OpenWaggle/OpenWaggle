@@ -40,12 +40,6 @@ interface StopChildDependencies {
   readonly waitForPosixTreeExit?: (pid: number, timeoutMs: number) => Promise<boolean>
 }
 
-interface WindowsTreeTrackingDependencies {
-  readonly snapshotTree?: (pid: number) => Promise<readonly WindowsProcessIdentity[]>
-  readonly waitForExit: (child: StoppableChild) => Promise<void>
-  readonly waitBetweenSnapshots?: (milliseconds: number) => Promise<void>
-}
-
 function errorCode(error: unknown) {
   if (typeof error !== 'object' || error === null || !('code' in error)) return null
   return typeof error.code === 'string' ? error.code : null
@@ -57,50 +51,6 @@ function delay(milliseconds: number) {
 
 function childExited(child: StoppableChild) {
   return child.exitCode !== null || child.signalCode !== null
-}
-
-export async function trackWindowsProcessTreeThroughExit(
-  child: StoppableChild,
-  dependencies: WindowsTreeTrackingDependencies,
-) {
-  if (child.pid === undefined) {
-    throw new Error('Cannot track a Windows GUI process tree without a PID.')
-  }
-  const rootPid = child.pid
-  const snapshotTree = dependencies.snapshotTree ?? snapshotWindowsProcessTree
-  const identities = new Map<string, WindowsProcessIdentity>()
-  let rootObserved = false
-  const exit = dependencies.waitForExit(child).then(
-    () => ({ status: 'exited' as const }),
-    (error: unknown) => ({ status: 'failed' as const, error }),
-  )
-  let exitOutcome: Awaited<typeof exit> | null = null
-  const capture = async () => {
-    for (const identity of await snapshotTree(rootPid)) {
-      if (identity.processId === rootPid) rootObserved = true
-      identities.set(`${String(identity.processId)}:${identity.creationDate}`, identity)
-    }
-  }
-
-  do {
-    await capture()
-    if (exitOutcome === null) {
-      exitOutcome = await Promise.race([
-        exit,
-        (dependencies.waitBetweenSnapshots ?? delay)(PROCESS_TREE_POLL_INTERVAL_MS).then(
-          () => null,
-        ),
-      ])
-    }
-  } while (exitOutcome === null)
-  await capture()
-  if (exitOutcome.status === 'failed') throw exitOutcome.error
-  if (!rootObserved) {
-    throw new Error(
-      `Could not observe Windows GUI process ${String(rootPid)} before exit; descendant absence is unproven.`,
-    )
-  }
-  return [...identities.values()]
 }
 
 async function waitForChildExit(child: StoppableChild, timeoutMs: number) {

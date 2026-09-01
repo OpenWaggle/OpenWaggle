@@ -9,6 +9,7 @@ import type {
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import { sessionAttachmentIdsSchema } from './session-attachment'
 
 const projectPathSchema = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_PATH_LENGTH))
 
@@ -60,7 +61,7 @@ const launchCommandSchema = Schema.Struct({
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   objective: Schema.String,
-  attachmentIds: Schema.Array(Schema.String),
+  attachmentIds: sessionAttachmentIdsSchema,
   interactionTimeoutMs: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
   ),
@@ -90,7 +91,7 @@ const spawnCommandSchema = Schema.Struct({
   interactionTimeoutMs: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
   ),
-  attachmentIds: Schema.optional(Schema.Array(Schema.String)),
+  attachmentIds: Schema.optional(sessionAttachmentIdsSchema),
   delegation: delegationSpecificationSchema,
 })
 

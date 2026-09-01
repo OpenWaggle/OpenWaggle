@@ -9,6 +9,7 @@ import {
   boundedCursor,
   catalogScope,
   discoveryLimit,
+  finiteUniqueEnumArray,
   idempotency,
   interactionResponseSchema,
   interactionTimeout,
@@ -22,7 +23,6 @@ import {
   transcriptLimit,
 } from './openwaggle-mcp-session-input-schema-shared-v2'
 import {
-  MCP_SESSION_INPUT_LIMITS_V2,
   mcpSessionIdSchemaV2,
   mcpSessionItemArraySchemaV2,
   mcpSessionPathSchemaV2,
@@ -90,10 +90,7 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
   }),
   operationSchema('exports-list', {
     sessionId: mcpSessionIdSchemaV2.optional(),
-    exportStatuses: z
-      .array(z.enum(SESSION_EXPORT_OPERATION_STATUSES))
-      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
-      .optional(),
+    exportStatuses: finiteUniqueEnumArray(SESSION_EXPORT_OPERATION_STATUSES).optional(),
     limit: discoveryLimit.optional(),
     cursor: boundedCursor.optional(),
     includeQueueBodies: booleanFlag.optional(),

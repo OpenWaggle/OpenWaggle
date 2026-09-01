@@ -36,11 +36,15 @@ function exportFormat(value: string | undefined) {
 
 function exportStatuses(arguments_: ParsedArguments) {
   const requested = arguments_.options.get('status') ?? []
-  return requested.map((status) => {
-    const resolved = SESSION_EXPORT_OPERATION_STATUSES.find((candidate) => candidate === status)
-    if (!resolved) throw new Error(`Unsupported export status: ${status}.`)
-    return resolved
-  })
+  return [
+    ...new Set(
+      requested.map((status) => {
+        const resolved = SESSION_EXPORT_OPERATION_STATUSES.find((candidate) => candidate === status)
+        if (!resolved) throw new Error(`Unsupported export status: ${status}.`)
+        return resolved
+      }),
+    ),
+  ]
 }
 
 function createPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {

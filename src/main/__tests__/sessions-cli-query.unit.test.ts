@@ -137,4 +137,22 @@ describe('Sessions CLI query contract', () => {
     expect(() => buildSessionsCliPayload(query.name, query.arguments)).toThrow('active-branch')
     expect(() => buildSessionsCliPayload(durable.name, durable.arguments)).toThrow('active-branch')
   })
+
+  it('deduplicates repeated durable export status filters before Host decoding', () => {
+    const list = command([
+      'export',
+      'list',
+      'session-1',
+      '--status',
+      'queued',
+      '--status',
+      'queued',
+      '--status',
+      'completed',
+    ])
+
+    expect(buildSessionsCliPayload(list.name, list.arguments)).toMatchObject({
+      request: { query: { statuses: ['queued', 'completed'] } },
+    })
+  })
 })

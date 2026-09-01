@@ -1,3 +1,4 @@
+import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
 import { Type } from 'typebox'
 
 const queueRevision = Type.Integer({ minimum: 0 })
@@ -6,12 +7,19 @@ export const sessionsToolQueueParameters = [
   Type.Object({
     action: Type.Literal('queue_withdraw'),
     sessionId: Type.String(),
-    followUpIds: Type.Array(Type.String(), { minItems: 1 }),
+    followUpIds: Type.Array(Type.String(), {
+      minItems: 1,
+      maxItems: MAX_FOLLOW_UP_QUEUE_ITEMS,
+      uniqueItems: true,
+    }),
   }),
   Type.Object({
     action: Type.Literal('queue_reorder'),
     sessionId: Type.String(),
-    followUpIds: Type.Array(Type.String()),
+    followUpIds: Type.Array(Type.String(), {
+      maxItems: MAX_FOLLOW_UP_QUEUE_ITEMS,
+      uniqueItems: true,
+    }),
     queueRevision,
   }),
   Type.Object({

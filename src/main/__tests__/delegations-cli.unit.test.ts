@@ -77,6 +77,28 @@ describe('Delegations CLI payloads', () => {
     })
   })
 
+  it('deduplicates repeated finite filters before Host decoding', () => {
+    expect(payload(['list', '--all', '--state', 'working', '--state', 'working'])).toMatchObject({
+      request: { query: { states: ['working'] } },
+    })
+    expect(
+      payload([
+        'conflicts',
+        '--all',
+        '--kind',
+        'live-overlap',
+        '--kind',
+        'live-overlap',
+        '--status',
+        'resolved',
+        '--status',
+        'resolved',
+      ]),
+    ).toMatchObject({
+      request: { query: { kinds: ['live-overlap'], statuses: ['resolved'] } },
+    })
+  })
+
   it('uses the same mutation contract for submission and review', () => {
     expect(payload(['accept', 'queen', 'delegation-1', '2', 'Looks', 'good'])).toMatchObject({
       request: {

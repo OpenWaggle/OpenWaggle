@@ -1,3 +1,7 @@
+import {
+  DELEGATION_CONFLICT_KINDS,
+  DELEGATION_CONFLICT_STATUSES,
+} from '@shared/types/session-delegation-query'
 import { SESSION_QUERY_DISCOVERY_LIMIT } from '@shared/types/session-query'
 import { Type } from 'typebox'
 
@@ -39,7 +43,10 @@ export const delegationsConflictsParameter = Type.Object({
   workerSessionId: Type.Optional(Type.String()),
   delegationId: Type.Optional(Type.String()),
   kinds: Type.Optional(
-    Type.Array(Type.Union([Type.Literal('live-overlap'), Type.Literal('merge-overlap')])),
+    Type.Array(Type.Union([Type.Literal('live-overlap'), Type.Literal('merge-overlap')]), {
+      maxItems: DELEGATION_CONFLICT_KINDS.length,
+      uniqueItems: true,
+    }),
   ),
   statuses: Type.Optional(
     Type.Array(
@@ -48,6 +55,7 @@ export const delegationsConflictsParameter = Type.Object({
         Type.Literal('acknowledged'),
         Type.Literal('resolved'),
       ]),
+      { maxItems: DELEGATION_CONFLICT_STATUSES.length, uniqueItems: true },
     ),
   ),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),

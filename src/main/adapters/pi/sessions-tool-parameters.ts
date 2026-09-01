@@ -1,4 +1,5 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
+import { DELEGATION_STATES } from '@shared/types/session-collaboration'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_MAX_WAIT_MS,
@@ -183,6 +184,7 @@ export const sessionsToolParameters = Type.Union([
           Type.Literal('accepted'),
           Type.Literal('cancelled'),
         ]),
+        { maxItems: DELEGATION_STATES.length, uniqueItems: true },
       ),
     ),
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_QUERY_DISCOVERY_LIMIT })),

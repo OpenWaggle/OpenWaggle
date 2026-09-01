@@ -1,4 +1,6 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
+import { DELEGATION_STATES } from '@shared/types/session-collaboration'
+import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_MAX_CURSOR_LENGTH,
@@ -87,7 +89,10 @@ export const evidenceSchema = z
   })
   .strict()
 export const evidence = z.array(evidenceSchema).max(MCP_SESSION_INPUT_LIMITS_V2.evidenceItems)
-export const followUpIds = z.array(mcpSessionIdSchemaV2).max(SESSION_QUERY_TRANSCRIPT_LIMIT)
+export const followUpIds = z
+  .array(mcpSessionIdSchemaV2)
+  .max(MAX_FOLLOW_UP_QUEUE_ITEMS)
+  .refine((items) => new Set(items).size === items.length, 'Follow-up IDs must be unique.')
 export const targetSessionIds = z.array(mcpSessionIdSchemaV2).max(SESSION_QUERY_WAIT_TARGET_LIMIT)
 export const revisedSpecificationSchema = z
   .object({
@@ -98,19 +103,16 @@ export const revisedSpecificationSchema = z
     handoffContext: mcpSessionTextSchemaV2.optional(),
   })
   .strict()
-export const delegationStates = z
-  .array(
-    z.enum([
-      'working',
-      'waiting',
-      'needs_attention',
-      'ready_for_review',
-      'revision_requested',
-      'accepted',
-      'cancelled',
-    ]),
-  )
-  .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
+export function finiteUniqueEnumArray<const TValues extends readonly [string, ...string[]]>(
+  values: TValues,
+) {
+  return z
+    .array(z.enum(values))
+    .max(values.length)
+    .refine((items) => new Set(items).size === items.length, 'Filter values must be unique.')
+}
+
+export const delegationStates = finiteUniqueEnumArray(DELEGATION_STATES)
 
 export function operationSchema<TName extends string, TShape extends z.ZodRawShape>(
   operation: TName,

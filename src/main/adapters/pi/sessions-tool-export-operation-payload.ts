@@ -91,7 +91,7 @@ function exportQueryPayload(
           sessionId: input.sessionId,
           limit: input.limit ?? SESSION_EXPORT_OPERATION_QUERY_LIMIT,
           ...(input.cursor ? { cursor: input.cursor } : {}),
-          ...(input.statuses?.length ? { statuses: input.statuses } : {}),
+          ...(input.statuses?.length ? { statuses: [...new Set(input.statuses)] } : {}),
           ...(input.includeQueueBodies ? { includeQueueBodies: true } : {}),
         }
       : input.action === 'exports_read'

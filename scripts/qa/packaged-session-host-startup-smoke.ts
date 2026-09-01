@@ -6,10 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 import { resolveLocalSessionHostPaths } from '../../src/main/session-host/local-session-paths'
 import { buildSafeElectronEnvironment } from '../safe-electron-environment'
-import {
-  type StoppableChild,
-  trackWindowsProcessTreeThroughExit,
-} from './child-process-lifecycle'
+import type { StoppableChild } from './child-process-lifecycle'
 import {
   type CompleteLiveQaCleanupInput,
   type LiveQaLifecycleState,
@@ -23,6 +20,7 @@ import {
   stopChild,
   waitForHost,
 } from './live-session-orchestration-support'
+import { launchInWindowsJobObject } from './windows-job-object'
 
 const ARGUMENT_SEPARATOR = '--'
 const FIRST_USER_ARGUMENT_INDEX = 2
@@ -246,21 +244,26 @@ export async function runPackagedSessionHostStartupScenario(
       state.gui = await launchGui(input.executable, environment, packagedGuiArguments())
       state.guiLogs.push(state.gui.logs)
       await waitForHost(cliExecutable, environment)
-      const secondGui = await launchGui(input.executable, environment, packagedGuiArguments())
-      state.guiLogs.push(secondGui.logs)
-      let secondGuiWindowsSnapshot
-      try {
-        if (process.platform === 'win32') {
-          secondGuiWindowsSnapshot = await trackWindowsProcessTreeThroughExit(secondGui.child, {
-            waitForExit,
-          })
-        } else {
-          await waitForExit(secondGui.child)
+      if (process.platform === 'win32') {
+        const secondGui = await launchInWindowsJobObject(
+          input.executable,
+          environment,
+          packagedGuiArguments(),
+        )
+        state.guiLogs.push(secondGui.logs)
+        try {
+          await secondGui.waitForEmpty()
+        } finally {
+          await secondGui.terminateAndWait()
         }
-      } finally {
-        await stopChild(secondGui.child, {
-          windowsProcessTreeSnapshot: secondGuiWindowsSnapshot,
-        })
+      } else {
+        const secondGui = await launchGui(input.executable, environment, packagedGuiArguments())
+        state.guiLogs.push(secondGui.logs)
+        try {
+          await waitForExit(secondGui.child)
+        } finally {
+          await stopChild(secondGui.child)
+        }
       }
       if (state.gui.child.exitCode !== null || state.gui.child.signalCode !== null) {
         throw new Error('The primary packaged GUI exited after the second-instance probe.')

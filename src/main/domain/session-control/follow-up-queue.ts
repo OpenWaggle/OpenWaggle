@@ -1,8 +1,10 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { FollowUpId } from '@shared/types/brand'
+import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+
+export { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
 
 const REVISION_INCREMENT = 1
-export const MAX_FOLLOW_UP_QUEUE_ITEMS = 256
 export const MAX_FOLLOW_UP_QUEUE_BYTES = 32 * 1024 * 1024
 
 export interface FollowUpQueueItem {

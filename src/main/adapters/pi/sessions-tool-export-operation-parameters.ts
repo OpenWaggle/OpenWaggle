@@ -1,4 +1,7 @@
-import { SESSION_EXPORT_OPERATION_QUERY_LIMIT } from '@shared/types/session-export-operation'
+import {
+  SESSION_EXPORT_OPERATION_QUERY_LIMIT,
+  SESSION_EXPORT_OPERATION_STATUSES,
+} from '@shared/types/session-export-operation'
 import { SESSION_QUERY_MAX_WAIT_MS } from '@shared/types/session-query'
 import { Type } from 'typebox'
 
@@ -37,7 +40,11 @@ export const sessionsToolExportOperationParameters = [
           Type.Literal('failed'),
           Type.Literal('cancelled'),
         ]),
-        { minItems: 1 },
+        {
+          minItems: 1,
+          maxItems: SESSION_EXPORT_OPERATION_STATUSES.length,
+          uniqueItems: true,
+        },
       ),
     ),
     limit: Type.Optional(

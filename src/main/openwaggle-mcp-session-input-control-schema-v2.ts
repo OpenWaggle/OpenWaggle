@@ -1,3 +1,7 @@
+import {
+  DELEGATION_CONFLICT_KINDS,
+  DELEGATION_CONFLICT_STATUSES,
+} from '@shared/types/session-delegation-query'
 import { z } from 'zod'
 import { mcpDelegationSpecificationSchemaV2 } from './openwaggle-mcp-delegation-specification-v2'
 import { sessionClaimSchemaV2 } from './openwaggle-mcp-session-claim-schema-v2'
@@ -8,6 +12,7 @@ import {
   delegationStates,
   discoveryLimit,
   evidence,
+  finiteUniqueEnumArray,
   followUpIds,
   idempotency,
   interactionTimeout,
@@ -200,14 +205,8 @@ export const mcpSessionControlOperationSchemasV2 = [
     parentSessionId: mcpSessionIdSchemaV2.optional(),
     workerSessionId: mcpSessionIdSchemaV2.optional(),
     delegationId: mcpSessionIdSchemaV2.optional(),
-    conflictKinds: z
-      .array(z.enum(['live-overlap', 'merge-overlap']))
-      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
-      .optional(),
-    conflictStatuses: z
-      .array(z.enum(['unacknowledged', 'acknowledged', 'resolved']))
-      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
-      .optional(),
+    conflictKinds: finiteUniqueEnumArray(DELEGATION_CONFLICT_KINDS).optional(),
+    conflictStatuses: finiteUniqueEnumArray(DELEGATION_CONFLICT_STATUSES).optional(),
     limit: discoveryLimit.optional(),
     cursor: boundedCursor.optional(),
   }),

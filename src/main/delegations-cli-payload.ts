@@ -34,11 +34,15 @@ const DELEGATION_MUTATION_COMMANDS = new Set([
 function selectedStates(arguments_: ParsedArguments): readonly DelegationState[] | undefined {
   const values = arguments_.options.get('state')
   if (!values?.length) return undefined
-  return values.map((value) => {
-    const state = DELEGATION_STATES.find((candidate) => candidate === value)
-    if (!state) throw new Error(`Unsupported Delegation state: ${value}.`)
-    return state
-  })
+  return [
+    ...new Set(
+      values.map((value) => {
+        const state = DELEGATION_STATES.find((candidate) => candidate === value)
+        if (!state) throw new Error(`Unsupported Delegation state: ${value}.`)
+        return state
+      }),
+    ),
+  ]
 }
 
 function listPayload(
@@ -90,21 +94,29 @@ function readPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
 }
 
 function selectedConflictKinds(arguments_: ParsedArguments): readonly DelegationConflictKind[] {
-  return (arguments_.options.get('kind') ?? []).map((value) => {
-    const kind = DELEGATION_CONFLICT_KINDS.find((candidate) => candidate === value)
-    if (!kind) throw new Error(`Unsupported Delegation conflict kind: ${value}.`)
-    return kind
-  })
+  return [
+    ...new Set(
+      (arguments_.options.get('kind') ?? []).map((value) => {
+        const kind = DELEGATION_CONFLICT_KINDS.find((candidate) => candidate === value)
+        if (!kind) throw new Error(`Unsupported Delegation conflict kind: ${value}.`)
+        return kind
+      }),
+    ),
+  ]
 }
 
 function selectedConflictStatuses(
   arguments_: ParsedArguments,
 ): readonly DelegationConflictStatus[] {
-  return (arguments_.options.get('status') ?? []).map((value) => {
-    const status = DELEGATION_CONFLICT_STATUSES.find((candidate) => candidate === value)
-    if (!status) throw new Error(`Unsupported Delegation conflict status: ${value}.`)
-    return status
-  })
+  return [
+    ...new Set(
+      (arguments_.options.get('status') ?? []).map((value) => {
+        const status = DELEGATION_CONFLICT_STATUSES.find((candidate) => candidate === value)
+        if (!status) throw new Error(`Unsupported Delegation conflict status: ${value}.`)
+        return status
+      }),
+    ),
+  ]
 }
 
 function conflictsPayload(

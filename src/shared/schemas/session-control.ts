@@ -6,8 +6,10 @@ import {
   type SessionControlMutationRequest,
   type SessionControlMutationResponse,
 } from '@shared/types/session-control'
+import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { agentLoopResponseSchema } from './agent-loop-interaction'
+import { sessionAttachmentIdsSchema } from './session-attachment'
 import {
   delegationAcceptCommandSchema,
   delegationAmendCommandSchema,
@@ -33,8 +35,16 @@ export { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 
 const steeringInputSchema = Schema.Struct({
   text: Schema.String,
-  attachmentIds: Schema.Array(Schema.String),
+  attachmentIds: sessionAttachmentIdsSchema,
 })
+
+const uniqueFollowUpIdsSchema = Schema.Array(Schema.String).pipe(
+  Schema.maxItems(MAX_FOLLOW_UP_QUEUE_ITEMS),
+  Schema.filter(
+    (followUpIds) =>
+      new Set(followUpIds).size === followUpIds.length || 'Follow-up IDs must be unique.',
+  ),
+)
 
 const messageInputSchema = Schema.Struct({
   ...steeringInputSchema.fields,
@@ -101,14 +111,14 @@ const promoteCommandSchema = Schema.Struct({
 const queueWithdrawCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-withdraw'),
   sessionId: Schema.String,
-  followUpIds: Schema.Array(Schema.String),
+  followUpIds: uniqueFollowUpIdsSchema,
 })
 
 const queueReorderCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-reorder'),
   sessionId: Schema.String,
   expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  orderedFollowUpIds: Schema.Array(Schema.String),
+  orderedFollowUpIds: uniqueFollowUpIdsSchema,
 })
 
 const queuePauseCommandSchema = Schema.Struct({
