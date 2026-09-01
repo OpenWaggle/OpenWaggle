@@ -294,6 +294,9 @@ describe('InlineVisualization', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Wide map' })
     const closeButton = screen.getByRole('button', { name: 'Close expanded visualization' })
+    const dismissButton = screen.getByRole('button', {
+      name: 'Dismiss expanded visualization',
+    })
     const focusLayer = document.querySelector('[data-visualization-focus-layer="true"]')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(focusLayer).not.toBe(dialog)
@@ -302,6 +305,7 @@ describe('InlineVisualization', () => {
     expect(focusLayer).toContainElement(frame)
     expect(chatColumn).toHaveStyle({ containerType: 'normal' })
     expect(screen.getByTestId('background-control')).toHaveProperty('inert', true)
+    expect(dismissButton).toHaveAttribute('tabindex', '-1')
     expect(closeButton).toHaveFocus()
     fireEvent.click(closeButton)
     expect(screen.queryByRole('dialog', { name: 'Wide map' })).toBeNull()

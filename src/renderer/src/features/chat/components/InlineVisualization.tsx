@@ -135,7 +135,7 @@ function VisualizationSurface({
         !expanded && 'relative left-1/2 mx-0 my-3 -translate-x-1/2 rounded-lg border border-border',
         !expanded && mode === 'wide' && 'inline-visualization-wide',
         expanded &&
-          'inline-visualization-expanded fixed inset-0 z-[80] m-0 flex h-dvh w-screen max-w-none items-center justify-center overflow-hidden rounded-none border-0 bg-bg/60 p-3 backdrop-blur-[2px] sm:p-6',
+          'inline-visualization-expanded fixed inset-0 z-[80] m-0 flex h-dvh w-screen max-w-none items-center justify-center overflow-hidden rounded-none border-0 p-3 sm:p-6',
       )}
     >
       {expanded ? (
@@ -143,7 +143,8 @@ function VisualizationSurface({
           variant="unstyled"
           type="button"
           aria-label="Dismiss expanded visualization"
-          className="absolute inset-0 z-0 cursor-default"
+          tabIndex={-1}
+          className="inline-visualization-backdrop absolute inset-0 z-0 cursor-default bg-bg/60 backdrop-blur-[2px]"
           onClick={onDismiss}
         />
       ) : null}

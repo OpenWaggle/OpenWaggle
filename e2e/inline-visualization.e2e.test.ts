@@ -140,6 +140,9 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   const largeDialog = page.getByRole('dialog', { name: FRAME_TITLE })
   await expect(largeFocusLayer).toBeVisible()
   await expect(largeDialog).toBeVisible()
+  await largeDialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished))
+  })
   const largeViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
   const largeDialogBounds = await largeDialog.boundingBox()
   expect(largeDialogBounds).not.toBeNull()
@@ -184,6 +187,9 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   const dialog = page.getByRole('dialog', { name: FRAME_TITLE })
   await expect(focusLayer).toBeVisible()
   await expect(dialog).toBeVisible()
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished))
+  })
   await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
   const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
   const dialogBounds = await dialog.boundingBox()
