@@ -1,4 +1,9 @@
-import { execFile } from 'node:child_process'
+import {
+  snapshotWindowsProcessTree,
+  terminateWindowsProcessTree,
+  type WindowsProcessIdentity,
+  verifyWindowsProcessTreeExit,
+} from './windows-process-tree'
 
 const STOP_TIMEOUT_MS = 3_000
 const PROCESS_TREE_POLL_INTERVAL_MS = 50
@@ -21,8 +26,15 @@ export interface StoppableChild {
 interface StopChildDependencies {
   readonly platform?: NodeJS.Platform
   readonly waitForExit?: (child: StoppableChild, timeoutMs: number) => Promise<boolean>
-  readonly terminateWindowsTree?: (pid: number, force: boolean) => Promise<void>
-  readonly verifyWindowsTreeExit?: (pid: number) => Promise<boolean>
+  readonly snapshotWindowsTree?: (pid: number) => Promise<readonly WindowsProcessIdentity[]>
+  readonly terminateWindowsTree?: (
+    pid: number,
+    snapshot: readonly WindowsProcessIdentity[],
+    force: boolean,
+  ) => Promise<void>
+  readonly verifyWindowsTreeExit?: (
+    snapshot: readonly WindowsProcessIdentity[],
+  ) => Promise<boolean>
   readonly signalPosixTree?: (pid: number, signal: NodeJS.Signals) => void
   readonly waitForPosixTreeExit?: (pid: number, timeoutMs: number) => Promise<boolean>
 }
@@ -53,48 +65,6 @@ async function waitForChildExit(child: StoppableChild, timeoutMs: number) {
     }, timeoutMs)
     child.once('exit', onExit)
   })
-}
-
-async function terminateWindowsProcessTree(pid: number, force: boolean) {
-  const arguments_ = ['/PID', String(pid), '/T']
-  if (force) arguments_.push('/F')
-  await new Promise<void>((resolve, reject) => {
-    execFile(
-      'taskkill.exe',
-      arguments_,
-      { timeout: STOP_TIMEOUT_MS, windowsHide: true },
-      (error) => (error ? reject(error) : resolve()),
-    )
-  })
-}
-
-async function verifyWindowsProcessTreeExit(pid: number) {
-  const script = [
-    `$rootPid = [uint32]${String(pid)}`,
-    '$processes = @(Get-CimInstance Win32_Process)',
-    '$descendants = [Collections.Generic.HashSet[uint32]]::new()',
-    '$frontier = @($rootPid)',
-    'while ($frontier.Count -gt 0) {',
-    '  $children = @($processes | Where-Object { $frontier -contains [uint32]$_.ParentProcessId -and -not $descendants.Contains([uint32]$_.ProcessId) })',
-    '  foreach ($child in $children) { [void]$descendants.Add([uint32]$child.ProcessId) }',
-    '  $frontier = @($children | ForEach-Object { [uint32]$_.ProcessId })',
-    '}',
-    '$rootCount = @($processes | Where-Object { [uint32]$_.ProcessId -eq $rootPid }).Count',
-    '[Console]::Out.Write("$rootCount,$($descendants.Count)")',
-  ].join(';')
-  const output = await new Promise<string>((resolve, reject) => {
-    execFile(
-      'powershell.exe',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
-      { timeout: STOP_TIMEOUT_MS, windowsHide: true },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
-    )
-  })
-  const result = output.trim()
-  if (!/^\d+,\d+$/u.test(result)) {
-    throw new Error(`Windows process-tree proof returned an invalid result: ${result || 'empty'}.`)
-  }
-  return result === '0,0'
 }
 
 function signalPosixProcessTree(pid: number, signal: NodeJS.Signals) {
@@ -128,24 +98,34 @@ async function waitForPosixProcessTreeExit(pid: number, timeoutMs: number) {
 async function stopWindowsChild(
   child: StoppableChild,
   waitForExit: (child: StoppableChild, timeoutMs: number) => Promise<boolean>,
-  terminateTree: (pid: number, force: boolean) => Promise<void>,
-  verifyTreeExit: (pid: number) => Promise<boolean>,
+  snapshotTree: (pid: number) => Promise<readonly WindowsProcessIdentity[]>,
+  terminateTree: (
+    pid: number,
+    snapshot: readonly WindowsProcessIdentity[],
+    force: boolean,
+  ) => Promise<void>,
+  verifyTreeExit: (snapshot: readonly WindowsProcessIdentity[]) => Promise<boolean>,
 ) {
   if (child.pid === undefined) {
     throw new Error('Cannot terminate Windows GUI process tree without a PID.')
   }
+  const snapshot = await snapshotTree(child.pid)
+  if (snapshot.length === 0) {
+    throw new Error(
+      `Could not snapshot Windows GUI process ${String(child.pid)}; descendant absence is unproven.`,
+    )
+  }
   let gracefulTerminationFailure: unknown
   try {
-    await terminateTree(child.pid, false)
+    await terminateTree(child.pid, snapshot, false)
   } catch (error) {
     gracefulTerminationFailure = error
   }
   const gracefullyExited = await waitForExit(child, STOP_TIMEOUT_MS)
-  if (gracefulTerminationFailure === undefined && gracefullyExited) return
   let gracefulProofFailure: unknown
   if (gracefullyExited) {
     try {
-      if (await verifyTreeExit(child.pid)) return
+      if (await verifyTreeExit(snapshot)) return
     } catch (error) {
       gracefulProofFailure = error
     }
@@ -153,16 +133,15 @@ async function stopWindowsChild(
 
   let forcedTerminationFailure: unknown
   try {
-    await terminateTree(child.pid, true)
+    await terminateTree(child.pid, snapshot, true)
   } catch (error) {
     forcedTerminationFailure = error
   }
   const forciblyExited = await waitForExit(child, STOP_TIMEOUT_MS)
-  if (forcedTerminationFailure === undefined && forciblyExited) return
   let forcedProofFailure: unknown
   if (forciblyExited) {
     try {
-      if (await verifyTreeExit(child.pid)) return
+      if (await verifyTreeExit(snapshot)) return
     } catch (error) {
       forcedProofFailure = error
     }
@@ -208,6 +187,7 @@ export async function stopChild(
     await stopWindowsChild(
       child,
       dependencies.waitForExit ?? waitForChildExit,
+      dependencies.snapshotWindowsTree ?? snapshotWindowsProcessTree,
       dependencies.terminateWindowsTree ?? terminateWindowsProcessTree,
       dependencies.verifyWindowsTreeExit ?? verifyWindowsProcessTreeExit,
     )
@@ -229,6 +209,7 @@ export async function stopProcessTree(
     await stopWindowsChild(
       child,
       dependencies.waitForExit ?? waitForChildExit,
+      dependencies.snapshotWindowsTree ?? snapshotWindowsProcessTree,
       dependencies.terminateWindowsTree ?? terminateWindowsProcessTree,
       dependencies.verifyWindowsTreeExit ?? verifyWindowsProcessTreeExit,
     )

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CompleteLiveQaCleanupInput } from '../live-session-orchestration-lifecycle'
-import { runPackagedSessionHostStartupScenario } from '../packaged-session-host-startup-smoke'
+import {
+  assertPackagedSemanticSearch,
+  runPackagedSessionHostStartupScenario,
+} from '../packaged-session-host-startup-smoke'
 
 function rethrowPrimaryFailure(input: CompleteLiveQaCleanupInput) {
   if (input.primaryFailure !== null) throw input.primaryFailure.error
@@ -8,6 +11,26 @@ function rethrowPrimaryFailure(input: CompleteLiveQaCleanupInput) {
 }
 
 describe('packaged Session Host startup smoke', () => {
+  it('requires a ready semantic backend and the migrated Session', () => {
+    expect(() =>
+      assertPackagedSemanticSearch({
+        operation: 'search',
+        searchBackend: 'semantic',
+        semanticReadiness: { status: 'ready' },
+        sessions: [{ sessionId: 'packaged-cutover-session' }],
+      }),
+    ).not.toThrow()
+
+    expect(() =>
+      assertPackagedSemanticSearch({
+        operation: 'search',
+        searchBackend: 'lexical',
+        semanticReadiness: { status: 'unavailable' },
+        sessions: [{ sessionId: 'packaged-cutover-session' }],
+      }),
+    ).toThrow('packaged semantic embedding/search smoke')
+  })
+
   it('routes legacy database seeding failures through retained-profile cleanup', async () => {
     const seedFailure = new Error('legacy seed failed')
     const cleanup = vi.fn(rethrowPrimaryFailure)

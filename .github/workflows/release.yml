@@ -441,10 +441,22 @@ jobs:
           write_no_release_output
 
   build-macos:
-    name: Build macOS
+    name: Build macOS (${{ matrix.arch }})
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            os: macos-15
+            machine: arm64
+            app_dir: mac-arm64
+          - arch: x64
+            os: macos-15-intel
+            machine: x86_64
+            app_dir: mac
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -459,20 +471,31 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Verify native build architecture
+        shell: bash
+        run: test "$(uname -m)" = '${{ matrix.machine }}'
+
       - run: pnpm build
 
-      - name: Build macOS artifacts (arm64 + x64)
-        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
+      - name: Build macOS ${{ matrix.arch }} artifacts
+        run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Verify packaged resources
+        run: pnpm packaged-app:smoke -- "dist/${{ matrix.app_dir }}/OpenWaggle.app"
+
+      - name: Verify packaged startup, cutover, and semantic embedding
+        run: >-
+          pnpm qa:packaged-session-host-startup --
+          "dist/${{ matrix.app_dir }}/OpenWaggle.app/Contents/MacOS/OpenWaggle"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: macos-artifacts
+          name: macos-${{ matrix.arch }}-artifacts
           path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.yml
+            dist/*-${{ matrix.arch }}.dmg
+            dist/*-${{ matrix.arch }}.zip
           if-no-files-found: error
 
   build-linux:
@@ -498,6 +521,14 @@ jobs:
 
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
+
+      - name: Verify packaged resources
+        run: pnpm packaged-app:smoke -- dist/linux-unpacked
+
+      - name: Verify packaged startup, cutover, and semantic embedding
+        run: >-
+          xvfb-run --auto-servernum pnpm qa:packaged-session-host-startup --
+          dist/linux-unpacked/openwaggle
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -531,6 +562,12 @@ jobs:
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
 
+      - name: Verify packaged resources
+        run: pnpm packaged-app:smoke -- dist/win-unpacked
+
+      - name: Verify packaged startup, cutover, and semantic embedding
+        run: pnpm qa:packaged-session-host-startup -- dist/win-unpacked/OpenWaggle.exe
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-artifacts
@@ -550,12 +587,23 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             artifact_name: linux-artifacts
-          - os: macos-latest
+            artifact_dir: linux
+          - os: macos-15
             platform: macos
-            artifact_name: macos-artifacts
+            arch: arm64
+            machine: arm64
+            artifact_name: macos-arm64-artifacts
+            artifact_dir: macos-arm64
+          - os: macos-15-intel
+            platform: macos
+            arch: x64
+            machine: x86_64
+            artifact_name: macos-x64-artifacts
+            artifact_dir: macos-x64
           - os: windows-latest
             platform: windows
             artifact_name: windows-artifacts
+            artifact_dir: windows
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -565,12 +613,16 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ runner.temp }}/release/${{ matrix.platform }}
+          path: ${{ runner.temp }}/release/${{ matrix.artifact_dir }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        if: matrix.platform == 'windows'
         with:
           node-version: 24.14.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
@@ -616,36 +668,63 @@ jobs:
 
           test -x "$HOME/.local/bin/openwaggle"
           test -f "$HOME/.local/share/applications/openwaggle.desktop"
+          xvfb-run --auto-servernum pnpm exec tsx scripts/verify-installed-cli.ts \
+            "$HOME/.local/bin/openwaggle"
 
-      - name: Verify macOS installers
+      - name: Verify macOS ${{ matrix.arch }} installer and installed CLI
         if: matrix.platform == 'macos'
         shell: bash
         run: |
           set -euo pipefail
+          test "$(uname -m)" = '${{ matrix.machine }}'
           VERSION='${{ needs.version.outputs.new_version }}'
-          ARTIFACT_DIR="$RUNNER_TEMP/release/macos"
-          ARM64_DMG="openwaggle-${VERSION}-arm64.dmg"
-          X64_DMG="openwaggle-${VERSION}-x64.dmg"
-          ARM64_ZIP="openwaggle-${VERSION}-arm64.zip"
-          X64_ZIP="openwaggle-${VERSION}-x64.zip"
-          test -f "$ARTIFACT_DIR/$ARM64_DMG"
-          test -f "$ARTIFACT_DIR/$X64_DMG"
-          test -f "$ARTIFACT_DIR/$ARM64_ZIP"
-          test -f "$ARTIFACT_DIR/$X64_ZIP"
+          ARCH='${{ matrix.arch }}'
+          ARTIFACT_DIR="$RUNNER_TEMP/release/macos-${ARCH}"
+          DMG_NAME="openwaggle-${VERSION}-${ARCH}.dmg"
+          ZIP_NAME="openwaggle-${VERSION}-${ARCH}.zip"
+          DMG_PATH="$ARTIFACT_DIR/$DMG_NAME"
+          test -f "$DMG_PATH"
+          test -f "$ARTIFACT_DIR/$ZIP_NAME"
 
-          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
-          trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
-          APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
-          test -d "$APP_PATH"
-          APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
-          test -x "$APP_BINARY"
+          MOCK_RELEASE_DIR="$RUNNER_TEMP/mock-release"
+          mkdir -p "$MOCK_RELEASE_DIR"
+          cp "$DMG_PATH" "$MOCK_RELEASE_DIR/$DMG_NAME"
+          (
+            cd "$MOCK_RELEASE_DIR"
+            shasum -a 256 "$DMG_NAME" > SHA256SUMS.txt
+          )
+
+          RELEASE_JSON_PATH="$MOCK_RELEASE_DIR/release.json"
+          DMG_URL="file://$MOCK_RELEASE_DIR/$DMG_NAME"
+          SHA_URL="file://$MOCK_RELEASE_DIR/SHA256SUMS.txt"
+          cat > "$RELEASE_JSON_PATH" <<JSON
+          {
+            "tag_name": "v${VERSION}",
+            "assets": [
+              { "browser_download_url": "${DMG_URL}" },
+              { "browser_download_url": "${SHA_URL}" }
+            ]
+          }
+          JSON
+
+          export HOME="$RUNNER_TEMP/home"
+          export TMPDIR="$RUNNER_TEMP/downloads"
+          export OPENWAGGLE_APPLICATIONS_DIR="$RUNNER_TEMP/Applications"
+          mkdir -p "$HOME" "$TMPDIR" "$OPENWAGGLE_APPLICATIONS_DIR"
+          export PATH="$HOME/.local/bin:$PATH"
+          export OPENWAGGLE_RELEASE_API_URL="file://$RELEASE_JSON_PATH"
+          bash scripts/install.sh
+
+          test -x "$OPENWAGGLE_APPLICATIONS_DIR/OpenWaggle.app/Contents/MacOS/OpenWaggle"
+          test -x "$HOME/.local/bin/openwaggle"
+          pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"
 
       - name: Verify Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+        run: pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release
@@ -659,6 +738,10 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
@@ -667,6 +750,7 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
+          node --no-warnings scripts/generate-macos-update-metadata.ts release '${{ needs.version.outputs.new_version }}'
           cd release && sha256sum * > SHA256SUMS.txt
 
       - name: Create draft release

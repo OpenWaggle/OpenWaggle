@@ -43,30 +43,38 @@ export async function executeLocalSessionCommandFrame(input: {
 }) {
   const releaseOperation = input.dependencies.liveness.acquire('operation')
   try {
-    const payload = await input.dependencies.dispatch({
-      caller: input.caller,
-      negotiatedRevision: input.negotiatedRevision,
-      eventCursor: input.dependencies.eventHub.cursor(),
-      payload: input.frame.payload,
-      signal: input.signal,
-      releaseAdmissionReader: () => input.releaseAdmissionReader?.(),
-    })
-    input.releaseAdmissionReader?.()
-    const refreshed = refreshedProfileId(payload)
-    if (refreshed) await refreshLocalSessionProfileAdmissions(refreshed)
-    await input.send({ kind: 'response', requestId: input.frame.requestId, payload })
+    let payload: unknown
+    try {
+      payload = await input.dependencies.dispatch({
+        caller: input.caller,
+        negotiatedRevision: input.negotiatedRevision,
+        eventCursor: input.dependencies.eventHub.cursor(),
+        payload: input.frame.payload,
+        signal: input.signal,
+        releaseAdmissionReader: () => input.releaseAdmissionReader?.(),
+      })
+      input.releaseAdmissionReader?.()
+      const refreshed = refreshedProfileId(payload)
+      if (refreshed) await refreshLocalSessionProfileAdmissions(refreshed)
+    } catch (error) {
+      input.releaseAdmissionReader?.()
+      const failure = commandFailure(error)
+      await input.send({
+        kind: 'error',
+        requestId: input.frame.requestId,
+        code: failure.code,
+        message: describeLocalSessionServerError(error),
+        retryable: failure.retryable,
+      })
+      return
+    }
+
     const invalidated = invalidatedProfileId(payload)
-    if (invalidated) disconnectLocalSessionProfile(invalidated)
-  } catch (error) {
-    input.releaseAdmissionReader?.()
-    const failure = commandFailure(error)
-    await input.send({
-      kind: 'error',
-      requestId: input.frame.requestId,
-      code: failure.code,
-      message: describeLocalSessionServerError(error),
-      retryable: failure.retryable,
-    })
+    try {
+      await input.send({ kind: 'response', requestId: input.frame.requestId, payload })
+    } finally {
+      if (invalidated) disconnectLocalSessionProfile(invalidated)
+    }
   } finally {
     input.releaseAdmissionReader?.()
     releaseOperation()

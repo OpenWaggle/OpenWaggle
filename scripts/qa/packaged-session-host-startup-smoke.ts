@@ -23,6 +23,8 @@ import {
 const ARGUMENT_SEPARATOR = '--'
 const FIRST_USER_ARGUMENT_INDEX = 2
 const SECOND_INSTANCE_EXIT_TIMEOUT_MS = 10_000
+const SEMANTIC_SEARCH_TIMEOUT_MS = 30_000
+const SEMANTIC_SEARCH_PROCESS_TIMEOUT_MS = 35_000
 const LEGACY_SESSION_ID = 'packaged-cutover-session'
 const LEGACY_SESSION_CREATED_AT = 10
 const LEGACY_SESSION_UPDATED_AT = 20
@@ -159,6 +161,52 @@ async function assertLegacySessionMigrated(executable: string, environment: Reco
     )
   ) {
     throw new Error('The packaged GUI did not migrate the seeded legacy Session.')
+  }
+
+  const searchResponse = await runJsonCli(
+    executable,
+    environment,
+    [
+      'sessions',
+      'search',
+      'packaged cutover fixture',
+      '--mode',
+      'semantic',
+      '--require-fresh',
+      '--timeout-ms',
+      String(SEMANTIC_SEARCH_TIMEOUT_MS),
+      '--all',
+      '--limit',
+      '10',
+    ],
+    { timeoutMs: SEMANTIC_SEARCH_PROCESS_TIMEOUT_MS },
+  )
+  assertPackagedSemanticSearch(cliOutcome(searchResponse))
+}
+
+export function assertPackagedSemanticSearch(outcome: Record<string, unknown>) {
+  const sessions = outcome.sessions
+  const sessionRecords: unknown[] = Array.isArray(sessions) ? sessions : []
+  const semanticReadiness = outcome.semanticReadiness
+  const readinessReady =
+    typeof semanticReadiness === 'object' &&
+    semanticReadiness !== null &&
+    'status' in semanticReadiness &&
+    semanticReadiness.status === 'ready'
+  if (
+    outcome.operation !== 'search' ||
+    outcome.searchBackend !== 'semantic' ||
+    !readinessReady ||
+    !Array.isArray(sessions) ||
+    !sessionRecords.some(
+      (session) =>
+        typeof session === 'object' &&
+        session !== null &&
+        'sessionId' in session &&
+        session.sessionId === LEGACY_SESSION_ID,
+    )
+  ) {
+    throw new Error('The packaged semantic embedding/search smoke did not return the legacy Session.')
   }
 }
 
