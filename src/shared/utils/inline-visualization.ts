@@ -1,5 +1,4 @@
 import { INLINE_VISUALIZATION_PROTOCOL } from '../constants/inline-visualization'
-import type { SessionId } from '../types/brand'
 import type { InlineVisualizationReference } from '../types/inline-visualization'
 import { isRecord } from './validation'
 
@@ -74,15 +73,8 @@ export function extractInlineVisualizationReferences(text: string) {
   return references
 }
 
-export function inlineVisualizationFrameUrl(
-  sessionId: SessionId,
-  sourcePath: string,
-  frameId: string,
-) {
-  const url = new URL(
+export function inlineVisualizationFrameUrl(frameId: string) {
+  return new URL(
     `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${INLINE_VISUALIZATION_PROTOCOL.FRAME_HOST_PREFIX}${frameId}${INLINE_VISUALIZATION_PROTOCOL.DOCUMENT_PATH}`,
-  )
-  url.searchParams.set('sessionId', sessionId)
-  url.searchParams.set('path', sourcePath)
-  return url.toString()
+  ).toString()
 }

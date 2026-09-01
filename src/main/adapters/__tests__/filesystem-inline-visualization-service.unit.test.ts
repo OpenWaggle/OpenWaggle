@@ -104,6 +104,23 @@ describe('FilesystemInlineVisualizationService', () => {
     ).resolves.toEqual({ status: 'unavailable', reason: 'too-large' })
   })
 
+  it('enforces the source limit when a file grows after its opened size check', async () => {
+    const userDataPath = await makeTemporaryRoot()
+    const sessionId = SessionId('session-visualization-1')
+    const sourcePath = path.join(userDataPath, 'visualizations', String(sessionId), 'growing.html')
+    const service = makeFilesystemInlineVisualizationService(userDataPath, {
+      beforeSourceRead: async () => {
+        await fs.appendFile(sourcePath, Buffer.alloc(5 * 1024 * 1024 + 1, 32))
+      },
+    })
+    const sessionRoot = await Effect.runPromise(service.prepareSession(sessionId))
+    await fs.writeFile(path.join(sessionRoot, 'growing.html'), '<p>small</p>', 'utf8')
+
+    await expect(
+      Effect.runPromise(service.readSource({ sessionId, sourcePath, workspaceRoots: [] })),
+    ).resolves.toEqual({ status: 'unavailable', reason: 'too-large' })
+  })
+
   it('reads a conforming live source under an explicitly authorized workspace root', async () => {
     const userDataPath = await makeTemporaryRoot()
     const workspaceRoot = await makeTemporaryRoot()
@@ -184,6 +201,24 @@ describe('FilesystemInlineVisualizationService', () => {
     await Effect.runPromise(service.prepareSession(SessionId('concurrent-session')))
     await Effect.runPromise(stagedDeletion.rollback)
 
+    await expect(fs.readFile(sourcePath, 'utf8')).resolves.toBe('<p>Saved</p>')
+  })
+
+  it('reserves a session directory while its deletion can still roll back', async () => {
+    const userDataPath = await makeTemporaryRoot()
+    const service = makeFilesystemInlineVisualizationService(userDataPath)
+    const sessionId = SessionId('session-being-deleted')
+    const sessionRoot = await Effect.runPromise(service.prepareSession(sessionId))
+    const sourcePath = path.join(sessionRoot, 'persistent-map.html')
+    await fs.writeFile(sourcePath, '<p>Saved</p>', 'utf8')
+
+    const stagedDeletion = await Effect.runPromise(service.stageSessionDeletion(sessionId))
+
+    await expect(Effect.runPromise(service.prepareSession(sessionId))).rejects.toThrow(
+      'Visualization session deletion is in progress',
+    )
+
+    await Effect.runPromise(stagedDeletion.rollback)
     await expect(fs.readFile(sourcePath, 'utf8')).resolves.toBe('<p>Saved</p>')
   })
 

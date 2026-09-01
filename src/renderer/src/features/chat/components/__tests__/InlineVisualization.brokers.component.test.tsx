@@ -72,7 +72,7 @@ describe('InlineVisualization brokers', () => {
         readonly sessionId: string
         readonly sourcePath: string
       }) => ({
-        frameUrl: `openwaggle-visualization://frame-${input.frameId}/document?sessionId=${encodeURIComponent(input.sessionId)}&path=${encodeURIComponent(input.sourcePath)}`,
+        frameUrl: `openwaggle-visualization://frame-${input.frameId}/document`,
         registrationId: `registration-${input.frameId}`,
       }),
     )

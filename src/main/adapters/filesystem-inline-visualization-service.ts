@@ -17,8 +17,12 @@ const VISUALIZATIONS_DIRECTORY = 'visualizations'
 const VISUALIZATION_FILENAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.html$/
 const SESSION_DIRECTORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
 const MAX_VISUALIZATION_SOURCE_BYTES = 5 * 1024 * 1024
+const INITIAL_VISUALIZATION_READ_BYTES = 64 * 1024
+const READ_BUFFER_GROWTH_FACTOR = 2
 const DELETION_TOMBSTONE_MARKER = '.deleting-'
 const activeDeletionTombstones = new Set<string>()
+const activeDeletionDirectories = new Set<string>()
+const sessionDirectoryLocks = new Map<string, Promise<void>>()
 
 class InvalidVisualizationPathError extends Error {}
 
@@ -75,11 +79,28 @@ async function reapDeletionTombstones(visualizationsDirectory: string) {
   )
 }
 
-async function commitDeletionTombstone(tombstone: string) {
+async function withSessionDirectoryLock<T>(directory: string, operation: () => Promise<T>) {
+  const previous = sessionDirectoryLocks.get(directory) ?? Promise.resolve()
+  const gate = Promise.withResolvers<void>()
+  sessionDirectoryLocks.set(directory, gate.promise)
+  await previous
+  try {
+    return await operation()
+  } finally {
+    gate.resolve()
+    if (sessionDirectoryLocks.get(directory) === gate.promise) {
+      sessionDirectoryLocks.delete(directory)
+    }
+  }
+}
+
+async function commitDeletionTombstone(tombstone: string, directory: string, staged: boolean) {
+  if (!staged) return
   try {
     await fs.rm(tombstone, { recursive: true, force: true })
   } finally {
     activeDeletionTombstones.delete(tombstone)
+    activeDeletionDirectories.delete(directory)
   }
 }
 
@@ -87,31 +108,96 @@ async function rollbackDeletionTombstone(tombstone: string, directory: string, s
   if (!staged) return
   await fs.rename(tombstone, directory)
   activeDeletionTombstones.delete(tombstone)
+  activeDeletionDirectories.delete(directory)
+}
+
+async function readVisualizationSource(sourceHandle: fs.FileHandle, initialSize: number) {
+  const maximumReadBytes = MAX_VISUALIZATION_SOURCE_BYTES + 1
+  let buffer = Buffer.allocUnsafe(
+    Math.min(maximumReadBytes, Math.max(INITIAL_VISUALIZATION_READ_BYTES, initialSize + 1)),
+  )
+  let totalBytesRead = 0
+  while (true) {
+    if (totalBytesRead === buffer.length) {
+      if (buffer.length === maximumReadBytes) break
+      const expanded = Buffer.allocUnsafe(
+        Math.min(maximumReadBytes, buffer.length * READ_BUFFER_GROWTH_FACTOR),
+      )
+      buffer.copy(expanded, 0, 0, totalBytesRead)
+      buffer = expanded
+    }
+    const { bytesRead } = await sourceHandle.read(
+      buffer,
+      totalBytesRead,
+      buffer.length - totalBytesRead,
+      totalBytesRead,
+    )
+    if (bytesRead === 0) break
+    totalBytesRead += bytesRead
+  }
+  if (totalBytesRead > MAX_VISUALIZATION_SOURCE_BYTES) return null
+  return buffer.subarray(0, totalBytesRead).toString('utf8')
+}
+
+async function prepareVisualizationSession(userDataPath: string, sessionId: SessionId) {
+  const directory = sessionDirectory(userDataPath, sessionId)
+  return withSessionDirectoryLock(directory, async () => {
+    const visualizationsDirectory = path.dirname(directory)
+    await fs.mkdir(visualizationsDirectory, { recursive: true })
+    const rootStats = await fs.lstat(visualizationsDirectory)
+    if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
+      throw new InvalidVisualizationPathError('Invalid visualization storage root')
+    }
+    await reapDeletionTombstones(visualizationsDirectory)
+    if (activeDeletionDirectories.has(directory)) {
+      throw new InvalidVisualizationPathError('Visualization session deletion is in progress')
+    }
+    await fs.mkdir(directory, { recursive: true })
+    const sessionStats = await fs.lstat(directory)
+    if (sessionStats.isSymbolicLink() || !sessionStats.isDirectory()) {
+      throw new InvalidVisualizationPathError('Invalid visualization session directory')
+    }
+    return directory
+  })
+}
+
+async function stageVisualizationSessionDeletion(userDataPath: string, sessionId: SessionId) {
+  const directory = sessionDirectory(userDataPath, sessionId)
+  const stagedDeletion = await withSessionDirectoryLock(directory, async () => {
+    if (activeDeletionDirectories.has(directory)) {
+      throw new InvalidVisualizationPathError(
+        'Visualization session deletion is already in progress',
+      )
+    }
+    const tombstone = path.join(
+      path.dirname(directory),
+      `.${path.basename(directory)}${DELETION_TOMBSTONE_MARKER}${randomUUID()}`,
+    )
+    activeDeletionDirectories.add(directory)
+    try {
+      await fs.rename(directory, tombstone)
+      activeDeletionTombstones.add(tombstone)
+      return { staged: true, tombstone }
+    } catch (cause) {
+      activeDeletionDirectories.delete(directory)
+      if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause
+      return { staged: false, tombstone }
+    }
+  })
+  return { ...stagedDeletion, directory }
 }
 
 export function makeFilesystemInlineVisualizationService(
   userDataPath: string,
-  dependencies: { readonly beforeSourceOpen?: () => Promise<void> } = {},
+  dependencies: {
+    readonly beforeSourceOpen?: () => Promise<void>
+    readonly beforeSourceRead?: () => Promise<void>
+  } = {},
 ): InlineVisualizationServiceShape {
   return {
     prepareSession: (sessionId) =>
       Effect.tryPromise({
-        try: async () => {
-          const directory = sessionDirectory(userDataPath, sessionId)
-          const visualizationsDirectory = path.dirname(directory)
-          await fs.mkdir(visualizationsDirectory, { recursive: true })
-          const rootStats = await fs.lstat(visualizationsDirectory)
-          if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
-            throw new InvalidVisualizationPathError('Invalid visualization storage root')
-          }
-          await reapDeletionTombstones(visualizationsDirectory)
-          await fs.mkdir(directory, { recursive: true })
-          const sessionStats = await fs.lstat(directory)
-          if (sessionStats.isSymbolicLink() || !sessionStats.isDirectory()) {
-            throw new InvalidVisualizationPathError('Invalid visualization session directory')
-          }
-          return directory
-        },
+        try: () => prepareVisualizationSession(userDataPath, sessionId),
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
     deleteSession: (sessionId) =>
@@ -124,22 +210,13 @@ export function makeFilesystemInlineVisualizationService(
     stageSessionDeletion: (sessionId) =>
       Effect.tryPromise({
         try: async () => {
-          const directory = sessionDirectory(userDataPath, sessionId)
-          const tombstone = path.join(
-            path.dirname(directory),
-            `.${path.basename(directory)}${DELETION_TOMBSTONE_MARKER}${randomUUID()}`,
+          const { staged, tombstone, directory } = await stageVisualizationSessionDeletion(
+            userDataPath,
+            sessionId,
           )
-          let staged = false
-          try {
-            await fs.rename(directory, tombstone)
-            staged = true
-            activeDeletionTombstones.add(tombstone)
-          } catch (cause) {
-            if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause
-          }
           return {
             commit: Effect.tryPromise({
-              try: () => commitDeletionTombstone(tombstone),
+              try: () => commitDeletionTombstone(tombstone, directory, staged),
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
             }),
             rollback: Effect.tryPromise({
@@ -179,7 +256,9 @@ export function makeFilesystemInlineVisualizationService(
             if (openedStats.size > MAX_VISUALIZATION_SOURCE_BYTES) {
               return { status: 'unavailable', reason: 'too-large' }
             }
-            const contents = await sourceHandle.readFile('utf8')
+            await dependencies.beforeSourceRead?.()
+            const contents = await readVisualizationSource(sourceHandle, openedStats.size)
+            if (contents === null) return { status: 'unavailable', reason: 'too-large' }
             return {
               status: 'loaded',
               contents,

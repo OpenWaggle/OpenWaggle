@@ -40,14 +40,14 @@ describe('inline visualization protocol', () => {
     registerInlineVisualizationProtocolOnce({ readSource })
     const handler = handleMock.mock.calls[0]?.[1]
     const unregisteredResponse = await handler?.({
-      url: inlineVisualizationUrl(sessionId, sourcePath, frameId),
+      url: inlineVisualizationUrl(frameId),
     })
     expect(unregisteredResponse.status).toBe(404)
     expect(readSource).not.toHaveBeenCalled()
     registerInlineVisualizationFrame({ frameId, sessionId, sourcePath })
 
     const response = await handler?.({
-      url: inlineVisualizationUrl(sessionId, sourcePath, frameId),
+      url: inlineVisualizationUrl(frameId),
     })
 
     expect(response).toBeInstanceOf(Response)
@@ -91,7 +91,7 @@ describe('inline visualization protocol', () => {
     expect(readSource).toHaveBeenCalledWith({ sessionId, sourcePath })
 
     const forgedPathResponse = await handler?.({
-      url: inlineVisualizationUrl(sessionId, '/repo/forged-map.html', frameId),
+      url: `${inlineVisualizationUrl(frameId)}?path=%2Frepo%2Fforged-map.html`,
     })
     expect(forgedPathResponse.status).toBe(404)
 
@@ -111,7 +111,7 @@ describe('inline visualization protocol', () => {
       sourcePath: '/repo/missing-map.html',
     })
     const unavailableResponse = await handler?.({
-      url: inlineVisualizationUrl(sessionId, '/repo/missing-map.html', frameId),
+      url: inlineVisualizationUrl(frameId),
     })
     expect(unavailableResponse.status).toBe(200)
     expect(unavailableResponse.headers.get('content-security-policy')).toBe(

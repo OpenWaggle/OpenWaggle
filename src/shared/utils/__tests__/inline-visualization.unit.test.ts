@@ -1,10 +1,20 @@
 import {
   extractInlineVisualizationReferences,
+  inlineVisualizationFrameUrl,
   parseInlineVisualizationReference,
 } from '@shared/utils/inline-visualization'
 import { describe, expect, it } from 'vitest'
 
 describe('inline visualization references', () => {
+  it('keeps session and source identifiers out of the sandbox URL', () => {
+    const frameUrl = inlineVisualizationFrameUrl('12345678-1234-4123-8123-123456789abc')
+
+    expect(frameUrl).toBe(
+      'openwaggle-visualization://frame-12345678-1234-4123-8123-123456789abc/document',
+    )
+    expect(new URL(frameUrl).search).toBe('')
+  })
+
   it.each([
     'C:/Users/diego/visualizations/map.html',
     'C:\\Users\\diego\\visualizations\\map.html',

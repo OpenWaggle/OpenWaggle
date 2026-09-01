@@ -65,7 +65,7 @@ describe('InlineVisualization', () => {
         readonly sessionId: string
         readonly sourcePath: string
       }) => ({
-        frameUrl: `openwaggle-visualization://frame-${input.frameId}/document?sessionId=${encodeURIComponent(input.sessionId)}&path=${encodeURIComponent(input.sourcePath)}`,
+        frameUrl: `openwaggle-visualization://frame-${input.frameId}/document`,
         registrationId: `registration-${input.frameId}`,
       }),
     )
@@ -103,8 +103,9 @@ describe('InlineVisualization', () => {
       /^frame-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     )
     expect(frameUrl.pathname).toBe('/document')
-    expect(frameUrl.searchParams.get('sessionId')).toBe(sessionId)
-    expect(frameUrl.searchParams.get('path')).toBe(sourcePath)
+    expect(frameUrl.search).toBe('')
+    expect(frameUrl.href).not.toContain(sessionId)
+    expect(frameUrl.href).not.toContain(sourcePath)
     expect(frame).toHaveAttribute('data-visualization-mode', 'wide')
     fireEvent.click(screen.getByRole('button', { name: 'Expand visualization' }))
     expect(screen.getByRole('button', { name: 'Close expanded visualization' })).toBeInTheDocument()

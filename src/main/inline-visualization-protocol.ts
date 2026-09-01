@@ -101,11 +101,7 @@ export function registerInlineVisualizationFrame(
     sourcePath: input.sourcePath,
   })
   return {
-    frameUrl: inlineVisualizationFrameUrl(
-      SessionId(input.sessionId),
-      input.sourcePath,
-      input.frameId,
-    ),
+    frameUrl: inlineVisualizationFrameUrl(input.frameId),
     registrationId,
   }
 }
@@ -124,21 +120,13 @@ function parseVisualizationRequest(requestUrl: string) {
     !FRAME_HOST_PATTERN.test(url.host) ||
     url.pathname !== INLINE_VISUALIZATION_PROTOCOL.DOCUMENT_PATH ||
     url.username.length > 0 ||
-    url.password.length > 0
+    url.password.length > 0 ||
+    url.search.length > 0 ||
+    url.hash.length > 0
   ) {
     return null
   }
-  const sessionId = url.searchParams.get('sessionId')
-  const sourcePath = url.searchParams.get('path')
-  if (
-    !sessionId ||
-    sessionId.length > MAX_SESSION_ID_LENGTH ||
-    !sourcePath ||
-    sourcePath.length > MAX_SOURCE_PATH_LENGTH
-  ) {
-    return null
-  }
-  return { sessionId: SessionId(sessionId), sourcePath, frameHost: url.host }
+  return { frameHost: url.host }
 }
 
 function isLucideRuntimeRequest(requestUrl: string) {
@@ -202,8 +190,8 @@ async function defaultReadSource(input: {
   return runAppEffect(readInlineVisualizationSource(input))
 }
 
-export function inlineVisualizationUrl(sessionId: SessionId, sourcePath: string, frameId: string) {
-  return inlineVisualizationFrameUrl(sessionId, sourcePath, frameId)
+export function inlineVisualizationUrl(frameId: string) {
+  return inlineVisualizationFrameUrl(frameId)
 }
 
 export function registerInlineVisualizationProtocolOnce(
@@ -238,16 +226,10 @@ export function registerInlineVisualizationProtocolOnce(
       const input = parseVisualizationRequest(request.url)
       if (!input) return notFoundResponse()
       const registration = registeredFrames.get(input.frameHost)
-      if (
-        !registration ||
-        registration.sessionId !== input.sessionId ||
-        registration.sourcePath !== input.sourcePath
-      ) {
-        return notFoundResponse()
-      }
+      if (!registration) return notFoundResponse()
       const result = await readSource({
-        sessionId: input.sessionId,
-        sourcePath: input.sourcePath,
+        sessionId: registration.sessionId,
+        sourcePath: registration.sourcePath,
       })
       if (result.status !== 'loaded') {
         return visualizationResponse(
