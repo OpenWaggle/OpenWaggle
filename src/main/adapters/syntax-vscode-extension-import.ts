@@ -248,7 +248,13 @@ export async function parseUnpackedSyntaxExtension(
   }
   const manifestPath = path.join(packageRoot, 'package.json')
   const manifest = extensionManifest(
-    parseJsonText((await readBoundedFile(manifestPath, undefined, readBudget)).toString('utf8')),
+    parseJsonText(
+      (
+        await readBoundedFile(manifestPath, undefined, readBudget, {
+          followSymbolicLink: false,
+        })
+      ).toString('utf8'),
+    ),
     path.basename(packageRoot),
   )
   const reader: ExtensionResourceReader = {

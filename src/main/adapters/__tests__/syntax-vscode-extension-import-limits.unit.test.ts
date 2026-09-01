@@ -36,4 +36,21 @@ describe('VS Code syntax extension import limits', () => {
       )
     },
   )
+
+  it.skipIf(process.platform === 'win32')('rejects a symlinked extension manifest', async () => {
+    const manifestTarget = path.join(temporaryRoot, 'manifest-target.json')
+    await fs.writeFile(
+      manifestTarget,
+      JSON.stringify({
+        publisher: 'acme',
+        name: 'symlinked-manifest',
+        contributes: { themes: [{ path: './theme.json' }] },
+      }),
+    )
+    await fs.symlink(manifestTarget, path.join(temporaryRoot, 'package.json'))
+
+    await expect(parseSyntaxThemeSource(temporaryRoot, 'user')).rejects.toThrow(
+      'must not be a symbolic link',
+    )
+  })
 })

@@ -1,4 +1,5 @@
-import fs from 'node:fs/promises'
+import { constants as fsConstants } from 'node:fs'
+import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import type { JsonObject, JsonValue } from '@shared/types/json'
@@ -19,6 +20,7 @@ const THEME_INCLUDE_DEPTH_LIMIT = 16
 const RESOURCE_ID_PART_LIMIT = 100
 const JSON_STRUCTURE_DEPTH_LIMIT = 64
 const JSON_STRUCTURE_NODE_LIMIT = 100_000
+const FILE_READ_CHUNK_BYTES = 64 * 1024
 
 export interface ThemeIncludeBudget {
   bytes: number
@@ -163,25 +165,62 @@ export async function readBoundedFile(
   filePath: string,
   budget?: ThemeIncludeBudget,
   readBudget?: SyntaxReadBudget,
+  options: { readonly followSymbolicLink?: boolean } = {},
 ) {
-  const stats = await fs.stat(filePath)
+  const followSymbolicLink = options.followSymbolicLink ?? true
+  if (!followSymbolicLink && (await fs.lstat(filePath)).isSymbolicLink()) {
+    throw new Error('Theme import source must not be a symbolic link.')
+  }
+
+  let handle: FileHandle
+  try {
+    handle = await fs.open(
+      filePath,
+      fsConstants.O_RDONLY | (followSymbolicLink ? 0 : fsConstants.O_NOFOLLOW),
+    )
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ELOOP') {
+      throw new Error('Theme import source must not be a symbolic link.', { cause: error })
+    }
+    throw error
+  }
+  try {
+    return await readBoundedFileHandle(handle, budget, readBudget)
+  } finally {
+    await handle.close()
+  }
+}
+
+async function readBoundedFileHandle(
+  handle: FileHandle,
+  budget?: ThemeIncludeBudget,
+  readBudget?: SyntaxReadBudget,
+) {
+  const stats = await handle.stat()
   if (!stats.isFile()) throw new Error('Theme import source must be a file.')
   if (stats.size > IMPORT_SIZE_LIMIT_BYTES) throw new Error('Theme import exceeds the size limit.')
-  if (readBudget) chargeSyntaxReadBudget(readBudget, stats.size)
-  if (budget && budget.bytes + stats.size > ARCHIVE_EXPANDED_LIMIT_BYTES) {
-    throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')
-  }
-  const data = await fs.readFile(filePath)
-  if (readBudget && data.byteLength > stats.size) {
-    chargeSyntaxReadBudget(readBudget, data.byteLength - stats.size)
-  }
-  if (budget) {
-    if (budget.bytes + data.byteLength > ARCHIVE_EXPANDED_LIMIT_BYTES) {
-      throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')
+
+  const chunks: Buffer[] = []
+  let totalBytes = 0
+  while (true) {
+    const remainingWithOverflowByte = IMPORT_SIZE_LIMIT_BYTES - totalBytes + 1
+    const chunk = Buffer.allocUnsafe(Math.min(FILE_READ_CHUNK_BYTES, remainingWithOverflowByte))
+    const { bytesRead } = await handle.read(chunk, 0, chunk.length, null)
+    if (bytesRead === 0) break
+    totalBytes += bytesRead
+    if (totalBytes > IMPORT_SIZE_LIMIT_BYTES) {
+      throw new Error('Theme import exceeds the size limit.')
     }
-    budget.bytes += data.byteLength
+    if (readBudget) chargeSyntaxReadBudget(readBudget, bytesRead)
+    if (budget) {
+      if (budget.bytes + bytesRead > ARCHIVE_EXPANDED_LIMIT_BYTES) {
+        throw new Error('VS Code theme include chain exceeds the aggregate byte limit.')
+      }
+      budget.bytes += bytesRead
+    }
+    chunks.push(chunk.subarray(0, bytesRead))
   }
-  return data
+  return Buffer.concat(chunks, totalBytes)
 }
 
 export function parseTextMatePlist(source: string) {
