@@ -78,4 +78,17 @@ describe('workspace entry mutations', () => {
       ).resolves.toBe('preserved')
     },
   )
+
+  it.runIf(process.platform !== 'linux')(
+    'preserves case-only directory renames on case-insensitive filesystems',
+    async () => {
+      await expect(
+        moveWorkspaceEntry({ projectPath, path: 'src', targetPath: 'SRC' }),
+      ).resolves.toMatchObject({ path: 'SRC', previousPath: 'src' })
+
+      await expect(fs.readFile(path.join(projectPath, 'SRC', 'alpha.ts'), 'utf8')).resolves.toBe(
+        'export const alpha = 1\n',
+      )
+    },
+  )
 })

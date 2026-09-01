@@ -88,6 +88,7 @@ function validateCanonicalDirectoryDestination(input: {
   if (
     input.sourceIsDirectory &&
     input.sourcePath !== input.targetPath &&
+    input.sourcePath.toLowerCase() !== input.targetPath.toLowerCase() &&
     isPathInsideDirectory(input.sourcePath, input.targetPath)
   ) {
     throw new Error(`A directory cannot be ${input.operation} inside itself.`)
