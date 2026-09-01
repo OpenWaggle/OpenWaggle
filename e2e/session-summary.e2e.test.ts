@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessionResources, seedSingleSession } from './support/session-fixtures'
 
@@ -97,27 +97,72 @@ if [ "$1" = "mr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
 echo "no merge request found" >&2
 exit 1
 `
-  const ghCmd = `@echo off
-if "%1"=="auth" (echo Logged in to github.com account openwaggle-e2e& exit /b 0)
-if "%1"=="pr" if "%2"=="create" (echo https://github.com/openwaggle/e2e/pull/42& exit /b 0)
-if "%1"=="pr" if "%2"=="list" (echo []& exit /b 0)
-echo no pull requests found 1>&2
-exit /b 1
-`
-  const glabCmd = `@echo off
-if "%1"=="auth" (echo Logged in to gitlab.com as openwaggle-e2e& exit /b 0)
-if "%1"=="mr" if "%2"=="create" (echo https://gitlab.com/openwaggle/e2e/-/merge_requests/42& exit /b 0)
-if "%1"=="mr" if "%2"=="list" (echo []& exit /b 0)
-echo no merge request found 1>&2
-exit /b 1
-`
   await Promise.all([
     fs.writeFile(path.join(binPath, 'gh'), gh, { mode: 0o755 }),
     fs.writeFile(path.join(binPath, 'glab'), glab, { mode: 0o755 }),
-    fs.writeFile(path.join(binPath, 'gh.cmd'), ghCmd),
-    fs.writeFile(path.join(binPath, 'glab.cmd'), glabCmd),
   ])
+  if (process.platform === 'win32') await createWindowsSourceControlCliFixtures(binPath)
   return binPath
+}
+
+async function createWindowsSourceControlCliFixtures(binPath: string) {
+  const sourcePath = path.join(binPath, 'source-control-fixture.cs')
+  const executablePath = path.join(binPath, 'source-control-fixture.exe')
+  const source = `
+using System;
+using System.IO;
+using System.Reflection;
+
+public static class Program {
+  public static int Main(string[] args) {
+    var command = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
+    if (args.Length > 0 && args[0] == "auth") {
+      Console.WriteLine(command == "gh" ? "Logged in to github.com account openwaggle-e2e" : "Logged in to gitlab.com as openwaggle-e2e");
+      return 0;
+    }
+    if (command == "gh" && args.Length > 1 && args[0] == "pr" && args[1] == "create") {
+      Console.WriteLine("https://github.com/openwaggle/e2e/pull/42");
+      return 0;
+    }
+    if (command == "glab" && args.Length > 1 && args[0] == "mr" && args[1] == "create") {
+      Console.WriteLine("https://gitlab.com/openwaggle/e2e/-/merge_requests/42");
+      return 0;
+    }
+    if (args.Length > 1 && (args[1] == "list")) {
+      Console.WriteLine("[]");
+      return 0;
+    }
+    Console.Error.WriteLine(command == "gh" ? "no pull requests found" : "no merge request found");
+    return 1;
+  }
+}
+`
+  await fs.writeFile(sourcePath, source)
+  const quotePowerShellPath = (value: string) => `'${value.replaceAll("'", "''")}'`
+  execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Add-Type -Path ${quotePowerShellPath(sourcePath)} -OutputAssembly ${quotePowerShellPath(executablePath)} -OutputType ConsoleApplication`,
+    ],
+    { stdio: 'ignore' },
+  )
+  await Promise.all([
+    fs.copyFile(executablePath, path.join(binPath, 'gh.exe')),
+    fs.copyFile(executablePath, path.join(binPath, 'glab.exe')),
+  ])
+}
+
+async function dispatchButtonClick(button: Locator) {
+  await expect(button).toBeEnabled()
+  const dispatched = await button.evaluate((element) => {
+    if (!(element instanceof HTMLButtonElement) || element.disabled) return false
+    element.click()
+    return true
+  })
+  expect(dispatched).toBe(true)
 }
 
 test('Session Summary follows first-message, dock, and sidebar behavior', async () => {
@@ -478,7 +523,7 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     await expect(
       pullRequestComposer.getByRole('button', { name: 'Open PR in browser' }),
     ).toBeDisabled()
-    await pullRequestComposer.getByRole('button', { name: 'Create PR' }).click()
+    await dispatchButtonClick(pullRequestComposer.getByRole('button', { name: 'Create PR' }))
     await expect(pullRequestComposer).toHaveCount(0, { timeout: 60_000 })
     await expect
       .poll(() =>
@@ -521,7 +566,9 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     await expect(
       mergeRequestComposer.getByRole('button', { name: 'Open MR in browser' }),
     ).toBeDisabled()
-    await mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }).click()
+    await dispatchButtonClick(
+      mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }),
+    )
     await expect(mergeRequestComposer).toHaveCount(0, { timeout: 60_000 })
     await expect
       .poll(() =>

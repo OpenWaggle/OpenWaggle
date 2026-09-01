@@ -66,6 +66,17 @@ function lifecycleButton(page: Page, action: string) {
   })
 }
 
+async function dispatchLifecycleClick(page: Page, action: string) {
+  const button = lifecycleButton(page, action)
+  await expect(button).toBeEnabled()
+  const dispatched = await button.evaluate((element) => {
+    if (!(element instanceof HTMLButtonElement) || element.disabled) return false
+    element.click()
+    return true
+  })
+  expect(dispatched).toBe(true)
+}
+
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-extension-host-e2e-')
   const projectPath = await fs.realpath(
@@ -195,7 +206,12 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     )
     const publishReport = resourcesFrame.getByRole('button', { name: 'Publish session report' })
     await expect(resourcesFrame.getByText('Ready to publish to this session.')).toBeVisible()
-    await publishReport.click()
+    const publishStarted = await publishReport.evaluate((element) => {
+      if (!(element instanceof HTMLButtonElement)) return false
+      element.click()
+      return element.disabled
+    })
+    expect(publishStarted).toBe(true)
     await expect(resourcesFrame.getByText('Published to Outputs.')).toBeVisible({ timeout: 30_000 })
     await expect(publishReport).toBeEnabled({ timeout: 30_000 })
     await page.getByRole('button', { name: 'Close extension side panel' }).click()
@@ -211,8 +227,12 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     ).toHaveCount(0)
 
     await openExtensionsSettings(page)
+    const reopenedSettingsFrame = page.frameLocator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)
+    await expect(reopenedSettingsFrame.getByText('Extension configuration')).toBeVisible({
+      timeout: 30_000,
+    })
 
-    await lifecycleButton(page, 'Disable').click()
+    await dispatchLifecycleClick(page, 'Disable')
     await expect(lifecycleButton(page, 'Enable')).toBeVisible({ timeout: 30_000 })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
