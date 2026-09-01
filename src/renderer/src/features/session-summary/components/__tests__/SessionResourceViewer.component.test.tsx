@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { httpImage, image, remoteImage, renderViewer } from './session-resource-viewer.test-harness'
@@ -128,6 +128,25 @@ describe('SessionResourceViewer', () => {
       expect(readSessionResource).toHaveBeenCalledWith(SessionId('session-1'), 'remote-image'),
     )
     await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not refresh-loop the resource projection when a remote image read fails', async () => {
+    const remote = remoteImage('remote-image', 'Remote image')
+    listSessionResources
+      .mockResolvedValueOnce([remote])
+      .mockResolvedValue([{ ...remote, available: false, updatedAt: 2000 }])
+    readSessionResource.mockRejectedValue(new Error('Remote image unavailable'))
+    useUIStore.getState().openResourceViewer('session-1', 'remote-image')
+    const view = renderViewer('session-1')
+
+    expect(await screen.findByRole('button', { name: 'Retry image' })).toBeVisible()
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(readSessionResource).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Close image viewer' }))
+    expect(view.queryClient.getQueryData(['session-resources', 'session-1'])).toMatchObject({
+      resources: [{ id: 'remote-image', available: false }],
+    })
   })
 
   it('retries a null content read when the resource revision changes', async () => {

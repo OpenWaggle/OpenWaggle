@@ -125,6 +125,12 @@ export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFa
 
 export interface OpenChangeRequestPayload {
   readonly headRef: string
+  /**
+   * Repository owner/namespace that received the pushed head. GitHub requires
+   * `owner:branch` when the head lives in a fork; a bare branch can otherwise
+   * resolve to an unrelated same-named ref in the base repository.
+   */
+  readonly headOwner?: string
   /** Omitted when the provider should use the repository's configured default branch. */
   readonly baseRef?: string
   readonly title: string

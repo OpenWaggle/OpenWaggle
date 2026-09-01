@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -30,6 +30,108 @@ async function completesWithin(operation: Promise<unknown>, timeoutMs: number) {
   } finally {
     if (timeout) clearTimeout(timeout)
   }
+}
+
+interface ProcessResult {
+  readonly code: number | null
+  readonly stdout: string
+}
+
+async function runBoundedProcess(
+  command: string,
+  args: readonly string[],
+  timeoutMs = QA_FORCED_CLOSE_WAIT_MS,
+): Promise<ProcessResult | null> {
+  return new Promise((resolve) => {
+    const child = spawn(command, [...args], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    })
+    let settled = false
+    let stdout = ''
+    const finish = (result: ProcessResult | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve(result)
+    }
+    child.stdout?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.once('error', () => finish(null))
+    child.once('close', (code) => finish({ code, stdout }))
+    const timeout = setTimeout(() => {
+      try {
+        child.kill()
+      } catch {
+        // The helper may have exited between the timer and kill.
+      }
+      finish(null)
+    }, timeoutMs)
+  })
+}
+
+async function captureWindowsProcessTree(rootProcessId: number): Promise<readonly number[]> {
+  const script = [
+    `$targetProcessId = ${String(rootProcessId)}`,
+    '$allProcesses = @(Get-CimInstance Win32_Process)',
+    '$tree = [System.Collections.Generic.List[int]]::new()',
+    '$tree.Add([int]$targetProcessId)',
+    'for ($index = 0; $index -lt $tree.Count; $index++) {',
+    '  $parentProcessId = $tree[$index]',
+    '  foreach ($candidate in $allProcesses) {',
+    '    $candidateId = [int]$candidate.ProcessId',
+    '    if ([int]$candidate.ParentProcessId -eq $parentProcessId -and -not $tree.Contains($candidateId)) {',
+    '      $tree.Add($candidateId)',
+    '    }',
+    '  }',
+    '}',
+    'Write-Output ($tree -join ",")',
+  ].join('; ')
+  const result = await runBoundedProcess('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    script,
+  ])
+  if (result?.code !== 0) return []
+  return result.stdout
+    .trim()
+    .split(',')
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isSafeInteger(value) && value > 0)
+}
+
+async function stopWindowsProcessTree(processIds: readonly number[]): Promise<boolean> {
+  if (processIds.length === 0) return false
+  const ids = [...new Set(processIds)].reverse().map(String).join(',')
+  const script = [
+    `$processIds = @(${ids})`,
+    'foreach ($processId in $processIds) {',
+    '  Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue',
+    '}',
+  ].join('; ')
+  const result = await runBoundedProcess('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    script,
+  ])
+  return result?.code === 0
+}
+
+function processClose(childProcess: ChildProcess): Promise<void> {
+  return new Promise((resolve) => {
+    childProcess.once('close', () => resolve())
+    const exited = childProcess.exitCode !== null || childProcess.signalCode !== null
+    const readablePipesClosed = [childProcess.stdout, childProcess.stderr]
+      .filter((stream) => stream !== null)
+      .every((stream) => stream.destroyed || stream.readableEnded)
+    const writablePipeClosed =
+      childProcess.stdin === null || childProcess.stdin.destroyed || childProcess.stdin.writableEnded
+    if (exited && readablePipesClosed && writablePipeClosed) resolve()
+  })
 }
 
 function evidenceDirectory() {
@@ -164,40 +266,49 @@ export class OpenWaggleApp {
   }
 
   private async closeForCleanup(): Promise<boolean> {
+    const childProcess = this.app.process()
+    const windowsProcessTree =
+      process.platform === 'win32' && childProcess.pid
+        ? await captureWindowsProcessTree(childProcess.pid)
+        : []
     const closeOperation = this.close().catch(() => undefined)
     if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return true
 
     console.warn('[electron-qa] graceful close timed out; terminating the temporary test app')
-    this.terminateProcessTree()
+    const terminated = await this.terminateProcessTree(childProcess, windowsProcessTree)
     const forcedClosed = await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
-    if (!forcedClosed) {
+    if (!terminated || !forcedClosed) {
       console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
     }
-    return forcedClosed
+    return terminated && forcedClosed
   }
 
   private async forceCloseForCleanup(): Promise<boolean> {
     console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
     const childProcess = this.app.process()
-    const processExited =
-      childProcess.exitCode !== null || childProcess.signalCode !== null
-        ? Promise.resolve()
-        : new Promise<void>((resolve) => childProcess.once('exit', () => resolve()))
-    await this.app
+    const processClosed = processClose(childProcess)
+    const windowsProcessTree =
+      process.platform === 'win32' && childProcess.pid
+        ? await captureWindowsProcessTree(childProcess.pid)
+        : []
+    const exitRequest = this.app
       .evaluate(() => {
         setImmediate(() => process.exit(0))
       })
       .catch(() => undefined)
+    await completesWithin(exitRequest, QA_FORCED_CLOSE_WAIT_MS)
     this.disconnectNodeInspector()
-    if (await completesWithin(processExited, QA_FORCED_CLOSE_WAIT_MS)) return true
+    if (await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)) {
+      return process.platform !== 'win32' || stopWindowsProcessTree(windowsProcessTree)
+    }
 
     console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
-    this.terminateProcessTree(childProcess)
-    const forcedClosed = await completesWithin(processExited, QA_FORCED_CLOSE_WAIT_MS)
-    if (!forcedClosed) {
+    const terminated = await this.terminateProcessTree(childProcess, windowsProcessTree)
+    const forcedClosed = await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)
+    if (!terminated || !forcedClosed) {
       console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
     }
-    return forcedClosed
+    return terminated && forcedClosed
   }
 
   private disconnectNodeInspector(): void {
@@ -217,39 +328,20 @@ export class OpenWaggleApp {
     if (typeof close === 'function') Reflect.apply(close, nodeConnection, [])
   }
 
-  private terminateProcessTree(childProcess = this.app.process()): void {
-    if (process.platform === 'win32' && childProcess.pid) {
-      const targetProcessId = String(childProcess.pid)
-      const script = [
-        `$targetProcessId = ${targetProcessId}`,
-        '$allProcesses = @(Get-CimInstance Win32_Process)',
-        '$tree = [System.Collections.Generic.List[int]]::new()',
-        '$tree.Add($targetProcessId)',
-        'for ($index = 0; $index -lt $tree.Count; $index++) {',
-        '  $parentProcessId = $tree[$index]',
-        '  foreach ($candidate in $allProcesses) {',
-        '    $candidateId = [int]$candidate.ProcessId',
-        '    if ([int]$candidate.ParentProcessId -eq $parentProcessId -and -not $tree.Contains($candidateId)) {',
-        '      $tree.Add($candidateId)',
-        '    }',
-        '  }',
-        '}',
-        'for ($index = $tree.Count - 1; $index -ge 0; $index--) {',
-        '  Stop-Process -Id $tree[$index] -Force -ErrorAction SilentlyContinue',
-        '}',
-      ].join('; ')
-      const killer = spawn(
-        'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-Command', script],
-        { stdio: 'ignore', windowsHide: true },
-      )
-      killer.unref()
-      return
+  private async terminateProcessTree(
+    childProcess: ChildProcess,
+    windowsProcessTree: readonly number[],
+  ): Promise<boolean> {
+    if (process.platform === 'win32') {
+      if (windowsProcessTree.length === 0) return false
+      return stopWindowsProcessTree(windowsProcessTree)
     }
     try {
       childProcess.kill('SIGKILL')
+      return true
     } catch {
       // The process may have exited while cleanup was capturing evidence.
+      return childProcess.exitCode !== null || childProcess.signalCode !== null
     }
   }
 

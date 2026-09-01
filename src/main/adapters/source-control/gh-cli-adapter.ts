@@ -1,3 +1,5 @@
+import { safeDecodeUnknown } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import type {
   ChangeRequestListResult,
   ChangeRequestResult,
@@ -39,7 +41,7 @@ function classifyFailure(result: CliResult): SourceControlFailure {
   return unknownFailure(result.stderr.trim())
 }
 
-const PR_JSON_FIELDS = 'title,url,baseRefName,headRefName,state,isDraft'
+const PR_JSON_FIELDS = 'title,url,baseRefName,headRefName,headRepositoryOwner,state,isDraft'
 
 async function authStatus(projectPath: string): Promise<SourceControlAuthResult> {
   const result = await runCli('gh', ['auth', 'status'], projectPath)
@@ -56,6 +58,58 @@ async function viewPullRequest(projectPath: string, ref: string): Promise<Change
     return { ok: false, code: 'no-change-request', message: 'No pull request found for ref.' }
   }
   return { ok: true, changeRequest }
+}
+
+function qualifiedHead(payload: OpenChangeRequestPayload) {
+  return payload.headOwner ? `${payload.headOwner}:${payload.headRef}` : payload.headRef
+}
+
+function pullRequestHeadOwner(raw: unknown): string | null {
+  const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
+  if (!decoded.success) return null
+  const owner = safeDecodeUnknown(jsonObjectSchema, decoded.data.headRepositoryOwner)
+  if (!owner.success) return null
+  const login = owner.data.login
+  return typeof login === 'string' ? login : null
+}
+
+async function findPullRequestByHead(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+): Promise<ChangeRequestResult> {
+  if (!payload.headOwner) return viewPullRequest(projectPath, payload.headRef)
+  const result = await runCli(
+    'gh',
+    [
+      'pr',
+      'list',
+      '--head',
+      payload.headRef,
+      '--state',
+      'open',
+      '--limit',
+      '100',
+      '--json',
+      PR_JSON_FIELDS,
+    ],
+    projectPath,
+  )
+  if (result.code !== 0) return classifyFailure(result)
+  const parsed = safeJsonParse(result.stdout)
+  const candidates: readonly unknown[] = Array.isArray(parsed) ? parsed : []
+  const exact =
+    candidates.find((candidate) => {
+      const changeRequest = mapGhPullRequest(candidate)
+      return (
+        pullRequestHeadOwner(candidate)?.toLowerCase() === payload.headOwner?.toLowerCase() &&
+        changeRequest?.headRef === payload.headRef &&
+        (payload.baseRef === undefined || changeRequest.baseRef === payload.baseRef)
+      )
+    }) ?? null
+  const changeRequest = mapGhPullRequest(exact)
+  return changeRequest
+    ? { ok: true, changeRequest }
+    : { ok: false, code: 'no-change-request', message: 'No pull request found for ref.' }
 }
 
 function createdPullRequestFromOutput(
@@ -81,7 +135,7 @@ async function resolveCreatedPullRequest(
   payload: OpenChangeRequestPayload,
   result: CliResult,
 ) {
-  const resolved = await viewPullRequest(projectPath, payload.headRef)
+  const resolved = await findPullRequestByHead(projectPath, payload)
   if (
     resolved.ok &&
     (resolved.changeRequest.state === 'open' || resolved.changeRequest.state === 'draft') &&
@@ -108,7 +162,7 @@ export const githubProvider: SourceControlProvider = {
       'pr',
       'create',
       '--head',
-      payload.headRef,
+      qualifiedHead(payload),
       '--title',
       payload.title,
       '--body',

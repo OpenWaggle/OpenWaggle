@@ -77,6 +77,7 @@ describe('stacked change-request workflow integration', () => {
       openChangeRequest,
       resolveCurrentRef: () => git(repository, ['branch', '--show-current']),
       resolveDefaultBaseRef: async () => 'main',
+      resolvePrimaryRemoteUrl: async () => remote,
       buildChangeRequestFallbackUrl: async () => null,
     }
 

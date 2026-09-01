@@ -140,9 +140,12 @@ function viewerContentIdentity(sessionId: string | null, resource: SessionResour
 
 function viewerResourceFlags(resource: SessionResource | null, sessionIsActive: boolean) {
   const locator = resource?.locator ?? ''
+  const remote = locator.startsWith('https://')
   return {
-    enabled: sessionIsActive && resource?.kind === 'image',
-    remote: locator.startsWith('https://'),
+    enabled:
+      sessionIsActive && resource?.kind === 'image' && (!remote || resource.available === true),
+    unavailable: resource?.available === false,
+    remote,
     managed: resource?.managed === true || locator.startsWith('session-resource://'),
   }
 }
@@ -163,11 +166,12 @@ function viewerSourceState(
   data: { readonly mimeType: string; readonly dataBase64: string } | null | undefined,
   state: { readonly pending: boolean; readonly error: boolean; readonly success: boolean },
   managed: boolean,
+  unavailable: boolean,
 ) {
   return {
     source: data ? contentUrl(data) : null,
-    loading: state.pending,
-    failed: state.error || (managed && state.success && data === null),
+    loading: state.pending && !unavailable,
+    failed: unavailable || state.error || (managed && state.success && data === null),
   }
 }
 
@@ -197,6 +201,7 @@ function useViewerSource(
     content.data,
     { pending: content.isPending, error: content.isError, success: content.isSuccess },
     flags.managed,
+    flags.unavailable,
   )
   return {
     ...source,

@@ -4,6 +4,7 @@ import {
   detectSourceControlProvider,
   parseAheadBehind,
   parseCount,
+  parseRemoteRepositoryIdentity,
   toWorkingTree,
 } from '../vcs-status-parse'
 
@@ -46,6 +47,30 @@ describe('vcs-status-parse', () => {
         id: 'github',
         host: 'github.enterprise.com',
       })
+    })
+  })
+
+  describe('parseRemoteRepositoryIdentity', () => {
+    it.each([
+      ['git@github.com:contributor/project.git', 'contributor'],
+      ['https://github.com/contributor/project.git', 'contributor'],
+      ['ssh://git@github.example.com/contributor/project.git', 'contributor'],
+    ])('extracts the pushed repository identity from %s', (remote, owner) => {
+      expect(parseRemoteRepositoryIdentity(remote)).toMatchObject({
+        provider: 'github',
+        owner,
+        repository: 'project',
+      })
+    })
+
+    it('does not invent an owner for a local bare remote', () => {
+      expect(parseRemoteRepositoryIdentity('/tmp/project.git')).toBeNull()
+    })
+
+    it('preserves a non-default enterprise URL port in the authority', () => {
+      expect(
+        parseRemoteRepositoryIdentity('ssh://git@github.example.com:8443/team/project.git'),
+      ).toMatchObject({ authority: 'github.example.com:8443' })
     })
   })
 

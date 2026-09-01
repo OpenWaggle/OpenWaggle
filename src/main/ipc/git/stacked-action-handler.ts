@@ -56,9 +56,13 @@ async function buildChangeRequestFallbackUrl(
   const webUrl = repositoryWebUrl(remoteUrl)
   if (!provider || !webUrl) return null
   if (provider.id === 'github') {
+    // A provider-native create can verify a fork relationship. A browser compare URL cannot,
+    // so do not offer a potentially unrelated same-named repository as a recovery target.
+    if (payload.headOwner) return null
+    const headRef = payload.headRef
     const comparison = payload.baseRef
-      ? `${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(payload.headRef)}`
-      : encodeURIComponent(payload.headRef)
+      ? `${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(headRef)}`
+      : encodeURIComponent(headRef)
     const url = new URL(`${webUrl}/compare/${comparison}`)
     url.searchParams.set('expand', '1')
     url.searchParams.set('title', payload.title)
@@ -138,6 +142,7 @@ function createStackedActionDeps(): StackedActionDeps {
       const primaryRemote = await resolvePrimaryRemote(projectPath)
       return resolveDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
     },
+    resolvePrimaryRemoteUrl,
     buildChangeRequestFallbackUrl,
   }
 }

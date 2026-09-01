@@ -17,7 +17,8 @@ import {
   planStackedActionPhases,
   resolveAutoFeatureBranchName,
 } from '@shared/utils/git-stacked-action'
-import type { GitPullResult, GitPushResult } from './push-service'
+import type { GitPullResult, GitPushDestination, GitPushResult } from './push-service'
+import { buildOpenChangeRequestPayload } from './stacked-action-change-request'
 
 /**
  * Injected git capabilities so the workflow can be orchestrated and tested
@@ -55,6 +56,8 @@ export interface StackedActionDeps {
   readonly resolveCurrentRef: (projectPath: string) => Promise<string | null>
   /** Default branch (base ref for a change request when the caller did not specify one). */
   readonly resolveDefaultBaseRef: (projectPath: string) => Promise<string | null>
+  /** Repository that will receive the change request. */
+  readonly resolvePrimaryRemoteUrl: (projectPath: string) => Promise<string | null>
   readonly buildChangeRequestFallbackUrl: (
     projectPath: string,
     payload: OpenChangeRequestPayload,
@@ -134,10 +137,20 @@ export async function runStackedGitAction(
   const commitOutcome = await maybeCommit(deps, projectPath, options, phases, hasChanges, report)
   if (!commitOutcome.ok) return withPreparedBranch(commitOutcome.failure, branch)
 
-  const pushFailure = await maybePush(deps, projectPath, phases, report)
-  if (pushFailure) return withCommit(withPreparedBranch(pushFailure, branch), commitOutcome.commit)
+  const pushOutcome = await maybePush(deps, projectPath, phases, report)
+  if (!pushOutcome.ok) {
+    return withCommit(withPreparedBranch(pushOutcome.failure, branch), commitOutcome.commit)
+  }
 
-  const prOutcome = await maybeOpenChangeRequest(deps, projectPath, options, phases, branch, report)
+  const prOutcome = await maybeOpenChangeRequest(
+    deps,
+    projectPath,
+    options,
+    phases,
+    branch,
+    pushOutcome.destination,
+    report,
+  )
   if (!prOutcome.ok) {
     return withCommit(withPreparedBranch(prOutcome.failure, branch), commitOutcome.commit)
   }
@@ -206,11 +219,18 @@ async function maybePush(
   phases: readonly GitActionPhase[],
   report: (phase: GitActionPhase, label: string) => void,
 ) {
-  if (!phases.includes('push')) return null
+  if (!phases.includes('push')) return { ok: true, destination: undefined } as const
   report('push', 'Pushing...')
   const push = await deps.push(projectPath)
-  if (push.ok) return null
-  return failure('push', push.code === 'no-upstream' ? 'no-upstream' : 'push-failed', push.message)
+  if (push.ok) return { ok: true, destination: push.destination } as const
+  return {
+    ok: false,
+    failure: failure(
+      'push',
+      push.code === 'no-upstream' ? 'no-upstream' : 'push-failed',
+      push.message,
+    ),
+  } as const
 }
 
 async function maybeOpenChangeRequest(
@@ -219,6 +239,7 @@ async function maybeOpenChangeRequest(
   options: GitRunStackedActionOptions,
   phases: readonly GitActionPhase[],
   branch: GitStackedActionBranchOutcome,
+  pushDestination: GitPushDestination | undefined,
   report: (phase: GitActionPhase, label: string) => void,
 ): Promise<
   | { ok: true; changeRequest: VcsChangeRequest | null }
@@ -226,10 +247,14 @@ async function maybeOpenChangeRequest(
 > {
   if (!phases.includes('pr')) return { ok: true, changeRequest: null }
   report('pr', 'Creating change request...')
-  const headRef = (branch.name ?? (await deps.resolveCurrentRef(projectPath)))?.trim() || ''
-  const baseRef =
-    (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || undefined
-  if (!headRef) {
+  const payload = await buildOpenChangeRequestPayload(
+    deps,
+    projectPath,
+    options,
+    branch,
+    pushDestination,
+  )
+  if (!payload) {
     return {
       ok: false,
       failure: failure(
@@ -238,13 +263,6 @@ async function maybeOpenChangeRequest(
         'Could not resolve the head ref for the change request.',
       ),
     }
-  }
-  const payload: OpenChangeRequestPayload = {
-    headRef,
-    ...(baseRef ? { baseRef } : {}),
-    title: options.changeRequestTitle?.trim() || 'Update',
-    body: options.changeRequestBody,
-    draft: options.draft,
   }
   const result = await deps.openChangeRequest(projectPath, payload)
   const fallbackUrl = result.ok

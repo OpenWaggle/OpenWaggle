@@ -14,6 +14,15 @@ export interface GitPushResult {
   readonly ok: boolean
   readonly code: 'ok' | 'not-git-repo' | 'no-upstream' | 'push-failed'
   readonly message: string
+  readonly destination?: GitPushDestination
+}
+
+export interface GitPushDestination {
+  readonly remote: string
+  readonly branch: string
+  /** The one configured push URL, or null when it cannot be resolved unambiguously. */
+  readonly remoteUrl: string | null
+  readonly multiplePushUrls: boolean
 }
 
 export interface GitPullResult {
@@ -40,6 +49,40 @@ async function upstreamRef(
   return { remote: value.slice(0, separator), branch: value.slice(separator + 1) }
 }
 
+async function resolvePushDestination(
+  projectPath: string,
+  remote: string,
+  branch: string,
+): Promise<GitPushDestination> {
+  const result = await runGit(projectPath, ['remote', 'get-url', '--push', '--all', remote])
+  const remoteUrls =
+    result.code === 0
+      ? [
+          ...new Set(
+            result.stdout
+              .split('\n')
+              .map((value) => value.trim())
+              .filter(Boolean),
+          ),
+        ]
+      : []
+  return {
+    remote,
+    branch,
+    remoteUrl: remoteUrls.length === 1 ? (remoteUrls[0] ?? null) : null,
+    multiplePushUrls: remoteUrls.length > 1,
+  }
+}
+
+function successfulPush(destination: GitPushDestination, message: string): GitPushResult {
+  return {
+    ok: true,
+    code: 'ok',
+    message,
+    destination,
+  }
+}
+
 /** Push the current branch, setting upstream to the selected remote on first push. */
 export async function pushCurrentBranch(
   projectPath: string,
@@ -51,6 +94,7 @@ export async function pushCurrentBranch(
 
   const upstream = await upstreamRef(projectPath)
   if (upstream) {
+    const destination = await resolvePushDestination(projectPath, upstream.remote, upstream.branch)
     /*
      * The destination is named, not left to configuration.
      *
@@ -65,7 +109,7 @@ export async function pushCurrentBranch(
       networkGitOptions(PUSH_TIMEOUT_MS),
     )
     return result.code === 0
-      ? { ok: true, code: 'ok', message: `Pushed to ${upstream.remote}/${upstream.branch}.` }
+      ? successfulPush(destination, `Pushed to ${upstream.remote}/${upstream.branch}.`)
       : { ok: false, code: 'push-failed', message: result.stderr.trim() || 'Failed to push.' }
   }
 
@@ -75,17 +119,14 @@ export async function pushCurrentBranch(
   }
   const destinationRemote =
     firstPushRemote ?? (await resolvePrimaryRemote(projectPath))?.name ?? 'origin'
+  const destination = await resolvePushDestination(projectPath, destinationRemote, branch)
   const result = await runGit(
     projectPath,
     ['push', '-u', destinationRemote, branch],
     networkGitOptions(PUSH_TIMEOUT_MS),
   )
   return result.code === 0
-    ? {
-        ok: true,
-        code: 'ok',
-        message: `Pushed and set upstream to ${destinationRemote}/${branch}.`,
-      }
+    ? successfulPush(destination, `Pushed and set upstream to ${destinationRemote}/${branch}.`)
     : { ok: false, code: 'push-failed', message: result.stderr.trim() || 'Failed to push.' }
 }
 

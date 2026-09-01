@@ -25,6 +25,7 @@ function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedActionDeps
     ),
     resolveCurrentRef: vi.fn(async () => 'feature/current'),
     resolveDefaultBaseRef: vi.fn(async () => 'main'),
+    resolvePrimaryRemoteUrl: vi.fn(async () => 'https://github.com/upstream/project.git'),
     buildChangeRequestFallbackUrl: vi.fn(async () => 'https://example.test/new-change-request'),
     ...overrides,
   }
@@ -148,6 +149,33 @@ describe('runStackedGitAction', () => {
     expect(deps.openChangeRequest).toHaveBeenCalledWith(
       '/repo',
       expect.objectContaining({ headRef: 'feature/current', baseRef: 'main' }),
+    )
+  })
+
+  it('opens a GitHub fork PR from the branch and owner that actually received the push', async () => {
+    const deps = makeDeps({
+      push: vi.fn(
+        async () =>
+          ({
+            ok: true,
+            code: 'ok',
+            message: 'pushed',
+            destination: {
+              remote: 'fork',
+              branch: 'published-name',
+              remoteUrl: 'git@github.com:contributor/project.git',
+              multiplePushUrls: false,
+            },
+          }) as const,
+      ),
+    })
+
+    const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
+
+    expect(result.ok).toBe(true)
+    expect(deps.openChangeRequest).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ headRef: 'published-name', headOwner: 'contributor' }),
     )
   })
 
