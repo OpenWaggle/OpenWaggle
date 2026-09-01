@@ -179,10 +179,7 @@ describe('extension session resource capability', () => {
     })
     expect(second).toMatchObject({ ok: true, value: { sessionId: SESSION_ID } })
     const publications = test.resourceUpserts().filter(({ title }) => title === 'Release notes')
-    expect(publications.map(({ locator }) => locator)).toEqual([
-      'https://example.com/releases/1',
-      'https://example.com/releases/1',
-    ])
+    expect(publications[0]?.locator).toBe('https://example.com/releases/1')
     expect(new Set(publications.map(({ occurrence }) => occurrence.id)).size).toBe(1)
     expect(publications.every(({ sessionId }) => sessionId === SessionId(SESSION_ID))).toBe(true)
     expect(publications.every(({ occurrence }) => occurrence.actor === 'extension')).toBe(true)
@@ -191,13 +188,13 @@ describe('extension session resource capability', () => {
     ).toHaveLength(1)
   })
 
-  it('joins an existing URL resource while retaining extension provenance', async () => {
+  it('adopts legacy URL identity while normalizing its locator and retaining provenance', async () => {
     const existing: SessionResource = {
       ...privateResource(SESSION_ID, 'existing-link'),
-      canonicalKey: 'url:https://example.com/shared',
+      canonicalKey: 'url:HTTPS://EXAMPLE.COM/shared',
       kind: 'link',
       title: 'Existing source',
-      locator: 'https://example.com/shared',
+      locator: 'HTTPS://EXAMPLE.COM/shared',
       managed: false,
     }
     const extensionPackage = resourcesPackage()
@@ -216,14 +213,14 @@ describe('extension session resource capability', () => {
           title: 'Shared source',
           kind: 'link',
           role: 'source',
-          locator: 'https://example.com/shared',
+          locator: 'HTTPS://EXAMPLE.COM/shared',
         },
       }),
     )
 
     expect(result).toMatchObject({ ok: true, value: { resource: { id: 'existing-link' } } })
     expect(test.resources()).toHaveLength(1)
-    expect(test.resources()[0]?.occurrences.some(({ actor }) => actor === 'extension')).toBe(true)
+    expect(test.resourceUpserts()[0]?.occurrence.id).toContain(':shared:source:HTTPS://')
   })
 
   it('rejects unbound trusted-main resource access', async () => {

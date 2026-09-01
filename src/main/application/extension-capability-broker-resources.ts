@@ -63,12 +63,24 @@ function publishResource(
     const sessions = yield* SessionRepository
     const workspace = yield* sessions.getWorkspace(sessionId)
     const normalizedLocator = new URL(payload.locator).href
+    const normalizedCanonicalKey = `url:${normalizedLocator}`
+    const legacyCanonicalKey = `url:${payload.locator}`
+    const normalizedResource = yield* repository.findByCanonicalKey(
+      sessionId,
+      normalizedCanonicalKey,
+    )
+    const legacyResource =
+      normalizedResource || legacyCanonicalKey === normalizedCanonicalKey
+        ? null
+        : yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
+    const existingResource = normalizedResource ?? legacyResource
+    const identityLocator = legacyResource ? payload.locator : normalizedLocator
     const createdAt = input.timestamp
-    const resourceId = randomUUID()
+    const resourceId = existingResource?.id ?? randomUUID()
     const resource = yield* repository.upsert({
       id: resourceId,
       sessionId,
-      canonicalKey: `url:${normalizedLocator}`,
+      canonicalKey: existingResource?.canonicalKey ?? normalizedCanonicalKey,
       kind: payload.kind,
       title: payload.title,
       mimeType: null,
@@ -76,7 +88,7 @@ function publishResource(
       managedPath: null,
       available: true,
       occurrence: {
-        id: `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${normalizedLocator}`,
+        id: `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${identityLocator}`,
         nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
         branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
         actor: 'extension',

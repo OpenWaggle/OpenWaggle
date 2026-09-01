@@ -79,6 +79,18 @@ function rowToOccurrence(row: SessionResourceOccurrenceRow): SessionResourceOccu
   }
 }
 
+function normalizedLocator(locator: string | null) {
+  if (!locator) return locator
+  try {
+    const url = new URL(locator)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
+      ? url.href
+      : locator
+  } catch {
+    return locator
+  }
+}
+
 export function rowToResource(
   row: SessionResourceRow,
   occurrenceRows: readonly SessionResourceOccurrenceRow[],
@@ -91,7 +103,7 @@ export function rowToResource(
     kind: decodeKind(row.kind),
     title: row.title,
     mimeType: row.mime_type,
-    locator: row.locator,
+    locator: normalizedLocator(row.locator),
     managed: row.managed_path !== null,
     available: row.available === 1,
     isSource: occurrences.some(
