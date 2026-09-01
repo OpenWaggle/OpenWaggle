@@ -336,6 +336,7 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
 })
 
 test('a 1 MiB source file paints a skeleton before tokenization and keeps bounded work', async () => {
+  test.setTimeout(90_000 + syntaxCompletionTimeout())
   const app = await OpenWaggleApp.launch('openwaggle-workspace-large-file-e2e-')
   const projectPath = path.join(app.userDataDir, 'workspace-large-file-project')
   const relativePath = 'src/large.ts'

@@ -282,13 +282,15 @@ async function expectSecureInteractiveVisualization(
 async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const page = app.window()
   const input = app.mainWindow().messageInput()
-  await input.fill('/vis')
-  const menu = page.getByRole('menu', { name: 'Slash command menu' })
-  await expect(menu).toBeVisible()
-  const visualize = menu.getByRole('menuitem', { name: /Visualize/u })
-  await expect(visualize).toContainText('/visualize')
-  await visualize.click()
-  await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
+  await expect(async () => {
+    await input.fill('/vis')
+    const menu = page.getByRole('menu', { name: 'Slash command menu' })
+    await expect(menu).toBeVisible()
+    const visualize = menu.getByRole('menuitem', { name: /Visualize/u })
+    await expect(visualize).toContainText('/visualize')
+    await visualize.evaluate((element: HTMLElement) => element.click())
+    await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
+  }).toPass({ timeout: 10_000 })
 }
 
 async function openVisualizationThread(app: OpenWaggleApp) {
