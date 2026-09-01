@@ -147,17 +147,13 @@ function syntaxSourceKeys(page: Page) {
   })
 }
 
-async function scrollSourceViewport(page: Page, scrollSurface: Locator) {
-  // Hidden Windows Electron does not deliver synthetic pointer-wheel input reliably. Give the
-  // viewport temporary programmatic focus and use native keyboard scrolling instead.
-  await scrollSurface.evaluate((element) => {
-    element.setAttribute('tabindex', '-1')
-  })
-  await scrollSurface.focus()
+async function navigateSourceViewport(page: Page, scrollSurface: Locator, lineNumber: number) {
+  // Hidden Electron runners do not deliver repeated pointer or keyboard scrolling reliably.
+  // Exercise the app's accessible Go to line flow to move through real source viewports instead.
   const current = await scrollSurface.evaluate((element) => element.scrollTop)
-  for (let step = 0; step < 16; step += 1) {
-    await page.keyboard.press('ArrowDown')
-  }
+  await page.keyboard.press(`${platformModifier()}+g`)
+  await page.getByRole('textbox', { name: 'Line number' }).fill(String(lineNumber))
+  await page.keyboard.press('Enter')
   await expect
     .poll(() => scrollSurface.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(current)
@@ -429,7 +425,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       const previousLineOffset = Number(
         await sourceView.getAttribute('data-syntax-line-offset'),
       )
-      await scrollSourceViewport(page, scrollSurface)
+      await navigateSourceViewport(page, scrollSurface, (viewportIndex + 1) * 100)
       await expect
         .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
