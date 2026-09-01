@@ -22,6 +22,7 @@ import {
   workspaceFilePreviewKind,
   workspaceFileRevision,
 } from './workspace-file-content'
+import { readBoundedFileRange } from './workspace-file-handle-reader'
 import { resolveExistingWorkspaceFile } from './workspace-file-paths'
 import { rememberWorkspaceFile } from './workspace-file-search'
 import { shebangLanguage, vscodeLanguageAssociation } from './workspace-language-detection'
@@ -126,9 +127,13 @@ async function oversizedReadResult(input: {
   readonly relativePath: string
 }): Promise<WorkspaceFileReadResult> {
   const handle = await fs.open(input.realFilePath, 'r')
-  const sample = Buffer.alloc(Math.min(FILE_KIND_SAMPLE_BYTES, input.base.size))
+  let sample: Buffer
   try {
-    await handle.read(sample, 0, sample.length, 0)
+    sample = await readBoundedFileRange(
+      handle,
+      Math.min(FILE_KIND_SAMPLE_BYTES, input.base.size),
+      0,
+    )
   } finally {
     await handle.close()
   }

@@ -8,6 +8,7 @@ import { acceptDiskDocument } from './workspace-document-recovery-actions'
 import {
   captureWorkspaceDocumentSnapshot,
   flushWorkspaceEdits,
+  persistPendingJournal,
   preserveFailedDraft,
   recordWorkspaceDocumentChange,
   type WorkspaceSaveQueueContext,
@@ -82,12 +83,17 @@ export async function reopenWorkspaceDocumentWithEncoding(
   context: WorkspaceSaveQueueContext,
   encoding: WorkspaceTextEncoding,
 ) {
+  const contentBeforeReopen = captureWorkspaceDocumentSnapshot(context)
   const next = await api.readWorkspaceFileWithEncoding(
     context.projectPath,
     context.file.path,
     encoding,
   )
   if (!('content' in next)) throw new Error('The file could not be decoded with that encoding.')
+  if (captureWorkspaceDocumentSnapshot(context) !== contentBeforeReopen) {
+    persistPendingJournal(context)
+    throw new Error('The file changed while reopening. Your newer edits were kept; try again.')
+  }
   acceptDiskDocument(context, next)
 }
 

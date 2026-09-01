@@ -8,6 +8,7 @@ import {
   LANGUAGE_BY_EXTENSION,
   workspaceFilePreviewKind,
 } from './workspace-file-content'
+import { readBoundedFileRange } from './workspace-file-handle-reader'
 import { resolveExistingWorkspaceFile } from './workspace-file-paths'
 import { vscodeLanguageAssociation } from './workspace-language-detection'
 
@@ -59,11 +60,17 @@ export async function readWorkspaceFilePage(input: {
   const resolved = await resolveExistingWorkspaceFile(input)
   const requestedOffset = Math.min(input.offset, resolved.stats.size)
   const handle = await fs.open(resolved.realFilePath, 'r')
-  const markerBuffer = Buffer.alloc(Math.min(TEXT_ENCODING_MARKER_BYTES, resolved.stats.size))
-  const sample = Buffer.alloc(Math.min(FILE_KIND_SAMPLE_BYTES, resolved.stats.size))
   try {
-    await handle.read(markerBuffer, 0, markerBuffer.length, 0)
-    await handle.read(sample, 0, sample.length, 0)
+    const markerBuffer = await readBoundedFileRange(
+      handle,
+      Math.min(TEXT_ENCODING_MARKER_BYTES, resolved.stats.size),
+      0,
+    )
+    const sample = await readBoundedFileRange(
+      handle,
+      Math.min(FILE_KIND_SAMPLE_BYTES, resolved.stats.size),
+      0,
+    )
     const marker = detectWorkspaceTextEncodingMarker(markerBuffer)
     const extension = path.extname(resolved.relativePath).toLowerCase()
     const sampledKind = workspaceFilePreviewKind(extension, sample)
@@ -87,9 +94,7 @@ export async function readWorkspaceFilePage(input: {
       WORKSPACE_EDITOR_PERFORMANCE.SOURCE_PAGE_MAX_BYTES,
       resolved.stats.size - decodeOffset,
     )
-    const buffer = Buffer.alloc(Math.max(0, readLimit))
-    const read = await handle.read(buffer, 0, buffer.length, decodeOffset)
-    let pageBuffer = buffer.subarray(0, read.bytesRead)
+    let pageBuffer = await readBoundedFileRange(handle, Math.max(0, readLimit), decodeOffset)
     if (marker.encoding === 'utf-8' || marker.encoding === 'utf-8-bom') {
       let leadingContinuationBytes = 0
       while (isUtf8ContinuationByte(pageBuffer[leadingContinuationBytes])) {
