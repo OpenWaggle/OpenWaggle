@@ -1,8 +1,7 @@
-import { execFile } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
@@ -14,7 +13,6 @@ const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
 const QA_GRACEFUL_CLOSE_MS = 10_000
 const QA_FORCED_CLOSE_WAIT_MS = 5_000
-const execFileAsync = promisify(execFile)
 
 async function completesWithin(operation: Promise<unknown>, timeoutMs: number) {
   let timeout: ReturnType<typeof setTimeout> | undefined
@@ -166,15 +164,18 @@ export class OpenWaggleApp {
   private async terminateProcessTree(): Promise<void> {
     const childProcess = this.app.process()
     if (process.platform === 'win32' && childProcess.pid) {
-      const terminated = await execFileAsync(
-        'taskkill.exe',
-        ['/PID', String(childProcess.pid), '/T', '/F'],
-        { windowsHide: true, timeout: QA_FORCED_CLOSE_WAIT_MS },
-      ).then(
-        () => true,
-        () => false,
-      )
-      if (terminated) return
+      try {
+        // A synchronous, bounded call cannot leave an execFile callback or pipe handle
+        // keeping the Playwright worker alive after the temporary app is gone.
+        execFileSync('taskkill.exe', ['/PID', String(childProcess.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          timeout: QA_FORCED_CLOSE_WAIT_MS,
+          windowsHide: true,
+        })
+        return
+      } catch {
+        // Fall through to the wrapper-process kill when taskkill cannot complete.
+      }
     }
     try {
       childProcess.kill()
