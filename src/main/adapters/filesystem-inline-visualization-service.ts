@@ -18,6 +18,7 @@ const VISUALIZATION_FILENAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.html$/
 const SESSION_DIRECTORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
 const MAX_VISUALIZATION_SOURCE_BYTES = 5 * 1024 * 1024
 const DELETION_TOMBSTONE_MARKER = '.deleting-'
+const activeDeletionTombstones = new Set<string>()
 
 class InvalidVisualizationPathError extends Error {}
 
@@ -68,10 +69,24 @@ async function reapDeletionTombstones(visualizationsDirectory: string) {
   await Promise.all(
     entries
       .filter((entry) => entry.name.includes(DELETION_TOMBSTONE_MARKER))
-      .map((entry) =>
-        fs.rm(path.join(visualizationsDirectory, entry.name), { recursive: true, force: true }),
-      ),
+      .map((entry) => path.join(visualizationsDirectory, entry.name))
+      .filter((tombstone) => !activeDeletionTombstones.has(tombstone))
+      .map((tombstone) => fs.rm(tombstone, { recursive: true, force: true })),
   )
+}
+
+async function commitDeletionTombstone(tombstone: string) {
+  try {
+    await fs.rm(tombstone, { recursive: true, force: true })
+  } finally {
+    activeDeletionTombstones.delete(tombstone)
+  }
+}
+
+async function rollbackDeletionTombstone(tombstone: string, directory: string, staged: boolean) {
+  if (!staged) return
+  await fs.rename(tombstone, directory)
+  activeDeletionTombstones.delete(tombstone)
 }
 
 export function makeFilesystemInlineVisualizationService(
@@ -118,18 +133,17 @@ export function makeFilesystemInlineVisualizationService(
           try {
             await fs.rename(directory, tombstone)
             staged = true
+            activeDeletionTombstones.add(tombstone)
           } catch (cause) {
             if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause
           }
           return {
             commit: Effect.tryPromise({
-              try: () => fs.rm(tombstone, { recursive: true, force: true }),
+              try: () => commitDeletionTombstone(tombstone),
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
             }),
             rollback: Effect.tryPromise({
-              try: async () => {
-                if (staged) await fs.rename(tombstone, directory)
-              },
+              try: () => rollbackDeletionTombstone(tombstone, directory, staged),
               catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
             }),
           }

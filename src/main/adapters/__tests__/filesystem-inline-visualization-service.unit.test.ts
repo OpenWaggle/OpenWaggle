@@ -171,4 +171,34 @@ describe('FilesystemInlineVisualizationService', () => {
     await Effect.runPromise(secondStage.commit)
     await expect(fs.stat(sessionRoot)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('does not reap a tombstone owned by an in-flight session deletion', async () => {
+    const userDataPath = await makeTemporaryRoot()
+    const service = makeFilesystemInlineVisualizationService(userDataPath)
+    const deletingSessionId = SessionId('session-being-deleted')
+    const deletingSessionRoot = await Effect.runPromise(service.prepareSession(deletingSessionId))
+    const sourcePath = path.join(deletingSessionRoot, 'persistent-map.html')
+    await fs.writeFile(sourcePath, '<p>Saved</p>', 'utf8')
+
+    const stagedDeletion = await Effect.runPromise(service.stageSessionDeletion(deletingSessionId))
+    await Effect.runPromise(service.prepareSession(SessionId('concurrent-session')))
+    await Effect.runPromise(stagedDeletion.rollback)
+
+    await expect(fs.readFile(sourcePath, 'utf8')).resolves.toBe('<p>Saved</p>')
+  })
+
+  it('reaps an abandoned tombstone that no deletion transaction owns', async () => {
+    const userDataPath = await makeTemporaryRoot()
+    const visualizationsRoot = path.join(userDataPath, 'visualizations')
+    const abandonedTombstone = path.join(
+      visualizationsRoot,
+      '.abandoned-session.deleting-00000000-0000-4000-8000-000000000000',
+    )
+    await fs.mkdir(abandonedTombstone, { recursive: true })
+    const service = makeFilesystemInlineVisualizationService(userDataPath)
+
+    await Effect.runPromise(service.prepareSession(SessionId('new-session')))
+
+    await expect(fs.stat(abandonedTombstone)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 })
