@@ -37,6 +37,7 @@ describe('SessionResourceViewer parity', () => {
     renderViewer('session-1')
 
     expect(await screen.findByText('Loading image…')).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'Image zoom' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Previous image' })).toBeDisabled()
     const next = screen.getByRole('button', { name: 'Next image' })
     expect(next).toBeVisible()
@@ -65,6 +66,7 @@ describe('SessionResourceViewer parity', () => {
     renderViewer('session-1')
 
     expect(await screen.findByRole('button', { name: 'Retry image' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'Image zoom' })).toBeDisabled()
     const next = screen.getByRole('button', { name: 'Next image' })
     expect(next).toBeVisible()
     expect(next).toBeEnabled()

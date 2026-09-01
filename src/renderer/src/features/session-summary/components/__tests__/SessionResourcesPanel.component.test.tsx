@@ -31,7 +31,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 function resource(
   id: string,
   input: Pick<SessionResource, 'kind' | 'title' | 'isSource' | 'isOutput' | 'locator'> &
-    Partial<Pick<SessionResource, 'available' | 'managed'>>,
+    Partial<Pick<SessionResource, 'available' | 'managed' | 'canonicalKey'>>,
 ): SessionResource {
   return {
     id,
@@ -249,6 +249,25 @@ describe('SessionResourcesPanel', () => {
       ),
     )
     expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
+  it('does not offer Retry for an unrecoverable generated image', async () => {
+    apiMocks.list.mockResolvedValue([
+      resource('invalid-generated-image', {
+        kind: 'image',
+        title: 'invalid-generated.png',
+        isSource: false,
+        isOutput: true,
+        locator: null,
+        available: false,
+        canonicalKey: 'unavailable-image:session-one:node-one:0',
+      }),
+    ])
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    const title = await screen.findByText('invalid-generated.png')
+    expect(title.closest('button')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Retry invalid-generated.png' })).toBeNull()
   })
 
   it('keeps open and reveal actions for the original path beside a managed copy', async () => {

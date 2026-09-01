@@ -96,6 +96,10 @@ function resourceIsActionable(resource: SessionResource, originalPath: string | 
   )
 }
 
+function resourceCanRetry(resource: SessionResource) {
+  return !resource.available && !resource.canonicalKey.startsWith('unavailable-image:')
+}
+
 function ResourceRow({
   resource,
   sessionId,
@@ -161,7 +165,7 @@ function ResourceRow({
           </Button>
         </>
       ) : null}
-      {!resource.available ? (
+      {resourceCanRetry(resource) ? (
         <Button
           variant="ghost"
           size="xs"

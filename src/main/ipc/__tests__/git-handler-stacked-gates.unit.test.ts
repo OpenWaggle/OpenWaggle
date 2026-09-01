@@ -86,6 +86,54 @@ describe('stacked action safety gates', () => {
     expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
+  it('aborts when the confirmed branch or push destination changes before mutation', async () => {
+    let headReads = 0
+    const mutationCommands: string[] = []
+    showMessageBoxMock.mockResolvedValue({ response: 1 })
+    execFileMock.mockImplementation(
+      (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
+        const joined = args.join(' ')
+        if (joined === 'rev-parse --is-inside-work-tree') return callback(null, 'true\n', '')
+        if (joined === 'symbolic-ref --quiet --short HEAD') {
+          headReads += 1
+          return callback(null, headReads === 1 ? 'main\n' : 'feature\n', '')
+        }
+        if (joined === 'remote get-url origin') {
+          return callback(null, 'https://github.com/example/repo.git\n', '')
+        }
+        if (joined === 'symbolic-ref --quiet --short refs/remotes/origin/HEAD') {
+          return callback(null, 'origin/main\n', '')
+        }
+        if (joined === 'rev-parse --abbrev-ref @{upstream}') {
+          return callback(null, 'origin/main\n', '')
+        }
+        if (joined.startsWith('-c core.quotePath=false status --porcelain=v1')) {
+          return callback(null, ' M a.txt\n', '')
+        }
+        if (joined.includes('diff ') && joined.includes('--numstat')) return callback(null, '', '')
+        mutationCommands.push(joined)
+        return callback(new Error(`Unexpected mutation: ${joined}`), '', '')
+      },
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    const result = await handler?.({ sender: {} }, '/tmp/repo-changing-target', {
+      action: 'commit_push',
+      commitMessage: 'Ship it',
+      paths: ['a.txt'],
+    })
+
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
+    expect(headReads).toBe(2)
+    expect(mutationCommands).toEqual([])
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'unknown',
+      message: expect.stringContaining('push destination changed'),
+    })
+  })
+
   it('asks when a requested feature branch normalizes to the default ref', async () => {
     const unexpected: string[] = []
     respondWith(

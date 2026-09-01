@@ -113,6 +113,7 @@ export function SessionResourceViewerHeader({
       <Select
         aria-label="Image zoom"
         selectSize="xs"
+        disabled={source === null}
         value={zoom}
         onChange={(event) => {
           if (isMatching(P.union('fit', '25', '50', '100', '150', '200'), event.target.value))

@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
 import { typedHandle } from '../typed-ipc'
+import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
 import { invalidateVcsStatus } from './vcs-status-cache'
@@ -37,41 +38,51 @@ function workingTreeActionHandler(
   return (_event: unknown, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const result = yield* Effect.promise(() => action(projectPath))
-      // Scoped to the tree we mutated: a global invalidation made every other
-      // session's panel re-run a full diff for a change that did not touch it.
-      invalidateGitStatusCache(projectPath)
-      invalidateVcsStatus(projectPath)
-      return result
+      return yield* withGitMutationLock(
+        projectPath,
+        Effect.gen(function* () {
+          const result = yield* Effect.promise(() => action(projectPath))
+          // Scoped to the tree we mutated: a global invalidation made every other
+          // session's panel re-run a full diff for a change that did not touch it.
+          invalidateGitStatusCache(projectPath)
+          invalidateVcsStatus(projectPath)
+          return result
+        }),
+      )
     })
 }
 
 function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const repositoryRoot = yield* Effect.promise(() => resolveRepositoryRoot(projectPath))
-    const ownerWindow = browserWindowFromWebContents(event.sender)
-    const dialogOptions = {
-      type: 'warning',
-      buttons: ['Cancel', 'Confirm'],
-      defaultId: 0,
-      cancelId: 0,
-      message: 'Revert all changes?',
-      detail: revertAllDetail(projectPath, repositoryRoot),
-    } satisfies MessageBoxOptions
-    const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
-    if (confirmation.response !== 1) {
-      return {
-        ok: false,
-        code: 'cancelled',
-        message: 'Revert all cancelled.',
-      } satisfies GitWorkingTreeMutationResult
-    }
+    return yield* withGitMutationLock(
+      projectPath,
+      Effect.gen(function* () {
+        const repositoryRoot = yield* Effect.promise(() => resolveRepositoryRoot(projectPath))
+        const ownerWindow = browserWindowFromWebContents(event.sender)
+        const dialogOptions = {
+          type: 'warning',
+          buttons: ['Cancel', 'Confirm'],
+          defaultId: 0,
+          cancelId: 0,
+          message: 'Revert all changes?',
+          detail: revertAllDetail(projectPath, repositoryRoot),
+        } satisfies MessageBoxOptions
+        const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
+        if (confirmation.response !== 1) {
+          return {
+            ok: false,
+            code: 'cancelled',
+            message: 'Revert all cancelled.',
+          } satisfies GitWorkingTreeMutationResult
+        }
 
-    const result = yield* Effect.promise(() => revertAllGitChanges(projectPath))
-    invalidateGitStatusCache(projectPath)
-    invalidateVcsStatus(projectPath)
-    return result
+        const result = yield* Effect.promise(() => revertAllGitChanges(projectPath))
+        invalidateGitStatusCache(projectPath)
+        invalidateVcsStatus(projectPath)
+        return result
+      }),
+    )
   })
 }
 
