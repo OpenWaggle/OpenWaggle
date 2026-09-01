@@ -158,7 +158,14 @@ describe('Pi Responses native compaction transport', () => {
 
     expect(portableStream).not.toHaveBeenCalled()
     expect(result.firstKeptEntryId).toBe('native-replacement')
-    expect(result.details).toEqual(NATIVE_DETAILS)
+    expect(result.details).toEqual({
+      ...NATIVE_DETAILS,
+      identity: {
+        ...NATIVE_DETAILS.identity,
+        credentialFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      },
+    })
+    expect(JSON.stringify(result.details)).not.toContain('test-key')
     expect(result.usage).toBeDefined()
     if (!result.usage) throw new Error('Expected Native compaction usage')
     expect(result.usage.cost.input).toBeCloseTo(0.0002)

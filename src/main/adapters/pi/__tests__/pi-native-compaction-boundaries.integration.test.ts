@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { contentText, fauxAssistantMessage } from '@earendil-works/pi-ai'
 import type { SessionCompactEvent } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -218,6 +219,7 @@ describe('Pi automatic compaction endpoint boundaries', () => {
         baseUrl: endpoint,
         compactionBaseUrl: endpoint,
         modelId: 'native-model',
+        credentialFingerprint: createHash('sha256').update('api-key:test-key').digest('hex'),
       },
       items: [{ type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' }],
     })

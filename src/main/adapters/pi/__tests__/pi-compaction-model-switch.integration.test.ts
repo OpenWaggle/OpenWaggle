@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -30,6 +31,10 @@ function makeTestApiKeyAuth(name: string, apiKey: string) {
       },
     },
   }
+}
+
+function testCredentialFingerprint(apiKey: string) {
+  return createHash('sha256').update(`api-key:${apiKey}`).digest('hex')
 }
 
 describe('Pi compaction model switching', () => {
@@ -273,6 +278,7 @@ describe('Pi compaction model switching', () => {
         baseUrl: sourceModel.baseUrl,
         compactionBaseUrl: sourceModel.baseUrl,
         modelId: sourceModel.id,
+        credentialFingerprint: testCredentialFingerprint('source-key'),
       },
       items: [{ type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' }],
     })

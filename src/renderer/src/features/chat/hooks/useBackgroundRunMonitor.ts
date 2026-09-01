@@ -35,7 +35,9 @@ export function useBackgroundRunMonitor(): void {
         addActiveRun(payload.sessionId)
       }
       if (payload.event.type === 'compaction_start' && !hasActiveRun(payload.sessionId)) {
-        compactionOnlySessionIds.add(payload.sessionId)
+        if (payload.event.reason === 'manual') {
+          compactionOnlySessionIds.add(payload.sessionId)
+        }
         addActiveRun(payload.sessionId)
       }
       applyRunRenderEvent(payload.sessionId, payload.event)

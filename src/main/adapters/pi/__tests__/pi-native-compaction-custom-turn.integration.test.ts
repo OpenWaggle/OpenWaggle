@@ -9,6 +9,13 @@ import {
   nativeCompactionFetch,
 } from './pi-native-compaction-integration.test-utils'
 
+function codexAccessToken(accountId: string, nonce: string) {
+  const payload = Buffer.from(
+    JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: accountId }, nonce }),
+  ).toString('base64url')
+  return `header.${payload}.signature`
+}
+
 describe('Pi native compaction custom turns', () => {
   afterEach(cleanupNativeSessions)
 
@@ -89,6 +96,67 @@ describe('Pi native compaction custom turns', () => {
     expect(providerBaseUrls).toEqual(['https://endpoint-b.example.test/v1'])
     expect(providerContexts[0]).toContain('Initial context')
     expect(providerContexts[0]).not.toContain('cmp_1')
+  })
+
+  it('reconstructs raw history when the credential changes without changing endpoints', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-credential-change-')
+    const events: SessionCompactEvent[] = []
+    const apiKeyState = { value: 'credential-a' }
+    const providerContexts: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch())
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      apiKeyState,
+      contextWindow: 10_000,
+      responses: [
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Response with replacement credential')
+        },
+      ],
+    })
+
+    await session.compact()
+    apiKeyState.value = 'credential-b'
+    await session.prompt('Continue after replacing credentials')
+
+    expect(providerContexts[0]).toContain('Initial context')
+    expect(providerContexts[0]).not.toContain('cmp_1')
+  })
+
+  it('survives an OAuth refresh but reconstructs when the ChatGPT account changes', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-account-change-')
+    const events: SessionCompactEvent[] = []
+    const apiKeyState = { value: codexAccessToken('account-a', 'token-1') }
+    const providerContexts: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch())
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      apiKeyState,
+      contextWindow: 10_000,
+      responses: [
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Response after token refresh')
+        },
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Response after account change')
+        },
+      ],
+    })
+
+    await session.compact()
+    apiKeyState.value = codexAccessToken('account-a', 'token-2')
+    await session.prompt('Continue after refreshing the access token')
+    apiKeyState.value = codexAccessToken('account-b', 'token-3')
+    await session.prompt('Continue after switching ChatGPT accounts')
+
+    expect(providerContexts[0]).toContain('cmp_1')
+    expect(providerContexts[1]).toContain('Initial context')
+    expect(providerContexts[1]).not.toContain('cmp_1')
   })
 
   it('preserves every queued request message while fitting reconstructed history', async () => {

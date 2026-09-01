@@ -35,7 +35,7 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..66b6ad527a9b9cd1ec45bba5ac5beda0
      /**
       * Send a prompt to the agent.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e6e3426e0 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd4826d65b 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -22,7 +22,7 @@ import { sleep } from "../utils/sleep.js";
@@ -52,7 +52,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
  import { expandPromptTemplate } from "./prompt-templates.js";
  import { exportSessionToJsonl } from "./session-export.js";
 -import { getLatestCompactionEntry } from "./session-manager.js";
-+import { estimateReconstructionMessageTokens, getLatestCompactionEntry } from "./session-manager.js";
++import { estimateReconstructionMessageTokens, getLatestCompactionEntry, getNativeCredentialFingerprint, withNativeCredentialFingerprint, } from "./session-manager.js";
  import { createSyntheticSourceInfo } from "./source-info.js";
  import { buildSystemPrompt } from "./system-prompt.js";
  import { createLocalBashOperations } from "./tools/bash.js";
@@ -128,7 +128,23 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
          this._extensionRunnerRef = config.extensionRunnerRef;
          this._initialActiveToolNames = config.initialActiveToolNames;
          this._allowedToolNames = config.allowedToolNames ? new Set(config.allowedToolNames) : undefined;
-@@ -197,21 +241,41 @@ export class AgentSession {
+@@ -176,11 +220,13 @@ export class AgentSession {
+             throw error;
+         }
+         if (result && (result.auth.apiKey || result.auth.headers)) {
+-            const requestModel = result.auth.baseUrl ? { ...model, baseUrl: result.auth.baseUrl } : model;
++            const resolvedModel = { ...model, baseUrl: result.auth.baseUrl ?? model.baseUrl };
++            const headers = withoutDeletedHeaders(result.auth.headers);
++            const requestModel = withNativeCredentialFingerprint(resolvedModel, result.auth.apiKey, headers);
+             return {
+                 model: requestModel,
+                 apiKey: result.auth.apiKey,
+-                headers: withoutDeletedHeaders(result.auth.headers),
++                headers,
+                 env: result.env,
+             };
+         }
+@@ -197,21 +243,49 @@ export class AgentSession {
              return this._getRequiredRequestAuth(model);
          }
          try {
@@ -137,13 +153,15 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
 -                return { model };
 -            const requestModel = result.auth.baseUrl ? { ...model, baseUrl: result.auth.baseUrl } : model;
 +            const { model: requestModel, resolution } = await this._modelRuntime.prepareModelRequest(model);
++            const headers = withoutDeletedHeaders(resolution.auth.headers);
              return {
-                 model: requestModel,
+-                model: requestModel,
 -                apiKey: result.auth.apiKey,
 -                headers: withoutDeletedHeaders(result.auth.headers),
 -                env: result.env,
++                model: withNativeCredentialFingerprint(requestModel, resolution.auth.apiKey, headers),
 +                apiKey: resolution.auth.apiKey,
-+                headers: withoutDeletedHeaders(resolution.auth.headers),
++                headers,
 +                env: resolution.env,
              };
          }
@@ -156,16 +174,23 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
 +        if (!currentModel)
 +            return false;
 +        const selectedModel = this._selectedModel ?? currentModel;
-+        const { model: requestModel } = this._usesModelRuntimeStream
-+            ? await this._modelRuntime.prepareModelRequest(selectedModel)
-+            : await this._getSummarizationRequestAuth(selectedModel);
++        let requestModel;
++        if (this._usesModelRuntimeStream) {
++            const prepared = await this._modelRuntime.prepareModelRequest(selectedModel);
++            requestModel = withNativeCredentialFingerprint(prepared.model, prepared.resolution.auth.apiKey, withoutDeletedHeaders(prepared.resolution.auth.headers));
++        }
++        else {
++            requestModel = (await this._getSummarizationRequestAuth(selectedModel)).model;
++        }
 +        const identityChanged = currentModel.api !== requestModel.api ||
 +            currentModel.provider !== requestModel.provider ||
 +            currentModel.id !== requestModel.id ||
 +            currentModel.baseUrl !== requestModel.baseUrl ||
 +            (currentModel.compat?.compactionBaseUrl ?? currentModel.baseUrl) !==
 +                (requestModel.compat?.compactionBaseUrl ?? requestModel.baseUrl) ||
-+            currentModel.compat?.supportsCompaction !== requestModel.compat?.supportsCompaction;
++            currentModel.compat?.supportsCompaction !== requestModel.compat?.supportsCompaction ||
++            getNativeCredentialFingerprint(currentModel) !==
++                getNativeCredentialFingerprint(requestModel);
 +        this.agent.state.model = requestModel;
 +        const projectedContext = this.sessionManager.buildSessionContext(requestModel);
 +        this._requestRequiresReconstructionFit = projectedContext.reconstruction !== undefined;
@@ -177,7 +202,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      /**
       * Install tool hooks once on the Agent instance.
       *
-@@ -286,12 +350,17 @@ export class AgentSession {
+@@ -286,12 +360,17 @@ export class AgentSession {
          };
      }
      _installAgentNextTurnRefresh() {
@@ -196,7 +221,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
              return {
-@@ -305,6 +374,12 @@ export class AgentSession {
+@@ -305,6 +384,12 @@ export class AgentSession {
                  thinkingLevel: this.agent.state.thinkingLevel,
              };
          };
@@ -209,7 +234,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      // =========================================================================
      // Event Subscription
-@@ -772,6 +847,10 @@ export class AgentSession {
+@@ -772,6 +857,10 @@ export class AgentSession {
      async _runAgentPrompt(messages) {
          this._isAgentRunActive = true;
          try {
@@ -220,7 +245,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              await this.agent.prompt(messages);
              while (await this._handlePostAgentRun()) {
                  await this.agent.continue();
-@@ -784,6 +863,13 @@ export class AgentSession {
+@@ -784,6 +873,13 @@ export class AgentSession {
              await this._emitAgentSettled();
          }
      }
@@ -234,7 +259,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      async _handlePostAgentRun() {
          const msg = this._lastAssistantMessage;
          this._lastAssistantMessage = undefined;
-@@ -802,12 +888,13 @@ export class AgentSession {
+@@ -802,12 +898,13 @@ export class AgentSession {
              });
              this._retryAttempt = 0;
          }
@@ -250,7 +275,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      /**
       * Send a prompt to the agent.
-@@ -888,12 +975,9 @@ export class AgentSession {
+@@ -888,12 +985,9 @@ export class AgentSession {
                  }
                  throw new Error(formatNoApiKeyFoundMessage(this.model.provider));
              }
@@ -266,7 +291,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              // Build messages array (custom message if any, then user message)
              messages = [];
              // Add user message
-@@ -1118,6 +1202,7 @@ export class AgentSession {
+@@ -1118,6 +1212,7 @@ export class AgentSession {
              }
          }
          else if (options?.triggerTurn) {
@@ -274,7 +299,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              await this._runAgentPrompt(appMessage);
          }
          else if (this.isStreaming) {
-@@ -1250,13 +1335,13 @@ export class AgentSession {
+@@ -1250,13 +1345,13 @@ export class AgentSession {
       * @throws Error if no auth is configured for the model
       */
      async setModel(model, options = {}) {
@@ -292,7 +317,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -1265,7 +1350,7 @@ export class AgentSession {
+@@ -1265,7 +1360,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -301,7 +326,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -1305,10 +1390,13 @@ export class AgentSession {
+@@ -1305,10 +1400,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -316,7 +341,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -1319,8 +1407,8 @@ export class AgentSession {
+@@ -1319,8 +1417,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -327,7 +352,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -1333,9 +1421,12 @@ export class AgentSession {
+@@ -1333,9 +1431,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -341,7 +366,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -1343,8 +1434,8 @@ export class AgentSession {
+@@ -1343,8 +1444,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -352,7 +377,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1448,7 +1539,7 @@ export class AgentSession {
+@@ -1448,7 +1549,7 @@ export class AgentSession {
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
      async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
@@ -361,7 +386,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      /**
       * Manually compact the session context.
-@@ -1474,10 +1565,24 @@ export class AgentSession {
+@@ -1474,10 +1575,24 @@ export class AgentSession {
              if (!this.model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
@@ -388,7 +413,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -1530,13 +1635,12 @@ export class AgentSession {
+@@ -1530,13 +1645,12 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -405,7 +430,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1547,6 +1651,7 @@ export class AgentSession {
+@@ -1547,6 +1661,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -413,7 +438,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1625,7 +1730,7 @@ export class AgentSession {
+@@ -1625,7 +1740,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -422,7 +447,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
          const settings = this.settingsManager.getCompactionSettings();
          if (!settings.enabled)
              return false;
-@@ -1656,6 +1761,9 @@ export class AgentSession {
+@@ -1656,6 +1771,9 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -432,7 +457,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
                  return await this._runAutoCompaction("overflow", false);
              }
              if (this._overflowRecoveryAttempted) {
-@@ -1715,7 +1823,7 @@ export class AgentSession {
+@@ -1715,7 +1833,7 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -441,7 +466,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              return await this._runAutoCompaction("threshold", false);
          }
          return false;
-@@ -1734,13 +1842,24 @@ export class AgentSession {
+@@ -1734,13 +1852,24 @@ export class AgentSession {
          const settings = this.settingsManager.getCompactionSettings();
          let started = false;
          let fromExtension = false;
@@ -468,7 +493,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              if (!preparation) {
                  return false;
              }
-@@ -1817,13 +1936,12 @@ export class AgentSession {
+@@ -1817,13 +1946,12 @@ export class AgentSession {
                  });
                  return false;
              }
@@ -485,7 +510,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1834,6 +1952,7 @@ export class AgentSession {
+@@ -1834,6 +1962,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -493,7 +518,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1843,15 +1962,7 @@ export class AgentSession {
+@@ -1843,15 +1972,7 @@ export class AgentSession {
              };
              this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
              if (willRetry) {
@@ -510,7 +535,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
                  return true;
              }
              // Auto-compaction can complete while follow-up/steering/custom messages are waiting.
-@@ -1884,6 +1995,18 @@ export class AgentSession {
+@@ -1884,6 +2005,18 @@ export class AgentSession {
          }
          finally {
              this._autoCompactionAbortController = undefined;
@@ -529,7 +554,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
          }
      }
      /**
-@@ -1976,7 +2099,7 @@ export class AgentSession {
+@@ -1976,7 +2109,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -538,7 +563,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2529,7 +2652,7 @@ export class AgentSession {
+@@ -2529,7 +2662,7 @@ export class AgentSession {
              let summaryDetails;
              let summaryUsage;
              if (options.summarize && entriesToSummarize.length > 0 && !extensionSummary) {
@@ -547,7 +572,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..5c2d6c1ef1cdc46965c90661b999539e
                  const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(model);
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
-@@ -2605,7 +2728,7 @@ export class AgentSession {
+@@ -2605,7 +2738,7 @@ export class AgentSession {
                  this.sessionManager.appendLabelChange(targetId, label);
              }
              // Update agent state
@@ -620,7 +645,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..626d0be5f3557b227294e6e09a1453bf
  //# sourceMappingURL=compaction.d.ts.map
 \ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d9291cd62 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b4bfd093d 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
@@ -633,7 +658,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
  import { completeSimple } from "@earendil-works/pi-ai/compat";
  import { convertToLlm } from "../messages.js";
 -import { buildSessionContext, sessionEntryToContextMessages, } from "../session-manager.js";
-+import { buildSessionContext, estimateReconstructionMessageTokens, sessionEntryToContextMessages, } from "../session-manager.js";
++import { buildSessionContext, estimateReconstructionMessageTokens, getNativeCredentialFingerprint, nativeCredentialFingerprint, sessionEntryToContextMessages, } from "../session-manager.js";
  import { computeFileLists, createFileOps, extractFileOpsFromMessage, formatFileOperations, SUMMARIZATION_SYSTEM_PROMPT, serializeConversation, } from "./utils.js";
  /**
   * Extract file operations from messages and previous compaction entries.
@@ -645,7 +670,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
  };
  // ============================================================================
  // Token calculation
-@@ -160,7 +162,52 @@ export function estimateContextTokens(messages) {
+@@ -160,7 +162,54 @@ export function estimateContextTokens(messages) {
  export function shouldCompact(contextTokens, contextWindow, settings) {
      if (!settings.enabled)
          return false;
@@ -660,13 +685,14 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
 +        model.api === "openai-codex-responses";
 +    return responsesApi && model.compat?.supportsCompaction === true ? "native" : "portable";
 +}
-+function nativeCompactionIdentity(model) {
++function nativeCompactionIdentity(model, apiKey, headers) {
 +    return {
 +        api: model.api,
 +        provider: model.provider,
 +        baseUrl: model.baseUrl,
 +        compactionBaseUrl: model.compat?.compactionBaseUrl ?? model.baseUrl,
 +        modelId: model.id,
++        credentialFingerprint: nativeCredentialFingerprint(apiKey, headers),
 +    };
 +}
 +function isCompatibleNativeDetails(details, model) {
@@ -681,7 +707,8 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
 +        identity?.provider === model.provider &&
 +        identity?.baseUrl === model.baseUrl &&
 +        identity?.compactionBaseUrl === (model.compat?.compactionBaseUrl ?? model.baseUrl) &&
-+        identity?.modelId === model.id;
++        identity?.modelId === model.id &&
++        identity?.credentialFingerprint === getNativeCredentialFingerprint(model);
 +}
 +function nativeCompactionUsage(usage, model) {
 +    const cached = usage.input_tokens_details?.cached_tokens ?? 0;
@@ -699,7 +726,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
  }
  // ============================================================================
  // Cut point detection
-@@ -322,12 +369,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -322,12 +371,20 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
          // Check if we've exceeded the budget
          if (accumulatedTokens >= keepRecentTokens) {
              // Find the closest valid cut point at or after this entry
@@ -720,7 +747,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
              break;
          }
      }
-@@ -353,76 +408,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+@@ -353,76 +410,21 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
  // ============================================================================
  // Summarization
  // ============================================================================
@@ -811,7 +838,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
  ${UPDATE_SUMMARIZATION_INSTRUCTIONS}`;
  /**
   * Returns an error message when a summarization response cannot safely be persisted.
-@@ -484,24 +484,22 @@ function buildSummarizationContext(promptText) {
+@@ -484,24 +486,22 @@ function buildSummarizationContext(promptText) {
          ],
      };
  }
@@ -844,7 +871,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
      const completionOptions = createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId);
      const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
      const failure = getSummarizationFailure(response, "Summarization");
-@@ -514,7 +512,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
+@@ -514,7 +514,7 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
      const textContent = contentText(response.content);
      return { text: textContent, usage: response.usage };
  }
@@ -853,7 +880,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
      if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
          return undefined;
      }
-@@ -525,17 +523,61 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -525,17 +525,61 @@ export function prepareCompaction(pathEntries, settings) {
              break;
          }
      }
@@ -920,7 +947,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
      // Get UUID of first kept entry
      const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
      if (!firstKeptEntry?.id) {
-@@ -559,7 +601,7 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -559,7 +603,7 @@ export function prepareCompaction(pathEntries, settings) {
                  turnPrefixMessages.push(msg);
          }
      }
@@ -929,7 +956,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
          return undefined;
      }
      // Extract file operations from messages and previous compaction
-@@ -573,6 +615,7 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -573,6 +617,7 @@ export function prepareCompaction(pathEntries, settings) {
      return {
          firstKeptEntryId,
          messagesToSummarize,
@@ -937,7 +964,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
          turnPrefixMessages,
          isSplitTurn: cutPoint.isSplitTurn,
          tokensBefore,
-@@ -581,6 +624,25 @@ export function prepareCompaction(pathEntries, settings) {
+@@ -581,6 +626,25 @@ export function prepareCompaction(pathEntries, settings) {
          settings,
      };
  }
@@ -963,7 +990,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
  // ============================================================================
  // Main compaction function
  // ============================================================================
-@@ -598,6 +660,65 @@ Summarize the prefix to provide context for the retained suffix:
+@@ -598,6 +662,65 @@ Summarize the prefix to provide context for the retained suffix:
  - [Information needed to understand the retained recent work]
  
  Be concise. Focus on what's needed to understand the kept suffix.`;
@@ -1029,7 +1056,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,8 +727,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,8 +729,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
@@ -1072,7 +1099,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
 +                details: {
 +                    schemaVersion: 1,
 +                    mechanism: "native",
-+                    identity: nativeCompactionIdentity(model),
++                    identity: nativeCompactionIdentity(model, apiKey, headers),
 +                    items: response.output,
 +                },
 +            };
@@ -1088,7 +1115,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..a0f68111b3bb63bdce9d0c827077f34d
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -641,7 +810,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +812,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -1248,7 +1275,7 @@ index 7d93ba62bdb5d47e129751e8075cbb34620322ad..bf8c71bce72ebaea987ea5ac954a177a
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167c3c40224 100644
+index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..589dff16fd894275ee6e348f54b0d875ae2aca70 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -11,7 +11,7 @@ import { findInitialModel } from "./model-resolver.js";
@@ -1256,7 +1283,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
  import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
  import { DefaultResourceLoader } from "./resource-loader.js";
 -import { getDefaultSessionDir, SessionManager } from "./session-manager.js";
-+import { buildSessionContext, getDefaultSessionDir, SessionManager } from "./session-manager.js";
++import { buildSessionContext, getDefaultSessionDir, SessionManager, withNativeCredentialFingerprint, } from "./session-manager.js";
  import { SettingsManager } from "./settings-manager.js";
  import { time } from "./timings.js";
  import { createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, withFileMutationQueue, } from "./tools/index.js";
@@ -1270,7 +1297,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
      const hasExistingSession = existingSession.messages.length > 0;
      const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
      let model = options.model;
-@@ -136,6 +137,37 @@ export async function createAgentSession(options = {}) {
+@@ -136,6 +137,40 @@ export async function createAgentSession(options = {}) {
      else {
          thinkingLevel = clampThinkingLevel(model, thinkingLevel);
      }
@@ -1291,7 +1318,10 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
 +            if (auth?.auth.baseUrl) {
 +                model = { ...model, baseUrl: auth.auth.baseUrl };
 +            }
-+            else if (!auth) {
++            if (auth) {
++                model = withNativeCredentialFingerprint({ ...model }, auth.auth.apiKey, auth.auth.headers);
++            }
++            else {
 +                forceNativeReconstruction = true;
 +            }
 +        }
@@ -1308,7 +1338,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
      const defaultActiveToolNames = ["read", "bash", "edit", "write"];
      const configuredDefaultToolNames = settingsManager.getDefaultTools();
      const allowedToolNames = options.tools ?? (options.noTools === "all" ? [] : undefined);
-@@ -238,7 +270,7 @@ export async function createAgentSession(options = {}) {
+@@ -238,7 +273,7 @@ export async function createAgentSession(options = {}) {
      });
      // Restore messages if session has existing data
      if (hasExistingSession) {
@@ -1317,7 +1347,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
          if (!hasThinkingEntry) {
              sessionManager.appendThinkingLevelChange(thinkingLevel);
          }
-@@ -252,6 +284,8 @@ export async function createAgentSession(options = {}) {
+@@ -252,6 +287,8 @@ export async function createAgentSession(options = {}) {
      }
      const session = new AgentSession({
          agent,
@@ -1327,7 +1357,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..f667794c8fba0b74632e494588c7a167
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c7337035625e2486c 100644
+index 8cdfbdec42f696b8cd6b762a92180a81ec142433..15bb355e3c6cd6a6b15b7febbd3240b4c13b50eb 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -1346,7 +1376,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c73370356
  }
  export interface BranchSummaryEntry<T = unknown> extends SessionEntryBase {
      type: "branch_summary";
-@@ -121,6 +123,23 @@ export interface SessionContext {
+@@ -121,7 +123,28 @@ export interface SessionContext {
          provider: string;
          modelId: string;
      } | null;
@@ -1361,16 +1391,21 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c73370356
 +            baseUrl: string;
 +            compactionBaseUrl: string;
 +            modelId: string;
++            credentialFingerprint?: string;
 +        };
 +    };
-+}
+ }
 +export interface BuildSessionContextOptions {
 +    forceNativeReconstruction?: boolean;
 +    requestOverheadTokens?: number;
- }
++}
++export declare function nativeCredentialFingerprint(apiKey?: string, headers?: Record<string, string>): string | undefined;
++export declare function withNativeCredentialFingerprint<T extends Model<any>>(model: T, apiKey?: string, headers?: Record<string, string>): T;
++export declare function getNativeCredentialFingerprint(model?: Model<any>): string | undefined;
  export interface SessionInfo {
      path: string;
-@@ -157,13 +176,15 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
+     id: string;
+@@ -157,13 +180,15 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -1388,7 +1423,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c73370356
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -220,7 +241,7 @@ export declare class SessionManager {
+@@ -220,7 +245,7 @@ export declare class SessionManager {
      /** Append a model change as child of current leaf, then advance leaf. Returns entry id. */
      appendModelChange(provider: string, modelId: string): string;
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -1397,7 +1432,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c73370356
      /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
      appendCustomEntry(customType: string, data?: unknown): string;
      /** Append a session info entry (e.g., display name). Returns entry id. */
-@@ -263,12 +284,12 @@ export declare class SessionManager {
+@@ -263,12 +288,12 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -1413,10 +1448,65 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..120269d3fd446f390bafaf4c73370356
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26eb391d7b 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..3236ed1b693b71e205e0bef0db27e0079be94b9a 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
-@@ -183,7 +183,7 @@ export function sessionEntryToContextMessages(entry) {
+@@ -1,5 +1,5 @@
+ import { uuidv7 } from "@earendil-works/pi-ai";
+-import { randomUUID } from "crypto";
++import { createHash, randomUUID } from "crypto";
+ import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
+ import { readdir, stat } from "fs/promises";
+ import { join, resolve } from "path";
+@@ -9,6 +9,47 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
+ import { normalizePath, resolvePath } from "../utils/paths.js";
+ import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
+ export const CURRENT_SESSION_VERSION = 3;
++const NATIVE_CREDENTIAL_FINGERPRINT = Symbol.for("pi.nativeCredentialFingerprint");
++function codexAccountId(apiKey) {
++    try {
++        const parts = apiKey.split(".");
++        if (parts.length !== 3)
++            return undefined;
++        const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
++        const accountId = payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
++        return typeof accountId === "string" && accountId.length > 0 ? accountId : undefined;
++    }
++    catch {
++        return undefined;
++    }
++}
++export function nativeCredentialFingerprint(apiKey, headers) {
++    const accountId = apiKey ? codexAccountId(apiKey) : undefined;
++    const headerEntries = Object.entries(headers ?? {}).sort(([left], [right]) => left.localeCompare(right));
++    const credentialMaterial = accountId
++        ? `codex-account:${accountId}`
++        : apiKey
++            ? `api-key:${apiKey}`
++            : headerEntries.length > 0
++                ? `headers:${JSON.stringify(headerEntries)}`
++                : undefined;
++    return credentialMaterial
++        ? createHash("sha256").update(credentialMaterial).digest("hex")
++        : undefined;
++}
++export function withNativeCredentialFingerprint(model, apiKey, headers) {
++    const fingerprint = nativeCredentialFingerprint(apiKey, headers);
++    if (fingerprint) {
++        Object.defineProperty(model, NATIVE_CREDENTIAL_FINGERPRINT, { configurable: true, value: fingerprint });
++    }
++    else {
++        delete model[NATIVE_CREDENTIAL_FINGERPRINT];
++    }
++    return model;
++}
++export function getNativeCredentialFingerprint(model) {
++    return model?.[NATIVE_CREDENTIAL_FINGERPRINT];
++}
+ function createSessionId() {
+     return uuidv7();
+ }
+@@ -183,7 +224,7 @@ export function sessionEntryToContextMessages(entry) {
          return [createBranchSummaryMessage(entry.summary, entry.fromId, entry.timestamp)];
      }
      if (entry.type === "compaction") {
@@ -1425,7 +1515,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
      }
      return [];
  }
-@@ -195,7 +195,27 @@ export function sessionEntryToContextMessages(entry) {
+@@ -195,7 +236,28 @@ export function sessionEntryToContextMessages(entry) {
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -1448,13 +1538,14 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
 +        identity?.baseUrl === targetModel.baseUrl &&
 +        identity?.compactionBaseUrl ===
 +            (targetModel.compat?.compactionBaseUrl ?? targetModel.baseUrl) &&
-+        identity?.modelId === targetModel.id;
++        identity?.modelId === targetModel.id &&
++        identity?.credentialFingerprint === getNativeCredentialFingerprint(targetModel);
 +}
 +export function buildContextEntries(entries, leafId, byId, targetModel) {
      const path = buildSessionPath(entries, leafId, byId);
      let compaction = null;
      for (const entry of path) {
-@@ -206,6 +226,9 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -206,6 +268,9 @@ export function buildContextEntries(entries, leafId, byId) {
      if (!compaction) {
          return path;
      }
@@ -1464,7 +1555,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
      const compactionIdx = path.findIndex((entry) => entry.id === compaction.id);
      if (compactionIdx < 0) {
          return path;
-@@ -224,15 +247,121 @@ export function buildContextEntries(entries, leafId, byId) {
+@@ -224,15 +289,122 @@ export function buildContextEntries(entries, leafId, byId) {
      contextEntries.push(...path.slice(compactionIdx + 1));
      return contextEntries;
  }
@@ -1511,6 +1602,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
 +        baseUrl: model.baseUrl,
 +        compactionBaseUrl: model.compat?.compactionBaseUrl ?? model.baseUrl,
 +        modelId: model.id,
++        credentialFingerprint: getNativeCredentialFingerprint(model),
 +    };
 +}
 +function isReconstructionTurnStart(message) {
@@ -1588,7 +1680,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
      return { messages, thinkingLevel, model };
  }
  /**
-@@ -802,7 +931,7 @@ export class SessionManager {
+@@ -802,7 +974,7 @@ export class SessionManager {
          return entry.id;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -1597,7 +1689,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
          const entry = {
              type: "compaction",
              id: generateId(this.byId),
-@@ -814,6 +943,7 @@ export class SessionManager {
+@@ -814,6 +986,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
@@ -1605,7 +1697,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
          };
          this._appendEntry(entry);
          return entry.id;
-@@ -957,15 +1087,34 @@ export class SessionManager {
+@@ -957,15 +1130,36 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -1635,7 +1727,9 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..3e3ab87e23bf5ad49be72a2de44b4d26
 +                entry.data?.targetIdentity?.baseUrl === reconstruction.targetIdentity.baseUrl &&
 +                entry.data?.targetIdentity?.compactionBaseUrl ===
 +                    reconstruction.targetIdentity.compactionBaseUrl &&
-+                entry.data?.targetIdentity?.modelId === reconstruction.targetIdentity.modelId);
++                entry.data?.targetIdentity?.modelId === reconstruction.targetIdentity.modelId &&
++                entry.data?.targetIdentity?.credentialFingerprint ===
++                    reconstruction.targetIdentity.credentialFingerprint);
 +            if (!alreadyRecorded) {
 +                this.appendCustomEntry("pi.compaction_reconstruction", reconstruction);
 +            }
@@ -1712,7 +1806,7 @@ index 3e9241dc237322f9ba64aac399f4eda31ac4715c..f03d0312bdfbc252d491a3f49752f44e
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..220a877171eb2000ac504f55ef6b4f1735769f5d 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..539f12374e49cd8950367a6bd1441d6bf6d6aad7 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
