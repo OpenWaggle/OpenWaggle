@@ -20,23 +20,34 @@ function centeredScrollOffset(ratio: number, viewportSize: number, contentSize: 
   return Math.min(maximum, Math.max(0, ratio * contentSize - viewportSize * CENTER_RATIO))
 }
 
-export function useCenteredImageZoom(resourceId: string | null, zoom: Zoom) {
+export function useCenteredImageZoom(resourceId: string | null, zoom: Zoom, ready: boolean) {
   const viewportRef = useRef<HTMLElement>(null)
   const centerRef = useRef<ViewportCenter>(null)
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
-    const center = centerRef.current
-    if (!viewport || !resourceId || center?.resourceId !== resourceId || center.zoom !== zoom)
-      return
-    viewport.scrollLeft = centeredScrollOffset(center.x, viewport.clientWidth, viewport.scrollWidth)
-    viewport.scrollTop = centeredScrollOffset(
-      center.y,
-      viewport.clientHeight,
-      viewport.scrollHeight,
-    )
-    centerRef.current = null
-  }, [resourceId, zoom])
+    if (!viewport || !resourceId || !ready) return
+    const restoreCenter = () => {
+      const center = centerRef.current
+      if (center?.resourceId !== resourceId || center.zoom !== zoom) return
+      viewport.scrollLeft = centeredScrollOffset(
+        center.x,
+        viewport.clientWidth,
+        viewport.scrollWidth,
+      )
+      viewport.scrollTop = centeredScrollOffset(
+        center.y,
+        viewport.clientHeight,
+        viewport.scrollHeight,
+      )
+    }
+    restoreCenter()
+    const content = viewport.firstElementChild
+    if (!content || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(restoreCenter)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [ready, resourceId, zoom])
 
   return {
     viewportRef,

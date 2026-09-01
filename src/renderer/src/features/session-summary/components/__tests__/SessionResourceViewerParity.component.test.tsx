@@ -1,10 +1,21 @@
-import { fireEvent, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { image, renderViewer } from './session-resource-viewer.test-harness'
 
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
+let notifyResize: (() => void) | undefined
+
+class TestResizeObserver implements ResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    notifyResize = () => callback([], this)
+  }
+
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -19,6 +30,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 describe('SessionResourceViewer parity', () => {
   beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    notifyResize = undefined
     useUIStore.setState({ resourceViewer: null })
     listSessionResources
       .mockReset()
@@ -29,6 +42,10 @@ describe('SessionResourceViewer parity', () => {
       mimeType: 'image/png',
       dataBase64: 'aW1hZ2U=',
     }))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('keeps gallery navigation visible and usable while image content is loading', async () => {
@@ -121,5 +138,34 @@ describe('SessionResourceViewer parity', () => {
     expect(canvas.scrollTop).toBe(450)
     expect(canvas.scrollWidth - canvas.clientWidth - canvas.scrollLeft).toBe(600)
     expect(canvas.scrollHeight - canvas.clientHeight - canvas.scrollTop).toBe(450)
+  })
+
+  it('recenters after delayed intrinsic image dimensions change the zoomed layout', async () => {
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+
+    const renderedImage = await screen.findByRole('img', { name: 'first.png' })
+    const zoom = screen.getByRole('combobox', { name: 'Image zoom' })
+    const canvas = screen.getByLabelText('Image canvas')
+    Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 400 })
+    Object.defineProperty(canvas, 'clientHeight', { configurable: true, value: 300 })
+    Object.defineProperty(canvas, 'scrollWidth', {
+      configurable: true,
+      get: () => (renderedImage.style.width === '1200px' ? 1200 : 800),
+    })
+    Object.defineProperty(canvas, 'scrollHeight', {
+      configurable: true,
+      get: () => (renderedImage.style.height === '900px' ? 900 : 600),
+    })
+
+    fireEvent.change(zoom, { target: { value: '150' } })
+    Object.defineProperty(renderedImage, 'naturalWidth', { configurable: true, value: 800 })
+    Object.defineProperty(renderedImage, 'naturalHeight', { configurable: true, value: 600 })
+    fireEvent.load(renderedImage)
+    await waitFor(() => expect(renderedImage).toHaveStyle({ width: '1200px', height: '900px' }))
+    notifyResize?.()
+
+    expect(canvas.scrollLeft).toBe(400)
+    expect(canvas.scrollTop).toBe(300)
   })
 })

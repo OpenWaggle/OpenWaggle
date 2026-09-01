@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -174,26 +174,22 @@ export class OpenWaggleApp {
 
   private async forceCloseForCleanup(): Promise<boolean> {
     console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
-    const closeEvent = this.app
-      .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
-      .then(() => true)
-      .catch(() => false)
+    const childProcess = this.app.process()
+    const processClosed = new Promise<void>((resolve) =>
+      childProcess.once('close', () => resolve()),
+    )
     await this.app
       .evaluate(() => {
         setImmediate(() => process.exit(0))
       })
       .catch(() => undefined)
     this.disconnectNodeInspector()
-    if (await closeEvent) return true
+    if (await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)) return true
 
     console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
-    const forcedCloseEvent = this.app
-      .waitForEvent('close', { timeout: QA_GRACEFUL_CLOSE_MS })
-      .then(() => true)
-      .catch(() => false)
-    this.terminateProcessTree()
-    this.destroyProcessPipes()
-    const forcedClosed = await forcedCloseEvent
+    this.terminateProcessTree(childProcess)
+    this.destroyProcessPipes(childProcess)
+    const forcedClosed = await completesWithin(processClosed, QA_FORCED_CLOSE_WAIT_MS)
     if (!forcedClosed) {
       console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
     }
@@ -217,8 +213,7 @@ export class OpenWaggleApp {
     if (typeof close === 'function') Reflect.apply(close, nodeConnection, [])
   }
 
-  private terminateProcessTree(): void {
-    const childProcess = this.app.process()
+  private terminateProcessTree(childProcess = this.app.process()): void {
     if (process.platform === 'win32' && childProcess.pid) {
       const targetProcessId = String(childProcess.pid)
       const script = [
@@ -254,11 +249,11 @@ export class OpenWaggleApp {
     }
   }
 
-  private destroyProcessPipes(): void {
+  private destroyProcessPipes(childProcess: ChildProcess): void {
     // ChildProcess emits "close" only after the process exits and every stdio
     // pipe closes. Releasing these pipes lets Playwright remove its retained
     // graceful-close callback even if a Windows shell fails to propagate EOF.
-    for (const stream of this.app.process().stdio) stream?.destroy()
+    for (const stream of childProcess.stdio) stream?.destroy()
   }
 
   async desktopState() {

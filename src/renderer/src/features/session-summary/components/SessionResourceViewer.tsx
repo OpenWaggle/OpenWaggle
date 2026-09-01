@@ -238,7 +238,11 @@ export function SessionResourceViewer({
     viewerSessionId !== null && viewerSessionId === activeSessionId,
   )
   const zoom = selectedZoom(resource, zoomState)
-  const centeredZoom = useCenteredImageZoom(selectedResourceId(resource), zoom)
+  const centeredZoom = useCenteredImageZoom(
+    selectedResourceId(resource),
+    zoom,
+    viewerSource.source !== null,
+  )
 
   useCloseViewerOnSessionChange(viewerSessionId, activeSessionId, close)
   useViewerKeyboardNavigation(viewerSessionId, images, index, open)
