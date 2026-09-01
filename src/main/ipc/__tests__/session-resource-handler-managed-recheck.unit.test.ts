@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionOutputRetryRepository } from '../../ports/session-output-retry-repository'
 import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
 import {
   SessionResourceRepository,
@@ -74,6 +75,14 @@ const MANAGED_NODE = {
 }
 
 const TestLayer = Layer.mergeAll(
+  Layer.succeed(
+    SessionOutputRetryRepository,
+    SessionOutputRetryRepository.of({
+      put: () => Effect.void,
+      list: () => Effect.succeed([]),
+      remove: () => Effect.void,
+    }),
+  ),
   Layer.succeed(
     SessionRepository,
     SessionRepository.of(

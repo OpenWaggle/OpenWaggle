@@ -1,9 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  listPendingCommitOutputs,
-  registerPendingCommitOutput,
-} from '../../application/session-change-request-output-retry'
+import { pendingCommitOutput } from '../../application/session-change-request-output-retry'
 import {
   getSessionResourceHandlerMocks,
   invokeSessionResourceHandler as invoke,
@@ -49,14 +46,14 @@ describe('session resource IPC handlers', () => {
   it('retries a pending commit Output when its originating Session Summary refreshes', async () => {
     const sessionId = SessionId('session-one')
     const commit = { commitHash: 'abc123', summary: 'Complete resource hub' }
-    registerPendingCommitOutput(sessionId, commit)
+    handlerMocks.pendingOutputs.push(pendingCommitOutput(sessionId, commit))
 
     await invoke('sessions:resources:list', sessionId)
 
     expect(handlerMocks.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId, kind: 'commit', canonicalKey: 'commit:abc123' }),
     )
-    expect(listPendingCommitOutputs(sessionId)).toEqual([])
+    expect(handlerMocks.pendingOutputs).toEqual([])
   })
 
   it('rejects invalid change-request metadata at the IPC boundary', async () => {

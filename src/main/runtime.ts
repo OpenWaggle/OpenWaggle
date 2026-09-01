@@ -28,6 +28,7 @@ import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-re
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
+import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
@@ -52,6 +53,9 @@ const SessionResourceRepositoryLive = SqliteSessionResourceRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
 const SessionResourceCleanupRepositoryLive = SqliteSessionResourceCleanupRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const SessionOutputRetryRepositoryLive = SqliteSessionOutputRetryRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionRuntimeSelectionLive = Layer.mergeAll(
@@ -105,6 +109,7 @@ const AppLayer = Layer.mergeAll(
   ExtensionStorageRepositoryLive,
   SessionResourceRepositoryLive,
   SessionResourceCleanupRepositoryLive,
+  SessionOutputRetryRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
   SharpSessionResourceImageValidatorLive,

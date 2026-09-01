@@ -3,8 +3,11 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { type Mock, vi } from 'vitest'
-import { clearPendingChangeRequestOutputsForTests } from '../../application/session-change-request-output-retry'
 import { SessionResourceRepositoryError } from '../../errors'
+import {
+  type PendingSessionOutput,
+  SessionOutputRetryRepository,
+} from '../../ports/session-output-retry-repository'
 import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
 import {
   SessionResourceImageFetcher,
@@ -43,6 +46,7 @@ interface HandlerMocks {
   readonly getBackfillCursor: Mock
   readonly advanceBackfillCursor: Mock
   readonly upsert: Mock
+  readonly pendingOutputs: PendingSessionOutput[]
 }
 
 const handlerMocks: HandlerMocks = vi.hoisted(() => ({
@@ -56,6 +60,7 @@ const handlerMocks: HandlerMocks = vi.hoisted(() => ({
   getBackfillCursor: vi.fn(),
   advanceBackfillCursor: vi.fn(),
   upsert: vi.fn(),
+  pendingOutputs: [],
 }))
 
 export function getSessionResourceHandlerMocks() {
@@ -65,6 +70,28 @@ export function getSessionResourceHandlerMocks() {
 vi.mock('../typed-ipc', () => ({ typedHandle: handlerMocks.typedHandle }))
 
 const TestLayer = Layer.mergeAll(
+  Layer.succeed(
+    SessionOutputRetryRepository,
+    SessionOutputRetryRepository.of({
+      put: (output) =>
+        Effect.sync(() => {
+          const index = handlerMocks.pendingOutputs.findIndex(({ id }) => id === output.id)
+          if (index === -1) handlerMocks.pendingOutputs.push(output)
+          else handlerMocks.pendingOutputs[index] = output
+        }),
+      list: (sessionId) =>
+        Effect.succeed(
+          handlerMocks.pendingOutputs.filter((output) => output.sessionId === sessionId),
+        ),
+      remove: (sessionId, outputId) =>
+        Effect.sync(() => {
+          const index = handlerMocks.pendingOutputs.findIndex(
+            (output) => output.sessionId === sessionId && output.id === outputId,
+          )
+          if (index !== -1) handlerMocks.pendingOutputs.splice(index, 1)
+        }),
+    }),
+  ),
   Layer.succeed(
     SessionRepository,
     SessionRepository.of(
@@ -138,7 +165,7 @@ export function invokeSessionResourceHandler(channel: string, ...args: readonly 
 }
 
 export function resetSessionResourceHandlerHarness() {
-  clearPendingChangeRequestOutputsForTests()
+  handlerMocks.pendingOutputs.splice(0)
   handlerMocks.typedHandle.mockClear()
   handlerMocks.list.mockReset().mockReturnValue([])
   handlerMocks.getContentLocation.mockReset().mockReturnValue(null)

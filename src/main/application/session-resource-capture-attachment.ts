@@ -155,7 +155,7 @@ function restoreUnavailableAttachment(
       return
     }
 
-    const resource = yield* repository.upsert({
+    yield* repository.upsert({
       id: rekeyed.id,
       sessionId: input.sessionId,
       canonicalKey,
@@ -169,8 +169,9 @@ function restoreUnavailableAttachment(
       createdAt: rekeyed.createdAt,
       updatedAt: input.createdAt,
     })
-    if (resource.id !== rekeyed.id) yield* store.remove(stored.path)
-    else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
+    // A canonical-key conflict may retain another resource id while adopting this managed path.
+    // The copied file therefore belongs to the returned row regardless of which id won.
+    yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
   }).pipe(Effect.tapError(() => store.remove(stored.path).pipe(Effect.catchAll(() => Effect.void))))
 }
 
@@ -230,7 +231,7 @@ function captureStoredAttachment(
       )
       return
     }
-    const resource = yield* repository
+    yield* repository
       .upsert({
         id: resourceId,
         sessionId: input.sessionId,
@@ -248,8 +249,9 @@ function captureStoredAttachment(
       .pipe(
         Effect.tapError(() => store.remove(stored.path).pipe(Effect.catchAll(() => Effect.void))),
       )
-    if (resource.id !== resourceId) yield* store.remove(stored.path)
-    else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
+    // SQLite retains the canonical row id but updates it to this replacement managed path.
+    // Deleting by id mismatch would leave an available resource pointing at a missing file.
+    yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
   })
 }
 

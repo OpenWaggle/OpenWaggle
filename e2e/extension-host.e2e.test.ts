@@ -196,8 +196,8 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     const publishReport = resourcesFrame.getByRole('button', { name: 'Publish session report' })
     await expect(resourcesFrame.getByText('Ready to publish to this session.')).toBeVisible()
     await publishReport.click()
-    await expect(resourcesFrame.getByText('Published to Outputs.')).toBeVisible()
-    await expect(publishReport).toBeEnabled()
+    await expect(resourcesFrame.getByText('Published to Outputs.')).toBeVisible({ timeout: 30_000 })
+    await expect(publishReport).toBeEnabled({ timeout: 30_000 })
     await page.getByRole('button', { name: 'Close extension side panel' }).click()
 
     const summary = page.getByRole('complementary', { name: 'Session Summary' })

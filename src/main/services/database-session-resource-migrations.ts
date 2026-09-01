@@ -3,6 +3,7 @@ import {
   SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT,
   SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT,
 } from './database-schema'
+import { SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT } from './database-session-output-retry-schema'
 
 export const SESSION_RESOURCE_MIGRATIONS = [
   {
@@ -19,5 +20,10 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     id: 29,
     name: 'session-resource-cleanup-queue',
     statements: [SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT],
+  },
+  {
+    id: 30,
+    name: 'session-output-retry-queue',
+    statements: [SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT],
   },
 ] as const

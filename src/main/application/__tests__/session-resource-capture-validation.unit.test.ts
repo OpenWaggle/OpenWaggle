@@ -109,7 +109,7 @@ describe('session resource capture validation', () => {
     )
   })
 
-  it('removes a newly copied duplicate when the catalog preserves a managed image', async () => {
+  it('keeps a replacement copy when canonical deduplication retains another resource id', async () => {
     const upserts: UpsertSessionResourceInput[] = []
     const removedPaths: string[] = []
     await Effect.runPromise(
@@ -142,7 +142,7 @@ describe('session resource capture validation', () => {
       ),
     )
 
-    expect(removedPaths).toHaveLength(2)
-    expect(removedPaths.every((managedPath) => managedPath.startsWith('/managed/'))).toBe(true)
+    expect(removedPaths).toHaveLength(1)
+    expect(removedPaths[0]).toMatch(/\/managed\/.*-Generated image\.png$/)
   })
 })

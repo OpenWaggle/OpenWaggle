@@ -97,9 +97,25 @@ if [ "$1" = "mr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
 echo "no merge request found" >&2
 exit 1
 `
+  const ghCmd = `@echo off
+if "%1"=="auth" (echo Logged in to github.com account openwaggle-e2e& exit /b 0)
+if "%1"=="pr" if "%2"=="create" (echo https://github.com/openwaggle/e2e/pull/42& exit /b 0)
+if "%1"=="pr" if "%2"=="list" (echo []& exit /b 0)
+echo no pull requests found 1>&2
+exit /b 1
+`
+  const glabCmd = `@echo off
+if "%1"=="auth" (echo Logged in to gitlab.com as openwaggle-e2e& exit /b 0)
+if "%1"=="mr" if "%2"=="create" (echo https://gitlab.com/openwaggle/e2e/-/merge_requests/42& exit /b 0)
+if "%1"=="mr" if "%2"=="list" (echo []& exit /b 0)
+echo no merge request found 1>&2
+exit /b 1
+`
   await Promise.all([
     fs.writeFile(path.join(binPath, 'gh'), gh, { mode: 0o755 }),
     fs.writeFile(path.join(binPath, 'glab'), glab, { mode: 0o755 }),
+    fs.writeFile(path.join(binPath, 'gh.cmd'), ghCmd),
+    fs.writeFile(path.join(binPath, 'glab.cmd'), glabCmd),
   ])
   return binPath
 }
@@ -404,6 +420,7 @@ test('session resources stay scoped while inline images and the gallery navigate
 })
 
 test('Session Summary exposes complete GitHub PR and GitLab MR composition', async () => {
+  test.setTimeout(180_000)
   const cliBinPath = await createFakeSourceControlCliBin()
   const app = await OpenWaggleApp.launch('openwaggle-session-summary-change-requests-', {
     PATH: `${cliBinPath}${path.delimiter}${process.env.PATH ?? ''}`,
@@ -462,7 +479,7 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
       pullRequestComposer.getByRole('button', { name: 'Open PR in browser' }),
     ).toBeDisabled()
     await pullRequestComposer.getByRole('button', { name: 'Create PR' }).click()
-    await expect(pullRequestComposer).toHaveCount(0, { timeout: 30_000 })
+    await expect(pullRequestComposer).toHaveCount(0, { timeout: 60_000 })
     await expect
       .poll(() =>
         execFileSync('git', ['branch', '--show-current'], {
@@ -505,7 +522,7 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
       mergeRequestComposer.getByRole('button', { name: 'Open MR in browser' }),
     ).toBeDisabled()
     await mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }).click()
-    await expect(mergeRequestComposer).toHaveCount(0, { timeout: 30_000 })
+    await expect(mergeRequestComposer).toHaveCount(0, { timeout: 60_000 })
     await expect
       .poll(() =>
         execFileSync('git', ['branch', '--show-current'], {

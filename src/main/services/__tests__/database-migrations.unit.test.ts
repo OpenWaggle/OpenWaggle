@@ -294,4 +294,29 @@ describe('session authorization-mode migration', () => {
     )
     expect(queued).toEqual([{ session_id: 'deleted-session' }])
   })
+
+  it('adds session-owned durable Output retry work at migration 30', async () => {
+    const pending = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 30)
+        yield* insertSession(sql, 'output-session')
+        yield* sql`
+          INSERT INTO session_output_retries (
+            id, session_id, kind, commit_hash, summary, created_at
+          ) VALUES (
+            'pending-commit', 'output-session', 'commit', 'abc123', 'Complete hub', 1
+          )
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'output-session'`
+        return yield* sql<{ readonly id: string }>`
+          SELECT id FROM session_output_retries
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 30)?.name).toBe(
+      'session-output-retry-queue',
+    )
+    expect(pending).toEqual([])
+  })
 })

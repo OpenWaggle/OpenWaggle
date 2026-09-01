@@ -8,10 +8,8 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import {
-  clearPendingChangeRequestOutput,
-  clearPendingCommitOutput,
-  isPendingChangeRequestOutput,
-  listPendingCommitOutputs,
+  listPendingSessionOutputs,
+  removePendingSessionOutput,
 } from '../application/session-change-request-output-retry'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
 import {
@@ -31,13 +29,23 @@ import { typedHandle } from './typed-ipc'
 
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
 
-function retryPendingCommitOutputs(sessionId: SessionId) {
-  return Effect.forEach(listPendingCommitOutputs(sessionId), (commit) =>
-    recordSessionCommit(sessionId, commit).pipe(
-      Effect.tap(() => Effect.sync(() => clearPendingCommitOutput(sessionId, commit.commitHash))),
-      Effect.catchAll(() => Effect.void),
+function retryPendingOutputs(sessionId: SessionId) {
+  return listPendingSessionOutputs(sessionId).pipe(
+    Effect.flatMap((outputs) =>
+      Effect.forEach(outputs, (output) => {
+        const recording =
+          output.kind === 'commit'
+            ? recordSessionCommit(sessionId, output)
+            : recordSessionChangeRequest(sessionId, output)
+        return recording.pipe(
+          Effect.flatMap(() => removePendingSessionOutput(output)),
+          Effect.catchAll(() => Effect.void),
+        )
+      }),
     ),
-  ).pipe(Effect.asVoid)
+    Effect.catchAll(() => Effect.void),
+    Effect.asVoid,
+  )
 }
 
 function managedResourceNodeIds(resources: readonly SessionResource[]) {
@@ -102,7 +110,7 @@ export function registerSessionResourceHandlers(): void {
       const sessionId = SessionId(
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
-      yield* retryPendingCommitOutputs(sessionId)
+      yield* retryPendingOutputs(sessionId)
       const repository = yield* SessionResourceRepository
       const status = yield* advanceSessionResourceBackfillPage(sessionId)
       return { resources: [...(yield* repository.list(sessionId))], ...status }
@@ -178,13 +186,19 @@ export function registerSessionResourceHandlers(): void {
           decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
         )
         const input = decodeUnknownOrThrow(recordSessionChangeRequestInputSchema, rawInput)
-        if (!isPendingChangeRequestOutput(sessionId, input)) {
+        const pending = (yield* listPendingSessionOutputs(sessionId)).find(
+          (output) =>
+            output.kind === 'change-request' &&
+            output.title === input.title &&
+            output.url === input.url,
+        )
+        if (!pending) {
           return yield* Effect.fail(
             new Error('No matching created change request is pending Output recording.'),
           )
         }
         const recorded = yield* recordSessionChangeRequest(sessionId, input)
-        clearPendingChangeRequestOutput(sessionId, input)
+        yield* removePendingSessionOutput(pending)
         return recorded
       }),
   )
