@@ -4,6 +4,7 @@ import { validatePackageReleaseGate } from '../package-release-gate'
 
 const ALL_SUCCESS = {
   candidateResult: 'success',
+  changesResult: 'success',
   checkResult: 'success',
   commitPolicyResult: 'success',
   e2eLinuxResult: 'success',
@@ -57,6 +58,7 @@ describe('Package Release Gate', () => {
           e2eLinuxResult: 'skipped',
           e2eMacosResult: 'skipped',
           e2eWindowsResult: 'skipped',
+          changesResult: 'skipped',
           rehearsalPackageResult: 'skipped',
           rehearsalWebsiteResult: 'skipped',
         },
@@ -70,6 +72,7 @@ describe('Package Release Gate', () => {
       validatePackageReleaseGate({
         results: {
           ...ALL_SUCCESS,
+          changesResult: 'skipped',
           checkResult: 'skipped',
           commitPolicyResult: 'skipped',
           candidateResult: 'skipped',
@@ -88,6 +91,7 @@ describe('Package Release Gate', () => {
 
   it.each([
     ['full', 'e2eWindowsResult', 'failure', 'Electron E2E (Windows)'],
+    ['full', 'changesResult', 'failure', 'changed-surface detection'],
     ['full', 'rehearsalPackageResult', 'failure', 'package consumer rehearsal'],
     ['full', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
     ['fast', 'e2eMacosResult', 'skipped', 'Electron E2E (macOS)'],
@@ -110,6 +114,15 @@ describe('Package Release Gate', () => {
         tier: 'fast',
       }),
     ).toThrow('package consumer rehearsal did not succeed: failure.')
+  })
+
+  it('fails the full tier when change detection broke and left the rehearsals unknown', () => {
+    expect(() =>
+      validatePackageReleaseGate({
+        results: { ...ALL_SUCCESS, changesResult: 'failure', rehearsalPackageResult: 'skipped' },
+        tier: 'full',
+      }),
+    ).toThrow('changed-surface detection did not succeed: failure.')
   })
 
   it('rejects unknown tiers', () => {

@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url'
 
 const CLI_ARGUMENT_START_INDEX = 2
-const EXPECTED_ARGUMENT_COUNT = 12
+const EXPECTED_ARGUMENT_COUNT = 13
 
 const GATE_TIERS = ['full', 'fast', 'fast-no-e2e', 'visual'] as const
 export type PackageReleaseGateTier = (typeof GATE_TIERS)[number]
@@ -13,6 +13,7 @@ export type PackageReleaseGateTier = (typeof GATE_TIERS)[number]
 export type PackageReleaseGateResults = Readonly<
   Record<
     | 'candidateResult'
+    | 'changesResult'
     | 'checkResult'
     | 'commitPolicyResult'
     | 'e2eLinuxResult'
@@ -39,6 +40,7 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
   full: [
     'commitPolicyResult',
     'checkResult',
+    'changesResult',
     'testUnitResult',
     'testIntegrationComponentResult',
     'mcpConformanceResult',
@@ -50,6 +52,7 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
   fast: [
     'commitPolicyResult',
     'checkResult',
+    'changesResult',
     'testUnitResult',
     'testIntegrationComponentResult',
     'mcpConformanceResult',
@@ -69,6 +72,7 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
 
 const JOB_LABELS: Readonly<Record<keyof PackageReleaseGateResults, string>> = {
   candidateResult: 'package release candidate',
+  changesResult: 'changed-surface detection',
   checkResult: 'typecheck and lint',
   commitPolicyResult: 'commit policy',
   e2eLinuxResult: 'Electron E2E (Linux)',
@@ -88,6 +92,7 @@ function isGateTier(value: string): value is PackageReleaseGateTier {
 const RESULT_KEYS = [
   'commitPolicyResult',
   'checkResult',
+  'changesResult',
   'testUnitResult',
   'testIntegrationComponentResult',
   'mcpConformanceResult',
@@ -126,19 +131,11 @@ export function validatePackageReleaseGate(input: Readonly<{ results: PackageRel
   }
 }
 
-export function runPackageReleaseGateCli(args: readonly string[]) {
-  if (args.length !== EXPECTED_ARGUMENT_COUNT) {
-    throw new Error(
-      'Usage: package-release-gate.ts <tier> <commit-policy-result> <check-result> <test-unit-result> <test-integration-component-result> <test-mcp-conformance-result> <e2e-macos-result> <e2e-linux-result> <e2e-windows-result> <rehearsal-package-result> <rehearsal-website-result> <candidate-result>.',
-    )
-  }
-  const [tier, ...resultArgs] = args
-  if (tier === undefined || resultArgs.length !== EXPECTED_ARGUMENT_COUNT - 1) {
-    throw new Error('Package release gate arguments are incomplete.')
-  }
+function readGateResults(args: readonly (string | undefined)[]): PackageReleaseGateResults {
   const [
     commitPolicyResult,
     checkResult,
+    changesResult,
     testUnitResult,
     testIntegrationComponentResult,
     mcpConformanceResult,
@@ -148,23 +145,34 @@ export function runPackageReleaseGateCli(args: readonly string[]) {
     rehearsalPackageResult,
     rehearsalWebsiteResult,
     candidateResult,
-  ] = resultArgs
-  validatePackageReleaseGate({
-    results: {
-      candidateResult: candidateResult ?? '',
-      checkResult: checkResult ?? '',
-      commitPolicyResult: commitPolicyResult ?? '',
-      e2eLinuxResult: e2eLinuxResult ?? '',
-      e2eMacosResult: e2eMacosResult ?? '',
-      e2eWindowsResult: e2eWindowsResult ?? '',
-      mcpConformanceResult: mcpConformanceResult ?? '',
-      rehearsalPackageResult: rehearsalPackageResult ?? '',
-      rehearsalWebsiteResult: rehearsalWebsiteResult ?? '',
-      testIntegrationComponentResult: testIntegrationComponentResult ?? '',
-      testUnitResult: testUnitResult ?? '',
-    },
-    tier,
-  })
+  ] = args
+  return {
+    candidateResult: candidateResult ?? '',
+    changesResult: changesResult ?? '',
+    checkResult: checkResult ?? '',
+    commitPolicyResult: commitPolicyResult ?? '',
+    e2eLinuxResult: e2eLinuxResult ?? '',
+    e2eMacosResult: e2eMacosResult ?? '',
+    e2eWindowsResult: e2eWindowsResult ?? '',
+    mcpConformanceResult: mcpConformanceResult ?? '',
+    rehearsalPackageResult: rehearsalPackageResult ?? '',
+    rehearsalWebsiteResult: rehearsalWebsiteResult ?? '',
+    testIntegrationComponentResult: testIntegrationComponentResult ?? '',
+    testUnitResult: testUnitResult ?? '',
+  }
+}
+
+export function runPackageReleaseGateCli(args: readonly string[]) {
+  if (args.length !== EXPECTED_ARGUMENT_COUNT) {
+    throw new Error(
+      'Usage: package-release-gate.ts <tier> <commit-policy-result> <check-result> <changes-result> <test-unit-result> <test-integration-component-result> <test-mcp-conformance-result> <e2e-macos-result> <e2e-linux-result> <e2e-windows-result> <rehearsal-package-result> <rehearsal-website-result> <candidate-result>.',
+    )
+  }
+  const [tier, ...resultArgs] = args
+  if (tier === undefined || resultArgs.length !== EXPECTED_ARGUMENT_COUNT - 1) {
+    throw new Error('Package release gate arguments are incomplete.')
+  }
+  validatePackageReleaseGate({ results: readGateResults(resultArgs), tier })
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

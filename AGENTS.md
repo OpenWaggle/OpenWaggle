@@ -18,7 +18,7 @@ Use `pnpm` only.
 
 ```bash
 pnpm dev                # Electron dev app
-pnpm dev:debug          # Electron dev app with CDP on port 9222
+pnpm dev:debug          # Hidden Electron dev app with CDP on port 9223
 pnpm build              # Production build
 pnpm typecheck          # Node + web typecheck
 pnpm lint               # Biome + ESLint architecture and style rules
@@ -34,7 +34,7 @@ pnpm test:coverage      # Coverage report
 
 ## CI Gates
 
-CI is tiered (see `docs/adr/0025-tier-ci-gates-behind-a-merge-queue.md`). Per-push runs execute the Fast gate: Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and macOS Electron E2E. Windows/Linux E2E and the package rehearsals run only on the merge queue's merge result (the Full gate), where they are required. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run. UI PRs that change rendered pixels must regenerate the Darwin visual baselines (`pnpm test:e2e` then copy approved snapshots, or `playwright test --update-snapshots`); CI macOS runners are the source of truth.
+CI is tiered (see `docs/adr/0029-tier-ci-gates-behind-a-merge-queue.md`). Per-push runs execute the Fast gate: Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and macOS Electron E2E. Windows and Linux E2E run on merge-queue merge results and dispatched `full` runs, where they are required; the package and website rehearsals also run there, whenever the merged diff touches their surfaces. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run. UI PRs that change rendered pixels must regenerate the Darwin visual baselines (`pnpm test:e2e` then copy approved snapshots, or `playwright test --update-snapshots`); CI macOS runners are the source of truth.
 
 ## Repository Model
 

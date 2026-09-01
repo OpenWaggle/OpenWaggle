@@ -16,8 +16,7 @@ done
 
 if [ "$IS_MAIN_PUSH" -eq 1 ]; then
   echo 'pre-push: running quality gates for pushes to main.'
-  pnpm prepush:main
-  exit 0
+  exec pnpm prepush:main
 fi
 
 # Feature branches run the same deterministic checks the CI fast gate enforces, so a

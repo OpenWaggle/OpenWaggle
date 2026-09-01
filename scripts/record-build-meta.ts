@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -78,7 +79,13 @@ const JSON_INDENT_SPACES = 2
 const SHORT_SHA_LENGTH = 12
 
 async function main() {
-  if (process.argv[VERIFY_FLAG_ARGUMENT_INDEX] === VERIFY_FLAG) {
+  const flag = process.argv[VERIFY_FLAG_ARGUMENT_INDEX]
+  if (flag !== undefined && flag !== VERIFY_FLAG) {
+    console.error(CLI_USAGE_MESSAGE)
+    process.exitCode = 1
+    return
+  }
+  if (flag === VERIFY_FLAG) {
     const [meta, headCommit] = [await readBuildMeta(), await resolveHeadCommit()]
     if (meta === null) {
       console.error(
@@ -104,7 +111,7 @@ async function main() {
 }
 
 const isDirectInvocation =
-  process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
 
 if (isDirectInvocation) {
   void main().catch((error: unknown) => {

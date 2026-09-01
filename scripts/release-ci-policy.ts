@@ -42,7 +42,7 @@ const EXPECTED_CI_JOBS = [
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
-const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'steps'] as const
+const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'timeout-minutes', 'steps'] as const
 
 function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
@@ -203,8 +203,8 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
     runner === undefined
       ? [...REQUIRED_JOB_KEYS]
       : QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
-        ? [...REQUIRED_JOB_KEYS, 'timeout-minutes', 'if']
-        : [...REQUIRED_JOB_KEYS, 'timeout-minutes']
+        ? [...REQUIRED_JOB_KEYS, 'if']
+        : [...REQUIRED_JOB_KEYS]
   const contractRunner = runner ?? 'ubuntu-latest'
   const hasExactJobContract =
     jobKeys.length === expectedKeys.length &&
@@ -227,7 +227,6 @@ function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violatio
       break
     }
   }
-  if (!jobNames.has('Electron E2E (macOS)')) return
   for (const [jobName, conditionLines] of QUEUE_ONLY_JOB_CONDITIONS) {
     const job = jobs.find((candidate) => candidate.name === jobName)
     if (job === undefined) continue

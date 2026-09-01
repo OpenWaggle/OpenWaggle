@@ -129,6 +129,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('typing a project name keeps that project sessions', async () => {
       await searchInput.fill(BETA)
 
+      await expect(searchInput).toHaveValue(BETA, { timeout: SEARCH_COMMIT_TIMEOUT })
       await expect(rows.filter({ hasText: OTHER_STUCK_TITLE })).toHaveCount(1)
       await expect(rows.filter({ hasText: CALM_TITLE })).toHaveCount(0)
     })
@@ -143,6 +144,7 @@ test('sidebar filtering: chips, pips, search and Escape', async () => {
     await test.step('Escape clears both text and state filters together', async () => {
       await interruptedChip.click()
       await searchInput.fill('Calm')
+      await expect(searchInput).toHaveValue('Calm', { timeout: SEARCH_COMMIT_TIMEOUT })
       await expect(rows).toHaveCount(0)
 
       await searchInput.press('Escape')

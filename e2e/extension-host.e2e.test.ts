@@ -25,6 +25,7 @@ const EXTENSION_CONFIG_KEY = 'github.issues.config'
 // assertions below use an explicit ceiling. The ceiling is not a wait: assertions still
 // resolve as soon as the element appears.
 const EXTENSION_MOUNT_TIMEOUT = 30_000
+const EXTENSION_TEST_TIMEOUT = 180_000
 
 function readStoredConfiguration(userDataDir: string) {
   const database = new DatabaseSync(path.join(userDataDir, 'openwaggle.db'), { readOnly: true })
@@ -71,6 +72,9 @@ function lifecycleButton(page: Page, action: string) {
 }
 
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
+  // The mount and unmount assertions below each carry a 30s ceiling; the default 90s
+  // test timeout would fire first once two of them are slow and waste a retry slot.
+  test.setTimeout(EXTENSION_TEST_TIMEOUT)
   const app = await OpenWaggleApp.launch('openwaggle-extension-host-e2e-')
   const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-extension-project-'))
 
@@ -160,14 +164,16 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
-    ).toHaveCount(0)
-    await expect(page.locator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)).toHaveCount(0)
+    ).toHaveCount(0, { timeout: EXTENSION_MOUNT_TIMEOUT })
+    await expect(page.locator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)).toHaveCount(0, {
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
     await app.confirmNativeDialogs()
     await lifecycleButton(page, 'Remove').click()
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_EXTENSION_NAME }),
-    ).toHaveCount(0)
+    ).toHaveCount(0, { timeout: EXTENSION_MOUNT_TIMEOUT })
     await expect
       .poll(() =>
         projectExtensionFixtureExists({

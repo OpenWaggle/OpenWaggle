@@ -6,6 +6,8 @@ import type { ElectronApplication } from '@playwright/test'
 const execFileAsync = promisify(execFile)
 
 const ELECTRON_CLOSE_TIMEOUT_MS = 10_000
+const POST_KILL_EXIT_WAIT_MS = 5_000
+const POST_KILL_POLL_MS = 250
 const PROCESS_LIST_MAX_BUFFER_BYTES = 10_000_000
 const PROCESS_ENTRY_FIELD_COUNT = 3
 
@@ -122,23 +124,31 @@ function describeDescendants(descendants: readonly ProcessEntry[]) {
     .join('\n')
 }
 
-async function reportSurvivorTree(rootPid: number, descendants: readonly ProcessEntry[]) {
+async function reportSurvivorTree(
+  rootPid: number,
+  descendants: readonly ProcessEntry[],
+  enumerationError?: unknown,
+) {
   const detail =
-    descendants.length === 0
-      ? `no descendant processes; the Electron root itself (pid=${rootPid}) did not exit`
-      : describeDescendants(descendants)
+    enumerationError !== undefined
+      ? `process tree enumeration failed (${String(enumerationError)}); forensics unavailable`
+      : descendants.length === 0
+        ? `no descendant processes; the Electron root itself (pid=${rootPid}) did not exit`
+        : describeDescendants(descendants)
   console.error(`[electron-qa] Electron shutdown forensics for pid=${rootPid}:\n${detail}`)
 
   const summaryPath = process.env.GITHUB_STEP_SUMMARY
   if (summaryPath === undefined) {
     return
   }
-  const line = descendants
-    .map((entry) => `${entry.command} (pid ${entry.pid})`)
-    .join(', ')
+  const survivors =
+    enumerationError !== undefined
+      ? 'process tree enumeration failed'
+      : descendants.map((entry) => `${entry.command} (pid ${entry.pid})`).join(', ') ||
+        'Electron root itself'
   await appendFile(
     summaryPath,
-    `| Electron shutdown forensics | pid ${rootPid} kept alive: ${line || 'Electron root itself'} |\n`,
+    `Electron shutdown forensics: pid ${rootPid} kept alive: ${survivors}\n`,
   ).catch((error: unknown) => {
     console.error('[electron-qa] failed to append shutdown forensics to the step summary', error)
   })
@@ -177,11 +187,10 @@ async function killProcessTree(rootPid: number, descendants: readonly ProcessEnt
  */
 export async function closeElectronApplication(app: ElectronApplication): Promise<void> {
   const rootPid = app.process().pid
-  const closePromise = app
-    .close()
-    .catch((error: unknown) => {
-      console.error('[electron-qa] Electron close() rejected', error)
-    })
+  let closeRejection: unknown
+  const closePromise = app.close().catch((error: unknown) => {
+    closeRejection = error
+  })
   let timeoutHandle: NodeJS.Timeout | undefined
   const outcome = await Promise.race([
     closePromise.then(() => 'closed' as const),
@@ -191,19 +200,47 @@ export async function closeElectronApplication(app: ElectronApplication): Promis
   ])
   clearTimeout(timeoutHandle)
   if (outcome === 'closed') {
-    await closePromise
+    // A rejected close on a clean exit is a real failure the test must report.
+    if (closeRejection !== undefined) {
+      throw closeRejection
+    }
     return
   }
   console.error(
     `[electron-qa] Electron did not exit within ${ELECTRON_CLOSE_TIMEOUT_MS}ms; killing its process tree.`,
   )
   let descendants: readonly ProcessEntry[] = []
+  let enumerationError: unknown
   try {
     descendants = await listDescendantEntries(rootPid)
   } catch (error) {
+    enumerationError = error
     console.error('[electron-qa] failed to enumerate the Electron process tree', error)
   }
-  await reportSurvivorTree(rootPid, descendants)
+  await reportSurvivorTree(rootPid, descendants, enumerationError)
   await killProcessTree(rootPid, descendants)
   await closePromise
+  await waitForTreeExit(rootPid)
+}
+
+/*
+ * Signals are delivered asynchronously: SIGKILL returning does not mean the processes are
+ * gone, and `cleanup()` immediately removes the user-data dir the tree may still hold
+ * open. Poll until the root is gone so the removal cannot race live handles. Pids are
+ * re-checked by liveness only, not identity: the snapshot-to-kill window is milliseconds
+ * and pid reuse into it is accepted residual risk on Unix (Windows walks the live tree).
+ */
+async function waitForTreeExit(rootPid: number) {
+  const deadline = Date.now() + POST_KILL_EXIT_WAIT_MS
+  while (Date.now() < deadline) {
+    try {
+      process.kill(rootPid, 0)
+    } catch {
+      return
+    }
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, POST_KILL_POLL_MS)
+    })
+  }
+  console.error(`[electron-qa] pid=${rootPid} still alive after the post-kill wait.`)
 }

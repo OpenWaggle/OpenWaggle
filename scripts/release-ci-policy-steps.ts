@@ -44,6 +44,10 @@ export const CONCURRENCY_CANCEL_LINE =
  */
 export const QUEUE_ONLY_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
   [
+    'Electron E2E (macOS)',
+    ["    if: github.event_name != 'push'\n"],
+  ],
+  [
     'Electron E2E (Linux)',
     [
       "    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')\n",

@@ -38,8 +38,22 @@ async function main() {
   const baseline = await resolveLocalBaseline()
   const result = await validateConventionalCommits(baseline === null ? {} : { baseline })
 
+  /*
+   * An empty range without an explicit baseline means the validator could not scope this
+   * branch's commits (for example a shallow clone where the activation commit is absent).
+   * Passing zero commits would be a vacuous pre-push gate, so fail closed with guidance.
+   */
+  if (baseline === null && result.commits.length === 0) {
+    console.error(
+      'Could not scope this branch against the commit policy (shallow or partial clone?). Fetch full history with `git fetch --unshallow origin main` and push again.',
+    )
+    process.exitCode = 1
+    return
+  }
+
   if (result.violations.length === 0) {
-    const since = baseline === null ? 'the policy activation baseline' : baseline.slice(0, SHORT_SHA_LENGTH)
+    const since =
+      baseline === null ? 'the policy activation baseline' : baseline.slice(0, SHORT_SHA_LENGTH)
     console.log(
       `Conventional Commit policy passed for ${result.commits.length} commit(s) since ${since}.`,
     )

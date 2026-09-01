@@ -46,6 +46,7 @@ jobs:
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -84,6 +85,7 @@ jobs:
   check:
     name: Typecheck & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -117,6 +119,7 @@ jobs:
   test-unit:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -147,6 +150,7 @@ jobs:
   test-integration-component:
     name: Integration & Component Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -177,6 +181,7 @@ jobs:
   test-mcp-conformance:
     name: MCP Conformance
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -206,6 +211,7 @@ jobs:
 
   changes:
     name: Detect Changed Surfaces
+    timeout-minutes: 10
     # Push runs never trigger path-scoped jobs, so change detection is only needed for
     # pull requests, merge-queue validation, and dispatched runs.
     if: github.event_name != 'push'
@@ -250,6 +256,8 @@ jobs:
 
   electron-e2e-macos:
     name: Electron E2E (macOS)
+    # The merge queue and dispatched runs validate E2E; main pushes stay a static canary.
+    if: github.event_name != 'push'
     # macOS runs both the shared functional suite and the native Darwin visual baselines.
     runs-on: macos-15
     timeout-minutes: 20
@@ -422,6 +430,7 @@ jobs:
       (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
       (needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -474,6 +483,7 @@ jobs:
 
   package-release-rehearsal-website:
     name: Website & Docs Rehearsal (Node 24.14.0)
+    timeout-minutes: 25
     needs: changes
     if: >-
       (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
@@ -506,6 +516,7 @@ jobs:
   classify-package-release:
     name: Classify Package Release Candidate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       prepare: ${{ steps.candidate.outputs.prepare }}
     steps:
@@ -536,6 +547,7 @@ jobs:
 
   prepare-package-release:
     name: Build and attest package artifacts (Release Please PR only)
+    timeout-minutes: 40
     needs: classify-package-release
     if: needs.classify-package-release.outputs.prepare == 'true'
     runs-on: ubuntu-latest
@@ -630,6 +642,7 @@ jobs:
       - prepare-package-release
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -645,12 +658,14 @@ jobs:
 
   package-release-gate:
     name: Package Release Gate
+    timeout-minutes: 10
     needs:
       - commit-policy
       - check
       - test-unit
       - test-integration-component
       - test-mcp-conformance
+      - changes
       - electron-e2e-macos
       - electron-e2e-linux
       - electron-e2e-windows
@@ -672,4 +687,4 @@ jobs:
           package-manager-cache: false
 
       - name: Enforce package release readiness
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "$CI_TIER" "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.test-unit.result }}" "${{ needs.test-integration-component.result }}" "${{ needs.test-mcp-conformance.result }}" "${{ needs.electron-e2e-macos.result }}" "${{ needs.electron-e2e-linux.result }}" "${{ needs.electron-e2e-windows.result }}" "${{ needs.package-release-rehearsal-package.result }}" "${{ needs.package-release-rehearsal-website.result }}" "${{ needs.package-release-candidate.result }}"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "$CI_TIER" "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.changes.result }}" "${{ needs.test-unit.result }}" "${{ needs.test-integration-component.result }}" "${{ needs.test-mcp-conformance.result }}" "${{ needs.electron-e2e-macos.result }}" "${{ needs.electron-e2e-linux.result }}" "${{ needs.electron-e2e-windows.result }}" "${{ needs.package-release-rehearsal-package.result }}" "${{ needs.package-release-rehearsal-website.result }}" "${{ needs.package-release-candidate.result }}"

@@ -70,7 +70,7 @@
     "check:contrast": "tsx scripts/check-contrast.ts",
     "check:syntax-bundle": "tsx scripts/check-syntax-bundle.ts",
     "check": "pnpm typecheck && pnpm check:installer && pnpm check:contrast && pnpm typecheck:tests && pnpm lint && pnpm package-release:validate && pnpm api:snapshot:check && pnpm package-docs:check && pnpm package:smoke",
-    "verify": "pnpm check:commits:local && pnpm typecheck && pnpm lint && pnpm test:unit:raw",
+    "verify": "pnpm check:commits:local && pnpm typecheck && pnpm lint && pnpm prepare:native:node && pnpm test:unit:raw",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
     "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",

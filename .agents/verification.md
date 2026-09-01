@@ -12,12 +12,12 @@ pnpm verify
 
 ## CI Gate Tiers
 
-CI is tiered (ADR 0025). Per-push runs execute the Fast gate; the merge queue's merge result runs the Full gate:
+CI is tiered (ADR 0029). Per-push runs execute the Fast gate; the merge queue's merge result runs the Full gate:
 
-- **Fast gate (per push):** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Electron E2E (macOS, includes the Darwin visual baselines).
+- **Fast gate (per push):** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Electron E2E (macOS, includes the Darwin visual baselines and the syntax performance benchmark).
 - **Full gate (merge queue result):** everything above plus Electron E2E (Linux), Electron E2E (Windows), and the package rehearsals when the merged diff touches package or website/docs surfaces.
 
-Red jobs on a PR branch are the Fast gate; a red Windows or Linux E2E job on `main` or a queue run is the Full gate.
+Red jobs on a PR branch are the Fast gate; a red Windows or Linux E2E job on a queue run is the Full gate. Pushes to `main` run the static checks only.
 
 ## Baseline Static Checks
 
@@ -61,7 +61,7 @@ For renderer interaction, preload, IPC, or main-process behavior that affects th
 pnpm dev:debug
 ```
 
-Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Electron app on CDP port 9222:
+Then load `.agents/skills/electron-qa/SKILL.md` and verify through the real Electron app on CDP port 9223:
 
 - app page is reachable
 - `window.api` exists
@@ -109,7 +109,7 @@ The six primary-surface baselines in `e2e/visual-regression.e2e.test.ts-snapshot
 
 1. Update the snapshots: `pnpm test:e2e -- --update-snapshots` (or run `e2e/visual-regression.e2e.test.ts` only) and review the diff.
 2. Push and let the Fast gate's macOS E2E verify on the runner image.
-3. For a fast visual-only check on an exact commit, dispatch the CI workflow with the `visual` tier (`gh workflow run ci.yml -f head_sha=<sha> -f ci_tier=visual`).
+3. For a fast visual-only E2E check on an exact commit, dispatch the CI workflow with the `visual` tier from the branch that carries the commit (`gh workflow run ci.yml --ref <branch> -f head_sha=<sha> -f ci_tier=visual`). The static checks still run alongside it; only the E2E step is visual-only.
 
 Do not hand-edit baseline PNGs or loosen `maxDiffPixelRatio` to make a baseline check pass.
 
