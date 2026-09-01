@@ -1,9 +1,10 @@
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as POLICY } from '../domain/session-transcript-semantic-storage-policy'
+import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 
 export function recentTranscriptNodeIds(sessionId: string) {
   return `SELECT nodes.id FROM session_nodes AS nodes
-    JOIN session_node_search AS search ON search.node_id = nodes.id
-    WHERE nodes.session_id = ${sessionId} AND trim(search.content) <> ''
+    WHERE nodes.session_id = ${sessionId}
+      AND trim(${sessionTranscriptSearchContentSql('nodes')}) <> ''
     ORDER BY nodes.created_order DESC, nodes.id DESC
     LIMIT COALESCE((SELECT node_limit FROM session_transcript_semantic_scopes
       WHERE session_id = ${sessionId}), 0)`
@@ -28,17 +29,16 @@ export const TRANSCRIPT_STORAGE_HAS_CAPACITY = `
 
 export function refreshTranscriptScopeCoverageSql(sessionId: string) {
   const searchableCount = `(SELECT COUNT(*) FROM session_nodes AS coverage_nodes
-    JOIN session_node_search AS coverage_search ON coverage_search.node_id = coverage_nodes.id
-    WHERE coverage_nodes.session_id = ${sessionId} AND trim(coverage_search.content) <> '')`
+    WHERE coverage_nodes.session_id = ${sessionId}
+      AND trim(${sessionTranscriptSearchContentSql('coverage_nodes')}) <> '')`
   const missingEligible = `EXISTS (
     SELECT 1 FROM session_nodes AS missing_nodes
-    JOIN session_node_search AS missing_search ON missing_search.node_id = missing_nodes.id
     LEFT JOIN session_transcript_embeddings AS missing_embeddings
       ON missing_embeddings.node_id = missing_nodes.id
     LEFT JOIN session_transcript_embedding_queue AS missing_queue
       ON missing_queue.node_id = missing_nodes.id
     WHERE missing_nodes.session_id = ${sessionId}
-      AND trim(missing_search.content) <> ''
+      AND trim(${sessionTranscriptSearchContentSql('missing_nodes')}) <> ''
       AND missing_nodes.id IN (${recentTranscriptNodeIds(sessionId)})
       AND missing_embeddings.node_id IS NULL AND missing_queue.node_id IS NULL
   )`

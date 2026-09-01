@@ -31,7 +31,10 @@ export interface SessionAuthorizationTargetRepositoryShape {
   readonly resolveDelegation: (
     delegationId: string,
   ) => Effect.Effect<SessionAuthorizationTarget, SessionAuthorizationTargetRepositoryError>
-  readonly listLiveDerivedAuthorities: (callerId: string) => Effect.Effect<
+  readonly listLiveDerivedAuthorities: (
+    callerId: string,
+    originScope: LocalSessionProfileScope,
+  ) => Effect.Effect<
     readonly {
       readonly sessionId: string
       readonly capabilities: readonly SessionCapability[]

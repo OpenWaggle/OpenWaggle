@@ -13,9 +13,8 @@ interface TargetCounts {
   readonly bindings: number
   readonly indexedTitles: number
   readonly indexedNodes: number
-  readonly indexedTranscripts: number
+  readonly indexedNodeRows: number
   readonly indexedTermDocuments: number
-  readonly transcriptSessions: number
   readonly indexedDiscoveryNodes: number
   readonly indexedDelegationObjectives: number
   readonly delegationSpecifications: number
@@ -49,21 +48,8 @@ function targetCounts(database: DatabaseSync): TargetCounts {
     bindings: readCutoverCount(database, 'session_workspace_bindings'),
     indexedTitles: readCutoverCount(database, 'session_title_search'),
     indexedNodes: readCutoverCount(database, 'session_node_search'),
-    indexedTranscripts:
-      Number(
-        queryCutoverRecord(
-          database,
-          'SELECT COUNT(DISTINCT session_id) AS count FROM session_transcript_search',
-        )?.count,
-      ) || 0,
+    indexedNodeRows: readCutoverCount(database, 'session_node_search_rows'),
     indexedTermDocuments: readCutoverCount(database, 'session_transcript_term_documents'),
-    transcriptSessions:
-      Number(
-        queryCutoverRecord(
-          database,
-          'SELECT COUNT(DISTINCT session_id) AS count FROM session_nodes',
-        )?.count,
-      ) || 0,
     indexedDiscoveryNodes: readCutoverCount(database, 'session_node_discovery_search'),
     indexedDelegationObjectives: readCutoverCount(database, 'session_delegation_search'),
     delegationSpecifications: readCutoverCount(database, 'delegation_specifications'),
@@ -83,7 +69,7 @@ function validateCanonicalCoverage(counts: TargetCounts, invalidProfiles: unknow
   if (
     counts.indexedTitles !== counts.sessions ||
     counts.indexedNodes !== counts.nodes ||
-    counts.indexedTranscripts !== counts.transcriptSessions ||
+    counts.indexedNodeRows !== counts.nodes ||
     counts.indexedTermDocuments !== counts.sessions ||
     counts.indexedDiscoveryNodes !== counts.nodes
   ) {
@@ -231,8 +217,9 @@ function validateTranscriptSemanticProjection(
     `SELECT COUNT(*) AS count
       FROM session_transcript_semantic_scopes AS scopes
       JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
+      JOIN session_node_search_rows AS search_rows ON search_rows.node_id = nodes.id
       JOIN session_node_search AS search
-        ON search.node_id = nodes.id AND trim(search.content) <> ''
+        ON search.rowid = search_rows.search_rowid AND trim(search.content) <> ''
       LEFT JOIN session_transcript_embeddings AS embeddings ON embeddings.node_id = nodes.id
       LEFT JOIN session_transcript_embedding_queue AS queue ON queue.node_id = nodes.id
       WHERE embeddings.node_id IS NULL AND queue.node_id IS NULL

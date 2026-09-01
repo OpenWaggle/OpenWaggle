@@ -82,7 +82,9 @@ describe('local Session event authorization admission snapshots', () => {
       expect.objectContaining({ sessionId: 'session-derived' }),
     ])
     expect(findById).toHaveBeenCalledOnce()
-    expect(listLiveDerivedAuthorities).toHaveBeenCalledOnce()
+    expect(listLiveDerivedAuthorities).toHaveBeenCalledExactlyOnceWith('profile:worker-client', {
+      projectPaths: [ALLOWED_PROJECT],
+    })
     expect(listAuthorizedSessionIds).toHaveBeenCalledOnce()
     resolve.mockClear()
     findById.mockClear()

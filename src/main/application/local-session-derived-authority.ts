@@ -90,6 +90,7 @@ export function refreshNamedProfileCaller(
           }
           const derivedSessionAuthorities = yield* targetRepository.listLiveDerivedAuthorities(
             caller.callerId,
+            profile.scope,
           )
           return {
             ...caller,

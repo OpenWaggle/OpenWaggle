@@ -17,6 +17,7 @@ import {
   normalizeLegacySessionColumns,
   populateSessionHostTarget,
 } from './session-host-cutover-population'
+import { normalizeLegacySessionTitles } from './session-host-cutover-title-normalization'
 import { validateSessionHostTarget } from './session-host-cutover-validation'
 import { acquireSessionHostOwnership } from './session-host-ownership'
 
@@ -104,6 +105,7 @@ function prepareStagingDatabase(stagingPath: string, now: number) {
     }
     try {
       normalizeLegacySessionColumns(database)
+      normalizeLegacySessionTitles(database)
       applyTargetSchema(database)
       populateSessionHostTarget(database, now)
       database.exec('COMMIT;')

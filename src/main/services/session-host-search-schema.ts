@@ -7,43 +7,7 @@ import {
   TRANSCRIPT_STORAGE_HAS_CAPACITY,
 } from './session-host-transcript-semantic-schema'
 import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from './session-host-transcript-term-schema'
-
-const SEARCHABLE_CUSTOM_MESSAGE_TYPES_SQL =
-  "'openwaggle-delegation-specification-update', 'openwaggle-orchestration-update', 'openwaggle-peer-agent-report'"
-
-/** SQLite equivalent of the node-aware transcript document projection. */
-export function sessionTranscriptSearchContentSql(source: string) {
-  return `substr(CASE
-    WHEN ${source}.role IN ('user', 'assistant') OR ${source}.kind = 'tool_result' THEN COALESCE(
-      (SELECT GROUP_CONCAT(
-        CASE json_extract(part.value, '$.type')
-          WHEN 'text' THEN json_extract(part.value, '$.text')
-          WHEN 'attachment' THEN json_extract(part.value, '$.attachment.name')
-          WHEN 'tool-call' THEN json_extract(part.value, '$.toolCall.name')
-          WHEN 'tool-result' THEN trim(
-            COALESCE(json_extract(part.value, '$.toolResult.name'), '') || ' ' ||
-            CASE json_extract(part.value, '$.toolResult.isError')
-              WHEN 1 THEN 'failed' ELSE 'completed'
-            END
-          )
-          ELSE NULL
-        END,
-        ' '
-      ) FROM json_each(${source}.content_json, '$.parts') AS part),
-      json_extract(${source}.content_json, '$.text'),
-      ''
-    )
-    WHEN ${source}.kind IN ('branch_summary', 'compaction_summary')
-      THEN COALESCE(json_extract(${source}.content_json, '$.summary'), '')
-    WHEN ${source}.kind = 'custom'
-      AND json_extract(${source}.content_json, '$.display') = 1
-      AND json_extract(${source}.content_json, '$.customType') IN (
-        ${SEARCHABLE_CUSTOM_MESSAGE_TYPES_SQL}
-      )
-      THEN COALESCE(json_extract(${source}.content_json, '$.content'), '')
-    ELSE ''
-  END, 1, 12000)`
-}
+import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 
 const NEW_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('new')
 
@@ -89,6 +53,10 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     queued_at INTEGER NOT NULL
   )
   `,
+  `
+  CREATE INDEX idx_session_discovery_embedding_queue_order
+  ON session_discovery_embedding_queue (queued_at, session_id)
+  `,
   ...SESSION_TRANSCRIPT_SEMANTIC_SCHEMA_STATEMENTS,
   `
   CREATE VIRTUAL TABLE session_title_search USING fts5(
@@ -106,14 +74,6 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   )
   `,
   ...SESSION_NODE_SEARCH_ROW_SCHEMA_STATEMENTS,
-  `
-  CREATE VIRTUAL TABLE session_transcript_search USING fts5(
-    session_id UNINDEXED,
-    chunk_ordinal UNINDEXED,
-    content,
-    tokenize = 'unicode61 remove_diacritics 2'
-  )
-  `,
   ...SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS,
   `
   CREATE VIRTUAL TABLE session_node_discovery_search USING fts5(
@@ -151,7 +111,6 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TRIGGER session_title_search_delete AFTER DELETE ON sessions BEGIN
     DELETE FROM session_title_search WHERE session_id = old.id;
-    DELETE FROM session_transcript_search WHERE session_id = old.id;
   END
   `,
   `
@@ -175,6 +134,9 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
       json_extract(new.content_json, '$.text'),
       ''
     ));
+    UPDATE session_node_search_rows
+    SET discovery_search_rowid = last_insert_rowid()
+    WHERE node_id = new.id;
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -197,9 +159,13 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `,
   `
   CREATE TRIGGER session_node_search_update AFTER UPDATE OF content_json ON session_nodes BEGIN
+    DELETE FROM session_node_search
+    WHERE rowid = (SELECT search_rowid FROM session_node_search_rows WHERE node_id = old.id);
+    DELETE FROM session_node_discovery_search
+    WHERE rowid = (
+      SELECT discovery_search_rowid FROM session_node_search_rows WHERE node_id = old.id
+    );
     DELETE FROM session_node_search_rows WHERE node_id = old.id;
-    DELETE FROM session_node_search WHERE node_id = old.id;
-    DELETE FROM session_node_discovery_search WHERE node_id = old.id;
     DELETE FROM session_transcript_embedding_queue WHERE node_id = old.id;
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
     INSERT INTO session_node_search (session_id, node_id, content)
@@ -221,6 +187,9 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
       json_extract(new.content_json, '$.text'),
       ''
     ));
+    UPDATE session_node_search_rows
+    SET discovery_search_rowid = last_insert_rowid()
+    WHERE node_id = new.id;
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -242,10 +211,14 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   END
   `,
   `
-  CREATE TRIGGER session_node_search_delete AFTER DELETE ON session_nodes BEGIN
+  CREATE TRIGGER session_node_search_delete BEFORE DELETE ON session_nodes BEGIN
+    DELETE FROM session_node_search
+    WHERE rowid = (SELECT search_rowid FROM session_node_search_rows WHERE node_id = old.id);
+    DELETE FROM session_node_discovery_search
+    WHERE rowid = (
+      SELECT discovery_search_rowid FROM session_node_search_rows WHERE node_id = old.id
+    );
     DELETE FROM session_node_search_rows WHERE node_id = old.id;
-    DELETE FROM session_node_search WHERE node_id = old.id;
-    DELETE FROM session_node_discovery_search WHERE node_id = old.id;
     DELETE FROM session_transcript_embedding_queue WHERE node_id = old.id;
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)

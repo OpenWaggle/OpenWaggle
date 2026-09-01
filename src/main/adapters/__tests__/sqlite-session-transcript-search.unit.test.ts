@@ -4,7 +4,7 @@ import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { refreshSessionTranscriptSearch } from '../../services/session-transcript-search-projection'
+import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
 import {
   executeSessionQuery as executeQuery,
   makeSessionQueryRuntime as makeRuntime,
@@ -42,7 +42,7 @@ describe('SQLite Session transcript search', () => {
             ${'{"text":"shared monopoly marker"}'}, ${'{}'}, ${'queen:main'}, ${0}
           )
         `
-        yield* refreshSessionTranscriptSearch(sql, ['queen', 'worker'])
+        yield* refreshSessionTranscriptTerms(sql, ['queen', 'worker'])
       }),
     )
 
@@ -90,10 +90,10 @@ describe('SQLite Session transcript search', () => {
           SELECT printf('rank-node-%03d', value), printf('rank-%03d', value),
             'message', 'assistant', value,
             json_object('text', CASE WHEN value = 599
-              THEN 'commonterm' ELSE 'commonterm filler' END),
+              THEN 'commonterm filler' ELSE 'commonterm filler ballast' END),
             '{}', printf('rank-%03d:main', value), 0 FROM sequence
         `)
-        yield* refreshSessionTranscriptSearch(sql, sessionIds)
+        yield* refreshSessionTranscriptTerms(sql, sessionIds)
       }),
     )
 
@@ -106,6 +106,16 @@ describe('SQLite Session transcript search', () => {
     expect(result.outcome.operation).toBe('search')
     if (result.outcome.operation !== 'search' || !('sessions' in result.outcome)) return
     expect(result.outcome.sessions[0]?.sessionId).toBe('rank-599')
+
+    const phrase = await executeQuery(runtime, {
+      operation: 'search',
+      query: '"commonterm filler"',
+      searchScope: 'full-transcript',
+      limit: 10,
+    })
+    expect(phrase.outcome.operation).toBe('search')
+    if (phrase.outcome.operation !== 'search' || !('sessions' in phrase.outcome)) return
+    expect(phrase.outcome.sessions[0]?.sessionId).toBe('rank-599')
   })
 
   it('keeps quoted transcript phrases within one attributable node', async () => {
@@ -138,7 +148,7 @@ describe('SQLite Session transcript search', () => {
               ELSE 'filler' END),
             '{}', 'phrase-boundary:main', value FROM sequence
         `)
-        yield* refreshSessionTranscriptSearch(sql, ['phrase-boundary'])
+        yield* refreshSessionTranscriptTerms(sql, ['phrase-boundary'])
       }),
     )
 
@@ -156,7 +166,7 @@ describe('SQLite Session transcript search', () => {
           UPDATE session_nodes SET content_json = ${'{"text":"boundaryalpha boundarybeta"}'}
           WHERE id = ${'phrase-node-64'}
         `
-        yield* refreshSessionTranscriptSearch(sql, ['phrase-boundary'])
+        yield* refreshSessionTranscriptTerms(sql, ['phrase-boundary'])
       }),
     )
     const withinNode = await executeQuery(runtime, {

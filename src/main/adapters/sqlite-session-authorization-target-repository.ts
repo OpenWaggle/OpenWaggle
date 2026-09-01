@@ -2,12 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
-import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionAuthorizationTargetRepositoryError } from '../errors'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { isPathInsideDirectory } from '../utils/project-path-validation'
+import { listLiveScopedDerivedAuthorities } from './sqlite-session-derived-authority'
 import { authorizedSessionScope } from './sqlite-session-query-support'
 
 interface TargetRow {
@@ -20,21 +20,6 @@ interface TargetRow {
 
 function workspaceDescendantPrefix(root: string) {
   return root.endsWith(path.sep) ? root : `${root}${path.sep}`
-}
-
-function decodeCapabilities(value: string): readonly SessionCapability[] {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed)
-      ? parsed.filter(
-          (candidate): candidate is SessionCapability =>
-            typeof candidate === 'string' &&
-            SESSION_CAPABILITIES.some((capability) => capability === candidate),
-        )
-      : []
-  } catch {
-    return []
-  }
 }
 
 function resolveSessionTarget(sql: SqlClient.SqlClient, sessionId: string) {
@@ -272,33 +257,8 @@ export const SqliteSessionAuthorizationTargetRepositoryLive = Layer.effect(
           }
           return yield* resolveSessionTarget(sql, sessionId)
         }).pipe(mapTargetError),
-      listLiveDerivedAuthorities: (callerId) =>
-        Effect.gen(function* () {
-          const rows = yield* sql<{
-            readonly child_session_id: string
-            readonly capabilities_json: string
-            readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
-          }>`
-            SELECT child_session_id, capabilities_json, authorization_ceiling
-            FROM derived_child_management_grants
-            WHERE source_caller_id = ${callerId} AND revoked_at IS NULL
-            ORDER BY child_session_id
-          `
-          return rows.map((row) => ({
-            sessionId: row.child_session_id,
-            capabilities: decodeCapabilities(row.capabilities_json),
-            authorizationCeiling: row.authorization_ceiling,
-          }))
-        }).pipe(
-          Effect.mapError((cause) =>
-            cause instanceof SessionAuthorizationTargetRepositoryError
-              ? cause
-              : new SessionAuthorizationTargetRepositoryError({
-                  operation: 'list-derived-authorities',
-                  cause,
-                }),
-          ),
-        ),
+      listLiveDerivedAuthorities: (callerId, originScope) =>
+        listLiveScopedDerivedAuthorities(sql, callerId, originScope),
     })
   }),
 )

@@ -5,7 +5,6 @@ import {
   hasUniqueCollaborationStrings,
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
-import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import type {
   SessionLifecycleOutcome,
@@ -16,6 +15,7 @@ import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecy
 import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { sessionAttachmentIdsSchema } from './session-attachment'
+import { sessionTitleSchema } from './session-title'
 
 const projectPathSchema = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_PATH_LENGTH))
 
@@ -54,7 +54,7 @@ const forkWorkspaceSchema = Schema.Union(
 const createCommandSchema = Schema.Struct({
   operation: Schema.Literal('create'),
   projectPath: projectPathSchema,
-  title: Schema.optional(Schema.String.pipe(Schema.maxLength(SESSION_TITLE_MAX_LENGTH))),
+  title: Schema.optional(sessionTitleSchema),
   workspace: Schema.optional(launchWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
 })
@@ -62,7 +62,7 @@ const createCommandSchema = Schema.Struct({
 const launchCommandSchema = Schema.Struct({
   operation: Schema.Literal('launch'),
   projectPath: projectPathSchema,
-  title: Schema.optional(Schema.String.pipe(Schema.maxLength(SESSION_TITLE_MAX_LENGTH))),
+  title: Schema.optional(sessionTitleSchema),
   workspace: Schema.optional(launchWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
@@ -123,7 +123,7 @@ const forkCommandSchema = Schema.Struct({
   sourceSessionId: Schema.String,
   targetNodeId: Schema.optional(Schema.String),
   position: Schema.optional(Schema.Literal('before', 'at')),
-  title: Schema.optional(Schema.String.pipe(Schema.maxLength(SESSION_TITLE_MAX_LENGTH))),
+  title: Schema.optional(sessionTitleSchema),
   workspace: Schema.optional(forkWorkspaceSchema),
 })
 

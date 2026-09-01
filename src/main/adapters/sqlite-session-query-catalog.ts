@@ -56,6 +56,15 @@ export function listSessions(
   if (cursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
   const allowed = authorizedSessionScope(authority)
   const archived = archivedFilter(request.query.archived)
+  const workingPathFilter = request.query.workingPath
+    ? sql`sessions.id IN (
+        SELECT catalog_binding.session_id
+        FROM workspace_resources AS catalog_workspace
+        JOIN session_workspace_bindings AS catalog_binding
+          ON catalog_binding.workspace_id = catalog_workspace.id
+        WHERE catalog_workspace.working_path = ${request.query.workingPath}
+      )`
+    : sql.literal('TRUE')
   return Effect.gen(function* () {
     const rows = yield* sql<SessionQuerySummaryRow>`
       SELECT
@@ -75,14 +84,7 @@ export function listSessions(
       WHERE (${archived} IS NULL OR sessions.archived = ${archived})
         AND (${request.query.projectPath ?? null} IS NULL
           OR sessions.project_path = ${request.query.projectPath ?? null})
-        AND (${request.query.workingPath ?? null} IS NULL OR EXISTS (
-          SELECT 1
-          FROM session_workspace_bindings AS catalog_binding
-          JOIN workspace_resources AS catalog_workspace
-            ON catalog_workspace.id = catalog_binding.workspace_id
-          WHERE catalog_binding.session_id = sessions.id
-            AND catalog_workspace.working_path = ${request.query.workingPath ?? null}
-        ))
+        AND ${workingPathFilter}
         AND (${cursor?.updatedAt ?? null} IS NULL
           OR sessions.updated_at < ${cursor?.updatedAt ?? null}
           OR (sessions.updated_at = ${cursor?.updatedAt ?? null}

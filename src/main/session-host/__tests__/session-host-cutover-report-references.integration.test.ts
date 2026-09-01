@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { validateSessionReportReferenceCatalog } from '../session-host-report-reference-catalog'
@@ -21,6 +22,7 @@ describe('Session Host report-reference cutover', () => {
   it.each([
     {
       title: '  İNCELEME  ',
+      expectedTitle: 'İNCELEME',
       expected: [
         { kind: 'session-id', normalized_reference: 'session-root' },
         { kind: 'title', normalized_reference: 'i̇nceleme' },
@@ -28,11 +30,23 @@ describe('Session Host report-reference cutover', () => {
     },
     {
       title: '   ',
-      expected: [{ kind: 'session-id', normalized_reference: 'session-root' }],
+      expectedTitle: 'New session',
+      expected: [
+        { kind: 'session-id', normalized_reference: 'session-root' },
+        { kind: 'title', normalized_reference: 'new session' },
+      ],
+    },
+    {
+      title: `  ${'x'.repeat(SESSION_TITLE_MAX_LENGTH + 1)}  `,
+      expectedTitle: 'x'.repeat(SESSION_TITLE_MAX_LENGTH),
+      expected: [
+        { kind: 'session-id', normalized_reference: 'session-root' },
+        { kind: 'title', normalized_reference: 'x'.repeat(SESSION_TITLE_MAX_LENGTH) },
+      ],
     },
   ])(
     'normalizes and indexes the legacy title $title during cutover',
-    async ({ title, expected }) => {
+    async ({ title, expectedTitle, expected }) => {
       const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
       const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
       const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
@@ -51,6 +65,10 @@ describe('Session Host report-reference cutover', () => {
       )
       const target = new DatabaseSync(targetDatabasePath)
       try {
+        const migratedSession = target
+          .prepare(`SELECT title FROM sessions WHERE id = 'session-root'`)
+          .get()
+        expect(migratedSession).toEqual({ title: expectedTitle })
         const references = target
           .prepare(`SELECT kind, normalized_reference FROM session_report_references
           WHERE session_id = 'session-root' ORDER BY kind`)

@@ -141,6 +141,57 @@ describe('SQLite Session authorization target repository', () => {
     })
   })
 
+  it('keeps a derived child grant only while its parent remains in the origin scope', async () => {
+    const layer = makeLayer(path.join(temporaryRoot, 'derived-scope.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO delegation_contracts (
+            id, parent_session_id, child_session_id, state,
+            current_specification_revision, created_at, updated_at
+          ) VALUES (
+            ${'delegation-worker'}, ${'session-root'}, ${'session-worker'},
+            ${'working'}, ${1}, ${1}, ${1}
+          )
+        `
+        yield* sql`
+          INSERT INTO derived_child_management_grants (
+            id, parent_session_id, child_session_id, delegation_id,
+            source_caller_id, capabilities_json, authorization_ceiling, created_at
+          ) VALUES (
+            ${'grant-worker'}, ${'session-root'}, ${'session-worker'}, ${'delegation-worker'},
+            ${'profile:restricted'}, ${'["sessions:read"]'}, ${'ask-for-approval'}, ${1}
+          )
+        `
+        const repository = yield* SessionAuthorizationTargetRepository
+        return {
+          parent: yield* repository.listLiveDerivedAuthorities('profile:restricted', {
+            sessionIds: ['session-root'],
+          }),
+          childOnly: yield* repository.listLiveDerivedAuthorities('profile:restricted', {
+            sessionIds: ['session-worker'],
+          }),
+          project: yield* repository.listLiveDerivedAuthorities('profile:restricted', {
+            projectPaths: ['/project'],
+          }),
+          downgraded: yield* repository.listLiveDerivedAuthorities('profile:restricted', {}),
+        }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.parent).toEqual([
+      {
+        sessionId: 'session-worker',
+        capabilities: ['sessions:read'],
+        authorizationCeiling: 'ask-for-approval',
+      },
+    ])
+    expect(result.project).toEqual(result.parent)
+    expect(result.childOnly).toEqual([])
+    expect(result.downgraded).toEqual([])
+  })
+
   it('expands canonical workspace roots without admitting sibling or symlink-escaped projects', async () => {
     const allowedRoot = path.join(temporaryRoot, 'allowed')
     const allowedProject = path.join(allowedRoot, 'project')

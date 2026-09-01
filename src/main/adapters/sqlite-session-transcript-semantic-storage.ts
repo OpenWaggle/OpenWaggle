@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as POLICY } from '../domain/session-transcript-semantic-storage-policy'
+import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import {
   emptyTranscriptSemanticStorageUsage,
@@ -24,6 +25,8 @@ interface ScopeCoverageRow {
   readonly queued_count: number
 }
 
+const TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
+
 export function refreshTranscriptScopeCoverage(
   sql: SqlClient.SqlClient,
   model: SessionEmbeddingModel,
@@ -40,10 +43,9 @@ export function refreshTranscriptScopeCoverage(
           ) AS scope_rank,
           scopes.node_limit
         FROM session_nodes AS nodes
-        JOIN session_node_search AS search
-          ON search.node_id = nodes.id AND trim(search.content) <> ''
         JOIN session_transcript_semantic_scopes AS scopes ON scopes.session_id = nodes.session_id
         WHERE nodes.session_id IN ${sql.in(sessionIds)}
+          AND trim(${sql.literal(TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
       )
       SELECT ranked.session_id, COUNT(*) AS searchable_count,
         SUM(CASE WHEN scope_rank <= node_limit THEN 1 ELSE 0 END) AS eligible_count,
@@ -163,13 +165,12 @@ export function ensureTranscriptSemanticSessions(input: {
               ) AS scope_rank,
               scopes.node_limit
             FROM session_nodes AS nodes
-            JOIN session_node_search AS search
-              ON search.node_id = nodes.id AND trim(search.content) <> ''
             JOIN session_transcript_semantic_scopes AS scopes
               ON scopes.session_id = nodes.session_id
             LEFT JOIN session_transcript_embeddings AS embeddings ON embeddings.node_id = nodes.id
             LEFT JOIN session_transcript_embedding_queue AS queue ON queue.node_id = nodes.id
             WHERE nodes.session_id IN ${input.sql.in(input.sessionIds)}
+              AND trim(${input.sql.literal(TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
               AND embeddings.node_id IS NULL AND queue.node_id IS NULL
           ) AS candidates
           WHERE scope_rank <= node_limit

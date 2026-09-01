@@ -53,10 +53,9 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
     UNIQUE (project_path, working_path)
   )
   `,
-  `
-  CREATE INDEX idx_workspace_resources_project_kind
-  ON workspace_resources (project_path, kind, lifecycle_state, id)
-  `,
+  `CREATE INDEX idx_workspace_resources_project_kind
+   ON workspace_resources (project_path, kind, lifecycle_state, id)`,
+  `CREATE INDEX idx_workspace_resources_working_path ON workspace_resources (working_path, id)`,
   `
   CREATE TABLE session_workspace_bindings (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
@@ -288,6 +287,7 @@ import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from './session-host-search-s
 export const SESSION_HOST_TARGET_SCHEMA_STATEMENTS = [
   ...SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS,
   ...SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS,
+  `CREATE INDEX idx_sessions_updated_cursor ON sessions (updated_at DESC, id DESC)`,
   `
   CREATE INDEX idx_session_nodes_run_created_order
   ON session_nodes (

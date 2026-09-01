@@ -2,37 +2,49 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import * as SqlClient from '@effect/sql/SqlClient'
-import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
-import * as Effect from 'effect/Effect'
-import { loadLexicalDiscoveryRows } from '../src/main/adapters/sqlite-session-lexical-search'
-import { listSessions } from '../src/main/adapters/sqlite-session-query-catalog'
-import { readItems } from '../src/main/adapters/sqlite-session-query-items'
+import type { SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5-session-embedding-model'
+import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY } from '../src/main/domain/session-transcript-semantic-storage-policy'
+import { runSessionHostCutover } from '../src/main/session-host/session-host-cutover'
 import {
-  benchmarkPercentile,
-  initializeSessionDiscoveryBenchmarkSchema,
-  initializeSessionDiscoveryBenchmarkTargetSchema,
-  populateSessionDiscoveryBenchmarkSearchIndexes,
+  benchmarkSessionDiscoveryBackfills,
+  benchmarkSessionDiscoveryQueries,
+  initializeSessionDiscoveryBenchmarkSource,
   sessionDiscoveryBenchmarkCounts,
-  sessionDiscoveryBenchmarkQueryExecutor,
 } from './benchmark-session-discovery-support'
 import { sessionDiscoveryBenchmarkMode } from './benchmark-session-discovery-mode'
 
-const MEASURED_RUNS = 20
-const WARMUP_RUNS = 3
-const PAGE_SIZE = 50
-const P95 = 0.95
+const UPDATED_AT_BUCKET_COUNT = 100
+const PROJECT_ID_WIDTH = 4
 const WARM_P95_LIMIT_MS = 100
 const COLD_LIMIT_MS = 500
 const JSON_INDENT_SPACES = 2
 const BYTES_PER_MEBIBYTE = 1_048_576
+const BENCHMARK_MODEL_DIMENSIONS = 3
+const BENCHMARK_NOW = 1_000
 
-function populate(
-  database: DatabaseSync,
-  sessionCount: number,
-  messageCount: number,
-  skewedSessionMessageCount: number,
-) {
+const benchmarkModel: SessionEmbeddingModel = {
+  metadata: {
+    id: 'benchmark/embedding',
+    revision: 'benchmark-1',
+    dimensions: BENCHMARK_MODEL_DIMENSIONS,
+    dtype: 'f32',
+  },
+  embedQueries: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
+  embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
+}
+
+interface BenchmarkInput {
+  readonly sessionCount: number
+  readonly messageCount: number
+  readonly skewedSessionMessageCount: number
+  readonly projectCount: number
+}
+
+function projectPath(projectIndex: number) {
+  return `/benchmark/project-${String(projectIndex).padStart(PROJECT_ID_WIDTH, '0')}`
+}
+
+function populate(database: DatabaseSync, input: BenchmarkInput) {
   database.exec('BEGIN IMMEDIATE')
   database
     .prepare(`
@@ -43,10 +55,11 @@ function populate(
         id, pi_session_id, project_path, title, archived, created_at, updated_at
       )
       SELECT printf('session-%06d', value), printf('pi-%06d', value),
-        '/benchmark/project', printf('Benchmark session %06d', value), 0,
-        value, value FROM sequence
+        printf('/benchmark/project-%04d', value % ?),
+        printf('Benchmark session %06d', value), 0,
+        value, value % ? FROM sequence
     `)
-    .run(sessionCount)
+    .run(input.sessionCount, input.projectCount, UPDATED_AT_BUCKET_COUNT)
   database
     .prepare(`
       WITH RECURSIVE sequence(value) AS (
@@ -72,18 +85,19 @@ function populate(
       FROM sequence
     `)
     .run(
-      messageCount,
-      sessionCount,
-      sessionCount,
-      sessionCount,
-      sessionCount,
-      sessionCount,
-      messageCount,
-      sessionCount,
-      sessionCount,
-      sessionCount,
-      sessionCount,
+      input.messageCount,
+      input.sessionCount,
+      input.sessionCount,
+      input.sessionCount,
+      input.sessionCount,
+      input.sessionCount,
+      input.messageCount,
+      input.sessionCount,
+      input.sessionCount,
+      input.sessionCount,
+      input.sessionCount,
     )
+  const baseMessageCount = Math.ceil(input.messageCount / input.sessionCount)
   database
     .prepare(`
       WITH RECURSIVE sequence(value) AS (
@@ -97,16 +111,16 @@ function populate(
         'message', 'message', 'assistant', ? + value,
         json_object('text', CASE WHEN value = ? - 1
           THEN 'skewed long session terminal marker'
-          ELSE 'ordinary ordinary ordinary ordinary ordinary'
+          ELSE 'ordinary project implementation message'
         END), '{}', NULL, ? + value, ? + value
       FROM sequence
     `)
     .run(
-      skewedSessionMessageCount,
-      messageCount,
-      skewedSessionMessageCount,
-      Math.ceil(messageCount / sessionCount),
-      Math.ceil(messageCount / sessionCount),
+      input.skewedSessionMessageCount,
+      input.messageCount,
+      input.skewedSessionMessageCount,
+      baseMessageCount,
+      baseMessageCount,
     )
   database
     .prepare(`
@@ -119,7 +133,7 @@ function populate(
         'Main', 1, created_at, updated_at
       FROM sessions
     `)
-    .run(messageCount, sessionCount)
+    .run(input.messageCount, input.sessionCount)
   database
     .prepare(`
       UPDATE sessions SET
@@ -128,148 +142,90 @@ function populate(
           'node-%08d', ? - ? + CAST(substr(id, 9) AS INTEGER)
         )
     `)
-    .run(messageCount, sessionCount)
-  initializeSessionDiscoveryBenchmarkTargetSchema(database)
-  populateSessionDiscoveryBenchmarkSearchIndexes(database)
+    .run(input.messageCount, input.sessionCount)
   database.exec('COMMIT; PRAGMA optimize;')
 }
 
-async function measure(run: () => Promise<unknown>) {
-  const timings: number[] = []
-  for (let iteration = 0; iteration < WARMUP_RUNS + MEASURED_RUNS; iteration += 1) {
-    const startedAt = performance.now()
-    await run()
-    const elapsed = performance.now() - startedAt
-    if (iteration >= WARMUP_RUNS) timings.push(elapsed)
-  }
-  return { p95Ms: benchmarkPercentile(timings, P95), timings }
-}
-
-async function benchmarkQueries(databasePath: string) {
-  const runtime = sessionDiscoveryBenchmarkQueryExecutor(databasePath)
-  const list = () =>
-    runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        listSessions(sql, undefined, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-list',
-          query: { operation: 'list', limit: PAGE_SIZE },
-        }),
-      ),
-    )
-  const lexical = () =>
-    runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        loadLexicalDiscoveryRows(sql, undefined, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-lexical',
-          query: {
-            operation: 'search',
-            query: 'benchmarktoken',
-            limit: PAGE_SIZE,
-            mode: 'lexical',
-          },
-        }),
-      ),
-    )
-  const fullTranscript = async () => {
-    const rows = await runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        loadLexicalDiscoveryRows(sql, undefined, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-full-transcript',
-          query: {
-            operation: 'search',
-            query: 'ordinary',
-            limit: PAGE_SIZE,
-            mode: 'lexical',
-            searchScope: 'full-transcript',
-          },
-        }),
-      ),
-    )
-    if (rows[0]?.session_id !== 'session-000000') {
-      throw new Error('Full-transcript benchmark did not rank the skewed Session first.')
-    }
-    return rows
-  }
-  const transcript = async () => {
-    const response = await runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        readItems(sql, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-transcript',
-          query: { operation: 'items', sessionId: 'session-000000', limit: PAGE_SIZE },
-        }),
-      ),
-    )
-    if (
-      response.outcome.operation !== 'items' ||
-      !('items' in response.outcome) ||
-      response.outcome.items.length === 0
-    ) {
-      throw new Error('Transcript benchmark did not read a production-shaped active branch page.')
-    }
-    return response
-  }
-  const coldStartedAt = performance.now()
-  await list()
-  const coldListMs = performance.now() - coldStartedAt
-  try {
-    return {
-      coldListMs,
-      list: await measure(list),
-      lexical: await measure(lexical),
-      fullTranscript: await measure(fullTranscript),
-      transcript: await measure(transcript),
-    }
-  } finally {
-    await runtime.dispose()
-  }
-}
-
 async function main() {
-  const { name, sessionCount, messageCount, skewedSessionMessageCount } =
-    sessionDiscoveryBenchmarkMode(process.argv)
+  const mode = sessionDiscoveryBenchmarkMode(process.argv)
   const root = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-benchmark-'))
-  const databasePath = path.join(root, 'sessions.sqlite')
-  let database = new DatabaseSync(databasePath)
+  const sourceDatabasePath = path.join(root, 'openwaggle.db')
+  const targetDatabasePath = path.join(root, 'session-host', 'session-host.sqlite')
+  const recoveryDatabasePath = path.join(root, 'openwaggle.pre-session-host-v2.db')
   try {
-    initializeSessionDiscoveryBenchmarkSchema(database)
-    const buildStartedAt = performance.now()
-    populate(database, sessionCount, messageCount, skewedSessionMessageCount)
-    const buildMs = performance.now() - buildStartedAt
-    database.close()
-    database = new DatabaseSync(databasePath, { readOnly: true })
-    const corpus = sessionDiscoveryBenchmarkCounts(database)
-    database.close()
-    const queries = await benchmarkQueries(databasePath)
-    database = new DatabaseSync(databasePath, { readOnly: true })
-    const databaseSizeMb = (await stat(databasePath)).size / BYTES_PER_MEBIBYTE
-    const passed =
-      corpus.sessions === sessionCount &&
-      corpus.messages === messageCount + skewedSessionMessageCount &&
-      queries.coldListMs < COLD_LIMIT_MS &&
-      queries.list.p95Ms < WARM_P95_LIMIT_MS &&
-      queries.lexical.p95Ms < WARM_P95_LIMIT_MS &&
-      queries.fullTranscript.p95Ms < WARM_P95_LIMIT_MS &&
-      queries.transcript.p95Ms < WARM_P95_LIMIT_MS
+    const source = new DatabaseSync(sourceDatabasePath)
+    const seedStartedAt = performance.now()
+    try {
+      initializeSessionDiscoveryBenchmarkSource(source)
+      populate(source, mode)
+    } finally {
+      source.close()
+    }
+    const seedMs = performance.now() - seedStartedAt
+    const cutoverStartedAt = performance.now()
+    const cutover = await runSessionHostCutover(
+      { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
+      BENCHMARK_NOW,
+      benchmarkModel,
+    )
+    const cutoverMs = performance.now() - cutoverStartedAt
+    if (cutover.status !== 'migrated') throw new Error('Benchmark cutover did not migrate the source.')
+
+    const backfills = await benchmarkSessionDiscoveryBackfills(targetDatabasePath, benchmarkModel)
+    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    const corpus = sessionDiscoveryBenchmarkCounts(target)
+    target.close()
+    const sparseWorkingPath = projectPath(mode.projectCount - 1)
+    const queries = await benchmarkSessionDiscoveryQueries(targetDatabasePath, sparseWorkingPath)
+    const databaseSizeMb = (await stat(targetDatabasePath)).size / BYTES_PER_MEBIBYTE
+    const expectedTranscriptEmbeddings = Math.min(
+      Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount,
+      SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY.perSessionNodeLimit,
+    )
+    const passed = [
+      corpus.sessions === mode.sessionCount &&
+        corpus.messages === mode.messageCount + mode.skewedSessionMessageCount,
+      cutoverMs < mode.cutoverLimitMs &&
+        backfills.discovery.elapsedMs < mode.discoveryBackfillLimitMs,
+      backfills.discovery.prepared === mode.sessionCount,
+      backfills.transcript.elapsedMs < mode.transcriptBackfillLimitMs &&
+        backfills.transcript.counts.embeddings === expectedTranscriptEmbeddings,
+      backfills.transcript.counts.eligible === expectedTranscriptEmbeddings,
+      backfills.transcript.counts.pending === 0,
+      queries.coldWorkingPathListMs < COLD_LIMIT_MS &&
+        queries.list.p95Ms < WARM_P95_LIMIT_MS,
+      queries.sparseWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
+      queries.missingWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
+      queries.lexical.p95Ms < WARM_P95_LIMIT_MS,
+      queries.transcript.p95Ms < WARM_P95_LIMIT_MS,
+    ].every(Boolean)
     process.stdout.write(
       `${JSON.stringify(
         {
-          mode: name,
+          mode: mode.name,
           corpus,
-          skewedSessionMessageCount,
-          buildMs,
+          projectCount: mode.projectCount,
+          tiedUpdatedAtBuckets: UPDATED_AT_BUCKET_COUNT,
+          skewedSessionMessageCount: mode.skewedSessionMessageCount,
+          seedMs,
+          cutoverMs,
+          backfills,
           databaseSizeMb,
           queries: {
-            coldListMs: queries.coldListMs,
+            coldWorkingPathListMs: queries.coldWorkingPathListMs,
             listP95Ms: queries.list.p95Ms,
+            sparseWorkingPathListP95Ms: queries.sparseWorkingPathList.p95Ms,
+            missingWorkingPathListP95Ms: queries.missingWorkingPathList.p95Ms,
             lexicalP95Ms: queries.lexical.p95Ms,
-            fullTranscriptP95Ms: queries.fullTranscript.p95Ms,
             transcriptP95Ms: queries.transcript.p95Ms,
           },
-          limits: { warmP95Ms: WARM_P95_LIMIT_MS, coldMs: COLD_LIMIT_MS },
+          limits: {
+            cutoverMs: mode.cutoverLimitMs,
+            discoveryBackfillMs: mode.discoveryBackfillLimitMs,
+            transcriptBackfillMs: mode.transcriptBackfillLimitMs,
+            warmP95Ms: WARM_P95_LIMIT_MS,
+            coldMs: COLD_LIMIT_MS,
+          },
           passed,
         },
         null,
@@ -278,7 +234,6 @@ async function main() {
     )
     if (!passed) process.exitCode = 1
   } finally {
-    if (database.isOpen) database.close()
     await rm(root, { recursive: true, force: true })
   }
 }

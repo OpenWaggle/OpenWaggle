@@ -12,11 +12,11 @@ import {
 } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { decodeSessionExecutionProfile } from '../adapters/session-run-execution-profile'
-import { authorizeSessionTarget } from '../domain/session-control/session-capability-authorization'
 import {
   assertSessionAuthoritySnapshot,
   decodeSessionAuthoritySnapshot,
 } from './session-authority-snapshot'
+import { loadScopedSessionAgentTargets } from './session-tool-agent-scope'
 
 interface AuthorityRow {
   readonly project_path: string | null
@@ -33,12 +33,6 @@ interface AuthorityRow {
   readonly capabilities_json: string | null
   readonly derived_grant_id: string | null
   readonly derived_grant_revoked_at: number | null
-}
-
-interface ScopeTargetRow {
-  readonly session_id: string
-  readonly project_path: string | null
-  readonly hive_root_session_id: string | null
 }
 
 interface DerivedAuthorityRow {
@@ -116,51 +110,20 @@ function originAuthority(
   }
 }
 
-function authorizedTarget(
-  authority: NonNullable<ReturnType<typeof originAuthority>>['authority'],
-  target: ScopeTargetRow,
-) {
-  return authorizeSessionTarget(authority, {
-    sessionId: target.session_id,
-    ...(target.project_path ? { projectPath: target.project_path } : {}),
-    hiveRootSessionId: target.hive_root_session_id ?? target.session_id,
-  }).authorized
-}
-
-function loadInherentTargets(
-  sql: SqlClient.SqlClient,
-  row: AuthorityRow,
-  sessionId: string,
-  scopeTargets: readonly ScopeTargetRow[],
-) {
-  if (row.parent_session_id === null) {
-    return Effect.succeed(scopeTargets.filter((target) => target.project_path === row.project_path))
-  }
-  return Effect.gen(function* () {
-    const children = yield* sql<{ readonly child_session_id: string }>`
-      SELECT child_session_id FROM session_spawn_lineage
-      WHERE parent_session_id = ${sessionId}
-    `
-    const childIds = new Set(children.map((child) => child.child_session_id))
-    return [
-      ...scopeTargets.filter((target) => target.session_id === sessionId),
-      ...scopeTargets.filter((target) => childIds.has(target.session_id)),
-    ]
-  })
-}
-
 function loadDerivedAuthorities(
   sql: SqlClient.SqlClient,
   row: AuthorityRow,
-  targetIds: readonly string[],
+  parentSessionId: string,
 ) {
   return sql<DerivedAuthorityRow>`
-    SELECT child_session_id, capabilities_json, authorization_ceiling
-    FROM derived_child_management_grants
-    WHERE source_caller_id = ${row.authority_origin_caller_id}
-      AND revoked_at IS NULL
-      AND child_session_id IN ${sql.in(targetIds)}
-    ORDER BY child_session_id
+    SELECT grants.child_session_id, grants.capabilities_json, grants.authorization_ceiling
+    FROM session_spawn_lineage AS lineage
+    JOIN derived_child_management_grants AS grants
+      ON grants.child_session_id = lineage.child_session_id
+    WHERE lineage.parent_session_id = ${parentSessionId}
+      AND grants.source_caller_id = ${row.authority_origin_caller_id}
+      AND grants.revoked_at IS NULL
+    ORDER BY grants.child_session_id
   `
 }
 
@@ -169,6 +132,19 @@ function effectiveAuthorizationCeiling(row: AuthorityRow) {
     row.origin_profile_authorization_ceiling === 'ask-for-approval'
     ? ('ask-for-approval' as const)
     : ('yolo' as const)
+}
+
+function sharedProjectScopePath(
+  row: AuthorityRow,
+  origins: readonly NonNullable<ReturnType<typeof originAuthority>>[],
+) {
+  if (row.parent_session_id !== null || row.project_path === null) return undefined
+  const shared = origins.every(
+    (candidate) =>
+      candidate.scope.all === true ||
+      candidate.scope.projectPaths?.includes(row.project_path ?? '') === true,
+  )
+  return shared ? row.project_path : undefined
 }
 
 function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
@@ -220,14 +196,6 @@ export function resolveSessionToolAgentCaller(
         catch: (cause) => new Error('Session authority changed after it was granted.', { cause }),
       })
     }
-    const scopeTargets = yield* sql<ScopeTargetRow>`
-      SELECT sessions.id AS session_id, sessions.project_path,
-        session_spawn_lineage.hive_root_session_id
-      FROM sessions
-      LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
-      ORDER BY sessions.id
-    `
-    const inherentTargets = yield* loadInherentTargets(sql, row, input.sessionId, scopeTargets)
     const effective = effectiveCapabilities(row)
     const origin = originAuthority(row, effective.originCapabilities)
     const snapshotOrigin = authoritySnapshot
@@ -246,33 +214,28 @@ export function resolveSessionToolAgentCaller(
     const origins = [origin, snapshotOrigin].filter(
       (candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined,
     )
-    const visibleTargets =
-      origins.length > 0
-        ? inherentTargets.filter((target) =>
-            origins.every((candidate) => authorizedTarget(candidate.authority, target)),
-          )
-        : inherentTargets
-    const derived = yield* loadDerivedAuthorities(
-      sql,
-      row,
-      inherentTargets.map((target) => target.session_id),
-    )
-    const sharesProjectScope =
-      row.parent_session_id === null &&
-      row.project_path !== null &&
-      (origins.length === 0 ||
-        origins.every(
-          (candidate) =>
-            candidate.scope.all === true ||
-            candidate.scope.projectPaths?.includes(row.project_path ?? '') === true,
-        ))
+    const sharedProjectPath = sharedProjectScopePath(row, origins)
+    const sharesProjectScope = sharedProjectPath !== undefined
+    const scopedTargets = sharesProjectScope
+      ? []
+      : yield* loadScopedSessionAgentTargets(sql, {
+          sessionId: input.sessionId,
+          projectPath: row.project_path,
+          isWorker: row.parent_session_id !== null,
+          origin,
+          snapshotOrigin,
+        })
+    const sourceAuthorized =
+      sharesProjectScope || scopedTargets.some((target) => target.session_id === input.sessionId)
+    const visibleTargets = sourceAuthorized ? scopedTargets : []
+    const derived = sourceAuthorized ? yield* loadDerivedAuthorities(sql, row, input.sessionId) : []
     const filesystemRoot = authoritySnapshot?.workingPath ?? input.workingDirectory
     const baseSessionIds = visibleTargets
       .filter((target) => row.parent_session_id === null || target.session_id === input.sessionId)
       .map((target) => target.session_id)
     const baseScope = sharesProjectScope
       ? {
-          projectPaths: [row.project_path],
+          projectPaths: [sharedProjectPath],
           exportRoots: [filesystemRoot],
           attachmentRoots: [filesystemRoot],
         }

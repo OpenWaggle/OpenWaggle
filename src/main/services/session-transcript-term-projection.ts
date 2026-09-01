@@ -1,9 +1,8 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
-import { sessionTranscriptSearchContentSql } from './session-host-search-schema'
+import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 
-const TRANSCRIPT_SEARCH_REFRESH_BATCH_SIZE = 256
-export const SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT = 64
+const TRANSCRIPT_TERM_REFRESH_BATCH_SIZE = 256
 const STAGING_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
 
 function prepareProjectionStaging(sql: SqlClient.SqlClient) {
@@ -104,23 +103,10 @@ function refreshBatch(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   return Effect.gen(function* () {
     yield* stageProjectionSource(sql, sessionIds)
     yield* rebuildTermCatalog(sql, sessionIds)
-    yield* sql`DELETE FROM session_transcript_search WHERE session_id IN ${sql.in(sessionIds)}`
-    yield* sql.unsafe(`
-      INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
-      SELECT session_id, chunk_ordinal, GROUP_CONCAT(content, char(10))
-      FROM (
-        SELECT session_id, content,
-          CAST((ROW_NUMBER() OVER (
-            PARTITION BY session_id ORDER BY created_order, node_id
-          ) - 1) / ${SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT} AS INTEGER) AS chunk_ordinal
-        FROM temp.session_transcript_projection_source
-      )
-      GROUP BY session_id, chunk_ordinal
-    `)
   })
 }
 
-export function refreshSessionTranscriptSearch(
+export function refreshSessionTranscriptTerms(
   sql: SqlClient.SqlClient,
   sessionIds: readonly string[],
 ) {
@@ -129,11 +115,11 @@ export function refreshSessionTranscriptSearch(
     for (
       let offset = 0;
       offset < explicitIds.length;
-      offset += TRANSCRIPT_SEARCH_REFRESH_BATCH_SIZE
+      offset += TRANSCRIPT_TERM_REFRESH_BATCH_SIZE
     ) {
       yield* refreshBatch(
         sql,
-        explicitIds.slice(offset, offset + TRANSCRIPT_SEARCH_REFRESH_BATCH_SIZE),
+        explicitIds.slice(offset, offset + TRANSCRIPT_TERM_REFRESH_BATCH_SIZE),
       )
     }
   })

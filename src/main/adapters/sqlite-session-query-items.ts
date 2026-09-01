@@ -278,5 +278,5 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
       items: page.records,
       ...(page.hasMore && last ? { nextCreatedOrder: last.createdOrder } : {}),
     })
-  })
+  }).pipe(sql.withTransaction)
 }

@@ -244,7 +244,7 @@ describe('SQLite Session report target selection', () => {
         const directWorker = yield* reports.execute(
           reportInput(
             { type: 'session', sessionId: 'direct-worker' },
-            reportAuthority({}),
+            { ...reportAuthority({}), profileId: 'session-agent:session-worker' },
             'direct-worker',
           ),
         )
@@ -286,8 +286,8 @@ describe('SQLite Session report target selection', () => {
       targetSessionIds: ['explicit-authorized'],
     })
     expect(result.upstream.outcome).toMatchObject({
-      effect: 'accepted-report',
-      targetSessionIds: ['session-parent'],
+      effect: 'rejected',
+      code: 'target_not_authorized',
     })
     expect(result.directWorker.outcome).toMatchObject({
       effect: 'accepted-report',

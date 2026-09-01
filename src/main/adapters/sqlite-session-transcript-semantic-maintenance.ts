@@ -1,6 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as POLICY } from '../domain/session-transcript-semantic-storage-policy'
+import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 
 export interface TranscriptSemanticStoragePolicy {
   readonly scopeTtlMs: number
@@ -29,6 +30,8 @@ export const emptyTranscriptSemanticStorageUsage: TranscriptSemanticStorageUsage
   queued_count: 0,
   reserved_bytes: 0,
 }
+
+const TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
 
 export function transcriptSemanticStorageUsage(sql: SqlClient.SqlClient) {
   return sql<TranscriptSemanticStorageUsage>`
@@ -78,9 +81,8 @@ export function pruneTranscriptSemanticSessionOverflow(sql: SqlClient.SqlClient)
       ) AS scope_rank,
       scopes.node_limit
     FROM session_nodes AS nodes
-    JOIN session_node_search AS search
-      ON search.node_id = nodes.id AND trim(search.content) <> ''
     JOIN session_transcript_semantic_scopes AS scopes ON scopes.session_id = nodes.session_id
+    WHERE trim(${TRANSCRIPT_SEARCH_CONTENT_SQL}) <> ''
   `
   return Effect.gen(function* () {
     yield* sql.unsafe(`

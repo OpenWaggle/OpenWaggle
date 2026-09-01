@@ -1,16 +1,22 @@
 import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import type { SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5-session-embedding-model'
+import { loadLexicalDiscoveryRows } from '../src/main/adapters/sqlite-session-lexical-search'
+import { listSessions } from '../src/main/adapters/sqlite-session-query-catalog'
+import { readItems } from '../src/main/adapters/sqlite-session-query-items'
+import { SqliteSessionSemanticProjection } from '../src/main/adapters/sqlite-session-semantic-projection'
+import { SqliteSessionTranscriptSemanticProjection } from '../src/main/adapters/sqlite-session-transcript-semantic-projection'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../src/main/services/database-constants'
-import { sessionTranscriptSearchContentSql } from '../src/main/services/session-host-search-schema'
-import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../src/main/services/session-host-target-schema'
-import { SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT } from '../src/main/services/session-transcript-search-projection'
-import { populateSessionTranscriptTermCatalog } from '../src/main/session-host/session-transcript-term-cutover'
 
-const BENCHMARK_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
+const MEASURED_RUNS = 20
+const WARMUP_RUNS = 3
+const PAGE_SIZE = 50
+const P95 = 0.95
 
 export function benchmarkPercentile(values: readonly number[], fraction: number) {
   const sorted = values.toSorted((left, right) => left - right)
@@ -18,38 +24,26 @@ export function benchmarkPercentile(values: readonly number[], fraction: number)
   return sorted[index] ?? 0
 }
 
-export function initializeSessionDiscoveryBenchmarkSchema(database: DatabaseSync) {
+export function initializeSessionDiscoveryBenchmarkSource(database: DatabaseSync) {
   database.exec('PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA temp_store = FILE;')
-  database.exec('PRAGMA cache_size = -131072;')
-  for (const statement of CURRENT_SESSION_SCHEMA_STATEMENTS) database.exec(statement)
-}
-
-export function initializeSessionDiscoveryBenchmarkTargetSchema(database: DatabaseSync) {
-  for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
-}
-
-export function populateSessionDiscoveryBenchmarkSearchIndexes(
-  database: DatabaseSync,
-) {
+  database.exec('PRAGMA cache_size = -131072; PRAGMA foreign_keys = ON;')
   database.exec(`
-    INSERT INTO session_title_search (session_id, title)
-    SELECT id, title FROM sessions;
-    INSERT INTO session_node_search (session_id, node_id, content)
-    SELECT session_id, id, ${BENCHMARK_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
-    INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
-    SELECT node_id, session_id, rowid FROM session_node_search;
-    INSERT INTO session_node_discovery_search (session_id, node_id, content)
-    SELECT session_id, id, ${BENCHMARK_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
-    INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
-    SELECT session_id, chunk_ordinal, GROUP_CONCAT(content, char(10))
-    FROM (
-      SELECT session_id, content,
-        CAST((ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY rowid) - 1) /
-          ${SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT} AS INTEGER) AS chunk_ordinal
-      FROM session_node_search
-    ) GROUP BY session_id, chunk_ordinal;
+    CREATE TABLE _migrations (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+    INSERT INTO _migrations VALUES (25, 'session-authorization-mode-override', 'now');
+    CREATE TABLE settings_store (
+      key TEXT PRIMARY KEY,
+      value_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    INSERT INTO settings_store VALUES ('selectedModel', '"benchmark/model"', 1);
+    INSERT INTO settings_store VALUES ('thinkingLevel', '"medium"', 1);
+    INSERT INTO settings_store VALUES ('defaultAuthorizationMode', '"ask-for-approval"', 1);
   `)
-  populateSessionTranscriptTermCatalog(database)
+  for (const statement of CURRENT_SESSION_SCHEMA_STATEMENTS) database.exec(statement)
 }
 
 export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {
@@ -74,5 +68,130 @@ export function sessionDiscoveryBenchmarkQueryExecutor(databasePath: string) {
   return {
     run: <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) => runtime.runPromise(effect),
     dispose: () => runtime.dispose(),
+  }
+}
+
+export async function benchmarkSessionDiscoveryBackfills(
+  databasePath: string,
+  model: SessionEmbeddingModel,
+) {
+  const runtime = sessionDiscoveryBenchmarkQueryExecutor(databasePath)
+  try {
+    const discoveryStartedAt = performance.now()
+    const discovery = await runtime.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const projection = new SqliteSessionSemanticProjection(sql, model)
+        let prepared = 0
+        while (true) {
+          const batch = yield* projection.prepareNextBatch()
+          if (batch.prepared === 0) break
+          prepared += batch.prepared
+        }
+        return { prepared, readiness: yield* projection.readiness() }
+      }),
+    )
+    const discoveryElapsedMs = performance.now() - discoveryStartedAt
+    const transcriptStartedAt = performance.now()
+    const transcript = await runtime.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const projection = new SqliteSessionTranscriptSemanticProjection(sql, model)
+        yield* projection.ensureSessions(['session-000000'])
+        let prepared = 0
+        while (true) {
+          const batch = yield* projection.prepareNextBatch()
+          if (batch.prepared === 0) break
+          prepared += batch.prepared
+        }
+        const counts = yield* sql<{
+          readonly embeddings: number
+          readonly pending: number
+          readonly eligible: number
+        }>`
+          SELECT
+            (SELECT COUNT(*) FROM session_transcript_embeddings
+              WHERE session_id = ${'session-000000'}) AS embeddings,
+            (SELECT COUNT(*) FROM session_transcript_embedding_queue
+              WHERE session_id = ${'session-000000'}) AS pending,
+            (SELECT eligible_node_count FROM session_transcript_semantic_scopes
+              WHERE session_id = ${'session-000000'}) AS eligible
+        `
+        return { prepared, counts: counts[0] ?? { embeddings: 0, pending: 0, eligible: 0 } }
+      }),
+    )
+    return {
+      discovery: { elapsedMs: discoveryElapsedMs, ...discovery },
+      transcript: { elapsedMs: performance.now() - transcriptStartedAt, ...transcript },
+    }
+  } finally {
+    await runtime.dispose()
+  }
+}
+
+async function measure(run: () => Promise<unknown>) {
+  const timings: number[] = []
+  for (let iteration = 0; iteration < WARMUP_RUNS + MEASURED_RUNS; iteration += 1) {
+    const startedAt = performance.now()
+    await run()
+    const elapsed = performance.now() - startedAt
+    if (iteration >= WARMUP_RUNS) timings.push(elapsed)
+  }
+  return { p95Ms: benchmarkPercentile(timings, P95), timings }
+}
+
+export async function benchmarkSessionDiscoveryQueries(
+  databasePath: string,
+  sparseWorkingPath: string,
+) {
+  const runtime = sessionDiscoveryBenchmarkQueryExecutor(databasePath)
+  const list = (workingPath?: string) =>
+    runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        listSessions(sql, undefined, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-list',
+          query: {
+            operation: 'list',
+            limit: PAGE_SIZE,
+            ...(workingPath ? { workingPath } : {}),
+          },
+        }),
+      ),
+    )
+  const lexical = () =>
+    runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        loadLexicalDiscoveryRows(sql, undefined, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-lexical',
+          query: { operation: 'search', query: 'benchmarktoken', limit: PAGE_SIZE, mode: 'lexical' },
+        }),
+      ),
+    )
+  const transcript = () =>
+    runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        readItems(sql, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-transcript',
+          query: { operation: 'items', sessionId: 'session-000000', limit: PAGE_SIZE },
+        }),
+      ),
+    )
+  const coldStartedAt = performance.now()
+  await list(sparseWorkingPath)
+  const coldWorkingPathListMs = performance.now() - coldStartedAt
+  try {
+    return {
+      coldWorkingPathListMs,
+      list: await measure(() => list()),
+      sparseWorkingPathList: await measure(() => list(sparseWorkingPath)),
+      missingWorkingPathList: await measure(() => list('/benchmark/missing')),
+      lexical: await measure(lexical),
+      transcript: await measure(transcript),
+    }
+  } finally {
+    await runtime.dispose()
   }
 }

@@ -1,6 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { normalizeSessionReportReference } from '@shared/session-report-reference'
-import { assertSessionTitleLength } from '@shared/session-title'
+import { assertSessionTitle } from '@shared/session-title'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
@@ -228,7 +228,7 @@ export async function unarchiveSession(id: SessionId): Promise<void> {
 }
 
 export async function updateSessionTitle(id: SessionId, title: string): Promise<void> {
-  const boundedTitle = assertSessionTitleLength(title)
+  const boundedTitle = assertSessionTitle(title)
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

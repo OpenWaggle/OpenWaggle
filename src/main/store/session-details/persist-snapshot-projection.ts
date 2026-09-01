@@ -4,7 +4,7 @@ import type {
   PersistSessionSnapshotInput,
   ProjectedSessionNodeInput,
 } from '../../ports/session-repository'
-import { refreshSessionTranscriptSearch } from '../../services/session-transcript-search-projection'
+import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
 import { getBranchStateValue } from './branch-state'
 import {
   EMPTY_INDEX,
@@ -299,6 +299,6 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
     }
     yield* upsertTreeUiState(input.sql, input.input, input.now)
     yield* updateSnapshotSessionMetadata(input)
-    yield* refreshSessionTranscriptSearch(input.sql, [input.input.sessionId])
+    yield* refreshSessionTranscriptTerms(input.sql, [input.input.sessionId])
   })
 }

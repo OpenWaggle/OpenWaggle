@@ -89,6 +89,15 @@ describe('OpenWaggle MCP Session input bounds', () => {
         title: 't'.repeat(MCP_SESSION_INPUT_LIMITS_V2.titleLength + 1),
       }).success,
     ).toBe(false)
+    expect(sessionInputSchemaV2.safeParse({ operation: 'rename', title: '   ' }).success).toBe(
+      false,
+    )
+    expect(
+      sessionInputSchemaV2.safeParse({
+        operation: 'rename',
+        title: 't'.repeat(MCP_SESSION_INPUT_LIMITS_V2.titleLength),
+      }).success,
+    ).toBe(true)
   })
 
   it('bounds repeated task and resource fields including each nested item', () => {

@@ -25,12 +25,19 @@ describe('Sessions tool agent authority', () => {
       filename: path.join(temporaryRoot, 'authority.sqlite'),
       prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
     })
-    const [queen, worker, restrictedBefore, restrictedAfter, exactQueen, exactWorker] =
-      await Effect.runPromise(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient
-          yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
-          yield* sql.unsafe(`
+    const [
+      queen,
+      worker,
+      restrictedBefore,
+      restrictedAfter,
+      exactQueen,
+      exactWorker,
+      downgradedQueen,
+    ] = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)`)
+        yield* sql.unsafe(`
           CREATE TABLE session_execution_profiles (
             session_id TEXT PRIMARY KEY,
             profile_json TEXT NOT NULL,
@@ -39,14 +46,14 @@ describe('Sessions tool agent authority', () => {
             authorization_ceiling TEXT NOT NULL
           )
         `)
-          yield* sql.unsafe(`
+        yield* sql.unsafe(`
           CREATE TABLE session_spawn_lineage (
             child_session_id TEXT PRIMARY KEY,
             parent_session_id TEXT NOT NULL,
             hive_root_session_id TEXT NOT NULL
           )
         `)
-          yield* sql.unsafe(`
+        yield* sql.unsafe(`
           CREATE TABLE derived_child_management_grants (
             id TEXT PRIMARY KEY,
             parent_session_id TEXT NOT NULL,
@@ -57,7 +64,7 @@ describe('Sessions tool agent authority', () => {
             revoked_at INTEGER
           )
         `)
-          yield* sql.unsafe(`
+        yield* sql.unsafe(`
           CREATE TABLE session_client_profiles (
             id TEXT PRIMARY KEY,
             capabilities_json TEXT NOT NULL,
@@ -66,15 +73,15 @@ describe('Sessions tool agent authority', () => {
             revoked_at INTEGER
           )
         `)
-          for (const id of [
-            'queen',
-            'worker',
-            'grandchild',
-            'restricted-root',
-            'restricted-worker',
-          ]) {
-            yield* sql`INSERT INTO sessions (id, project_path) VALUES (${id}, ${'/project'})`
-            yield* sql`
+        for (const id of [
+          'queen',
+          'worker',
+          'grandchild',
+          'restricted-root',
+          'restricted-worker',
+        ]) {
+          yield* sql`INSERT INTO sessions (id, project_path) VALUES (${id}, ${'/project'})`
+          yield* sql`
             INSERT INTO session_execution_profiles (
               session_id, profile_json, authority_origin_caller_id, authorization_ceiling
             ) VALUES (
@@ -82,8 +89,8 @@ describe('Sessions tool agent authority', () => {
               ${'local-user'}, ${'ask-for-approval'}
             )
           `
-          }
-          yield* sql`
+        }
+        yield* sql`
           INSERT INTO session_spawn_lineage (
             child_session_id, parent_session_id, hive_root_session_id
           ) VALUES
@@ -91,7 +98,7 @@ describe('Sessions tool agent authority', () => {
             (${'grandchild'}, ${'worker'}, ${'queen'}),
             (${'restricted-worker'}, ${'restricted-root'}, ${'restricted-root'})
         `
-          yield* sql`
+        yield* sql`
           INSERT INTO derived_child_management_grants (
             id, parent_session_id, child_session_id, source_caller_id,
             capabilities_json, authorization_ceiling, revoked_at
@@ -106,7 +113,7 @@ describe('Sessions tool agent authority', () => {
               ${'["sessions:read"]'}, ${'ask-for-approval'}, ${null}
             )
         `
-          yield* sql`
+        yield* sql`
           INSERT INTO session_client_profiles (
             id, capabilities_json, scope_json, authorization_ceiling, revoked_at
           ) VALUES (
@@ -114,25 +121,25 @@ describe('Sessions tool agent authority', () => {
             ${'{"projectPaths":["/project"]}'}, ${'yolo'}, ${null}
           )
         `
-          yield* sql`
+        yield* sql`
           UPDATE session_execution_profiles SET
             profile_json = ${'{"modelId":"provider/model","thinkingLevel":"medium","sessionCapabilities":["sessions:read","sessions:spawn","sessions:report"]}'},
             authority_origin_caller_id = ${'profile:origin-profile'},
             authorization_ceiling = ${'yolo'}
           WHERE session_id = ${'restricted-root'}
         `
-          yield* sql`
+        yield* sql`
           UPDATE session_execution_profiles SET
             profile_json = ${'{"modelId":"provider/model","thinkingLevel":"medium","sessionCapabilities":["sessions:read","sessions:spawn","sessions:report"]}'},
             authority_origin_caller_id = ${'profile:origin-profile'},
             authorization_ceiling = ${'yolo'}
           WHERE session_id = ${'restricted-worker'}
         `
-          yield* sql`
+        yield* sql`
           UPDATE session_client_profiles SET scope_json = ${'{"sessionIds":["restricted-root"]}'}
           WHERE id = ${'origin-profile'}
         `
-          yield* sql`
+        yield* sql`
           INSERT INTO derived_child_management_grants (
             id, parent_session_id, child_session_id, source_caller_id,
             capabilities_json, authorization_ceiling, revoked_at
@@ -142,51 +149,67 @@ describe('Sessions tool agent authority', () => {
             ${'["sessions:read","sessions:spawn","sessions:report"]'}, ${'yolo'}, ${null}
           )
         `
-          const exactQueen = yield* resolveSessionToolAgentCaller(sql, {
-            sessionId: 'restricted-root',
-            runId: 'run-exact-queen',
-            workingDirectory: '/project',
-          })
-          const exactWorker = yield* resolveSessionToolAgentCaller(sql, {
-            sessionId: 'restricted-worker',
-            runId: 'run-exact-worker',
-            workingDirectory: '/project',
-          })
-          yield* sql`
+        const exactQueen = yield* resolveSessionToolAgentCaller(sql, {
+          sessionId: 'restricted-root',
+          runId: 'run-exact-queen',
+          workingDirectory: '/project',
+        })
+        const exactWorker = yield* resolveSessionToolAgentCaller(sql, {
+          sessionId: 'restricted-worker',
+          runId: 'run-exact-worker',
+          workingDirectory: '/project',
+        })
+        yield* sql`
+          UPDATE session_client_profiles SET scope_json = ${'{"sessionIds":["worker"]}'}
+          WHERE id = ${'origin-profile'}
+        `
+        const downgradedQueen = yield* resolveSessionToolAgentCaller(sql, {
+          sessionId: 'restricted-root',
+          runId: 'run-downgraded-queen',
+          workingDirectory: '/project',
+        })
+        yield* sql`
           UPDATE session_client_profiles SET scope_json = ${'{"projectPaths":["/project"]}'}
           WHERE id = ${'origin-profile'}
         `
-          const initial = yield* Effect.all([
-            resolveSessionToolAgentCaller(sql, {
-              sessionId: 'queen',
-              runId: 'run-queen',
-              workingDirectory: '/project',
-            }),
-            resolveSessionToolAgentCaller(sql, {
-              sessionId: 'worker',
-              runId: 'run-worker',
-              workingDirectory: '/project',
-            }),
-          ])
-          const restrictedBefore = yield* resolveSessionToolAgentCaller(sql, {
-            sessionId: 'restricted-root',
-            runId: 'run-restricted-before',
+        const initial = yield* Effect.all([
+          resolveSessionToolAgentCaller(sql, {
+            sessionId: 'queen',
+            runId: 'run-queen',
             workingDirectory: '/project',
-          })
-          yield* sql`
+          }),
+          resolveSessionToolAgentCaller(sql, {
+            sessionId: 'worker',
+            runId: 'run-worker',
+            workingDirectory: '/project',
+          }),
+        ])
+        const restrictedBefore = yield* resolveSessionToolAgentCaller(sql, {
+          sessionId: 'restricted-root',
+          runId: 'run-restricted-before',
+          workingDirectory: '/project',
+        })
+        yield* sql`
           UPDATE session_client_profiles SET
             capabilities_json = ${'["sessions:read"]'},
             authorization_ceiling = ${'ask-for-approval'}
           WHERE id = ${'origin-profile'}
         `
-          const restrictedAfter = yield* resolveSessionToolAgentCaller(sql, {
-            sessionId: 'restricted-root',
-            runId: 'run-restricted-after',
-            workingDirectory: '/project',
-          })
-          return [...initial, restrictedBefore, restrictedAfter, exactQueen, exactWorker] as const
-        }).pipe(Effect.provide(sqlite)),
-      )
+        const restrictedAfter = yield* resolveSessionToolAgentCaller(sql, {
+          sessionId: 'restricted-root',
+          runId: 'run-restricted-after',
+          workingDirectory: '/project',
+        })
+        return [
+          ...initial,
+          restrictedBefore,
+          restrictedAfter,
+          exactQueen,
+          exactWorker,
+          downgradedQueen,
+        ] as const
+      }).pipe(Effect.provide(sqlite)),
+    )
 
     expect(queen.profileAuthority).toMatchObject({
       scope: { projectPaths: ['/project'] },
@@ -247,13 +270,12 @@ describe('Sessions tool agent authority', () => {
       ],
     })
     expect(exactWorker).toMatchObject({
+      baseProfileScope: { sessionIds: ['restricted-worker'] },
+      derivedSessionAuthorities: [],
+    })
+    expect(downgradedQueen).toMatchObject({
       baseProfileScope: { sessionIds: [] },
-      derivedSessionAuthorities: [
-        expect.objectContaining({
-          sessionId: 'restricted-worker',
-          capabilities: ['sessions:read', 'sessions:spawn', 'sessions:report'],
-        }),
-      ],
+      derivedSessionAuthorities: [],
     })
   })
 })

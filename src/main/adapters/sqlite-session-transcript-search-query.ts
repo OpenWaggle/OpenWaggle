@@ -40,12 +40,14 @@ export function loadSeedTranscriptTerm(
 function matchingSessionOrder(sql: SqlClient.SqlClient, parameters: TranscriptSearchParameters) {
   const indexRankedSingleTerm =
     parameters.phraseTranscriptSearch === 0 && parameters.transcriptTerms.length === 1
-  return {
-    limit: indexRankedSingleTerm ? SESSION_DISCOVERY_WINDOW_LIMIT + 1 : -1,
-    order: indexRankedSingleTerm
-      ? sql`seed_terms.term_frequency DESC, seed_terms.session_id`
-      : sql`seed_terms.session_id`,
-  }
+  return indexRankedSingleTerm
+    ? sql`seed_terms.term_frequency DESC, seed_terms.session_id`
+    : sql`(
+        SELECT SUM(ranked_terms.term_frequency)
+        FROM session_transcript_terms AS ranked_terms
+        WHERE ranked_terms.session_id = seed_terms.session_id
+          AND ranked_terms.term IN (SELECT term FROM query_transcript_terms)
+      ) DESC, seed_terms.session_id`
 }
 
 export function transcriptSessionCtes(
@@ -56,7 +58,7 @@ export function transcriptSessionCtes(
   allSessionsAuthorized: boolean,
 ) {
   const transcriptTermsJson = JSON.stringify(parameters.transcriptTerms)
-  const matching = matchingSessionOrder(sql, parameters)
+  const matchingOrder = matchingSessionOrder(sql, parameters)
   const retainSingleTermEvidence =
     parameters.phraseTranscriptSearch === 0 && parameters.transcriptTerms.length === 1
   const nodeEvidenceSearch =
@@ -90,8 +92,8 @@ export function transcriptSessionCtes(
               AND candidate_term.session_id = seed_terms.session_id
           )
         ))
-      ORDER BY ${matching.order}
-      LIMIT ${matching.limit}
+      ORDER BY ${matchingOrder}
+      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), term_transcript_sessions_unbounded AS MATERIALIZED (
       SELECT matching_ids.session_id,
         -SUM(matching_terms.term_frequency) AS score,
@@ -107,27 +109,24 @@ export function transcriptSessionCtes(
         ON matching_terms.session_id = matching_ids.session_id
         AND matching_terms.term IN (SELECT term FROM query_transcript_terms)
       GROUP BY matching_ids.session_id
-    ), attributable_node_matches AS MATERIALIZED (
-      SELECT session_node_search.session_id, session_node_search.rowid AS search_rowid,
-        bm25(session_node_search, 0.0, 0.0, 1.0) AS score,
-        snippet(session_node_search, 2, '', '', ' … ', 12) AS snippet,
-        session_node_search.node_id
-      FROM session_node_search
-      WHERE ${nodeEvidenceSearch ? 1 : 0} = 1
-        AND session_node_search.rowid IN (
-          SELECT search_rows.search_rowid
+    ), attributable_nodes AS MATERIALIZED (
+      SELECT matching_ids.session_id,
+        (
+          SELECT search_rows.node_id
           FROM session_node_search_rows AS search_rows
-          WHERE search_rows.session_id IN (SELECT session_id FROM matching_term_session_ids)
-        )
-        AND session_node_search MATCH ${parameters.ftsQuery}
-    ), ranked_attributable_nodes AS MATERIALIZED (
-      SELECT attributable_node_matches.*,
-        ROW_NUMBER() OVER (
-          PARTITION BY session_id ORDER BY score, search_rowid
-        ) AS evidence_rank
-      FROM attributable_node_matches
+          WHERE search_rows.session_id = matching_ids.session_id
+            AND EXISTS (
+              SELECT 1 FROM session_node_search
+              WHERE session_node_search.rowid = search_rows.search_rowid
+                AND session_node_search MATCH ${parameters.ftsQuery}
+            )
+          ORDER BY search_rows.search_rowid
+          LIMIT 1
+        ) AS node_id
+      FROM matching_term_session_ids AS matching_ids
+      WHERE ${nodeEvidenceSearch ? 1 : 0} = 1
     ), term_transcript_sessions AS MATERIALIZED (
-      SELECT terms.session_id, terms.score, attributable.snippet,
+      SELECT terms.session_id, terms.score, NULL AS snippet,
         COALESCE(terms.first_node_id, nodes.id) AS first_node_id,
         COALESCE(terms.first_created_order, nodes.created_order) AS first_created_order,
         COALESCE(
@@ -135,20 +134,21 @@ export function transcriptSessionCtes(
           json_extract(nodes.metadata_json, '$.openWaggle.runId')
         ) AS first_run_id
       FROM term_transcript_sessions_unbounded AS terms
-      LEFT JOIN ranked_attributable_nodes AS attributable
-        ON attributable.session_id = terms.session_id AND attributable.evidence_rank = 1
+      LEFT JOIN attributable_nodes AS attributable
+        ON attributable.session_id = terms.session_id
       LEFT JOIN session_nodes AS nodes ON nodes.id = attributable.node_id
       WHERE ${parameters.phraseTranscriptSearch} = 0
       ORDER BY terms.score, terms.session_id
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), phrase_transcript_sessions AS MATERIALIZED (
-      SELECT ranked.session_id, ranked.score, ranked.snippet,
+      SELECT terms.session_id, terms.score, NULL AS snippet,
         nodes.id AS first_node_id, nodes.created_order AS first_created_order,
         json_extract(nodes.metadata_json, '$.openWaggle.runId') AS first_run_id
-      FROM ranked_attributable_nodes AS ranked
-      JOIN session_nodes AS nodes ON nodes.id = ranked.node_id
-      WHERE ${parameters.phraseTranscriptSearch} = 1 AND ranked.evidence_rank = 1
-      ORDER BY ranked.score, ranked.session_id
+      FROM term_transcript_sessions_unbounded AS terms
+      JOIN attributable_nodes AS attributable ON attributable.session_id = terms.session_id
+      JOIN session_nodes AS nodes ON nodes.id = attributable.node_id
+      WHERE ${parameters.phraseTranscriptSearch} = 1
+      ORDER BY terms.score, terms.session_id
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), transcript_sessions AS MATERIALIZED (
       SELECT * FROM term_transcript_sessions

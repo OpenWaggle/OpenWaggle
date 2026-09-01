@@ -108,10 +108,19 @@ const spawnRequest = {
   },
 } as const
 
-export function spawnLifecycleInput(parentConcurrencyLimit = DEFAULT_PARENT_CONCURRENCY_LIMIT) {
+export function spawnLifecycleInput(
+  parentConcurrencyLimit = DEFAULT_PARENT_CONCURRENCY_LIMIT,
+  objective: string = spawnRequest.command.delegation.objective,
+) {
   return {
     callerId: 'local-user',
-    request: spawnRequest,
+    request: {
+      ...spawnRequest,
+      command: {
+        ...spawnRequest.command,
+        delegation: { ...spawnRequest.command.delegation, objective },
+      },
+    },
     session: {
       sessionId: 'session-worker',
       piSessionId: 'pi-worker',

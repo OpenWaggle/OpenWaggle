@@ -185,6 +185,31 @@ describe('SQLite Session query repository', () => {
       operation: 'list',
       sessions: [{ sessionId: 'other' }],
     })
+
+    const plan = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ readonly detail: string }>`
+          EXPLAIN QUERY PLAN
+          SELECT sessions.id
+          FROM sessions
+          WHERE sessions.id IN (
+            SELECT catalog_binding.session_id
+            FROM workspace_resources AS catalog_workspace
+            JOIN session_workspace_bindings AS catalog_binding
+              ON catalog_binding.workspace_id = catalog_workspace.id
+            WHERE catalog_workspace.working_path = ${'/project-b'}
+          )
+          ORDER BY sessions.updated_at DESC, sessions.id DESC
+          LIMIT ${11}
+        `
+      }),
+    )
+    const details = plan.map((row) => row.detail).join('\n')
+    expect(details).toContain('idx_workspace_resources_working_path')
+    expect(details).toContain('idx_session_workspace_bindings_workspace')
+    expect(details).not.toContain('CORRELATED')
+    expect(details).not.toContain('SCAN sessions')
   })
 
   it('indexes bounded discovery text and gates full transcript FTS behind explicit scope', async () => {

@@ -66,5 +66,31 @@ describe('Session projection title report references', () => {
     await expect(
       updateSessionTitle(session.id, 'x'.repeat(SESSION_TITLE_MAX_LENGTH + 1)),
     ).rejects.toThrow(`Session title cannot exceed ${SESSION_TITLE_MAX_LENGTH} characters.`)
+    await expect(updateSessionTitle(session.id, '   ')).rejects.toThrow(
+      'Session title cannot be blank.',
+    )
+  })
+
+  it('normalizes an internal projection title before persisting its report reference', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/project-title-normalized',
+      piSessionId: 'pi-session-title-normalized',
+    })
+    await updateSessionTitle(session.id, '  Normalized Worker  ')
+
+    const rows = await runStoreEffect(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql<{ readonly title: string; readonly normalized_reference: string }>`
+          SELECT sessions.title, session_report_references.normalized_reference
+          FROM sessions JOIN session_report_references
+            ON session_report_references.session_id = sessions.id
+          WHERE sessions.id = ${session.id} AND session_report_references.kind = ${'title'}
+        `,
+      ),
+    )
+    expect(rows).toEqual([
+      { title: 'Normalized Worker', normalized_reference: 'normalized worker' },
+    ])
   })
 })

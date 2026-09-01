@@ -1,3 +1,4 @@
+import { assertSessionTitle } from '@shared/session-title'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import type { SessionOrganizationCommand } from '@shared/types/session-organization'
 import * as Effect from 'effect/Effect'
@@ -11,7 +12,7 @@ export function organizationOutcome(
       operation: command.operation,
       effect: 'session-renamed',
       sessionId: command.sessionId,
-      title: command.title.trim(),
+      title: assertSessionTitle(command.title),
     } satisfies SessionControlMutationOutcome
   }
   if (command.operation === 'archive') {
@@ -34,7 +35,7 @@ export function persistOrganizationMutation(
   now: number,
 ) {
   if (command.operation === 'rename') {
-    const title = command.title.trim()
+    const title = assertSessionTitle(command.title)
     return Effect.gen(function* () {
       yield* sql`UPDATE sessions SET title = ${title}, updated_at = ${now}
         WHERE id = ${command.sessionId}`

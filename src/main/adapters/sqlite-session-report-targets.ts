@@ -24,7 +24,7 @@ interface ReportCandidateRow {
 const REPORT_REFERENCE_CANDIDATE_LIMIT = 2
 
 function implicitLineageAllowed(authority: LocalSessionProfileAuthority | undefined) {
-  return authority?.profileId.startsWith('mcp:') !== true ? 1 : 0
+  return !authority || authority.profileId.startsWith('session-agent:') ? 1 : 0
 }
 
 function referenceCandidates(rows: readonly ReportCandidateRow[]): AuthorizedReportCandidate[] {

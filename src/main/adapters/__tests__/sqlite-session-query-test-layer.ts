@@ -8,7 +8,7 @@ import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
-import { refreshSessionTranscriptSearch } from '../../services/session-transcript-search-projection'
+import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
 import type { SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
 import { makeSqliteSessionQueryRepositoryLive } from '../sqlite-session-query-repository'
 
@@ -200,7 +200,7 @@ function makeLayer(filename: string, model?: SessionEmbeddingModel) {
           ${'follow-up-1'}, ${'worker'}, ${0}, ${'pending'}, ${'{"text":"next"}'}, ${1}, ${1}
         )
       `
-      yield* refreshSessionTranscriptSearch(sql, ['queen', 'worker', 'other'])
+      yield* refreshSessionTranscriptTerms(sql, ['queen', 'worker', 'other'])
     }).pipe(Effect.provide(sqlite)),
   )
   return Layer.mergeAll(

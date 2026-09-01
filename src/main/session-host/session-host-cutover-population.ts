@@ -8,8 +8,7 @@ import {
 import { DEFAULT_SETTINGS, THINKING_LEVELS } from '@shared/types/settings'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { resolveWorkspaceWorktreePath } from '../services/git/session-worktree-path'
-import { sessionTranscriptSearchContentSql } from '../services/session-host-search-schema'
-import { SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT } from '../services/session-transcript-search-projection'
+import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import {
   cutoverRecord,
   cutoverTableExists,
@@ -288,14 +287,6 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
     INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
     SELECT node_id, session_id, rowid FROM session_node_search;
-    INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
-    SELECT session_id, chunk_ordinal, GROUP_CONCAT(content, char(10))
-    FROM (
-      SELECT session_id, content,
-        CAST((ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY rowid) - 1) /
-          ${SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT} AS INTEGER) AS chunk_ordinal
-      FROM session_node_search
-    ) GROUP BY session_id, chunk_ordinal;
     INSERT INTO session_node_discovery_search (session_id, node_id, content)
     SELECT session_id, id, COALESCE(
       (SELECT GROUP_CONCAT(
@@ -311,6 +302,10 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
       json_extract(session_nodes.content_json, '$.text'),
       ''
     ) FROM session_nodes;
+    UPDATE session_node_search_rows AS search_rows
+    SET discovery_search_rowid = discovery.rowid
+    FROM session_node_discovery_search AS discovery
+    WHERE discovery.node_id = search_rows.node_id;
   `)
   populateSessionTranscriptTermCatalog(database)
 }

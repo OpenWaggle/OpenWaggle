@@ -2,7 +2,11 @@ import {
   hasUniqueCollaborationStrings,
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
-import { SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
+import {
+  isNonBlankSessionTitle,
+  SESSION_TITLE_MAX_LENGTH,
+  SESSION_TITLE_MIN_LENGTH,
+} from '@shared/session-title'
 import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { z } from 'zod'
 
@@ -20,8 +24,9 @@ export const MCP_SESSION_INPUT_LIMITS_V2 = {
 export const mcpSessionIdSchemaV2 = z.string().min(1).max(MCP_SESSION_INPUT_LIMITS_V2.idLength)
 export const mcpSessionTitleSchemaV2 = z
   .string()
-  .min(1)
+  .min(SESSION_TITLE_MIN_LENGTH)
   .max(MCP_SESSION_INPUT_LIMITS_V2.titleLength)
+  .refine(isNonBlankSessionTitle, 'Session title must not be blank.')
 export const mcpSessionTextSchemaV2 = z.string().min(1).max(MCP_SESSION_INPUT_LIMITS_V2.textLength)
 export const mcpSessionItemTextSchemaV2 = z
   .string()

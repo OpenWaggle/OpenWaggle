@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { encodeFloat32Vector } from './session-flat-vector-index'
 import { sessionTranscriptDocument } from './session-transcript-document'
@@ -18,6 +19,7 @@ import {
 } from './sqlite-session-transcript-semantic-storage'
 
 const DEFAULT_TRANSCRIPT_PROJECTION_BATCH_SIZE = 32
+const CURRENT_TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('current_node')
 
 interface TranscriptProjectionRow {
   readonly node_id: string
@@ -109,12 +111,11 @@ function publishProjectionBatch(
             ${model.metadata.revision}, ${model.metadata.dimensions}, ${sourceHash(document)},
             ${encodeFloat32Vector(vector)}, ${revision}, ${row.created_order}, ${now}
           FROM session_nodes AS current_node
-          JOIN session_node_search AS current_search ON current_search.node_id = current_node.id
           WHERE current_node.id = ${row.node_id}
             AND current_node.kind = ${row.kind}
             AND current_node.role IS ${row.role}
             AND current_node.content_json = ${row.content_json}
-            AND trim(current_search.content) <> ''
+            AND trim(${sql.literal(CURRENT_TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
           ON CONFLICT(node_id) DO UPDATE SET
             session_id = excluded.session_id, model_id = excluded.model_id,
             model_revision = excluded.model_revision, dimensions = excluded.dimensions,
