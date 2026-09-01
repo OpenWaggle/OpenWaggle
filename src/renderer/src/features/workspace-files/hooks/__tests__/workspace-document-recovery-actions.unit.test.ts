@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
-import type { WorkspaceTextFileReadResult } from '@shared/types/workspace-files'
+import type {
+  WorkspaceDocumentApplyResult,
+  WorkspaceTextFileReadResult,
+} from '@shared/types/workspace-files'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '@/queries/query-keys'
@@ -98,16 +101,9 @@ describe('workspace document recovery actions', () => {
       revision: 'disk-revision',
       fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
     })
-    let finishSave:
-      | ((value: Awaited<ReturnType<typeof applyWorkspaceDocumentEdits>>) => void)
-      | null = null
+    const save = Promise.withResolvers<WorkspaceDocumentApplyResult>()
     readWorkspaceFile.mockResolvedValueOnce(disk)
-    applyWorkspaceDocumentEdits.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishSave = resolve
-        }),
-    )
+    applyWorkspaceDocumentEdits.mockReturnValueOnce(save.promise)
     const context = fromPartial<WorkspaceSaveQueueContext>({
       projectPath: '/project',
       file: disk,
@@ -135,7 +131,7 @@ describe('workspace document recovery actions', () => {
     const restoring = restoreWorkspaceDraftOverDisk(context)
     await vi.waitFor(() => expect(applyWorkspaceDocumentEdits).toHaveBeenCalledOnce())
     context.latestSnapshot.current = () => 'recovered draft + typed while saving'
-    finishSave?.({
+    save.resolve({
       status: 'saved',
       version: 5,
       size: 15,
