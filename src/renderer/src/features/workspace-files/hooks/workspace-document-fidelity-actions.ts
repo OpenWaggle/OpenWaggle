@@ -102,7 +102,7 @@ async function applyWorkspaceLineEndingNormalization(
           revision: saved.revision,
           size: saved.size,
           modifiedAt: saved.modifiedAt,
-          fidelity: { ...context.file.fidelity, lineEnding },
+          fidelity: { ...context.file.fidelity, encoding: saved.encoding, lineEnding },
         },
       )
       context.setLineEnding(lineEnding)
@@ -117,7 +117,14 @@ async function reopenWorkspaceDocumentWithEncodingNow(
   context: WorkspaceSaveQueueContext,
   encoding: WorkspaceTextEncoding,
   discardDraft: boolean,
+  confirmedAtEditSequence: number,
 ) {
+  if (context.editSequence.current !== confirmedAtEditSequence) {
+    persistPendingJournal(context)
+    throw new Error(
+      'The file changed after you confirmed reopening. Your newer edits were kept; try again.',
+    )
+  }
   const contentBeforeReopen = captureWorkspaceDocumentSnapshot(context)
   const hasUnsavedDraft =
     context.conflict.current ||
@@ -145,8 +152,14 @@ export function reopenWorkspaceDocumentWithEncoding(
   encoding: WorkspaceTextEncoding,
   discardDraft = false,
 ) {
+  const confirmedAtEditSequence = context.editSequence.current
   return runWorkspaceQueueOperation(context, () =>
-    reopenWorkspaceDocumentWithEncodingNow(context, encoding, discardDraft),
+    reopenWorkspaceDocumentWithEncodingNow(
+      context,
+      encoding,
+      discardDraft,
+      confirmedAtEditSequence,
+    ),
   )
 }
 

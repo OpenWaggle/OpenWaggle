@@ -34,6 +34,7 @@ export interface WorkspaceSaveQueueContext {
   readonly revision: MutableCell<string>
   readonly persistedVersion: MutableCell<number>
   readonly nextVersion: MutableCell<number>
+  readonly editSequence: MutableCell<number>
   readonly latestContent: MutableCell<string>
   readonly latestSnapshot: MutableCell<(() => string) | null>
   readonly savedContent: MutableCell<string>
@@ -299,6 +300,7 @@ export function recordWorkspaceDocumentChange(
   readSource: () => string,
 ) {
   if (changes.length === 0) return
+  context.editSequence.current += 1
   context.latestSnapshot.current = readSource
   if (context.conflict.current) {
     context.setChangeSequence((current) => current + 1)

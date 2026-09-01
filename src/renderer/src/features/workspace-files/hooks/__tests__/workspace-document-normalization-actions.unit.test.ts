@@ -38,13 +38,15 @@ describe('workspace document normalization actions', () => {
       fidelity: { encoding: 'utf-8', lineEnding: 'lf' },
     })
     let liveContent = file.content
+    const setQueryData = vi.fn()
     const context = fromPartial<WorkspaceSaveQueueContext>({
       projectPath: '/project',
       file,
-      queryClient: fromPartial({ setQueryData: vi.fn() }),
+      queryClient: fromPartial({ setQueryData }),
       revision: { current: file.revision },
       persistedVersion: { current: file.documentVersion },
       nextVersion: { current: file.documentVersion + 1 },
+      editSequence: { current: 0 },
       latestContent: { current: file.content },
       latestSnapshot: { current: () => liveContent },
       savedContent: { current: file.content },
@@ -96,7 +98,7 @@ describe('workspace document normalization actions', () => {
       size: file.content.length,
       modifiedAt: 4,
       revision: 'crlf-revision',
-      encoding: 'utf-8',
+      encoding: 'utf-16le',
       lineEnding: 'crlf',
     })
     await normalizingToCrlf
@@ -114,6 +116,12 @@ describe('workspace document normalization actions', () => {
     expect(context.revision.current).toBe('crlf-revision')
     expect(context.latestContent.current).toBe(liveContent)
     expect(context.savedContent.current).toBe(file.content)
+    expect(setQueryData).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        fidelity: expect.objectContaining({ encoding: 'utf-16le', lineEnding: 'crlf' }),
+      }),
+    )
     expect(context.pending.current).toEqual([
       {
         version: 5,

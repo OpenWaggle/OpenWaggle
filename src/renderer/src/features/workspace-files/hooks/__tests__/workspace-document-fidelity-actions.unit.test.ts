@@ -50,6 +50,7 @@ describe('workspace document fidelity actions', () => {
       revision: { current: file.revision },
       persistedVersion: { current: file.documentVersion },
       nextVersion: { current: file.documentVersion + 1 },
+      editSequence: { current: 0 },
       latestContent: { current: file.content },
       latestSnapshot: { current: () => file.content },
       savedContent: { current: file.content },
@@ -73,6 +74,7 @@ describe('workspace document fidelity actions', () => {
 
     const reopening = reopenWorkspaceDocumentWithEncoding(context, 'utf-16le')
     await vi.waitFor(() => expect(readWorkspaceFileWithEncoding).toHaveBeenCalledOnce())
+    const queuedReopening = reopenWorkspaceDocumentWithEncoding(context, 'utf-8-bom', true)
     recordWorkspaceDocumentChange(
       context,
       [{ rangeOffset: file.content.length, rangeLength: 0, text: ' + newer edit' }],
@@ -88,6 +90,8 @@ describe('workspace document fidelity actions', () => {
     )
 
     await expect(reopening).rejects.toThrow('Your newer edits were kept')
+    await expect(queuedReopening).rejects.toThrow('after you confirmed reopening')
+    expect(readWorkspaceFileWithEncoding).toHaveBeenCalledOnce()
     expect(context.revision.current).toBe('saved-revision')
     expect(context.pending.current).toHaveLength(1)
     expect(context.setContent).not.toHaveBeenCalledWith('decoded disk content')
@@ -116,6 +120,7 @@ describe('workspace document fidelity actions', () => {
       revision: { current: file.revision },
       persistedVersion: { current: file.documentVersion },
       nextVersion: { current: file.documentVersion + 1 },
+      editSequence: { current: 0 },
       latestContent: { current: 'unsaved draft' },
       latestSnapshot: { current: null },
       savedContent: { current: file.content },
@@ -192,6 +197,7 @@ describe('workspace document fidelity actions', () => {
       revision: { current: file.revision },
       persistedVersion: { current: file.documentVersion },
       nextVersion: { current: file.documentVersion + 1 },
+      editSequence: { current: 0 },
       latestContent: { current: file.content },
       latestSnapshot: { current: () => liveContent },
       savedContent: { current: file.content },

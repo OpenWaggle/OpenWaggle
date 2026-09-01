@@ -39,6 +39,7 @@ function contextFixture(
     latestSnapshot: { current: null },
     mounted: { current: true },
     nextVersion: { current: 1 },
+    editSequence: { current: 0 },
     pending: { current: [] },
     persistedVersion: { current: 0 },
     revision: { current: 'revision-1' },

@@ -49,6 +49,7 @@ function useSaveQueueValues(projectPath: string, file: WorkspaceTextFileReadResu
   const revision = useRef(file.revision)
   const persistedVersion = useRef(file.documentVersion)
   const nextVersion = useRef(initial.lastVersion + 1)
+  const editSequence = useRef(0)
   const latestContent = useRef(initial.content)
   const latestSnapshot = useRef<(() => string) | null>(null)
   const savedContentRef = useRef(file.content)
@@ -65,6 +66,7 @@ function useSaveQueueValues(projectPath: string, file: WorkspaceTextFileReadResu
     revision,
     persistedVersion,
     nextVersion,
+    editSequence,
     latestContent,
     latestSnapshot,
     savedContent: savedContentRef,
