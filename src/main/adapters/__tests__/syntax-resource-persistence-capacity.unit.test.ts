@@ -73,4 +73,32 @@ describe('syntax resource persistence capacity', () => {
     expect(installed.themes).toHaveLength(1)
     expect(installed.themes[0]).toMatchObject({ id: firstTheme.id, label: 'First Large' })
   })
+
+  it('enforces one shared read budget across installed resource kinds', async () => {
+    const sourcePath = path.join(temporaryRoot, 'theme.json')
+    await fs.writeFile(sourcePath, JSON.stringify(theme('Shared Budget', '#abcdef')))
+    const catalog = await parseSyntaxThemeSource(sourcePath, 'user')
+    const parsedTheme = catalog.themes[0]
+    if (!parsedTheme) throw new Error('Expected a parsed theme.')
+    const padding = 'x'.repeat(Math.floor(INSTALLED_RESOURCE_CATALOG_MAX_BYTES / 2))
+    const persistedResource = JSON.stringify({
+      ...parsedTheme,
+      original: { ...parsedTheme.original, padding },
+    })
+    await Promise.all([
+      fs.mkdir(path.join(resourcesDirectory, 'themes'), { recursive: true }),
+      fs.mkdir(path.join(resourcesDirectory, 'languages'), { recursive: true }),
+    ])
+    await Promise.all([
+      fs.writeFile(path.join(resourcesDirectory, 'themes', 'theme.json'), persistedResource),
+      fs.writeFile(path.join(resourcesDirectory, 'languages', 'language.json'), persistedResource),
+    ])
+    expect(Buffer.byteLength(persistedResource) * 2).toBeGreaterThan(
+      INSTALLED_RESOURCE_CATALOG_MAX_BYTES,
+    )
+
+    await expect(listInstalledSyntaxThemes(resourcesDirectory)).rejects.toThrow(
+      'aggregate byte limit',
+    )
+  })
 })

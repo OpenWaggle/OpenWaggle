@@ -74,6 +74,26 @@ async function assertStagedInstalledResourceCatalogByteCapacity(stagingDirectory
   }
 }
 
+async function readInstalledResourceCatalog(resourcesDirectory: string) {
+  const budget = { remainingBytes: INSTALLED_RESOURCE_CATALOG_MAX_BYTES }
+  const themes = await readPersistedResources(
+    path.join(resourcesDirectory, 'themes'),
+    isSyntaxThemeResource,
+    budget,
+  )
+  const languages = await readPersistedResources(
+    path.join(resourcesDirectory, 'languages'),
+    isSyntaxLanguageResource,
+    budget,
+  )
+  const appearances = await readPersistedResources(
+    path.join(resourcesDirectory, 'appearances'),
+    isSyntaxAppearanceResource,
+    budget,
+  )
+  return { themes, languages, appearances } satisfies SyntaxResourceCatalog
+}
+
 export async function applySyntaxThemePreview(
   resourcesDirectory: string,
   preview: SyntaxThemeImportPreview,
@@ -188,21 +208,7 @@ export async function listInstalledSyntaxResources(
   projectPath: string | null | undefined,
   parseSource: SyntaxSourceParser,
 ): Promise<SyntaxResourceCatalog> {
-  const budget = { remainingBytes: INSTALLED_RESOURCE_CATALOG_MAX_BYTES }
-  const [themes, languages, appearances] = await Promise.all([
-    readPersistedResources(path.join(resourcesDirectory, 'themes'), isSyntaxThemeResource, budget),
-    readPersistedResources(
-      path.join(resourcesDirectory, 'languages'),
-      isSyntaxLanguageResource,
-      budget,
-    ),
-    readPersistedResources(
-      path.join(resourcesDirectory, 'appearances'),
-      isSyntaxAppearanceResource,
-      budget,
-    ),
-  ])
-  const globalResources: SyntaxResourceCatalog = { themes, languages, appearances }
+  const globalResources = await readInstalledResourceCatalog(resourcesDirectory)
   if (!projectPath) return globalResources
   return mergeSyntaxResourceCatalogs(
     globalResources,
@@ -217,20 +223,7 @@ export async function removeInstalledSyntaxTheme(resourcesDirectory: string, res
 }
 
 async function removeInstalledSyntaxThemeLocked(resourcesDirectory: string, resourceId: string) {
-  const budget = { remainingBytes: INSTALLED_RESOURCE_CATALOG_MAX_BYTES }
-  const [themes, languages, appearances] = await Promise.all([
-    readPersistedResources(path.join(resourcesDirectory, 'themes'), isSyntaxThemeResource, budget),
-    readPersistedResources(
-      path.join(resourcesDirectory, 'languages'),
-      isSyntaxLanguageResource,
-      budget,
-    ),
-    readPersistedResources(
-      path.join(resourcesDirectory, 'appearances'),
-      isSyntaxAppearanceResource,
-      budget,
-    ),
-  ])
+  const { themes, languages, appearances } = await readInstalledResourceCatalog(resourcesDirectory)
   const theme = themes.find((resource) => resource.id === resourceId)
   const language = languages.find((resource) => resource.id === resourceId)
   const appearance = appearances.find((resource) => resource.id === resourceId)
