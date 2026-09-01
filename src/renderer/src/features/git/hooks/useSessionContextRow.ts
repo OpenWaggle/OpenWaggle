@@ -1,5 +1,4 @@
-import type { SessionId } from '@shared/types/brand'
-import { RepositoryPath } from '@shared/types/brand'
+import { RepositoryPath, type SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
 import type { ChangeRequestAdoption } from '@shared/types/ipc-invoke-git'
 import type { SessionDetail } from '@shared/types/session'
@@ -18,7 +17,7 @@ import {
 } from '@/features/git/state/worktree-plan-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { type ProjectBranchStatus, useProjectBranches } from './useProjectBranches'
+import { type ProjectBranchStatus, useProjectBranchState } from './useProjectBranchState'
 
 const logger = createRendererLogger('composer-context-strip')
 
@@ -71,6 +70,13 @@ function resolveEffectivePlan(
   }
 }
 
+function mergePlanOverrides(
+  projectless: WorktreePlanOverride | undefined,
+  scoped: WorktreePlanOverride | undefined,
+): WorktreePlanOverride | undefined {
+  return projectless ? { ...scoped, ...projectless } : scoped
+}
+
 /**
  * Controller for the composer context strip (WS1b). Effective plan values are
  * computed from per-session overrides layered over the session defaults (no
@@ -91,15 +97,26 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
         ? PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY
         : ''
 
-  const override = useWorktreePlanStore((state) => {
-    if (!sessionKey) return undefined
-    const scopedOverride = state.bySessionId[sessionKey]
-    if (scopedOverride || sessionId || !projectPath) return scopedOverride
-    return state.bySessionId[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY]
-  })
+  const scopedOverride = useWorktreePlanStore((state) =>
+    sessionKey ? state.bySessionId[sessionKey] : undefined,
+  )
+  const projectlessOverride = useWorktreePlanStore((state) =>
+    !sessionId && projectPath ? state.bySessionId[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY] : undefined,
+  )
+  const override = mergePlanOverrides(projectlessOverride, scopedOverride)
   const setOverride = useWorktreePlanStore((s) => s.setOverride)
+  const writeOverride = useCallback(
+    (patch: WorktreePlanOverride) => {
+      if (!sessionKey) return
+      setOverride(sessionKey, patch)
+      if (!sessionId && projectPath && projectlessOverride) {
+        setOverride(PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY, patch)
+      }
+    },
+    [sessionKey, setOverride, sessionId, projectPath, projectlessOverride],
+  )
 
-  const branches = useProjectBranches(projectPath)
+  const branches = useProjectBranchState(projectPath)
   const [changeRequests, setChangeRequests] = useState<readonly VcsChangeRequest[]>([])
   // undefined = not yet checked, so a send is never blocked on an unknown.
   const [worktreeExists, setWorktreeExists] = useState<boolean | undefined>(undefined)
@@ -162,29 +179,29 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
   const setEnvMode = useCallback(
     (mode: SessionEnvironmentMode) => {
       if (!sessionKey) return
-      setOverride(sessionKey, { envMode: mode })
+      writeOverride({ envMode: mode })
       persist({ envMode: mode, baseRef, startFromOrigin })
     },
-    [sessionKey, setOverride, persist, baseRef, startFromOrigin],
+    [sessionKey, writeOverride, persist, baseRef, startFromOrigin],
   )
 
   const setBaseRef = useCallback(
     (nextBaseRef: string) => {
       if (!sessionKey) return
       const normalized = nextBaseRef.trim() || null
-      setOverride(sessionKey, { baseRef: normalized })
+      writeOverride({ baseRef: normalized })
       persist({ envMode, baseRef: normalized, startFromOrigin })
     },
-    [sessionKey, setOverride, persist, envMode, startFromOrigin],
+    [sessionKey, writeOverride, persist, envMode, startFromOrigin],
   )
 
   const setStartFromOrigin = useCallback(
     (next: boolean) => {
       if (!sessionKey) return
-      setOverride(sessionKey, { startFromOrigin: next })
+      writeOverride({ startFromOrigin: next })
       persist({ envMode, baseRef, startFromOrigin: next })
     },
-    [sessionKey, setOverride, persist, envMode, baseRef],
+    [sessionKey, writeOverride, persist, envMode, baseRef],
   )
 
   const loadChangeRequests = useCallback(async () => {
@@ -270,9 +287,9 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     // Running in the opened checkout is a real change of isolation, so it is recorded
     // on the session rather than only reflected in this row.
     const next = { envMode: 'local' as const, baseRef, startFromOrigin }
-    if (sessionKey) setOverride(sessionKey, next)
+    writeOverride(next)
     persist(next)
-  }, [baseRef, startFromOrigin, sessionKey, setOverride, persist])
+  }, [baseRef, startFromOrigin, writeOverride, persist])
 
   return {
     /*
