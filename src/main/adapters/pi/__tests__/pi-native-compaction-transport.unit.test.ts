@@ -96,6 +96,35 @@ describe('Pi Responses native compaction transport', () => {
     )
   })
 
+  it('decodes base64url Codex OAuth payloads before extracting the account header', async () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        name: '😀',
+        'https://api.openai.com/auth': { chatgpt_account_id: 'account-url-safe' },
+      }),
+    ).toString('base64url')
+    expect(payload).toContain('-')
+    const accessToken = `header.${payload}.signature`
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('chatgpt-account-id')).toBe('account-url-safe')
+      return makeCompactResponse([
+        { type: 'compaction', id: 'cmp_codex', encrypted_content: 'opaque-checkpoint' },
+      ])
+    })
+    const model: Model<'openai-codex-responses'> = {
+      ...makeNativeModel(),
+      api: 'openai-codex-responses',
+      provider: 'openai-codex',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+    }
+
+    await compactResponses(
+      model,
+      { systemPrompt: '', messages: [] },
+      { apiKey: accessToken, fetch: fetchMock },
+    )
+  })
+
   it('persists a versioned opaque envelope without invoking Portable', async () => {
     vi.stubGlobal(
       'fetch',

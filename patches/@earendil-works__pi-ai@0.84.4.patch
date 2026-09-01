@@ -48,7 +48,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..890fbe79b87d408ae0f95d09b4924637
  // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
  const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
  function hasHeader(headers, name) {
-@@ -32,6 +33,21 @@ function getClientApiKey(provider, apiKey, headers) {
+@@ -32,6 +33,24 @@ function getClientApiKey(provider, apiKey, headers) {
          return "unused";
      throw new Error(`No API key for provider: ${provider}`);
  }
@@ -57,7 +57,10 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..890fbe79b87d408ae0f95d09b4924637
 +        const parts = token.split(".");
 +        if (parts.length !== 3)
 +            throw new Error("Invalid token");
-+        const payload = JSON.parse(atob(parts[1]));
++        const encodedPayload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
++        const paddedPayload = encodedPayload.padEnd(Math.ceil(encodedPayload.length / 4) * 4, "=");
++        const bytes = Uint8Array.from(atob(paddedPayload), (character) => character.charCodeAt(0));
++        const payload = JSON.parse(new TextDecoder().decode(bytes));
 +        const accountId = payload?.[CODEX_JWT_CLAIM_PATH]?.chatgpt_account_id;
 +        if (!accountId)
 +            throw new Error("No account ID in token");
@@ -70,7 +73,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..890fbe79b87d408ae0f95d09b4924637
  function detectSessionAffinityFormat(model) {
      return model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai") ? "openrouter" : "openai";
  }
-@@ -50,6 +66,7 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -50,6 +69,7 @@ function resolveCacheRetention(cacheRetention, env) {
  }
  function getCompat(model) {
      return {
@@ -78,7 +81,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..890fbe79b87d408ae0f95d09b4924637
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
          supportsLongCacheRetention: model.compat?.supportsLongCacheRetention ?? true,
-@@ -160,7 +177,49 @@ export const streamSimple = (model, context, options) => {
+@@ -160,7 +180,49 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -129,7 +132,7 @@ index 0fb7e8b26f323f2b44a5a4b760bccedc4c3abdd0..890fbe79b87d408ae0f95d09b4924637
      const compat = getCompat(model);
      const headers = { "User-Agent": getPiUserAgent(), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -186,9 +245,16 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
+@@ -186,9 +248,16 @@ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId)
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
