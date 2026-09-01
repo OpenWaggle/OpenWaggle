@@ -180,7 +180,7 @@ describe('extension session resource capability', () => {
     expect(second).toMatchObject({ ok: true, value: { sessionId: SESSION_ID } })
     const publications = test.resourceUpserts().filter(({ title }) => title === 'Release notes')
     expect(publications[0]?.locator).toBe('https://example.com/releases/1')
-    expect(new Set(publications.map(({ occurrence }) => occurrence.id)).size).toBe(1)
+    expect(publications).toHaveLength(1)
     expect(publications.every(({ sessionId }) => sessionId === SessionId(SESSION_ID))).toBe(true)
     expect(publications.every(({ occurrence }) => occurrence.actor === 'extension')).toBe(true)
     expect(

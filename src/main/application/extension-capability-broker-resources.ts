@@ -10,7 +10,10 @@ import type {
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionRepository } from '../ports/session-repository'
-import { SessionResourceRepository } from '../ports/session-resource-repository'
+import {
+  SessionResourceRepository,
+  type SessionResourceRepositoryShape,
+} from '../ports/session-resource-repository'
 import { broadcastToWindows } from '../utils/broadcast'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
 import type { BrokerRouteInput } from './extension-capability-broker-openwaggle-common'
@@ -41,6 +44,58 @@ function resourceView(resource: SessionResource): ExtensionSessionResourceView {
   }
 }
 
+function publishedResourceResult(
+  input: BrokerRouteInput,
+  sessionId: SessionId,
+  resource: SessionResource,
+) {
+  return auditedSuccess({
+    invocation: input.invocation,
+    timestamp: input.timestamp,
+    value: {
+      extensionId: input.invocation.extensionId,
+      contributionId: input.invocation.contributionId,
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
+      sessionId,
+      resource: resourceView(resource),
+    },
+  })
+}
+
+function findExistingResource(
+  repository: SessionResourceRepositoryShape,
+  sessionId: SessionId,
+  normalizedCanonicalKey: string,
+  legacyCanonicalKey: string,
+) {
+  return Effect.gen(function* () {
+    const normalized = yield* repository.findByCanonicalKey(sessionId, normalizedCanonicalKey)
+    if (normalized || legacyCanonicalKey === normalizedCanonicalKey) {
+      return { resource: normalized, legacy: false }
+    }
+    const legacy = yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
+    return { resource: legacy, legacy: legacy !== null }
+  })
+}
+
+function findReplayResource(
+  repository: SessionResourceRepositoryShape,
+  sessionId: SessionId,
+  occurrenceId: string,
+  existingResource: SessionResource | null,
+) {
+  return Effect.gen(function* () {
+    if (!(yield* repository.hasOccurrence(sessionId, occurrenceId))) return null
+    if (existingResource) return existingResource
+    return (
+      (yield* repository.list(sessionId)).find((candidate) =>
+        candidate.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+      ) ?? null
+    )
+  })
+}
+
 function publishPayload(input: BrokerRouteInput) {
   const unsupportedIssues = unsupportedPayloadIssues(input.invocation.payload, PUBLISH_PAYLOAD_KEYS)
   if (unsupportedIssues.length > 0) return { ok: false as const, issues: unsupportedIssues }
@@ -65,16 +120,22 @@ function publishResource(
     const normalizedLocator = new URL(payload.locator).href
     const normalizedCanonicalKey = `url:${normalizedLocator}`
     const legacyCanonicalKey = `url:${payload.locator}`
-    const normalizedResource = yield* repository.findByCanonicalKey(
+    const existing = yield* findExistingResource(
+      repository,
       sessionId,
       normalizedCanonicalKey,
+      legacyCanonicalKey,
     )
-    const legacyResource =
-      normalizedResource || legacyCanonicalKey === normalizedCanonicalKey
-        ? null
-        : yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
-    const existingResource = normalizedResource ?? legacyResource
-    const identityLocator = legacyResource ? payload.locator : normalizedLocator
+    const existingResource = existing.resource
+    const identityLocator = existing.legacy ? payload.locator : normalizedLocator
+    const occurrenceId = `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${identityLocator}`
+    const replayResource = yield* findReplayResource(
+      repository,
+      sessionId,
+      occurrenceId,
+      existingResource,
+    )
+    if (replayResource) return yield* publishedResourceResult(input, sessionId, replayResource)
     const createdAt = input.timestamp
     const resourceId = randomUUID()
     const resource = yield* repository.upsert({
@@ -88,7 +149,7 @@ function publishResource(
       managedPath: null,
       available: true,
       occurrence: {
-        id: `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${identityLocator}`,
+        id: occurrenceId,
         nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
         branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
         actor: 'extension',
@@ -100,18 +161,7 @@ function publishResource(
       updatedAt: createdAt,
     })
     broadcastToWindows('sessions:resources-invalidated', { sessionId })
-    return yield* auditedSuccess({
-      invocation: input.invocation,
-      timestamp: input.timestamp,
-      value: {
-        extensionId: input.invocation.extensionId,
-        contributionId: input.invocation.contributionId,
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
-        sessionId,
-        resource: resourceView(resource),
-      },
-    })
+    return yield* publishedResourceResult(input, sessionId, resource)
   })
 }
 

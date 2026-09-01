@@ -58,7 +58,14 @@ export function makeSessionResourceRepositoryTestLayer(
         ) ?? null,
       ),
     rekey: () => Effect.dieMessage('resource rekey is not configured for this broker test'),
-    hasOccurrence: () => Effect.succeed(false),
+    hasOccurrence: (sessionId, occurrenceId) =>
+      Effect.succeed(
+        resources.some(
+          (resource) =>
+            resource.sessionId === sessionId &&
+            resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+        ),
+      ),
     getContentLocation: () => Effect.succeed(null),
     getBackfillCursor: () => Effect.succeed(-1),
     advanceBackfillCursor: () => Effect.void,
