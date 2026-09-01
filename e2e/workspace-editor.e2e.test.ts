@@ -147,19 +147,19 @@ function syntaxSourceKeys(page: Page) {
   })
 }
 
-async function scrollSourceViewport(page: Page, scrollSurface: Locator, ratio: number) {
-  const bounds = await scrollSurface.boundingBox()
-  if (bounds === null) throw new Error('Expected the source viewport to have visible bounds.')
-  const scroll = await scrollSurface.evaluate((element, targetRatio) => {
-    const current = element.scrollTop
-    const maximum = Math.max(0, element.scrollHeight - element.clientHeight)
-    return { current, target: Math.floor(maximum * targetRatio) }
-  }, ratio)
-  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
-  await page.mouse.wheel(0, Math.max(1, scroll.target - scroll.current))
+async function scrollSourceViewport(page: Page, scrollSurface: Locator) {
+  // Hidden Windows Electron does not deliver synthetic pointer-wheel input reliably. Give the
+  // viewport temporary programmatic focus and use native keyboard scrolling instead.
+  await scrollSurface.evaluate((element) => {
+    element.setAttribute('tabindex', '-1')
+  })
+  await scrollSurface.focus()
+  const current = await scrollSurface.evaluate((element) => element.scrollTop)
+  await page.keyboard.press('PageDown')
+  await page.keyboard.press('PageDown')
   await expect
     .poll(() => scrollSurface.evaluate((element) => element.scrollTop))
-    .toBeGreaterThan(scroll.current)
+    .toBeGreaterThan(current)
 }
 
 async function beginSourceSurfaceMeasurement(page: Page, label: string) {
@@ -423,12 +423,12 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     await expect(sourceView).toContainText('export const value')
 
     const scrollSurface = sourceView.locator('.syntax-typography')
-    for (const position of [0.2, 0.4, 0.6, 0.8]) {
+    for (let viewportIndex = 0; viewportIndex < 4; viewportIndex += 1) {
       const transferCountBeforeScroll = (await syntaxSourceTransfers(page)).length
       const previousLineOffset = Number(
         await sourceView.getAttribute('data-syntax-line-offset'),
       )
-      await scrollSourceViewport(page, scrollSurface, position)
+      await scrollSourceViewport(page, scrollSurface)
       await expect
         .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
