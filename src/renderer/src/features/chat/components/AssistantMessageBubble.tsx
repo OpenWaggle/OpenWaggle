@@ -223,6 +223,10 @@ export function AssistantMessageBubble({
                         key={`${message.id}-text-${String(i)}`}
                         text={value.content}
                         isStreaming={!!isStreaming}
+                        visualizationSessionId={
+                          message.metadata?.visualizationSessionId ?? runtime.sessionId
+                        }
+                        visualizationInteractionSessionId={runtime.sessionId}
                       />
                     ) : null,
                   )

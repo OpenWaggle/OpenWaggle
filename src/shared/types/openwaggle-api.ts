@@ -47,6 +47,12 @@ import type {
   RemoteVcsStatusResult,
   SessionWorktreeCheck,
 } from './git'
+import type {
+  InlineVisualizationDownloadInput,
+  InlineVisualizationFrameRegisterInput,
+  InlineVisualizationFrameRegisterResult,
+  InlineVisualizationFrameUnregisterInput,
+} from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
@@ -138,6 +144,12 @@ export interface OpenWaggleApi
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
+
+  registerInlineVisualizationFrame(
+    input: InlineVisualizationFrameRegisterInput,
+  ): Promise<InlineVisualizationFrameRegisterResult>
+  unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput): Promise<void>
+  saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
