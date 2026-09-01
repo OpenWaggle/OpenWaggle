@@ -1,4 +1,5 @@
 import { writeCliStdout } from './cli-stdout'
+import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 
 const JSON_INDENT_SPACES = 2
 export const SESSIONS_CLI_OUTPUT_SCHEMA_VERSION = 1 as const
@@ -75,7 +76,37 @@ function includesAny(message: string, fragments: readonly string[]) {
   return fragments.some((fragment) => message.includes(fragment))
 }
 
+export function sessionsCliErrorKindForCode(code: string): SessionsCliErrorKind | undefined {
+  const normalized = code.toLowerCase()
+  if (
+    normalized === 'authentication_failed' ||
+    normalized === 'credential_rejected' ||
+    normalized === 'profile_revoked'
+  ) {
+    return 'authentication'
+  }
+  if (normalized.includes('not_found') || normalized.includes('missing')) return 'not_found'
+  if (
+    normalized.includes('authoriz') ||
+    normalized.includes('capability') ||
+    normalized.includes('denied') ||
+    normalized.includes('target_scope')
+  ) {
+    return 'authorization'
+  }
+  if (normalized.includes('timeout')) return 'timeout'
+  if (normalized.includes('host_stopped') || normalized.includes('host_lost')) {
+    return 'host_unavailable'
+  }
+  if (normalized.endsWith('_failed')) return 'internal'
+  return undefined
+}
+
 export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
+  if (error instanceof LocalSessionClientProtocolError) {
+    const kind = sessionsCliErrorKindForCode(error.code)
+    if (kind) return kind
+  }
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
   if (
     includesAny(message, [

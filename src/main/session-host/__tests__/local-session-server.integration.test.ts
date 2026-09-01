@@ -80,6 +80,7 @@ describe('Local Session server', () => {
       negotiatedRevision: 2,
       eventCursor: { hostInstanceId: 'host-current', sequence: 0 },
       payload: { operation: 'status', sessionId: 'session-target' },
+      releaseAdmissionReader: expect.any(Function),
       signal: expect.any(AbortSignal),
     })
 

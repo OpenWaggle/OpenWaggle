@@ -100,6 +100,7 @@ interface NonHostUiLocalSessionCommandInput {
   readonly signal?: AbortSignal
   readonly mutationAdmission?: () => Promise<LocalSessionMutationAdmission>
   readonly observationAdmission?: () => Promise<LocalSessionObservationAdmission>
+  readonly beforeProfileRefresh?: () => void
 }
 
 type NonHostUiLocalSessionQueryInput = NonHostUiLocalSessionCommandInput & {
@@ -214,9 +215,10 @@ function dispatchNonHostUiLocalSessionCommandImplementation(
             ? { initiatingWorkingDirectory: admission.caller.workingDirectory }
             : {}),
           request: admittedPayload.request,
-          beforeDispatchAcceptedRun: refreshAdmissionBeforeStartedLifecycleProjection,
+          beforeDispatchAcceptedRun: (response) =>
+            refreshAdmissionBeforeStartedLifecycleProjection(response, input.beforeProfileRefresh),
         })
-        yield* refreshAdmissionBeforeIdleLifecycleProjection(response)
+        yield* refreshAdmissionBeforeIdleLifecycleProjection(response, input.beforeProfileRefresh)
         publishLifecycleResponse(response)
         return { contract: 'session-lifecycle-v2', response } as const
       }).pipe(Effect.uninterruptible)
@@ -245,6 +247,7 @@ export function dispatchLocalSessionCommand(input: {
   readonly payload: LocalSessionCommandPayload
   readonly negotiatedRevision?: number
   readonly signal?: AbortSignal
+  readonly beforeProfileRefresh?: () => void
 }) {
   const remote = dispatchConfiguredGuiSessionCommand(input)
   if (remote) return remote

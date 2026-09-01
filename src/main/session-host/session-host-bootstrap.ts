@@ -124,13 +124,21 @@ export async function startAppSessionHost(input: {
     describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
     startOwnedServices: input.startOwnedServices,
     stopOwnedServices: input.stopOwnedServices,
-    dispatch: async ({ caller, negotiatedRevision, eventCursor, payload, signal }) => {
+    dispatch: async ({
+      caller,
+      negotiatedRevision,
+      eventCursor,
+      payload,
+      signal,
+      releaseAdmissionReader,
+    }) => {
       const result = await input.runEffect(
         dispatchLocalSessionCommand({
           caller,
           negotiatedRevision,
           payload: decodeLocalSessionCommandPayloadForRevision(payload, negotiatedRevision),
           signal,
+          beforeProfileRefresh: releaseAdmissionReader,
         }),
       )
       return result.contract === 'session-query-v2'

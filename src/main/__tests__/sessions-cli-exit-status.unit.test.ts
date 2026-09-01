@@ -18,6 +18,7 @@ vi.mock('../session-host/local-session-client', () => ({
   watchLocalSessionEvents: mocks.watchEvents,
 }))
 
+import { decodeLocalSessionCommandResponse } from '../session-host/local-session-client-response'
 import { runSessionsCli } from '../sessions-cli'
 
 describe('Sessions CLI structured failure exit status', () => {
@@ -192,6 +193,36 @@ describe('Sessions CLI structured failure exit status', () => {
         'run-parent',
       ]),
     ).resolves.toBe(4)
+  })
+
+  it('decodes and classifies a named-profile Host rejection by its protocol code', async () => {
+    mocks.executeCommand.mockImplementation(() =>
+      decodeLocalSessionCommandResponse(
+        {
+          kind: 'error',
+          requestId: 'request-list',
+          code: 'capability_denied',
+          message: 'An error has occurred',
+        },
+        'request-list',
+      ),
+    )
+
+    await expect(runSessionsCli(['list', '--profile', 'reviewer', '--json'])).resolves.toBe(4)
+
+    expect(mocks.createClientInput).toHaveBeenCalledWith({
+      options: new Map([
+        ['profile', ['reviewer']],
+        ['json', ['true']],
+      ]),
+      passthrough: [],
+      positionals: [],
+    })
+    expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      type: 'error',
+      error: { kind: 'authorization', message: 'An error has occurred' },
+    })
   })
 
   it('emits cursor checkpoints for initial and filtered watch progress', async () => {

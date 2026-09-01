@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
 import {
+  classifySessionsCliError,
   validateSessionsCliOutputMode,
   writeSessionsCliError,
   writeSessionsCliResponse,
@@ -63,5 +65,18 @@ describe('Sessions CLI output contract', () => {
     expect(() =>
       validateSessionsCliOutputMode({ json: false, jsonl: true, stream: false }),
     ).toThrow('Single-response commands use --json')
+  })
+
+  it('prefers typed Host protocol codes over generic messages', () => {
+    expect(
+      classifySessionsCliError(
+        new LocalSessionClientProtocolError('capability_denied', 'An error has occurred'),
+      ),
+    ).toBe('authorization')
+    expect(
+      classifySessionsCliError(
+        new LocalSessionClientProtocolError('credential_rejected', 'An error has occurred'),
+      ),
+    ).toBe('authentication')
   })
 })

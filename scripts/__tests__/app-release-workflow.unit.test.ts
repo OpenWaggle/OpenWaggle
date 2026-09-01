@@ -82,7 +82,7 @@ describe('desktop app release workflow', () => {
       'Main advanced; its queued preparation run will regenerate the release candidate.',
     )
     expect(WORKFLOW).toContain('for VALIDATION_ATTEMPT in $(seq 1 3)')
-    expect(WORKFLOW).toContain('test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"')
+    expect(WORKFLOW).toContain('Reusing coherent ${TAG} at ${MERGE_SHA}.')
     expect(WORKFLOW).toContain('its protected-merge run owns publication')
     expect(WORKFLOW).toContain('Release PR merged after validation')
   })
@@ -102,12 +102,26 @@ describe('desktop app release workflow', () => {
   })
 
   it('accepts only the fully regenerated release tree and the validated PR tree', () => {
-    expect(WORKFLOW).toContain('git archive "$base_ref"')
-    expect(WORKFLOW).toContain('git archive "$candidate_ref"')
-    expect(WORKFLOW).toContain('diff -qr "$expected_root" "$candidate_root"')
+    expect(WORKFLOW).toContain('git worktree add --detach "$trusted_root" "$base_sha"')
+    expect(WORKFLOW).toContain('pnpm install --frozen-lockfile --ignore-scripts')
+    expect(WORKFLOW).toContain('scripts/app-release-tree-cli.ts verify')
+    expect(WORKFLOW).toContain('verify_generated_release_tree "$MERGE_PARENT_SHA" "$MERGE_SHA"')
+    expect(WORKFLOW).not.toContain('diff -qr')
     expect(WORKFLOW).toContain('test -z "$(git ls-tree -r --name-only "$commit_sha" .release/changes)"')
     expect(WORKFLOW).toContain('"${RELEASE_PR_HEAD_SHA}^{tree}"')
     expect(WORKFLOW).toContain('"${MERGE_SHA}^{tree}"')
+  })
+
+  it('uses parent commit dates and fails closed on exhausted validation or tags', () => {
+    expect(WORKFLOW).toContain('RELEASE_DATE=$(git show -s --format=%as "$BASE_SHA")')
+    expect(WORKFLOW).not.toContain('--format=%as "origin/${RELEASE_BRANCH}"')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts validation-action')
+    expect(WORKFLOW).toContain('Release PR metadata did not converge after')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts tag-action')
+    expect(WORKFLOW).toContain('if [ "$query_status" -eq 2 ]')
+    expect(WORKFLOW).toContain('if [ "$query_status" -ne 0 ]')
+    expect(WORKFLOW).toContain('Cannot prepare ${TAG}: it already targets')
+    expect(WORKFLOW).toContain('${TAG} already targets ${EXISTING_TAG_TARGET}, not ${MERGE_SHA}.')
   })
 
   it('separates PR preparation from protected-merge publication', () => {

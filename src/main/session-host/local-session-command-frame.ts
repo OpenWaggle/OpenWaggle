@@ -49,6 +49,7 @@ export async function executeLocalSessionCommandFrame(input: {
       eventCursor: input.dependencies.eventHub.cursor(),
       payload: input.frame.payload,
       signal: input.signal,
+      releaseAdmissionReader: () => input.releaseAdmissionReader?.(),
     })
     input.releaseAdmissionReader?.()
     const refreshed = refreshedProfileId(payload)

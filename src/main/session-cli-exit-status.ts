@@ -1,5 +1,5 @@
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
-import type { SessionsCliErrorKind } from './sessions-cli-output'
+import { type SessionsCliErrorKind, sessionsCliErrorKindForCode } from './sessions-cli-output'
 
 export const SESSION_CLI_EXIT = {
   SUCCESS: 0,
@@ -28,22 +28,7 @@ export function sessionCliExitCodeForError(kind: SessionsCliErrorKind) {
 }
 
 function errorKindForOutcomeCode(code: string): SessionsCliErrorKind {
-  const normalized = code.toLowerCase()
-  if (normalized.includes('not_found') || normalized.includes('missing')) return 'not_found'
-  if (
-    normalized.includes('authoriz') ||
-    normalized.includes('capability') ||
-    normalized.includes('denied') ||
-    normalized.includes('target_scope')
-  ) {
-    return 'authorization'
-  }
-  if (normalized.includes('timeout')) return 'timeout'
-  if (normalized.includes('host_stopped') || normalized.includes('host_lost')) {
-    return 'host_unavailable'
-  }
-  if (normalized.endsWith('_failed')) return 'internal'
-  return 'conflict'
+  return sessionsCliErrorKindForCode(code) ?? 'conflict'
 }
 
 export function sessionCliResultErrorKind(

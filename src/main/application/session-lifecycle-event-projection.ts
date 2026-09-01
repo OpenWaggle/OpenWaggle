@@ -23,6 +23,7 @@ export function publishLifecycleResponse(response: SessionLifecycleResponse) {
 
 export function refreshAdmissionBeforeStartedLifecycleProjection(
   response: SessionLifecycleResponse,
+  beforeRefresh?: () => void,
 ) {
   if (
     response.replayed ||
@@ -30,15 +31,22 @@ export function refreshAdmissionBeforeStartedLifecycleProjection(
   ) {
     return Effect.void
   }
-  return Effect.promise(() => refreshLocalSessionProfileAdmissions())
+  return Effect.sync(() => beforeRefresh?.()).pipe(
+    Effect.zipRight(Effect.promise(() => refreshLocalSessionProfileAdmissions())),
+  )
 }
 
-export function refreshAdmissionBeforeIdleLifecycleProjection(response: SessionLifecycleResponse) {
+export function refreshAdmissionBeforeIdleLifecycleProjection(
+  response: SessionLifecycleResponse,
+  beforeRefresh?: () => void,
+) {
   if (
     response.replayed ||
     (response.outcome.effect !== 'created-root' && response.outcome.effect !== 'forked-session')
   ) {
     return Effect.void
   }
-  return Effect.promise(() => refreshLocalSessionProfileAdmissions())
+  return Effect.sync(() => beforeRefresh?.()).pipe(
+    Effect.zipRight(Effect.promise(() => refreshLocalSessionProfileAdmissions())),
+  )
 }

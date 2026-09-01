@@ -386,6 +386,12 @@ allowing unrelated or capability-denied payloads to consume subscriber capacity.
 authorization still refreshes revocation, capability, and derived grants, but must not rebuild the
 filesystem/workspace/catalog admission snapshot for every streamed token.
 
+A lineage-producing lifecycle command must release its issuing socket's admission reader after the
+mutation commits and before it refreshes every profile admission. Refreshing while the command still
+holds that reader fences and waits on itself, eventually disconnecting the CLI after a successful
+create, fork, launch, or spawn. The release hook is idempotent, input on one socket remains serialized,
+and the global refresh still completes before the lifecycle response is written or a new Run starts.
+
 Paginated active-branch exports must pin the selected branch head on the first page and carry that
 immutable node through every continuation. Re-reading `session_branches.head_node_id` per page lets
 concurrent tree navigation silently truncate or mix the exported artifact.

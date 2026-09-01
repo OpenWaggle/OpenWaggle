@@ -47,6 +47,7 @@ export interface LocalSessionServerDependencies {
     readonly eventCursor: SessionHostEventCursor
     readonly payload: unknown
     readonly signal: AbortSignal
+    readonly releaseAdmissionReader: () => void
   }) => Promise<unknown>
   readonly authorizeEvent?: (
     caller: AuthenticatedLocalSessionCaller,

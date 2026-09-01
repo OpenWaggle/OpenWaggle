@@ -29,6 +29,9 @@ export interface ReleasePullRequestIdentity {
   readonly repository: string
 }
 
+export type ReleaseValidationAction = 'fail' | 'retry' | 'validate'
+export type ReleaseTagAction = 'conflict' | 'create' | 'reuse'
+
 export function selectOwnedReleasePullRequests(
   pullRequests: readonly AppReleasePullRequest[],
   identity: ReleasePullRequestIdentity,
@@ -46,11 +49,38 @@ export function releaseSubjectVersion(subject: string) {
   return RELEASE_SUBJECT_PATTERN.exec(subject)?.[1] ?? null
 }
 
+export function releaseValidationAction(
+  actualTitle: string,
+  expectedTitle: string,
+  attempt: number,
+  maximumAttempts: number,
+): ReleaseValidationAction {
+  if (actualTitle === expectedTitle) return 'validate'
+  return attempt < maximumAttempts ? 'retry' : 'fail'
+}
+
+export function releaseTagAction(
+  existingTarget: string | null,
+  expectedTarget: string | null,
+): ReleaseTagAction {
+  if (existingTarget === null) return 'create'
+  if (expectedTarget !== null && existingTarget === expectedTarget) return 'reuse'
+  return 'conflict'
+}
+
 function argument(name: string) {
   const index = process.argv.indexOf(name)
   const value = index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
   if (!value) {
     throw new Error(`Missing required argument ${name}.`)
+  }
+  return value
+}
+
+function numericArgument(name: string) {
+  const value = Number(argument(name))
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer.`)
   }
   return value
 }
@@ -85,6 +115,31 @@ async function runCli() {
       throw new Error('Commit subject is not a release subject.')
     }
     process.stdout.write(version)
+    return
+  }
+
+
+  if (command === 'validation-action') {
+    process.stdout.write(
+      releaseValidationAction(
+        argument('--actual-title'),
+        argument('--expected-title'),
+        numericArgument('--attempt'),
+        numericArgument('--maximum-attempts'),
+      ),
+    )
+    return
+  }
+
+  if (command === 'tag-action') {
+    const existingTarget = argument('--existing-target')
+    const expectedTarget = argument('--expected-target')
+    process.stdout.write(
+      releaseTagAction(
+        existingTarget === 'absent' ? null : existingTarget,
+        expectedTarget === 'absent' ? null : expectedTarget,
+      ),
+    )
     return
   }
 

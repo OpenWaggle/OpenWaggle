@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  releaseTagAction,
   releaseSubjectVersion,
+  releaseValidationAction,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
 } from '../app-release-state'
@@ -53,5 +55,32 @@ describe('app release state model', () => {
     )
     expect(releaseSubjectVersion('chore(release): v0.3.0-alpha.45 extra')).toBeNull()
     expect(releaseSubjectVersion('fix(release): v0.3.0-alpha.45 (#123)')).toBeNull()
+  })
+
+  it('fails after three release-title mismatches', () => {
+    const actions = [1, 2, 3].map((attempt) =>
+      releaseValidationAction('wrong title', 'chore(release): v0.3.0-alpha.45', attempt, 3),
+    )
+
+    expect(actions).toEqual(['retry', 'retry', 'fail'])
+    expect(
+      releaseValidationAction(
+        'chore(release): v0.3.0-alpha.45',
+        'chore(release): v0.3.0-alpha.45',
+        3,
+        3,
+      ),
+    ).toBe('validate')
+  })
+
+  it('fails closed for a conflicting release tag', () => {
+    const mergeSha = 'a'.repeat(40)
+    const conflictingSha = 'b'.repeat(40)
+
+    expect(releaseTagAction(null, null)).toBe('create')
+    expect(releaseTagAction(null, mergeSha)).toBe('create')
+    expect(releaseTagAction(mergeSha, mergeSha)).toBe('reuse')
+    expect(releaseTagAction(conflictingSha, mergeSha)).toBe('conflict')
+    expect(releaseTagAction(conflictingSha, null)).toBe('conflict')
   })
 })

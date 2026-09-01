@@ -27,6 +27,14 @@ Lexical multiword searches match all tokens in any position. Wrap the complete s
 
 `read --full` streams a stable high-water-mark snapshot page by page, so an agent can retrieve the complete transcript without accumulating it in memory. Pages are bounded by both record count and encoded bytes; a Session with large messages therefore produces smaller pages automatically. A single pathological record that cannot fit in one bounded response fails with `record_too_large` instead of crashing the Host. Machine consumers should use `--json` for one response and `--jsonl` for streams.
 
+Both modes use a schema-versioned envelope. Single responses have `type: "response"` and place the command result in `result`. Every JSONL line has `type: "record"` and places the stream value in `record`. Usage, authentication, authorization, transport, and internal failures have `type: "error"`; they are written to stderr instead of stdout.
+
+```json
+{"schemaVersion":1,"type":"response","command":"list","result":{"contract":"session-query-v2","response":{"contractVersion":2,"requestId":"request-1","outcome":{"operation":"list","sessions":[]}}}}
+{"schemaVersion":1,"type":"record","record":{"kind":"cursor","cursor":{"hostInstanceId":"host-1","sequence":42}}}
+{"schemaVersion":1,"type":"error","error":{"kind":"authorization","message":"An error has occurred"}}
+```
+
 Ordinary search defaults to hybrid mode over the discovery projection and requires `sessions:discover`. `search --full-transcript` defaults to lexical mode, can inspect older transcript content, and additionally requires `sessions:read`; discovery-only profiles cannot use it. Pass `--mode semantic` or `--mode hybrid` explicitly when semantic transcript matching is useful. Those modes lazily prepare durable node embeddings only for the authorized query scope, up to 1,000 sessions. Use `--require-fresh --timeout-ms <ms>` to wait for every node admitted by the bounded semantic-storage policy.
 
 Semantic transcript storage is a local, rebuildable cache rather than the authoritative transcript. It retains at most 5,000 recent searchable nodes per Session, 50,000 node records and 64 MiB of vectors in total, and 10,000 queued nodes. Inactive scopes expire after seven days and are reclaimed least-recently-used; an active prepare, wait, or search holds a durable lease and cannot be evicted. When a Session or the active authorized scope exceeds a limit, readiness becomes `partial` with exact counts and a reason instead of waiting forever. Semantic-only search may use the available partial projection, while hybrid search reports `semantic_partial_coverage` and uses the complete lexical index. The discovery window is marked truncated. `read --full` and lexical full-transcript search remain complete and are not limited by this semantic cache.
@@ -69,7 +77,16 @@ Pending agent-loop questions survive GUI disconnects and have no automatic expir
 
 A durable Follow-up queue accepts at most 256 entries and 32 MiB of serialized intent. Appends beyond either boundary fail with `queue_capacity_reached` or `queue_byte_capacity_reached`; withdraw or deliver entries before retrying. This keeps queue mutation, GUI synchronization, and recovery memory bounded without changing one-by-one delivery.
 
-`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream. JSONL output emits versioned `{ "kind": "cursor", "cursor": ... }` records for the initial subscription boundary and whenever a scoped watcher advances past a filtered event. Persist the latest emitted Host identity and sequence, including the cursor embedded in visible events, and reconnect with `--after-host` and `--after-sequence`. A `resync-required` record means the client must reload canonical state.
+`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream. JSONL output emits a versioned envelope for every line. Inspect `line.record`; cursor checkpoints have `line.record.kind === "cursor"` and carry the initial subscription boundary or the latest progress past a filtered event.
+
+```js
+const line = JSON.parse(rawLine)
+if (line.type === 'record' && line.record.kind === 'cursor') {
+  persistCheckpoint(line.record.cursor)
+}
+```
+
+Persist the latest emitted Host identity and sequence, including the cursor embedded in visible event records, and reconnect with `--after-host` and `--after-sequence`. A `resync-required` record means the client must reload canonical state.
 
 Delegation history uses the same bounded retrieval model:
 
