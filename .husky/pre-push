@@ -8,10 +8,14 @@ while IFS=' ' read -r _local_ref _local_oid remote_ref _remote_oid; do
   fi
 done
 
-if [ "$IS_MAIN_PUSH" -eq 0 ]; then
-  echo 'pre-push: skipping quality gates (no push target for main).'
+if [ "$IS_MAIN_PUSH" -eq 1 ]; then
+  echo 'pre-push: running quality gates for pushes to main.'
+  pnpm prepush:main
   exit 0
 fi
 
-echo 'pre-push: running quality gates for pushes to main.'
-pnpm prepush:main
+# Feature branches run the same deterministic checks the CI fast gate enforces, so a
+# push cannot discover a commit-policy violation, static error, or unit regression
+# from a red CI run 15 minutes later.
+echo 'pre-push: running fast local verification (pnpm verify).'
+pnpm verify

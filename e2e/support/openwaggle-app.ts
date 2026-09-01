@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
+import { closeElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { MainWindowPage } from '../page-models/main-window.page'
@@ -68,14 +69,16 @@ export class OpenWaggleApp {
       } else {
         console.error('[electron-qa] launch failed before Electron created a page')
       }
-      await app?.close().catch(() => undefined)
+      if (app !== null) {
+        await closeElectronApplication(app)
+      }
       await fs.rm(userDataDir, { recursive: true, force: true })
       throw error
     }
   }
 
   async restart(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
@@ -85,7 +88,7 @@ export class OpenWaggleApp {
   }
 
   async close(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {
