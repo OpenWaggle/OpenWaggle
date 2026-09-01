@@ -212,7 +212,10 @@ jobs:
   electron-e2e-windows:
     name: Electron E2E (Windows)
     runs-on: windows-latest
-    timeout-minutes: 20
+    # Windows builds and runs the functional Electron suite serially. The Session
+    # Summary parity coverage takes this job beyond the previous 20-minute ceiling,
+    # which cancelled Playwright before it could report failures or upload traces.
+    timeout-minutes: 40
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
