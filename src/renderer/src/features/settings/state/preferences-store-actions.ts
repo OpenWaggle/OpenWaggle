@@ -1,8 +1,4 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import type {
-  AppearanceMotionPreference,
-  AppearanceTypographyPreferences,
-} from '@shared/types/appearance-preferences'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import {
@@ -20,17 +16,15 @@ import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-prefere
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { setRuntimeSyntaxThemeSelections } from '@/shared/lib/syntax/syntax-theme-runtime'
-import type { PreferencesActions, PreferencesState } from './preferences-store-types'
+import {
+  persistAppearanceMotion,
+  persistAppearanceTypography,
+} from './appearance-preferences-actions'
+import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 
 const logger = createRendererLogger('preferences')
 const SLICE_ARG_2 = 100
 const SLICE_ARG_2_VALUE_10 = 10
-let appearancePreferenceWriteQueue = Promise.resolve()
-
-type PreferencesSet = (
-  partial: Partial<PreferencesState> | ((state: PreferencesState) => Partial<PreferencesState>),
-) => void
-type PreferencesGet = () => PreferencesState
 
 function persistProjectPreference(
   projectPath: string | null,
@@ -59,7 +53,12 @@ async function loadSettings(set: PreferencesSet, get: PreferencesGet) {
     const settings = await api.getSettings()
     setRuntimeSyntaxThemeSelections(settings.syntaxThemeSelections)
     setRuntimeAppearancePreferences(settings.appearancePreferences)
-    set({ settings, isLoaded: false, loadError: null })
+    set({
+      settings,
+      persistedAppearancePreferences: settings.appearancePreferences,
+      isLoaded: false,
+      loadError: null,
+    })
     if (settings.projectPath) await get().loadProjectPreferences(settings.projectPath)
     set({ isLoaded: true, loadError: null })
   } catch (err) {
@@ -141,57 +140,6 @@ async function persistSetting<K extends keyof Settings>(
 
 function assertSettingsUpdateSucceeded(result: Awaited<ReturnType<typeof api.updateSettings>>) {
   if (!result.ok) throw new Error(result.error)
-}
-
-function queueAppearancePreferencesWrite(appearancePreferences: Settings['appearancePreferences']) {
-  const write = appearancePreferenceWriteQueue
-    .catch(() => undefined)
-    .then(async () => {
-      assertSettingsUpdateSucceeded(await api.updateSettings({ appearancePreferences }))
-    })
-  appearancePreferenceWriteQueue = write
-  return write
-}
-
-function persistAppearanceTypography(
-  typographyPatch: Partial<AppearanceTypographyPreferences>,
-  set: PreferencesSet,
-  get: PreferencesGet,
-) {
-  const { settings } = get()
-  const previousPreferences = settings.appearancePreferences
-  const appearancePreferences = {
-    ...settings.appearancePreferences,
-    typography: { ...settings.appearancePreferences.typography, ...typographyPatch },
-  }
-  setRuntimeAppearancePreferences(appearancePreferences)
-  set({ settings: { ...settings, appearancePreferences } })
-  return queueAppearancePreferencesWrite(appearancePreferences).catch((error: unknown) => {
-    if (get().settings.appearancePreferences === appearancePreferences) {
-      setRuntimeAppearancePreferences(previousPreferences)
-      set({ settings: { ...get().settings, appearancePreferences: previousPreferences } })
-    }
-    throw error
-  })
-}
-
-function persistAppearanceMotion(
-  motion: AppearanceMotionPreference,
-  set: PreferencesSet,
-  get: PreferencesGet,
-) {
-  const { settings } = get()
-  const previousPreferences = settings.appearancePreferences
-  const appearancePreferences = { ...settings.appearancePreferences, motion }
-  setRuntimeAppearancePreferences(appearancePreferences)
-  set({ settings: { ...settings, appearancePreferences } })
-  return queueAppearancePreferencesWrite(appearancePreferences).catch((error: unknown) => {
-    if (get().settings.appearancePreferences === appearancePreferences) {
-      setRuntimeAppearancePreferences(previousPreferences)
-      set({ settings: { ...get().settings, appearancePreferences: previousPreferences } })
-    }
-    throw error
-  })
 }
 
 export function createPreferencesActions(

@@ -32,6 +32,7 @@ describe('preferences-store integration', () => {
     apiMock.updateSettings.mockResolvedValue({ ok: true })
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
+      persistedAppearancePreferences: DEFAULT_SETTINGS.appearancePreferences,
       isLoaded: false,
       loadError: null,
     })
@@ -85,6 +86,23 @@ describe('preferences-store integration', () => {
       usePreferencesStore.getState().setAppearanceTypography({ codeFontSize: 18 }),
     ).rejects.toThrow('Appearance rejected.')
 
+    expect(usePreferencesStore.getState().settings.appearancePreferences).toEqual(
+      DEFAULT_SETTINGS.appearancePreferences,
+    )
+  })
+
+  it('rolls back queued appearance failures to the last persisted preferences', async () => {
+    apiMock.updateSettings
+      .mockResolvedValueOnce({ ok: false, error: 'First appearance rejected.' })
+      .mockResolvedValueOnce({ ok: false, error: 'Second appearance rejected.' })
+
+    const firstWrite = usePreferencesStore.getState().setAppearanceTypography({ codeFontSize: 13 })
+    const secondWrite = usePreferencesStore.getState().setAppearanceTypography({ codeFontSize: 14 })
+
+    await Promise.all([
+      expect(firstWrite).rejects.toThrow('First appearance rejected.'),
+      expect(secondWrite).rejects.toThrow('Second appearance rejected.'),
+    ])
     expect(usePreferencesStore.getState().settings.appearancePreferences).toEqual(
       DEFAULT_SETTINGS.appearancePreferences,
     )

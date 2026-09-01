@@ -114,7 +114,7 @@ describe('project syntax catalog capacity', () => {
     expect(parseSource).not.toHaveBeenCalled()
   })
 
-  it('charges repeated reads of an include excluded by top-level resource selection', async () => {
+  it('charges repeated reads of a shared include', async () => {
     const themesDirectory = path.join(projectPath, '.openwaggle', 'themes')
     await fs.mkdir(themesDirectory, { recursive: true })
     const childTheme = (include: string, foreground: string) =>
@@ -132,7 +132,7 @@ describe('project syntax catalog capacity', () => {
         path.join(themesDirectory, '01-child-b.json'),
         childTheme('./zz-shared-base.json', '#00ff00'),
       ),
-      ...Array.from({ length: 18 }, (_, index) =>
+      ...Array.from({ length: 17 }, (_, index) =>
         fs.writeFile(path.join(themesDirectory, `${String(index + 2).padStart(2, '0')}.json`), ''),
       ),
     ])
@@ -156,6 +156,20 @@ describe('project syntax catalog capacity', () => {
     expect(caught).toEqual(
       expect.objectContaining({ message: expect.stringContaining('aggregate byte limit') }),
     )
+  })
+
+  it('rejects a project resource library over the top-level entry limit', async () => {
+    await Promise.all(
+      Array.from({ length: 21 }, (_, index) =>
+        sparseResource(`.openwaggle/themes/theme-${String(index)}.json`, 1),
+      ),
+    )
+    const parseSource: SyntaxSourceParser = vi.fn(async () => EMPTY_CATALOG)
+
+    await expect(readProjectSyntaxCatalog(projectPath, parseSource)).rejects.toThrow(
+      'supported limit',
+    )
+    expect(parseSource).not.toHaveBeenCalled()
   })
 
   it('charges expanded VSIX resources to the project read budget', async () => {

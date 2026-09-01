@@ -244,7 +244,7 @@ function mergeThemeDeclarations(
 export async function resolveThemeDeclaration(
   entryPath: string,
   load: (resourcePath: string) => Promise<unknown>,
-  resolveInclude: (resourcePath: string, includePath: string) => string,
+  resolveInclude: (resourcePath: string, includePath: string) => string | Promise<string>,
   visited = new Set<string>(),
 ): Promise<ResolvedThemeDeclaration> {
   if (visited.has(entryPath)) throw new Error('VS Code theme include chain contains a cycle.')
@@ -257,7 +257,7 @@ export async function resolveThemeDeclaration(
   if (!isRecord(parsed)) throw new Error('VS Code theme declaration must contain an object.')
   const includePath = parsed.include
   if (typeof includePath !== 'string') return { raw: parsed, original: parsed }
-  const includedPath = resolveInclude(entryPath, includePath)
+  const includedPath = await resolveInclude(entryPath, includePath)
   const base = await resolveThemeDeclaration(includedPath, load, resolveInclude, nextVisited)
   return { raw: mergeThemeDeclarations(base.raw, parsed), original: parsed }
 }

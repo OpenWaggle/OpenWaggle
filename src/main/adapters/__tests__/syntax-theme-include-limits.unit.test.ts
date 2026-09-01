@@ -55,6 +55,23 @@ describe('VS Code theme include aggregate limits', () => {
     )
   })
 
+  it('rejects an include symlink that resolves outside the theme directory', async () => {
+    const themeDirectory = path.join(temporaryRoot, 'theme-package')
+    const outsidePath = path.join(temporaryRoot, 'outside.json')
+    await fs.mkdir(themeDirectory)
+    await fs.writeFile(outsidePath, JSON.stringify(theme('Outside', '#ff0000')))
+    await fs.symlink(outsidePath, path.join(themeDirectory, 'linked-base.json'))
+    const childPath = path.join(themeDirectory, 'child.json')
+    await fs.writeFile(
+      childPath,
+      JSON.stringify({ ...theme('Child', '#00ff00'), include: './linked-base.json' }),
+    )
+
+    await expect(parseSyntaxThemeSource(childPath, 'project')).rejects.toThrow(
+      'outside its package',
+    )
+  })
+
   it('rejects an unpacked include chain over the aggregate complexity budget', async () => {
     const themesDirectory = path.join(temporaryRoot, 'themes')
     await fs.mkdir(themesDirectory)

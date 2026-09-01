@@ -1,6 +1,7 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AppearanceMotionPreference,
+  AppearancePreferences,
   AppearanceTypographyPreferences,
 } from '@shared/types/appearance-preferences'
 import type { SupportedModelId } from '@shared/types/brand'
@@ -11,6 +12,7 @@ import type { SyntaxAppearanceVariant, SyntaxThemeId } from '@shared/types/synta
 
 export interface PreferencesState {
   settings: Settings
+  persistedAppearancePreferences: AppearancePreferences
   isLoaded: boolean
   loadError: string | null
 
@@ -39,4 +41,13 @@ export interface PreferencesState {
   loadProjectPreferences: (projectPath: string) => Promise<void>
 }
 
-export type PreferencesActions = Omit<PreferencesState, 'settings' | 'isLoaded' | 'loadError'>
+export type PreferencesActions = Omit<
+  PreferencesState,
+  'settings' | 'persistedAppearancePreferences' | 'isLoaded' | 'loadError'
+>
+
+export type PreferencesSet = (
+  partial: Partial<PreferencesState> | ((state: PreferencesState) => Partial<PreferencesState>),
+) => void
+
+export type PreferencesGet = () => PreferencesState

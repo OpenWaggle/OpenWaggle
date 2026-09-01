@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { SyntaxResourceScope } from '@shared/types/syntax-resources'
 import { normalizedLanguage } from './syntax-language-normalization'
@@ -20,8 +21,9 @@ export async function parseJsonSyntaxFile(
   readBudget?: SyntaxReadBudget,
 ) {
   const includeBudget = createThemeIncludeBudget()
+  const entryPath = await fs.realpath(filePath)
   const raw = parseJsonText(
-    (await readBoundedFile(filePath, includeBudget, readBudget)).toString('utf8'),
+    (await readBoundedFile(entryPath, includeBudget, readBudget)).toString('utf8'),
     includeBudget,
   )
   if (!isRecord(raw)) throw new Error('Theme JSON must contain an object.')
@@ -46,9 +48,10 @@ export async function parseJsonSyntaxFile(
   }
   const label =
     typeof raw.name === 'string' ? raw.name : path.basename(filePath, path.extname(filePath))
-  const parsedByPath = new Map<string, unknown>([[filePath, raw]])
+  const themeRoot = path.dirname(entryPath)
+  const parsedByPath = new Map<string, unknown>([[entryPath, raw]])
   const resolved = await resolveThemeDeclaration(
-    filePath,
+    entryPath,
     async (resourcePath) => {
       const cached = parsedByPath.get(resourcePath)
       if (cached !== undefined) return cached
@@ -60,11 +63,13 @@ export async function parseJsonSyntaxFile(
       parsedByPath.set(resourcePath, value)
       return value
     },
-    (resourcePath, includePath) =>
-      confinedExtensionPath(
-        path.dirname(filePath),
+    async (resourcePath, includePath) => {
+      const declaredPath = confinedExtensionPath(
+        themeRoot,
         path.resolve(path.dirname(resourcePath), includePath),
-      ),
+      )
+      return confinedExtensionPath(themeRoot, await fs.realpath(declaredPath))
+    },
   )
   return {
     themes: [

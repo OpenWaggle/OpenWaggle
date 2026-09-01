@@ -159,11 +159,12 @@ export async function readProjectSyntaxCatalog(
     path.join(projectRoot, '.openwaggle', 'syntax'),
   ]
   const entriesByRoot = await Promise.all(roots.map(readProjectResourceRoot))
-  const resourcePaths = entriesByRoot
-    .flatMap((entries, rootIndex) =>
-      entries.map((entry) => path.join(roots[rootIndex] ?? projectPath, entry.name)),
-    )
-    .slice(0, PROJECT_RESOURCE_FILE_LIMIT)
+  const resourcePaths = entriesByRoot.flatMap((entries, rootIndex) =>
+    entries.map((entry) => path.join(roots[rootIndex] ?? projectPath, entry.name)),
+  )
+  if (resourcePaths.length > PROJECT_RESOURCE_FILE_LIMIT) {
+    throw new Error('The project syntax resource library exceeds its supported limit.')
+  }
   const preflightBudget = createSyntaxReadBudget(
     PROJECT_CATALOG_MAX_BYTES,
     'Project syntax resource inputs exceed the aggregate byte limit.',
