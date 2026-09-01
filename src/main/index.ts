@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
@@ -34,6 +35,9 @@ const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const STARTUP_TIMING_PRECISION = 1
 const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
+const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
+  'openwaggle-automation-single-instance-lock-denied-marker'
+const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
 
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
 const importAgentRunServiceModule = () => import('./application/agent-run-service')
@@ -76,6 +80,26 @@ function startupMark(label: string) {
     label,
     elapsedMs: Number((performance.now() - startupStartedAt).toFixed(STARTUP_TIMING_PRECISION)),
   })
+}
+
+function quitAutomationSecondInstance() {
+  const markerPath = app.commandLine.getSwitchValue(
+    AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH,
+  )
+  if (!markerPath) {
+    logger.error('Automation second-instance probe omitted its lock-denied marker path')
+    app.exit(FAILURE_EXIT_CODE)
+    return
+  }
+  void writeFile(markerPath, AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT, {
+    flag: 'wx',
+  }).then(
+    () => setTimeout(() => app.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS),
+    (error: unknown) => {
+      logger.error('Automation second-instance lock-denied marker failed', describeError(error))
+      app.exit(FAILURE_EXIT_CODE)
+    },
+  )
 }
 
 function getRuntimeModule() {
@@ -274,9 +298,7 @@ function startApp() {
     if (!app.requestSingleInstanceLock()) {
       logger.warn('Another OpenWaggle instance is already running; quitting this instance')
       if (env.OPENWAGGLE_AUTOMATION === '1') {
-        // Packaged release QA snapshots the Windows process tree before this expected fast exit.
-        // Keep the root observable longer than the bounded CIM snapshot command.
-        setTimeout(() => app.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS)
+        quitAutomationSecondInstance()
       } else {
         app.quit()
       }

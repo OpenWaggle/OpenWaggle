@@ -2,40 +2,24 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
 import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
 import { SessionId } from '@shared/types/brand'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import {
   SESSION_CONTROL_CONTRACT_VERSION,
   type SessionControlMutationOutcome,
 } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import {
-  type AuthorizedReportCandidate,
-  resolveReportTargets,
-} from '../domain/session-control/report-target-resolution'
-import { authorizeSessionTarget } from '../domain/session-control/session-capability-authorization'
+import { resolveReportTargets } from '../domain/session-control/report-target-resolution'
 import { SessionControlRepositoryError } from '../errors'
 import {
   type ExecuteSessionReportInput,
   SessionReportRepository,
 } from '../ports/session-report-repository'
 import { listPendingReports, markReportsDelivered } from './sqlite-session-report-delivery'
+import {
+  loadAuthorizedReportCandidates,
+  type ReportSourceRow,
+} from './sqlite-session-report-targets'
 import { resolveReportCorrelationId, sourceRunAuthorized } from './sqlite-session-report-validation'
-
-interface ReportSourceRow {
-  readonly session_id: string
-  readonly parent_session_id: string | null
-  readonly hive_root_session_id: string | null
-}
-
-interface ReportCandidateRow {
-  readonly session_id: string
-  readonly title: string
-  readonly project_path: string | null
-  readonly hive_root_session_id: string | null
-  readonly agent_name: string | null
-  readonly parent_session_id: string | null
-}
 
 interface ReplayRow {
   readonly request_json: string
@@ -63,36 +47,6 @@ function response(
 
 function reportScope(input: ExecuteSessionReportInput) {
   return `source:${input.request.command.sessionId}`
-}
-
-function isNarrowRoute(source: ReportSourceRow, candidate: ReportCandidateRow) {
-  return (
-    candidate.session_id === source.parent_session_id ||
-    candidate.session_id === source.hive_root_session_id ||
-    candidate.parent_session_id === source.session_id
-  )
-}
-
-function candidateAuthorized(
-  source: ReportSourceRow,
-  candidate: ReportCandidateRow,
-  authority: LocalSessionProfileAuthority | undefined,
-) {
-  if (isNarrowRoute(source, candidate)) return true
-  return authorizeSessionTarget(authority, {
-    sessionId: candidate.session_id,
-    ...(candidate.project_path ? { projectPath: candidate.project_path } : {}),
-    ...(candidate.hive_root_session_id
-      ? { hiveRootSessionId: candidate.hive_root_session_id }
-      : {}),
-  }).authorized
-}
-
-function referenceCandidates(rows: readonly ReportCandidateRow[]): AuthorizedReportCandidate[] {
-  return rows.map((row) => ({
-    sessionId: SessionId(row.session_id),
-    referenceNames: [row.session_id, row.title, ...(row.agent_name ? [row.agent_name] : [])],
-  }))
 }
 
 function brandedReportTarget(target: ExecuteSessionReportInput['request']['command']['target']) {
@@ -189,19 +143,14 @@ function executeReport(sql: SqlClient.SqlClient, input: ExecuteSessionReportInpu
           'source_not_found',
         )
       }
-      const candidateRows = yield* sql<ReportCandidateRow>`
-        SELECT sessions.id AS session_id, sessions.title, sessions.project_path,
-          lineage.hive_root_session_id, lineage.parent_session_id,
-          json_extract(session_execution_profiles.profile_json, '$.agentDefinitionName') AS agent_name
-        FROM sessions
-        LEFT JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = sessions.id
-        LEFT JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
-        WHERE sessions.id <> ${source.session_id}
-        ORDER BY sessions.id
-      `
-      const authorizedRows = candidateRows.filter((candidate) =>
-        candidateAuthorized(source, candidate, input.authority),
-      )
+      if (input.request.command.input.text.trim().length === 0) {
+        return yield* rejectReport(sql, input, requestJson, source.session_id, 'report_empty')
+      }
+      const authorizedCandidates = yield* loadAuthorizedReportCandidates(sql, {
+        source,
+        target: input.request.command.target,
+        ...(input.authority ? { authority: input.authority } : {}),
+      })
       const resolution = resolveReportTargets({
         selector: brandedReportTarget(input.request.command.target),
         source: {
@@ -211,11 +160,8 @@ function executeReport(sql: SqlClient.SqlClient, input: ExecuteSessionReportInpu
             ? SessionId(source.hive_root_session_id)
             : null,
         },
-        authorizedCandidates: referenceCandidates(authorizedRows),
+        authorizedCandidates,
       })
-      if (input.request.command.input.text.trim().length === 0) {
-        return yield* rejectReport(sql, input, requestJson, source.session_id, 'report_empty')
-      }
       if (!resolution.resolved) {
         return yield* rejectReport(sql, input, requestJson, source.session_id, resolution.code)
       }
@@ -229,7 +175,7 @@ function executeReport(sql: SqlClient.SqlClient, input: ExecuteSessionReportInpu
         )
       }
       const targetIds = resolution.targetSessionIds.map(String)
-      if (targetIds.some((id) => !authorizedRows.some((row) => row.session_id === id))) {
+      if (targetIds.some((id) => !authorizedCandidates.some((row) => row.sessionId === id))) {
         return yield* rejectReport(
           sql,
           input,

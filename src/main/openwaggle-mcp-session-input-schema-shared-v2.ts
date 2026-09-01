@@ -1,4 +1,9 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
+import {
+  hasUniqueCollaborationStrings,
+  hasUniqueCollaborationStructures,
+  SESSION_COLLABORATION_COLLECTION_LIMIT,
+} from '@shared/session-collaboration-collections'
 import { DELEGATION_STATES } from '@shared/types/session-collaboration'
 import { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
 import {
@@ -6,7 +11,6 @@ import {
   SESSION_QUERY_MAX_CURSOR_LENGTH,
   SESSION_QUERY_MAX_WAIT_MS,
   SESSION_QUERY_TRANSCRIPT_LIMIT,
-  SESSION_QUERY_WAIT_TARGET_LIMIT,
 } from '@shared/types/session-query'
 import { z } from 'zod'
 import {
@@ -88,12 +92,18 @@ export const evidenceSchema = z
     reference: mcpSessionPathSchemaV2.optional(),
   })
   .strict()
-export const evidence = z.array(evidenceSchema).max(MCP_SESSION_INPUT_LIMITS_V2.evidenceItems)
+export const evidence = z
+  .array(evidenceSchema)
+  .max(MCP_SESSION_INPUT_LIMITS_V2.evidenceItems)
+  .refine(hasUniqueCollaborationStructures, 'Delegation evidence items must be unique.')
 export const followUpIds = z
   .array(mcpSessionIdSchemaV2)
   .max(MAX_FOLLOW_UP_QUEUE_ITEMS)
   .refine((items) => new Set(items).size === items.length, 'Follow-up IDs must be unique.')
-export const targetSessionIds = z.array(mcpSessionIdSchemaV2).max(SESSION_QUERY_WAIT_TARGET_LIMIT)
+export const targetSessionIds = z
+  .array(mcpSessionIdSchemaV2)
+  .max(SESSION_COLLABORATION_COLLECTION_LIMIT)
+  .refine(hasUniqueCollaborationStrings, 'Target Session IDs must be unique.')
 export const revisedSpecificationSchema = z
   .object({
     objective: mcpSessionTextSchemaV2,

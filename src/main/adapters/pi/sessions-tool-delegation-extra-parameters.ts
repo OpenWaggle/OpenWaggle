@@ -1,3 +1,4 @@
+import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
 import {
   DELEGATION_CONFLICT_KINDS,
   DELEGATION_CONFLICT_STATUSES,
@@ -18,6 +19,7 @@ const evidence = Type.Array(
     reference: Type.Optional(Type.String()),
     provenance: Type.Optional(Type.Record(Type.String(), Type.String())),
   }),
+  { maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT, uniqueItems: true },
 )
 
 export const delegationVerifyParameter = Type.Object({

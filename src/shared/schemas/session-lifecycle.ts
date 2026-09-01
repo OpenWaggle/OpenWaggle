@@ -1,5 +1,10 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import {
+  hasUniqueCollaborationItemsBy,
+  hasUniqueCollaborationStrings,
+  SESSION_COLLABORATION_COLLECTION_LIMIT,
+} from '@shared/session-collaboration-collections'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import type {
   SessionLifecycleOutcome,
@@ -67,18 +72,35 @@ const launchCommandSchema = Schema.Struct({
   ),
 })
 
+const uniqueSpecificationStringsSchema = Schema.Array(Schema.String).pipe(
+  Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
+  Schema.filter(
+    (items) =>
+      hasUniqueCollaborationStrings(items) || 'Delegation specification items must be unique.',
+  ),
+)
+
+const delegationDependenciesSchema = Schema.Array(
+  Schema.Struct({
+    delegationId: Schema.String,
+    requiredState: Schema.Literal('ready_for_review', 'accepted'),
+  }),
+).pipe(
+  Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
+  Schema.filter(
+    (dependencies) =>
+      hasUniqueCollaborationItemsBy(dependencies, (dependency) => dependency.delegationId) ||
+      'Delegation dependency IDs must be unique.',
+  ),
+)
+
 export const delegationSpecificationSchema = Schema.Struct({
   objective: Schema.String,
-  deliverables: Schema.Array(Schema.String),
-  acceptanceCriteria: Schema.Array(Schema.String),
-  dependencies: Schema.Array(
-    Schema.Struct({
-      delegationId: Schema.String,
-      requiredState: Schema.Literal('ready_for_review', 'accepted'),
-    }),
-  ),
+  deliverables: uniqueSpecificationStringsSchema,
+  acceptanceCriteria: uniqueSpecificationStringsSchema,
+  dependencies: delegationDependenciesSchema,
   handoffContext: Schema.optional(Schema.String),
-  resourceReferences: Schema.Array(Schema.String),
+  resourceReferences: uniqueSpecificationStringsSchema,
 })
 
 const spawnCommandSchema = Schema.Struct({

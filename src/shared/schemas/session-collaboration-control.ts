@@ -1,11 +1,23 @@
 import { Schema } from '@shared/schema'
+import {
+  hasUniqueCollaborationStrings,
+  hasUniqueCollaborationStructures,
+  SESSION_COLLABORATION_COLLECTION_LIMIT,
+} from '@shared/session-collaboration-collections'
 import { delegationSpecificationSchema } from './session-lifecycle'
+
+const uniqueStringsSchema = Schema.Array(Schema.String).pipe(
+  Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
+  Schema.filter(
+    (items) => hasUniqueCollaborationStrings(items) || 'Collaboration items must be unique.',
+  ),
+)
 
 const reportTargetSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('upstream') }),
   Schema.Struct({ type: Schema.Literal('queen') }),
   Schema.Struct({ type: Schema.Literal('session'), sessionId: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('sessions'), sessionIds: Schema.Array(Schema.String) }),
+  Schema.Struct({ type: Schema.Literal('sessions'), sessionIds: uniqueStringsSchema }),
   Schema.Struct({ type: Schema.Literal('worker-reference'), reference: Schema.String }),
 )
 
@@ -34,20 +46,28 @@ const delegationEvidenceSchema = Schema.Struct({
   provenance: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
 })
 
+const delegationEvidenceCollectionSchema = Schema.Array(delegationEvidenceSchema).pipe(
+  Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
+  Schema.filter(
+    (items) =>
+      hasUniqueCollaborationStructures(items) || 'Delegation evidence items must be unique.',
+  ),
+)
+
 export const delegationSubmitCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-submit'),
   sessionId: Schema.String,
   delegationId: Schema.String,
   summary: Schema.String,
-  evidence: Schema.Array(delegationEvidenceSchema),
+  evidence: delegationEvidenceCollectionSchema,
 })
 
 const revisedDelegationSpecificationSchema = Schema.Struct({
   objective: Schema.String,
-  deliverables: Schema.Array(Schema.String),
-  acceptanceCriteria: Schema.Array(Schema.String),
+  deliverables: uniqueStringsSchema,
+  acceptanceCriteria: uniqueStringsSchema,
   handoffContext: Schema.optional(Schema.String),
-  resourceReferences: Schema.Array(Schema.String),
+  resourceReferences: uniqueStringsSchema,
 })
 
 export const delegationRequestRevisionCommandSchema = Schema.Struct({
@@ -105,11 +125,18 @@ export const delegationScopeClaimSchema = Schema.Struct({
   target: delegationClaimTargetSchema,
 })
 
+const delegationClaimsSchema = Schema.Array(delegationScopeClaimSchema).pipe(
+  Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
+  Schema.filter(
+    (items) => hasUniqueCollaborationStructures(items) || 'Delegation claims must be unique.',
+  ),
+)
+
 export const delegationClaimCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-claim'),
   sessionId: Schema.String,
   delegationId: Schema.String,
-  claims: Schema.Array(delegationScopeClaimSchema),
+  claims: delegationClaimsSchema,
   reason: Schema.String,
 })
 
@@ -157,5 +184,5 @@ export const delegationVerifyCommandSchema = Schema.Struct({
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   outcome: Schema.Literal('passed', 'failed', 'inconclusive'),
   summary: Schema.String,
-  evidence: Schema.Array(delegationEvidenceSchema),
+  evidence: delegationEvidenceCollectionSchema,
 })

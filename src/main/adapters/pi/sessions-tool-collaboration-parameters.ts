@@ -1,18 +1,25 @@
+import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
 import { Type } from 'typebox'
 import { delegationVerifyParameter } from './sessions-tool-delegation-extra-parameters'
 
+const uniqueStrings = Type.Array(Type.String(), {
+  maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
+  uniqueItems: true,
+})
+
 const delegationSpecification = Type.Object({
   objective: Type.String(),
-  deliverables: Type.Array(Type.String()),
-  acceptanceCriteria: Type.Array(Type.String()),
+  deliverables: uniqueStrings,
+  acceptanceCriteria: uniqueStrings,
   dependencies: Type.Array(
     Type.Object({
       delegationId: Type.String(),
       requiredState: Type.Union([Type.Literal('ready_for_review'), Type.Literal('accepted')]),
     }),
+    { maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT, uniqueItems: true },
   ),
   handoffContext: Type.Optional(Type.String()),
-  resourceReferences: Type.Array(Type.String()),
+  resourceReferences: uniqueStrings,
 })
 
 export const sessionsToolCollaborationParameters = [
@@ -23,7 +30,7 @@ export const sessionsToolCollaborationParameters = [
       Type.Object({ type: Type.Literal('upstream') }),
       Type.Object({ type: Type.Literal('queen') }),
       Type.Object({ type: Type.Literal('session'), sessionId: Type.String() }),
-      Type.Object({ type: Type.Literal('sessions'), sessionIds: Type.Array(Type.String()) }),
+      Type.Object({ type: Type.Literal('sessions'), sessionIds: uniqueStrings }),
       Type.Object({ type: Type.Literal('worker_reference'), reference: Type.String() }),
     ]),
     requestReply: Type.Optional(Type.Boolean()),
@@ -47,6 +54,7 @@ export const sessionsToolCollaborationParameters = [
           reference: Type.Optional(Type.String()),
           provenance: Type.Optional(Type.Record(Type.String(), Type.String())),
         }),
+        { maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT, uniqueItems: true },
       ),
     ),
   }),
@@ -77,6 +85,7 @@ export const sessionsToolCollaborationParameters = [
           }),
         ]),
       }),
+      { maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT, uniqueItems: true },
     ),
     reason: Type.String({ minLength: 1 }),
   }),
@@ -117,10 +126,10 @@ export const sessionsToolCollaborationParameters = [
     revisedSpecification: Type.Optional(
       Type.Object({
         objective: Type.String(),
-        deliverables: Type.Array(Type.String()),
-        acceptanceCriteria: Type.Array(Type.String()),
+        deliverables: uniqueStrings,
+        acceptanceCriteria: uniqueStrings,
         handoffContext: Type.Optional(Type.String()),
-        resourceReferences: Type.Array(Type.String()),
+        resourceReferences: uniqueStrings,
       }),
     ),
   }),

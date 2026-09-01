@@ -51,6 +51,7 @@ function itemSizes(
   highWaterMark: number,
   headNodeId: string | null,
   tree: boolean,
+  indexedBranchId: string | null,
 ) {
   const { query } = request
   if (!tree && !headNodeId) return Effect.succeed<readonly ItemSizeRow[]>([])
@@ -61,6 +62,22 @@ function itemSizes(
         AS estimated_bytes
       FROM session_nodes
       WHERE session_id = ${query.sessionId}
+        AND created_order > ${query.afterCreatedOrder ?? -1}
+        AND created_order <= ${highWaterMark}
+        AND (${query.runId ?? null} IS NULL
+          OR json_extract(metadata_json, '$.openWaggle.runId') = ${query.runId ?? null})
+      ORDER BY created_order ASC
+      LIMIT ${query.limit + 1}
+    `
+  }
+  if (indexedBranchId) {
+    return sql<ItemSizeRow>`
+      SELECT created_order,
+        length(CAST(content_json AS BLOB)) + length(CAST(metadata_json AS BLOB)) + 4096
+        AS estimated_bytes
+      FROM session_nodes
+      WHERE session_id = ${query.sessionId}
+        AND branch_hint_id = ${indexedBranchId}
         AND created_order > ${query.afterCreatedOrder ?? -1}
         AND created_order <= ${highWaterMark}
         AND (${query.runId ?? null} IS NULL
@@ -100,6 +117,7 @@ function itemRows(
   selectedThrough: number | undefined,
   headNodeId: string | null,
   tree: boolean,
+  indexedBranchId: string | null,
 ) {
   if (selectedThrough === undefined) return Effect.succeed<readonly ItemRow[]>([])
   const { query } = request
@@ -109,6 +127,20 @@ function itemRows(
         content_json, metadata_json
       FROM session_nodes
       WHERE session_id = ${query.sessionId}
+        AND created_order > ${query.afterCreatedOrder ?? -1}
+        AND created_order <= ${selectedThrough}
+        AND (${query.runId ?? null} IS NULL
+          OR json_extract(metadata_json, '$.openWaggle.runId') = ${query.runId ?? null})
+      ORDER BY created_order ASC
+    `
+  }
+  if (indexedBranchId) {
+    return sql<ItemRow>`
+      SELECT id, parent_id, role, kind, timestamp_ms, created_order, branch_hint_id,
+        content_json, metadata_json
+      FROM session_nodes
+      WHERE session_id = ${query.sessionId}
+        AND branch_hint_id = ${indexedBranchId}
         AND created_order > ${query.afterCreatedOrder ?? -1}
         AND created_order <= ${selectedThrough}
         AND (${query.runId ?? null} IS NULL
@@ -182,12 +214,20 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
       })
     }
     const highWaterMark = snapshot.highWaterMark
+    // Snapshot persistence assigns the active branch hint to every node on its complete path.
+    // A pinned branch that is no longer active must retain the recursive fallback because shared
+    // ancestors are re-attributed when the active branch changes.
+    const indexedBranchId =
+      snapshot.selectedBranchId !== null && snapshot.selectedBranchId === snapshot.activeBranchId
+        ? snapshot.selectedBranchId
+        : null
     const sizeRows = yield* itemSizes(
       sql,
       itemsRequest,
       highWaterMark,
       snapshot.headNodeId,
       snapshot.branchScope === 'tree',
+      indexedBranchId,
     )
     const selectedSizes = selectItemSizePrefix(sizeRows, query.limit)
     if ((selectedSizes[0]?.estimated_bytes ?? 0) > SESSION_QUERY_MAX_RESPONSE_BYTES) {
@@ -205,6 +245,7 @@ export function readItems(sql: SqlClient.SqlClient, request: SessionQueryRequest
       selectedSizes.at(-1)?.created_order,
       snapshot.headNodeId,
       snapshot.branchScope === 'tree',
+      indexedBranchId,
     )
     const candidates = rows.slice(0, query.limit).map(itemRecord)
     const baseOutcome = {

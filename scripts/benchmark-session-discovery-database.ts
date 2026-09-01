@@ -62,10 +62,11 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
         SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < ?
       )
       INSERT INTO session_nodes (
-        id, session_id, pi_entry_type, kind, role, timestamp_ms, content_json,
-        metadata_json, path_depth, created_order
+        id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms, content_json,
+        metadata_json, branch_hint_id, path_depth, created_order
       )
       SELECT printf('node-%08d', value), printf('session-%06d', value % ?),
+        CASE WHEN value < ? THEN NULL ELSE printf('node-%08d', value - ?) END,
         'message', 'message',
         CASE WHEN CAST(value / ? AS INTEGER) % 2 = 0 THEN 'user' ELSE 'assistant' END,
         value,
@@ -75,7 +76,8 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
           THEN 'rare benchmarktoken final result'
           ELSE 'ordinary project implementation message'
         END),
-        '{}', 0, CAST(value / ? AS INTEGER)
+        '{}', printf('session-%06d:main', value % ?),
+        CAST(value / ? AS INTEGER), CAST(value / ? AS INTEGER)
       FROM sequence
     `)
     .run(
@@ -83,10 +85,35 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
       sessionCount,
       sessionCount,
       sessionCount,
+      sessionCount,
+      sessionCount,
       messageCount,
       sessionCount,
       sessionCount,
+      sessionCount,
+      sessionCount,
     )
+  database
+    .prepare(`
+      INSERT INTO session_branches (
+        id, session_id, source_node_id, head_node_id, name, is_main,
+        created_at, updated_at
+      )
+      SELECT id || ':main', id, NULL,
+        printf('node-%08d', ? - ? + CAST(substr(id, 9) AS INTEGER)),
+        'Main', 1, created_at, updated_at
+      FROM sessions
+    `)
+    .run(messageCount, sessionCount)
+  database
+    .prepare(`
+      UPDATE sessions SET
+        last_active_branch_id = id || ':main',
+        last_active_node_id = printf(
+          'node-%08d', ? - ? + CAST(substr(id, 9) AS INTEGER)
+        )
+    `)
+    .run(messageCount, sessionCount)
   database.exec('INSERT INTO session_node_search SELECT session_id, id, content_json FROM session_nodes')
   database.exec(`
     INSERT INTO session_node_discovery_search
@@ -148,8 +175,24 @@ async function benchmarkQueries(databasePath: string) {
         }),
       ),
     )
-  const transcript = () =>
+  const fullTranscript = () =>
     runtime.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        loadLexicalDiscoveryRows(sql, undefined, {
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: 'benchmark-full-transcript',
+          query: {
+            operation: 'search',
+            query: 'ordinary',
+            limit: PAGE_SIZE,
+            mode: 'lexical',
+            searchScope: 'full-transcript',
+          },
+        }),
+      ),
+    )
+  const transcript = async () => {
+    const response = await runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         readItems(sql, {
           contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -158,6 +201,15 @@ async function benchmarkQueries(databasePath: string) {
         }),
       ),
     )
+    if (
+      response.outcome.operation !== 'items' ||
+      !('items' in response.outcome) ||
+      response.outcome.items.length === 0
+    ) {
+      throw new Error('Transcript benchmark did not read a production-shaped active branch page.')
+    }
+    return response
+  }
   const coldStartedAt = performance.now()
   await list()
   const coldListMs = performance.now() - coldStartedAt
@@ -166,6 +218,7 @@ async function benchmarkQueries(databasePath: string) {
       coldListMs,
       list: await measure(list),
       lexical: await measure(lexical),
+      fullTranscript: await measure(fullTranscript),
       transcript: await measure(transcript),
     }
   } finally {
@@ -213,6 +266,7 @@ async function main() {
       queries.coldListMs < COLD_LIMIT_MS &&
       queries.list.p95Ms < WARM_P95_LIMIT_MS &&
       queries.lexical.p95Ms < WARM_P95_LIMIT_MS &&
+      queries.fullTranscript.p95Ms < WARM_P95_LIMIT_MS &&
       queries.transcript.p95Ms < WARM_P95_LIMIT_MS
     process.stdout.write(
       `${JSON.stringify(
@@ -225,6 +279,7 @@ async function main() {
             coldListMs: queries.coldListMs,
             listP95Ms: queries.list.p95Ms,
             lexicalP95Ms: queries.lexical.p95Ms,
+            fullTranscriptP95Ms: queries.fullTranscript.p95Ms,
             transcriptP95Ms: queries.transcript.p95Ms,
           },
           limits: { warmP95Ms: WARM_P95_LIMIT_MS, coldMs: COLD_LIMIT_MS },

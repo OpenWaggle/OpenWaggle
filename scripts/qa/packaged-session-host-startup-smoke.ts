@@ -14,6 +14,11 @@ import {
 } from './live-session-orchestration-lifecycle'
 import { prepareLiveQaCliExecutable } from './live-session-cli-executable'
 import {
+  assertSingleInstanceLockDeniedMarker,
+  singleInstanceLockDeniedArguments,
+  singleInstanceLockDeniedMarkerPath,
+} from './single-instance-lock-proof'
+import {
   cliOutcome,
   launchGui,
   runJsonCli,
@@ -245,14 +250,16 @@ export async function runPackagedSessionHostStartupScenario(
       state.guiLogs.push(state.gui.logs)
       await waitForHost(cliExecutable, environment)
       if (process.platform === 'win32') {
+        const lockDeniedMarkerPath = singleInstanceLockDeniedMarkerPath(input.userDataRoot)
         const secondGui = await launchInWindowsJobObject(
           input.executable,
           environment,
-          packagedGuiArguments(),
+          [...packagedGuiArguments(), ...singleInstanceLockDeniedArguments(lockDeniedMarkerPath)],
         )
         state.guiLogs.push(secondGui.logs)
         try {
-          await secondGui.waitForEmpty()
+          await secondGui.waitForNormalExit()
+          await assertSingleInstanceLockDeniedMarker(lockDeniedMarkerPath)
         } finally {
           await secondGui.terminateAndWait()
         }
@@ -280,9 +287,7 @@ export async function runPackagedSessionHostStartupScenario(
 }
 
 async function runScenario(executable: string, scenario: PackagedStartupScenario) {
-  const userDataRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), `openwaggle-packaged-${scenario}-startup-`),
-  )
+  const userDataRoot = await fs.mkdtemp(path.join(os.tmpdir(), `openwaggle-${scenario}-startup-`))
   await runPackagedSessionHostStartupScenario({ executable, scenario, userDataRoot })
 }
 
@@ -292,9 +297,8 @@ export async function verifyPackagedSessionHostStartup(executable: string) {
 }
 
 async function main() {
-  const executable = process.argv
-    .slice(FIRST_USER_ARGUMENT_INDEX)
-    .find((argument) => argument !== ARGUMENT_SEPARATOR)
+  const userArguments = process.argv.slice(FIRST_USER_ARGUMENT_INDEX)
+  const executable = userArguments.find((argument) => argument !== ARGUMENT_SEPARATOR)
   if (executable === undefined || executable.trim().length === 0) {
     throw new Error('Usage: packaged-session-host-startup-smoke.ts <packaged-executable>')
   }

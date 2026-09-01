@@ -68,6 +68,7 @@ export function resolveItemSnapshot(sql: SqlClient.SqlClient, query: ItemSnapsho
     return {
       status: 'ready',
       branchScope,
+      activeBranchId: snapshot.last_active_branch_id,
       selectedBranchId,
       headNodeId: head.headNodeId,
       highWaterMark: query.throughCreatedOrder ?? snapshot.high_water_mark,

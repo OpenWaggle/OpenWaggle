@@ -1,4 +1,5 @@
 import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
+import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
 import { DELEGATION_STATES } from '@shared/types/session-collaboration'
 import {
   SESSION_QUERY_DISCOVERY_LIMIT,
@@ -87,9 +88,24 @@ export const sessionsToolParameters = Type.Union([
     baseRef: Type.Optional(Type.String()),
     startFromOrigin: Type.Optional(Type.Boolean()),
     ...rootSpecialization,
-    deliverables: Type.Optional(Type.Array(Type.String())),
-    acceptanceCriteria: Type.Optional(Type.Array(Type.String())),
-    resourceReferences: Type.Optional(Type.Array(Type.String())),
+    deliverables: Type.Optional(
+      Type.Array(Type.String(), {
+        maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
+        uniqueItems: true,
+      }),
+    ),
+    acceptanceCriteria: Type.Optional(
+      Type.Array(Type.String(), {
+        maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
+        uniqueItems: true,
+      }),
+    ),
+    resourceReferences: Type.Optional(
+      Type.Array(Type.String(), {
+        maxItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
+        uniqueItems: true,
+      }),
+    ),
     authorization: Type.Optional(
       Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
     ),

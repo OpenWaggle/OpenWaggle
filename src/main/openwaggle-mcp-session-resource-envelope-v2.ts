@@ -1,3 +1,7 @@
+import {
+  hasUniqueCollaborationStrings,
+  SESSION_COLLABORATION_COLLECTION_LIMIT,
+} from '@shared/session-collaboration-collections'
 import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { z } from 'zod'
 
@@ -6,9 +10,9 @@ export const MCP_SESSION_INPUT_LIMITS_V2 = {
   titleLength: 1_024,
   textLength: 131_072,
   itemTextLength: 16_384,
-  arrayItems: 256,
-  evidenceItems: 256,
-  resourceReferences: 256,
+  arrayItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
+  evidenceItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
+  resourceReferences: SESSION_COLLABORATION_COLLECTION_LIMIT,
   jsonLength: 131_072,
 } as const
 
@@ -26,9 +30,11 @@ export const mcpSessionPathSchemaV2 = z.string().min(1).max(SESSION_QUERY_MAX_PA
 export const mcpSessionItemArraySchemaV2 = z
   .array(mcpSessionItemTextSchemaV2)
   .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
+  .refine(hasUniqueCollaborationStrings, 'Collaboration items must be unique.')
 export const mcpSessionResourceReferencesSchemaV2 = z
   .array(mcpSessionPathSchemaV2)
   .max(MCP_SESSION_INPUT_LIMITS_V2.resourceReferences)
+  .refine(hasUniqueCollaborationStrings, 'Resource references must be unique.')
 
 export const mcpSessionJsonSchemaV2 = z
   .json()

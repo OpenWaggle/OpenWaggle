@@ -296,4 +296,8 @@ export const SESSION_HOST_TARGET_SCHEMA_STATEMENTS = [
     created_order
   )
   `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_nodes_active_branch_created_order
+  ON session_nodes (session_id, branch_hint_id, created_order)
+  `,
 ] as const

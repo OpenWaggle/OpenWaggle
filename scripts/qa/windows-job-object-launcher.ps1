@@ -18,6 +18,7 @@ public sealed class OpenWaggleQaJob : IDisposable
     private const uint CREATE_SUSPENDED = 0x00000004;
     private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+    private const uint STILL_ACTIVE = 259;
     private const int JobObjectBasicAccountingInformation = 1;
     private const int JobObjectExtendedLimitInformation = 9;
     private const int STARTF_USESTDHANDLES = 0x00000100;
@@ -150,12 +151,16 @@ public sealed class OpenWaggleQaJob : IDisposable
     private static extern bool TerminateProcess(IntPtr process, uint exitCode);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GetStdHandle(int standardHandle);
 
     private readonly SafeFileHandle job;
+    private IntPtr rootProcess = IntPtr.Zero;
     public OpenWaggleQaJob()
     {
         job = CreateJobObject(IntPtr.Zero, null);
@@ -193,12 +198,14 @@ public sealed class OpenWaggleQaJob : IDisposable
                 TerminateJobObject(job, 1);
                 ThrowLastError("ResumeThread");
             }
+            rootProcess = process.hProcess;
+            process.hProcess = IntPtr.Zero;
             return process.dwProcessId;
         }
         finally
         {
             CloseHandle(process.hThread);
-            CloseHandle(process.hProcess);
+            if (process.hProcess != IntPtr.Zero) CloseHandle(process.hProcess);
         }
     }
 
@@ -215,12 +222,27 @@ public sealed class OpenWaggleQaJob : IDisposable
         return accounting.ActiveProcesses;
     }
 
+    public bool TryGetRootExitCode(out uint exitCode)
+    {
+        if (rootProcess == IntPtr.Zero) throw new InvalidOperationException("Root process is unavailable.");
+        if (!GetExitCodeProcess(rootProcess, out exitCode)) ThrowLastError("GetExitCodeProcess");
+        return exitCode != STILL_ACTIVE;
+    }
+
     public void Terminate()
     {
         if (!TerminateJobObject(job, 1)) ThrowLastError("TerminateJobObject");
     }
 
-    public void Dispose() { job.Dispose(); }
+    public void Dispose()
+    {
+        if (rootProcess != IntPtr.Zero)
+        {
+            CloseHandle(rootProcess);
+            rootProcess = IntPtr.Zero;
+        }
+        job.Dispose();
+    }
 
     private delegate void StructureAction(IntPtr pointer, uint size);
     private static void WithStructure<T>(T value, StructureAction action)
@@ -281,6 +303,11 @@ try {
     }
     $active = $job.ActiveProcesses()
     if ($active -eq 0) {
+      [uint32]$rootExitCode = 0
+      if (-not $job.TryGetRootExitCode([ref]$rootExitCode)) {
+        throw 'Windows Job Object became empty before the root exit code was available.'
+      }
+      Write-JobState 'root-exited' ([string]$rootExitCode)
       Write-JobState 'empty' '0'
       exit 0
     }

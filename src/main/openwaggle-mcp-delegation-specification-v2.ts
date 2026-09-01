@@ -1,3 +1,4 @@
+import { hasUniqueCollaborationItemsBy } from '@shared/session-collaboration-collections'
 import { z } from 'zod'
 import {
   MCP_SESSION_INPUT_LIMITS_V2,
@@ -21,7 +22,12 @@ export const mcpDelegationSpecificationSchemaV2 = z
           })
           .strict(),
       )
-      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems),
+      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
+      .refine(
+        (dependencies) =>
+          hasUniqueCollaborationItemsBy(dependencies, (dependency) => dependency.delegationId),
+        'Delegation dependency IDs must be unique.',
+      ),
     handoffContext: mcpSessionTextSchemaV2.optional(),
     resourceReferences: mcpSessionResourceReferencesSchemaV2,
   })

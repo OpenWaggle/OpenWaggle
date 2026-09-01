@@ -136,6 +136,12 @@ describe('session branch archive projection', () => {
       expect(archivedBranch?.archived).toBe(true)
       expect(String(archivedTree?.session.lastActiveBranchId)).toBe(`${sessionId}:main`)
       expect(sessionSummary?.branches?.map((branch) => branch.name)).toEqual(['main'])
+      expect(archivedTree?.nodes.map((node) => [String(node.id), node.branchId ?? null])).toEqual([
+        ['root-user', SessionBranchId(`${sessionId}:main`)],
+        ['main-assistant', SessionBranchId(`${sessionId}:main`)],
+        ['branch-user', null],
+        ['branch-assistant', null],
+      ])
     }
 
     const archivedBranchSummaries = await listArchivedSessionBranches()

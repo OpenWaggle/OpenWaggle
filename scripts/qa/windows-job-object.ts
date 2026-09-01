@@ -8,11 +8,13 @@ const JOB_START_TIMEOUT_MS = 15_000
 const JOB_STOP_TIMEOUT_MS = 5_000
 const JOB_POLL_INTERVAL_MS = 25
 const MAX_LOG_BYTES = 64_000
+const MAX_WINDOWS_EXIT_CODE = 0xffff_ffff
 const POWERSHELL = 'powershell.exe'
 const LAUNCHER_PATH = fileURLToPath(new URL('./windows-job-object-launcher.ps1', import.meta.url))
 
 export type WindowsJobState =
   | { readonly status: 'assigned'; readonly rootPid: number }
+  | { readonly status: 'root-exited'; readonly exitCode: number }
   | { readonly status: 'empty' }
   | { readonly status: 'failed'; readonly message: string }
 
@@ -27,6 +29,7 @@ export interface WindowsJobObjectProcess {
   readonly logs: () => string
   readonly rootPid: number
   terminateAndWait(): Promise<void>
+  waitForNormalExit(): Promise<void>
   waitForEmpty(): Promise<void>
 }
 
@@ -38,6 +41,11 @@ function errorCode(error: unknown) {
 function parsePositiveInteger(value: string) {
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseWindowsExitCode(value: string) {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_WINDOWS_EXIT_CODE ? parsed : null
 }
 
 function parseWindowsJobStates(contents: string) {
@@ -52,6 +60,10 @@ function parseWindowsJobStates(contents: string) {
       const rootPid = parsePositiveInteger(detail)
       if (rootPid !== null) states.push({ status: 'assigned', rootPid })
     }
+    if (status === 'root-exited') {
+      const exitCode = parseWindowsExitCode(detail)
+      if (exitCode !== null) states.push({ status: 'root-exited', exitCode })
+    }
     if (status === 'failed') {
       states.push({ status: 'failed', message: Buffer.from(detail, 'base64').toString('utf8') })
     }
@@ -63,8 +75,28 @@ export function parseWindowsJobStatus(contents: string): WindowsJobState | null 
   return parseWindowsJobStates(contents).at(-1) ?? null
 }
 
+function resolveExpectedWindowsJobState(
+  expected: 'assigned' | 'empty' | 'normal-exit',
+  states: readonly WindowsJobState[],
+) {
+  const state = states.at(-1)
+  if (state?.status === 'failed') {
+    throw new Error(`Windows Job Object launcher failed: ${state.message}`)
+  }
+  if (expected === 'assigned') {
+    return states.find((candidate) => candidate.status === 'assigned') ?? null
+  }
+  if (expected === 'empty') return state?.status === 'empty' ? state : null
+  const rootExit = states.find((candidate) => candidate.status === 'root-exited')
+  if (rootExit?.status !== 'root-exited') return null
+  if (rootExit.exitCode !== 0) {
+    throw new Error(`Windows Job Object root exited with code ${String(rootExit.exitCode)}.`)
+  }
+  return state?.status === 'empty' ? rootExit : null
+}
+
 export async function waitForWindowsJobState(
-  expected: 'assigned' | 'empty',
+  expected: 'assigned' | 'empty' | 'normal-exit',
   timeoutMs: number,
   dependencies: WaitForWindowsJobStateDependencies,
 ) {
@@ -75,13 +107,8 @@ export async function waitForWindowsJobState(
   const deadline = now() + timeoutMs
   while (now() < deadline) {
     const states = parseWindowsJobStates(await dependencies.readStatus())
-    const state = states.at(-1)
-    if (state?.status === 'failed') throw new Error(`Windows Job Object launcher failed: ${state.message}`)
-    if (expected === 'assigned') {
-      const assignment = states.find((candidate) => candidate.status === 'assigned')
-      if (assignment?.status === 'assigned') return assignment
-    }
-    if (expected === 'empty' && state?.status === 'empty') return state
+    const resolved = resolveExpectedWindowsJobState(expected, states)
+    if (resolved !== null) return resolved
     if (dependencies.childExited()) {
       throw new Error(`Windows Job Object owner exited before ${expected} was proven.`)
     }
@@ -131,7 +158,7 @@ function jobController(input: {
   readonly statusPath: string
   readonly stopPath: string
 }): WindowsJobObjectProcess {
-  const waitForState = (expected: 'assigned' | 'empty', timeoutMs: number) =>
+  const waitForState = (expected: 'assigned' | 'empty' | 'normal-exit', timeoutMs: number) =>
     waitForWindowsJobState(expected, timeoutMs, {
       childExited: () => childExited(input.child),
       readStatus: () => readStatus(input.statusPath),
@@ -146,6 +173,9 @@ function jobController(input: {
   return {
     logs: input.logs,
     rootPid: input.rootPid,
+    waitForNormalExit: async () => {
+      await waitForState('normal-exit', JOB_START_TIMEOUT_MS)
+    },
     waitForEmpty: async () => {
       await waitForState('empty', JOB_START_TIMEOUT_MS)
     },

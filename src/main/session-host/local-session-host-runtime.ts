@@ -134,6 +134,8 @@ function observeIdleGracePeriod(input: {
 
 async function cleanupFailedStartup(input: {
   readonly runtime: LocalSessionHostRuntime | null
+  readonly ownedServicesStartAttempted: boolean
+  readonly stopOwnedServices: () => Promise<void>
   readonly releaseSettingsObserver: () => void
   readonly releaseEventPublisher: () => void
   readonly eventHub: SessionHostEventHub
@@ -145,11 +147,21 @@ async function cleanupFailedStartup(input: {
     await input.runtime.stop()
     return
   }
-  input.releaseSettingsObserver()
-  input.releaseEventPublisher()
-  input.eventHub.close()
-  input.liveness.close()
-  if (input.releaseOwnership) await input.ownership.release()
+  const errors: unknown[] = []
+  if (input.ownedServicesStartAttempted) {
+    await collectStopError(errors, input.stopOwnedServices)
+  }
+  await collectStopError(errors, input.releaseSettingsObserver)
+  await collectStopError(errors, input.releaseEventPublisher)
+  await collectStopError(errors, () => input.eventHub.close())
+  await collectStopError(errors, () => input.liveness.close())
+  if (input.releaseOwnership) {
+    await collectStopError(errors, () => input.ownership.release())
+  }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length > 1) {
+    throw new AggregateError(errors, 'Session Host startup cleanup failed in multiple stages.')
+  }
 }
 
 function createServerDependencies(input: {
@@ -198,14 +210,15 @@ export async function startLocalSessionHost(
   })
   let releaseEventPublisher: () => void = () => undefined
   let releaseSettingsObserver: () => void = () => undefined
+  let ownedServicesStartAttempted = false
 
   try {
     releaseEventPublisher = installSessionHostEventRuntime({ eventHub, liveness })
     await input.recover?.()
-    const server = await listenLocalSessionServer(
-      input.endpoint,
-      createServerDependencies({ host: input, eventHub, liveness }),
-    )
+    if (input.startOwnedServices) {
+      ownedServicesStartAttempted = true
+      await input.startOwnedServices()
+    }
     if (input.readIdleGracePeriod) {
       releaseSettingsObserver = observeIdleGracePeriod({
         liveness,
@@ -213,6 +226,10 @@ export async function startLocalSessionHost(
         intervalMs: input.settingsRefreshIntervalMs ?? SESSION_HOST_SETTINGS_REFRESH_INTERVAL_MS,
       })
     }
+    const server = await listenLocalSessionServer(
+      input.endpoint,
+      createServerDependencies({ host: input, eventHub, liveness }),
+    )
     runtime = new LocalSessionHostRuntime(
       eventHub,
       liveness,
@@ -223,22 +240,31 @@ export async function startLocalSessionHost(
       releaseSettingsObserver,
       input.stopOwnedServices,
     )
-    await input.startOwnedServices?.()
     liveness.armIdleShutdown(
       input.startupGracePeriodMs ??
         Math.max(input.idleGracePeriodMs, SESSION_HOST_STARTUP_GRACE_PERIOD_MS),
     )
     return runtime
   } catch (error) {
-    await cleanupFailedStartup({
-      runtime,
-      releaseSettingsObserver,
-      releaseEventPublisher,
-      eventHub,
-      liveness,
-      ownership,
-      releaseOwnership: releaseOwnershipOnStop,
-    })
+    try {
+      await cleanupFailedStartup({
+        runtime,
+        ownedServicesStartAttempted,
+        stopOwnedServices: input.stopOwnedServices ?? (() => Promise.resolve()),
+        releaseSettingsObserver,
+        releaseEventPublisher,
+        eventHub,
+        liveness,
+        ownership,
+        releaseOwnership: releaseOwnershipOnStop,
+      })
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'Session Host startup and cleanup both failed.',
+        { cause: cleanupError },
+      )
+    }
     throw error
   }
 }

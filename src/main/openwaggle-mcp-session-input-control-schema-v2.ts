@@ -1,3 +1,4 @@
+import { hasUniqueCollaborationStructures } from '@shared/session-collaboration-collections'
 import {
   DELEGATION_CONFLICT_KINDS,
   DELEGATION_CONFLICT_STATUSES,
@@ -113,7 +114,11 @@ export const mcpSessionControlOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     delegationId: mcpSessionIdSchemaV2.optional(),
     reason: mcpSessionTextSchemaV2.optional(),
-    claims: z.array(sessionClaimSchemaV2).max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems).optional(),
+    claims: z
+      .array(sessionClaimSchemaV2)
+      .max(MCP_SESSION_INPUT_LIMITS_V2.arrayItems)
+      .refine(hasUniqueCollaborationStructures, 'Delegation claims must be unique.')
+      .optional(),
     ...idempotency,
   }),
   operationSchema('delegation-conflict-acknowledge', {
