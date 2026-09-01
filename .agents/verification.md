@@ -101,7 +101,7 @@ pnpm test:e2e:headless
 pnpm test:e2e:headless:quick
 ```
 
-Use quick E2E only when the built app is current or the test intentionally avoids a full rebuild. E2E runs with one worker locally; CI runs two (`PLAYWRIGHT_WORKERS`) and retries each test twice on flaky assertions, capturing a Playwright report plus traces on retry.
+Use quick E2E only when the built app is current or the test intentionally avoids a full rebuild. Every `*:quick` E2E script verifies `out/` build provenance against the current HEAD and refuses a stale build ("run `pnpm test:e2e` to rebuild first"): a rebase or pull that moved HEAD invalidates the previous build even though `out/` still exists. E2E runs with one worker locally; CI runs two (`PLAYWRIGHT_WORKERS`) and retries each test twice on flaky assertions, capturing a Playwright report plus traces on retry.
 
 ### Visual Baselines
 
