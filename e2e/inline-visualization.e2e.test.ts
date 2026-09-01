@@ -143,10 +143,11 @@ async function expectSecureInteractiveVisualization(
     .locator('header')
     .getByRole('button', { name: 'Session Summary', exact: true })
   await expect(summaryToggle).toBeVisible()
-  if ((await summary.count()) > 0) {
+  if ((await summaryToggle.getAttribute('aria-pressed')) === 'true') {
     await summaryToggle.click()
-    await expect(summary).toHaveCount(0)
   }
+  await expect(summaryToggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(summary).toHaveCount(0)
   await page.getByRole('button', { name: 'Expand visualization' }).click()
   const largeFocusLayer = page.locator('[data-visualization-focus-layer="true"]')
   const largeDialog = page.getByRole('dialog', { name: FRAME_TITLE })
