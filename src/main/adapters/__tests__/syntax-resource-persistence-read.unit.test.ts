@@ -1,11 +1,38 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import type { SyntaxThemeResource } from '@shared/types/syntax-resources'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   INSTALLED_RESOURCE_CATALOG_MAX_BYTES,
+  isSyntaxThemeResource,
   readPersistedResources,
 } from '../syntax-resource-persistence-read'
+
+const VALID_THEME_RESOURCE = {
+  id: 'theme:user:test:dark',
+  packageId: 'user:test',
+  revision: 'revision-1',
+  label: 'Test theme',
+  variant: 'dark',
+  scope: 'user',
+  format: 'vscode-json',
+  sourcePath: '/tmp/test-theme.json',
+  theme: {
+    name: 'theme:user:test:dark:revision-1',
+    displayName: 'Test theme',
+    type: 'dark',
+    colors: { 'editor.background': '#101010' },
+    settings: [
+      {
+        name: 'Variables',
+        scope: ['variable', 'support.variable'],
+        settings: { foreground: '#eeeeee', fontStyle: 'italic' },
+      },
+    ],
+  },
+  original: {},
+} satisfies SyntaxThemeResource
 
 function isResource(_value: unknown): _value is unknown {
   return true
@@ -99,6 +126,38 @@ describe('installed syntax resource reads', () => {
     await expect(readPersistedResources(temporaryRoot, isNamedResource)).resolves.toEqual([
       { name: 'valid' },
     ])
+  })
+
+  it('accepts complete persisted theme resources', () => {
+    expect(isSyntaxThemeResource(VALID_THEME_RESOURCE)).toBe(true)
+  })
+
+  it.each([
+    [
+      'missing token settings',
+      { ...VALID_THEME_RESOURCE, theme: { ...VALID_THEME_RESOURCE.theme, settings: undefined } },
+    ],
+    ['invalid variant', { ...VALID_THEME_RESOURCE, variant: 'dim' }],
+    ['invalid scope', { ...VALID_THEME_RESOURCE, scope: 'workspace' }],
+    [
+      'invalid theme colors',
+      {
+        ...VALID_THEME_RESOURCE,
+        theme: { ...VALID_THEME_RESOURCE.theme, colors: { 'editor.background': 10 } },
+      },
+    ],
+    [
+      'invalid token rule',
+      {
+        ...VALID_THEME_RESOURCE,
+        theme: {
+          ...VALID_THEME_RESOURCE.theme,
+          settings: [{ scope: 42, settings: { foreground: '#eeeeee' } }],
+        },
+      },
+    ],
+  ])('rejects a persisted theme with %s', (_description, resource) => {
+    expect(isSyntaxThemeResource(resource)).toBe(false)
   })
 
   it('rejects a catalog before reading beyond its aggregate byte budget', async () => {

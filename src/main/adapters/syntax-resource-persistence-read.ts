@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import { isSyntaxLanguageConfiguration } from '@shared/syntax-language-configuration'
 import type {
   SyntaxAppearanceResource,
@@ -19,16 +20,53 @@ function isMissingFileError(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
+const syntaxResourceScopePattern = P.union('bundled', 'user', 'project')
+const syntaxImportFormatPattern = P.union(
+  'vscode-json',
+  'textmate-plist',
+  'vscode-vsix',
+  'vscode-extension',
+  'openwaggle',
+)
+const syntaxAppearanceVariantPattern = P.union(
+  'light',
+  'dark',
+  'high-contrast-light',
+  'high-contrast-dark',
+)
+const syntaxThemeTokenSettingsPattern = {
+  foreground: P.optional(P.string),
+  background: P.optional(P.string),
+  fontStyle: P.optional(P.string),
+}
+const syntaxThemeTokenRulePattern = {
+  name: P.optional(P.string),
+  scope: P.optional(P.union(P.string, P.array(P.string))),
+  settings: syntaxThemeTokenSettingsPattern,
+}
+const syntaxThemeRegistrationPattern = {
+  name: P.string,
+  displayName: P.string,
+  type: P.union('light', 'dark'),
+  colors: P.record(P.string, P.string),
+  settings: P.array(syntaxThemeTokenRulePattern),
+}
+
 export function isSyntaxThemeResource(value: unknown): value is SyntaxThemeResource {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.packageId === 'string' &&
-    typeof value.revision === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.sourcePath === 'string' &&
-    isRecord(value.theme) &&
-    isRecord(value.original)
+  return isMatching(
+    {
+      id: P.string,
+      packageId: P.string,
+      revision: P.string,
+      label: P.string,
+      variant: syntaxAppearanceVariantPattern,
+      scope: syntaxResourceScopePattern,
+      format: syntaxImportFormatPattern,
+      sourcePath: P.string,
+      theme: syntaxThemeRegistrationPattern,
+      original: P.record(P.string, P._),
+    },
+    value,
   )
 }
 
@@ -37,6 +75,9 @@ function hasPersistedResourceIdentity(value: Readonly<Record<string, unknown>>) 
     typeof value.id === 'string' &&
     typeof value.packageId === 'string' &&
     typeof value.revision === 'string' &&
+    typeof value.label === 'string' &&
+    isMatching(syntaxResourceScopePattern, value.scope) &&
+    isMatching(syntaxImportFormatPattern, value.format) &&
     typeof value.sourcePath === 'string' &&
     isRecord(value.original)
   )
@@ -76,16 +117,9 @@ export function isSyntaxLanguageResource(value: unknown): value is SyntaxLanguag
 export function isSyntaxAppearanceResource(value: unknown): value is SyntaxAppearanceResource {
   return (
     isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.packageId === 'string' &&
-    typeof value.revision === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.sourcePath === 'string' &&
+    hasPersistedResourceIdentity(value) &&
     value.format === 'openwaggle' &&
-    (value.variant === 'light' ||
-      value.variant === 'dark' ||
-      value.variant === 'high-contrast-light' ||
-      value.variant === 'high-contrast-dark') &&
+    isMatching(syntaxAppearanceVariantPattern, value.variant) &&
     isRecord(value.tokens) &&
     isRecord(value.original)
   )

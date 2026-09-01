@@ -74,6 +74,24 @@ const IMPORT_PREVIEW: SyntaxThemeImportPreview = {
   warnings: [],
 }
 
+const REFRESHED_CATALOG = {
+  ...EMPTY_CATALOG,
+  appearances: [
+    {
+      id: 'user:refreshed',
+      packageId: 'user:package',
+      revision: 'refreshed-revision',
+      label: 'Refreshed appearance',
+      variant: 'dark',
+      scope: 'user',
+      format: 'openwaggle',
+      sourcePath: '/user/appearance.json',
+      tokens: {},
+      original: {},
+    },
+  ],
+} satisfies SyntaxResourceCatalog
+
 function deferred<T>() {
   let resolvePromise!: (value: T) => void
   const promise = new Promise<T>((resolve) => {
@@ -95,6 +113,7 @@ describe('syntax theme catalog store', () => {
       preview: null,
       loading: false,
       error: null,
+      activeProjectPath: undefined,
       loadedProjectPath: undefined,
     })
   })
@@ -158,6 +177,34 @@ describe('syntax theme catalog store', () => {
     })
   })
 
+  it('refreshes the active project after a stale import mutation succeeds', async () => {
+    const importMutation = deferred<SyntaxResourceCatalog>()
+    applySyntaxThemeImportMock.mockReturnValue(importMutation.promise)
+    listSyntaxThemesMock
+      .mockResolvedValueOnce(EMPTY_CATALOG)
+      .mockResolvedValueOnce(REFRESHED_CATALOG)
+    useSyntaxThemeCatalogStore.setState({
+      preview: IMPORT_PREVIEW,
+      activeProjectPath: '/old',
+      loadedProjectPath: '/old',
+    })
+
+    const apply = useSyntaxThemeCatalogStore.getState().applyImport()
+    await useSyntaxThemeCatalogStore.getState().load('/new')
+    importMutation.resolve(EMPTY_CATALOG)
+    await apply
+
+    expect(listSyntaxThemesMock).toHaveBeenNthCalledWith(1, '/new')
+    expect(listSyntaxThemesMock).toHaveBeenNthCalledWith(2, '/new')
+    expect(useSyntaxThemeCatalogStore.getState()).toMatchObject({
+      activeProjectPath: '/new',
+      loadedProjectPath: '/new',
+      appearances: REFRESHED_CATALOG.appearances,
+      preview: null,
+      loading: false,
+    })
+  })
+
   it('does not restore a stale catalog after the active project changes', async () => {
     const oldCatalog = deferred<SyntaxResourceCatalog>()
     const newCatalog = {
@@ -212,6 +259,32 @@ describe('syntax theme catalog store', () => {
 
     expect(useSyntaxThemeCatalogStore.getState()).toMatchObject({
       loadedProjectPath: '/new',
+      loading: false,
+    })
+  })
+
+  it('refreshes the active project after a stale removal mutation succeeds', async () => {
+    const removalMutation = deferred<SyntaxResourceCatalog>()
+    removeSyntaxThemeMock.mockReturnValue(removalMutation.promise)
+    listSyntaxThemesMock
+      .mockResolvedValueOnce(EMPTY_CATALOG)
+      .mockResolvedValueOnce(REFRESHED_CATALOG)
+    useSyntaxThemeCatalogStore.setState({
+      activeProjectPath: '/old',
+      loadedProjectPath: '/old',
+    })
+
+    const remove = useSyntaxThemeCatalogStore.getState().remove('theme-id')
+    await useSyntaxThemeCatalogStore.getState().load('/new')
+    removalMutation.resolve(EMPTY_CATALOG)
+    await remove
+
+    expect(listSyntaxThemesMock).toHaveBeenNthCalledWith(1, '/new')
+    expect(listSyntaxThemesMock).toHaveBeenNthCalledWith(2, '/new')
+    expect(useSyntaxThemeCatalogStore.getState()).toMatchObject({
+      activeProjectPath: '/new',
+      loadedProjectPath: '/new',
+      appearances: REFRESHED_CATALOG.appearances,
       loading: false,
     })
   })
