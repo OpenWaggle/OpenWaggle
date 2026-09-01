@@ -11,6 +11,16 @@ Durable OpenWaggle project memory. Keep this compact and technical. Do not add p
 
 ## Current Architecture Direction
 
+### CI is tiered behind a merge queue (ADR 0029, September 2026)
+
+A 2026-09-01 audit of ~300 CI runs (~36h) found 51% green / 21% failed / 27% cancelled, with 85% of failures concentrated on three agent PRs. The enforced merge gate was only three ubuntu checks; the 3-OS E2E matrix and package rehearsals ran informationally per push, so agents burned multi-hour loops on reds that never gated merges. Windows E2E failed 33% of runs — two-thirds of failures were "all 29 tests pass, then `Worker teardown timeout of 90000ms`" (a hanging shutdown, not a test problem), the rest Windows-timing test timeouts and locator misses. `hive-sessions.e2e.test.ts` on PR #181 failed 8× consecutively on a JSON parse race: `applicationCliStdout` returns raw stdout when its extraction grammar does not match, so a leading `{}` empty payload plus trailing content explodes in `JSON.parse`.
+
+Fixes shipped: Fast gate per push (static checks split into Unit / Integration & Component / MCP Conformance jobs + macOS E2E with `retries: 2` and `PLAYWRIGHT_WORKERS: '2'`), Full gate on `merge_group` results (adds Windows/Linux E2E plus path-scoped rehearsals: package consumer smoke when `packages/**`/lockfile/release tooling changed; website/docs rehearsal when website/docs **or package** surfaces changed). `scripts/package-release-gate.ts` encodes tier semantics (`full|fast|fast-no-e2e|visual`); required-but-skipped is an error, skipped-conditional is fine. `e2e/support/electron-process-tree.ts` bounds `app.close()` at 10s, names surviving descendants into `$GITHUB_STEP_SUMMARY`, and force-kills the tree (`taskkill /T /F` on Windows) — a safety net whose forensics feed the root-cause hunt for non-clean Windows exits. The settings-side half (enable merge queue + update the required-check list to the new job names) is a maintainer runbook step in `docs/release-and-versioning.md`. It must be applied in the same admin window as the merge: the rename retires the `Unit & Component Tests` context, so between merge and ruleset swap open PRs show a forever-pending required check until an admin applies the swap or merges with the routine bypass.
+
+### The commit policy was invisible to agents
+
+`scripts/check-conventional-commits.ts` rejected a `mockup:` subject in CI after the agent pushed — the check was deterministic, ~1s, and documented nowhere agents read. Now `pnpm verify` (commit policy vs the `origin/main` merge base + typecheck + lint + unit tests) runs in the husky pre-push hook for feature branches; `prepush:main` still guards pushes to `main`.
+
 - OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 - Main-process architecture is hexagonal: domain, ports, adapters, application services, IPC, stores.
 - Pi SDK imports belong in `src/main/adapters/pi/` only.
@@ -350,7 +360,9 @@ jsdom has no hit testing, so a component test passes whether or not the fix is p
 
 `OpenWaggleApp.launch` sets `OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1`, so a running `pnpm dev` instance does not steal E2E launches. Two things do bite:
 
-`npx playwright test` does not build. Running it directly tests the previous `out/`, which produces failures that look like broken source. Use `pnpm test:e2e`, or run `pnpm build` first.
+`npx playwright test` does not build. Running it directly tests the previous `out/`, which produces failures that look like broken source. Use `pnpm test:e2e`, or run `pnpm build` first. The `*:quick` E2E scripts now enforce this mechanically: `out/build-meta.json` records the HEAD a build came from, and a quick script refuses to run when HEAD moved (rebase, pull) — a stale build fails loudly instead of as phantom test failures.
+
+`git worktree` operations can leave worktree backlinks dangling after nested git-fixture tests run; `git worktree repair <path>` from the main checkout fixes them. Git hooks export `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`, so hook scripts that invoke the test suite must unset those first or git-spawning fixtures fail with "this operation must be run in a work tree".
 
 The dev server rewrites `src/renderer/src/routeTree.gen.ts` (import ordering only, no route change). Any script that checks out commits in sequence fails on every checkout while that file is dirty. Stop the dev server before such a loop.
 

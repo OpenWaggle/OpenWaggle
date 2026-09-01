@@ -544,6 +544,16 @@ _Avoid_: renderer-only history
 OpenWaggle-owned live state for an interaction request waiting for user feedback.
 _Avoid_: extension-local pending prompt
 
+### CI gates
+
+**Fast gate**:
+The required checks that run on every pull-request branch update and prove a change is safe to request merge.
+_Avoid_: pre-merge CI, push checks, quick checks
+
+**Full gate**:
+The complete required-check set the merge queue evaluates on a speculative merge result; the only path that lands a pull request on `main`.
+_Avoid_: post-merge CI, main CI, landing checks
+
 ### Source control and diff
 
 **Source control provider**:
@@ -766,6 +776,8 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Relationships
 
+- A **Fast gate** passes before a pull request asks for merge; the **Full gate** is what actually lands it.
+- The **Full gate** always includes the **Fast gate** plus the platform and package checks that do not run per push.
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
 - A **Development extension fixture** may be copied into a project for manual QA, but it is not an installed or bundled product extension.
 - An installed OpenWaggle app exposes **Extension authoring roots** for user-authored and agent-authored OpenWaggle extension packages.
@@ -1180,3 +1192,4 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "mode" is ambiguous between appearance polarity and git isolation. Resolved: **Colour scheme** is light-or-dark polarity; **Session environment mode** is `local` versus `worktree` git isolation.
 - "pin" was used for both projects and sessions (issue #97 was written as project pinning). Resolved: only sessions are pinnable. A **Pinned session** is reachable by one **Pinned shortcut**, whereas a pinned project never could be — it has no single thing to open.
 - "pinned order" conflated two ideas. Resolved: **Manual order** is the sequence the user drags and owns; **Pinned sort** is the rule currently ordering the section. Switching **Pinned sort** away from Manual and back must return the user's **Manual order** unchanged.
+- "green CI" was used to mean both the three enforced merge checks and the whole pipeline including Electron E2E. Resolved: the enforced pre-merge set is the **Fast gate**; the **Full gate** runs only on the merge queue's speculative merge result. Documentation claiming "current green CI" is required for merges described the Full gate, not the enforced reality.
