@@ -10,6 +10,22 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
+const QA_GRACEFUL_CLOSE_MS = 10_000
+const QA_FORCED_CLOSE_WAIT_MS = 5_000
+
+async function completesWithin(operation: Promise<unknown>, timeoutMs: number) {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      operation.then(() => true),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(() => resolve(false), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
 
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
@@ -121,13 +137,22 @@ export class OpenWaggleApp {
     } catch (error) {
       evidenceError = error
     } finally {
-      await this.close().catch(() => undefined)
+      await this.closeForCleanup()
       await fs.rm(this.userDataDir, { recursive: true, force: true })
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)
       expect.soft(evidenceError, 'Electron QA must capture its final screenshot').toBeUndefined()
     }
+  }
+
+  private async closeForCleanup(): Promise<void> {
+    const closeOperation = this.close().catch(() => undefined)
+    if (await completesWithin(closeOperation, QA_GRACEFUL_CLOSE_MS)) return
+
+    console.warn('[electron-qa] graceful close timed out; terminating the temporary test app')
+    this.app.process().kill()
+    await completesWithin(closeOperation, QA_FORCED_CLOSE_WAIT_MS)
   }
 
   async desktopState() {
