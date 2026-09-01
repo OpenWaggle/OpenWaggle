@@ -1,6 +1,8 @@
 import { fauxAssistantMessage } from '@earendil-works/pi-ai'
 import type { SessionCompactEvent } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { buildAtomicVisualizationPrompt } from '../pi-runtime-input'
+import { bindVisualizationContextFilter } from '../pi-visualization-context'
 import {
   checkpointIds,
   cleanupNativeSessions,
@@ -56,6 +58,40 @@ describe('Pi repeated native compaction events', () => {
     authFailureState.shouldFail = true
     await session.navigateTree(firstCheckpointEntry.id)
     expect(JSON.stringify(session.messages)).toContain('cmp_1')
+  })
+
+  it('filters consumed visualization state before creating a native checkpoint', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-filter-context-')
+    const events: SessionCompactEvent[] = []
+    const requestBodies: string[] = []
+    const visualizationContext = [
+      '[OpenWaggle inline visualization context]',
+      'transient selected service',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    vi.stubGlobal('fetch', nativeCompactionFetch(requestBodies))
+    const { session, sessionManager } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      initialContext: buildAtomicVisualizationPrompt(
+        visualizationContext,
+        'Inspect the selected service',
+      ),
+    })
+    sessionManager.appendMessage(fauxAssistantMessage('Inspection complete'))
+    sessionManager.appendMessage({
+      role: 'user',
+      content: 'Continue without the old selection',
+      timestamp: Date.now(),
+    })
+    bindVisualizationContextFilter(session)
+
+    await session.compact()
+
+    expect(requestBodies).toHaveLength(1)
+    expect(requestBodies[0]).toContain('Inspect the selected service')
+    expect(requestBodies[0]).toContain('Continue without the old selection')
+    expect(requestBodies[0]).not.toContain('transient selected service')
   })
 
   it('emits the newly appended checkpoint for repeated automatic compactions', async () => {

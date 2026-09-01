@@ -27,6 +27,20 @@ describe('Pi message part projection helpers', () => {
     ])
   })
 
+  it('keeps delimiter-like ordinary user text intact', () => {
+    const ordinaryPrompt = [
+      '[OpenWaggle inline visualization context]',
+      'This is ordinary user-authored text.',
+      '[/OpenWaggle inline visualization context]',
+      '',
+      'Do not strip any of it.',
+    ].join('\n')
+
+    expect(piTextAndImageContentToParts([{ type: 'text', text: ordinaryPrompt }])).toEqual([
+      { type: 'text', text: ordinaryPrompt },
+    ])
+  })
+
   it('projects Pi user text and image content into renderer-safe text parts', () => {
     expect(piTextAndImageContentToParts('hello')).toEqual([{ type: 'text', text: 'hello' }])
     expect(

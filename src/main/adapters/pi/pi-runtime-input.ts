@@ -18,6 +18,7 @@ export const PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE = 'openwaggle.inline-visualiza
 const VISUALIZATION_CONTEXT_START = '[OpenWaggle inline visualization context]'
 const VISUALIZATION_CONTEXT_END = '[/OpenWaggle inline visualization context]'
 const VISUALIZATION_PROMPT_SEPARATOR = '\n\n'
+const ATOMIC_VISUALIZATION_PROMPT_PREFIX = '\u2063openwaggle:atomic-visualization:v1:'
 
 function buildVisualizationContext(payload: HydratedAgentSendPayload) {
   if (!payload.visualizationContext) return null
@@ -30,14 +31,32 @@ function buildVisualizationContext(payload: HydratedAgentSendPayload) {
 }
 
 export function buildAtomicVisualizationPrompt(context: string, prompt: string) {
-  return `${context}${VISUALIZATION_PROMPT_SEPARATOR}${prompt}`
+  return `${ATOMIC_VISUALIZATION_PROMPT_PREFIX}${context.length}\n${context}${VISUALIZATION_PROMPT_SEPARATOR}${prompt}`
 }
 
 export function stripAtomicVisualizationContext(text: string) {
-  if (!text.startsWith(`${VISUALIZATION_CONTEXT_START}\n`)) return text
-  const promptBoundary = `${VISUALIZATION_CONTEXT_END}${VISUALIZATION_PROMPT_SEPARATOR}`
-  const promptBoundaryStart = text.indexOf(promptBoundary)
-  return promptBoundaryStart < 0 ? text : text.slice(promptBoundaryStart + promptBoundary.length)
+  if (!text.startsWith(ATOMIC_VISUALIZATION_PROMPT_PREFIX)) return text
+
+  const lengthStart = ATOMIC_VISUALIZATION_PROMPT_PREFIX.length
+  const lengthEnd = text.indexOf('\n', lengthStart)
+  if (lengthEnd < 0) return text
+
+  const serializedLength = text.slice(lengthStart, lengthEnd)
+  if (!/^\d+$/.test(serializedLength)) return text
+
+  const contextStart = lengthEnd + 1
+  const contextEnd = contextStart + Number(serializedLength)
+  const context = text.slice(contextStart, contextEnd)
+  if (
+    !context.startsWith(`${VISUALIZATION_CONTEXT_START}\n`) ||
+    !context.endsWith(`\n${VISUALIZATION_CONTEXT_END}`) ||
+    text.slice(contextEnd, contextEnd + VISUALIZATION_PROMPT_SEPARATOR.length) !==
+      VISUALIZATION_PROMPT_SEPARATOR
+  ) {
+    return text
+  }
+
+  return text.slice(contextEnd + VISUALIZATION_PROMPT_SEPARATOR.length)
 }
 
 function buildImageContent(

@@ -377,12 +377,18 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1448,7 +1549,7 @@ export class AgentSession {
+@@ -1448,7 +1549,13 @@ export class AgentSession {
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
      async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
 -        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), undefined);
-+        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt);
++        const compactPreparation = selectCompactionMechanism(requestModel) === "native" && this.agent.transformContext
++            ? {
++                ...preparation,
++                messagesForNativeCompaction: await this.agent.transformContext(preparation.messagesForNativeCompaction, signal),
++            }
++            : preparation;
++        return compact(compactPreparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt);
      }
      /**
       * Manually compact the session context.
