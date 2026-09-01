@@ -20,6 +20,24 @@ function escapeRegularExpression(character: string) {
   return /[\\^$.*+?()[\]{}|]/u.test(character) ? `\\${character}` : character
 }
 
+function characterClassRegularExpression(glob: string, opening: number) {
+  const closing = glob.indexOf(']', opening + 1)
+  if (closing <= opening + 1) return null
+  const rawClass = glob.slice(opening + 1, closing)
+  const negated = rawClass.startsWith('!')
+  const members = negated ? rawClass.slice(1) : rawClass
+  if (!members) return null
+  const escapedMembers = members
+    .replaceAll('\\', '\\\\')
+    .replaceAll('[', '\\[')
+    .replaceAll(']', '\\]')
+    .replaceAll('^', '\\^')
+  return {
+    end: closing,
+    pattern: `[${negated ? '^' : ''}${escapedMembers}]`,
+  }
+}
+
 function globRegularExpression(glob: string) {
   let pattern = '^'
   for (let index = 0; index < glob.length; index += 1) {
@@ -42,6 +60,14 @@ function globRegularExpression(glob: string) {
       pattern += '[^/]'
       continue
     }
+    if (character === '[') {
+      const characterClass = characterClassRegularExpression(glob, index)
+      if (characterClass) {
+        pattern += characterClass.pattern
+        index = characterClass.end
+        continue
+      }
+    }
     pattern += escapeRegularExpression(character ?? '')
   }
   return new RegExp(`${pattern}$`, 'u')
@@ -52,8 +78,6 @@ function matchesAssociationPattern(
   candidate: string,
   budget: { remaining: number },
 ): boolean {
-  if (budget.remaining <= 0) return false
-  budget.remaining -= 1
   const opening = glob.indexOf('{')
   if (opening < 0) return globRegularExpression(glob).test(candidate)
   const closing = glob.indexOf('}', opening + 1)
@@ -62,6 +86,8 @@ function matchesAssociationPattern(
   if (alternatives.length <= 1 || alternatives.some((alternative) => !alternative)) {
     return globRegularExpression(glob).test(candidate)
   }
+  if (budget.remaining <= 0) return false
+  budget.remaining -= 1
   const prefix = glob.slice(0, opening)
   const suffix = glob.slice(closing + 1)
   return alternatives.some((alternative) =>
@@ -69,10 +95,8 @@ function matchesAssociationPattern(
   )
 }
 
-function matchesAssociation(glob: string, candidate: string) {
-  return matchesAssociationPattern(glob, candidate, {
-    remaining: MAX_ASSOCIATION_MATCH_STEPS,
-  })
+function matchesAssociation(glob: string, candidate: string, budget: { remaining: number }) {
+  return matchesAssociationPattern(glob, candidate, budget)
 }
 
 function parsedAssociations(source: string) {
@@ -112,9 +136,10 @@ export async function vscodeLanguageAssociation(projectRoot: string, relativePat
   const normalized = relativePath.replaceAll('\\', '/')
   const basename = normalized.slice(normalized.lastIndexOf('/') + 1)
   const associations = await vscodeAssociations(projectRoot)
+  const matchBudget = { remaining: MAX_ASSOCIATION_MATCH_STEPS }
   for (const [glob, language] of Object.entries(associations)) {
     const candidate = glob.includes('/') ? normalized : basename
-    if (matchesAssociation(glob, candidate)) return language
+    if (matchesAssociation(glob, candidate, matchBudget)) return language
   }
   return null
 }
