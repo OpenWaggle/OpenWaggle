@@ -178,7 +178,12 @@ export class OpenWaggleApp {
       .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
       .then(() => true)
       .catch(() => false)
-    void this.app.evaluate(() => process.exit(0)).catch(() => undefined)
+    await this.app
+      .evaluate(() => {
+        setImmediate(() => process.exit(0))
+      })
+      .catch(() => undefined)
+    this.disconnectNodeInspector()
     if (await closeEvent) return true
 
     console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
@@ -187,12 +192,30 @@ export class OpenWaggleApp {
       .then(() => true)
       .catch(() => false)
     this.terminateProcessTree()
+    this.destroyProcessPipes()
     const forcedClosed = await forcedCloseEvent
     if (!forcedClosed) {
       console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
       this.releaseProcessHandles()
     }
     return forcedClosed
+  }
+
+  private disconnectNodeInspector(): void {
+    // Playwright launches Electron with --inspect and, on Windows, through a shell.
+    // After process.exit() Electron waits for that debugger to disconnect, so the
+    // shell never closes unless the in-process Playwright server releases its Node
+    // inspector transport. app.process() relies on the same collocated-server hook.
+    const clientConnection = Reflect.get(this.app, '_connection')
+    if (typeof clientConnection !== 'object' || clientConnection === null) return
+    const toImpl = Reflect.get(clientConnection, 'toImpl')
+    if (typeof toImpl !== 'function') return
+    const serverApplication = Reflect.apply(toImpl, clientConnection, [this.app])
+    if (typeof serverApplication !== 'object' || serverApplication === null) return
+    const nodeConnection = Reflect.get(serverApplication, '_nodeConnection')
+    if (typeof nodeConnection !== 'object' || nodeConnection === null) return
+    const close = Reflect.get(nodeConnection, 'close')
+    if (typeof close === 'function') Reflect.apply(close, nodeConnection, [])
   }
 
   private terminateProcessTree(): void {
@@ -240,6 +263,13 @@ export class OpenWaggleApp {
       const unref = Reflect.get(stream, 'unref')
       if (typeof unref === 'function') Reflect.apply(unref, stream, [])
     }
+  }
+
+  private destroyProcessPipes(): void {
+    // ChildProcess emits "close" only after the process exits and every stdio
+    // pipe closes. Releasing these pipes lets Playwright remove its retained
+    // graceful-close callback even if a Windows shell fails to propagate EOF.
+    for (const stream of this.app.process().stdio) stream?.destroy()
   }
 
   async desktopState() {
