@@ -42,6 +42,11 @@ export function useChatDisplayMarkdown(markdown: string) {
   return formatDisplayPathsInMarkdown(markdown, useChatDisplayRoots())
 }
 
+export function useChatDisplayMarkdownFormatter() {
+  const roots = useChatDisplayRoots()
+  return (markdown: string) => formatDisplayPathsInMarkdown(markdown, roots)
+}
+
 export function useChatDisplayTextFormatter() {
   const roots = useChatDisplayRoots()
   return (text: string) => formatDisplayPathsInText(text, roots)

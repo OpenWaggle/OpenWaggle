@@ -15,7 +15,7 @@ import {
   extractPiAssistantTerminalError,
   getPiAssistantStopReason,
 } from '../pi-run-result'
-import { buildPiPromptInput } from '../pi-runtime-input'
+import { buildPiPromptInput, PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from '../pi-runtime-input'
 import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
@@ -54,6 +54,7 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly onEvent: AgentKernelRunInput['onEvent']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly visualizationDirectory?: string
 }
 
 function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
@@ -99,6 +100,9 @@ export async function createPiRunSessionRuntime(
     compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
   } satisfies PiProjectRuntimeIsolationOptions
   const selectedRuntime = await createIsolatedPiProjectRuntime({
     operation: 'Pi run session initialization',
@@ -204,6 +208,17 @@ export async function promptPiSession(
   payload: HydratedAgentSendPayload,
 ) {
   const promptInput = buildPiPromptInput(model, payload)
+  if (promptInput.visualizationContext) {
+    await session.sendCustomMessage(
+      {
+        customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
+        content: promptInput.visualizationContext,
+        display: false,
+        details: { source: 'openwaggle', kind: 'inline-visualization-context' },
+      },
+      { deliverAs: 'nextTurn', triggerTurn: false },
+    )
+  }
   await session.prompt(
     promptInput.text,
     promptInput.images.length > 0 ? { images: [...promptInput.images] } : undefined,

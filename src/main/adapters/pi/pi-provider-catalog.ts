@@ -8,6 +8,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
+import { createLogger } from '../../logger'
 import { LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES } from '../../migrations/legacy-pi-mcp-adapter'
 import { OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES } from './openwaggle-pi-package-policy'
 import {
@@ -21,8 +22,11 @@ import {
 } from './pi-provider-resources'
 import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
+import { ensurePiVisualizeSkill } from './pi-visualize-skill'
 
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
+
+const logger = createLogger('pi-provider-catalog')
 
 import type {
   PiModel,
@@ -41,6 +45,21 @@ export type {
 
 export function getPiAgentDir(): string {
   return getAgentDir()
+}
+
+export async function resolvePiVisualizeSkillPaths(
+  agentDir: string,
+  install = ensurePiVisualizeSkill,
+) {
+  try {
+    return [await install(agentDir)]
+  } catch (error) {
+    logger.warn('Visualize skill installation failed; continuing without built-in authoring', {
+      agentDir,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return []
+  }
 }
 
 function listPiProviderModelsFromRuntime(modelRuntime: ModelRuntime) {
@@ -142,6 +161,8 @@ export async function createPiRuntimeServices(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
 ): Promise<AgentSessionServices> {
+  const agentDir = getPiAgentDir()
+  const visualizeSkillPaths = await resolvePiVisualizeSkillPaths(agentDir)
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
     ...(options.compactionThresholdPercent !== undefined
       ? { compactionThresholdPercent: options.compactionThresholdPercent }
@@ -155,12 +176,13 @@ export async function createPiRuntimeServices(
   const services = await withNpmCompatibleProcessEnv(() =>
     createAgentSessionServices({
       cwd: projectPath,
-      agentDir: getPiAgentDir(),
+      agentDir,
       settingsManager,
       resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
         projectPath,
         options,
         settingsManager,
+        visualizeSkillPaths,
       ),
     }),
   )
@@ -254,6 +276,7 @@ export async function createPiProjectModelRuntime(input: {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly visualizationDirectory?: string
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.compactionThresholdPercent !== undefined
@@ -267,6 +290,9 @@ export async function createPiProjectModelRuntime(input: {
       ? { enabledOpenWaggleExtensionResourceRoots: input.enabledOpenWaggleExtensionResourceRoots }
       : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
   })
   const model = findPiToolCapableModel(services.modelRuntime, input.modelReference)
   if (!model) {

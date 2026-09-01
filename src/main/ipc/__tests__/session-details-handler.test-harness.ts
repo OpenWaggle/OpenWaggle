@@ -5,11 +5,13 @@ import { type Mock, vi } from 'vitest'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
+import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
+import { SESSION_DETAILS_HANDLER_SOURCE_TREE } from './session-details-handler-tree-fixture'
 
 type TestMock = Mock
 
@@ -39,6 +41,8 @@ const mocks = vi.hoisted(() => ({
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
+  deleteVisualizationSessionMock: vi.fn(),
+  rollbackVisualizationSessionDeletionMock: vi.fn(),
 }))
 
 export const typedHandleMock: TestMock = mocks.typedHandleMock
@@ -63,6 +67,9 @@ export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
+export const deleteVisualizationSessionMock: TestMock = mocks.deleteVisualizationSessionMock
+export const rollbackVisualizationSessionDeletionMock: TestMock =
+  mocks.rollbackVisualizationSessionDeletionMock
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -209,7 +216,7 @@ const TestAgentKernelLayer = Layer.succeed(
 const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(null),
+  getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -241,12 +248,34 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
   flushForTests: () => Effect.void,
 })
 
+const TestInlineVisualizationLayer = Layer.succeed(
+  InlineVisualizationService,
+  InlineVisualizationService.of({
+    prepareSession: () => Effect.succeed('/visualizations/session'),
+    deleteSession: (sessionId) =>
+      Effect.sync(() => {
+        deleteVisualizationSessionMock(sessionId)
+      }),
+    stageSessionDeletion: (sessionId) =>
+      Effect.succeed({
+        commit: Effect.sync(() => {
+          deleteVisualizationSessionMock(sessionId)
+        }),
+        rollback: Effect.sync(() => {
+          rollbackVisualizationSessionDeletionMock(sessionId)
+        }),
+      }),
+    readSource: () => Effect.succeed({ status: 'unavailable', reason: 'missing' }),
+  }),
+)
+
 const TestRuntimeLayer = Layer.mergeAll(
   TestSessionProjectionRepoLayer,
   TestAgentKernelLayer,
   TestSessionRepoLayer,
   TestProviderLayer,
   TestSettingsLayer,
+  TestInlineVisualizationLayer,
   EmptyExtensionRuntimeLayer,
 )
 

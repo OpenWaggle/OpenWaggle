@@ -1,3 +1,4 @@
+import type { SessionId } from './brand'
 import type { WaggleInvocationMetadata } from './waggle'
 
 export type ChatMessageRole = 'system' | 'user' | 'assistant'
@@ -78,6 +79,7 @@ export interface ChatBranchSummaryMetadata {
 }
 
 export interface UIMessageMetadata {
+  readonly visualizationSessionId?: SessionId
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata

@@ -16,6 +16,7 @@ export interface PiRuntimeServicesOptions {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly visualizationDirectory?: string
 }
 
 type PiResourceLoaderOptions = NonNullable<
@@ -104,6 +105,7 @@ export function createOpenWagglePiResourceLoaderOptions(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
   settingsManager?: SettingsManager,
+  builtInSkillPaths: readonly string[] = [],
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
   const disableExtensions = disableExecutableExtensionsForAutomation()
@@ -112,9 +114,10 @@ export function createOpenWagglePiResourceLoaderOptions(
       disableExtensions || settingsManager
         ? []
         : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
-    additionalSkillPaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
+    additionalSkillPaths: [
+      ...builtInSkillPaths,
+      ...(settingsManager ? [] : includeExistingPath(getOpenWaggleSkillsRoot(projectPath))),
+    ],
     additionalPromptTemplatePaths: settingsManager
       ? []
       : includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
@@ -122,6 +125,17 @@ export function createOpenWagglePiResourceLoaderOptions(
       ? []
       : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
     skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
+    ...(options.visualizationDirectory
+      ? {
+          appendSystemPrompt: [
+            [
+              '## Inline visualization authoring',
+              `The durable visualization directory for this session is ${JSON.stringify(options.visualizationDirectory)}.`,
+              'When using the visualize skill, write its HTML fragment there and emit the absolute path in the documented visualize reference.',
+            ].join('\n'),
+          ],
+        }
+      : {}),
     ...(disableExtensions ? { noExtensions: true } : {}),
     ...(!disableExtensions && options.extensionFactories
       ? { extensionFactories: [...options.extensionFactories] }
