@@ -80,6 +80,18 @@ async function dispatchLifecycleClick(page: Page, action: string) {
   await dispatchButtonClick(lifecycleButton(page, action))
 }
 
+async function openSessionSummary(page: Page) {
+  const summary = page.getByRole('complementary', { name: 'Session Summary' })
+  if (!(await summary.isVisible())) {
+    await page
+      .locator('header')
+      .getByRole('button', { name: 'Session Summary', exact: true })
+      .click()
+  }
+  await expect(summary).toBeVisible()
+  return summary
+}
+
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-extension-host-e2e-')
   const projectPath = await fs.realpath(
@@ -219,7 +231,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await expect(publishReport).toBeEnabled({ timeout: 30_000 })
     await page.getByRole('button', { name: 'Close extension side panel' }).click()
 
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    const summary = await openSessionSummary(page)
     await dispatchButtonClick(summary.getByRole('button', { name: /Outputs/ }))
     await expect(summary.getByText('GitHub session report')).toBeVisible()
     const [baseUrl] = page.url().split('#')

@@ -186,11 +186,17 @@ export class OpenWaggleApp {
     }
     if (await closeEvent) return true
 
-    console.warn(
-      `[electron-qa] immediate app exit timed out; retaining disposable profile ${this.userDataDir}`,
-    )
+    console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
+    const forcedCloseEvent = this.app
+      .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
+      .then(() => true)
+      .catch(() => false)
     this.terminateProcessTree()
-    return false
+    const forcedClosed = await forcedCloseEvent
+    if (!forcedClosed) {
+      console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
+    }
+    return forcedClosed
   }
 
   private terminateProcessTree(): void {
@@ -199,6 +205,9 @@ export class OpenWaggleApp {
       childProcess.kill('SIGKILL')
     } catch {
       // The process may have exited while cleanup was capturing evidence.
+    }
+    for (const stream of childProcess.stdio) {
+      stream?.destroy()
     }
   }
 
