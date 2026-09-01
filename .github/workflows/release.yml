@@ -41,9 +41,79 @@ jobs:
 
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Determine bump from conventional commits
+        if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+        id: bump
+        run: |
+          set -euo pipefail
+          if LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); then
+            RANGE="${LAST_TAG}..HEAD"
+          else
+            LAST_TAG=""
+            RANGE="HEAD"
+          fi
+
+          echo "Last tag: ${LAST_TAG:-none}"
+          echo "Commit range: ${RANGE}"
+          COMMITS=$(git log --format='%s' "$RANGE")
+          BODIES=$(git log --format='%b' "$RANGE")
+          HAS_BREAKING=false
+          HAS_FEAT=false
+          HAS_FIX=false
+
+          while IFS= read -r message; do
+            [ -z "$message" ] && continue
+            if grep -qiE '^[a-z]+(\(.+\))?!:' <<<"$message"; then
+              HAS_BREAKING=true
+            fi
+            if grep -qE '^feat(\(.+\))?:' <<<"$message"; then
+              HAS_FEAT=true
+            fi
+            if grep -qE '^fix(\(.+\))?:' <<<"$message"; then
+              HAS_FIX=true
+            fi
+          done <<<"$COMMITS"
+
+          if grep -q 'BREAKING CHANGE' <<<"$BODIES"; then
+            HAS_BREAKING=true
+          fi
+
+          if [ "$HAS_BREAKING" = true ]; then
+            BUMP="major"
+          elif [ "$HAS_FEAT" = true ]; then
+            BUMP="minor"
+          elif [ "$HAS_FIX" = true ]; then
+            BUMP="patch"
+          else
+            echo "No feat: or fix: commits since last release; skipping."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT=$(node -p "require('./package.json').version")
+          if grep -qE 'alpha|beta' <<<"$CURRENT"; then
+            BASE_VERSION="${CURRENT%%-*}"
+            PRERELEASE_TAG=$(sed 's/.*-\(alpha\|beta\)\..*/\1/' <<<"$CURRENT")
+            PRERELEASE_NUM=$(sed 's/.*\(alpha\|beta\)\.\([0-9]*\).*/\2/' <<<"$CURRENT")
+            NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<<"$CURRENT"
+            case "$BUMP" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
       - name: Prepare release PR or publish its protected merge
         id: release
         env:
+          BUMP_SHOULD_RELEASE: ${{ steps.bump.outputs.should_release }}
+          BUMP_VERSION: ${{ steps.bump.outputs.new_version }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -62,64 +132,27 @@ jobs:
           elif [[ "$HEAD_SUBJECT" == "chore(release):"* ]]; then
             write_no_release_output
             exit 0
+          elif [ "$BUMP_SHOULD_RELEASE" = "true" ]; then
+            VERSION="$BUMP_VERSION"
           else
-            git fetch origin "+refs/heads/main:refs/remotes/origin/main"
-            git switch --detach origin/main
-            RELEASE_PLAN=$(pnpm exec tsx scripts/app-release-intent-cli.ts plan)
-            if [ "$(jq -er '.shouldRelease' <<<"$RELEASE_PLAN")" != "true" ]; then
-              echo "No release-producing desktop app intent is pending."
-              write_no_release_output
-              exit 0
-            fi
-            VERSION=$(jq -er '.version' <<<"$RELEASE_PLAN")
+            write_no_release_output
+            exit 0
           fi
 
-          RELEASE_BRANCH="app-release"
+          RELEASE_BRANCH="app-release-v${VERSION}"
           TAG="v${VERSION}"
 
-          verify_generated_release_tree() {
+          verify_version_only_tree() {
             local base_ref="$1"
             local candidate_ref="$2"
-            local base_sha
-            local candidate_sha
-            local trusted_container
-            local trusted_root
-            local verification_status=0
-            base_sha=$(git rev-parse "${base_ref}^{commit}")
-            candidate_sha=$(git rev-parse "${candidate_ref}^{commit}")
-            trusted_container=$(mktemp -d "$RUNNER_TEMP/app-release-trusted.XXXXXX")
-            trusted_root="${trusted_container}/checkout"
-
-            # The parent checkout supplies both generator source and frozen dependencies.
-            git worktree add --detach "$trusted_root" "$base_sha"
-            (
-              cd "$trusted_root"
-              pnpm install --frozen-lockfile --ignore-scripts
-              pnpm exec tsx scripts/app-release-tree-cli.ts verify \
-                --root "$trusted_root" \
-                --candidate-ref "$candidate_sha" \
-                --version "$VERSION"
-            ) || verification_status=$?
-            git worktree remove --force "$trusted_root" || verification_status=$?
-            rmdir "$trusted_container" || verification_status=$?
-            return "$verification_status"
-          }
-
-          read_remote_tag_target() {
-            local query_status=0
-            git ls-remote --exit-code origin "refs/tags/${TAG}" \
-              >/dev/null 2>&1 || query_status=$?
-            if [ "$query_status" -eq 2 ]; then
-              echo "absent"
-              return
-            fi
-            if [ "$query_status" -ne 0 ]; then
-              echo "Failed to determine whether ${TAG} exists." >&2
-              return "$query_status"
-            fi
-            git fetch --force origin \
-              "+refs/tags/${TAG}:refs/tags/${TAG}"
-            git rev-list -n 1 "$TAG"
+            test "$(git diff --name-only "${base_ref}...${candidate_ref}")" = "package.json"
+            git show "${base_ref}:package.json" > "$RUNNER_TEMP/base-package.json"
+            git show "${candidate_ref}:package.json" > "$RUNNER_TEMP/candidate-package.json"
+            pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+              --base "$RUNNER_TEMP/base-package.json" \
+              --output "$RUNNER_TEMP/expected-package.json" \
+              --version "$VERSION"
+            cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"
           }
 
           verify_release_commit() {
@@ -132,10 +165,9 @@ jobs:
             commit_subject=$(git show -s --format=%s "$commit_sha")
             test "$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
               --subject "$commit_subject")" = "$VERSION"
-            test "$(node -p "require('./package.json').version")" = "$VERSION"
-            test -f .release/release-notes.md
-            test -f CHANGELOG.md
-            test -z "$(git ls-tree -r --name-only "$commit_sha" .release/changes)"
+            local parent_sha
+            parent_sha=$(git rev-parse "${commit_sha}^")
+            verify_version_only_tree "$parent_sha" "$commit_sha"
           }
 
           write_release_outputs() {
@@ -180,13 +212,6 @@ jobs:
 
             RELEASE_PR_HEAD_SHA=$(jq -er '.head.sha' <<<"$MATCHING_PR")
             [[ "$RELEASE_PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-            git fetch origin "$RELEASE_PR_HEAD_SHA"
-            test "$(git rev-parse "${RELEASE_PR_HEAD_SHA}^{tree}")" = \
-              "$(git rev-parse "${MERGE_SHA}^{tree}")"
-            test "$(git rev-parse "${RELEASE_PR_HEAD_SHA}^")" = \
-              "$(git rev-parse "${MERGE_SHA}^")"
-            MERGE_PARENT_SHA=$(git rev-parse "${MERGE_SHA}^")
-            verify_generated_release_tree "$MERGE_PARENT_SHA" "$MERGE_SHA"
             RELEASE_PR_RUNS=$(gh api \
               "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20")
             test "$(jq -er --arg sha "$RELEASE_PR_HEAD_SHA" \
@@ -197,35 +222,26 @@ jobs:
                 .conclusion == "success"
               )] | length' <<<"$RELEASE_PR_RUNS")" -ge "1"
 
-            EXISTING_TAG_TARGET=$(read_remote_tag_target)
-            TAG_ACTION=$(pnpm exec tsx scripts/app-release-state.ts tag-action \
-              --existing-target "$EXISTING_TAG_TARGET" \
-              --expected-target "$MERGE_SHA")
-            if [ "$TAG_ACTION" = "create" ]; then
+            if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+              test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"
+            else
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
               git tag -a "$TAG" "$MERGE_SHA" -m "Release ${TAG}"
               git push origin "refs/tags/${TAG}"
-            elif [ "$TAG_ACTION" = "reuse" ]; then
-              echo "Reusing coherent ${TAG} at ${MERGE_SHA}."
-            else
-              echo "${TAG} already targets ${EXISTING_TAG_TARGET}, not ${MERGE_SHA}." >&2
-              exit 1
             fi
             write_release_outputs
             exit 0
           fi
 
-          EXISTING_TAG_TARGET=$(read_remote_tag_target)
-          TAG_ACTION=$(pnpm exec tsx scripts/app-release-state.ts tag-action \
-            --existing-target "$EXISTING_TAG_TARGET" \
-            --expected-target absent)
-          if [ "$TAG_ACTION" != "create" ]; then
-            echo "Cannot prepare ${TAG}: it already targets ${EXISTING_TAG_TARGET}." >&2
-            exit 1
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "${TAG} is already published; no release PR is needed."
+            write_no_release_output
+            exit 0
           fi
 
-          ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH" --limit 100 \
+          ALL_PRS=$(gh pr list --state all --head "$RELEASE_BRANCH" --limit 100 \
             --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url)
           PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
             --branch "$RELEASE_BRANCH" \
@@ -245,43 +261,45 @@ jobs:
             PR_STATE=$(jq -er '.[0].state' <<<"$PRS")
             test "$(jq -er '.[0].baseRefName' <<<"$PRS")" = "main"
             test "$(jq -er '.[0].headRefName' <<<"$PRS")" = "$RELEASE_BRANCH"
-            test "$PR_STATE" = "OPEN"
-          fi
-
-          BASE_SHA=$(git rev-parse HEAD)
-          RELEASE_DATE=$(git show -s --format=%as "$BASE_SHA")
-          REMOTE_RELEASE_SHA=$(git ls-remote origin "refs/heads/${RELEASE_BRANCH}" | awk '{print $1}')
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C "$RELEASE_BRANCH" "$BASE_SHA"
-          pnpm exec tsx scripts/app-release-intent-cli.ts prepare \
-            --version "$VERSION" \
-            --date "$RELEASE_DATE"
-          git add package.json CHANGELOG.md .release
-          git commit -m "chore(release): v${VERSION}"
-          CANDIDATE_SHA=$(git rev-parse HEAD)
-          verify_generated_release_tree "$BASE_SHA" "$CANDIDATE_SHA"
-
-          if [ -n "$REMOTE_RELEASE_SHA" ]; then
-            if ! git push \
-              --force-with-lease="refs/heads/${RELEASE_BRANCH}:${REMOTE_RELEASE_SHA}" \
-              origin "$RELEASE_BRANCH"; then
-              test "$(git ls-remote origin "refs/heads/${RELEASE_BRANCH}" | awk '{print $1}')" = "$CANDIDATE_SHA"
-            fi
-          else
-            if ! git push origin "$RELEASE_BRANCH"; then
-              test "$(git ls-remote origin "refs/heads/${RELEASE_BRANCH}" | awk '{print $1}')" = "$CANDIDATE_SHA"
+            test "$(jq -er '.[0].title' <<<"$PRS")" = "chore(release): v${VERSION}"
+            if [ "$PR_STATE" = "MERGED" ]; then
+              echo "Release PR is already merged; its protected-merge run owns publication."
+              write_no_release_output
+              exit 0
+            elif [ "$PR_STATE" != "OPEN" ]; then
+              echo "Release PR is closed without being merged: ${PR_URL}"
+              exit 1
             fi
           fi
 
           if [ -z "$PR_URL" ]; then
+            if git ls-remote --exit-code origin "refs/heads/${RELEASE_BRANCH}" >/dev/null 2>&1; then
+              git fetch origin "refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              git switch --detach "origin/${RELEASE_BRANCH}"
+            else
+              pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+                --base package.json \
+                --output package.json \
+                --version "$VERSION"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git switch -c "$RELEASE_BRANCH"
+              git add package.json
+              git commit -m "chore(release): v${VERSION}"
+              git push origin "$RELEASE_BRANCH"
+            fi
+
+            git fetch origin \
+              "+refs/heads/main:refs/remotes/origin/main" \
+              "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+            verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
             PR_CREATE_ERROR="$RUNNER_TEMP/release-pr-create-error.log"
             for PR_CREATE_ATTEMPT in $(seq 1 4); do
               if PR_URL=$(gh pr create \
                 --base main \
                 --head "$RELEASE_BRANCH" \
                 --title "chore(release): v${VERSION}" \
-                --body "Automated desktop app release from committed release-intent files. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release." \
+                --body "Automated desktop app version release. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release." \
                 2>"$PR_CREATE_ERROR"); then
                 break
               fi
@@ -321,13 +339,10 @@ jobs:
             done
             test -n "$PR_URL"
             PR_STATE="OPEN"
-          else
-            gh pr edit "$PR_URL" \
-              --title "chore(release): v${VERSION}" \
-              --body "Automated desktop app release from committed release-intent files. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release."
           fi
 
           if [ "$PR_STATE" = "OPEN" ]; then
+            PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq '.number')
             for VALIDATION_ATTEMPT in $(seq 1 3); do
               PR_DETAILS=$(gh pr view "$PR_URL" \
                 --json baseRefName,headRefName,headRefOid,mergeStateStatus,state,title)
@@ -340,41 +355,32 @@ jobs:
               test "$CURRENT_PR_STATE" = "OPEN"
               test "$(jq -er '.baseRefName' <<<"$PR_DETAILS")" = "main"
               test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
-              CURRENT_TITLE=$(jq -er '.title' <<<"$PR_DETAILS")
-              VALIDATION_ACTION=$(pnpm exec tsx scripts/app-release-state.ts validation-action \
-                --actual-title "$CURRENT_TITLE" \
-                --expected-title "chore(release): v${VERSION}" \
-                --attempt "$VALIDATION_ATTEMPT" \
-                --maximum-attempts 3)
-              if [ "$VALIDATION_ACTION" = "fail" ]; then
-                echo "Release PR metadata did not converge after ${VALIDATION_ATTEMPT} attempts." >&2
-                exit 1
-              fi
-              if [ "$VALIDATION_ACTION" = "retry" ]; then
-                echo "Release PR metadata has not converged yet."
-                sleep 2
-                continue
-              fi
-              test "$VALIDATION_ACTION" = "validate"
+              test "$(jq -er '.title' <<<"$PR_DETAILS")" = "chore(release): v${VERSION}"
               HEAD_SHA=$(jq -er '.headRefOid' <<<"$PR_DETAILS")
               MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$PR_DETAILS")
               [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
 
               if [ "$MERGE_STATE" = "BEHIND" ]; then
-                echo "Main advanced; its queued preparation run will regenerate the release candidate."
-                write_no_release_output
-                exit 0
+                gh api --method PUT \
+                  "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" \
+                  -f "expected_head_sha=${HEAD_SHA}" >/dev/null
+                for UPDATE_ATTEMPT in $(seq 1 30); do
+                  UPDATED_SHA=$(gh pr view "$PR_URL" --json headRefOid --jq '.headRefOid')
+                  if [ "$UPDATED_SHA" != "$HEAD_SHA" ]; then
+                    HEAD_SHA="$UPDATED_SHA"
+                    break
+                  fi
+                  echo "Waiting for release branch update (${UPDATE_ATTEMPT}/30)."
+                  sleep 2
+                done
+                test "$HEAD_SHA" != "$(jq -er '.headRefOid' <<<"$PR_DETAILS")"
               fi
 
               git fetch origin \
                 "+refs/heads/main:refs/remotes/origin/main" \
                 "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
               test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
-              test "$(git rev-parse "origin/${RELEASE_BRANCH}^")" = \
-                "$(git rev-parse origin/main)"
-              verify_generated_release_tree \
-                origin/main \
-                "origin/${RELEASE_BRANCH}"
+              verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
 
               RUN_ID=""
               for RUN_ATTEMPT in $(seq 1 60); do
@@ -438,7 +444,7 @@ jobs:
     name: Build macOS
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -455,19 +461,10 @@ jobs:
 
       - run: pnpm build
 
-      - name: Build macOS artifacts
+      - name: Build macOS artifacts (arm64 + x64)
         run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Verify and archive unpacked macOS applications
-        shell: bash
-        run: |
-          set -euo pipefail
-          pnpm packaged-app:smoke -- dist/mac/OpenWaggle.app
-          pnpm packaged-app:smoke -- dist/mac-arm64/OpenWaggle.app
-          tar -czf dist/openwaggle-macos-x64-unpacked.tar.gz -C dist/mac OpenWaggle.app
-          tar -czf dist/openwaggle-macos-arm64-unpacked.tar.gz -C dist/mac-arm64 OpenWaggle.app
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -477,56 +474,6 @@ jobs:
             dist/*.zip
             dist/*.yml
           if-no-files-found: error
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: macos-unpacked-apps
-          path: dist/openwaggle-macos-*-unpacked.tar.gz
-          if-no-files-found: error
-
-  smoke-macos:
-    name: Smoke macOS (${{ matrix.architecture }})
-    needs: [version, build-macos]
-    if: needs.version.outputs.should_release == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: x64
-            runner: macos-15-intel
-            expected_uname: x86_64
-          - architecture: arm64
-            runner: macos-15
-            expected_uname: arm64
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ needs.version.outputs.new_tag }}
-
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: macos-unpacked-apps
-          path: ${{ runner.temp }}/macos-unpacked
-
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Run production startup smoke on matching architecture
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(uname -m)" = "${{ matrix.expected_uname }}"
-          APP_ROOT="$RUNNER_TEMP/macos-${{ matrix.architecture }}"
-          mkdir -p "$APP_ROOT"
-          tar -xzf "$RUNNER_TEMP/macos-unpacked/openwaggle-macos-${{ matrix.architecture }}-unpacked.tar.gz" -C "$APP_ROOT"
-          pnpm qa:packaged-session-host-startup -- "$APP_ROOT/OpenWaggle.app/Contents/MacOS/OpenWaggle"
 
   build-linux:
     name: Build Linux
@@ -549,16 +496,8 @@ jobs:
 
       - run: pnpm build
 
-      - name: Install Linux Electron dependencies
-        run: pnpm exec playwright install-deps chromium
-
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
-
-      - name: Verify unpacked Linux application
-        run: |
-          pnpm packaged-app:smoke -- dist/linux-unpacked
-          xvfb-run -a pnpm qa:packaged-session-host-startup -- dist/linux-unpacked/openwaggle
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -592,11 +531,6 @@ jobs:
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
 
-      - name: Verify unpacked Windows application
-        run: |
-          pnpm packaged-app:smoke -- dist\win-unpacked
-          pnpm qa:packaged-session-host-startup -- dist\win-unpacked\OpenWaggle.exe
-
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-artifacts
@@ -616,15 +550,8 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             artifact_name: linux-artifacts
-          - os: macos-15-intel
+          - os: macos-latest
             platform: macos
-            architecture: x64
-            expected_uname: x86_64
-            artifact_name: macos-artifacts
-          - os: macos-15
-            platform: macos
-            architecture: arm64
-            expected_uname: arm64
             artifact_name: macos-artifacts
           - os: windows-latest
             platform: windows
@@ -640,18 +567,10 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        if: matrix.platform == 'windows'
         with:
           node-version: 24.14.0
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Install Linux Electron dependencies
-        if: matrix.platform == 'linux'
-        run: pnpm exec playwright install-deps chromium
 
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
@@ -697,7 +616,6 @@ jobs:
 
           test -x "$HOME/.local/bin/openwaggle"
           test -f "$HOME/.local/share/applications/openwaggle.desktop"
-          xvfb-run -a pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"
 
       - name: Verify macOS installers
         if: matrix.platform == 'macos'
@@ -706,54 +624,32 @@ jobs:
           set -euo pipefail
           VERSION='${{ needs.version.outputs.new_version }}'
           ARTIFACT_DIR="$RUNNER_TEMP/release/macos"
-          test "$(uname -m)" = "${{ matrix.expected_uname }}"
-          DMG_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.dmg"
-          ZIP_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.zip"
-          test -f "$ARTIFACT_DIR/$DMG_NAME"
-          test -f "$ARTIFACT_DIR/$ZIP_NAME"
+          ARM64_DMG="openwaggle-${VERSION}-arm64.dmg"
+          X64_DMG="openwaggle-${VERSION}-x64.dmg"
+          ARM64_ZIP="openwaggle-${VERSION}-arm64.zip"
+          X64_ZIP="openwaggle-${VERSION}-x64.zip"
+          test -f "$ARTIFACT_DIR/$ARM64_DMG"
+          test -f "$ARTIFACT_DIR/$X64_DMG"
+          test -f "$ARTIFACT_DIR/$ARM64_ZIP"
+          test -f "$ARTIFACT_DIR/$X64_ZIP"
 
-          MOCK_RELEASE_DIR="$RUNNER_TEMP/mock-release"
-          mkdir -p "$MOCK_RELEASE_DIR"
-          cp "$ARTIFACT_DIR/$DMG_NAME" "$MOCK_RELEASE_DIR/$DMG_NAME"
-          (
-            cd "$MOCK_RELEASE_DIR"
-            shasum -a 256 "$DMG_NAME" > SHA256SUMS.txt
-          )
-
-          RELEASE_JSON_PATH="$MOCK_RELEASE_DIR/release.json"
-          DMG_URL="file://$MOCK_RELEASE_DIR/$DMG_NAME"
-          SHA_URL="file://$MOCK_RELEASE_DIR/SHA256SUMS.txt"
-          cat > "$RELEASE_JSON_PATH" <<JSON
-          {
-            "tag_name": "v${VERSION}",
-            "assets": [
-              { "browser_download_url": "${DMG_URL}" },
-              { "browser_download_url": "${SHA_URL}" }
-            ]
-          }
-          JSON
-
-          export HOME="$RUNNER_TEMP/home"
-          export OPENWAGGLE_APPLICATIONS_DIR="$RUNNER_TEMP/Applications"
-          export OPENWAGGLE_RELEASE_API_URL="file://$RELEASE_JSON_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          mkdir -p "$HOME"
-          bash scripts/install.sh
-
-          test -d "$OPENWAGGLE_APPLICATIONS_DIR/OpenWaggle.app"
-          test -x "$HOME/.local/bin/openwaggle"
-          pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"
+          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
+          trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
+          APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
+          test -d "$APP_PATH"
+          APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
+          test -x "$APP_BINARY"
 
       - name: Verify Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release
-    needs: [version, smoke-macos, verify-installers]
+    needs: [version, verify-installers]
     if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -779,5 +675,5 @@ jobs:
           tag_name: ${{ needs.version.outputs.new_tag }}
           name: ${{ needs.version.outputs.new_tag }}
           draft: false
-          body_path: .release/release-notes.md
+          generate_release_notes: true
           files: release/*

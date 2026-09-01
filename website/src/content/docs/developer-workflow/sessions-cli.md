@@ -27,7 +27,9 @@ Lexical multiword searches match all tokens in any position. Wrap the complete s
 
 `read --full` streams a stable high-water-mark snapshot page by page, so an agent can retrieve the complete transcript without accumulating it in memory. Pages are bounded by both record count and encoded bytes; a Session with large messages therefore produces smaller pages automatically. A single pathological record that cannot fit in one bounded response fails with `record_too_large` instead of crashing the Host. Machine consumers should use `--json` for one response and `--jsonl` for streams.
 
-Both modes use a schema-versioned envelope. Single responses have `type: "response"` and place the command result in `result`. Every JSONL line has `type: "record"` and places the stream value in `record`. Usage, authentication, authorization, transport, and internal failures have `type: "error"`; they are written to stderr instead of stdout.
+Single-response commands with `--json` use a schema-versioned `type: "response"` envelope on stdout and place the command result in `result`. This includes a structured rejected outcome returned by the Host; the response remains available on stdout while the process uses its matching nonzero exit class. Command streams such as `read --full`, `watch`, and `export watch` use `--jsonl`; every stdout line has `type: "record"` and places the stream value in `record`.
+
+A failure that aborts before a structured command result is available—such as usage validation, authentication or authorization protocol failure, transport failure, or an internal error—uses a schema-versioned `type: "error"` envelope on stderr. This is different from a structured rejected response on stdout.
 
 ```json
 {"schemaVersion":1,"type":"response","command":"list","result":{"contract":"session-query-v2","response":{"contractVersion":2,"requestId":"request-1","outcome":{"operation":"list","sessions":[]}}}}
@@ -107,7 +109,18 @@ openwaggle sessions export create <session-id> ./handoff --format bundle
 openwaggle sessions export wait <session-id> <operation-id> --timeout-ms 60000
 ```
 
-Streaming export writes to stdout and byte-pages large transcripts automatically. Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. Export-operation listings are also byte-paginated so large captured manifests cannot make status discovery unresponsive. `export watch --jsonl` uses the same cursor checkpoint and `resync-required` records as `sessions watch`, including when unrelated export events are filtered out.
+Streaming export writes to stdout and byte-pages large transcripts automatically. Its `--format jsonl` output (also selected by the `--jsonl` stream shorthand) is a portable export artifact, not a command-stream envelope: the first line is `{ "record": "manifest", "manifest": { "schemaVersion": 1, ... } }`, and each following line is a raw `{ "record": "node", "schemaVersion": 1, ... }` record. Parse the top-level `exportLine.record` field rather than `exportLine.type` or `exportLine.record.kind`.
+
+```js
+const exportLine = JSON.parse(rawLine)
+if (exportLine.record === 'manifest') {
+  readManifest(exportLine.manifest)
+} else if (exportLine.record === 'node') {
+  readTranscriptNode(exportLine)
+}
+```
+
+Artifact export is durable, supports status/list/read/cancel/watch operations, validates destination and resource scope, and refuses an existing destination unless `--overwrite` is explicit. Export-operation listings are also byte-paginated so large captured manifests cannot make status discovery unresponsive. `export watch --jsonl` is a command event stream, so it uses the same outer `type: "record"` envelope, cursor checkpoint, and `resync-required` records as `sessions watch`, including when unrelated export events are filtered out.
 
 On Windows, workspace-scoped artifact export currently fails closed because the platform does not provide the descriptor-relative installation semantics OpenWaggle requires to prevent path-swap attacks. Use streaming export to stdout instead, for example `openwaggle sessions export <session-id> --format markdown > conversation.md`.
 

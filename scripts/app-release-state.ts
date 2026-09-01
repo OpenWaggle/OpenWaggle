@@ -1,8 +1,10 @@
+import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { Schema } from 'effect'
 
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
+const JSON_INDENT = 2
 const RELEASE_SUBJECT_PATTERN =
   /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 
@@ -20,6 +22,9 @@ const pullRequestSchema = Schema.Struct({
   url: Schema.String,
 })
 const pullRequestListJsonSchema = Schema.parseJson(Schema.Array(pullRequestSchema))
+const manifestJsonSchema = Schema.parseJson(
+  Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+)
 
 export type AppReleasePullRequest = typeof pullRequestSchema.Type
 
@@ -28,9 +33,6 @@ export interface ReleasePullRequestIdentity {
   readonly owner: string
   readonly repository: string
 }
-
-export type ReleaseValidationAction = 'fail' | 'retry' | 'validate'
-export type ReleaseTagAction = 'conflict' | 'create' | 'reuse'
 
 export function selectOwnedReleasePullRequests(
   pullRequests: readonly AppReleasePullRequest[],
@@ -45,27 +47,13 @@ export function selectOwnedReleasePullRequests(
   )
 }
 
+export function expectedVersionOnlyManifest(baseManifestJson: string, version: string) {
+  const manifest = Schema.decodeUnknownSync(manifestJsonSchema)(baseManifestJson)
+  return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
+}
+
 export function releaseSubjectVersion(subject: string) {
   return RELEASE_SUBJECT_PATTERN.exec(subject)?.[1] ?? null
-}
-
-export function releaseValidationAction(
-  actualTitle: string,
-  expectedTitle: string,
-  attempt: number,
-  maximumAttempts: number,
-): ReleaseValidationAction {
-  if (actualTitle === expectedTitle) return 'validate'
-  return attempt < maximumAttempts ? 'retry' : 'fail'
-}
-
-export function releaseTagAction(
-  existingTarget: string | null,
-  expectedTarget: string | null,
-): ReleaseTagAction {
-  if (existingTarget === null) return 'create'
-  if (expectedTarget !== null && existingTarget === expectedTarget) return 'reuse'
-  return 'conflict'
 }
 
 function argument(name: string) {
@@ -73,14 +61,6 @@ function argument(name: string) {
   const value = index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
   if (!value) {
     throw new Error(`Missing required argument ${name}.`)
-  }
-  return value
-}
-
-function numericArgument(name: string) {
-  const value = Number(argument(name))
-  if (!Number.isSafeInteger(value) || value < 1) {
-    throw new Error(`${name} must be a positive integer.`)
   }
   return value
 }
@@ -109,37 +89,21 @@ async function runCli() {
     return
   }
 
+  if (command === 'expected-manifest') {
+    const basePath = argument('--base')
+    const outputPath = argument('--output')
+    const version = argument('--version')
+    const expected = expectedVersionOnlyManifest(fs.readFileSync(basePath, 'utf8'), version)
+    fs.writeFileSync(outputPath, expected)
+    return
+  }
+
   if (command === 'release-subject-version') {
     const version = releaseSubjectVersion(argument('--subject'))
     if (!version) {
       throw new Error('Commit subject is not a release subject.')
     }
     process.stdout.write(version)
-    return
-  }
-
-
-  if (command === 'validation-action') {
-    process.stdout.write(
-      releaseValidationAction(
-        argument('--actual-title'),
-        argument('--expected-title'),
-        numericArgument('--attempt'),
-        numericArgument('--maximum-attempts'),
-      ),
-    )
-    return
-  }
-
-  if (command === 'tag-action') {
-    const existingTarget = argument('--existing-target')
-    const expectedTarget = argument('--expected-target')
-    process.stdout.write(
-      releaseTagAction(
-        existingTarget === 'absent' ? null : existingTarget,
-        expectedTarget === 'absent' ? null : expectedTarget,
-      ),
-    )
     return
   }
 

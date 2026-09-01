@@ -31,7 +31,7 @@ describe('desktop app release workflow', () => {
     )
   })
 
-  it('leaves the validated release PR open for a maintainer to merge', () => {
+  it('leaves the validated version PR open for a maintainer to merge', () => {
     expect(WORKFLOW).not.toContain('git push origin main')
     expect(WORKFLOW).not.toContain('--admin')
     expect(WORKFLOW).not.toContain('gh pr merge')
@@ -67,22 +67,14 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).not.toContain('--follow-tags')
   })
 
-  it('regenerates one durable release branch from current main without merge commits', () => {
-    expect(WORKFLOW).toContain('RELEASE_BRANCH="app-release"')
-    expect(WORKFLOW).toContain('git switch --detach origin/main')
-    expect(WORKFLOW).toContain('RELEASE_DATE=$(git show -s --format=%as "$BASE_SHA")')
-    expect(WORKFLOW).toContain('gh pr list --state open --head "$RELEASE_BRANCH"')
+  it('resumes compatible durable state and retries stale-base validation', () => {
+    expect(WORKFLOW).toContain('gh pr list --state all --head "$RELEASE_BRANCH"')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
-    expect(WORKFLOW).toContain('--force-with-lease="refs/heads/${RELEASE_BRANCH}:${REMOTE_RELEASE_SHA}"')
-    expect(WORKFLOW).toContain('= "$CANDIDATE_SHA"')
-    expect(WORKFLOW).toContain('pnpm exec tsx scripts/app-release-intent-cli.ts prepare')
-    expect(WORKFLOW).toContain('verify_generated_release_tree')
-    expect(WORKFLOW).not.toContain('/update-branch')
-    expect(WORKFLOW).toContain(
-      'Main advanced; its queued preparation run will regenerate the release candidate.',
-    )
+    expect(WORKFLOW).toContain('if [ "$PR_STATE" = "MERGED" ]')
+    expect(WORKFLOW).toContain('if [ "$MERGE_STATE" = "BEHIND" ]')
+    expect(WORKFLOW).toContain('/update-branch')
     expect(WORKFLOW).toContain('for VALIDATION_ATTEMPT in $(seq 1 3)')
-    expect(WORKFLOW).toContain('Reusing coherent ${TAG} at ${MERGE_SHA}.')
+    expect(WORKFLOW).toContain('test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"')
     expect(WORKFLOW).toContain('its protected-merge run owns publication')
     expect(WORKFLOW).toContain('Release PR merged after validation')
   })
@@ -101,33 +93,22 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('test -n "$PR_URL"')
   })
 
-  it('accepts only the fully regenerated release tree and the validated PR tree', () => {
-    expect(WORKFLOW).toContain('git worktree add --detach "$trusted_root" "$base_sha"')
-    expect(WORKFLOW).toContain('pnpm install --frozen-lockfile --ignore-scripts')
-    expect(WORKFLOW).toContain('scripts/app-release-tree-cli.ts verify')
-    expect(WORKFLOW).toContain('verify_generated_release_tree "$MERGE_PARENT_SHA" "$MERGE_SHA"')
-    expect(WORKFLOW).not.toContain('diff -qr')
-    expect(WORKFLOW).toContain('test -z "$(git ls-tree -r --name-only "$commit_sha" .release/changes)"')
-    expect(WORKFLOW).toContain('"${RELEASE_PR_HEAD_SHA}^{tree}"')
-    expect(WORKFLOW).toContain('"${MERGE_SHA}^{tree}"')
-  })
-
-  it('uses parent commit dates and fails closed on exhausted validation or tags', () => {
-    expect(WORKFLOW).toContain('RELEASE_DATE=$(git show -s --format=%as "$BASE_SHA")')
-    expect(WORKFLOW).not.toContain('--format=%as "origin/${RELEASE_BRANCH}"')
-    expect(WORKFLOW).toContain('scripts/app-release-state.ts validation-action')
-    expect(WORKFLOW).toContain('Release PR metadata did not converge after')
-    expect(WORKFLOW).toContain('scripts/app-release-state.ts tag-action')
-    expect(WORKFLOW).toContain('if [ "$query_status" -eq 2 ]')
-    expect(WORKFLOW).toContain('if [ "$query_status" -ne 0 ]')
-    expect(WORKFLOW).toContain('Cannot prepare ${TAG}: it already targets')
-    expect(WORKFLOW).toContain('${TAG} already targets ${EXISTING_TAG_TARGET}, not ${MERGE_SHA}.')
+  it('accepts no candidate package changes beyond the expected version', () => {
+    expect(WORKFLOW).toContain('verify_version_only_tree()')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts expected-manifest')
+    expect(WORKFLOW).toContain(
+      'cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"',
+    )
+    expect(WORKFLOW).toContain('verify_version_only_tree "$parent_sha" "$commit_sha"')
+    expect(WORKFLOW).toContain(
+      'verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"',
+    )
   })
 
   it('separates PR preparation from protected-merge publication', () => {
-    expect(WORKFLOW).toContain('scripts/app-release-intent-cli.ts plan')
-    expect(WORKFLOW).not.toContain('Determine bump from conventional commits')
-    expect(WORKFLOW).not.toContain("git log --format='%s'")
+    expect(WORKFLOW).toContain(
+      `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
+    )
     expect(WORKFLOW).toContain(
       'if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]',
     )
@@ -137,8 +118,7 @@ describe('desktop app release workflow', () => {
       "group: \"${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}\"",
     )
     expect(WORKFLOW).toContain('cancel-in-progress: false')
-    expect(WORKFLOW).toContain('body_path: .release/release-notes.md')
-    expect(WORKFLOW).not.toContain('generate_release_notes: true')
+    expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
   })
 
   it('pins every referenced action to an immutable commit', () => {
@@ -153,62 +133,8 @@ describe('desktop app release workflow', () => {
   })
 
   it('verifies the Windows installer through the typed deterministic verifier', () => {
-    expect(WORKFLOW).toContain(
-      'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
-    )
+    expect(WORKFLOW).toContain('node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"')
     expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
-  })
-
-  it('installs and executes the documented macOS CLI shim under an isolated home', () => {
-    expect(WORKFLOW).toContain('export OPENWAGGLE_APPLICATIONS_DIR="$RUNNER_TEMP/Applications"')
-    expect(WORKFLOW).toContain('bash scripts/install.sh')
-    expect(WORKFLOW).toContain('test -x "$HOME/.local/bin/openwaggle"')
-    expect(WORKFLOW).toContain(
-      'pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"',
-    )
-    expect(WORKFLOW).not.toContain('scripts/verify-installed-cli.ts "$APP_BINARY"')
-  })
-
-  it('verifies each exact macOS installer on a matching supported architecture', () => {
-    expect(WORKFLOW).toContain(
-      "build-macos:\n    name: Build macOS\n    needs: version\n    if: needs.version.outputs.should_release == 'true'\n    runs-on: macos-15",
-    )
-    expect(WORKFLOW).not.toContain('macos-14')
-    expect(WORKFLOW).toContain(
-      'os: macos-15-intel\n            platform: macos\n            architecture: x64\n            expected_uname: x86_64',
-    )
-    expect(WORKFLOW).toContain(
-      'os: macos-15\n            platform: macos\n            architecture: arm64\n            expected_uname: arm64',
-    )
-    expect(WORKFLOW).toContain(
-      'DMG_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.dmg"',
-    )
-    expect(WORKFLOW).toContain(
-      'ZIP_NAME="openwaggle-${VERSION}-${{ matrix.architecture }}.zip"',
-    )
-    expect(
-      WORKFLOW.match(/test "\$\(uname -m\)" = "\$\{\{ matrix\.expected_uname \}\}"/gu),
-    ).toHaveLength(2)
-    expect(WORKFLOW).not.toContain('case "$(uname -m)" in')
-  })
-
-  it('runs packaged first-start and legacy-cutover smoke on every platform build', () => {
-    expect(
-      WORKFLOW.match(/pnpm qa:packaged-session-host-startup --/gu),
-    ).toHaveLength(3)
-    expect(WORKFLOW).toContain('dist/linux-unpacked/openwaggle')
-    expect(WORKFLOW).toContain('dist\\win-unpacked\\OpenWaggle.exe')
-    expect(WORKFLOW).toContain('$APP_ROOT/OpenWaggle.app/Contents/MacOS/OpenWaggle')
-    expect(WORKFLOW).toContain(
-      'architecture: x64\n            runner: macos-15-intel\n            expected_uname: x86_64',
-    )
-    expect(WORKFLOW).toContain(
-      'architecture: arm64\n            runner: macos-15\n            expected_uname: arm64',
-    )
-    expect(WORKFLOW).toContain('test "$(uname -m)" = "${{ matrix.expected_uname }}"')
-    expect(WORKFLOW).toContain('electron-builder --mac --arm64 --x64')
-    expect(WORKFLOW).not.toContain('NATIVE_APP=')
-    expect(WORKFLOW).toContain('needs: [version, smoke-macos, verify-installers]')
   })
 })

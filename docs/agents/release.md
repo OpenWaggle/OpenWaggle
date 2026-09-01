@@ -4,15 +4,15 @@ Use this file for agent-facing release and update-track decisions. The canonical
 
 ## Current Release Model
 
-OpenWaggle uses semver prerelease stages. The active train is `0.3.0-alpha.N`; only an explicit maintainer stage transition changes it.
+OpenWaggle uses semver prerelease stages. The current release train is `0.3.0-alpha.N`.
 
 Release automation is GitHub-based:
 
 - CI runs typecheck, lint, and tests on PRs and pushes to `main`.
-- Desktop app versions and curated notes derive only from validated `.release/changes/*.md` files. Routine internal-only changes do not need an intent file.
-- Release automation regenerates the fixed `app-release` branch from current `main`, consumes every pending intent into the root changelog and exact public notes file, and reruns approval-required PR-associated CI for that exact tree. It never merges the pull request. A maintainer's protected merge starts a second run that proves the merge tree and parent match the validated pull request, creates only its tag, then builds artifacts, publishes the curated notes, and attaches checksums.
+- Release workflow derives version bumps from Conventional Commit-style release-eligible commits.
+- Release workflow opens a generated version PR, reruns GitHub's approval-required PR-associated CI for the exact head, and leaves the green PR open for a maintainer. Strict-base drift updates the branch and repeats CI, but automation never merges the PR. A maintainer's protected merge starts a second run that verifies the exact version-only commit and associated same-repository release PR, creates only its tag, then builds platform artifacts, publishes a GitHub Release, and attaches checksums. Preparation runs coalesce, but publication runs use the immutable merge SHA as their concurrency key so a later `main` push cannot replace a queued release. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
 
-The `0.3.0-alpha.44` recovery remains intentionally preserved as legacy audit history. Do not delete, move, or reuse the orphan tag; new releases advance from the version committed in `package.json`.
+The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
 Published artifacts are currently unsigned. macOS notarization and Windows signing are release/distribution trust work, not routine implementation tasks.
 
@@ -30,7 +30,14 @@ Load `.agents/skills/release/SKILL.md` before changing:
 
 ## Release Notes
 
-Product-impacting pull requests add one file per curated note under `.release/changes/` using the schema in the canonical release reference. The generated release commit groups those exact bodies by area in `CHANGELOG.md`, removes the consumed files, and writes the public subset to `.release/release-notes.md`. GitHub publication uses that file directly rather than generated commit-subject notes.
+Until release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+
+- user-visible feature or behavior changes
+- relevant docs updates
+- validation evidence
+- known remaining scope or follow-up work
+
+Do not rely on commit subjects alone for large product changes such as Session Tree, branch lifecycle, resource precedence, provider/auth behavior, Waggle mode, or updater behavior.
 
 ## Validation
 
