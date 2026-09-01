@@ -1,3 +1,4 @@
+import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import { describe, expect, it } from 'vitest'
 import {
   decodeSessionControlMutationRequest,
@@ -5,6 +6,28 @@ import {
 } from '../session-control'
 
 describe('Session collaboration v2 boundary', () => {
+  it('bounds Worker references before Host lookup', () => {
+    const request = (reference: string) => ({
+      contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+      requestId: 'request-worker-reference',
+      idempotencyKey: 'idempotency-worker-reference',
+      command: {
+        operation: 'report',
+        sessionId: 'session-worker',
+        target: { type: 'worker-reference', reference },
+        input: { text: 'Status.', requestReply: false },
+      },
+    })
+    expect(() =>
+      decodeSessionControlMutationRequest(request('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH))),
+    ).not.toThrow()
+    expect(() =>
+      decodeSessionControlMutationRequest(
+        request('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH + 1)),
+      ),
+    ).toThrow()
+  })
+
   it('decodes an explicit cross-session report without Run mutation fields', () => {
     const request = decodeSessionControlMutationRequest({
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,

@@ -273,25 +273,24 @@ describe('SQLite Session query repository', () => {
     await runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
+        yield* sql`DELETE FROM session_transcript_search`
         yield* sql.unsafe(`
           WITH RECURSIVE sequence(value) AS (
-            SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value < 2047
+            SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value < 8191
           )
-          INSERT INTO session_node_search (session_id, node_id, content)
-          SELECT 'queen', printf('monopoly-%05d', value), 'shared monopoly marker' FROM sequence
+          INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
+          SELECT 'queen', value, 'shared monopoly marker' FROM sequence
         `)
-        yield* sql.unsafe(`INSERT INTO session_node_search (session_id, node_id, content)
-          VALUES ('worker', 'later-match', 'shared monopoly marker')`)
-        yield* sql.unsafe(`
-          INSERT INTO session_transcript_search_dirty (session_id)
-          VALUES ('queen'), ('worker') ON CONFLICT(session_id) DO NOTHING
-        `)
+        yield* sql`
+          INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
+          VALUES (${'worker'}, ${0}, ${'shared monopoly marker'})
+        `
       }),
     )
 
     const result = await executeQuery(runtime, {
       operation: 'search',
-      query: 'shared monopoly marker',
+      query: '"shared monopoly marker"',
       searchScope: 'full-transcript',
       limit: 10,
     })

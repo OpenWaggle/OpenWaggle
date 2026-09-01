@@ -268,7 +268,7 @@ describe('useWorkspaceLifecycle', () => {
     })
 
     await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
-    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
@@ -297,12 +297,12 @@ describe('useWorkspaceLifecycle', () => {
     })
     await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
     expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
-    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
 
     resyncHandler({ reason: 'slow-consumer' })
     await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledTimes(2))
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
-    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledTimes(2)
   })
 })

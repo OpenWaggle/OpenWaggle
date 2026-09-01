@@ -54,11 +54,13 @@ function expectedReferences(source: ReferenceSource) {
       ? ([['agent-definition', source.agentDefinitionName]] as const)
       : []),
   ]
-  return entries.map(([kind, value]) => ({
-    sessionId: source.sessionId,
-    kind,
-    normalizedReference: normalizeSessionReportReference(value),
-  }))
+  return entries
+    .map(([kind, value]) => ({
+      sessionId: source.sessionId,
+      kind,
+      normalizedReference: normalizeSessionReportReference(value),
+    }))
+    .filter((reference) => reference.normalizedReference.length > 0)
 }
 
 export function populateSessionReportReferenceCatalog(database: DatabaseSync) {

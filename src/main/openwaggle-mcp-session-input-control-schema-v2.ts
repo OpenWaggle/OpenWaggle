@@ -1,4 +1,5 @@
 import { hasUniqueCollaborationStructures } from '@shared/session-collaboration-collections'
+import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import {
   DELEGATION_CONFLICT_KINDS,
   DELEGATION_CONFLICT_STATUSES,
@@ -89,7 +90,7 @@ export const mcpSessionControlOperationSchemasV2 = [
       .enum(['upstream', 'queen', 'session', 'sessions', 'worker-reference'])
       .optional(),
     targetSessionIds: targetSessionIds.optional(),
-    workerReference: mcpSessionIdSchemaV2.optional(),
+    workerReference: z.string().min(1).max(SESSION_REPORT_REFERENCE_MAX_LENGTH).optional(),
     message: mcpSessionTextSchemaV2.optional(),
     requestReply: booleanFlag.optional(),
     replyToReportId: mcpSessionIdSchemaV2.optional(),

@@ -44,6 +44,7 @@ function acceptsHostEvent(
 
 function useSessionHostRefresh(input: {
   readonly activeSessionId: ChatLifecycle['activeSessionId']
+  readonly loadChatSessions: ChatLifecycle['loadSessions']
   readonly loadSessionTrees: SessionTreeLifecycle['loadSessions']
   readonly refreshSession: ChatLifecycle['refreshSession']
   readonly refreshSessionTree: SessionTreeLifecycle['refreshSessionTree']
@@ -51,6 +52,7 @@ function useSessionHostRefresh(input: {
 }) {
   const {
     activeSessionId,
+    loadChatSessions,
     loadSessionTrees,
     refreshSession,
     refreshSessionTree,
@@ -89,7 +91,10 @@ function useSessionHostRefresh(input: {
       for (const sessionId of queueSessionIds) {
         void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
       }
-      if (refreshCatalog) void loadSessionTrees()
+      if (refreshCatalog) {
+        void loadChatSessions()
+        void loadSessionTrees()
+      }
       if (refreshActive && activeSessionId) {
         void refreshSession(activeSessionId)
         void refreshSessionTree(SessionId(String(activeSessionId)))
@@ -124,7 +129,14 @@ function useSessionHostRefresh(input: {
       pendingRefresh.current.queueSessionIds.clear()
       unsubscribe()
     }
-  }, [activeSessionId, loadSessionTrees, queryClient, refreshSession, refreshSessionTree])
+  }, [
+    activeSessionId,
+    loadChatSessions,
+    loadSessionTrees,
+    queryClient,
+    refreshSession,
+    refreshSessionTree,
+  ])
   useEffect(() => {
     return api.onSessionHostResyncRequired(() => {
       const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(
@@ -132,13 +144,21 @@ function useSessionHostRefresh(input: {
         SESSION_QUERY_ROOT_SEGMENTS,
       )
       void queryClient.invalidateQueries({ queryKey })
+      void loadChatSessions()
       void loadSessionTrees()
       if (activeSessionId) {
         void refreshSession(activeSessionId)
         void refreshSessionTree(SessionId(String(activeSessionId)))
       }
     })
-  }, [activeSessionId, loadSessionTrees, queryClient, refreshSession, refreshSessionTree])
+  }, [
+    activeSessionId,
+    loadChatSessions,
+    loadSessionTrees,
+    queryClient,
+    refreshSession,
+    refreshSessionTree,
+  ])
 }
 
 export function useWorkspaceLifecycle(): void {
@@ -175,6 +195,7 @@ export function useWorkspaceLifecycle(): void {
 
   useSessionHostRefresh({
     activeSessionId,
+    loadChatSessions,
     loadSessionTrees,
     refreshSession,
     refreshSessionTree,

@@ -1,4 +1,5 @@
 import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
+import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import { describe, expect, it } from 'vitest'
 import { sessionInputSchemaV2 } from '../openwaggle-mcp-session-tool-v2'
 
@@ -7,6 +8,23 @@ function values(prefix: string, count: number) {
 }
 
 describe('OpenWaggle MCP collaboration collection boundaries', () => {
+  it('matches the Host Worker-reference length boundary', () => {
+    const input = (workerReference: string) => ({
+      operation: 'report',
+      reportTarget: 'worker-reference',
+      workerReference,
+      message: 'Status.',
+    })
+    expect(
+      sessionInputSchemaV2.safeParse(input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH)))
+        .success,
+    ).toBe(true)
+    expect(
+      sessionInputSchemaV2.safeParse(input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH + 1)))
+        .success,
+    ).toBe(false)
+  })
+
   it('bounds unique report targets at the shared collaboration limit', () => {
     const sessionIds = values('session', SESSION_COLLABORATION_COLLECTION_LIMIT)
     const base = { operation: 'report', reportTarget: 'sessions', message: 'Status.' }

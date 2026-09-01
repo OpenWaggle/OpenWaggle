@@ -3,21 +3,28 @@ import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SqliteClient } from '@effect/sql-sqlite-node'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
-import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { loadLexicalDiscoveryRows } from '../src/main/adapters/sqlite-session-lexical-search'
 import { listSessions } from '../src/main/adapters/sqlite-session-query-catalog'
 import { readItems } from '../src/main/adapters/sqlite-session-query-items'
-import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
-import { SQLITE_PREPARE_CACHE_SIZE } from '../src/main/services/database-constants'
-import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../src/main/services/session-host-target-schema'
+import {
+  benchmarkPercentile,
+  initializeSessionDiscoveryBenchmarkSchema,
+  initializeSessionDiscoveryBenchmarkTargetSchema,
+  populateSessionDiscoveryBenchmarkSearchIndexes,
+  sessionDiscoveryBenchmarkCounts,
+  sessionDiscoveryBenchmarkQueryExecutor,
+} from './benchmark-session-discovery-support'
 
 const STANDARD_SESSION_COUNT = 100_000
 const STANDARD_MESSAGE_COUNT = 10_000_000
+const STANDARD_SKEWED_SESSION_MESSAGE_COUNT = 10_000
 const SMOKE_SESSION_COUNT = 1_000
 const SMOKE_MESSAGE_COUNT = 100_000
+const SMOKE_SKEWED_SESSION_MESSAGE_COUNT = 1_000
+const QUERY_SCALE_MESSAGE_COUNT = STANDARD_SESSION_COUNT
+const QUERY_SCALE_SKEWED_SESSION_MESSAGE_COUNT = 1_000
 const MEASURED_RUNS = 20
 const WARMUP_RUNS = 3
 const PAGE_SIZE = 50
@@ -27,20 +34,12 @@ const COLD_LIMIT_MS = 500
 const JSON_INDENT_SPACES = 2
 const BYTES_PER_MEBIBYTE = 1_048_576
 
-function percentile(values: readonly number[], fraction: number) {
-  const sorted = values.toSorted((left, right) => left - right)
-  const index = Math.max(0, Math.ceil(sorted.length * fraction) - 1)
-  return sorted[index] ?? 0
-}
-
-function schema(database: DatabaseSync) {
-  database.exec('PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA temp_store = FILE;')
-  database.exec('PRAGMA cache_size = -131072;')
-  for (const statement of CURRENT_SESSION_SCHEMA_STATEMENTS) database.exec(statement)
-  for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
-}
-
-function populate(database: DatabaseSync, sessionCount: number, messageCount: number) {
+function populate(
+  database: DatabaseSync,
+  sessionCount: number,
+  messageCount: number,
+  skewedSessionMessageCount: number,
+) {
   database.exec('BEGIN IMMEDIATE')
   database
     .prepare(`
@@ -94,6 +93,30 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
     )
   database
     .prepare(`
+      WITH RECURSIVE sequence(value) AS (
+        SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < ?
+      )
+      INSERT INTO session_nodes (
+        id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms, content_json,
+        metadata_json, branch_hint_id, path_depth, created_order
+      )
+      SELECT printf('skew-node-%08d', value), 'session-000000', NULL,
+        'message', 'message', 'assistant', ? + value,
+        json_object('text', CASE WHEN value = ? - 1
+          THEN 'skewed long session terminal marker'
+          ELSE 'skewed long session ordinary message'
+        END), '{}', NULL, ? + value, ? + value
+      FROM sequence
+    `)
+    .run(
+      skewedSessionMessageCount,
+      messageCount,
+      skewedSessionMessageCount,
+      Math.ceil(messageCount / sessionCount),
+      Math.ceil(messageCount / sessionCount),
+    )
+  database
+    .prepare(`
       INSERT INTO session_branches (
         id, session_id, source_node_id, head_node_id, name, is_main,
         created_at, updated_at
@@ -113,12 +136,12 @@ function populate(database: DatabaseSync, sessionCount: number, messageCount: nu
         )
     `)
     .run(messageCount, sessionCount)
-  database.exec(`
-    INSERT INTO session_transcript_search (session_id, content)
-    SELECT session_id, GROUP_CONCAT(content, char(10))
-    FROM session_node_search GROUP BY session_id;
-    DELETE FROM session_transcript_search_dirty;
-  `)
+  initializeSessionDiscoveryBenchmarkTargetSchema(database)
+  populateSessionDiscoveryBenchmarkSearchIndexes(database, {
+    sessionCount,
+    messageCount,
+    skewedSessionMessageCount,
+  })
   database.exec('COMMIT; PRAGMA optimize;')
 }
 
@@ -130,21 +153,11 @@ async function measure(run: () => Promise<unknown>) {
     const elapsed = performance.now() - startedAt
     if (iteration >= WARMUP_RUNS) timings.push(elapsed)
   }
-  return { p95Ms: percentile(timings, P95), timings }
-}
-
-function queryExecutor(databasePath: string) {
-  const runtime = ManagedRuntime.make(
-    SqliteClient.layer({ filename: databasePath, prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE }),
-  )
-  return {
-    run: <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) => runtime.runPromise(effect),
-    dispose: () => runtime.dispose(),
-  }
+  return { p95Ms: benchmarkPercentile(timings, P95), timings }
 }
 
 async function benchmarkQueries(databasePath: string) {
-  const runtime = queryExecutor(databasePath)
+  const runtime = sessionDiscoveryBenchmarkQueryExecutor(databasePath)
   const list = () =>
     runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
@@ -221,43 +234,38 @@ async function benchmarkQueries(databasePath: string) {
   }
 }
 
-function counts(database: DatabaseSync) {
-  const sessions = database.prepare('SELECT COUNT(*) AS count FROM sessions').get()
-  const messages = database.prepare('SELECT COUNT(*) AS count FROM session_nodes').get()
-  return {
-    sessions:
-      typeof sessions === 'object' && sessions !== null && 'count' in sessions
-        ? Number(sessions.count)
-        : 0,
-    messages:
-      typeof messages === 'object' && messages !== null && 'count' in messages
-        ? Number(messages.count)
-        : 0,
-  }
-}
-
 async function main() {
   const smoke = process.argv.includes('--smoke')
+  const queryScale = process.argv.includes('--query-scale')
   const sessionCount = smoke ? SMOKE_SESSION_COUNT : STANDARD_SESSION_COUNT
-  const messageCount = smoke ? SMOKE_MESSAGE_COUNT : STANDARD_MESSAGE_COUNT
+  const messageCount = smoke
+    ? SMOKE_MESSAGE_COUNT
+    : queryScale
+      ? QUERY_SCALE_MESSAGE_COUNT
+      : STANDARD_MESSAGE_COUNT
+  const skewedSessionMessageCount = smoke
+    ? SMOKE_SKEWED_SESSION_MESSAGE_COUNT
+    : queryScale
+      ? QUERY_SCALE_SKEWED_SESSION_MESSAGE_COUNT
+      : STANDARD_SKEWED_SESSION_MESSAGE_COUNT
   const root = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-benchmark-'))
   const databasePath = path.join(root, 'sessions.sqlite')
   let database = new DatabaseSync(databasePath)
   try {
-    schema(database)
+    initializeSessionDiscoveryBenchmarkSchema(database)
     const buildStartedAt = performance.now()
-    populate(database, sessionCount, messageCount)
+    populate(database, sessionCount, messageCount, skewedSessionMessageCount)
     const buildMs = performance.now() - buildStartedAt
     database.close()
     database = new DatabaseSync(databasePath, { readOnly: true })
-    const corpus = counts(database)
+    const corpus = sessionDiscoveryBenchmarkCounts(database)
     database.close()
     const queries = await benchmarkQueries(databasePath)
     database = new DatabaseSync(databasePath, { readOnly: true })
     const databaseSizeMb = (await stat(databasePath)).size / BYTES_PER_MEBIBYTE
     const passed =
       corpus.sessions === sessionCount &&
-      corpus.messages === messageCount &&
+      corpus.messages === messageCount + skewedSessionMessageCount &&
       queries.coldListMs < COLD_LIMIT_MS &&
       queries.list.p95Ms < WARM_P95_LIMIT_MS &&
       queries.lexical.p95Ms < WARM_P95_LIMIT_MS &&
@@ -266,8 +274,9 @@ async function main() {
     process.stdout.write(
       `${JSON.stringify(
         {
-          mode: smoke ? 'smoke' : 'standard',
+          mode: smoke ? 'smoke' : queryScale ? 'query-scale' : 'standard',
           corpus,
+          skewedSessionMessageCount,
           buildMs,
           databaseSizeMb,
           queries: {

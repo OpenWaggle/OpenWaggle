@@ -49,7 +49,11 @@ function catalogFilter(
 ) {
   const catalogScope = input.catalogScope ?? 'current'
   if (catalogScope === 'all') return {}
-  if (catalogScope === 'project' && input.projectPath) return { projectPath: input.projectPath }
+  if (catalogScope === 'project') {
+    const projectPath = input.projectPath ?? source.projectPath
+    if (!projectPath) throw new Error('Project catalog scope requires a canonical project path.')
+    return { projectPath }
+  }
   return { workingPath: source.workingDirectory ?? process.cwd() }
 }
 
@@ -149,9 +153,12 @@ function delegationCatalogFilter(
   source: SessionsToolSource,
 ) {
   if (input.catalogScope === 'all') return {}
-  return input.catalogScope === 'project' && input.projectPath
-    ? { projectPath: input.projectPath }
-    : { workingPath: source.workingDirectory ?? process.cwd() }
+  if (input.catalogScope === 'project') {
+    const projectPath = input.projectPath ?? source.projectPath
+    if (!projectPath) throw new Error('Project catalog scope requires a canonical project path.')
+    return { projectPath }
+  }
+  return { workingPath: source.workingDirectory ?? process.cwd() }
 }
 
 function delegationListQuery(input: DelegationListInput, source: SessionsToolSource) {

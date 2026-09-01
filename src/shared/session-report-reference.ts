@@ -1,4 +1,5 @@
 export const SESSION_REPORT_REFERENCE_KINDS = ['session-id', 'title', 'agent-definition'] as const
+export const SESSION_REPORT_REFERENCE_MAX_LENGTH = 512
 
 export type SessionReportReferenceKind = (typeof SESSION_REPORT_REFERENCE_KINDS)[number]
 

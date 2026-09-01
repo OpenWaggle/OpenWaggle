@@ -4,6 +4,7 @@ import {
   hasUniqueCollaborationStructures,
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
+import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import { delegationSpecificationSchema } from './session-lifecycle'
 
 const uniqueStringsSchema = Schema.Array(Schema.String).pipe(
@@ -18,7 +19,13 @@ const reportTargetSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('queen') }),
   Schema.Struct({ type: Schema.Literal('session'), sessionId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('sessions'), sessionIds: uniqueStringsSchema }),
-  Schema.Struct({ type: Schema.Literal('worker-reference'), reference: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('worker-reference'),
+    reference: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.maxLength(SESSION_REPORT_REFERENCE_MAX_LENGTH),
+    ),
+  }),
 )
 
 export const reportCommandSchema = Schema.Struct({

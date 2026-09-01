@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { normalizeSessionReportReference } from '@shared/session-report-reference'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
@@ -229,11 +230,29 @@ export async function updateSessionTitle(id: SessionId, title: string): Promise<
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        UPDATE sessions
-        SET title = ${title}, updated_at = ${Date.now()}
-        WHERE id = ${id}
-      `
+      const normalizedTitle = normalizeSessionReportReference(title)
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`
+            UPDATE sessions
+            SET title = ${title}, updated_at = ${Date.now()}
+            WHERE id = ${id}
+          `
+          if (normalizedTitle.length === 0) {
+            yield* sql`
+              DELETE FROM session_report_references
+              WHERE session_id = ${id} AND kind = ${'title'}
+            `
+            return
+          }
+          yield* sql`
+            INSERT INTO session_report_references (session_id, kind, normalized_reference)
+            SELECT id, ${'title'}, ${normalizedTitle} FROM sessions WHERE id = ${id}
+            ON CONFLICT (session_id, kind) DO UPDATE SET
+              normalized_reference = excluded.normalized_reference
+          `
+        }),
+      )
     }),
   )
 }

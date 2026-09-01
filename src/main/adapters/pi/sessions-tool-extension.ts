@@ -207,7 +207,7 @@ async function executeSessionsTool(
 ) {
   if (signal?.aborted) throw new Error('aborted')
   if (isAgentDefinitionAction(params)) {
-    return queryAgentDefinitionsForTool(params, input.workingDirectory)
+    return queryAgentDefinitionsForTool(params, input.projectPath ?? input.workingDirectory)
   }
   const initialPayload = buildSessionsToolPayload(params, input)
   await authorizeAttachments(initialPayload, ctx, signal)

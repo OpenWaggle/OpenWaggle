@@ -1,4 +1,5 @@
 import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
+import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import { Check } from 'typebox/value'
 import { describe, expect, it } from 'vitest'
 import { sessionsToolParameters } from '../sessions-tool-parameters'
@@ -8,6 +9,20 @@ function values(prefix: string, count: number) {
 }
 
 describe('Pi Sessions collaboration collection boundaries', () => {
+  it('matches the Host Worker-reference length boundary', () => {
+    const input = (reference: string) => ({
+      action: 'report',
+      text: 'Status.',
+      target: { type: 'worker_reference', reference },
+    })
+    expect(
+      Check(sessionsToolParameters, input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH))),
+    ).toBe(true)
+    expect(
+      Check(sessionsToolParameters, input('r'.repeat(SESSION_REPORT_REFERENCE_MAX_LENGTH + 1))),
+    ).toBe(false)
+  })
+
   it.each([
     {
       base: { action: 'spawn', objective: 'Bound the task.' },

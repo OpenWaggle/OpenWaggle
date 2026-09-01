@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,9 +9,14 @@ import { createSessionsToolExtension } from '../sessions-tool-extension'
 
 describe('Pi-native Sessions tool registration', () => {
   let releaseGateway: (() => void) | undefined
+  const temporaryRoots: string[] = []
 
-  afterEach(() => {
+  afterEach(async () => {
     releaseGateway?.()
+    releaseGateway = undefined
+    await Promise.all(
+      temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+    )
   })
 
   it('registers one compact native tool and calls the in-process gateway', async () => {
@@ -137,5 +145,73 @@ describe('Pi-native Sessions tool registration', () => {
         }),
       }),
     )
+  })
+
+  it('discovers Agent definitions from the canonical project instead of the Worker worktree', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agent-root-'))
+    temporaryRoots.push(root)
+    const projectPath = path.join(root, 'project')
+    const workingDirectory = path.join(root, 'worktree')
+    await Promise.all(
+      [projectPath, workingDirectory].map(async (basePath) => {
+        await fs.mkdir(path.join(basePath, '.openwaggle', 'agents'), { recursive: true })
+      }),
+    )
+    await fs.writeFile(
+      path.join(projectPath, '.openwaggle', 'agents', 'canonical.md'),
+      `---
+schemaVersion: 1
+name: canonical
+description: Canonical project role
+---
+
+Use this role for canonical project review work.
+`,
+      'utf8',
+    )
+    await fs.writeFile(
+      path.join(workingDirectory, '.openwaggle', 'agents', 'worktree-only.md'),
+      `---
+schemaVersion: 1
+name: worktree-only
+description: Worktree-only role
+---
+
+This role must not appear in canonical project discovery.
+`,
+      'utf8',
+    )
+    let tool: ToolDefinition | undefined
+    createSessionsToolExtension({
+      sessionId: 'session-worker',
+      runId: 'run-worker',
+      workingDirectory,
+      projectPath,
+    })(
+      fromPartial<ExtensionAPI>({
+        registerTool: (registered: ToolDefinition) => {
+          tool = registered
+        },
+      }),
+    )
+
+    const result = await tool?.execute(
+      'definitions-call',
+      { action: 'agent_definitions_list' },
+      new AbortController().signal,
+      () => undefined,
+      fromPartial({}),
+    )
+
+    expect(result?.details).toEqual({
+      definitions: [
+        {
+          name: 'canonical',
+          description: 'Canonical project role',
+          scope: 'project',
+          valid: true,
+        },
+      ],
+    })
   })
 })

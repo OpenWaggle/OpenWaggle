@@ -3,6 +3,7 @@ import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as TRANSCRIPT_POLICY } from 
 import { SESSION_HOST_SCHEMA_REVISION } from '../services/session-host-schema-identity'
 import { queryCutoverRecord, readCutoverCount } from './session-host-cutover-database'
 import { validateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
+import { validateTranscriptTermCounts } from './session-transcript-term-validation'
 
 export { SESSION_HOST_SCHEMA_REVISION }
 
@@ -13,6 +14,7 @@ interface TargetCounts {
   readonly indexedTitles: number
   readonly indexedNodes: number
   readonly indexedTranscripts: number
+  readonly indexedTermDocuments: number
   readonly transcriptSessions: number
   readonly indexedDiscoveryNodes: number
   readonly indexedDelegationObjectives: number
@@ -27,9 +29,8 @@ interface TargetCounts {
 
 function validateDatabaseIntegrity(database: DatabaseSync) {
   const integrity = queryCutoverRecord(database, 'PRAGMA integrity_check')?.integrity_check
-  if (integrity !== 'ok') {
+  if (integrity !== 'ok')
     throw new Error(`Session Host target integrity check failed: ${String(integrity)}`)
-  }
   if (database.prepare('PRAGMA foreign_key_check').all().length > 0) {
     throw new Error('Session Host target contains foreign-key failures.')
   }
@@ -37,9 +38,8 @@ function validateDatabaseIntegrity(database: DatabaseSync) {
     database,
     'SELECT schema_revision FROM session_host_schema_metadata WHERE singleton = 1',
   )?.schema_revision
-  if (schemaRevision !== SESSION_HOST_SCHEMA_REVISION) {
+  if (schemaRevision !== SESSION_HOST_SCHEMA_REVISION)
     throw new Error('Session Host target metadata is missing or incompatible.')
-  }
 }
 
 function targetCounts(database: DatabaseSync): TargetCounts {
@@ -49,7 +49,14 @@ function targetCounts(database: DatabaseSync): TargetCounts {
     bindings: readCutoverCount(database, 'session_workspace_bindings'),
     indexedTitles: readCutoverCount(database, 'session_title_search'),
     indexedNodes: readCutoverCount(database, 'session_node_search'),
-    indexedTranscripts: readCutoverCount(database, 'session_transcript_search'),
+    indexedTranscripts:
+      Number(
+        queryCutoverRecord(
+          database,
+          'SELECT COUNT(DISTINCT session_id) AS count FROM session_transcript_search',
+        )?.count,
+      ) || 0,
+    indexedTermDocuments: readCutoverCount(database, 'session_transcript_term_documents'),
     transcriptSessions:
       Number(
         queryCutoverRecord(
@@ -77,6 +84,7 @@ function validateCanonicalCoverage(counts: TargetCounts, invalidProfiles: unknow
     counts.indexedTitles !== counts.sessions ||
     counts.indexedNodes !== counts.nodes ||
     counts.indexedTranscripts !== counts.transcriptSessions ||
+    counts.indexedTermDocuments !== counts.sessions ||
     counts.indexedDiscoveryNodes !== counts.nodes
   ) {
     throw new Error('Session Host lexical search coverage does not match canonical data.')
@@ -139,9 +147,7 @@ function validateSemanticVectors(
     `SELECT COUNT(*) AS count FROM session_discovery_embeddings
       WHERE length(vector) <> dimensions * 4`,
   )?.count
-  if (invalidVectors !== 0) {
-    throw new Error('Session Host semantic discovery vectors are invalid.')
-  }
+  if (invalidVectors !== 0) throw new Error('Session Host semantic discovery vectors are invalid.')
   if (!semanticModel) return
   const incompatibleVectors = queryCutoverRecord(
     database,
@@ -151,9 +157,8 @@ function validateSemanticVectors(
     semanticModel.revision,
     String(semanticModel.dimensions),
   )?.count
-  if (incompatibleVectors !== 0) {
+  if (incompatibleVectors !== 0)
     throw new Error('Session Host semantic discovery model revision is incompatible.')
-  }
 }
 
 interface TranscriptStorageCounts extends Record<string, unknown> {
@@ -289,6 +294,7 @@ export function validateSessionHostTarget(
       FROM session_semantic_discovery_state WHERE singleton = 1`,
   )
   validateCanonicalCoverage(counts, invalidExecutionProfileCount(database))
+  validateTranscriptTermCounts(database)
   validateSessionReportReferenceCatalog(database)
   validateSemanticCoverage({
     counts,

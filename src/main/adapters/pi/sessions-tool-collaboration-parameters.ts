@@ -1,4 +1,5 @@
 import { SESSION_COLLABORATION_COLLECTION_LIMIT } from '@shared/session-collaboration-collections'
+import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
 import { Type } from 'typebox'
 import { delegationVerifyParameter } from './sessions-tool-delegation-extra-parameters'
 
@@ -31,7 +32,10 @@ export const sessionsToolCollaborationParameters = [
       Type.Object({ type: Type.Literal('queen') }),
       Type.Object({ type: Type.Literal('session'), sessionId: Type.String() }),
       Type.Object({ type: Type.Literal('sessions'), sessionIds: uniqueStrings }),
-      Type.Object({ type: Type.Literal('worker_reference'), reference: Type.String() }),
+      Type.Object({
+        type: Type.Literal('worker_reference'),
+        reference: Type.String({ minLength: 1, maxLength: SESSION_REPORT_REFERENCE_MAX_LENGTH }),
+      }),
     ]),
     requestReply: Type.Optional(Type.Boolean()),
     replyToReportId: Type.Optional(Type.String()),

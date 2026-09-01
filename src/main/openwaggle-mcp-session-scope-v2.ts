@@ -2,7 +2,6 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
-import { resolveScopedMcpWorkerReference } from './openwaggle-mcp-session-worker-reference-v2'
 import { assertProjectAllowed } from './openwaggle-mcp-workspace-policy'
 
 export function mcpSessionPathAllowed(
@@ -170,21 +169,16 @@ export async function prepareMcpSessionTargetScope(
   execute: (payload: LocalSessionCommandPayload) => Promise<unknown>,
   payload: LocalSessionCommandPayload,
 ) {
-  const scopedPayload = await resolveScopedMcpWorkerReference({
-    execute,
-    payload,
-    sessionAllowed: (session) => sessionSummaryAllowed(options, session),
-  })
   const targets =
-    scopedPayload.contract === 'session-query-v2' &&
-    scopedPayload.request.query.operation === 'delegations-read'
-      ? [workerFromDelegationResult(await execute(scopedPayload))].filter(
+    payload.contract === 'session-query-v2' &&
+    payload.request.query.operation === 'delegations-read'
+      ? [workerFromDelegationResult(await execute(payload))].filter(
           (sessionId): sessionId is string => sessionId !== undefined,
         )
-      : directTarget(scopedPayload)
+      : directTarget(payload)
   for (const sessionId of Array.isArray(targets) ? targets : targets ? [targets] : []) {
     if (await sessionIdAllowed(options, execute, sessionId)) continue
     throw new Error(`Session ${JSON.stringify(sessionId)} was not found in the granted scope.`)
   }
-  return scopedPayload
+  return payload
 }

@@ -9,12 +9,14 @@ import { DEFAULT_SETTINGS, THINKING_LEVELS } from '@shared/types/settings'
 import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { resolveWorkspaceWorktreePath } from '../services/git/session-worktree-path'
 import { sessionTranscriptSearchContentSql } from '../services/session-host-search-schema'
+import { SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT } from '../services/session-transcript-search-projection'
 import {
   cutoverRecord,
   cutoverTableExists,
   queryCutoverRecord,
 } from './session-host-cutover-database'
 import { populateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
+import { populateSessionTranscriptTermCatalog } from './session-transcript-term-cutover'
 
 const RESOURCE_ID_DIGEST_CHARACTERS = 32
 const CUTOVER_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
@@ -285,10 +287,14 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
     INSERT INTO session_title_search (session_id, title) SELECT id, title FROM sessions;
     INSERT INTO session_node_search (session_id, node_id, content)
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
-    INSERT INTO session_transcript_search (session_id, content)
-    SELECT session_id, GROUP_CONCAT(content, char(10))
-    FROM session_node_search GROUP BY session_id;
-    DELETE FROM session_transcript_search_dirty;
+    INSERT INTO session_transcript_search (session_id, chunk_ordinal, content)
+    SELECT session_id, chunk_ordinal, GROUP_CONCAT(content, char(10))
+    FROM (
+      SELECT session_id, content,
+        CAST((ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY rowid) - 1) /
+          ${SESSION_TRANSCRIPT_SEARCH_CHUNK_NODE_LIMIT} AS INTEGER) AS chunk_ordinal
+      FROM session_node_search
+    ) GROUP BY session_id, chunk_ordinal;
     INSERT INTO session_node_discovery_search (session_id, node_id, content)
     SELECT session_id, id, COALESCE(
       (SELECT GROUP_CONCAT(
@@ -305,4 +311,5 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
       ''
     ) FROM session_nodes;
   `)
+  populateSessionTranscriptTermCatalog(database)
 }

@@ -154,7 +154,7 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
     },
   )
 
-  it('resolves Worker report references only against Sessions visible to the MCP grant', async () => {
+  it('leaves indexed Worker-reference resolution to the authority-scoped Host repository', async () => {
     const submittedPayloads: unknown[] = []
     const payload = buildMcpSessionPayloadV2({
       operation: 'report',
@@ -168,31 +168,6 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
       scopedOptions(),
       async (candidatePayload) => {
         submittedPayloads.push(candidatePayload)
-        if (candidatePayload.contract !== 'session-query-v2') return {}
-        const query = candidatePayload.request.query
-        if (query.operation === 'list') {
-          return {
-            response: {
-              outcome: {
-                operation: 'list',
-                sessions: [
-                  {
-                    sessionId: 'worker-allowed',
-                    title: 'Allowed Worker',
-                    agentDefinitionName: 'reviewer',
-                    projectPath: allowedProject(),
-                  },
-                  {
-                    sessionId: 'worker-private',
-                    title: 'Private Worker',
-                    agentDefinitionName: 'reviewer',
-                    projectPath: privateRoot,
-                  },
-                ],
-              },
-            },
-          }
-        }
         return {
           response: {
             outcome: {
@@ -209,53 +184,10 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
       request: {
         command: {
           operation: 'report',
-          target: { type: 'session', sessionId: 'worker-allowed' },
+          target: { type: 'worker-reference', reference: 'reviewer' },
         },
       },
     })
-    expect(submittedPayloads).toHaveLength(2)
-  })
-
-  it('does not expose hidden Workers in ambiguous report-reference errors', async () => {
-    const payload = buildMcpSessionPayloadV2({
-      operation: 'report',
-      sessionId: 'session-explicit',
-      reportTarget: 'worker-reference',
-      workerReference: 'reviewer',
-      message: 'Please review this.',
-    })
-
-    await expect(
-      prepareMcpSessionTargetScope(
-        scopedOptions(),
-        async () => ({
-          response: {
-            outcome: {
-              operation: 'list',
-              sessions: [
-                {
-                  sessionId: 'worker-allowed-a',
-                  title: 'Reviewer',
-                  projectPath: allowedProject('a'),
-                },
-                {
-                  sessionId: 'worker-allowed-b',
-                  agentDefinitionName: 'Reviewer',
-                  projectPath: allowedProject('b'),
-                },
-                {
-                  sessionId: 'worker-private',
-                  title: 'Reviewer',
-                  projectPath: privateRoot,
-                },
-              ],
-            },
-          },
-        }),
-        payload,
-      ),
-    ).rejects.toThrow(
-      'Worker reference "reviewer" is ambiguous in the granted scope: worker-allowed-a, worker-allowed-b.',
-    )
+    expect(submittedPayloads).toHaveLength(0)
   })
 })
