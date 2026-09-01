@@ -124,10 +124,10 @@ describe('package release workflow validation', () => {
     )
   })
 
-  it('rejects duplicate Node 24 release-PR rehearsal instead of canonical artifact smoke', async () => {
+  it('rejects a package consumer rehearsal that runs per push instead of on merge results only', async () => {
     const invalidCi = replaceRequired(
       validCiWorkflow,
-      "matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main'",
+      "needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main'",
       'always()',
     )
     const result = await validatePackageReleaseFiles(
@@ -139,25 +139,25 @@ describe('package release workflow validation', () => {
     )
   })
 
-  it('rejects prefix matching that lets lookalike branches skip release rehearsal', async () => {
+  it('rejects prefix matching that lets lookalike branches trigger package rehearsal', async () => {
     const invalidCi = replaceRequired(
       validCiWorkflow,
-      "(github.head_ref || github.ref_name) != 'release-please--branches--main'",
-      "!startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
+      "(github.head_ref || github.ref_name) == 'release-please--branches--main'",
+      "startsWith(github.head_ref || github.ref_name, 'release-please--branches--main')",
     )
     const result = await validatePackageReleaseFiles(
       await temporaryProject(validWorkflow, invalidCi),
     )
 
     expect(result.violations).toContain(
-      '.github/workflows/ci.yml must use exact branch matching for Release Please rehearsal exclusions.',
+      '.github/workflows/ci.yml must use exact branch matching for Release Please rehearsal triggers.',
     )
   })
 
   it('rejects CI that weakens the always-present, exact-runtime package gate', async () => {
     const invalidCi = validCiWorkflow
       .replace('name: Package Release Gate', 'name: Optional package checks')
-      .replace('          - 22.19.0\n', '')
+      .replace('node-version: 22.19.0', 'node-version: 20')
       .replace('pnpm website:build', 'echo skipped-website')
       .replace("OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'", "OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm'")
       .replace('if: ${{ always() }}', 'if: ${{ success() }}')
@@ -165,7 +165,7 @@ describe('package release workflow validation', () => {
 
     expect(result.violations).toEqual(expect.arrayContaining([
       '.github/workflows/ci.yml must expose the always-present Package Release Gate status.',
-      '.github/workflows/ci.yml must rehearse exact Node 22.19.0 and 24.14.0 runtimes.',
+      '.github/workflows/ci.yml must rehearse the exact Node 22.19.0 runtime for package consumers.',
       '.github/workflows/ci.yml Package Release Candidate must always report a conclusion.',
     ]))
   })

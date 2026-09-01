@@ -5,12 +5,23 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+    branches: [main]
   workflow_dispatch:
     inputs:
       head_sha:
-        description: Exact release PR head SHA to validate.
+        description: Exact commit SHA to validate.
         required: true
         type: string
+      ci_tier:
+        description: Check tier for the dispatched run.
+        required: false
+        type: choice
+        default: full
+        options:
+          - full
+          - fast
+          - visual
 
 permissions:
   contents: read
@@ -20,15 +31,22 @@ env:
   # Makes `pnpm check:installer` fail when NSIS is absent instead of skipping, so the
   # installer compile check cannot silently stop running in CI.
   REQUIRE_NSIS: '1'
+  # E2E worker count. Each E2E test launches its own Electron instance with isolated user
+  # data, so two workers halve suite wall-clock; override to '1' if parallel flakes appear.
+  PLAYWRIGHT_WORKERS: '2'
 
+# Pull-request runs cancel superseded runs for the same PR. Merge-queue runs are never
+# cancelled here: each queue entry validates one speculative merge result, and killing it
+# would fail the queue instead of yielding a useful signal.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -53,7 +71,7 @@ jobs:
           node-version: 24.14.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
 
       - run: pnpm exec tsx scripts/release-ci-policy.ts
 
@@ -67,6 +85,7 @@ jobs:
   check:
     name: Typecheck & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -90,16 +109,17 @@ jobs:
           node-version: 24.14.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
 
       - name: Install NSIS for the installer script check
         run: sudo apt-get update && sudo apt-get install -y nsis
 
       - run: pnpm check
 
-  test:
-    name: Unit & Component Tests
+  test-unit:
+    name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -123,11 +143,121 @@ jobs:
           node-version: 24.14.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - uses: ./.github/actions/pnpm-install
 
-  electron-e2e:
+      - run: pnpm test:unit
+
+  test-integration-component:
+    name: Integration & Component Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - uses: ./.github/actions/pnpm-install
+
+      - run: pnpm test:integration && pnpm test:component
+
+  test-mcp-conformance:
+    name: MCP Conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - uses: ./.github/actions/pnpm-install
+
+      - run: pnpm prepare:native:node && pnpm test:mcp:conformance
+
+  changes:
+    name: Detect Changed Surfaces
+    timeout-minutes: 10
+    # Push runs never trigger path-scoped jobs, so change detection is only needed for
+    # pull requests, merge-queue validation, and dispatched runs.
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.filter.outputs.package }}
+      website-docs: ${{ steps.filter.outputs.website-docs }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - name: Resolve changed surfaces
+        id: filter
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE_SHA}"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse origin/main)"
+          fi
+          merge_base="$(git merge-base "$base" HEAD)"
+          changed="$(git diff --name-only "$merge_base" HEAD)"
+          echo "Changed files relative to $merge_base:"
+          printf '%s\n' "$changed"
+
+          package_pattern='^(packages/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/package-|release-please-config\.json$|\.release-please-manifest\.json$|tests/fixtures/package-smoke/)'
+          website_docs_pattern='^(website/|docs/|packages/|scripts/package-documentation\.ts$|scripts/generate-installed-docs\.ts$)'
+
+          if printf '%s\n' "$changed" | grep -qE "$package_pattern"; then
+            echo "package=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "package=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if printf '%s\n' "$changed" | grep -qE "$website_docs_pattern"; then
+            echo "website-docs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "website-docs=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  electron-e2e-macos:
     name: Electron E2E (macOS)
+    # The merge queue and dispatched runs validate E2E; main pushes stay a static canary.
+    if: github.event_name != 'push'
     # macOS runs both the shared functional suite and the native Darwin visual baselines.
     runs-on: macos-15
     timeout-minutes: 20
@@ -154,11 +284,19 @@ jobs:
           node-version: 24.14.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
+
       - run: pnpm benchmark:syntax
         env:
           SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
-      - run: pnpm test:e2e
+
+      - name: Run Electron E2E (full suite including visual baselines)
+        if: github.event_name != 'workflow_dispatch' || inputs.ci_tier != 'visual'
+        run: pnpm test:e2e
+
+      - name: Run Electron E2E (visual baselines only)
+        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'visual'
+        run: pnpm test:e2e:visual
 
       - name: Upload Electron E2E failure artifacts
         if: failure()
@@ -169,10 +307,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload Electron E2E Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: electron-e2e-macos-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
   electron-e2e-linux:
     name: Electron E2E (Linux)
+    # Linux and Windows E2E only gate the merge-queue result and dispatched full runs.
+    # Per-push iteration runs the macOS suite so the dev loop stays fast and deterministic.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -196,7 +346,7 @@ jobs:
           node-version: 24.14.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
 
       - name: Install Linux Electron dependencies
         run: pnpm exec playwright install-deps chromium
@@ -212,10 +362,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload Electron E2E Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: electron-e2e-linux-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
   electron-e2e-windows:
     name: Electron E2E (Windows)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -239,7 +399,8 @@ jobs:
           node-version: 24.14.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
+
       - run: pnpm test:e2e:functional
 
       - name: Upload Electron E2E failure artifacts
@@ -251,23 +412,31 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  package-release-rehearsal:
-    name: Package release rehearsal (Node ${{ matrix.node }})
+      - name: Upload Electron E2E Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: electron-e2e-windows-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package-release-rehearsal-package:
+    name: Package Consumer Rehearsal (Node 22.19.0)
+    needs: changes
+    # Release-shaped validation runs against the merged result only. The release branch
+    # always rehearses so the coordinated package release path is never under-validated.
+    if: >-
+      (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
+      (needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - 22.19.0
-          - 24.14.0
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
       - name: Checkout immutable package consumer tooling
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.workflow_sha }}
@@ -276,60 +445,78 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         with:
           version: 11.15.1
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22.19.0
           cache: pnpm
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         with:
           bun-version: 1.3.14
 
-      - if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
 
       - name: Install pinned package manager consumers
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
 
       - name: Verify package manager consumer versions
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts verify --tool-root "$RUNNER_TEMP/package-managers"
 
-      - name: Rehearse static, docs, website, and API gates
-        if: ${{ matrix.node == '24.14.0' && (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
-        env:
-          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
-        run: |
-          pnpm check:fast
-          pnpm package-release:validate
-          pnpm api:snapshot:check
-          pnpm package-docs:check
-          pnpm --filter @openwaggle/website build
-          pnpm website:test
-          pnpm docs:generate
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Chromium for package browser smoke
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         run: pnpm exec playwright install chromium
 
       - name: Rehearse npm, pnpm, Yarn, Bun, and browser consumers
-        if: ${{ matrix.node == '22.19.0' || (github.head_ref || github.ref_name) != 'release-please--branches--main' }}
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
           OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
         run: pnpm package:smoke
 
+  package-release-rehearsal-website:
+    name: Website & Docs Rehearsal (Node 24.14.0)
+    timeout-minutes: 25
+    needs: changes
+    if: >-
+      (github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
+      (needs.changes.outputs.website-docs == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
+    runs-on: ubuntu-latest
+    env:
+      YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - uses: ./.github/actions/pnpm-install
+
+      - name: Rehearse website and documentation gates
+        run: |
+          pnpm website:build
+          pnpm website:test
+          pnpm docs:generate
+
   classify-package-release:
     name: Classify Package Release Candidate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       prepare: ${{ steps.candidate.outputs.prepare }}
     steps:
@@ -360,6 +547,7 @@ jobs:
 
   prepare-package-release:
     name: Build and attest package artifacts (Release Please PR only)
+    timeout-minutes: 40
     needs: classify-package-release
     if: needs.classify-package-release.outputs.prepare == 'true'
     runs-on: ubuntu-latest
@@ -394,7 +582,7 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/pnpm-install
 
       - name: Install pinned package manager consumers
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
@@ -454,6 +642,7 @@ jobs:
       - prepare-package-release
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -469,14 +658,24 @@ jobs:
 
   package-release-gate:
     name: Package Release Gate
+    timeout-minutes: 10
     needs:
       - commit-policy
       - check
-      - test
-      - package-release-rehearsal
+      - test-unit
+      - test-integration-component
+      - test-mcp-conformance
+      - changes
+      - electron-e2e-macos
+      - electron-e2e-linux
+      - electron-e2e-windows
+      - package-release-rehearsal-package
+      - package-release-rehearsal-website
       - package-release-candidate
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    env:
+      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast-no-e2e' || 'fast' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -487,5 +686,5 @@ jobs:
           node-version: 24.14.0
           package-manager-cache: false
 
-      - name: Enforce complete package release readiness
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.test.result }}" "${{ needs.package-release-rehearsal.result }}" "${{ needs.package-release-candidate.result }}"
+      - name: Enforce package release readiness
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "$CI_TIER" "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.changes.result }}" "${{ needs.test-unit.result }}" "${{ needs.test-integration-component.result }}" "${{ needs.test-mcp-conformance.result }}" "${{ needs.electron-e2e-macos.result }}" "${{ needs.electron-e2e-linux.result }}" "${{ needs.electron-e2e-windows.result }}" "${{ needs.package-release-rehearsal-package.result }}" "${{ needs.package-release-rehearsal-website.result }}" "${{ needs.package-release-candidate.result }}"
