@@ -177,26 +177,13 @@ export class OpenWaggleApp {
       .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
       .then(() => true)
       .catch(() => false)
-    try {
-      await this.app.evaluate(({ app }) => {
-        setTimeout(() => app.exit(0), 0)
-      })
-    } catch {
-      // The main process can exit before the evaluate response reaches Playwright.
-    }
+    void this.app.evaluate(({ app }) => app.exit(0)).catch(() => undefined)
     if (await closeEvent) return true
 
     console.warn('[electron-qa] immediate app exit timed out; forcing shell closure')
-    const forcedCloseEvent = this.app
-      .waitForEvent('close', { timeout: QA_FORCED_CLOSE_WAIT_MS })
-      .then(() => true)
-      .catch(() => false)
     this.terminateProcessTree()
-    const forcedClosed = await forcedCloseEvent
-    if (!forcedClosed) {
-      console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
-    }
-    return forcedClosed
+    console.warn(`[electron-qa] retaining disposable profile ${this.userDataDir}`)
+    return false
   }
 
   private terminateProcessTree(): void {
@@ -205,9 +192,6 @@ export class OpenWaggleApp {
       childProcess.kill('SIGKILL')
     } catch {
       // The process may have exited while cleanup was capturing evidence.
-    }
-    for (const stream of childProcess.stdio) {
-      stream?.destroy()
     }
   }
 
