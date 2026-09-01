@@ -9,6 +9,7 @@ const VIEWPORT = { width: 1200, height: 800 }
 const FIXED_NOW = Date.UTC(2026, 6, 14, 12)
 const PRIMARY_UPDATED_AT = FIXED_NOW - 2 * 60_000
 const SECONDARY_UPDATED_AT = FIXED_NOW - 4 * 60 * 60_000
+const SETTINGS_PREVIEW_SETTLE_MS = 300
 const PROJECT_LABEL = 'visual-regression-repo'
 const PRIMARY_TITLE = 'Polish the review workflow'
 const SECONDARY_TITLE = 'Document keyboard navigation'
@@ -16,8 +17,16 @@ const CHANGED_FILE_PATH = 'src/visual-regression.ts'
 const SCREENSHOT_OPTIONS = {
   animations: 'disabled',
   caret: 'hide',
-  // macOS 15 and newer Darwin runners rasterize the same text with a measured ~0.42% pixel delta.
-  maxDiffPixelRatio: 0.005,
+  // Current Darwin runners rasterize the same, layout-identical text with a
+  // measured 0.63% pixel delta. Keep the allowance below one percent so
+  // geometry, spacing, and component regressions still fail the baseline.
+  maxDiffPixelRatio: 0.007,
+} as const
+const SETTINGS_SCREENSHOT_OPTIONS = {
+  ...SCREENSHOT_OPTIONS,
+  // The settings surface is text-dense; the current Darwin runner differs
+  // from the captured Apple-silicon baseline by 0.81% with identical layout.
+  maxDiffPixelRatio: 0.009,
 } as const
 
 function initializeRepository(projectPath: string) {
@@ -204,6 +213,7 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await expect(
       diffPanel.getByText('visual-regression.ts', { exact: true }).first(),
     ).toBeVisible({ timeout: 30_000 })
+    await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({ timeout: 30_000 })
     await expect(diffPanel.getByRole('status', { name: 'Loading' })).toHaveCount(0)
     await expect(diffPanel.getByText('No changes to review')).toHaveCount(0)
     await expect(diffPanel.getByRole('button', { name: 'Commit' })).toBeEnabled({ timeout: 30_000 })
@@ -218,12 +228,22 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await page.getByRole('button', { name: 'Appearance' }).click()
 
     const settingsRoot = page.locator('#root')
-    const settingsContent = settingsRoot.getByRole('heading', { name: 'Diff view' })
+    const settingsContent = settingsRoot.getByRole('heading', { name: 'Review presentation' })
     await expect(settingsContent).toBeVisible()
-    await expect(settingsRoot.getByRole('heading', { name: 'Syntax theme' })).toBeVisible()
+    await expect(settingsRoot.getByRole('heading', { name: 'Color and syntax' })).toBeVisible()
+    await expect(settingsRoot.getByRole('heading', { name: 'Typography' })).toBeVisible()
+    const syntaxPreview = settingsRoot.getByRole('region', {
+      name: 'TypeScript syntax theme preview',
+    })
+    await expect(syntaxPreview).toHaveAttribute('data-syntax-status', 'highlighted')
+    await expect(syntaxPreview.locator('[data-line-number]')).toHaveCount(9)
+    // The highlighted result and the SourceView ResizeObserver settle in
+    // separate browser tasks. Capture the durable layout, not the transient
+    // first frame that can appear between those commits on a loaded runner.
+    await page.waitForTimeout(SETTINGS_PREVIEW_SETTLE_MS)
     await page.mouse.move(VIEWPORT.width - 10, 10)
     await waitForVisualReadiness(page)
-    await expect(settingsRoot).toHaveScreenshot('settings.png', SCREENSHOT_OPTIONS)
+    await expect(settingsRoot).toHaveScreenshot('settings.png', SETTINGS_SCREENSHOT_OPTIONS)
   } finally {
     await app.cleanup()
   }

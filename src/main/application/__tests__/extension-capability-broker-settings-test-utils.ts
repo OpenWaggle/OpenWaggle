@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SettingsService } from '../../services/settings-service'
 
-function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
+function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
   return {
     selectedModel: partial.selectedModel ?? current.selectedModel,
     favoriteModels: partial.favoriteModels ?? current.favoriteModels,
@@ -17,9 +17,23 @@ function mergeSettings(current: Settings, partial: Partial<Settings>): Settings 
     shortcutBindings: partial.shortcutBindings ?? current.shortcutBindings,
     defaultSessionEnvironmentMode:
       partial.defaultSessionEnvironmentMode ?? current.defaultSessionEnvironmentMode,
+  }
+}
+
+function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) {
+  return {
     diffSyntaxTheme: partial.diffSyntaxTheme ?? current.diffSyntaxTheme,
+    syntaxThemeSelections: partial.syntaxThemeSelections ?? current.syntaxThemeSelections,
     diffView: partial.diffView ?? current.diffView,
     diffWrapLines: partial.diffWrapLines ?? current.diffWrapLines,
+    appearancePreferences: partial.appearancePreferences ?? current.appearancePreferences,
+  }
+}
+
+function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
+  return {
+    ...mergeGeneralSettings(current, partial),
+    ...mergeAppearanceSettings(current, partial),
   }
 }
 
@@ -32,6 +46,11 @@ function cloneSettings(settings: Settings): Settings {
     skillTogglesByProject: { ...settings.skillTogglesByProject },
     projectDisplayNames: { ...settings.projectDisplayNames },
     shortcutBindings: { ...settings.shortcutBindings },
+    syntaxThemeSelections: { ...settings.syntaxThemeSelections },
+    appearancePreferences: {
+      ...settings.appearancePreferences,
+      typography: { ...settings.appearancePreferences.typography },
+    },
   }
 }
 

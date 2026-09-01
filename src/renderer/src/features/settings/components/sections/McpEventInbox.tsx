@@ -11,9 +11,8 @@ import { setComposerTextValue } from '@/features/chat/lib'
 import { eventDraftText } from '@/features/settings/lib/mcp-capability-formatters'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { useUIStore } from '@/shell/ui-store'
-
-const JSON_INDENT_SPACES = 2
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -210,9 +209,7 @@ function McpEventInboxContents({
               Add to editable draft
             </Button>
           </div>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
-            {JSON.stringify(event.payload, null, JSON_INDENT_SPACES)}
-          </pre>
+          <StructuredPayload value={event.payload} className="max-h-40" />
         </article>
       ))}
     </>

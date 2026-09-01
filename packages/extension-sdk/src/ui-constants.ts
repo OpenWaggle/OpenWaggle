@@ -15,6 +15,8 @@ export const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES = {
   badge: 'ow-extension-badge',
   field: 'ow-extension-field',
   alert: 'ow-extension-alert',
+  syntaxBlock: 'ow-syntax-block',
+  syntaxLineNumber: 'ow-syntax-line-number',
 } as const
 
 export const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES = {

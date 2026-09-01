@@ -11,9 +11,15 @@
  * Keep the visual surfaces free of `aria-live` so the content is announced once, here, rather than
  * twice.
  */
-export function PoliteAnnouncer({ message }: { readonly message: string | null }) {
+export function PoliteAnnouncer({
+  message,
+  label,
+}: {
+  readonly message: string | null
+  readonly label: string
+}) {
   return (
-    <p aria-live="polite" className="sr-only" role="status">
+    <p aria-label={label} aria-live="polite" className="sr-only" role="status">
       {message ?? ''}
     </p>
   )

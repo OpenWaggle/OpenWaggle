@@ -1,8 +1,5 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
-import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
+import { MarkdownDocument } from '@/shared/ui/MarkdownDocument'
 import { Spinner } from '@/shared/ui/Spinner'
 
 interface SkillPreviewPaneProps {
@@ -68,16 +65,5 @@ function SkillPreviewContent({
 }
 
 function SkillPreviewMarkdown({ previewMarkdown }: { readonly previewMarkdown: string }) {
-  return (
-    <article className="prose max-w-none text-sm">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={safeMarkdownRehypePlugins}
-        urlTransform={safeMarkdownUrlTransform}
-        components={safeMarkdownComponents}
-      >
-        {previewMarkdown}
-      </ReactMarkdown>
-    </article>
-  )
+  return <MarkdownDocument className="max-w-none">{previewMarkdown}</MarkdownDocument>
 }

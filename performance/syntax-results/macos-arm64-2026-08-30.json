@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T10:00:01.062Z",
+  "runtime": {
+    "node": "v24.12.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "hardware": {
+    "cpus": 14,
+    "totalMemoryBytes": 38654705664
+  },
+  "fixtures": {
+    "smallBytes": 16384,
+    "mediumBytes": 131072,
+    "largeDocumentBytes": 1048576,
+    "admissionCodeUnits": 1048576
+  },
+  "metrics": {
+    "javascriptCold16KiB": {
+      "medianMs": 48.109,
+      "p95Ms": 130.449,
+      "samples": 3
+    },
+    "javascriptWarm16KiB": {
+      "medianMs": 23.792,
+      "p95Ms": 29.853,
+      "samples": 15
+    },
+    "javascriptWarm128KiB": {
+      "medianMs": 151.262,
+      "p95Ms": 207.488,
+      "samples": 15
+    },
+    "javascriptWarm1MiB": {
+      "medianMs": 1375.861,
+      "p95Ms": 1626.486,
+      "samples": 5
+    },
+    "onigurumaCold16KiB": {
+      "medianMs": 54.914,
+      "p95Ms": 88.833,
+      "samples": 3
+    },
+    "admissionScan1MiB": {
+      "medianMs": 2.156,
+      "p95Ms": 3.161,
+      "samples": 15
+    },
+    "sourceWindow1MiB": {
+      "medianMs": 3.163,
+      "p95Ms": 5.306,
+      "samples": 15
+    },
+    "sourceFingerprint1MiB": {
+      "medianMs": 1.652,
+      "p95Ms": 2.755,
+      "samples": 15
+    }
+  }
+}

@@ -1,9 +1,25 @@
+import { SessionId } from '@shared/types/brand'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { StreamingText } from '../StreamingText'
 
+const syntaxMocks = vi.hoisted(() => ({
+  highlight: vi.fn(async (input?: { source: string; language: string; theme: string }) => ({
+    status: 'plain-text' as const,
+    language: input?.language ?? 'text',
+    theme: input?.theme ?? 'dark-plus',
+    lines: (input?.source ?? '').split('\n').map((line: string) => [{ content: line }]),
+    elapsedMs: 0,
+  })),
+}))
+
+vi.mock('@/shared/lib/syntax/syntax-service', () => ({
+  syntaxService: { highlight: syntaxMocks.highlight },
+}))
+
 describe('StreamingText', () => {
+  beforeEach(() => syntaxMocks.highlight.mockClear())
   it('renders a complete visualize reference between surrounding markdown', () => {
     const path = '/Users/diego/.codex/visualizations/thread-1/latency-map.html'
 
@@ -127,15 +143,14 @@ describe('StreamingText', () => {
     expect(container.querySelector('script')).toBeNull()
   })
 
-  it('preserves syntax highlighting classes for fenced code blocks', () => {
+  it('preserves language metadata and a safe fallback for fenced code blocks', () => {
     const { container } = render(<StreamingText text={'```ts\nconst value = 1\n```'} />)
 
     const code = container.querySelector('code')
     expect(code).toBeTruthy()
     expect(code?.className).toContain('language-ts')
-    // Shiki highlights using inline styles on spans, not hljs class names
-    const highlightedSpan = container.querySelector('code span[style]')
-    expect(highlightedSpan).toBeTruthy()
+    expect(container.querySelector('[data-syntax-status="plain-text"]')).toBeTruthy()
+    expect(container).toHaveTextContent('const value = 1')
   })
 
   it('renders text immediately when streaming is false', () => {
@@ -156,6 +171,20 @@ describe('StreamingText', () => {
     rerender(<StreamingText text="omega" isStreaming />)
 
     expect(screen.getByText('omega')).toBeInTheDocument()
+  })
+
+  it('keeps a byte-zero streaming fence plain until the response completes', async () => {
+    const source = '```objective-c\nNSString *value = @"OpenWaggle";\n```'
+    const { rerender } = render(<StreamingText text={source} isStreaming />)
+
+    expect(syntaxMocks.highlight).not.toHaveBeenCalled()
+    expect(screen.getByText('objective-c')).toBeInTheDocument()
+
+    rerender(<StreamingText text={source} isStreaming={false} />)
+    await vi.waitFor(() => expect(syntaxMocks.highlight).toHaveBeenCalledTimes(1))
+    expect(syntaxMocks.highlight).toHaveBeenCalledWith(
+      expect.objectContaining({ language: 'objective-c' }),
+    )
   })
 
   it('renders text immediately when streaming ends', () => {
@@ -238,5 +267,3 @@ describe('StreamingText', () => {
     ).toBe(true)
   })
 })
-
-import { SessionId } from '@shared/types/brand'

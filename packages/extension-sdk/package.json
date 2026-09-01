@@ -83,6 +83,11 @@
       "import": "./dist/runtime.js",
       "require": "./dist-cjs/runtime.js"
     },
+    "./syntax": {
+      "types": "./dist/syntax.d.ts",
+      "import": "./dist/syntax.js",
+      "require": "./dist-cjs/syntax.js"
+    },
     "./theme": {
       "types": "./dist/theme.d.ts",
       "import": "./dist/theme.js",

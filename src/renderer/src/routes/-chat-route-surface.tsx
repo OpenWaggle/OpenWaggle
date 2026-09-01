@@ -57,6 +57,7 @@ interface ChatRouteSurfaceProps {
 function DiffSidebarFallback() {
   return (
     <output
+      aria-label="Loading"
       className="flex size-full items-center justify-center bg-diff-bg text-sm text-text-tertiary"
       aria-live="polite"
     >
@@ -221,6 +222,7 @@ export function ChatRouteSurface({
                 <LazySessionTreePanel onClose={() => handleSessionTreeOpenChange(false)} />
               ) : renderedRightSidebarPanel === 'file' && rightSidebar.workspaceFile ? (
                 <WorkspaceFilePanel
+                  key={sections.diff.workingPath ?? 'no-project'}
                   projectPath={sections.diff.workingPath}
                   relativePath={rightSidebar.workspaceFile.path}
                   line={rightSidebar.workspaceFile.line}

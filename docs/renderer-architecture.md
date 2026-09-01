@@ -73,6 +73,18 @@ shared/
 
 Move code to `shared/` only when at least two features need it or when it is clearly a primitive. If a helper speaks in product terms such as session, provider, Waggle, composer, branch, or transcript, it probably belongs in a feature.
 
+### Syntax Highlighting Infrastructure
+
+Syntax highlighting is the exceptional shared renderer infrastructure described by ADR 0026. One lazy worker-backed service owns language aliases, normalized Syntax themes, lazy loading, scheduling, cancellation, bounded caches, and fallback policy for syntax-eligible surfaces.
+
+Feature components use focused adapters over that service. They must not create Shiki highlighters or workers directly, hardcode Syntax themes, or add local language fallback tables. Pierre consumes resolved language, theme, and worker data through an adapter for diffs, source views, and focused editing under ADR 0028.
+
+Extension contributions use a public host-backed syntax capability, with framework-specific packages free to wrap it in components. The contract accepts source and an explicit canonical language or media type; it does not accept pre-highlighted HTML or expose renderer services. Arbitrary extension-owned markup remains outside host rewriting.
+
+Highlight scheduling is visibility-aware: active and visible work outranks nearby work, which outranks offscreen precomputation. Large cache misses never run synchronously on the renderer thread.
+
+`docs/specs/syntax-rendering-surface-inventory.md` is the coverage contract. Repository standards flag feature-owned direct Shiki construction and new raw `<pre>` renderers; intentional non-syntax blocks go through the plain-text or ANSI adapter with an explicit reason. This keeps future features from recreating the inconsistency the shared service removes.
+
 ## Shell Code
 
 `shell/` owns app-frame composition that is larger than a single feature but is not product-domain logic. Examples include root shell layout, persistent overlays, and app-level error boundaries.

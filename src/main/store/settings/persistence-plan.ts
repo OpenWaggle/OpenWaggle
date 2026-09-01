@@ -1,5 +1,6 @@
 import type { Settings } from '@shared/types/settings'
 import {
+  SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -13,6 +14,7 @@ import {
   SETTINGS_KEY_RECENT_PROJECTS,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
+  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
 import { isValidThinkingLevel } from './sanitizers'
@@ -120,6 +122,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   )
   appendChangedSetting(
     writes,
+    partial.syntaxThemeSelections !== undefined,
+    SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
+    next.syntaxThemeSelections,
+  )
+  appendChangedSetting(
+    writes,
     partial.diffView !== undefined,
     SETTINGS_KEY_DIFF_VIEW,
     next.diffView,
@@ -129,6 +137,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     partial.diffWrapLines !== undefined,
     SETTINGS_KEY_DIFF_WRAP_LINES,
     next.diffWrapLines,
+  )
+  appendChangedSetting(
+    writes,
+    partial.appearancePreferences !== undefined,
+    SETTINGS_KEY_APPEARANCE_PREFERENCES,
+    next.appearancePreferences,
   )
 
   return writes

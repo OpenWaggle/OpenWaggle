@@ -9,8 +9,21 @@ Types: `dist/index.d.ts`
 ### Declarations from `dist/index.d.ts`
 
 ```ts
-import { OPENWAGGLE_EXTENSION_UI_ATTRIBUTES, OPENWAGGLE_EXTENSION_UI_CLASS_NAMES, type OpenWaggleExtensionUiButtonVariant, type OpenWaggleExtensionUiTone } from '@openwaggle/extension-sdk';
+import { OPENWAGGLE_EXTENSION_UI_ATTRIBUTES, OPENWAGGLE_EXTENSION_UI_CLASS_NAMES, type OpenWaggleExtensionSyntaxSdk, type OpenWaggleExtensionUiButtonVariant, type OpenWaggleExtensionUiTone } from '@openwaggle/extension-sdk';
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+export interface SyntaxBlockProps {
+    readonly syntax: OpenWaggleExtensionSyntaxSdk;
+    readonly source: string;
+    readonly language?: string;
+    readonly path?: string;
+    readonly className?: string;
+    readonly wrap?: boolean;
+    readonly showLineNumbers?: boolean;
+    readonly ariaLabel?: string;
+}
+export declare function SyntaxBlock({ syntax, source, language, path, className, wrap, showLineNumbers, ariaLabel, }: SyntaxBlockProps): import("react").JSX.Element;
+export type SourceViewProps = SyntaxBlockProps;
+export declare function SourceView({ syntax, source, language, path, className, showLineNumbers, ariaLabel, }: SourceViewProps): import("react").JSX.Element;
 export interface StackProps {
     readonly children?: ReactNode;
     readonly className?: string;

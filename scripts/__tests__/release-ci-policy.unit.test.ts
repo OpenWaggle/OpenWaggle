@@ -208,6 +208,17 @@ describe('release CI policy', () => {
     )
   })
 
+  it('rejects removing the macOS syntax performance gate', () => {
+    const weakenedWorkflow = compliantWorkflow.replace(
+      '      - run: pnpm benchmark:syntax\n',
+      '',
+    )
+
+    expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
+      'CI job Electron E2E (macOS) steps must match the fail-closed required sequence.',
+    )
+  })
+
   it('rejects continue-on-error on a required step', () => {
     const weakenedWorkflow = compliantWorkflow.replace(
       '      - run: pnpm test',
