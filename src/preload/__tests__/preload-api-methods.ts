@@ -42,6 +42,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'unregisterExtensionFrame',
   'registerInlineVisualizationFrame',
   'unregisterInlineVisualizationFrame',
+  'terminateInlineVisualizationFrame',
   'saveInlineVisualizationDownload',
   'setExtensionTrusted',
   'setExtensionEnabled',

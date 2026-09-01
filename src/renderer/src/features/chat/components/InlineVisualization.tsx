@@ -51,7 +51,7 @@ function VisualizationContent({
 }: {
   readonly registration: InlineVisualizationFrameRegisterResult | null
   readonly unavailableReason: string | null
-  readonly frameRef: React.RefObject<HTMLIFrameElement | null>
+  readonly frameRef: React.Ref<HTMLIFrameElement>
   readonly title: string
   readonly mode: InlineVisualizationReference['mode']
   readonly height: number
@@ -81,7 +81,6 @@ function VisualizationContent({
     <iframe
       ref={frameRef}
       title={title}
-      src={registration.frameUrl}
       sandbox="allow-scripts allow-same-origin"
       referrerPolicy="no-referrer"
       data-visualization-mode={mode ?? 'default'}
@@ -104,12 +103,13 @@ export function InlineVisualization({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(false)
   const dismiss = useCallback(() => setExpanded(false), [])
-  const { registration, registrationError, retryRegistration } = useInlineVisualizationRegistration(
-    { sectionRef, sessionId, sourcePath: reference.path },
-  )
+  const { frameId, registration, registrationError, retryRegistration } =
+    useInlineVisualizationRegistration({ sectionRef, sessionId, sourcePath: reference.path })
   const { frameRef, height, errorReason, handleLoad, reset } = useInlineVisualizationFrame({
     sessionId,
+    frameId,
     frameUrl: registration?.frameUrl ?? null,
+    registrationId: registration?.registrationId ?? null,
     onDismiss: dismiss,
   })
 

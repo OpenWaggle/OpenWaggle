@@ -7,6 +7,8 @@ import { seedSingleSession } from './support/session-fixtures'
 const THREAD_TITLE = 'Inline Visualization Security'
 const FRAME_TITLE = 'Interactive security probe'
 const SOURCE_NAME = 'interactive-security-probe.html'
+const BLOCKING_FRAME_TITLE = 'Blocking security probe'
+const BLOCKING_SOURCE_NAME = 'blocking-security-probe.html'
 
 function visualizationSource() {
   return `
@@ -126,7 +128,9 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
     element.click()
   })
   await expect(page).toHaveURL(/^openwaggle:\/\/app\//u)
-  await expect(page.getByRole('alert')).toContainText('visualization could not be loaded')
+  await expect(page.getByRole('alert')).toContainText('visualization could not be loaded', {
+    timeout: 10_000,
+  })
   await expect(iframe).toHaveCount(0)
 }
 
@@ -164,6 +168,42 @@ test('renders a persistent interactive visualization inside the isolated Electro
     await app.restart()
     await openVisualizationThread(app)
     await expectSecureInteractiveVisualization(app)
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('terminates a visualization that blocks parsing without freezing OpenWaggle', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-blocking-visualization-e2e-')
+
+  try {
+    const sourcePath = path.join(app.userDataDir, BLOCKING_SOURCE_NAME)
+    await fs.writeFile(sourcePath, '<script>while (true) {}</script>', 'utf8')
+    const reference = `visualize${JSON.stringify({ path: sourcePath, title: BLOCKING_FRAME_TITLE })}`
+    await seedSingleSession(app.userDataDir, {
+      title: THREAD_TITLE,
+      projectPath: app.userDataDir,
+      updatedAt: Date.now(),
+      messages: [
+        {
+          id: 'blocking-visualization-assistant-message',
+          role: 'assistant',
+          createdAt: Date.now(),
+          parts: [{ type: 'text', text: reference }],
+        },
+      ],
+    })
+
+    await app.restart()
+    await openVisualizationThread(app)
+
+    const page = app.window()
+    await expect(page.getByRole('alert')).toContainText('visualization could not be loaded', {
+      timeout: 10_000,
+    })
+    await expect(page.locator(`iframe[title="${BLOCKING_FRAME_TITLE}"]`)).toHaveCount(0)
+    await expect(page).toHaveURL(/^openwaggle:\/\/app\//u)
+    await expect(app.mainWindow().threadItem(THREAD_TITLE)).toBeVisible()
   } finally {
     await app.cleanup()
   }

@@ -6,7 +6,7 @@ import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-auto
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
-import { net, protocol } from 'electron'
+import { app, net, protocol } from 'electron'
 import { env } from './env'
 
 export const RENDERER_PROTOCOL = 'openwaggle'
@@ -19,6 +19,10 @@ const ACCESS_CONTROL_ALLOW_ORIGIN_HEADER = 'access-control-allow-origin'
 const CORS_ANY_ORIGIN = '*'
 
 let rendererProtocolRegistered = false
+
+export function configureInlineVisualizationProcessIsolation() {
+  app.commandLine.appendSwitch('site-per-process')
+}
 
 export function registerRendererScheme() {
   protocol.registerSchemesAsPrivileged([

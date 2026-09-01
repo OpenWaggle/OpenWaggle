@@ -21,6 +21,7 @@ import { registerInlineVisualizationProtocolOnce } from './inline-visualization-
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import {
+  configureInlineVisualizationProcessIsolation,
   devRendererUrl,
   INDEX_HTML,
   isTrustedRendererRequest,
@@ -57,6 +58,7 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
 const appIconPath = is.dev

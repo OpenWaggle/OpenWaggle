@@ -73,6 +73,7 @@ export function useInlineVisualizationRegistration(input: {
   }, [frameId, input.sessionId, input.sourcePath, nearViewport])
 
   return {
+    frameId,
     registration,
     registrationError,
     retryRegistration() {

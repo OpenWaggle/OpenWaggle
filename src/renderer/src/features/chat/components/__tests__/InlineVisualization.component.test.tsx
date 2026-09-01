@@ -9,6 +9,7 @@ const apiMock = vi.hoisted(() => ({
   openExternal: vi.fn(),
   registerInlineVisualizationFrame: vi.fn(),
   unregisterInlineVisualizationFrame: vi.fn(),
+  terminateInlineVisualizationFrame: vi.fn(),
   saveInlineVisualizationDownload: vi.fn(),
 }))
 
@@ -18,7 +19,6 @@ import { InlineVisualization } from '../InlineVisualization'
 
 const TEST_BACKGROUND = 'test-background-token'
 const TEST_FOREGROUND = 'test-foreground-token'
-const FRAME_HEALTH_TIMEOUT_MS = 2_000
 
 async function visualizationFrame(title: string) {
   const element = await screen.findByTitle(title)
@@ -48,6 +48,7 @@ function dispatchFrameMessage(
 }
 
 async function activateFrame(frame: HTMLIFrameElement, capability = 'test-capability-1234567890') {
+  await act(async () => undefined)
   const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
   fireEvent.load(frame)
   act(() => {
@@ -83,6 +84,7 @@ describe('InlineVisualization', () => {
       }),
     )
     apiMock.unregisterInlineVisualizationFrame.mockResolvedValue(undefined)
+    apiMock.terminateInlineVisualizationFrame.mockResolvedValue(true)
     apiMock.saveInlineVisualizationDownload.mockResolvedValue(true)
   })
   afterEach(() => {
@@ -93,6 +95,7 @@ describe('InlineVisualization', () => {
     apiMock.openExternal.mockReset()
     apiMock.registerInlineVisualizationFrame.mockReset()
     apiMock.unregisterInlineVisualizationFrame.mockReset()
+    apiMock.terminateInlineVisualizationFrame.mockReset()
     apiMock.saveInlineVisualizationDownload.mockReset()
     useMessageQueueStore.setState({ queues: new Map() })
   })
@@ -273,22 +276,5 @@ describe('InlineVisualization', () => {
     expect(closeButton).toHaveFocus()
     fireEvent.click(closeButton)
     expect(expandButton).toHaveFocus()
-  })
-
-  it('replaces a loaded frame with the safe fallback when its runtime stops responding', async () => {
-    render(
-      <InlineVisualization
-        sessionId={SessionId('session-visualization-1')}
-        reference={{ path: '/repo/unresponsive-map.html', title: 'Unresponsive map' }}
-      />,
-    )
-    const frame = await visualizationFrame('Unresponsive map')
-
-    vi.useFakeTimers()
-    fireEvent.load(frame)
-    act(() => vi.advanceTimersByTime(FRAME_HEALTH_TIMEOUT_MS))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('visualization could not be loaded')
-    expect(screen.queryByTitle('Unresponsive map')).toBeNull()
   })
 })

@@ -26,6 +26,10 @@ function runtimeHarness(nativeActivationIsActive = false) {
     crypto: { randomUUID: vi.fn(() => 'trusted-capability-1234567890') },
     parent,
     document: {
+      body: {
+        children: [],
+        getBoundingClientRect: () => ({ bottom: 0, top: 0 }),
+      },
       addEventListener: vi.fn(
         (type: string, listener: (event: { isTrusted?: boolean }) => void) => {
           documentListeners.set(type, [...(documentListeners.get(type) ?? []), listener])
@@ -54,12 +58,16 @@ function runtimeHarness(nativeActivationIsActive = false) {
     for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: true })
     fragmentHandler()
   }
+  const dispatchWindowEvent = (type: string) => {
+    for (const listener of listeners.get(type) ?? []) listener({})
+  }
   const dispatchSyntheticDocumentEvent = (type: string, fragmentHandler: () => void) => {
     for (const listener of documentListeners.get(type) ?? []) listener({ isTrusted: false })
     fragmentHandler()
   }
   return {
     context,
+    dispatchWindowEvent,
     dispatchHostMessage,
     dispatchSyntheticDocumentEvent,
     dispatchTrustedDocumentEvent,
@@ -70,6 +78,18 @@ function runtimeHarness(nativeActivationIsActive = false) {
 }
 
 describe('inline visualization host runtime', () => {
+  it('does not report readiness until fragment parsing reaches DOMContentLoaded', () => {
+    const { dispatchWindowEvent, postedMessages } = runtimeHarness()
+
+    expect(postedMessages).not.toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:ready' }),
+    )
+    dispatchWindowEvent('DOMContentLoaded')
+    expect(postedMessages).toContainEqual(
+      expect.objectContaining({ type: 'openwaggle:inline-visualization:ready' }),
+    )
+  })
+
   it('rejects a follow-up when fragment code shadows navigator.userActivation', async () => {
     const { navigator, postedMessages, runtimeWindow } = runtimeHarness()
     Object.defineProperty(navigator, 'userActivation', {

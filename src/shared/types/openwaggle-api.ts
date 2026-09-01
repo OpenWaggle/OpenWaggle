@@ -51,6 +51,7 @@ import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
   InlineVisualizationFrameRegisterResult,
+  InlineVisualizationFrameTerminateInput,
   InlineVisualizationFrameUnregisterInput,
 } from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
@@ -149,6 +150,7 @@ export interface OpenWaggleApi
     input: InlineVisualizationFrameRegisterInput,
   ): Promise<InlineVisualizationFrameRegisterResult>
   unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput): Promise<void>
+  terminateInlineVisualizationFrame(input: InlineVisualizationFrameTerminateInput): Promise<boolean>
   saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions

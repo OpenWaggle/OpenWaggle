@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { api } from '@/shared/lib/ipc'
 import {
   subscribeInlineVisualizationFrame,
   subscribeInlineVisualizationTheme,
@@ -9,6 +10,7 @@ import { hostVisualizationTheme } from './inline-visualization-host'
 
 export const DEFAULT_VISUALIZATION_HEIGHT = 320
 const FRAME_HEALTH_CHECK_TIMEOUT_MS = 2_000
+const FRAME_HEALTH_CHECK_INTERVAL_MS = 5_000
 
 function customProtocolOrigin(frameUrl: string) {
   const url = new URL(frameUrl)
@@ -17,13 +19,16 @@ function customProtocolOrigin(frameUrl: string) {
 
 export function useInlineVisualizationFrame(input: {
   readonly sessionId: SessionId
+  readonly frameId: string
   readonly frameUrl: string | null
+  readonly registrationId: string | null
   readonly onDismiss: () => void
 }) {
-  const frameRef = useRef<HTMLIFrameElement>(null)
+  const frameElementRef = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(DEFAULT_VISUALIZATION_HEIGHT)
   const [errorReason, setErrorReason] = useState<string | null>(null)
   const healthCheckTimeoutRef = useRef<number | null>(null)
+  const healthCheckIntervalRef = useRef<number | null>(null)
   const capabilityRef = useRef<string | null>(null)
   const brokerPendingRef = useRef(false)
 
@@ -33,10 +38,19 @@ export function useInlineVisualizationFrame(input: {
     healthCheckTimeoutRef.current = null
   }, [])
 
+  const clearHealthCheckInterval = useCallback(() => {
+    if (healthCheckIntervalRef.current === null) return
+    window.clearInterval(healthCheckIntervalRef.current)
+    healthCheckIntervalRef.current = null
+  }, [])
+
   const postToFrame = useCallback(
     (message: Record<string, unknown>) => {
       if (!input.frameUrl) return
-      frameRef.current?.contentWindow?.postMessage(message, customProtocolOrigin(input.frameUrl))
+      frameElementRef.current?.contentWindow?.postMessage(
+        message,
+        customProtocolOrigin(input.frameUrl),
+      )
     },
     [input.frameUrl],
   )
@@ -48,9 +62,37 @@ export function useInlineVisualizationFrame(input: {
     })
   }, [postToFrame])
 
+  const armHealthCheckTimeout = useCallback(() => {
+    clearHealthCheckTimeout()
+    if (!input.registrationId) return
+    const registrationId = input.registrationId
+    healthCheckTimeoutRef.current = window.setTimeout(() => {
+      healthCheckTimeoutRef.current = null
+      void api
+        .terminateInlineVisualizationFrame({
+          frameId: input.frameId,
+          registrationId,
+        })
+        .catch(() => false)
+      setErrorReason('unresponsive')
+    }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
+  }, [clearHealthCheckTimeout, input.frameId, input.registrationId])
+
+  const frameRef = useCallback(
+    (frame: HTMLIFrameElement | null) => {
+      frameElementRef.current = frame
+      clearHealthCheckTimeout()
+      if (!frame || !input.frameUrl || !input.registrationId) return
+
+      armHealthCheckTimeout()
+      frame.src = input.frameUrl
+    },
+    [armHealthCheckTimeout, clearHealthCheckTimeout, input.frameUrl, input.registrationId],
+  )
+
   useEffect(() => {
-    const frameWindow = frameRef.current?.contentWindow
-    if (!frameWindow || !input.frameUrl) return
+    const frameWindow = frameElementRef.current?.contentWindow
+    if (!frameWindow || !input.frameUrl || !input.registrationId) return
     capabilityRef.current = null
     const origin = customProtocolOrigin(input.frameUrl)
     const unsubscribeFrame = subscribeInlineVisualizationFrame(frameWindow, origin, (event) => {
@@ -67,30 +109,35 @@ export function useInlineVisualizationFrame(input: {
       })
     })
     const unsubscribeTheme = subscribeInlineVisualizationTheme(sendTheme)
+    clearHealthCheckInterval()
+    healthCheckIntervalRef.current = window.setInterval(() => {
+      armHealthCheckTimeout()
+      postToFrame({ type: 'openwaggle:inline-visualization:health-check' })
+    }, FRAME_HEALTH_CHECK_INTERVAL_MS)
     return () => {
       unsubscribeFrame()
       unsubscribeTheme()
       clearHealthCheckTimeout()
+      clearHealthCheckInterval()
       capabilityRef.current = null
       brokerPendingRef.current = false
     }
   }, [
+    armHealthCheckTimeout,
+    clearHealthCheckInterval,
     clearHealthCheckTimeout,
     input.frameUrl,
     input.onDismiss,
+    input.registrationId,
     input.sessionId,
     postToFrame,
     sendTheme,
   ])
 
   const handleLoad = () => {
-    clearHealthCheckTimeout()
     capabilityRef.current = null
+    armHealthCheckTimeout()
     postToFrame({ type: 'openwaggle:inline-visualization:health-check' })
-    healthCheckTimeoutRef.current = window.setTimeout(() => {
-      setErrorReason('unresponsive')
-      healthCheckTimeoutRef.current = null
-    }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
   }
 
   const reset = () => {

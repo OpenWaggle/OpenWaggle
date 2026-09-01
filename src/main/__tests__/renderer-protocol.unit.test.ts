@@ -29,7 +29,11 @@ const protocolMocks = vi.hoisted(() => {
   return {
     is: { dev: false },
     env,
-    app: { getPath: vi.fn(() => '/tmp/user-data') },
+    appendSwitch: vi.fn(),
+    app: {
+      commandLine: { appendSwitch: vi.fn() },
+      getPath: vi.fn(() => '/tmp/user-data'),
+    },
     existsSync: vi.fn(),
     fetch: vi.fn((url: string) => Promise.resolve(new Response(url))),
     registerSchemesAsPrivileged: vi.fn(),
@@ -97,6 +101,7 @@ describe('renderer protocol', () => {
     protocolMocks.existsSync.mockReset()
     protocolMocks.fetch.mockClear()
     protocolMocks.registerSchemesAsPrivileged.mockClear()
+    protocolMocks.app.commandLine.appendSwitch.mockClear()
     protocolMocks.handle.mockClear()
     protocolMocks.resetHandler()
   })
@@ -152,6 +157,16 @@ describe('renderer protocol', () => {
         },
       },
     ])
+  })
+
+  it('enforces out-of-process isolation for visualization origins before startup', async () => {
+    const { configureInlineVisualizationProcessIsolation } = await loadRendererProtocol()
+
+    configureInlineVisualizationProcessIsolation()
+
+    expect(protocolMocks.app.commandLine.appendSwitch).toHaveBeenCalledExactlyOnceWith(
+      'site-per-process',
+    )
   })
 
   it('skips file protocol registration while a dev renderer URL is active', async () => {

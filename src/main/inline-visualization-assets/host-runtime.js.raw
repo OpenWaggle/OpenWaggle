@@ -251,6 +251,7 @@
   });
 
   addEventListener('DOMContentLoaded', () => {
+    post('openwaggle:inline-visualization:ready');
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
       window.lucide.createIcons();
     }
@@ -268,5 +269,4 @@
     }
   }, { once: true });
   addEventListener('load', reportSize, { once: true });
-  post('openwaggle:inline-visualization:ready');
 })();

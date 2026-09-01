@@ -23,9 +23,12 @@ async function recoverDeletionTombstone(directory: string) {
   const visualizationsDirectory = path.dirname(directory)
   const tombstonePrefix = `.${path.basename(directory)}${DELETION_TOMBSTONE_MARKER}`
   const entries = await fs.readdir(visualizationsDirectory, { withFileTypes: true })
-  const tombstones = entries
-    .filter((entry) => entry.name.startsWith(tombstonePrefix))
-    .map((entry) => path.join(visualizationsDirectory, entry.name))
+  const tombstones: string[] = []
+  for (const entry of entries) {
+    if (entry.name.startsWith(tombstonePrefix)) {
+      tombstones.push(path.join(visualizationsDirectory, entry.name))
+    }
+  }
   if (tombstones.length === 0) return
   if (tombstones.length > 1) {
     throw new InvalidVisualizationPathError('Multiple visualization deletion tombstones exist')
