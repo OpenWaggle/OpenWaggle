@@ -95,17 +95,16 @@ describe('GeneralSection', () => {
     setCompactionThresholdPercentMock.mockReturnValueOnce(firstWrite.promise)
     render(<GeneralSection />)
 
-    const decrease = screen.getByRole('button', {
-      name: 'Decrease Automatic compaction threshold',
+    const threshold = screen.getByRole('spinbutton', {
+      name: 'Automatic compaction threshold',
     })
-    const increase = screen.getByRole('button', {
-      name: 'Increase Automatic compaction threshold',
-    })
-    fireEvent.click(decrease)
+    threshold.focus()
+    fireEvent.keyDown(threshold, { key: 'ArrowDown' })
 
-    expect(decrease).toBeDisabled()
-    expect(increase).toBeDisabled()
-    fireEvent.click(increase)
+    expect(threshold).toHaveFocus()
+    expect(threshold).not.toBeDisabled()
+    expect(threshold).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.keyDown(threshold, { key: 'ArrowDown' })
     expect(setCompactionThresholdPercentMock).toHaveBeenCalledTimes(1)
 
     await act(async () => {
@@ -113,9 +112,9 @@ describe('GeneralSection', () => {
       await firstWrite.promise.catch(() => undefined)
     })
 
-    expect(decrease).not.toBeDisabled()
-    expect(increase).not.toBeDisabled()
-    fireEvent.click(increase)
+    expect(threshold).toHaveFocus()
+    expect(threshold).toHaveAttribute('aria-disabled', 'false')
+    fireEvent.keyDown(threshold, { key: 'ArrowUp' })
     expect(setCompactionThresholdPercentMock).toHaveBeenNthCalledWith(2, 81)
   })
 

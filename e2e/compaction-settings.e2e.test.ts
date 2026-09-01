@@ -28,18 +28,22 @@ test('global automatic compaction threshold defaults to 80 percent and persists'
     await expect(threshold).toHaveAttribute('aria-valuemax', '100')
 
     await threshold.fill('73')
-    await threshold.blur()
+    await page
+      .getByRole('button', { name: 'Increase Automatic compaction threshold' })
+      .click()
+    await expect(threshold).toHaveValue('74')
+    await expect(threshold).toBeFocused()
     await expect
       .poll(() =>
         page.evaluate(async () => (await window.api.getSettings()).compactionThresholdPercent),
       )
-      .toBe(73)
+      .toBe(74)
 
     await app.restart()
     page = await openGeneralSettings(app)
     await expect(
       page.getByRole('spinbutton', { name: 'Automatic compaction threshold' }),
-    ).toHaveValue('73')
+    ).toHaveValue('74')
   } finally {
     await app.cleanup()
   }
