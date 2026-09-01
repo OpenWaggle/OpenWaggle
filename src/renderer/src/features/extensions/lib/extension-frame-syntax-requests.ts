@@ -1,7 +1,9 @@
+import { WORKSPACE_EDITOR_PERFORMANCE } from '@shared/constants/workspace-editor-performance'
 import type {
   OpenWaggleExtensionSyntaxHighlightInput,
   OpenWaggleExtensionSyntaxHighlightResult,
 } from '@shared/extension-sdk'
+import { createPlainExtensionSyntaxResult } from '@shared/extension-sdk'
 import { highlightExtensionSyntax } from './extension-syntax-sdk'
 
 export function createExtensionFrameSyntaxRequests() {
@@ -14,7 +16,20 @@ export function createExtensionFrameSyntaxRequests() {
       isActive: () => boolean,
       postResult: (result: OpenWaggleExtensionSyntaxHighlightResult) => void,
     ) {
-      controllers.get(requestId)?.abort()
+      const existing = controllers.get(requestId)
+      existing?.abort()
+      if (
+        !existing &&
+        controllers.size >= WORKSPACE_EDITOR_PERFORMANCE.EXTENSION_FRAME_SYNTAX_MAX_REQUESTS
+      ) {
+        postResult(
+          createPlainExtensionSyntaxResult({
+            ...input,
+            diagnostic: 'Too many syntax requests are already pending for this extension.',
+          }),
+        )
+        return
+      }
       const controller = new AbortController()
       controllers.set(requestId, controller)
       void highlightExtensionSyntax(input, { signal: controller.signal }).then((result) => {

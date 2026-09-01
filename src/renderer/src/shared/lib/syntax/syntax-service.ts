@@ -114,6 +114,7 @@ export class SyntaxService {
     }
     this.cache.clear()
     this.sourceState.clear()
+    this.cancelQueuedRequests('Syntax request was cancelled because syntax resources changed.')
     for (const slot of [...this.slots]) this.cancelSlot(slot)
     for (const slot of this.slots) {
       slot.knownSourceKeys.clear()
@@ -131,6 +132,7 @@ export class SyntaxService {
     }
     this.cache.clear()
     this.sourceState.clear()
+    this.cancelQueuedRequests('Syntax request was cancelled because syntax resources changed.')
     for (const slot of [...this.slots]) this.cancelSlot(slot)
     for (const slot of this.slots) {
       slot.knownSourceKeys.clear()
@@ -223,6 +225,12 @@ export class SyntaxService {
     }
     const slot = this.slots.find((candidate) => candidate.current === request)
     if (slot) this.cancelSlot(slot)
+  }
+
+  private cancelQueuedRequests(diagnostic: string) {
+    for (const queued of this.queue.splice(0)) {
+      resolveSyntaxQueuedRequest(queued, plainSyntaxResult({ ...queued.input, diagnostic }))
+    }
   }
 
   private cancelSlot(slot: SyntaxWorkerSlot) {

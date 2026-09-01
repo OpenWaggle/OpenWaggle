@@ -92,6 +92,37 @@ describe('SyntaxService registration invalidation', () => {
     service.dispose()
   })
 
+  it('cancels queued theme work before replacing worker registrations', async () => {
+    const service = new SyntaxService()
+    service.registerThemes([TEST_THEME])
+    const pending = ['first', 'second', 'queued'].map((source) =>
+      service.highlight({ source, language: 'typescript', theme: TEST_THEME.name }),
+    )
+    expect(MockWorker.instances).toHaveLength(2)
+
+    service.registerThemes([{ ...TEST_THEME, displayName: 'Updated Theme' }])
+
+    await expect(Promise.all(pending)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: 'plain-text',
+          diagnostic: expect.stringContaining('cancelled'),
+        }),
+        expect.objectContaining({
+          status: 'plain-text',
+          diagnostic: expect.stringContaining('cancelled'),
+        }),
+        expect.objectContaining({
+          status: 'plain-text',
+          diagnostic: expect.stringContaining('cancelled'),
+        }),
+      ]),
+    )
+    expect(MockWorker.instances).toHaveLength(2)
+    expect(MockWorker.instances.every((worker) => worker.terminated)).toBe(true)
+    service.dispose()
+  })
+
   it('retires pending grammar work and rebuilds it with the new language revision', async () => {
     const service = new SyntaxService()
     service.registerLanguages([IMPORTED_LANGUAGE])

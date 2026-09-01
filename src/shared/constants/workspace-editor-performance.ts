@@ -11,6 +11,8 @@ export const WORKSPACE_EDITOR_PERFORMANCE = {
   DRAFT_JOURNAL_MAX_CHARACTERS: 4 * MEBIBYTE,
   /** One lane may tokenize a large file while another keeps compact code responsive. */
   SYNTAX_MAX_WORKERS: 2,
+  /** Bounds retained sandbox input while the shared syntax workers are busy. */
+  EXTENSION_FRAME_SYNTAX_MAX_REQUESTS: 4,
   SYNTAX_WORKER_TOKEN_CACHE_MAX_ENTRIES: 2,
   /** Retains at least one admitted 1 MiB TypeScript token tree between viewport requests. */
   SYNTAX_WORKER_TOKEN_CACHE_MAX_ESTIMATED_BYTES: 32 * MEBIBYTE,
