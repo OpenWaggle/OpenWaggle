@@ -89,6 +89,55 @@ describe('workspace language detection', () => {
     await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).resolves.toBeNull()
   })
 
+  it('matches adversarial globstar patterns without regex backtracking', async () => {
+    const adversarialPattern = `**/${'**a'.repeat(300)}b`
+    const nestedCandidate = `${'a/'.repeat(150)}end.templ`
+    await fs.writeFile(
+      path.join(projectPath, '.vscode', 'settings.json'),
+      JSON.stringify({ 'files.associations': { [adversarialPattern]: 'plaintext' } }),
+    )
+
+    await expect(vscodeLanguageAssociation(projectPath, nestedCandidate)).resolves.toBeNull()
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'rejects workspace settings symlinks before reading them',
+    async () => {
+      const outsidePath = path.join(projectPath, 'outside-settings.json')
+      await fs.writeFile(
+        outsidePath,
+        JSON.stringify({ 'files.associations': { '*': 'plaintext' } }),
+      )
+      await fs.rm(path.join(projectPath, '.vscode', 'settings.json'), { force: true })
+      await fs.symlink(outsidePath, path.join(projectPath, '.vscode', 'settings.json'))
+
+      await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).rejects.toThrow(
+        'regular non-symlink file',
+      )
+    },
+  )
+
+  it.runIf(process.platform !== 'win32')(
+    'rejects settings reached through a directory symlink outside the project',
+    async () => {
+      const outsideRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-outside-settings-'))
+      try {
+        await fs.writeFile(
+          path.join(outsideRoot, 'settings.json'),
+          JSON.stringify({ 'files.associations': { '*': 'plaintext' } }),
+        )
+        await fs.rm(path.join(projectPath, '.vscode'), { recursive: true })
+        await fs.symlink(outsideRoot, path.join(projectPath, '.vscode'))
+
+        await expect(vscodeLanguageAssociation(projectPath, 'page.templ')).rejects.toThrow(
+          'inside the project root',
+        )
+      } finally {
+        await fs.rm(outsideRoot, { recursive: true, force: true })
+      }
+    },
+  )
+
   it('skips malformed character-class ranges and continues to later associations', async () => {
     await fs.writeFile(
       path.join(projectPath, '.vscode', 'settings.json'),

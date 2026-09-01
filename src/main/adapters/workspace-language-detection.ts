@@ -1,6 +1,11 @@
+import { constants as FS_CONSTANTS } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { parse } from 'jsonc-parser'
+import {
+  type GlobMatchOperationBudget,
+  matchesWorkspaceAssociationGlob,
+} from './workspace-association-glob'
 
 interface AssociationCacheEntry {
   readonly modifiedAt: number
@@ -8,80 +13,20 @@ interface AssociationCacheEntry {
 }
 
 const associationCache = new Map<string, AssociationCacheEntry>()
-const GLOBSTAR_DIRECTORY_END_OFFSET = 2
 const MAX_ASSOCIATION_BRACE_ALTERNATIVES = 256
+const MAX_ASSOCIATION_MATCH_OPERATIONS = 1_000_000
 const MAX_ASSOCIATION_SIMPLE_PATTERNS = 256
 const MAX_VSCODE_SETTINGS_BYTES = 1024 * 1024
 
 interface AssociationMatchBudget {
   remainingBraceAlternatives: number
+  readonly expandedOperations: GlobMatchOperationBudget
+  readonly simpleOperations: GlobMatchOperationBudget
   remainingSimplePatterns: number
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function escapeRegularExpression(character: string) {
-  return /[\\^$.*+?()[\]{}|]/u.test(character) ? `\\${character}` : character
-}
-
-function characterClassRegularExpression(glob: string, opening: number) {
-  const closing = glob.indexOf(']', opening + 1)
-  if (closing <= opening + 1) return null
-  const rawClass = glob.slice(opening + 1, closing)
-  const negated = rawClass.startsWith('!')
-  const members = negated ? rawClass.slice(1) : rawClass
-  if (!members) return null
-  const escapedMembers = members
-    .replaceAll('\\', '\\\\')
-    .replaceAll('[', '\\[')
-    .replaceAll(']', '\\]')
-    .replaceAll('^', '\\^')
-  return {
-    end: closing,
-    pattern: `[${negated ? '^' : ''}${escapedMembers}]`,
-  }
-}
-
-function globRegularExpression(glob: string) {
-  let pattern = '^'
-  for (let index = 0; index < glob.length; index += 1) {
-    const character = glob[index]
-    if (character === '*') {
-      if (glob[index + 1] === '*') {
-        if (glob[index + GLOBSTAR_DIRECTORY_END_OFFSET] === '/') {
-          pattern += '(?:.*/)?'
-          index += GLOBSTAR_DIRECTORY_END_OFFSET
-        } else {
-          pattern += '.*'
-          index += 1
-        }
-      } else {
-        pattern += '[^/]*'
-      }
-      continue
-    }
-    if (character === '?') {
-      pattern += '[^/]'
-      continue
-    }
-    if (character === '[') {
-      const characterClass = characterClassRegularExpression(glob, index)
-      if (characterClass) {
-        pattern += characterClass.pattern
-        index = characterClass.end
-        continue
-      }
-    }
-    pattern += escapeRegularExpression(character ?? '')
-  }
-  try {
-    return new RegExp(`${pattern}$`, 'u')
-  } catch (error) {
-    if (error instanceof SyntaxError) return null
-    throw error
-  }
 }
 
 function matchesRegularAssociationPattern(
@@ -94,7 +39,8 @@ function matchesRegularAssociationPattern(
     if (budget.remainingSimplePatterns <= 0) return false
     budget.remainingSimplePatterns -= 1
   }
-  return globRegularExpression(glob)?.test(candidate) ?? false
+  const operationBudget = expanded ? budget.expandedOperations : budget.simpleOperations
+  return matchesWorkspaceAssociationGlob(glob, candidate, operationBudget)
 }
 
 function matchesAssociationPattern(
@@ -138,20 +84,54 @@ function isMissingSettingsFile(error: unknown) {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
+function isWithinProjectRoot(projectRoot: string, candidate: string) {
+  const relative = path.relative(projectRoot, candidate)
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
+
 async function vscodeAssociations(projectRoot: string) {
   const settingsPath = path.join(projectRoot, '.vscode', 'settings.json')
+  let cacheKey = projectRoot
   try {
-    const stats = await fs.stat(settingsPath)
-    if (stats.size > MAX_VSCODE_SETTINGS_BYTES) {
-      throw new Error('VS Code workspace settings are limited to 1 MiB.')
+    const settingsLinkStats = await fs.lstat(settingsPath)
+    if (!settingsLinkStats.isFile() || settingsLinkStats.isSymbolicLink()) {
+      throw new Error('VS Code workspace settings must be a regular non-symlink file.')
     }
-    const cached = associationCache.get(projectRoot)
-    if (cached?.modifiedAt === stats.mtimeMs) return cached.associations
-    const associations = parsedAssociations(await fs.readFile(settingsPath, 'utf8'))
-    associationCache.set(projectRoot, { modifiedAt: stats.mtimeMs, associations })
-    return associations
+    const [canonicalRoot, canonicalSettingsPath] = await Promise.all([
+      fs.realpath(projectRoot),
+      fs.realpath(settingsPath),
+    ])
+    cacheKey = canonicalRoot
+    if (!isWithinProjectRoot(canonicalRoot, canonicalSettingsPath)) {
+      throw new Error('VS Code workspace settings must stay inside the project root.')
+    }
+    const handle = await fs.open(
+      canonicalSettingsPath,
+      FS_CONSTANTS.O_RDONLY | FS_CONSTANTS.O_NOFOLLOW,
+    )
+    try {
+      const stats = await handle.stat()
+      if (!stats.isFile()) {
+        throw new Error('VS Code workspace settings must be a regular non-symlink file.')
+      }
+      if (stats.size > MAX_VSCODE_SETTINGS_BYTES) {
+        throw new Error('VS Code workspace settings are limited to 1 MiB.')
+      }
+      const cached = associationCache.get(canonicalRoot)
+      if (cached?.modifiedAt === stats.mtimeMs) return cached.associations
+      const buffer = Buffer.alloc(MAX_VSCODE_SETTINGS_BYTES + 1)
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+      if (bytesRead > MAX_VSCODE_SETTINGS_BYTES) {
+        throw new Error('VS Code workspace settings are limited to 1 MiB.')
+      }
+      const associations = parsedAssociations(buffer.subarray(0, bytesRead).toString('utf8'))
+      associationCache.set(canonicalRoot, { modifiedAt: stats.mtimeMs, associations })
+      return associations
+    } finally {
+      await handle.close()
+    }
   } catch (error) {
-    associationCache.delete(projectRoot)
+    associationCache.delete(cacheKey)
     if (isMissingSettingsFile(error)) return {}
     throw error
   }
@@ -162,8 +142,10 @@ export async function vscodeLanguageAssociation(projectRoot: string, relativePat
   const basename = normalized.slice(normalized.lastIndexOf('/') + 1)
   const associations = await vscodeAssociations(projectRoot)
   const matchBudget = {
+    expandedOperations: { remaining: MAX_ASSOCIATION_MATCH_OPERATIONS },
     remainingBraceAlternatives: MAX_ASSOCIATION_BRACE_ALTERNATIVES,
     remainingSimplePatterns: MAX_ASSOCIATION_SIMPLE_PATTERNS,
+    simpleOperations: { remaining: MAX_ASSOCIATION_MATCH_OPERATIONS },
   }
   for (const [glob, language] of Object.entries(associations)) {
     const candidate = glob.includes('/') ? normalized : basename
