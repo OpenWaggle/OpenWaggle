@@ -1,3 +1,4 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import {
   hasUniqueCollaborationStrings,
   SESSION_COLLABORATION_COLLECTION_LIMIT,
@@ -41,6 +42,10 @@ export const mcpSessionResourceReferencesSchemaV2 = z
   .array(mcpSessionPathSchemaV2)
   .max(MCP_SESSION_INPUT_LIMITS_V2.resourceReferences)
   .refine(hasUniqueCollaborationStrings, 'Resource references must be unique.')
+export const mcpSessionAttachmentPathsSchemaV2 = z
+  .array(mcpSessionPathSchemaV2)
+  .max(ATTACHMENT.MAX_COUNT)
+  .refine(hasUniqueCollaborationStrings, 'Attachment paths must be unique.')
 
 export const mcpSessionJsonSchemaV2 = z
   .json()

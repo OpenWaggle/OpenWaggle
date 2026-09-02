@@ -136,6 +136,46 @@ describe('OpenWaggle MCP Session Control v2 adapter', () => {
     })
   })
 
+  it('maps report delivery and correlated reply waits without broadening the target scope', () => {
+    expect(
+      buildMcpSessionPayloadV2({
+        operation: 'wait',
+        sessionId: 'worker',
+        condition: 'report-delivered',
+        reportId: 'report-1',
+        timeoutMs: 30_000,
+      }),
+    ).toMatchObject({
+      request: {
+        query: {
+          operation: 'wait',
+          targets: [{ sessionId: 'worker', condition: 'report-delivered', reportId: 'report-1' }],
+        },
+      },
+    })
+    expect(
+      buildMcpSessionPayloadV2({
+        operation: 'wait',
+        sessionId: 'parent',
+        condition: 'correlated-reply',
+        correlationId: 'correlation-1',
+        timeoutMs: 30_000,
+      }),
+    ).toMatchObject({
+      request: {
+        query: {
+          targets: [
+            {
+              sessionId: 'parent',
+              condition: 'correlated-reply',
+              correlationId: 'correlation-1',
+            },
+          ],
+        },
+      },
+    })
+  })
+
   it('maps paginated durable Run discovery separately from transcript items', () => {
     expect(
       buildMcpSessionPayloadV2({

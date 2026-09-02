@@ -8,6 +8,10 @@ const CUTOVER_PREVIEW_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('pre
 export function populateSessionSearchCatalog(database: DatabaseSync) {
   database.exec(`
     INSERT INTO session_title_search (session_id, title) SELECT id, title FROM sessions;
+    INSERT INTO session_project_search (session_id, project_path)
+    SELECT id, COALESCE(project_path, '') FROM sessions;
+    INSERT INTO session_catalog_search (session_id, title, project_path)
+    SELECT id, title, COALESCE(project_path, '') FROM sessions;
     INSERT INTO session_node_search (session_id, node_id, content)
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
     INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)

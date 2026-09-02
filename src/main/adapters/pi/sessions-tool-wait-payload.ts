@@ -18,6 +18,24 @@ function waitTargets(input: Extract<SessionsToolParameters, { action: 'wait' }>)
   if (condition === 'queue-empty') {
     return input.sessionIds.map((sessionId) => ({ sessionId, condition }))
   }
+  if (condition === 'report-delivered') {
+    if (!input.reportId) {
+      throw new Error('sessions wait requires reportId for report-delivered.')
+    }
+    const reportId = input.reportId
+    return input.sessionIds.map((sessionId) => ({ sessionId, condition, reportId }))
+  }
+  if (condition === 'correlated-reply') {
+    if (!input.correlationId) {
+      throw new Error('sessions wait requires correlationId for correlated-reply.')
+    }
+    const correlationId = input.correlationId
+    return input.sessionIds.map((sessionId) => ({
+      sessionId,
+      condition,
+      correlationId,
+    }))
+  }
   return input.sessionIds.map((sessionId) => ({ sessionId, condition: 'idle' as const }))
 }
 

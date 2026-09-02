@@ -3,15 +3,19 @@ import type { SessionSummary } from '@shared/types/session'
 import {
   SESSION_QUERY_CONTRACT_VERSION,
   SESSION_QUERY_DISCOVERY_LIMIT,
+  SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT,
 } from '@shared/types/session-query'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 
 export const SIDEBAR_SESSION_HYDRATION_BATCH_SIZE = 100
-const QUERY_CONCURRENCY = 8
+export const SIDEBAR_SEARCH_RESULT_LIMIT = SESSION_QUERY_DISCOVERY_LIMIT
 
-export type SidebarSearchSource =
-  | { readonly kind: 'catalog'; readonly cursor?: string }
-  | { readonly kind: 'project'; readonly projectPath: string; readonly cursor?: string }
+export type SidebarTerminalState = 'completed' | 'error'
+
+function terminalRunStatus(state: SidebarTerminalState) {
+  return state === 'completed' ? ('completed' as const) : ('failed' as const)
+}
 
 export async function hydrateSidebarSessions(ids: readonly SessionId[]) {
   const sessions: SessionSummary[] = []
@@ -22,56 +26,82 @@ export async function hydrateSidebarSessions(ids: readonly SessionId[]) {
       )),
     )
   }
+  useSessionStatusStore.getState().hydratePersistedStatuses(sessions)
   return sessions
 }
 
-async function querySearchSource(source: SidebarSearchSource, query: string) {
+async function querySidebarList(query: {
+  readonly searchText?: string
+  readonly projectPaths?: readonly string[]
+}) {
   const response = await api.querySessionControl({
     contractVersion: SESSION_QUERY_CONTRACT_VERSION,
     requestId: crypto.randomUUID(),
-    query:
-      source.kind === 'catalog'
-        ? {
-            operation: 'list',
-            searchText: query,
-            archived: false,
-            limit: SESSION_QUERY_DISCOVERY_LIMIT,
-            ...(source.cursor ? { cursor: source.cursor } : {}),
-          }
-        : {
-            operation: 'list',
-            projectPath: source.projectPath,
-            archived: false,
-            limit: SESSION_QUERY_DISCOVERY_LIMIT,
-            ...(source.cursor ? { cursor: source.cursor } : {}),
-          },
+    query: {
+      operation: 'list',
+      archived: false,
+      limit: SIDEBAR_SEARCH_RESULT_LIMIT,
+      ...query,
+    },
   })
   if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
     throw new Error('Sidebar Session search returned an unexpected response.')
   }
-  return {
-    ids: response.outcome.sessions.map((session) => SessionId(session.sessionId)),
-    next: response.outcome.nextCursor
-      ? ({ ...source, cursor: response.outcome.nextCursor } satisfies SidebarSearchSource)
-      : null,
-  }
+  return response.outcome.sessions.map((session) => SessionId(session.sessionId))
 }
 
 export async function querySidebarSearchSources(
-  sources: readonly SidebarSearchSource[],
+  customAliasProjectPaths: readonly string[],
   query: string,
 ) {
-  const pages: Awaited<ReturnType<typeof querySearchSource>>[] = []
-  for (let offset = 0; offset < sources.length; offset += QUERY_CONCURRENCY) {
-    pages.push(
-      ...(await Promise.all(
-        sources
-          .slice(offset, offset + QUERY_CONCURRENCY)
-          .map((source) => querySearchSource(source, query)),
-      )),
-    )
+  const boundedProjectPaths = customAliasProjectPaths.slice(
+    0,
+    SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT,
+  )
+  const pages = await Promise.all([
+    querySidebarList({ searchText: query }),
+    ...(boundedProjectPaths.length > 0
+      ? [querySidebarList({ projectPaths: boundedProjectPaths })]
+      : []),
+  ])
+  return [...new Set(pages.flat().map(String))].slice(0, SIDEBAR_SEARCH_RESULT_LIMIT).map(SessionId)
+}
+
+export async function queryTerminalSidebarSessions(
+  state: SidebarTerminalState,
+  cursor?: string,
+  limit = SESSION_QUERY_DISCOVERY_LIMIT,
+) {
+  const response = await api.querySessionControl({
+    contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+    requestId: crypto.randomUUID(),
+    query: {
+      operation: 'list',
+      archived: false,
+      unreadTerminalStatus: terminalRunStatus(state),
+      limit,
+      ...(cursor ? { cursor } : {}),
+    },
+  })
+  if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
+    throw new Error('Terminal Session filtering returned an unexpected response.')
   }
-  return pages
+  return {
+    ids: response.outcome.sessions.map((session) => SessionId(session.sessionId)),
+    nextCursor: response.outcome.nextCursor,
+    totalCount: response.outcome.totalCount,
+  }
+}
+
+export async function queryTerminalSidebarCounts(refreshKey: string) {
+  const [completed, error] = await Promise.all([
+    queryTerminalSidebarSessions('completed', undefined, 1),
+    queryTerminalSidebarSessions('error', undefined, 1),
+  ])
+  return {
+    refreshKey,
+    counts: { completed: completed.totalCount ?? 0, error: error.totalCount ?? 0 },
+  }
 }
 
 export async function queryInterruptedSidebarSessions(cursor?: string) {

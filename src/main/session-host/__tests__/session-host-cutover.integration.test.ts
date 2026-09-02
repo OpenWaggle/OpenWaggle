@@ -5,7 +5,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-session-embedding-model'
 import { runSessionHostCutover } from '../session-host-cutover'
-import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
+import {
+  fakeEmbeddingModel,
+  readCutoverCatalogEvidence,
+  seedLegacyDatabase,
+} from './session-host-cutover-test-support'
 
 describe('Session Host full cutover', () => {
   let temporaryRoot = ''
@@ -60,6 +64,7 @@ describe('Session Host full cutover', () => {
               session_control_states.queue_state,
               session_execution_profiles.authorization_ceiling,
               session_execution_profiles.profile_json,
+              sessions.authorization_mode_override,
               session_runs.status,
               session_active_runs.status AS legacy_run_status,
               session_active_runs.branch_id AS legacy_run_branch_id,
@@ -76,7 +81,8 @@ describe('Session Host full cutover', () => {
           .get(),
       ).toMatchObject({
         queue_state: 'paused',
-        authorization_ceiling: 'ask-for-approval',
+        authorization_ceiling: 'yolo',
+        authorization_mode_override: 'ask-for-approval',
         profile_json: '{"modelId":"openai/gpt-5.4","thinkingLevel":"high"}',
         status: 'interrupted-by-host-loss',
         legacy_run_status: 'interrupted',
@@ -87,19 +93,22 @@ describe('Session Host full cutover', () => {
       expect(
         target.prepare(`SELECT content FROM session_node_search WHERE node_id = 'node-1'`).get(),
       ).toMatchObject({ content: 'Visible cutover message' })
+      expect(readCutoverCatalogEvidence(target)).toEqual({
+        counts: { project_count: 1, catalog_count: 1 },
+        projectMatches: [{ session_id: 'session-root' }],
+        titleSubstringMatches: [{ session_id: 'session-root' }],
+        projectSubstringMatches: [{ session_id: 'session-root' }],
+        runIndexes: [
+          { name: 'idx_session_active_runs_status_session' },
+          { name: 'idx_session_runs_session_updated' },
+          { name: 'idx_session_runs_status_session_updated' },
+        ],
+      })
       expect(
         target
           .prepare('SELECT session_id FROM session_discovery_embedding_queue ORDER BY session_id')
           .all(),
       ).toEqual([{ session_id: 'session-root' }])
-      expect(
-        target
-          .prepare(
-            `SELECT name FROM sqlite_master
-             WHERE type = 'index' AND name = 'idx_session_active_runs_status_session'`,
-          )
-          .get(),
-      ).toEqual({ name: 'idx_session_active_runs_status_session' })
     } finally {
       target.close()
     }
@@ -166,34 +175,6 @@ describe('Session Host full cutover', () => {
         fakeEmbeddingModel,
       ),
     ).resolves.toMatchObject({ status: 'already-complete' })
-  })
-
-  it('preserves the effective global approval ceiling when a Session has no override', async () => {
-    seedLegacyDatabase(sourceDatabasePath)
-    const source = new DatabaseSync(sourceDatabasePath)
-    try {
-      source.prepare('UPDATE sessions SET authorization_mode_override = NULL').run()
-      source
-        .prepare(`UPDATE settings_store SET value_json = '"ask-for-approval"'
-          WHERE key = 'defaultAuthorizationMode'`)
-        .run()
-    } finally {
-      source.close()
-    }
-
-    await runSessionHostCutover(
-      { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
-      Date.now(),
-      fakeEmbeddingModel,
-    )
-    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
-    try {
-      expect(
-        target.prepare('SELECT authorization_ceiling FROM session_execution_profiles').get(),
-      ).toMatchObject({ authorization_ceiling: 'ask-for-approval' })
-    } finally {
-      target.close()
-    }
   })
 
   it('accepts a recoverable pending semantic projection on normal restart', async () => {

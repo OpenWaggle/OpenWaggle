@@ -65,7 +65,6 @@ function legacySetting(database: DatabaseSync, key: string): unknown {
 function legacyExecutionDefaults(database: DatabaseSync) {
   const selectedModel = legacySetting(database, 'selectedModel')
   const thinkingLevel = legacySetting(database, 'thinkingLevel')
-  const defaultAuthorizationMode = legacySetting(database, 'defaultAuthorizationMode')
   const resolvedThinkingLevel = THINKING_LEVELS.find((candidate) => candidate === thinkingLevel)
   return {
     modelId:
@@ -73,9 +72,6 @@ function legacyExecutionDefaults(database: DatabaseSync) {
         ? selectedModel
         : String(DEFAULT_SETTINGS.selectedModel),
     thinkingLevel: resolvedThinkingLevel ?? DEFAULT_SETTINGS.thinkingLevel,
-    authorizationCeiling: isAgentAuthorizationMode(defaultAuthorizationMode)
-      ? defaultAuthorizationMode
-      : DEFAULT_SETTINGS.defaultAuthorizationMode,
   }
 }
 
@@ -272,7 +268,7 @@ export function populateSessionHostTarget(database: DatabaseSync, now: number) {
       session.id,
       JSON.stringify({ modelId: defaults.modelId, thinkingLevel: defaults.thinkingLevel }),
       'local-user:cutover',
-      session.authorization_mode_override ?? defaults.authorizationCeiling,
+      'yolo',
       session.created_at,
       session.updated_at,
     )

@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import type { SessionReportWaitObservation, SessionWaitTarget } from '@shared/types/session-wait'
 import * as Effect from 'effect/Effect'
 import { SessionControlRepositoryError } from '../errors'
 import type { PendingSessionReport } from '../ports/session-report-repository'
@@ -71,4 +72,73 @@ export function markReportsDelivered(
       ),
     )
   })
+}
+
+export function observeReportWaitCondition(
+  sql: SqlClient.SqlClient,
+  target: Extract<
+    SessionWaitTarget,
+    { readonly condition: 'report-delivered' | 'correlated-reply' }
+  >,
+) {
+  if (target.condition === 'report-delivered') {
+    return sql<{
+      status: 'pending' | 'delivered'
+      delivered_run_id: string | null
+      delivered_at: number | null
+    }>`
+      SELECT status, delivered_run_id, delivered_at
+      FROM cross_session_report_deliveries
+      WHERE report_id = ${target.reportId}
+        AND target_session_id = ${target.sessionId}
+      LIMIT 1
+    `.pipe(
+      Effect.map((rows): SessionReportWaitObservation => {
+        const row = rows[0]
+        return {
+          condition: 'report-delivered',
+          reportId: target.reportId,
+          deliveryStatus: row?.status ?? 'not-found',
+          ...(row?.delivered_run_id ? { deliveredRunId: row.delivered_run_id } : {}),
+          ...(row?.delivered_at !== null && row?.delivered_at !== undefined
+            ? { deliveredAt: row.delivered_at }
+            : {}),
+        }
+      }),
+    )
+  }
+
+  return sql<{
+    report_id: string
+    reply_to_report_id: string
+    source_session_id: string
+    created_at: number
+  }>`
+    SELECT reports.id AS report_id, reports.reply_to_report_id,
+      reports.source_session_id, reports.created_at
+    FROM cross_session_reports AS reports
+    JOIN cross_session_report_deliveries AS deliveries
+      ON deliveries.report_id = reports.id
+    WHERE reports.correlation_id = ${target.correlationId}
+      AND reports.reply_to_report_id IS NOT NULL
+      AND deliveries.target_session_id = ${target.sessionId}
+    ORDER BY reports.created_at, reports.id
+    LIMIT 1
+  `.pipe(
+    Effect.map((rows): SessionReportWaitObservation => {
+      const row = rows[0]
+      return {
+        condition: 'correlated-reply',
+        correlationId: target.correlationId,
+        ...(row
+          ? {
+              replyReportId: row.report_id,
+              replyToReportId: row.reply_to_report_id,
+              sourceSessionId: row.source_session_id,
+              createdAt: row.created_at,
+            }
+          : {}),
+      }
+    }),
+  )
 }

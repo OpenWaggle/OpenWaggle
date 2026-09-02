@@ -27,6 +27,7 @@ function repositoryWithAcknowledgement(
     execute: () => Effect.dieMessage('not used'),
     listPending: () => Effect.succeed([]),
     markDelivered: acknowledgement,
+    observeWaitCondition: () => Effect.dieMessage('not used'),
   } satisfies SessionReportRepositoryShape
 }
 

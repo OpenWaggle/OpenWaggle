@@ -46,11 +46,21 @@ export type SessionToolInputV2 = {
   readonly deliverables?: readonly string[]
   readonly acceptanceCriteria?: readonly string[]
   readonly resourceReferences?: readonly string[]
+  readonly attachmentPaths?: readonly string[]
   readonly limit?: number
   readonly cursor?: string
   readonly afterCreatedOrder?: number
-  readonly condition?: 'idle' | 'queue-empty' | 'state-revision-after'
+  readonly throughCreatedOrder?: number
+  readonly snapshotHeadNodeId?: string
+  readonly condition?:
+    | 'idle'
+    | 'queue-empty'
+    | 'state-revision-after'
+    | 'report-delivered'
+    | 'correlated-reply'
   readonly afterStateRevision?: number
+  readonly reportId?: string
+  readonly correlationId?: string
   readonly timeoutMs?: number
   readonly interactionTimeoutMs?: number
   readonly fullTranscript?: boolean

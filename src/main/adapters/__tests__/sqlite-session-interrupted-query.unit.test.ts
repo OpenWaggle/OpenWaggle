@@ -9,6 +9,12 @@ import {
   makeSessionQueryRuntime as makeRuntime,
 } from './sqlite-session-query-test-layer'
 
+const INTERRUPTED_RUN_STATUSES = [
+  'interrupted',
+  'interrupted-by-host-loss',
+  'interrupted-by-interaction-timeout',
+] as const
+
 describe('SQLite interrupted Session catalog query', () => {
   let temporaryRoot = ''
   const runtimes: Array<ReturnType<typeof makeRuntime>> = []
@@ -22,7 +28,7 @@ describe('SQLite interrupted Session catalog query', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('pages and counts interrupted Sessions beyond the first catalog page using the status index', async () => {
+  it('pages and counts latest interrupted Host Runs beyond the first catalog page using both Run indexes', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'interrupted.sqlite'))
     runtimes.push(runtime)
     const interruptedSessionIds = Array.from(
@@ -35,7 +41,6 @@ describe('SQLite interrupted Session catalog query', () => {
         const sql = yield* SqlClient.SqlClient
         yield* Effect.forEach(interruptedSessionIds, (sessionId, index) =>
           Effect.gen(function* () {
-            const branchId = `${sessionId}:main`
             yield* sql`
               INSERT INTO sessions (
                 id, pi_session_id, project_path, title, archived, created_at, updated_at
@@ -45,15 +50,11 @@ describe('SQLite interrupted Session catalog query', () => {
               )
             `
             yield* sql`
-              INSERT INTO session_branches (id, session_id, head_node_id)
-              VALUES (${branchId}, ${sessionId}, ${null})
-            `
-            yield* sql`
-              INSERT INTO session_active_runs (
-                run_id, session_id, branch_id, run_mode, status, runtime_json, updated_at
-              ) VALUES (
-                ${`run-${sessionId}`}, ${sessionId}, ${branchId}, ${'classic'},
-                ${'interrupted'}, ${'{"model":"openai/gpt-5.4"}'}, ${index + 100}
+              INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+              VALUES (
+                ${`run-${sessionId}`}, ${sessionId},
+                ${INTERRUPTED_RUN_STATUSES[index % INTERRUPTED_RUN_STATUSES.length]},
+                ${index}, ${index + 100}
               )
             `
           }),
@@ -98,8 +99,20 @@ describe('SQLite interrupted Session catalog query', () => {
           WHERE sessions.archived = ${0}
             AND sessions.id IN (
               SELECT session_id
-              FROM session_active_runs
-              WHERE status = ${'interrupted'}
+              FROM session_runs AS interrupted_runs
+              WHERE interrupted_runs.status IN ${sql.in(INTERRUPTED_RUN_STATUSES)}
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM session_runs AS newer_runs
+                  WHERE newer_runs.session_id = interrupted_runs.session_id
+                    AND (
+                      newer_runs.updated_at > interrupted_runs.updated_at
+                      OR (
+                        newer_runs.updated_at = interrupted_runs.updated_at
+                        AND newer_runs.id > interrupted_runs.id
+                      )
+                    )
+                )
             )
           ORDER BY sessions.updated_at DESC, sessions.id DESC
           LIMIT ${101}
@@ -107,7 +120,40 @@ describe('SQLite interrupted Session catalog query', () => {
       }),
     )
     const details = plan.map((row) => row.detail).join('\n')
-    expect(details).toContain('idx_session_active_runs_status_session')
+    expect(details).toContain('idx_session_runs_status_session_updated')
+    expect(details).toContain('idx_session_runs_session_updated')
     expect(details).not.toContain('SCAN sessions')
+  })
+
+  it('excludes a Session when a later canonical Run supersedes an interruption', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'latest-run.sqlite'))
+    runtimes.push(runtime)
+
+    const interrupted = await executeQuery(runtime, {
+      operation: 'list',
+      archived: false,
+      interrupted: true,
+      limit: 10,
+    })
+    const uninterrupted = await executeQuery(runtime, {
+      operation: 'list',
+      archived: false,
+      interrupted: false,
+      limit: 10,
+    })
+
+    if (interrupted.outcome.operation !== 'list' || !('sessions' in interrupted.outcome)) {
+      throw new Error('Expected an interrupted Session catalog page.')
+    }
+    if (uninterrupted.outcome.operation !== 'list' || !('sessions' in uninterrupted.outcome)) {
+      throw new Error('Expected an uninterrupted Session catalog page.')
+    }
+    expect(interrupted.outcome.sessions).toEqual([])
+    expect(interrupted.outcome.totalCount).toBe(0)
+    expect(uninterrupted.outcome.sessions.map((session) => session.sessionId)).toEqual([
+      'queen',
+      'worker',
+      'other',
+    ])
   })
 })

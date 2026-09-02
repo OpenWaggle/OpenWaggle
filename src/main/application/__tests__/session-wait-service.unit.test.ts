@@ -10,12 +10,25 @@ describe('Session wait service', () => {
   let liveness: SessionWaitTestHarness['liveness']
   let states: SessionWaitTestHarness['states']
   let exportStatuses: SessionWaitTestHarness['exportStatuses']
+  let deliveredReports: SessionWaitTestHarness['deliveredReports']
+  let correlatedReplies: SessionWaitTestHarness['correlatedReplies']
   let waitForIdle: SessionWaitTestHarness['waitForIdle']
   let waitForExport: SessionWaitTestHarness['waitForExport']
+  let waitForTarget: SessionWaitTestHarness['waitForTarget']
 
   beforeEach(() => {
     harness = createSessionWaitTestHarness()
-    ;({ eventHub, liveness, states, exportStatuses, waitForIdle, waitForExport } = harness)
+    ;({
+      eventHub,
+      liveness,
+      states,
+      exportStatuses,
+      deliveredReports,
+      correlatedReplies,
+      waitForIdle,
+      waitForExport,
+      waitForTarget,
+    } = harness)
   })
 
   afterEach(() => {
@@ -114,6 +127,71 @@ describe('Session wait service', () => {
         timedOut: true,
         matchedSessionIds: [],
         states: [{ sessionId: 'worker', activeRunId: 'run-worker' }],
+      },
+    })
+  })
+
+  it('wakes only after the target report delivery is durably observed', async () => {
+    states.set('worker', { stateRevision: 1, activeRunId: null, pendingFollowUpCount: 0 })
+    const waiting = waitForTarget(
+      { sessionId: 'worker', condition: 'report-delivered', reportId: 'report-1' },
+      1_000,
+    )
+    for (let attempt = 0; attempt < 50 && eventHub.subscriberCount() === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    deliveredReports.add('worker:report-1')
+    eventHub.publish({
+      kind: 'session-list-changed',
+      sessionId: 'worker',
+      change: 'updated',
+    })
+
+    await expect(waiting).resolves.toMatchObject({
+      outcome: {
+        timedOut: false,
+        matchedSessionIds: ['worker'],
+        states: [
+          {
+            reportObservation: {
+              condition: 'report-delivered',
+              reportId: 'report-1',
+              deliveryStatus: 'delivered',
+            },
+          },
+        ],
+      },
+    })
+  })
+
+  it('matches a correlated reply fact scoped to its authorized delivery target', async () => {
+    states.set('parent', { stateRevision: 1, activeRunId: null, pendingFollowUpCount: 0 })
+    correlatedReplies.set('parent:correlation-1', {
+      reportId: 'reply-1',
+      replyToReportId: 'report-1',
+      sourceSessionId: 'worker',
+    })
+
+    await expect(
+      waitForTarget(
+        { sessionId: 'parent', condition: 'correlated-reply', correlationId: 'correlation-1' },
+        1_000,
+      ),
+    ).resolves.toMatchObject({
+      outcome: {
+        timedOut: false,
+        matchedSessionIds: ['parent'],
+        states: [
+          {
+            reportObservation: {
+              condition: 'correlated-reply',
+              correlationId: 'correlation-1',
+              replyReportId: 'reply-1',
+              replyToReportId: 'report-1',
+              sourceSessionId: 'worker',
+            },
+          },
+        ],
       },
     })
   })

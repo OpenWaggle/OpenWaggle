@@ -21,6 +21,11 @@ interface ListResultRow extends SessionQuerySummaryRow {
 }
 
 const MINIMUM_TRIGRAM_SEARCH_LENGTH = 3
+const INTERRUPTED_RUN_STATUSES = [
+  'interrupted',
+  'interrupted-by-host-loss',
+  'interrupted-by-interaction-timeout',
+] as const
 
 function listCursor(request: ListRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
@@ -39,13 +44,61 @@ function archivedFilter(value: boolean | undefined) {
 function interruptedFilter(sql: SqlClient.SqlClient, value: boolean | undefined) {
   if (value === undefined) return sql.literal('TRUE')
   const membership = sql`sessions.id IN (
-    SELECT session_id FROM session_active_runs WHERE status = ${'interrupted'}
+    SELECT interrupted_runs.session_id
+    FROM session_runs AS interrupted_runs
+    WHERE interrupted_runs.status IN ${sql.in(INTERRUPTED_RUN_STATUSES)}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM session_runs AS newer_runs
+        WHERE newer_runs.session_id = interrupted_runs.session_id
+          AND (
+            newer_runs.updated_at > interrupted_runs.updated_at
+            OR (
+              newer_runs.updated_at = interrupted_runs.updated_at
+              AND newer_runs.id > interrupted_runs.id
+            )
+          )
+      )
   )`
   return value ? membership : sql`NOT (${membership})`
 }
 
-function interruptedCountColumn(sql: SqlClient.SqlClient, value: boolean | undefined) {
-  return value === undefined ? sql`NULL` : sql`COUNT(*) OVER ()`
+function unreadTerminalFilter(
+  sql: SqlClient.SqlClient,
+  status: 'completed' | 'failed' | undefined,
+) {
+  if (status === undefined) return sql.literal('TRUE')
+  return sql`sessions.id IN (
+    SELECT terminal_runs.session_id
+    FROM session_runs AS terminal_runs
+    LEFT JOIN session_visit_receipts AS visit_receipts
+      ON visit_receipts.session_id = terminal_runs.session_id
+    WHERE terminal_runs.status = ${status}
+      AND terminal_runs.updated_at > COALESCE(visit_receipts.last_visited_at, -1)
+      AND NOT EXISTS (
+        SELECT 1 FROM session_runs AS newer_runs
+        WHERE newer_runs.session_id = terminal_runs.session_id
+          AND (
+            newer_runs.updated_at > terminal_runs.updated_at
+            OR (
+              newer_runs.updated_at = terminal_runs.updated_at
+              AND newer_runs.id > terminal_runs.id
+            )
+          )
+      )
+  )`
+}
+
+function exactCountColumn(sql: SqlClient.SqlClient, request: ListRequest) {
+  return request.query.interrupted === undefined && request.query.unreadTerminalStatus === undefined
+    ? sql`NULL`
+    : sql`COUNT(*) OVER ()`
+}
+
+function projectPathsFilter(sql: SqlClient.SqlClient, projectPaths: readonly string[] | undefined) {
+  return projectPaths === undefined
+    ? sql.literal('TRUE')
+    : sql`sessions.project_path IN ${sql.in(projectPaths)}`
 }
 
 function catalogSearchFilter(sql: SqlClient.SqlClient, searchText: string | undefined) {
@@ -71,7 +124,9 @@ function listResult(request: ListRequest, rows: readonly ListResultRow[]) {
   return sessionQueryResponse(request, {
     operation: 'list',
     sessions: page.map(sessionQuerySummary),
-    ...(request.query.interrupted !== undefined && request.query.cursor === undefined
+    ...((request.query.interrupted !== undefined ||
+      request.query.unreadTerminalStatus !== undefined) &&
+    request.query.cursor === undefined
       ? { totalCount: rows[0]?.total_count ?? 0 }
       : {}),
     ...(rows.length > request.query.limit && last
@@ -94,7 +149,13 @@ export function listSessions(
   if (cursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
   const allowed = authorizedSessionScope(authority)
   const archived = archivedFilter(request.query.archived)
+  const sessionCatalogSource =
+    request.query.projectPaths === undefined
+      ? sql.literal('sessions')
+      : sql.literal('sessions INDEXED BY idx_sessions_project_catalog_cursor')
   const hasInterruptedRun = interruptedFilter(sql, request.query.interrupted)
+  const hasUnreadTerminalRun = unreadTerminalFilter(sql, request.query.unreadTerminalStatus)
+  const hasProjectPath = projectPathsFilter(sql, request.query.projectPaths)
   const searchFilter = catalogSearchFilter(sql, request.query.searchText)
   const workingPathFilter = request.query.workingPath
     ? sql`sessions.id IN (
@@ -117,16 +178,18 @@ export function listSessions(
         session_execution_profiles.profile_json
         , delegation_contracts.id AS delegation_id
         , delegation_contracts.state AS delegation_state
-        , ${interruptedCountColumn(sql, request.query.interrupted)} AS total_count
-      FROM sessions
+        , ${exactCountColumn(sql, request)} AS total_count
+      FROM ${sessionCatalogSource}
       LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
       LEFT JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
       LEFT JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
       WHERE (${archived} IS NULL OR sessions.archived = ${archived})
         AND (${request.query.projectPath ?? null} IS NULL
           OR sessions.project_path = ${request.query.projectPath ?? null})
+        AND ${hasProjectPath}
         AND ${workingPathFilter}
         AND ${hasInterruptedRun}
+        AND ${hasUnreadTerminalRun}
         AND ${searchFilter}
         AND (${cursor?.updatedAt ?? null} IS NULL
           OR sessions.updated_at < ${cursor?.updatedAt ?? null}

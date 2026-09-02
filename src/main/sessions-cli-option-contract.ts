@@ -127,7 +127,15 @@ const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   items: ['run', 'scope', 'branch', 'after', 'through', 'snapshot-head', 'limit'],
   status: [],
   watch: ['after-host', 'after-sequence'],
-  wait: ['condition', 'after-state-revision', 'timeout-ms', 'after-host', 'after-sequence'],
+  wait: [
+    'condition',
+    'after-state-revision',
+    'report-id',
+    'correlation-id',
+    'timeout-ms',
+    'after-host',
+    'after-sequence',
+  ],
 }
 
 const GROUPED_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {

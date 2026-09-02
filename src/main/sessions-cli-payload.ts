@@ -116,6 +116,22 @@ function waitTargets(arguments_: ParsedArguments) {
       condition: 'queue-empty' as const,
     }))
   }
+  if (condition === 'report-delivered') {
+    const reportId = required(option(arguments_, 'report-id'), '--report-id')
+    return arguments_.positionals.map((sessionId) => ({
+      sessionId,
+      condition: 'report-delivered' as const,
+      reportId,
+    }))
+  }
+  if (condition === 'correlated-reply') {
+    const correlationId = required(option(arguments_, 'correlation-id'), '--correlation-id')
+    return arguments_.positionals.map((sessionId) => ({
+      sessionId,
+      condition: 'correlated-reply' as const,
+      correlationId,
+    }))
+  }
   if (condition !== 'idle') throw new Error(`Unsupported wait condition: ${condition}.`)
   return arguments_.positionals.map((sessionId) => ({ sessionId, condition: 'idle' as const }))
 }

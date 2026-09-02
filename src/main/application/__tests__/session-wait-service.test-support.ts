@@ -1,7 +1,9 @@
+import type { SessionWaitTarget } from '@shared/types/session-wait'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { vi } from 'vitest'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
+import { SessionReportRepository } from '../../ports/session-report-repository'
 import { SessionWaitService } from '../../ports/session-wait-service'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
 import { SessionHostEventHub } from '../session-host-event-hub'
@@ -17,6 +19,15 @@ type SessionState = {
 export function createSessionWaitTestHarness() {
   const states = new Map<string, SessionState>()
   const exportStatuses = new Map<string, 'queued' | 'running' | 'completed'>()
+  const deliveredReports = new Set<string>()
+  const correlatedReplies = new Map<
+    string,
+    {
+      readonly reportId: string
+      readonly replyToReportId: string
+      readonly sourceSessionId: string
+    }
+  >()
   const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-wait' })
   const liveness = new SessionHostLiveness({
     idleGracePeriodMs: 60_000,
@@ -80,7 +91,61 @@ export function createSessionWaitTestHarness() {
       })
     },
   })
-  const layer = SessionWaitServiceLive.pipe(Layer.provide(repository))
+  const reportRepository = Layer.succeed(
+    SessionReportRepository,
+    SessionReportRepository.of({
+      execute: () => Effect.die('Unexpected report execution.'),
+      listPending: () => Effect.succeed([]),
+      markDelivered: () => Effect.void,
+      observeWaitCondition: ({ target }) => {
+        if (target.condition === 'report-delivered') {
+          return Effect.succeed({
+            condition: 'report-delivered' as const,
+            reportId: target.reportId,
+            deliveryStatus: deliveredReports.has(`${target.sessionId}:${target.reportId}`)
+              ? ('delivered' as const)
+              : ('pending' as const),
+          })
+        }
+        const reply = correlatedReplies.get(`${target.sessionId}:${target.correlationId}`)
+        return Effect.succeed({
+          condition: 'correlated-reply' as const,
+          correlationId: target.correlationId,
+          ...(reply
+            ? {
+                replyReportId: reply.reportId,
+                replyToReportId: reply.replyToReportId,
+                sourceSessionId: reply.sourceSessionId,
+              }
+            : {}),
+        })
+      },
+    }),
+  )
+  const layer = SessionWaitServiceLive.pipe(
+    Layer.provide(Layer.merge(repository, reportRepository)),
+  )
+
+  function waitForTarget(
+    target: Extract<
+      SessionWaitTarget,
+      { readonly condition: 'report-delivered' | 'correlated-reply' }
+    >,
+    timeoutMs: number,
+  ) {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SessionWaitService
+        return yield* service.wait({
+          request: {
+            contractVersion: 2,
+            requestId: 'report-wait-request',
+            query: { operation: 'wait', targets: [target], timeoutMs },
+          },
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+  }
 
   function waitForIdle(
     sessionId: string,
@@ -139,10 +204,13 @@ export function createSessionWaitTestHarness() {
   return {
     states,
     exportStatuses,
+    deliveredReports,
+    correlatedReplies,
     eventHub,
     liveness,
     waitForIdle,
     waitForExport,
+    waitForTarget,
     close: () => {
       releaseRuntime()
       eventHub.close()

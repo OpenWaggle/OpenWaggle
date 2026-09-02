@@ -13,8 +13,8 @@ export const SESSION_RUN_TARGET_SCHEMA_STATEMENTS = [
   )
   `,
   `
-  CREATE INDEX idx_session_runs_session_status
-  ON session_runs (session_id, status, updated_at DESC, id)
+  CREATE INDEX idx_session_runs_status_session_updated
+  ON session_runs (status, session_id, updated_at DESC, id DESC)
   `,
   `
   CREATE INDEX idx_session_runs_session_updated

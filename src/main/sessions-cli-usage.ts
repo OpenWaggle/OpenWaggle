@@ -84,8 +84,9 @@ Usage:
   openwaggle sessions authorization set <session-id> ask-for-approval|yolo
   openwaggle sessions authorization clear <session-id>
   openwaggle sessions watch [session-id...] [--after-host <id> --after-sequence <n>]
-  openwaggle sessions wait <session-id>... [--condition idle|queue-empty|state-revision-after]
-    [--after-state-revision <n>] --timeout-ms <ms> [--after-host <id> --after-sequence <n>]
+  openwaggle sessions wait <session-id>... [--condition idle|queue-empty|state-revision-after|report-delivered|correlated-reply]
+    [--after-state-revision <n>] [--report-id <id>] [--correlation-id <id>]
+    --timeout-ms <ms> [--after-host <id> --after-sequence <n>]
 
 Message input: exactly one of --text <text>, --stdin, --input-file <path>, --request-json <path|->
 Output: human-readable by default; --json for one response; --jsonl for streams

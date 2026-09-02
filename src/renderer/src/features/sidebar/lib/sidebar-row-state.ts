@@ -163,6 +163,19 @@ export interface SidebarStateCount {
   readonly count: number
 }
 
+export function mergeExactTerminalCounts(
+  counts: readonly SidebarStateCount[],
+  exact: { readonly completed?: number; readonly error?: number },
+) {
+  const byState = new Map(counts.map((count) => [count.state, count.count]))
+  if (exact.completed !== undefined) byState.set('completed', exact.completed)
+  if (exact.error !== undefined) byState.set('error', exact.error)
+  return [...byState.entries()]
+    .filter(([, count]) => count > 0)
+    .map(([state, count]) => ({ state, count }))
+    .sort((left, right) => ROW_STATE_META[left.state].rank - ROW_STATE_META[right.state].rank)
+}
+
 /**
  * Count sessions by the state they report, ranked, dropping states that say nothing.
  *

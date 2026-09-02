@@ -23,6 +23,7 @@ import {
   transcriptLimit,
 } from './openwaggle-mcp-session-input-schema-shared-v2'
 import {
+  mcpSessionAttachmentPathsSchemaV2,
   mcpSessionIdSchemaV2,
   mcpSessionItemArraySchemaV2,
   mcpSessionPathSchemaV2,
@@ -60,7 +61,11 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
   operationSchema('items', {
     sessionId: mcpSessionIdSchemaV2.optional(),
     runId: mcpSessionIdSchemaV2.optional(),
+    branchScope: z.enum(['active-branch', 'tree']).optional(),
+    branchId: mcpSessionIdSchemaV2.optional(),
     afterCreatedOrder: revision.optional(),
+    throughCreatedOrder: revision.optional(),
+    snapshotHeadNodeId: mcpSessionIdSchemaV2.optional(),
     limit: transcriptLimit.optional(),
   }),
   operationSchema('status', { sessionId: mcpSessionIdSchemaV2.optional() }),
@@ -143,8 +148,12 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
   operationSchema('wait', {
     sessionIds: z.array(mcpSessionIdSchemaV2).max(SESSION_QUERY_WAIT_TARGET_LIMIT).optional(),
     sessionId: mcpSessionIdSchemaV2.optional(),
-    condition: z.enum(['idle', 'queue-empty', 'state-revision-after']).optional(),
+    condition: z
+      .enum(['idle', 'queue-empty', 'state-revision-after', 'report-delivered', 'correlated-reply'])
+      .optional(),
     afterStateRevision: revision.optional(),
+    reportId: mcpSessionIdSchemaV2.optional(),
+    correlationId: mcpSessionIdSchemaV2.optional(),
     timeoutMs: timeout.optional(),
   }),
   operationSchema('create', {
@@ -169,6 +178,7 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
   operationSchema('launch', {
     projectPath: mcpSessionPathSchemaV2.optional(),
     objective: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     title: mcpSessionTitleSchemaV2.optional(),
     workspace: z.enum(['current', 'local', 'existing', 'new-worktree']).optional(),
     workspaceId: mcpSessionIdSchemaV2.optional(),
@@ -182,6 +192,7 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     expectedRunId: mcpSessionIdSchemaV2.optional(),
     objective: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     workspace: z.enum(['share-parent', 'local', 'new-worktree']).optional(),
     ...newWorktreeFields,
     ...specialization,

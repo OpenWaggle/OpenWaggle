@@ -10,6 +10,7 @@ import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
+import { mergeExactTerminalCounts } from '../lib/sidebar-row-state'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
@@ -174,7 +175,7 @@ export function useSidebarState() {
     activeSessionId: activeSession.activeSessionId,
     activeView: activeViewFromPathname(pathname),
     chat,
-    chipCounts: rowStates.chipCounts,
+    chipCounts: mergeExactTerminalCounts(rowStates.chipCounts, remoteSessions.terminalCounts),
     displayProjectName,
     filterState,
     projectRollUp: rowStates.rollUpFor,

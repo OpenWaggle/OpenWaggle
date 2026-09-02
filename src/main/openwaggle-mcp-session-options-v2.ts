@@ -34,9 +34,13 @@ function addBaseOptions(options: Map<string, string[]>, input: SessionToolInputV
     ['limit', input.limit],
     ['cursor', input.cursor],
     ['after', input.afterCreatedOrder],
+    ['through', input.throughCreatedOrder],
+    ['snapshot-head', input.snapshotHeadNodeId],
     ['run', input.operation === 'items' ? input.runId : undefined],
     ['condition', input.condition],
     ['after-state-revision', input.afterStateRevision],
+    ['report-id', input.reportId],
+    ['correlation-id', input.correlationId],
     ['timeout-ms', input.timeoutMs],
     ['interaction-timeout-ms', input.interactionTimeoutMs],
     ['full-transcript', input.fullTranscript],
@@ -116,6 +120,7 @@ export function mcpSessionCliOptionsV2(input: SessionToolInputV2, message?: stri
   addCollaborationOptions(options, input)
   append(options, 'deliverable', input.deliverables ?? [])
   append(options, 'accept', input.acceptanceCriteria ?? [])
+  append(options, 'attach', input.attachmentPaths ?? [])
   appendUnique(options, 'state', input.states ?? [])
   appendUnique(options, 'kind', input.conflictKinds ?? [])
   appendUnique(options, 'status', input.conflictStatuses ?? [])

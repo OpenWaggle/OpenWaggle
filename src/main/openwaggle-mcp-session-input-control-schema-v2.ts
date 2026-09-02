@@ -27,6 +27,7 @@ import {
 } from './openwaggle-mcp-session-input-schema-shared-v2'
 import {
   MCP_SESSION_INPUT_LIMITS_V2,
+  mcpSessionAttachmentPathsSchemaV2,
   mcpSessionIdSchemaV2,
   mcpSessionPathSchemaV2,
   mcpSessionTextSchemaV2,
@@ -36,12 +37,14 @@ export const mcpSessionControlOperationSchemasV2 = [
   operationSchema('message', {
     sessionId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     thinking: mcpSessionIdSchemaV2.optional(),
     ...idempotency,
   }),
   operationSchema('start', {
     sessionId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     thinking: mcpSessionIdSchemaV2.optional(),
     ...runAuthorization,
     interactionTimeoutMs: interactionTimeout.optional(),
@@ -50,6 +53,7 @@ export const mcpSessionControlOperationSchemasV2 = [
   operationSchema('follow-up', {
     sessionId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     thinking: mcpSessionIdSchemaV2.optional(),
     ...runAuthorization,
     ...idempotency,
@@ -58,6 +62,7 @@ export const mcpSessionControlOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     expectedRunId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     ...idempotency,
   }),
   operationSchema('promote', {
@@ -70,6 +75,7 @@ export const mcpSessionControlOperationSchemasV2 = [
     sessionId: mcpSessionIdSchemaV2.optional(),
     expectedRunId: mcpSessionIdSchemaV2.optional(),
     message: mcpSessionTextSchemaV2.optional(),
+    attachmentPaths: mcpSessionAttachmentPathsSchemaV2.optional(),
     thinking: mcpSessionIdSchemaV2.optional(),
     ...runAuthorization,
     ...idempotency,

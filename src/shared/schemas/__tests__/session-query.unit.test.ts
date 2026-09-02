@@ -9,6 +9,7 @@ import {
   SESSION_QUERY_MAX_CURSOR_LENGTH,
   SESSION_QUERY_MAX_PATH_LENGTH,
   SESSION_QUERY_MAX_SEARCH_LENGTH,
+  SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT,
 } from '../../types/session-query'
 import { decodeLocalSessionCommandPayload } from '../local-session-protocol'
 import { decodeSessionQueryRequest } from '../session-query'
@@ -62,6 +63,37 @@ describe('Session query v2 boundary', () => {
         query: { operation: 'list', archived: false, interrupted: true, limit: 100 },
       }).query,
     ).toEqual({ operation: 'list', archived: false, interrupted: true, limit: 100 })
+  })
+
+  it('decodes bounded sidebar terminal and project-path filters', () => {
+    const projectPaths = Array.from(
+      { length: SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT },
+      (_, index) => `/project/${String(index)}`,
+    )
+    expect(
+      decodeSessionQueryRequest({
+        contractVersion: 2,
+        requestId: 'sidebar-filter',
+        query: {
+          operation: 'list',
+          archived: false,
+          unreadTerminalStatus: 'failed',
+          projectPaths,
+          limit: 100,
+        },
+      }).query,
+    ).toMatchObject({ unreadTerminalStatus: 'failed', projectPaths })
+    expect(() =>
+      decodeSessionQueryRequest({
+        contractVersion: 2,
+        requestId: 'sidebar-filter-overflow',
+        query: {
+          operation: 'list',
+          projectPaths: [...projectPaths, '/overflow'],
+          limit: 100,
+        },
+      }),
+    ).toThrow()
   })
 
   it('requires bounded positive page sizes', () => {
@@ -227,6 +259,16 @@ describe('Session query v2 boundary', () => {
               condition: 'state-revision-after',
               afterStateRevision: 4,
             },
+            {
+              sessionId: 'worker-3',
+              condition: 'report-delivered',
+              reportId: 'report-1',
+            },
+            {
+              sessionId: 'worker-1',
+              condition: 'correlated-reply',
+              correlationId: 'correlation-1',
+            },
           ],
           timeoutMs: 30_000,
         },
@@ -243,5 +285,16 @@ describe('Session query v2 boundary', () => {
         },
       }),
     ).toThrow(/afterStateRevision/)
+    expect(() =>
+      decodeSessionQueryRequest({
+        contractVersion: 2,
+        requestId: 'wait-invalid-report',
+        query: {
+          operation: 'wait',
+          targets: [{ sessionId: 'worker-2', condition: 'report-delivered' }],
+          timeoutMs: 30_000,
+        },
+      }),
+    ).toThrow(/reportId/)
   })
 })

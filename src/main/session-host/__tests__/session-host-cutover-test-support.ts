@@ -7,6 +7,34 @@ export const fakeEmbeddingModel: SessionEmbeddingModel = {
   embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
 }
 
+export function readCutoverCatalogEvidence(database: DatabaseSync) {
+  const match = (table: 'session_project_search' | 'session_catalog_search', query: string) =>
+    database.prepare(`SELECT session_id FROM ${table} WHERE ${table} MATCH ?`).all(query)
+  return {
+    counts: database
+      .prepare(`
+        SELECT
+          (SELECT COUNT(*) FROM session_project_search) AS project_count,
+          (SELECT COUNT(*) FROM session_catalog_search) AS catalog_count
+      `)
+      .get(),
+    projectMatches: match('session_project_search', 'project'),
+    titleSubstringMatches: match('session_catalog_search', '"oot"'),
+    projectSubstringMatches: match('session_catalog_search', '"roje"'),
+    runIndexes: database
+      .prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'index' AND name IN (
+          'idx_session_active_runs_status_session',
+          'idx_session_runs_status_session_updated',
+          'idx_session_runs_session_updated'
+        )
+        ORDER BY name
+      `)
+      .all(),
+  }
+}
+
 export function seedLegacyDatabase(databasePath: string, runtimeJson = '{"model":"test"}') {
   const database = new DatabaseSync(databasePath)
   try {

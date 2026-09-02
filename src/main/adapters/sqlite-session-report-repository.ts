@@ -14,7 +14,11 @@ import {
   type ExecuteSessionReportInput,
   SessionReportRepository,
 } from '../ports/session-report-repository'
-import { listPendingReports, markReportsDelivered } from './sqlite-session-report-delivery'
+import {
+  listPendingReports,
+  markReportsDelivered,
+  observeReportWaitCondition,
+} from './sqlite-session-report-delivery'
 import {
   loadAuthorizedReportCandidates,
   type ReportSourceRow,
@@ -253,6 +257,10 @@ export const SqliteSessionReportRepositoryLive = Layer.effect(
               ? cause
               : reportError('mark-report-delivered', cause),
           ),
+        ),
+      observeWaitCondition: ({ target }) =>
+        observeReportWaitCondition(sql, target).pipe(
+          Effect.mapError((cause) => reportError('observe-report-wait-condition', cause)),
         ),
     })
   }),

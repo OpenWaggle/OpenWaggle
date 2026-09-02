@@ -3,6 +3,7 @@ import type {
   SessionControlMutationResponse,
   SessionControlReportMutationRequest,
 } from '@shared/types/session-control'
+import type { SessionReportWaitObservation, SessionWaitTarget } from '@shared/types/session-wait'
 import { Context, type Effect } from 'effect'
 import type { SessionControlRepositoryError } from '../errors'
 
@@ -41,6 +42,12 @@ export interface SessionReportRepositoryShape {
     readonly itemIds: readonly string[]
     readonly deliveredAt: number
   }) => Effect.Effect<void, SessionControlRepositoryError>
+  readonly observeWaitCondition: (input: {
+    readonly target: Extract<
+      SessionWaitTarget,
+      { readonly condition: 'report-delivered' | 'correlated-reply' }
+    >
+  }) => Effect.Effect<SessionReportWaitObservation, SessionControlRepositoryError>
 }
 
 export class SessionReportRepository extends Context.Tag('@openwaggle/SessionReportRepository')<

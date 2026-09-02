@@ -19,7 +19,7 @@ import type {
   SessionQuerySummary,
 } from './session-query-discovery'
 import type { SessionItemsOutcome, SessionItemsQuery } from './session-query-items'
-import type { SessionWaitState } from './session-wait'
+import type { SessionWaitState, SessionWaitTarget } from './session-wait'
 
 export type { DelegationQuerySummary } from './session-delegation-query'
 export type {
@@ -64,6 +64,7 @@ export const SESSION_QUERY_DELEGATION_READ_LIMIT = 200
 export const SESSION_QUERY_MAX_SEARCH_LENGTH = 4_096
 export const SESSION_QUERY_MAX_CURSOR_LENGTH = 4_096
 export const SESSION_QUERY_MAX_PATH_LENGTH = 4_096
+export const SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT = 1_000
 
 export type SessionQuery =
   | {
@@ -72,7 +73,9 @@ export type SessionQuery =
       readonly cursor?: string
       readonly archived?: boolean
       readonly interrupted?: boolean
+      readonly unreadTerminalStatus?: 'completed' | 'failed'
       readonly projectPath?: string
+      readonly projectPaths?: readonly string[]
       readonly workingPath?: string
       readonly searchText?: string
     }
@@ -139,15 +142,7 @@ export type SessionQuery =
     }
   | {
       readonly operation: 'wait'
-      readonly targets: readonly (
-        | { readonly sessionId: string; readonly condition: 'idle' }
-        | { readonly sessionId: string; readonly condition: 'queue-empty' }
-        | {
-            readonly sessionId: string
-            readonly condition: 'state-revision-after'
-            readonly afterStateRevision: number
-          }
-      )[]
+      readonly targets: readonly SessionWaitTarget[]
       readonly timeoutMs: number
       readonly after?: SessionHostEventCursor
     }

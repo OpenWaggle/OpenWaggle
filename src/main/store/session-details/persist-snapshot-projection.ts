@@ -4,7 +4,10 @@ import type {
   PersistSessionSnapshotInput,
   ProjectedSessionNodeInput,
 } from '../../ports/session-repository'
-import { refreshSessionTranscriptTerms } from '../../services/session-transcript-term-projection'
+import {
+  applyIncrementalSessionTranscriptTerms,
+  prepareIncrementalSessionTranscriptTerms,
+} from '../../services/session-transcript-term-incremental-projection'
 import { getBranchStateValue } from './branch-state'
 import {
   EXPANDED_NODE_IDS_DEFAULT_JSON,
@@ -12,6 +15,11 @@ import {
   TREE_SIDEBAR_EXPANDED,
 } from './constants'
 import { latestModeStateForActiveNode, latestModeStateForBranch } from './mode-state-projection'
+import {
+  nodeProjectionChanged,
+  searchProjectionChanged,
+  transcriptTermProjectionNodeIds,
+} from './snapshot-transcript-term-changes'
 import type {
   DerivedSessionBranch,
   SessionActiveRunRow,
@@ -61,27 +69,6 @@ function projectedNode(input: SnapshotProjectionInput, node: ProjectedSessionNod
     pathDepth: node.pathDepth,
     createdOrder: node.createdOrder,
   }
-}
-
-function searchProjectionChanged(existing: SessionNodeRow, next: ReturnType<typeof projectedNode>) {
-  return (
-    existing.content_json !== next.contentJson ||
-    existing.role !== next.role ||
-    existing.created_order !== next.createdOrder
-  )
-}
-
-function nodeProjectionChanged(existing: SessionNodeRow, next: ReturnType<typeof projectedNode>) {
-  return (
-    searchProjectionChanged(existing, next) ||
-    existing.parent_id !== next.parentId ||
-    existing.pi_entry_type !== next.piEntryType ||
-    existing.kind !== next.kind ||
-    existing.timestamp_ms !== next.timestampMs ||
-    existing.metadata_json !== next.metadataJson ||
-    existing.branch_hint_id !== next.branchHintId ||
-    existing.path_depth !== next.pathDepth
-  )
 }
 
 function updateSnapshotNode(input: {
@@ -286,8 +273,22 @@ function updateSnapshotSessionMetadata(input: SnapshotProjectionInput) {
 export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
   return Effect.gen(function* () {
     const nodeById = new Map(input.nodes.map((node) => [node.id, node]))
+    const termProjectionNodeIds = transcriptTermProjectionNodeIds({
+      existingNodes: input.existingNodes,
+      nodes: input.nodes,
+    })
+    yield* prepareIncrementalSessionTranscriptTerms(
+      input.sql,
+      input.input.sessionId,
+      termProjectionNodeIds,
+    )
     yield* deleteSnapshotBranchProjection(input.sql, input.input.sessionId)
     yield* reconcileSnapshotNodes(input)
+    yield* applyIncrementalSessionTranscriptTerms(
+      input.sql,
+      input.input.sessionId,
+      termProjectionNodeIds,
+    )
     for (const branch of input.branches) {
       yield* insertSnapshotBranch({
         sql: input.sql,
@@ -310,6 +311,5 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
     }
     yield* upsertTreeUiState(input.sql, input.input, input.now)
     yield* updateSnapshotSessionMetadata(input)
-    yield* refreshSessionTranscriptTerms(input.sql, [input.input.sessionId])
   })
 }

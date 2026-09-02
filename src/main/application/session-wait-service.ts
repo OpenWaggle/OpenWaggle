@@ -12,6 +12,10 @@ import {
   SessionQueryRepository,
   type SessionQueryRepositoryShape,
 } from '../ports/session-query-repository'
+import {
+  SessionReportRepository,
+  type SessionReportRepositoryShape,
+} from '../ports/session-report-repository'
 import { SessionWaitService } from '../ports/session-wait-service'
 import { getSessionHostEventRuntime } from '../session-host/session-host-events'
 import { waitForSessionExport } from './session-export-wait'
@@ -29,6 +33,7 @@ function response(
 
 async function readStates(
   repository: SessionQueryRepositoryShape,
+  reports: SessionReportRepositoryShape,
   input: {
     readonly authority?: LocalSessionProfileAuthority
     readonly resolveObservationAuthority?: () => Promise<LocalSessionProfileAuthority | undefined>
@@ -54,23 +59,31 @@ async function readStates(
       }),
     )
     if (result.outcome.operation !== 'status' || 'error' in result.outcome) return null
-    states.push(result.outcome)
+    const reportObservation =
+      target.condition === 'report-delivered' || target.condition === 'correlated-reply'
+        ? await Effect.runPromise(reports.observeWaitCondition({ target }))
+        : undefined
+    states.push({ ...result.outcome, ...(reportObservation ? { reportObservation } : {}) })
   }
   return states
 }
 
 function matchingSessionIds(request: WaitRequest, states: readonly SessionWaitState[]) {
-  const byId = new Map(states.map((state) => [state.sessionId, state]))
-  return request.query.targets.flatMap((target) => {
-    const state = byId.get(target.sessionId)
+  return request.query.targets.flatMap((target, index) => {
+    const state = states[index]
     if (!state) return []
     const matched =
       target.condition === 'idle'
         ? state.activeRunId === null
         : target.condition === 'queue-empty'
           ? state.pendingFollowUpCount === 0
-          : target.afterStateRevision !== undefined &&
-            state.stateRevision > target.afterStateRevision
+          : target.condition === 'state-revision-after'
+            ? state.stateRevision > target.afterStateRevision
+            : target.condition === 'report-delivered'
+              ? state.reportObservation?.condition === 'report-delivered' &&
+                state.reportObservation.deliveryStatus === 'delivered'
+              : state.reportObservation?.condition === 'correlated-reply' &&
+                state.reportObservation.replyReportId !== undefined
     return matched ? [target.sessionId] : []
   })
 }
@@ -137,6 +150,7 @@ function closeWaitSubscription(
 
 async function wait(
   repository: SessionQueryRepositoryShape,
+  reports: SessionReportRepositoryShape,
   input: {
     readonly authority?: LocalSessionProfileAuthority
     readonly resolveObservationAuthority?: () => Promise<LocalSessionProfileAuthority | undefined>
@@ -149,7 +163,7 @@ async function wait(
   const snapshotCursor = runtime.eventHub.cursor()
   let subscription: ReturnType<typeof runtime.eventHub.subscribeAfter> | undefined
   try {
-    let states = await readStates(repository, input, input.request)
+    let states = await readStates(repository, reports, input, input.request)
     if (!states) {
       return response(input.request, {
         operation: 'wait',
@@ -187,7 +201,7 @@ async function wait(
       const remaining = Math.max(0, deadline - Date.now())
       const delivery = await nextWithTimeout(subscription.subscription, remaining, input.signal)
       if (delivery.status === 'timeout') {
-        const observedStates = await readStates(repository, input, input.request)
+        const observedStates = await readStates(repository, reports, input, input.request)
         if (!observedStates) {
           return response(input.request, {
             operation: 'wait',
@@ -223,7 +237,7 @@ async function wait(
         })
       }
       if (!isTargetDelivery(input.request, delivery)) continue
-      const observedStates = await readStates(repository, input, input.request)
+      const observedStates = await readStates(repository, reports, input, input.request)
       if (!observedStates) {
         return response(input.request, {
           operation: 'wait',
@@ -255,10 +269,11 @@ export const SessionWaitServiceLive = Layer.effect(
   SessionWaitService,
   Effect.gen(function* () {
     const repository = yield* SessionQueryRepository
+    const reports = yield* SessionReportRepository
     return SessionWaitService.of({
       wait: (input) =>
         Effect.tryPromise({
-          try: () => wait(repository, input),
+          try: () => wait(repository, reports, input),
           catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
         }),
       waitForExport: (input) =>

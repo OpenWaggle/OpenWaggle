@@ -271,9 +271,13 @@ export const sessionsToolParameters = Type.Union([
         Type.Literal('idle'),
         Type.Literal('queue-empty'),
         Type.Literal('state-revision-after'),
+        Type.Literal('report-delivered'),
+        Type.Literal('correlated-reply'),
       ]),
     ),
     afterStateRevision: Type.Optional(Type.Integer({ minimum: 0 })),
+    reportId: Type.Optional(Type.String({ minLength: 1 })),
+    correlationId: Type.Optional(Type.String({ minLength: 1 })),
     timeoutMs: Type.Integer({ minimum: 0, maximum: SESSION_QUERY_MAX_WAIT_MS }),
   }),
   Type.Object({

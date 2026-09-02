@@ -12,6 +12,8 @@ interface TargetCounts {
   readonly nodes: number
   readonly bindings: number
   readonly indexedTitles: number
+  readonly indexedProjects: number
+  readonly indexedCatalogSessions: number
   readonly indexedNodes: number
   readonly indexedNodeRows: number
   readonly indexedTermDocuments: number
@@ -48,6 +50,8 @@ function targetCounts(database: DatabaseSync): TargetCounts {
     nodes: readCutoverCount(database, 'session_nodes'),
     bindings: readCutoverCount(database, 'session_workspace_bindings'),
     indexedTitles: readCutoverCount(database, 'session_title_search'),
+    indexedProjects: readCutoverCount(database, 'session_project_search'),
+    indexedCatalogSessions: readCutoverCount(database, 'session_catalog_search'),
     indexedNodes: readCutoverCount(database, 'session_node_search'),
     indexedNodeRows: readCutoverCount(database, 'session_node_search_rows'),
     indexedTermDocuments: readCutoverCount(database, 'session_transcript_term_documents'),
@@ -70,6 +74,8 @@ function validateCanonicalCoverage(counts: TargetCounts, invalidProfiles: unknow
   }
   if (
     counts.indexedTitles !== counts.sessions ||
+    counts.indexedProjects !== counts.sessions ||
+    counts.indexedCatalogSessions !== counts.sessions ||
     counts.indexedNodes !== counts.nodes ||
     counts.indexedNodeRows !== counts.nodes ||
     counts.indexedTermDocuments !== counts.sessions ||
