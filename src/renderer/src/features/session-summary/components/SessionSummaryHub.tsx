@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { GitStackedAction } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
+import type { SessionResource } from '@shared/types/session-resource'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   CommitMessageDialog,
@@ -161,6 +162,14 @@ function closeAndRestore(
   queueMicrotask(() => focusSummaryToggle(panelId))
 }
 
+function partitionResources(resources: readonly SessionResource[]) {
+  return {
+    allResources: resources,
+    outputs: resources.filter((resource) => resource.isOutput),
+    sources: resources.filter((resource) => resource.isSource),
+  }
+}
+
 export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
   const { session, messageCount } = input
   const sessionId = session ? String(session.id) : 'none'
@@ -192,15 +201,11 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
   const resources = useSessionResources(session ? sessionId : null)
   const panelVisible = panelIsVisible(input, panelState, sessionId)
   useRestoreFocusWhenPanelHides(panelId, panelVisible)
-
   if (!session || messageCount === 0) return null
-
   const closePanelAndRestoreFocus = () => closeAndRestore(closePanel, sessionId, panelId)
   const prepareForSidebarOpen = () => focusSummaryToggle(panelId, true)
 
-  const allResources = resources.data ?? []
-  const outputs = allResources.filter((resource) => resource.isOutput)
-  const sources = allResources.filter((resource) => resource.isSource)
+  const { allResources, outputs, sources } = partitionResources(resources.data ?? [])
   const runQuickAction = () =>
     runSessionQuickAction({
       quickAction,
@@ -228,6 +233,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
             outputs,
             sources,
             resources: allResources,
+            resourcesFailed: resources.isError,
             extensionRegistry: input.extensionRegistry,
             extensionProjectPaths: input.extensionProjectPaths,
             onCollapse: closePanelAndRestoreFocus,
@@ -242,6 +248,7 @@ export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHub
               prepareForSidebarOpen()
               input.onOpenResources(filter)
             },
+            onRetryResources: () => void resources.refetch(),
             onOpenImage: (resourceId) => openResourceViewer(sessionId, resourceId),
             onNavigateSession: input.onNavigateSession,
             onCreateChangeRequest: () => setComposerOpen(true),

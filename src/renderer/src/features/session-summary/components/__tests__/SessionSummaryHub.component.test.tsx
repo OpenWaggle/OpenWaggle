@@ -157,6 +157,23 @@ describe('SessionSummaryHub', () => {
     await waitFor(() => expect(listSessionResources).toHaveBeenCalledWith(SessionId('session-1')))
   })
 
+  it('shows an actionable resource failure and retries the opened session catalog', async () => {
+    listSessionResources
+      .mockRejectedValueOnce(new Error('catalog unavailable'))
+      .mockResolvedValueOnce([resource({ title: 'recovered-source.png' })])
+    renderHub()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load session resources.')
+    expect(screen.queryByRole('button', { name: /Sources/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
+    expect(await screen.findByText('recovered-source.png')).toBeInTheDocument()
+    expect(listSessionResources).toHaveBeenCalledTimes(2)
+    expect(listSessionResources).toHaveBeenLastCalledWith(SessionId('session-1'))
+  })
+
   it('keeps long summary content inside a bounded, scrollable surface', () => {
     renderHub()
     const summary = screen.getByRole('complementary', { name: 'Session Summary' })

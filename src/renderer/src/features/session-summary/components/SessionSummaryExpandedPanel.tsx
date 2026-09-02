@@ -10,6 +10,7 @@ import {
   type SessionSummaryExtensionSidePanelTarget,
 } from './ExtensionSessionSummarySections'
 import { HiveSummarySection } from './HiveSummarySection'
+import { SessionResourcesCatalogFailure } from './SessionResourcesCatalogFailure'
 import type { SessionResourceFilter } from './SessionResourcesPanel'
 import { EnvironmentSummarySection, ResourceSummarySection } from './SessionSummarySections'
 
@@ -27,6 +28,7 @@ export interface SessionSummaryExpandedPanelInput {
   readonly outputs: readonly SessionResource[]
   readonly sources: readonly SessionResource[]
   readonly resources: readonly SessionResource[]
+  readonly resourcesFailed: boolean
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
   readonly onCollapse: () => void
@@ -35,6 +37,7 @@ export interface SessionSummaryExpandedPanelInput {
   readonly onSourcesExpandedChange: (expanded: boolean) => void
   readonly onOpenDiff: () => void
   readonly onOpenResources: (filter?: SessionResourceFilter) => void
+  readonly onRetryResources: () => void
   readonly onOpenImage: (resourceId: string) => void
   readonly onNavigateSession: (sessionId: string) => void
   readonly onCreateChangeRequest: () => void
@@ -107,6 +110,11 @@ export function SessionSummaryExpandedPanel({
             onNavigateSession={input.onNavigateSession}
           />
           <ExtensionSections input={input} placement="coordination" />
+          {input.resourcesFailed ? (
+            <section className="border-t border-border p-2">
+              <SessionResourcesCatalogFailure onRetry={input.onRetryResources} />
+            </section>
+          ) : null}
           <ResourceSummarySection
             title="Outputs"
             resources={input.outputs}
