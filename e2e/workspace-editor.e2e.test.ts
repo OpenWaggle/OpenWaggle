@@ -421,6 +421,14 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     await expect(sourceView).toContainText('export const value')
 
     const scrollSurface = sourceView.locator('.syntax-typography')
+    await scrollSurface.evaluate((element) => {
+      element.style.height = '240px'
+    })
+    await expect
+      .poll(() =>
+        scrollSurface.evaluate((element) => element.scrollHeight > element.clientHeight),
+      )
+      .toBe(true)
     for (let viewportIndex = 0; viewportIndex < 4; viewportIndex += 1) {
       const transferCountBeforeScroll = (await syntaxSourceTransfers(page)).length
       const previousLineOffset = Number(
