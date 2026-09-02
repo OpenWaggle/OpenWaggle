@@ -18,6 +18,36 @@ interface RunRenderState {
   readonly renderSnapshotsBySessionId: ReadonlyMap<SessionId, RunRenderSnapshot>
 }
 
+const activityRevisions = new Map<SessionId, number>()
+
+export function noteActivityLifecycleChange(sessionId: SessionId) {
+  activityRevisions.set(sessionId, (activityRevisions.get(sessionId) ?? 0) + 1)
+}
+
+export function captureActivityRevisions() {
+  return new Map(activityRevisions)
+}
+
+function activityUnchangedSince(
+  sessionId: SessionId,
+  capturedRevisions: ReadonlyMap<SessionId, number>,
+) {
+  return (activityRevisions.get(sessionId) ?? 0) === (capturedRevisions.get(sessionId) ?? 0)
+}
+
+export function retainUnchangedActivities(
+  ids: ReadonlySet<SessionId>,
+  compactions: readonly ActiveCompactionInfo[],
+  capturedRevisions: ReadonlyMap<SessionId, number>,
+) {
+  return {
+    ids: new Set([...ids].filter((id) => activityUnchangedSince(id, capturedRevisions))),
+    compactions: compactions.filter((compaction) =>
+      activityUnchangedSince(compaction.sessionId, capturedRevisions),
+    ),
+  }
+}
+
 export function isAgentRun(activity: ActiveRunInfo): activity is ActiveAgentRunInfo {
   return activity.activity === 'agent-run'
 }

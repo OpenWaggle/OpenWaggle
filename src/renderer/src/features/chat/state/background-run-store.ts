@@ -11,9 +11,12 @@ import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifec
 import { api } from '@/shared/lib/ipc'
 import { addActiveRunToState, removeActiveRunFromState } from './background-run-active-state'
 import {
+  captureActivityRevisions,
   isActiveCompaction,
   isAgentRun,
+  noteActivityLifecycleChange,
   restoreCompactionSnapshots,
+  retainUnchangedActivities,
 } from './background-run-activity-restore'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
 import {
@@ -174,14 +177,29 @@ async function loadActiveActivityState() {
   }
 }
 
+function mergeCurrentActivityState(
+  state: BackgroundRunState,
+  current: ReturnType<typeof retainUnchangedActivities>,
+  reconciled: Awaited<ReturnType<typeof reconcilePersistedFirstSends>>,
+) {
+  const next = mergeInitializedRecoveryState(state, current.ids, reconciled)
+  persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
+  return {
+    ...next,
+    renderSnapshotsBySessionId: restoreCompactionSnapshots(state, current.compactions),
+  }
+}
+
 export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   ...initialBackgroundRunState(),
 
   addActiveRun(id: SessionId) {
+    noteActivityLifecycleChange(id)
     set((state) => addActiveRunToState(state, id))
   },
 
   removeActiveRun(id: SessionId) {
+    noteActivityLifecycleChange(id)
     set((state) => removeActiveRunFromState(state, id))
   },
 
@@ -295,17 +313,14 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   },
 
   async initialize() {
+    const capturedActivityRevisions = captureActivityRevisions()
     const { ids, compactions, snapshots } = await loadActiveActivityState()
     const persisted = loadRecoverableBackgroundRuns()
     const launches = mergeLatestLaunches(launchesFromSnapshots(snapshots), persisted.launches)
     const reconciled = await reconcilePersistedFirstSends(ids, launches, persisted.recoveries)
     set((state) => {
-      const next = mergeInitializedRecoveryState(state, ids, reconciled)
-      persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
-      return {
-        ...next,
-        renderSnapshotsBySessionId: restoreCompactionSnapshots(state, compactions),
-      }
+      const current = retainUnchangedActivities(ids, compactions, capturedActivityRevisions)
+      return mergeCurrentActivityState(state, current, reconciled)
     })
   },
 }))

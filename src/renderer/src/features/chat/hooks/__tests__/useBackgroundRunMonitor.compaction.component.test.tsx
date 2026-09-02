@@ -15,6 +15,7 @@ const apiMock = vi.hoisted(() => {
     getAgentEventHandler: () => agentEventHandler,
     getRunCompletedHandler: () => runCompletedHandler,
     getBackgroundRun: vi.fn().mockResolvedValue(null),
+    getSessionDetail: vi.fn().mockResolvedValue(null),
     listActiveRuns: vi.fn(),
     onAgentEvent: vi.fn((handler: AgentEventHandler) => {
       agentEventHandler = handler
@@ -30,6 +31,7 @@ const apiMock = vi.hoisted(() => {
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getBackgroundRun: apiMock.getBackgroundRun,
+    getSessionDetail: apiMock.getSessionDetail,
     listActiveRuns: apiMock.listActiveRuns,
     onAgentEvent: apiMock.onAgentEvent,
     onRunCompleted: apiMock.onRunCompleted,
@@ -37,6 +39,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 const SESSION_ID = SessionId('session-1')
+const OTHER_SESSION_ID = SessionId('session-2')
 
 function emitAgentEvent(event: AgentEventPayload['event']) {
   const handler = apiMock.getAgentEventHandler()
@@ -47,6 +50,7 @@ function emitAgentEvent(event: AgentEventPayload['event']) {
 describe('useBackgroundRunMonitor compaction lifecycle', () => {
   beforeEach(() => {
     apiMock.listActiveRuns.mockReset()
+    apiMock.getBackgroundRun.mockReset().mockResolvedValue(null)
     useBackgroundRunStore.setState({
       activeRunIds: new Set(),
       renderSnapshotsBySessionId: new Map(),
@@ -108,6 +112,42 @@ describe('useBackgroundRunMonitor compaction lifecycle', () => {
     act(() => apiMock.getRunCompletedHandler()?.({ sessionId: SESSION_ID }))
 
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
+    unmount()
+  })
+
+  it('does not resurrect a compaction completed while initialization is pending', async () => {
+    let finishBackgroundRunRead: (() => void) | undefined
+    apiMock.listActiveRuns.mockResolvedValue([
+      {
+        activity: 'compaction',
+        sessionId: SESSION_ID,
+        model: SupportedModelId('openai/gpt-5.4'),
+        reason: 'manual',
+        startedAt: 7,
+      },
+      {
+        activity: 'agent-run',
+        sessionId: OTHER_SESSION_ID,
+        model: SupportedModelId('openai/gpt-5.4'),
+        mode: 'classic',
+        startedAt: 8,
+      },
+    ])
+    apiMock.getBackgroundRun.mockReturnValue(
+      new Promise((resolve) => {
+        finishBackgroundRunRead = () => resolve(null)
+      }),
+    )
+    const { unmount } = renderHook(() => useBackgroundRunMonitor())
+    await vi.waitFor(() => expect(apiMock.getBackgroundRun).toHaveBeenCalled())
+
+    act(() => apiMock.getRunCompletedHandler()?.({ sessionId: SESSION_ID }))
+    await act(async () => finishBackgroundRunRead?.())
+
+    await vi.waitFor(() => {
+      expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
+      expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_ID)).toBeNull()
+    })
     unmount()
   })
 })
