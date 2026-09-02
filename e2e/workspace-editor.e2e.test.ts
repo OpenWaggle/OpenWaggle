@@ -147,13 +147,14 @@ function syntaxSourceKeys(page: Page) {
   })
 }
 
-async function navigateSourceViewport(page: Page, scrollSurface: Locator, lineNumber: number) {
+async function scrollSourceViewport(scrollSurface: Locator, scrollTop: number) {
   // Hidden Electron runners do not deliver repeated pointer or keyboard scrolling reliably.
-  // Exercise the app's accessible Go to line flow to move through real source viewports instead.
+  // Drive the real scroll event so this performance test isolates the React/worker viewport path.
   const current = await scrollSurface.evaluate((element) => element.scrollTop)
-  await page.keyboard.press(`${platformModifier()}+g`)
-  await page.getByRole('textbox', { name: 'Line number' }).fill(String(lineNumber))
-  await page.keyboard.press('Enter')
+  await scrollSurface.evaluate((element, nextScrollTop) => {
+    element.scrollTop = nextScrollTop
+    element.dispatchEvent(new Event('scroll', { bubbles: true }))
+  }, scrollTop)
   await expect
     .poll(() => scrollSurface.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(current)
@@ -425,7 +426,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       const previousLineOffset = Number(
         await sourceView.getAttribute('data-syntax-line-offset'),
       )
-      await navigateSourceViewport(page, scrollSurface, (viewportIndex + 1) * 100)
+      await scrollSourceViewport(scrollSurface, (viewportIndex + 1) * 1_000)
       await expect
         .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
@@ -435,6 +436,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
       await expect
         .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')))
         .toBeGreaterThan(previousLineOffset)
+      expect(await sourceView.locator('[data-line-number]').count()).toBeLessThanOrEqual(130)
     }
     const sourceTransfers = await syntaxSourceTransfers(page)
     const sourceKeys = await syntaxSourceKeys(page)
