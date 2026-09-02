@@ -57,6 +57,7 @@ function DiffCodeViewReadiness({ children }: { readonly children: ReactNode }) {
   return (
     <div
       ref={codeViewReady.rootRef}
+      data-diff-code-ready={codeViewReady.ready ? 'true' : 'false'}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
     >
       {children}
