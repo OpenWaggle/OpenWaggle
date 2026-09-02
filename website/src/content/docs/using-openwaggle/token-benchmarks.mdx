@@ -1,0 +1,100 @@
+---
+title: "Token Benchmarks"
+description: "How many tokens coding agents spend before you type anything, and how to re-run the measurement."
+order: 6
+section: "Using OpenWaggle"
+---
+
+import { barWidthPercent, benchmarkMaxTokens, benchmarkRun } from '@/data/benchmarks';
+
+export const sortedEntries = [...benchmarkRun.entry].sort(
+  (a, b) => a.turnOneTokens - b.turnOneTokens,
+);
+
+*Last updated {benchmarkRun.measuredAt}. Eight agents, one model, one prompt, reproducible from a script in our repository.*
+
+Before an agent answers you, it has already filled your context window: its system prompt, its tool definitions, some environment info. You never see this happen and you pay for every token of it, on every turn.
+
+We got curious about this number after reading [Manus on context engineering](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus), which argues the cache hit rate is the single most important metric for a production agent, and [Anthropic's context engineering guide](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents), which treats context as a finite attention budget. Both argue the same thing from different angles: tokens you inject shape what your agent can do and what it costs. So we measured the most basic case, the very first prompt of a fresh conversation, for the agents we had on hand.
+
+<div class="my-8 flex flex-col gap-2.5">
+  {sortedEntries.map((candidate) => (
+    <div class="flex items-center gap-3">
+      <div class:list={["w-32 shrink-0 text-right text-[13px] md:w-40", candidate.highlight ? "font-semibold text-text-primary" : "text-text-tertiary"]}>
+        {candidate.name}
+      </div>
+      <div class="h-9 flex-1 overflow-hidden rounded-md bg-bg-tertiary">
+        <div
+          class:list={["flex h-full items-center rounded-md px-3", candidate.id === 'openwaggle' ? "bg-accent" : candidate.highlight ? "bg-agent-emerald" : "bg-bg-hover ring-1 ring-border-light"]}
+          style={`width: ${barWidthPercent(candidate.turnOneTokens)}; min-width: fit-content;`}
+        >
+          <span class:list={["whitespace-nowrap text-[12px] font-semibold", candidate.id === 'openwaggle' ? "text-bg" : "text-text-primary"]}>
+            {candidate.turnOneTokens.toLocaleString('en-US')}
+          </span>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
+Bars are proportional to {benchmarkMaxTokens.toLocaleString('en-US')} tokens (Claude Code).
+
+## Details worth knowing
+
+[Aider](https://aider.chat/2024/09/09/repomap.html) sits at the top of this chart, and its prompt really is tiny. The catch: in an empty project there is nothing for its repository map to describe. On a real repo, aider adds the map on top of this baseline, within a token budget it documents. We chose an empty project for everyone so the comparison stays about the harness, not about our test repo.
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) ships a headless SDK profile built for benchmarking: bash and a file editor, nothing else. Its [minimal profile](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/python-sdk.md) is the one DeepSeek documents for exactly this purpose, so that is what we measured. The standard profile carries the full toolset and currently only runs behind the Web UI, so there was no fair way to measure it headless.
+
+Two agents edit the story in their own reporting, so we stopped trusting their numbers and read the wire instead. Reasonix re-sends the whole conversation to a [completion validator](https://github.com/esengine/DeepSeek-Reasonix), which doubles its reported usage; the proxy log shows one call. Codex needs a non-default reasoning setting before OpenRouter accepts its requests at all. [OpenRouter's Responses endpoint](https://openrouter.ai/docs/api-reference/chat-completion) rejects the request shape Codex sends by default.
+
+The Claude Code row is the one we almost got wrong. Run against a normal developer machine, it measured 22,260 tokens. Wiped to a clean container, the same agent measured 17,608. The difference was installed plugins the user forgot about, which is exactly the point: what your harness injects is not fixed, and it is rarely small.
+
+OpenWaggle reads 1,609 through its shipped provider path. The Pi CLI at the same version reads lower through a bare OpenAI-compatible endpoint. That gap is how the provider serializes tool schemas, not extra context, and both numbers are Pi's runtime doing what it does: starting small. OpenWaggle is a [Pi](https://pi.dev) client and inherits that discipline.
+
+## How we measured
+
+Each agent ran in its own Docker container at a pinned version, with a fresh home directory, an empty project, and no AGENTS.md, skills, plugins, extensions, or MCP servers to discover. Same model for all of them ({benchmarkRun.model}, via OpenRouter), one prompt: "{benchmarkRun.probePrompt}"
+
+We took the token count from the wire, not from the agent. A local proxy sat between every agent and OpenRouter, logging what each request actually contained. Providers report prompt size in different shapes, so we normalized: for Anthropic-style accounting, uncached input plus cache writes plus cache reads. Cached prefixes still count, because the model sees them either way.
+
+Why the same model everywhere? Because the same harness injects a different number of tokens against different providers. The agents serialize tool schemas differently. Pin one model and the comparison is about harness overhead; mix models and it is partly about tokenizers.
+
+One run per agent, on {benchmarkRun.measuredAt}. Not a study, a measurement. It costs fractions of a cent to repeat, and the harness is in the repo, so if you doubt a number, the cheapest way to settle it is to run it again.
+
+## What this benchmark is not
+
+This is not a quality or capability benchmark. A harness that injects few tokens can still write worse code, and a verbose one can still be excellent. If you want capability comparisons across agents, [SWE-bench Verified](https://www.swebench.com/) and [aider's own leaderboard](https://aider.chat/docs/leaderboards/) are the established references; both measure whether the model and harness together solve real tasks. A first-prompt measurement answers a different, cheaper question, and we kept it separate on purpose.
+
+Versions move fast. When one of these agents changes its baseline, we will update the chart and say what moved.
+
+## Run it yourself
+
+The container harness lives at `scripts/benchmark-docker/` in our repository: pinned versions for all eight agents, per-agent configs with fresh homes, a logging proxy, and a parser that writes results.json.
+
+```sh
+git clone https://github.com/OpenWaggle/OpenWaggle.git
+cd OpenWaggle
+pnpm install
+OPENROUTER_API_KEY=sk-or-... ./scripts/benchmark-docker/run.sh
+```
+
+To inspect OpenWaggle alone, a second script prints the full system prompt and tool schema breakdown, and can make a real call with `--live`:
+
+```sh
+pnpm exec tsx scripts/benchmark-first-turn-tokens.ts --no-skills
+pnpm exec tsx scripts/benchmark-first-turn-tokens.ts --live --no-skills --second-turn \
+  --provider openrouter --model z-ai/glm-5.3-flash
+```
+
+Gemini CLI 0.31 and the Cursor agent are missing. Gemini removed every non-Google endpoint it could talk to, and Cursor only speaks its own protocol to its own backend. Eight fair numbers beat ten padded ones.
+
+## Versions measured
+
+- [Pi CLI](https://github.com/badlogic/pi-mono) 0.84.4, the runtime OpenWaggle bundles
+- [OpenWaggle](https://github.com/OpenWaggle/OpenWaggle) 0.3.0-alpha.63
+- [Aider](https://github.com/Aider-AI/aider) 0.86.2
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 0.1.2a3, sdk-minimal profile
+- [DeepSeek Reasonix](https://github.com/esengine/DeepSeek-Reasonix) 1.35.0
+- [opencode](https://github.com/sst/opencode) 1.18.26
+- [Codex CLI](https://github.com/openai/codex) 0.150.1
+- [Claude Code](https://github.com/anthropics/claude-code) 2.1.247
