@@ -42,6 +42,20 @@ export interface SessionDerivationSummary {
   readonly position: 'before' | 'at'
 }
 
+/** Durable state of the most recently updated Run for a Session. */
+export interface SessionLatestRunSummary {
+  readonly status:
+    | 'starting'
+    | 'active'
+    | 'stopping'
+    | 'completed'
+    | 'failed'
+    | 'interrupted'
+    | 'interrupted-by-host-loss'
+    | 'interrupted-by-interaction-timeout'
+  readonly updatedAt: number
+}
+
 export interface SessionSummary {
   readonly id: SessionId
   readonly title: string
@@ -59,6 +73,10 @@ export interface SessionSummary {
   readonly worktreePath?: string | null
   readonly lineage?: SessionLineageSummary
   readonly derivation?: SessionDerivationSummary
+  /** Persisted Run settlement used to rebuild renderer status after reconnect. */
+  readonly latestRun?: SessionLatestRunSummary
+  /** Creation time of the oldest outstanding non-notify agent interaction. */
+  readonly pendingInteractionAt?: number
 }
 
 /** Opaque keyset page used by the GUI Session catalog. */
@@ -158,12 +176,15 @@ export interface SessionTreeUiState {
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly expandedNodeIdsTouched: boolean
   readonly branchesSidebarCollapsed: boolean
+  /** Durable read receipt for terminal Run state. */
+  readonly lastVisitedAt?: number
   readonly updatedAt: number
 }
 
 export interface SessionTreeUiStatePatch {
   readonly expandedNodeIds?: readonly SessionNodeId[]
   readonly branchesSidebarCollapsed?: boolean
+  readonly lastVisitedAt?: number
 }
 
 /**

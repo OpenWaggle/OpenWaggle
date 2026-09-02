@@ -16,6 +16,14 @@ function summary(id: string, title = id): SessionSummary {
   return { id: SessionId(id), title, projectPath: null, createdAt: 1, updatedAt: 2 }
 }
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 function resetStore() {
   useSessionStore.setState({
     ...useSessionStore.getInitialState(),
@@ -125,5 +133,38 @@ describe('Session catalog targeted refresh', () => {
 
     expect(apiMocks.listHiveSessionCatalogPage).toHaveBeenCalledTimes(2)
     expect(useSessionStore.getState().hiveSessions).toEqual([queen, worker])
+  })
+
+  it('preserves a targeted refresh that completes before an older full catalog load', async () => {
+    const staleActive = deferred<{ sessions: readonly SessionSummary[]; nextCursor?: string }>()
+    apiMocks.listSessionCatalogPage.mockImplementation(async (archived: boolean) => {
+      if (archived) return { sessions: [] }
+      return staleActive.promise
+    })
+    useSessionStore.setState({ sessions: [summary('raced', 'Original')] })
+
+    const fullLoad = useSessionStore.getState().loadSessions()
+    apiMocks.listSessionsByIds.mockResolvedValue([summary('raced', 'Fresh event title')])
+    await useSessionStore.getState().refreshCatalogSessions([SessionId('raced')])
+    staleActive.resolve({ sessions: [summary('raced', 'Stale full-load title')] })
+    await fullLoad
+
+    expect(useSessionStore.getState().sessions).toEqual([summary('raced', 'Fresh event title')])
+  })
+
+  it('discards an older targeted response for the same Session', async () => {
+    const older = deferred<readonly SessionSummary[]>()
+    apiMocks.listSessionsByIds
+      .mockReturnValueOnce(older.promise)
+      .mockResolvedValueOnce([summary('raced-target', 'Newest title')])
+
+    const olderRefresh = useSessionStore
+      .getState()
+      .refreshCatalogSessions([SessionId('raced-target')])
+    await useSessionStore.getState().refreshCatalogSessions([SessionId('raced-target')])
+    older.resolve([summary('raced-target', 'Older title')])
+    await olderRefresh
+
+    expect(useSessionStore.getState().sessions).toEqual([summary('raced-target', 'Newest title')])
   })
 })

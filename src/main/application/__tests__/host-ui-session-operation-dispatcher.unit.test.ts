@@ -26,7 +26,6 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
-  'sessions:list-details',
   'sessions:get-detail',
   'sessions:create',
   'sessions:fork-to-new',
@@ -35,10 +34,8 @@ const EXPECTED_SESSION_CHANNELS = [
   'sessions:delete',
   'sessions:archive',
   'sessions:unarchive',
-  'sessions:list-archived',
   'sessions:update-title',
   'sessions:set-authorization-mode',
-  'sessions:list',
   'sessions:list-by-ids',
   'sessions:list-page',
   'sessions:list-hive-page',
@@ -120,16 +117,6 @@ describe('Host-backed Session GUI operation dispatcher', () => {
     expect(HOST_BACKED_GUI_CHANNELS.filter(isHostBackedSessionGuiChannel)).toEqual(
       EXPECTED_SESSION_CHANNELS,
     )
-  })
-
-  it('executes Session reads independently from Electron IPC', async () => {
-    const effect = dispatchHostBackedSessionGuiOperation('sessions:list', [25]).pipe(
-      Effect.provideService(SessionRepository, sessionRepository),
-    )
-
-    await expect(runWithoutRequirements(effect)).resolves.toEqual([
-      expect.objectContaining({ id: SessionId('session-1'), title: 'Session 25' }),
-    ])
   })
 
   it('dispatches archived branch catalog pages with a bounded cursor', async () => {

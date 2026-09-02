@@ -252,8 +252,11 @@ describe('Local Session protocol negotiation', () => {
       request: {
         contractVersion: 1,
         requestId: 'request-host-ui',
-        channel: 'sessions:list-details',
-        args: [{ kind: 'value', value: 20 }],
+        channel: 'sessions:list-page',
+        args: [
+          { kind: 'value', value: false },
+          { kind: 'value', value: 20 },
+        ],
       },
     }
     expect(() => decodeLocalSessionCommandPayloadForRevision(hostUiCommand, 4)).toThrow(

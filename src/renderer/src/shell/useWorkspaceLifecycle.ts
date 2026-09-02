@@ -8,6 +8,7 @@ import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
@@ -114,6 +115,12 @@ function useSessionHostRefresh(input: {
       latestHostCursor.current = accepted
       if (event.payload.kind === 'semantic-discovery-readiness-changed') return
       const { sessionId } = event.payload
+      if (
+        event.payload.kind === 'session-list-changed' &&
+        (event.payload.change === 'archived' || event.payload.change === 'deleted')
+      ) {
+        useSessionStatusStore.getState().clearStatus(SessionId(sessionId))
+      }
       pendingRefresh.current.sessionIds.add(sessionId)
       if (
         event.payload.kind === 'session-state-changed' ||

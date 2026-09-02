@@ -14,6 +14,7 @@ import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
 import { activeViewFromPathname } from './sidebar-view'
+import { useInterruptedSessionCount } from './useInterruptedSessionCount'
 import { useRemoteSidebarSessions } from './useRemoteSidebarSessions'
 import { useSidebarRowStates } from './useSidebarRowStates'
 
@@ -84,7 +85,8 @@ export function useSidebarState() {
    * Chip counts come from every session, the tree from the filtered set. Counting after
    * filtering would leave one chip on screen and hide the states the user wants to switch to.
    */
-  const rowStates = useSidebarRowStates(sessions.sessions)
+  const interruptedSessionCount = useInterruptedSessionCount(sessions.sessions)
+  const rowStates = useSidebarRowStates(sessions.sessions, interruptedSessionCount)
   const filterState = useSidebarFilterStore((s) => s.activeState)
   const toggleFilterState = useSidebarFilterStore((s) => s.toggleState)
   const searchQuery = useSidebarFilterStore((s) => s.query)
@@ -101,11 +103,12 @@ export function useSidebarState() {
   const sidebarProjectPaths = useMemo(
     () => [
       ...recentProjects,
+      ...Object.keys(projectDisplayNames),
       ...sessions.sessions.flatMap((session) =>
         session.projectPath === null ? [] : [session.projectPath],
       ),
     ],
-    [recentProjects, sessions.sessions],
+    [projectDisplayNames, recentProjects, sessions.sessions],
   )
   const remoteSessions = useRemoteSidebarSessions({
     query: searchQuery,
@@ -185,6 +188,9 @@ export function useSidebarState() {
     loadMoreVisibleSessions: remoteSessions.active
       ? remoteSessions.loadMore
       : sessions.loadMoreSessions,
+    hasMoreVisibleSessions: remoteSessions.active
+      ? remoteSessions.hasMore
+      : sessions.sessionsNextCursor !== null,
     navigate,
     pinnedRows,
     pinnedSortMenuOpen,

@@ -7,12 +7,18 @@ describe('Host UI protocol', () => {
       decodeHostUiV1Request({
         contractVersion: 1,
         requestId: 'request-list',
-        channel: 'sessions:list-details',
-        args: [{ kind: 'value', value: 20 }],
+        channel: 'sessions:list-page',
+        args: [
+          { kind: 'value', value: false },
+          { kind: 'value', value: 20 },
+        ],
       }),
     ).toMatchObject({
-      channel: 'sessions:list-details',
-      args: [{ kind: 'value', value: 20 }],
+      channel: 'sessions:list-page',
+      args: [
+        { kind: 'value', value: false },
+        { kind: 'value', value: 20 },
+      ],
     })
 
     expect(() =>
@@ -30,11 +36,11 @@ describe('Host UI protocol', () => {
       decodeHostUiV1Result({
         contractVersion: 1,
         requestId: 'request-list',
-        channel: 'sessions:list-details',
+        channel: 'sessions:list-page',
         result: { kind: 'value', value: [] },
       }),
     ).toMatchObject({
-      channel: 'sessions:list-details',
+      channel: 'sessions:list-page',
       result: { kind: 'value', value: [] },
     })
 
@@ -42,7 +48,7 @@ describe('Host UI protocol', () => {
       decodeHostUiV1Result({
         contractVersion: 1,
         requestId: 'request-list',
-        channel: 'sessions:list-details',
+        channel: 'sessions:list-page',
         result: { kind: 'value', value: [] },
         undeclared: true,
       }),
@@ -56,4 +62,18 @@ describe('Host UI protocol', () => {
       }),
     ).toThrow()
   })
+
+  it.each(['sessions:list', 'sessions:list-details', 'sessions:list-archived'])(
+    'rejects removed unbounded channel %s',
+    (channel) => {
+      expect(() =>
+        decodeHostUiV1Request({
+          contractVersion: 1,
+          requestId: 'request-unbounded-list',
+          channel,
+          args: [],
+        }),
+      ).toThrow()
+    },
+  )
 })

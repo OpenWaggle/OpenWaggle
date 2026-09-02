@@ -82,6 +82,7 @@ export type LocalSessionCommandPayload =
               readonly patch: {
                 readonly expandedNodeIds?: readonly string[]
                 readonly branchesSidebarCollapsed?: boolean
+                readonly lastVisitedAt?: number
               }
             }
           | { readonly operation: 'delete'; readonly sessionId: string }

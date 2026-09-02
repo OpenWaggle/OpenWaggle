@@ -33,6 +33,11 @@ vi.mock('@/shared/lib/ipc', () => ({
     onGitWorkingTreeChanged: () => () => {},
     listPinnedSessions: vi.fn(async () => []),
     openPath: vi.fn(),
+    querySessionControl: vi.fn(async () => ({
+      contractVersion: 2,
+      requestId: 'interrupted-count',
+      outcome: { operation: 'list', sessions: [], totalCount: 0 },
+    })),
     showConfirm: vi.fn(),
     updateSettings: vi.fn(),
   },

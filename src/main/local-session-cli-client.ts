@@ -18,21 +18,32 @@ export type LocalSessionCliClientInput = Omit<
   'payload'
 >
 
+function hasProfileCredentialSource(arguments_: ParsedArguments) {
+  return (
+    arguments_.options.has('credential-stdin') ||
+    arguments_.options.has('profile-credential-file') ||
+    Boolean(env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE)
+  )
+}
+
 export async function createLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: { readonly supportedRevisions?: readonly number[] } = {},
 ): Promise<LocalSessionCliClientInput> {
-  const paths = await prepareLocalSessionHostPaths(
-    resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
-  )
   const profile = option(arguments_, 'profile') ?? env.OPENWAGGLE_PROFILE
+  const credentialFile =
+    option(arguments_, 'profile-credential-file') ?? env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
+  if (!profile && hasProfileCredentialSource(arguments_)) {
+    throw new Error('Profile credentials require --profile or OPENWAGGLE_PROFILE.')
+  }
   if (env.OPENWAGGLE_AGENT_RUN === '1' && !profile) {
     throw new Error(
       'OpenWaggle agents must use their native Sessions tool or an explicit named CLI profile.',
     )
   }
-  const credentialFile =
-    option(arguments_, 'profile-credential-file') ?? env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
+  const paths = await prepareLocalSessionHostPaths(
+    resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
+  )
   const profileCredential = profile
     ? hasFlag(arguments_, 'credential-stdin')
       ? await readSecretFromStdin()

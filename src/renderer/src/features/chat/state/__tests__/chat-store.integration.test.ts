@@ -10,7 +10,6 @@ import { useChatStore } from '../chat-store'
  */
 
 const mockApi = {
-  listSessionDetails: vi.fn(),
   listSessionCatalogPage: vi.fn(
     async (..._args: [boolean, number, string?]): Promise<SessionCatalogPage> => ({ sessions: [] }),
   ),
@@ -24,7 +23,6 @@ const mockApi = {
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
     listSessionCatalogPage: (archived: boolean, limit: number, cursor?: string) =>
       mockApi.listSessionCatalogPage(archived, limit, cursor),
     listPinnedSessions: () => mockApi.listPinnedSessions(),
@@ -145,7 +143,6 @@ describe('useChatStore integration', () => {
       first.id,
       second.id,
     ])
-    expect(mockApi.listSessionDetails).not.toHaveBeenCalled()
     expect(mockApi.getSessionDetail).toHaveBeenCalledWith(second.id)
   })
 

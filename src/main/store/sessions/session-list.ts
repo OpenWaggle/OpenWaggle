@@ -15,6 +15,7 @@ import {
 import type {
   SessionActiveRunRow,
   SessionBranchRow,
+  SessionLatestRunRow,
   SessionSummaryRow,
   SessionTreeUiStateRow,
 } from './types'
@@ -110,7 +111,14 @@ export async function listSessions(limit?: number): Promise<SessionSummary[]> {
       const branchRows = yield* loadVisibleBranchRows(sql, sessionIds)
       const uiStateRows = yield* loadUiStateRows(sql, sessionIds)
       const activeRunRows = yield* loadInterruptedRunRows(sql, sessionIds)
-      return attachSessionNavigationState(sessions, branchRows, uiStateRows, activeRunRows)
+      const latestRunRows = yield* loadLatestRunRows(sql, sessionIds)
+      return attachSessionNavigationState(
+        sessions,
+        branchRows,
+        uiStateRows,
+        activeRunRows,
+        latestRunRows,
+      )
     }),
   )
 }
@@ -132,8 +140,24 @@ export function hydrateSessionNavigationRows(
       yield* loadVisibleBranchRows(sql, sessionIds),
       yield* loadUiStateRows(sql, sessionIds),
       yield* loadInterruptedRunRows(sql, sessionIds),
+      yield* loadLatestRunRows(sql, sessionIds),
     )
   })
+}
+
+function loadLatestRunRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+  return sql<SessionLatestRunRow>`
+    SELECT session_id, status, updated_at
+    FROM (
+      SELECT session_id, status, updated_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY session_id ORDER BY updated_at DESC, id DESC
+        ) AS latest_position
+      FROM session_runs
+      WHERE session_id IN ${sql.in(sessionIds)}
+    )
+    WHERE latest_position = 1
+  `
 }
 
 export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
@@ -213,13 +237,16 @@ function loadVisibleBranchRows(sql: SqlClient.SqlClient, sessionIds: readonly st
 function loadUiStateRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   return sql<SessionTreeUiStateRow>`
     SELECT
-      session_id,
+      session_tree_ui_state.session_id,
       expanded_node_ids_json,
       expanded_node_ids_touched,
       branches_sidebar_collapsed,
-      updated_at
+      session_visit_receipts.last_visited_at,
+      session_tree_ui_state.updated_at
     FROM session_tree_ui_state
-    WHERE session_id IN ${sql.in(sessionIds)}
+    LEFT JOIN session_visit_receipts
+      ON session_visit_receipts.session_id = session_tree_ui_state.session_id
+    WHERE session_tree_ui_state.session_id IN ${sql.in(sessionIds)}
   `
 }
 

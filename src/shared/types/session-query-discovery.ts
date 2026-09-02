@@ -7,6 +7,7 @@ export interface SessionDiscoveryEvidence {
   readonly matchKind: 'exact' | 'lexical' | 'semantic' | 'hybrid'
   readonly matchedFields: readonly (
     | 'title'
+    | 'project'
     | 'objective'
     | 'initial-objective'
     | 'current-preview'

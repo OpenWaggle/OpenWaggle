@@ -1,6 +1,12 @@
 import type { SessionId } from '@shared/types/brand'
+import type {
+  HiveSessionCatalogPage,
+  SessionCatalogPage,
+  SessionSummary,
+} from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { SessionRepository } from '../ports/session-repository'
+import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broker'
 import { invalid, requireArgCount, validateSessionId } from './host-ui-session-operation-validation'
 
 const MAX_LIMIT = 500
@@ -8,6 +14,33 @@ const MAX_CURSOR_LENGTH = 4096
 const MAX_IDS = 100
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
+
+function attachPendingInteractions(sessions: readonly SessionSummary[]) {
+  const pendingAtBySessionId = new Map<string, number>()
+  for (const interaction of listPendingAgentLoopInteractions()) {
+    const sessionId = String(interaction.sessionId)
+    const current = pendingAtBySessionId.get(sessionId)
+    if (current === undefined || interaction.createdAt < current) {
+      pendingAtBySessionId.set(sessionId, interaction.createdAt)
+    }
+  }
+  return sessions.map((session) => {
+    const pendingInteractionAt = pendingAtBySessionId.get(String(session.id))
+    return pendingInteractionAt === undefined ? session : { ...session, pendingInteractionAt }
+  })
+}
+
+function attachCatalogPendingInteractions(page: SessionCatalogPage): SessionCatalogPage {
+  return { ...page, sessions: attachPendingInteractions(page.sessions) }
+}
+
+function attachHivePendingInteractions(page: HiveSessionCatalogPage): HiveSessionCatalogPage {
+  return {
+    ...page,
+    context: attachPendingInteractions(page.context),
+    workers: attachPendingInteractions(page.workers),
+  }
+}
 
 function validateLimit(value: unknown) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= MAX_LIMIT
@@ -31,7 +64,7 @@ export function listSessionsByIds(args: readonly unknown[]) {
     const ids = yield* Effect.forEach(args[0], validateSessionId)
     const repository = yield* SessionRepository
     if (!repository.listByIds) return yield* invalid('Session hydration is unavailable.')
-    return [...(yield* repository.listByIds(ids))]
+    return attachPendingInteractions(yield* repository.listByIds(ids))
   })
 }
 
@@ -45,7 +78,9 @@ export function listSessionCatalogPage(args: readonly unknown[]) {
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
     if (!repository.listCatalogPage) return yield* invalid('Session pagination is unavailable.')
-    return yield* repository.listCatalogPage(args[0], limit, cursor)
+    return attachCatalogPendingInteractions(
+      yield* repository.listCatalogPage(args[0], limit, cursor),
+    )
   })
 }
 
@@ -59,7 +94,9 @@ export function listHiveSessionCatalogPage(args: readonly unknown[]) {
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
     if (!repository.listHiveCatalogPage) return yield* invalid('Hive pagination is unavailable.')
-    return yield* repository.listHiveCatalogPage(sessionId, limit, cursor)
+    return attachHivePendingInteractions(
+      yield* repository.listHiveCatalogPage(sessionId, limit, cursor),
+    )
   })
 }
 

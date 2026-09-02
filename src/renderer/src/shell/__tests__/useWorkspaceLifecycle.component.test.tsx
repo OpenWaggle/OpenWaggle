@@ -1,6 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { useUIStore } from '../ui-store'
 import {
   getWorkspaceLifecycleMocks,
@@ -153,6 +154,29 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
+  })
+
+  it('clears retained runtime status when the Host archives a Session', async () => {
+    useSessionStatusStore.getState().setStatus(SessionId('session-2'), 'completed')
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    const eventHandler = lifecycleMocks.getSessionHostEventHandler()
+    if (!eventHandler) throw new Error('Expected Session Host event subscription')
+
+    act(() =>
+      eventHandler({
+        cursor: { hostInstanceId: 'host-status', sequence: 1 },
+        timestamp: 1,
+        payload: {
+          kind: 'session-list-changed',
+          sessionId: 'session-2',
+          change: 'archived',
+        },
+      }),
+    )
+
+    expect(useSessionStatusStore.getState().statuses.has(SessionId('session-2'))).toBe(false)
+    expect(useSessionStatusStore.getState().completedAt.has(SessionId('session-2'))).toBe(false)
   })
 
   it('loads project syntax resources when direct review changes working trees', async () => {

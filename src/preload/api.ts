@@ -146,11 +146,9 @@ export const api: OpenWaggleApi = {
   revokeAuthorization: invoke('authorization-grants:revoke'),
 
   // Sessions
-  listSessions: invoke('sessions:list'),
   listSessionsByIds: invoke('sessions:list-by-ids'),
   listSessionCatalogPage: invoke('sessions:list-page'),
   listHiveSessionCatalogPage: invoke('sessions:list-hive-page'),
-  listSessionDetails: invoke('sessions:list-details'),
   getSessionDetail: invoke('sessions:get-detail'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
   getTurnDiff: invoke('sessions:turn-diff:get'),
@@ -165,7 +163,6 @@ export const api: OpenWaggleApi = {
   deleteSession: invoke('sessions:delete'),
   archiveSession: invoke('sessions:archive'),
   unarchiveSession: invoke('sessions:unarchive'),
-  listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
   setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),

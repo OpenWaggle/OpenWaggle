@@ -26,9 +26,7 @@ import {
   requireArgCount,
   requiredString,
   requireOptionalArgCount,
-  validateListLimit,
   validateNavigateTreeOptions,
-  validateOptionalNumber,
   validatePinnedSessionMove,
   validateSessionBranchId,
   validateSessionId,
@@ -47,7 +45,6 @@ type SessionOperationServices = SessionProjectionRepository | SessionRepository 
 
 function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: readonly unknown[]) {
   return match(channel)
-    .with('sessions:list-details', () => listSessionDetails(args))
     .with('sessions:get-detail', () => getSessionDetail(args))
     .with('sessions:create', () => createSession(args))
     .with('sessions:fork-to-new', () => forkSession(args, 'before'))
@@ -56,10 +53,8 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:delete', () => deleteSession(args))
     .with('sessions:archive', () => organizeFromArgs(args, 'archive'))
     .with('sessions:unarchive', () => organizeFromArgs(args, 'unarchive'))
-    .with('sessions:list-archived', () => listArchivedSessions(args))
     .with('sessions:update-title', () => updateSessionTitle(args))
     .with('sessions:set-authorization-mode', () => setAuthorizationMode(args))
-    .with('sessions:list', () => listRepositorySessions(args))
     .with('sessions:list-by-ids', () => listSessionsByIds(args))
     .with('sessions:list-page', () => listSessionCatalogPage(args))
     .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
@@ -82,14 +77,6 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .exhaustive()
 }
 
-function listSessionDetails(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireOptionalArgCount(args, 0, 1)
-    const limit = yield* validateOptionalNumber(args[0], 'Session detail limit')
-    return [...(yield* (yield* SessionProjectionRepository).listDetails(limit))]
-  })
-}
-
 function getSessionDetail(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, 1)
@@ -110,28 +97,12 @@ function organizeFromArgs(args: readonly unknown[], operation: 'archive' | 'unar
   })
 }
 
-function listArchivedSessions(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireArgCount(args, 0)
-    return [...(yield* (yield* SessionProjectionRepository).listArchived())]
-  })
-}
-
 function updateSessionTitle(args: readonly unknown[]) {
   return Effect.gen(function* () {
     yield* requireArgCount(args, TWO_ARGUMENTS)
     const sessionId = yield* validateSessionId(args[0])
     const title = typeof args[1] === 'string' ? args[1] : yield* invalid('Title must be a string.')
     yield* organizeSession({ operation: 'rename', sessionId, title }, 'session-renamed')
-  })
-}
-
-function listRepositorySessions(args: readonly unknown[]) {
-  return Effect.gen(function* () {
-    yield* requireOptionalArgCount(args, 0, 1)
-    const limit = yield* validateListLimit(args[0])
-    const repository = yield* SessionRepository
-    return [...(yield* repository.list(limit))]
   })
 }
 

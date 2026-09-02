@@ -50,7 +50,6 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  */
 export const HOST_BACKED_GUI_CHANNELS = [
   'agent:get-context-usage',
-  'sessions:list-details',
   'sessions:get-detail',
   'sessions:create',
   'sessions:fork-to-new',
@@ -59,10 +58,8 @@ export const HOST_BACKED_GUI_CHANNELS = [
   'sessions:delete',
   'sessions:archive',
   'sessions:unarchive',
-  'sessions:list-archived',
   'sessions:update-title',
   'sessions:set-authorization-mode',
-  'sessions:list',
   'sessions:list-by-ids',
   'sessions:list-page',
   'sessions:list-hive-page',

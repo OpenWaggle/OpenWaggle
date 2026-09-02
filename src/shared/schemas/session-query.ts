@@ -72,8 +72,10 @@ const sessionQuerySchema = Schema.Union(
     limit: discoveryLimit,
     cursor: Schema.optional(cursor),
     archived: Schema.optional(Schema.Boolean),
+    interrupted: Schema.optional(Schema.Boolean),
     projectPath: Schema.optional(pathValue),
     workingPath: Schema.optional(pathValue),
+    searchText: Schema.optional(searchText),
   }),
   Schema.Struct({
     operation: Schema.Literal('search'),

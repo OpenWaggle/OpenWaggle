@@ -142,6 +142,7 @@ export function discoveryWindowPage(
 
 function discoveryField(value: string) {
   return value === 'title' ||
+    value === 'project' ||
     value === 'objective' ||
     value === 'initial-objective' ||
     value === 'current-preview' ||

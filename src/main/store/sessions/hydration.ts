@@ -22,6 +22,7 @@ import type {
   SessionActiveRunRow,
   SessionBranchRow,
   SessionBranchStateRow,
+  SessionLatestRunRow,
   SessionSummaryRow,
   SessionTreeUiStateRow,
 } from './types'
@@ -80,17 +81,25 @@ export function attachSessionNavigationState(
   branchRows: readonly SessionBranchRow[],
   uiStateRows: readonly SessionTreeUiStateRow[],
   activeRunRows: readonly SessionActiveRunRow[],
+  latestRunRows: readonly SessionLatestRunRow[],
 ) {
   const branchesBySessionId = visibleBranchesBySessionId(branchRows, activeRunRows)
   const uiStateBySessionId = new Map(
     uiStateRows.map((row) => [row.session_id, hydrateUiState(row)]),
   )
+  const latestRunBySessionId = new Map(latestRunRows.map((row) => [row.session_id, row]))
 
-  return sessions.map((session) => ({
-    ...session,
-    branches: branchesBySessionId.get(String(session.id)) ?? [fallbackMainBranch(session)],
-    treeUiState: uiStateBySessionId.get(String(session.id)) ?? null,
-  }))
+  return sessions.map((session) => {
+    const latestRun = latestRunBySessionId.get(String(session.id))
+    return {
+      ...session,
+      branches: branchesBySessionId.get(String(session.id)) ?? [fallbackMainBranch(session)],
+      treeUiState: uiStateBySessionId.get(String(session.id)) ?? null,
+      ...(latestRun
+        ? { latestRun: { status: latestRun.status, updatedAt: latestRun.updated_at } }
+        : {}),
+    }
+  })
 }
 
 export function hydrateBranch(
@@ -128,6 +137,7 @@ export function hydrateUiState(row: SessionTreeUiStateRow) {
     expandedNodeIds: parseExpandedNodeIds(row.expanded_node_ids_json),
     expandedNodeIdsTouched: row.expanded_node_ids_touched === 1,
     branchesSidebarCollapsed: row.branches_sidebar_collapsed === 1,
+    ...(row.last_visited_at === null ? {} : { lastVisitedAt: row.last_visited_at }),
     updatedAt: row.updated_at,
   }
 }

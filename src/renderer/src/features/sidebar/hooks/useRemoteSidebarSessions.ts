@@ -1,89 +1,29 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import {
-  SESSION_QUERY_CONTRACT_VERSION,
-  SESSION_QUERY_DISCOVERY_LIMIT,
-} from '@shared/types/session-query'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from '@/shared/lib/ipc'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
-
-const HYDRATION_BATCH_SIZE = 100
-const QUERY_CONCURRENCY = 8
-
-type SearchSource =
-  | { readonly kind: 'lexical'; readonly cursor?: string }
-  | { readonly kind: 'project'; readonly projectPath: string; readonly cursor?: string }
+import {
+  hydrateSidebarSessions,
+  queryInterruptedSidebarSessions,
+  querySidebarSearchSources,
+  SIDEBAR_SESSION_HYDRATION_BATCH_SIZE,
+  type SidebarSearchSource,
+} from './remote-sidebar-session-query'
 
 type RemoteMode =
   | { readonly kind: 'none' }
   | { readonly kind: 'status'; readonly ids: readonly SessionId[]; readonly offset: number }
-  | { readonly kind: 'search'; readonly query: string; readonly sources: readonly SearchSource[] }
+  | { readonly kind: 'interrupted'; readonly cursor?: string }
+  | {
+      readonly kind: 'search'
+      readonly query: string
+      readonly sources: readonly SidebarSearchSource[]
+    }
 
 function appendUnique(current: readonly SessionSummary[], incoming: readonly SessionSummary[]) {
   const byId = new Map(current.map((session) => [String(session.id), session]))
   for (const session of incoming) byId.set(String(session.id), session)
   return [...byId.values()]
-}
-
-async function hydrateSessionIds(ids: readonly SessionId[]) {
-  const sessions: SessionSummary[] = []
-  for (let offset = 0; offset < ids.length; offset += HYDRATION_BATCH_SIZE) {
-    sessions.push(
-      ...(await api.listSessionsByIds(ids.slice(offset, offset + HYDRATION_BATCH_SIZE))),
-    )
-  }
-  return sessions
-}
-
-async function querySource(source: SearchSource, query: string) {
-  const response = await api.querySessionControl({
-    contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-    requestId: crypto.randomUUID(),
-    query:
-      source.kind === 'lexical'
-        ? {
-            operation: 'search',
-            query,
-            mode: 'lexical',
-            includeArchived: false,
-            limit: SESSION_QUERY_DISCOVERY_LIMIT,
-            ...(source.cursor ? { cursor: source.cursor } : {}),
-          }
-        : {
-            operation: 'list',
-            projectPath: source.projectPath,
-            archived: false,
-            limit: SESSION_QUERY_DISCOVERY_LIMIT,
-            ...(source.cursor ? { cursor: source.cursor } : {}),
-          },
-  })
-  if (
-    response.outcome.operation !== (source.kind === 'lexical' ? 'search' : 'list') ||
-    !('sessions' in response.outcome)
-  ) {
-    throw new Error('Sidebar Session search returned an unexpected response.')
-  }
-  return {
-    ids: response.outcome.sessions.map((session) => SessionId(session.sessionId)),
-    next: response.outcome.nextCursor
-      ? ({ ...source, cursor: response.outcome.nextCursor } satisfies SearchSource)
-      : null,
-  }
-}
-
-async function querySources(sources: readonly SearchSource[], query: string) {
-  const pages: Awaited<ReturnType<typeof querySource>>[] = []
-  for (let offset = 0; offset < sources.length; offset += QUERY_CONCURRENCY) {
-    pages.push(
-      ...(await Promise.all(
-        sources
-          .slice(offset, offset + QUERY_CONCURRENCY)
-          .map((source) => querySource(source, query)),
-      )),
-    )
-  }
-  return pages
 }
 
 function sessionMatchesText(
@@ -116,7 +56,7 @@ export function useRemoteSidebarSessions(input: {
   })
   const matchingProjectPathsKey = matchingProjectPaths.join('\u0000')
   const statusIds =
-    input.filterState === null
+    input.filterState === null || input.filterState === 'interrupted'
       ? []
       : [...input.stateBySessionId.entries()]
           .filter(([, state]) => state === input.filterState)
@@ -138,6 +78,7 @@ export function useRemoteSidebarSessions(input: {
   const [hasMore, setHasMore] = useState(false)
   const mode = useRef<RemoteMode>({ kind: 'none' })
   const generation = useRef(0)
+  const inFlightGeneration = useRef<number | null>(null)
   const projectDisplayNames = useRef(input.projectDisplayNames)
   projectDisplayNames.current = input.projectDisplayNames
   const requestKey = `${input.filterState ?? ''}\u0001${normalizedQuery}\u0001${statusIdsKey}\u0001${matchingProjectPathsKey}`
@@ -149,10 +90,27 @@ export function useRemoteSidebarSessions(input: {
     setHasMore(false)
   }, [])
 
+  const runPage = useCallback(
+    (requestGeneration: number, request: () => Promise<void>) => {
+      if (inFlightGeneration.current === requestGeneration) return
+      inFlightGeneration.current = requestGeneration
+      void request()
+        .catch(() => settleFailure(requestGeneration))
+        .finally(() => {
+          if (inFlightGeneration.current === requestGeneration) {
+            inFlightGeneration.current = null
+          }
+        })
+    },
+    [settleFailure],
+  )
+
   const publishStatusPage = useCallback(
     async (ids: readonly SessionId[], offset: number, requestGeneration: number) => {
-      const pageIds = ids.slice(offset, offset + HYDRATION_BATCH_SIZE)
-      const hydrated = await hydrateSessionIds(pageIds)
+      const pageIds = ids.slice(offset, offset + SIDEBAR_SESSION_HYDRATION_BATCH_SIZE)
+      const hydrated = (await hydrateSidebarSessions(pageIds)).filter(
+        (session) => session.archived !== true,
+      )
       if (generation.current !== requestGeneration) return
       setSessions((current) =>
         appendUnique(current, hydrated).filter((session) =>
@@ -167,16 +125,32 @@ export function useRemoteSidebarSessions(input: {
   )
 
   const publishSearchPage = useCallback(
-    async (query: string, sources: readonly SearchSource[], requestGeneration: number) => {
-      const pages = await querySources(sources, query)
-      const hydrated = await hydrateSessionIds(
-        [...new Set(pages.flatMap((page) => page.ids).map(String))].map(SessionId),
-      )
+    async (query: string, sources: readonly SidebarSearchSource[], requestGeneration: number) => {
+      const pages = await querySidebarSearchSources(sources, query)
+      const hydrated = (
+        await hydrateSidebarSessions(
+          [...new Set(pages.flatMap((page) => page.ids).map(String))].map(SessionId),
+        )
+      ).filter((session) => session.archived !== true)
       if (generation.current !== requestGeneration) return
       setSessions((current) => appendUnique(current, hydrated))
       const nextSources = pages.flatMap((page) => (page.next ? [page.next] : []))
       mode.current = { kind: 'search', query, sources: nextSources }
       setHasMore(nextSources.length > 0)
+    },
+    [],
+  )
+
+  const publishInterruptedPage = useCallback(
+    async (cursor: string | undefined, requestGeneration: number) => {
+      const page = await queryInterruptedSidebarSessions(cursor)
+      const hydrated = await hydrateSidebarSessions(page.ids)
+      if (generation.current !== requestGeneration) return
+      setSessions((current) => appendUnique(current, hydrated))
+      mode.current = page.nextCursor
+        ? { kind: 'interrupted', cursor: page.nextCursor }
+        : { kind: 'none' }
+      setHasMore(page.nextCursor !== undefined)
     },
     [],
   )
@@ -187,24 +161,29 @@ export function useRemoteSidebarSessions(input: {
     const requestGeneration = generation.current
     setSessions([])
     setHasMore(false)
+    if (input.filterState === 'interrupted') {
+      mode.current = { kind: 'interrupted' }
+      runPage(requestGeneration, () => publishInterruptedPage(undefined, requestGeneration))
+      return
+    }
     if (input.filterState !== null) {
       mode.current = { kind: 'status', ids: stableStatusIds.current.values, offset: 0 }
-      void publishStatusPage(stableStatusIds.current.values, 0, requestGeneration).catch(() =>
-        settleFailure(requestGeneration),
+      runPage(requestGeneration, () =>
+        publishStatusPage(stableStatusIds.current.values, 0, requestGeneration),
       )
       return
     }
     if (normalizedQuery !== '') {
-      const sources: SearchSource[] = [
-        { kind: 'lexical' },
+      const sources: SidebarSearchSource[] = [
+        { kind: 'catalog' },
         ...stableMatchingProjectPaths.current.values.map((projectPath) => ({
           kind: 'project' as const,
           projectPath,
         })),
       ]
       mode.current = { kind: 'search', query: normalizedQuery, sources }
-      void publishSearchPage(normalizedQuery, sources, requestGeneration).catch(() =>
-        settleFailure(requestGeneration),
+      runPage(requestGeneration, () =>
+        publishSearchPage(normalizedQuery, sources, requestGeneration),
       )
       return
     }
@@ -213,9 +192,10 @@ export function useRemoteSidebarSessions(input: {
     input.filterState,
     normalizedQuery,
     publishSearchPage,
+    publishInterruptedPage,
     publishStatusPage,
-    settleFailure,
     requestKey,
+    runPage,
   ])
 
   const loadMore = useCallback(() => {
@@ -223,30 +203,45 @@ export function useRemoteSidebarSessions(input: {
     if (current.kind === 'none') return
     const requestGeneration = generation.current
     if (current.kind === 'status') {
-      void publishStatusPage(current.ids, current.offset, requestGeneration).catch(() =>
-        settleFailure(requestGeneration),
+      runPage(requestGeneration, () =>
+        publishStatusPage(current.ids, current.offset, requestGeneration),
       )
       return
     }
+    if (current.kind === 'interrupted') {
+      runPage(requestGeneration, () => publishInterruptedPage(current.cursor, requestGeneration))
+      return
+    }
     if (current.sources.length > 0) {
-      void publishSearchPage(current.query, current.sources, requestGeneration).catch(() =>
-        settleFailure(requestGeneration),
+      runPage(requestGeneration, () =>
+        publishSearchPage(current.query, current.sources, requestGeneration),
       )
     }
-  }, [publishSearchPage, publishStatusPage, settleFailure])
+  }, [publishInterruptedPage, publishSearchPage, publishStatusPage, runPage])
 
-  const loadedStatusMatches =
-    input.filterState === null
-      ? []
-      : input.loadedSessions.filter(
-          (session) =>
-            input.stateBySessionId.get(String(session.id)) === input.filterState &&
-            sessionMatchesText(session, normalizedQuery, input.projectDisplayNames),
-        )
+  const visibleSessions = useMemo(() => {
+    const loadedMatches = input.loadedSessions.filter((session) => {
+      if (
+        input.filterState !== null &&
+        input.stateBySessionId.get(String(session.id)) !== input.filterState
+      ) {
+        return false
+      }
+      return sessionMatchesText(session, normalizedQuery, input.projectDisplayNames)
+    })
+    return appendUnique(loadedMatches, sessions)
+  }, [
+    input.filterState,
+    input.loadedSessions,
+    input.projectDisplayNames,
+    input.stateBySessionId,
+    normalizedQuery,
+    sessions,
+  ])
 
   return {
     active: input.filterState !== null || normalizedQuery !== '',
-    sessions: input.filterState === null ? sessions : appendUnique(loadedStatusMatches, sessions),
+    sessions: visibleSessions,
     hasMore,
     loadMore,
   }

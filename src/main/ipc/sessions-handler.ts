@@ -4,9 +4,6 @@ import { hostHandle as typedHandle } from './typed-ipc'
 
 export function registerSessionsHandlers(): void {
   registerSessionCatalogHandlers()
-  typedHandle('sessions:list', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list', args),
-  )
   typedHandle('sessions:list-archived-branches', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:list-archived-branches', args),
   )

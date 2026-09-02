@@ -90,7 +90,7 @@ export function seedLegacyDatabase(databasePath: string, runtimeJson = '{"model"
           run_id, session_id, branch_id, run_mode, status, runtime_json, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `)
-      .run('run-legacy', 'session-root', 'branch-main', 'classic', 'active', runtimeJson, 18)
+      .run('run-legacy', 'session-root', 'session-root:main', 'classic', 'active', runtimeJson, 18)
   } finally {
     database.close()
   }

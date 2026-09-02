@@ -1,7 +1,7 @@
-export const SESSION_HOST_SCHEMA_REVISION = 11
+export const SESSION_HOST_SCHEMA_REVISION = 15
 export const SESSION_HOST_BASELINE_MIGRATION_ID = 26
 export const SESSION_HOST_BASELINE_MIGRATION_NAME = 'session-host-v2-target-schema'
-export const SESSION_HOST_FRESH_REVISION = 'fresh-v7'
+export const SESSION_HOST_FRESH_REVISION = 'fresh-v11'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.

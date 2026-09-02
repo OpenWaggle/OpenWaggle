@@ -16,7 +16,6 @@ import type {
 } from './session'
 
 export interface IpcSessionInvokeChannelMap {
-  'sessions:list-details': { args: [limit?: number]; return: SessionDetail[] }
   'sessions:get-detail': { args: [id: SessionId]; return: SessionDetail | null }
   'sessions:create': {
     args: [projectPath: string, worktreePlan?: SessionWorktreePlan]
@@ -37,14 +36,12 @@ export interface IpcSessionInvokeChannelMap {
   'sessions:delete': { args: [id: SessionId]; return: undefined }
   'sessions:archive': { args: [id: SessionId]; return: undefined }
   'sessions:unarchive': { args: [id: SessionId]; return: undefined }
-  'sessions:list-archived': { args: []; return: SessionSummary[] }
   'sessions:update-title': { args: [id: SessionId, title: string]; return: undefined }
   /** `null` clears the session override so the session inherits again. */
   'sessions:set-authorization-mode': {
     args: [id: SessionId, mode: AgentAuthorizationMode | null]
     return: undefined
   }
-  'sessions:list': { args: [limit?: number]; return: SessionSummary[] }
   'sessions:list-by-ids': { args: [sessionIds: SessionId[]]; return: SessionSummary[] }
   'sessions:list-page': {
     args: [archived: boolean, limit: number, cursor?: string]

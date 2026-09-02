@@ -144,6 +144,9 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
             patch: Schema.Struct({
               expandedNodeIds: Schema.optional(Schema.Array(Schema.String)),
               branchesSidebarCollapsed: Schema.optional(Schema.Boolean),
+              lastVisitedAt: Schema.optional(
+                Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+              ),
             }),
           }),
         ),

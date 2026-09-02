@@ -34,17 +34,27 @@ interface ImporterInput {
   readonly semanticCatalog?: AgentDefinitionSemanticCatalog
 }
 
-function sourceTool(input: ImporterInput, content: string): AgentDefinitionImportSource {
+export function detectAgentDefinitionImportSource(
+  input: {
+    readonly sourcePath: string
+    readonly sourceTool?: AgentDefinitionImportSource | 'auto'
+  },
+  content: string,
+): AgentDefinitionImportSource {
   if (input.sourceTool && input.sourceTool !== 'auto') return input.sourceTool
-  const normalized = input.sourcePath.toLocaleLowerCase()
+  const normalized = input.sourcePath.replaceAll('\\', '/').toLowerCase()
+  const segments = normalized.split('/').filter(Boolean)
   if (normalized.endsWith('.toml')) return 'codex'
-  if (normalized.includes('/.claude/')) return 'claude-code'
-  if (normalized.includes('/.cursor/')) return 'cursor'
-  if (normalized.includes('/.gemini/')) return 'gemini-cli'
-  if (normalized.includes('/.github/agents/') || normalized.endsWith('.agent.md')) {
+  if (segments.includes('.claude')) return 'claude-code'
+  if (segments.includes('.cursor')) return 'cursor'
+  if (segments.includes('.gemini')) return 'gemini-cli'
+  if (
+    segments.some((segment, index) => segment === '.github' && segments[index + 1] === 'agents') ||
+    normalized.endsWith('.agent.md')
+  ) {
     return 'github-copilot'
   }
-  if (normalized.includes('/.opencode/')) return 'opencode'
+  if (segments.includes('.opencode')) return 'opencode'
   try {
     parseAgentDefinition(content)
     return 'openwaggle'
@@ -112,7 +122,10 @@ export async function planAgentDefinitionImport(
   const source = await readBoundedAgentDefinitionSource({ sourcePath: input.sourcePath })
   const resolvedSourcePath = source.sourcePath
   const content = source.content
-  const resolvedTool = sourceTool({ ...input, sourcePath: resolvedSourcePath }, content)
+  const resolvedTool = detectAgentDefinitionImportSource(
+    { ...input, sourcePath: resolvedSourcePath },
+    content,
+  )
   const mapped = await mappedSource({
     importer: input,
     sourcePath: resolvedSourcePath,

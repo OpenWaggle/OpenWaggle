@@ -49,8 +49,10 @@ describe('ipc', () => {
       setWindow({ api: { getSettings: vi.fn() } })
 
       const { api } = await import('../ipc')
-      await expect(api.listSessions()).rejects.toThrow(/window\.api unavailable/)
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('listSessions'))
+      await expect(api.listSessionCatalogPage(false, 100)).rejects.toThrow(
+        /window\.api unavailable/,
+      )
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('listSessionCatalogPage'))
 
       consoleSpy.mockRestore()
     })

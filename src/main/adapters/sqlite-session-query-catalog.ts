@@ -16,6 +16,12 @@ type ListRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { operation: 'list' }>
 }
 
+interface ListResultRow extends SessionQuerySummaryRow {
+  readonly total_count: number | null
+}
+
+const MINIMUM_TRIGRAM_SEARCH_LENGTH = 3
+
 function listCursor(request: ListRequest) {
   const cursor = decodeSessionQueryCursor(request.query.cursor)
   if (cursor === 'invalid') return 'invalid' as const
@@ -30,12 +36,44 @@ function archivedFilter(value: boolean | undefined) {
   return value ? 1 : 0
 }
 
-function listResult(request: ListRequest, rows: readonly SessionQuerySummaryRow[]) {
+function interruptedFilter(sql: SqlClient.SqlClient, value: boolean | undefined) {
+  if (value === undefined) return sql.literal('TRUE')
+  const membership = sql`sessions.id IN (
+    SELECT session_id FROM session_active_runs WHERE status = ${'interrupted'}
+  )`
+  return value ? membership : sql`NOT (${membership})`
+}
+
+function interruptedCountColumn(sql: SqlClient.SqlClient, value: boolean | undefined) {
+  return value === undefined ? sql`NULL` : sql`COUNT(*) OVER ()`
+}
+
+function catalogSearchFilter(sql: SqlClient.SqlClient, searchText: string | undefined) {
+  const query = searchText?.trim().toLowerCase() ?? ''
+  if (query === '') return sql.literal('TRUE')
+  if ([...query].length >= MINIMUM_TRIGRAM_SEARCH_LENGTH) {
+    const ftsQuery = `"${query.replaceAll('"', '""')}"`
+    return sql`sessions.id IN (
+      SELECT session_id FROM session_catalog_search
+      WHERE session_catalog_search MATCH ${ftsQuery}
+    )`
+  }
+  const likeQuery = `%${query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
+  return sql`(
+    lower(sessions.title) LIKE ${likeQuery} ESCAPE '\\'
+    OR lower(COALESCE(sessions.project_path, '')) LIKE ${likeQuery} ESCAPE '\\'
+  )`
+}
+
+function listResult(request: ListRequest, rows: readonly ListResultRow[]) {
   const page = rows.slice(0, request.query.limit)
   const last = page.at(-1)
   return sessionQueryResponse(request, {
     operation: 'list',
     sessions: page.map(sessionQuerySummary),
+    ...(request.query.interrupted !== undefined && request.query.cursor === undefined
+      ? { totalCount: rows[0]?.total_count ?? 0 }
+      : {}),
     ...(rows.length > request.query.limit && last
       ? {
           nextCursor: encodeSessionQueryCursor({
@@ -56,6 +94,8 @@ export function listSessions(
   if (cursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
   const allowed = authorizedSessionScope(authority)
   const archived = archivedFilter(request.query.archived)
+  const hasInterruptedRun = interruptedFilter(sql, request.query.interrupted)
+  const searchFilter = catalogSearchFilter(sql, request.query.searchText)
   const workingPathFilter = request.query.workingPath
     ? sql`sessions.id IN (
         SELECT catalog_binding.session_id
@@ -66,7 +106,7 @@ export function listSessions(
       )`
     : sql.literal('TRUE')
   return Effect.gen(function* () {
-    const rows = yield* sql<SessionQuerySummaryRow>`
+    const rows = yield* sql<ListResultRow>`
       SELECT
         sessions.id AS session_id, sessions.title, sessions.project_path, sessions.archived,
         sessions.created_at, sessions.updated_at,
@@ -77,6 +117,7 @@ export function listSessions(
         session_execution_profiles.profile_json
         , delegation_contracts.id AS delegation_id
         , delegation_contracts.state AS delegation_state
+        , ${interruptedCountColumn(sql, request.query.interrupted)} AS total_count
       FROM sessions
       LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
       LEFT JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
@@ -85,6 +126,8 @@ export function listSessions(
         AND (${request.query.projectPath ?? null} IS NULL
           OR sessions.project_path = ${request.query.projectPath ?? null})
         AND ${workingPathFilter}
+        AND ${hasInterruptedRun}
+        AND ${searchFilter}
         AND (${cursor?.updatedAt ?? null} IS NULL
           OR sessions.updated_at < ${cursor?.updatedAt ?? null}
           OR (sessions.updated_at = ${cursor?.updatedAt ?? null}

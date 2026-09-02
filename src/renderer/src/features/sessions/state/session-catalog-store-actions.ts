@@ -7,6 +7,20 @@ const logger = createRendererLogger('session-catalog-store')
 const PAGE_SIZE = 100
 let latestCatalogRequestId = 0
 let latestHiveRequestId = 0
+let catalogOperationId = 0
+const targetedSessionOperationIds = new Map<string, number>()
+const activeCatalogReadOperationIds = new Set<number>()
+const activeTargetedOperationIds = new Set<number>()
+
+function pruneTargetedSessionOperationIds() {
+  for (const [sessionId, operationId] of targetedSessionOperationIds) {
+    if (activeTargetedOperationIds.has(operationId)) continue
+    const protectsActiveRead = [...activeCatalogReadOperationIds].some(
+      (readOperationId) => readOperationId < operationId,
+    )
+    if (!protectsActiveRead) targetedSessionOperationIds.delete(sessionId)
+  }
+}
 
 export interface SessionCatalogState {
   sessions: readonly SessionSummary[]
@@ -50,8 +64,10 @@ async function loadPinnedSessionSummaries() {
 }
 
 async function loadCatalog(set: CatalogSet) {
-  latestCatalogRequestId += 1
-  const requestId = latestCatalogRequestId
+  catalogOperationId += 1
+  const requestId = catalogOperationId
+  latestCatalogRequestId = requestId
+  activeCatalogReadOperationIds.add(requestId)
   try {
     const [active, archived, pinned] = await Promise.all([
       api.listSessionCatalogPage(false, PAGE_SIZE),
@@ -62,24 +78,42 @@ async function loadCatalog(set: CatalogSet) {
       }),
     ])
     if (requestId !== latestCatalogRequestId) return
-    set({
-      sessions: appendUnique(
+    set((state) => {
+      const protectedIds = new Set(
+        [...targetedSessionOperationIds.entries()]
+          .filter(([, operationId]) => operationId > requestId)
+          .map(([sessionId]) => sessionId),
+      )
+      const freshActive = appendUnique(
         active.sessions,
         pinned.filter((session) => !session.archived),
-      ),
-      archivedSessions: appendUnique(
+      ).filter((session) => !protectedIds.has(String(session.id)))
+      const freshArchived = appendUnique(
         archived.sessions,
         pinned.filter((session) => session.archived === true),
-      ),
-      sessionsNextCursor: active.nextCursor ?? null,
-      archivedSessionsNextCursor: archived.nextCursor ?? null,
-      sessionsLoadingMore: false,
-      archivedSessionsLoadingMore: false,
+      ).filter((session) => !protectedIds.has(String(session.id)))
+      return {
+        sessions: appendUnique(
+          freshActive,
+          state.sessions.filter((session) => protectedIds.has(String(session.id))),
+        ),
+        archivedSessions: appendUnique(
+          freshArchived,
+          state.archivedSessions.filter((session) => protectedIds.has(String(session.id))),
+        ),
+        sessionsNextCursor: active.nextCursor ?? null,
+        archivedSessionsNextCursor: archived.nextCursor ?? null,
+        sessionsLoadingMore: false,
+        archivedSessionsLoadingMore: false,
+      }
     })
   } catch (error) {
     if (requestId !== latestCatalogRequestId) return
     set({ sessionsLoadingMore: false })
     logger.error('Failed to load Session catalog', { error: String(error) })
+  } finally {
+    activeCatalogReadOperationIds.delete(requestId)
+    pruneTargetedSessionOperationIds()
   }
 }
 
@@ -90,31 +124,50 @@ async function refreshCatalogSessions(
 ) {
   const requestedIds = [...new Set(sessionIds.map(String))].map(SessionId)
   if (requestedIds.length === 0) return
-  const refreshed: SessionSummary[] = []
-  for (let offset = 0; offset < requestedIds.length; offset += PAGE_SIZE) {
-    refreshed.push(...(await api.listSessionsByIds(requestedIds.slice(offset, offset + PAGE_SIZE))))
+  catalogOperationId += 1
+  const operationId = catalogOperationId
+  activeTargetedOperationIds.add(operationId)
+  for (const sessionId of requestedIds) {
+    targetedSessionOperationIds.set(String(sessionId), operationId)
   }
-  const requested = new Set(requestedIds.map(String))
-  set((state) => ({
-    sessions: appendUnique(
-      state.sessions.filter((session) => !requested.has(String(session.id))),
-      refreshed.filter((session) => session.archived !== true),
-    ),
-    archivedSessions: appendUnique(
-      state.archivedSessions.filter((session) => !requested.has(String(session.id))),
-      refreshed.filter((session) => session.archived === true),
-    ),
-  }))
-  const hiveContextSessionId = get().hiveContextSessionId
-  if (
-    hiveContextSessionId &&
-    refreshed.some(
-      (session) =>
-        session.id === hiveContextSessionId ||
-        session.lineage?.parentSessionId === hiveContextSessionId,
+  try {
+    const refreshed: SessionSummary[] = []
+    for (let offset = 0; offset < requestedIds.length; offset += PAGE_SIZE) {
+      refreshed.push(
+        ...(await api.listSessionsByIds(requestedIds.slice(offset, offset + PAGE_SIZE))),
+      )
+    }
+    const requested = new Set(
+      requestedIds
+        .filter((sessionId) => targetedSessionOperationIds.get(String(sessionId)) === operationId)
+        .map(String),
     )
-  ) {
-    await get().loadHiveSessions(hiveContextSessionId)
+    if (requested.size === 0) return
+    const currentRefreshed = refreshed.filter((session) => requested.has(String(session.id)))
+    set((state) => ({
+      sessions: appendUnique(
+        state.sessions.filter((session) => !requested.has(String(session.id))),
+        currentRefreshed.filter((session) => session.archived !== true),
+      ),
+      archivedSessions: appendUnique(
+        state.archivedSessions.filter((session) => !requested.has(String(session.id))),
+        currentRefreshed.filter((session) => session.archived === true),
+      ),
+    }))
+    const hiveContextSessionId = get().hiveContextSessionId
+    if (
+      hiveContextSessionId &&
+      currentRefreshed.some(
+        (session) =>
+          session.id === hiveContextSessionId ||
+          session.lineage?.parentSessionId === hiveContextSessionId,
+      )
+    ) {
+      await get().loadHiveSessions(hiveContextSessionId)
+    }
+  } finally {
+    activeTargetedOperationIds.delete(operationId)
+    pruneTargetedSessionOperationIds()
   }
 }
 
@@ -134,20 +187,29 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       const cursor = get().sessionsNextCursor
       if (!cursor || get().sessionsLoadingMore) return
       set({ sessionsLoadingMore: true })
+      catalogOperationId += 1
+      const operationId = catalogOperationId
+      activeCatalogReadOperationIds.add(operationId)
       try {
         const page = await api.listSessionCatalogPage(false, PAGE_SIZE, cursor)
         if (get().sessionsNextCursor !== cursor) {
           set({ sessionsLoadingMore: false })
           return
         }
+        const currentPage = page.sessions.filter(
+          (session) => (targetedSessionOperationIds.get(String(session.id)) ?? 0) <= operationId,
+        )
         set((state) => ({
-          sessions: appendUnique(state.sessions, page.sessions),
+          sessions: appendUnique(state.sessions, currentPage),
           sessionsNextCursor: page.nextCursor ?? null,
           sessionsLoadingMore: false,
         }))
       } catch (error) {
         set({ sessionsLoadingMore: false })
         logger.error('Failed to load more Sessions', { error: String(error) })
+      } finally {
+        activeCatalogReadOperationIds.delete(operationId)
+        pruneTargetedSessionOperationIds()
       }
     },
     refreshCatalogSessions: (sessionIds) => refreshCatalogSessions(set, get, sessionIds),
@@ -155,20 +217,29 @@ export function createSessionCatalogState(set: CatalogSet, get: CatalogGet): Ses
       const cursor = get().archivedSessionsNextCursor
       if (!cursor || get().archivedSessionsLoadingMore) return
       set({ archivedSessionsLoadingMore: true })
+      catalogOperationId += 1
+      const operationId = catalogOperationId
+      activeCatalogReadOperationIds.add(operationId)
       try {
         const page = await api.listSessionCatalogPage(true, PAGE_SIZE, cursor)
         if (get().archivedSessionsNextCursor !== cursor) {
           set({ archivedSessionsLoadingMore: false })
           return
         }
+        const currentPage = page.sessions.filter(
+          (session) => (targetedSessionOperationIds.get(String(session.id)) ?? 0) <= operationId,
+        )
         set((state) => ({
-          archivedSessions: appendUnique(state.archivedSessions, page.sessions),
+          archivedSessions: appendUnique(state.archivedSessions, currentPage),
           archivedSessionsNextCursor: page.nextCursor ?? null,
           archivedSessionsLoadingMore: false,
         }))
       } catch (error) {
         set({ archivedSessionsLoadingMore: false })
         logger.error('Failed to load more archived Sessions', { error: String(error) })
+      } finally {
+        activeCatalogReadOperationIds.delete(operationId)
+        pruneTargetedSessionOperationIds()
       }
     },
     async loadHiveSessions(sessionId) {

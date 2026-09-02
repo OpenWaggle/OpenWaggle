@@ -12,6 +12,7 @@ import {
   listSessionCatalogPage,
 } from '../sessions/session-catalog'
 import { listSessions } from '../sessions/session-list'
+import { updateSessionTreeUiState } from '../sessions/tree-ui-state'
 import { SESSION_SUMMARY_COLUMN_NAMES } from '../sessions/types'
 import { runStoreEffect } from '../store-runtime'
 
@@ -85,6 +86,43 @@ describe('session summary columns survive the live SQL path', () => {
 
     expect(listed?.environmentMode).toBe('local')
     expect(listed?.worktreePath).toBeNull()
+  })
+
+  it('hydrates the latest durable Run and one bounded read receipt per Session', async () => {
+    const session = await createSession({
+      projectPath: '/repo/openwaggle',
+      piSessionId: 'pi-reconnect',
+    })
+    const sessionId = SessionId(String(session.id))
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+          VALUES (${'run-completed'}, ${sessionId}, ${'completed'}, ${100}, ${100})
+        `
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+          VALUES (${'run-failed'}, ${sessionId}, ${'failed'}, ${200}, ${200})
+        `
+      }),
+    )
+    await updateSessionTreeUiState(sessionId, { lastVisitedAt: 150 })
+    await updateSessionTreeUiState(sessionId, { lastVisitedAt: 0 })
+
+    const listed = (await listSessions()).find((entry) => entry.id === sessionId)
+    expect(listed?.latestRun).toEqual({ status: 'failed', updatedAt: 200 })
+    expect(listed?.treeUiState?.lastVisitedAt).toBe(0)
+    await expect(
+      runStoreEffect(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          return yield* sql<{ count: number }>`
+            SELECT COUNT(*) AS count FROM session_visit_receipts WHERE session_id = ${sessionId}
+          `
+        }),
+      ),
+    ).resolves.toEqual([{ count: 1 }])
   })
 
   /**

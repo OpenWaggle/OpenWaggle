@@ -19,7 +19,6 @@ const {
   getProjectPreferencesMock,
   getProviderModelsMock,
   listActiveRunsMock,
-  listArchivedSessionsMock,
   listGitBranchesMock,
   listSessionsByIdsMock,
   navigateMock,
@@ -36,7 +35,6 @@ const {
   getProjectPreferencesMock: vi.fn(),
   getProviderModelsMock: vi.fn(),
   listActiveRunsMock: vi.fn(),
-  listArchivedSessionsMock: vi.fn(),
   listGitBranchesMock: vi.fn(),
   listSessionsByIdsMock: vi.fn(),
   navigateMock: vi.fn(),
@@ -68,7 +66,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     getProjectPreferences: getProjectPreferencesMock,
     getProviderModels: getProviderModelsMock,
     listActiveRuns: listActiveRunsMock,
-    listArchivedSessions: listArchivedSessionsMock,
     listGitBranches: listGitBranchesMock,
     listSessionsByIds: listSessionsByIdsMock,
     openPath: openPathMock,
@@ -144,29 +141,29 @@ describe('Sidebar project actions', () => {
     getProjectPreferencesMock.mockResolvedValue(null)
     getProviderModelsMock.mockResolvedValue([])
     listActiveRunsMock.mockResolvedValue([])
-    listArchivedSessionsMock.mockResolvedValue([])
     listGitBranchesMock.mockResolvedValue({ ok: true, branches: [] })
     listSessionsByIdsMock.mockResolvedValue([makeSession()])
     querySessionControlMock.mockImplementation(
-      async (request: { query: { archived?: boolean } }) => ({
+      async (request: { query: { archived?: boolean; interrupted?: boolean } }) => ({
         contractVersion: 2,
         requestId: 'project-sessions',
         outcome: {
           operation: 'list',
-          sessions: request.query.archived
-            ? []
-            : [
-                {
-                  sessionId: SESSION_ID,
-                  title: 'Existing project session',
-                  projectPath: PROJECT_PATH,
-                  archived: false,
-                  createdAt: 10,
-                  updatedAt: 20,
-                  lineageRole: 'independent',
-                  directWorkerCount: 0,
-                },
-              ],
+          sessions:
+            request.query.archived || request.query.interrupted
+              ? []
+              : [
+                  {
+                    sessionId: SESSION_ID,
+                    title: 'Existing project session',
+                    projectPath: PROJECT_PATH,
+                    archived: false,
+                    createdAt: 10,
+                    updatedAt: 20,
+                    lineageRole: 'independent',
+                    directWorkerCount: 0,
+                  },
+                ],
         },
       }),
     )

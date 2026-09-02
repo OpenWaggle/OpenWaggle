@@ -71,8 +71,10 @@ export type SessionQuery =
       readonly limit: number
       readonly cursor?: string
       readonly archived?: boolean
+      readonly interrupted?: boolean
       readonly projectPath?: string
       readonly workingPath?: string
+      readonly searchText?: string
     }
   | {
       readonly operation: 'search'
@@ -161,6 +163,8 @@ export type SessionQueryOutcome =
       readonly operation: 'list' | 'search'
       readonly sessions: readonly SessionQuerySummary[]
       readonly nextCursor?: string
+      /** Exact match count for indexed list filters that provide it. */
+      readonly totalCount?: number
       readonly searchBackend?: SessionDiscoveryMode
       readonly requestedSearchMode?: SessionDiscoveryMode
       readonly semanticReadiness?: SemanticDiscoveryReadiness

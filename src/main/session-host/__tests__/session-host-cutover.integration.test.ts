@@ -9,9 +9,15 @@ import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-t
 
 describe('Session Host full cutover', () => {
   let temporaryRoot = ''
+  let sourceDatabasePath = ''
+  let targetDatabasePath = ''
+  let recoveryDatabasePath = ''
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cutover-'))
+    sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
+    targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
+    recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
   })
 
   afterEach(async () => {
@@ -19,9 +25,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('builds and validates the target beside the source, then retains one recovery copy', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
     const source = new DatabaseSync(sourceDatabasePath)
     try {
@@ -58,11 +61,15 @@ describe('Session Host full cutover', () => {
               session_execution_profiles.authorization_ceiling,
               session_execution_profiles.profile_json,
               session_runs.status,
+              session_active_runs.status AS legacy_run_status,
+              session_active_runs.branch_id AS legacy_run_branch_id,
+              session_active_runs.updated_at AS legacy_run_updated_at,
               workspace_resources.working_path
             FROM sessions
             JOIN session_control_states ON session_control_states.session_id = sessions.id
             JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
             JOIN session_runs ON session_runs.session_id = sessions.id
+            JOIN session_active_runs ON session_active_runs.session_id = sessions.id
             JOIN session_workspace_bindings ON session_workspace_bindings.session_id = sessions.id
             JOIN workspace_resources ON workspace_resources.id = session_workspace_bindings.workspace_id
           `)
@@ -72,6 +79,9 @@ describe('Session Host full cutover', () => {
         authorization_ceiling: 'ask-for-approval',
         profile_json: '{"modelId":"openai/gpt-5.4","thinkingLevel":"high"}',
         status: 'interrupted-by-host-loss',
+        legacy_run_status: 'interrupted',
+        legacy_run_branch_id: 'session-root:main',
+        legacy_run_updated_at: 1_000,
         working_path: '/project',
       })
       expect(
@@ -82,6 +92,14 @@ describe('Session Host full cutover', () => {
           .prepare('SELECT session_id FROM session_discovery_embedding_queue ORDER BY session_id')
           .all(),
       ).toEqual([{ session_id: 'session-root' }])
+      expect(
+        target
+          .prepare(
+            `SELECT name FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_session_active_runs_status_session'`,
+          )
+          .get(),
+      ).toEqual({ name: 'idx_session_active_runs_status_session' })
     } finally {
       target.close()
     }
@@ -96,9 +114,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('does not block canonical cutover on semantic model availability', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
     const unavailableModel: SessionEmbeddingModel = {
       ...fakeEmbeddingModel,
@@ -129,9 +144,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('accepts an idle Session whose model remains unresolved until its first configured Run', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
     await runSessionHostCutover(
       { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
@@ -157,9 +169,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('preserves the effective global approval ceiling when a Session has no override', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
     const source = new DatabaseSync(sourceDatabasePath)
     try {
@@ -188,9 +197,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('accepts a recoverable pending semantic projection on normal restart', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
     await runSessionHostCutover(
       { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
@@ -214,9 +220,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('assigns an unmaterialized legacy worktree plan one canonical Workspace path and branch', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
     const source = new DatabaseSync(sourceDatabasePath)
     try {
@@ -262,9 +265,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('leaves the source untouched when target transformation fails', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath, 'not-json')
 
     await expect(
@@ -280,9 +280,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('finishes installing a validated staged database after a crash between renames', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     const stagingPath = `${targetDatabasePath}.partial`
     seedLegacyDatabase(sourceDatabasePath)
     await runSessionHostCutover(
@@ -305,9 +302,6 @@ describe('Session Host full cutover', () => {
   })
 
   it('fails closed when only the pre-cutover recovery database remains', async () => {
-    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
-    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
-    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(recoveryDatabasePath)
 
     await expect(

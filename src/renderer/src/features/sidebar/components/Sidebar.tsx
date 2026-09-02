@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
 import { useSidebarController } from '../hooks/useSidebarController'
@@ -123,10 +124,28 @@ export function Sidebar() {
               sessionActions={actions.session}
               branchActions={actions.branch}
             />
+            {controller.hasMoreVisibleSessions ? (
+              <SidebarLoadMoreButton loadMore={controller.loadMoreVisibleSessions} />
+            ) : null}
           </div>
         </div>
         <SidebarSettingsButton onOpenSettings={controller.handleOpenSettings} />
       </nav>
+    </div>
+  )
+}
+
+function SidebarLoadMoreButton({ loadMore }: { readonly loadMore: () => void }) {
+  return (
+    <div className="px-2 pt-1">
+      <Button
+        type="button"
+        variant="unstyled"
+        onClick={() => void loadMore()}
+        className="min-h-8 w-full rounded-md px-2 text-left text-xs font-medium text-accent hover:bg-bg-hover"
+      >
+        Load more sessions
+      </Button>
     </div>
   )
 }

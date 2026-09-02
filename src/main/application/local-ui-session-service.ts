@@ -30,7 +30,8 @@ function updateTreeUiState(
 ) {
   if (
     command.patch.expandedNodeIds === undefined &&
-    command.patch.branchesSidebarCollapsed === undefined
+    command.patch.branchesSidebarCollapsed === undefined &&
+    command.patch.lastVisitedAt === undefined
   ) {
     return Effect.fail(new Error('Session tree UI state patch must include at least one field.'))
   }
@@ -41,6 +42,9 @@ function updateTreeUiState(
         : {}),
       ...(command.patch.branchesSidebarCollapsed !== undefined
         ? { branchesSidebarCollapsed: command.patch.branchesSidebarCollapsed }
+        : {}),
+      ...(command.patch.lastVisitedAt !== undefined
+        ? { lastVisitedAt: command.patch.lastVisitedAt }
         : {}),
     })
     .pipe(Effect.as({ effect: 'tree-ui-state-updated' as const }))

@@ -74,7 +74,6 @@ import type {
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
-  SessionSummary,
   SessionTree,
   SessionTreeFilterMode,
   SessionTreeUiStatePatch,
@@ -160,8 +159,6 @@ export interface OpenWaggleApi
   saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions
-  listSessions(limit?: number): Promise<SessionSummary[]>
-  listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
@@ -186,7 +183,6 @@ export interface OpenWaggleApi
   deleteSession(id: SessionId): Promise<void>
   archiveSession(id: SessionId): Promise<void>
   unarchiveSession(id: SessionId): Promise<void>
-  listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
   listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>

@@ -9,8 +9,6 @@ import type {
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 
-const MAX_SESSION_LIST_LIMIT = 500
-
 export function invalid(message: string) {
   return Effect.fail(new Error(message))
 }
@@ -61,20 +59,11 @@ function validateOptionalSessionBranchId(value: unknown) {
     : validateSessionBranchId(value)
 }
 
-export function validateListLimit(value: unknown) {
+function validateOptionalLastVisitedAt(value: unknown) {
   if (value === undefined) return Effect.succeed(undefined)
-  return typeof value === 'number' &&
-    Number.isInteger(value) &&
-    value > 0 &&
-    value <= MAX_SESSION_LIST_LIMIT
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
     ? Effect.succeed(value)
-    : invalid(`Session list limit must be an integer from 1 to ${String(MAX_SESSION_LIST_LIMIT)}.`)
-}
-
-export function validateOptionalNumber(value: unknown, label: string) {
-  return value === undefined || typeof value === 'number'
-    ? Effect.succeed(value)
-    : invalid(`${label} must be a number.`)
+    : invalid('Session last-visited timestamp must be a non-negative integer.')
 }
 
 export function validateWorkspaceSelection(value: unknown) {
@@ -92,7 +81,8 @@ export function validateTreeUiStatePatch(value: unknown) {
   return Effect.gen(function* () {
     const hasExpandedNodeIds = value.expandedNodeIds !== undefined
     const hasBranchesSidebarCollapsed = value.branchesSidebarCollapsed !== undefined
-    if (!hasExpandedNodeIds && !hasBranchesSidebarCollapsed) {
+    const hasLastVisitedAt = value.lastVisitedAt !== undefined
+    if (!hasExpandedNodeIds && !hasBranchesSidebarCollapsed && !hasLastVisitedAt) {
       return yield* invalid('Session tree UI state patch must include at least one field.')
     }
     const expandedNodeIds: SessionNodeId[] = []
@@ -110,11 +100,13 @@ export function validateTreeUiStatePatch(value: unknown) {
     ) {
       return yield* invalid('Branches sidebar collapsed must be a boolean.')
     }
+    const lastVisitedAt = yield* validateOptionalLastVisitedAt(value.lastVisitedAt)
     return {
       ...(hasExpandedNodeIds ? { expandedNodeIds } : {}),
       ...(hasBranchesSidebarCollapsed
         ? { branchesSidebarCollapsed: value.branchesSidebarCollapsed }
         : {}),
+      ...(hasLastVisitedAt ? { lastVisitedAt } : {}),
     } satisfies SessionTreeUiStatePatch
   })
 }

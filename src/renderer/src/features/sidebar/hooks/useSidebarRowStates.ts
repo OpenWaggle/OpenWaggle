@@ -9,6 +9,7 @@ import {
   resolveVisibleSessionStatus,
   type SidebarRowState,
   sessionHasInterruptedRun,
+  sidebarRowStateMeta,
 } from '../lib/sidebar-row-state'
 
 /**
@@ -18,7 +19,10 @@ import {
  * error is worse than showing neither. Resolving in one place and passing the map down is
  * what makes disagreement impossible.
  */
-export function useSidebarRowStates(sessions: readonly SessionSummary[]) {
+export function useSidebarRowStates(
+  sessions: readonly SessionSummary[],
+  interruptedSessionCount: number,
+) {
   const statuses = useSessionStatusStore((s) => s.statuses)
   const completedAt = useSessionStatusStore((s) => s.completedAt)
   const lastVisitedAt = useSessionStatusStore((s) => s.lastVisitedAt)
@@ -60,12 +64,22 @@ export function useSidebarRowStates(sessions: readonly SessionSummary[]) {
 
     const stateOf = (session: SessionSummary) => byId.get(String(session.id)) ?? 'idle'
 
+    const localChipCounts = buildSidebarStateCountsFromStates(byId.values())
+    const chipCounts = [
+      ...localChipCounts.filter(({ state }) => state !== 'interrupted'),
+      ...(interruptedSessionCount > 0
+        ? [{ state: 'interrupted' as const, count: interruptedSessionCount }]
+        : []),
+    ].sort(
+      (left, right) => sidebarRowStateMeta(left.state).rank - sidebarRowStateMeta(right.state).rank,
+    )
+
     return {
       stateOf,
       stateBySessionId: byId,
-      chipCounts: buildSidebarStateCountsFromStates(byId.values()),
+      chipCounts,
       rollUpFor: (projectSessions: readonly SessionSummary[]) =>
         buildProjectRollUp(projectSessions, stateOf),
     }
-  }, [sessions, statuses, completedAt, lastVisitedAt])
+  }, [sessions, statuses, completedAt, lastVisitedAt, interruptedSessionCount])
 }

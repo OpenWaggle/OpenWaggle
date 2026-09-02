@@ -25,13 +25,11 @@ const mocks = vi.hoisted(() => ({
   })),
   forkRuntimeSessionMock: vi.fn(),
   persistSnapshotMock: vi.fn(),
-  listSessionDetailsMock: vi.fn(),
   getSessionDetailMock: vi.fn(),
   createSessionMock: vi.fn(),
   deleteSessionMock: vi.fn(),
   archiveSessionMock: vi.fn(),
   unarchiveSessionMock: vi.fn(),
-  listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
   setAuthorizationModeMock: vi.fn(),
   listPinnedSessionsMock: vi.fn(async () => []),
@@ -52,13 +50,11 @@ export const cleanupSessionRunMock: TestMock = mocks.cleanupSessionRunMock
 export const createRuntimeSessionMock: TestMock = mocks.createRuntimeSessionMock
 export const forkRuntimeSessionMock: TestMock = mocks.forkRuntimeSessionMock
 export const persistSnapshotMock: TestMock = mocks.persistSnapshotMock
-export const listSessionDetailsMock: TestMock = mocks.listSessionDetailsMock
 export const getSessionDetailMock: TestMock = mocks.getSessionDetailMock
 export const createSessionMock: TestMock = mocks.createSessionMock
 export const deleteSessionMock: TestMock = mocks.deleteSessionMock
 export const archiveSessionMock: TestMock = mocks.archiveSessionMock
 export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
-export const listArchivedSessionsMock: TestMock = mocks.listArchivedSessionsMock
 export const updateSessionTitleMock: TestMock = mocks.updateSessionTitleMock
 export const setAuthorizationModeMock: TestMock = mocks.setAuthorizationModeMock
 export const listPinnedSessionsMock: TestMock = mocks.listPinnedSessionsMock
@@ -109,16 +105,8 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         try: async () => getSessionDetailMock(id),
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
       }),
-    list: (limit) =>
-      Effect.tryPromise({
-        try: async () => listArchivedSessionsMock(limit),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'list', cause }),
-      }),
-    listDetails: (limit) =>
-      Effect.tryPromise({
-        try: async () => listSessionDetailsMock(limit),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'listDetails', cause }),
-      }),
+    list: () => Effect.succeed([]),
+    listDetails: () => Effect.succeed([]),
     create: (input) =>
       Effect.tryPromise({
         try: async () => createSessionMock(input),
@@ -145,12 +133,7 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         },
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'unarchive', cause }),
       }),
-    listArchived: () =>
-      Effect.tryPromise({
-        try: async () => listArchivedSessionsMock(),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'listArchived', cause }),
-      }),
+    listArchived: () => Effect.succeed([]),
     updateTitle: (id, title) =>
       Effect.tryPromise({
         try: async () => {

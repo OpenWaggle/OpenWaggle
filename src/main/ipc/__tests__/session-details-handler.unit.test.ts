@@ -9,7 +9,6 @@ import {
   dispatchLocalSessionCommandMock,
   getInvokeHandler,
   getSessionDetailMock,
-  listSessionDetailsMock,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
   typedHandleMock,
@@ -30,7 +29,6 @@ describe('registerSessionDetailsHandlers', () => {
 
     const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
     expect(channels).toEqual([
-      'sessions:list-details',
       'sessions:get-detail',
       'sessions:turn-checkpoints:list',
       'sessions:turn-diff:get',
@@ -45,22 +43,9 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:delete',
       'sessions:archive',
       'sessions:unarchive',
-      'sessions:list-archived',
       'sessions:update-title',
       'sessions:set-authorization-mode',
     ])
-  })
-
-  it('lists session details through the projection repository', async () => {
-    const sessionDetails = [{ id: SessionId('session-1'), title: 'Session', messages: [] }]
-    listSessionDetailsMock.mockResolvedValue(sessionDetails)
-
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:list-details')
-
-    const result = await handler?.({}, 10)
-    expect(result).toEqual(sessionDetails)
-    expect(listSessionDetailsMock).toHaveBeenCalledWith(10)
   })
 
   it('creates a session with the requested project path', async () => {

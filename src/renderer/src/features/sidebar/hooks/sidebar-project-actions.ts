@@ -11,6 +11,30 @@ import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-u
 
 type Navigate = ReturnType<typeof useNavigate>
 const SESSION_HYDRATION_BATCH_SIZE = 100
+const SESSION_MUTATION_CONCURRENCY = 8
+
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  operation: (item: T) => Promise<unknown>,
+) {
+  let completed = 0
+  const failures: unknown[] = []
+  for (let offset = 0; offset < items.length; offset += SESSION_MUTATION_CONCURRENCY) {
+    const results = await Promise.allSettled(
+      items.slice(offset, offset + SESSION_MUTATION_CONCURRENCY).map(operation),
+    )
+    for (const result of results) {
+      if (result.status === 'fulfilled') completed += 1
+      else failures.push(result.reason)
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `${completed} of ${items.length} operations completed; ${failures.length} failed. Retry to finish the remaining work.`,
+      { cause: failures[0] },
+    )
+  }
+}
 
 async function listProjectSessionSummaries(path: string) {
   const ids: SessionId[] = []
@@ -62,7 +86,7 @@ export interface SidebarProjectActionDeps {
   readonly clearTransientDraftContext: () => void
 }
 
-function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
+function dependentSessionsById(sessions: readonly SessionSummary[]) {
   const dependentsBySession = new Map<string, SessionSummary[]>()
   const sessionIds = new Set(sessions.map((session) => String(session.id)))
   for (const session of sessions) {
@@ -77,17 +101,35 @@ function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
       dependentsBySession.set(dependencyId, dependents)
     }
   }
+  return dependentsBySession
+}
 
+export function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
+  const dependentsBySession = dependentSessionsById(sessions)
   const ordered: SessionSummary[] = []
-  const visited = new Set<string>()
-  const visit = (session: SessionSummary) => {
-    const sessionId = String(session.id)
-    if (visited.has(sessionId)) return
-    visited.add(sessionId)
-    for (const dependent of dependentsBySession.get(sessionId) ?? []) visit(dependent)
-    ordered.push(session)
+  const discovered = new Set<string>()
+  for (const root of sessions) {
+    const stack: Array<{ readonly session: SessionSummary; readonly expanded: boolean }> = [
+      { session: root, expanded: false },
+    ]
+    while (stack.length > 0) {
+      const frame = stack.pop()
+      if (!frame) break
+      const sessionId = String(frame.session.id)
+      if (frame.expanded) {
+        ordered.push(frame.session)
+        continue
+      }
+      if (discovered.has(sessionId)) continue
+      discovered.add(sessionId)
+      stack.push({ session: frame.session, expanded: true })
+      const dependents = dependentsBySession.get(sessionId) ?? []
+      for (let index = dependents.length - 1; index >= 0; index -= 1) {
+        const dependent = dependents[index]
+        if (dependent) stack.push({ session: dependent, expanded: false })
+      }
+    }
   }
-  for (const session of sessions) visit(session)
   return ordered
 }
 
@@ -115,7 +157,7 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
   )
   if (!confirmed) return
 
-  await Promise.all(projectSessions.map((session) => api.archiveSession(session.id)))
+  await runWithConcurrency(projectSessions, (session) => api.archiveSession(session.id))
   clearComposerDraftsForSessions(projectSessions)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
 
@@ -136,10 +178,9 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
   const activeRuns = await api.listActiveRuns()
-  await Promise.all(
-    activeRuns.flatMap((run) =>
-      projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
-    ),
+  await runWithConcurrency(
+    activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
+    (run) => api.cancelAgent(run.sessionId),
   )
   for (const session of sessionsInDeletionOrder(projectSessions)) {
     await api.deleteSession(session.id)

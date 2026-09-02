@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { detectAgentDefinitionImportSource } from '../agent-definition-importer'
 import { executeAgentDefinitionManagement } from '../agent-definition-management'
 import { createAgentDefinitionManagementTestPaths } from './agent-definition-management.test-support'
 
@@ -15,6 +16,22 @@ describe('Agent definition management and imports', () => {
 
   afterEach(async () => {
     await fs.rm(root, { recursive: true, force: true })
+  })
+
+  it.each([
+    ['C:\\Users\\worker\\.claude\\agents\\reviewer.md', 'claude-code'],
+    ['C:\\Users\\worker\\.cursor\\agents\\reviewer.md', 'cursor'],
+    ['C:\\Users\\worker\\.gemini\\agents\\reviewer.md', 'gemini-cli'],
+    ['C:\\repo\\.github\\agents\\reviewer.md', 'github-copilot'],
+    ['C:\\Users\\worker\\.opencode\\agents\\reviewer.md', 'opencode'],
+    ['C:\\Users\\worker\\.codex\\agents.toml', 'codex'],
+  ] as const)('auto-detects %s as %s from a Windows path', (sourcePath, sourceTool) => {
+    expect(
+      detectAgentDefinitionImportSource(
+        { sourcePath, sourceTool: 'auto' },
+        '---\nname: reviewer\ndescription: Reviews changes\n---\nReview changes.\n',
+      ),
+    ).toBe(sourceTool)
   })
 
   it('writes, duplicates, lists every scope, and deletes with optimistic digests', async () => {

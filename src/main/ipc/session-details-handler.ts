@@ -27,9 +27,6 @@ function deleteSession(id: SessionId) {
 }
 
 export function registerSessionDetailsHandlers(): void {
-  typedHandle('sessions:list-details', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-details', args),
-  )
   typedHandle('sessions:get-detail', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:get-detail', args),
   )
@@ -69,9 +66,6 @@ export function registerSessionDetailsHandlers(): void {
   )
   typedHandle('sessions:unarchive', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:unarchive', args),
-  )
-  typedHandle('sessions:list-archived', (_event, ...args) =>
-    dispatchHostBackedSessionGuiOperation('sessions:list-archived', args),
   )
   typedHandle('sessions:update-title', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:update-title', args),

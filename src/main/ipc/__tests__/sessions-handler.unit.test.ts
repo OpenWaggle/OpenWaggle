@@ -114,7 +114,6 @@ describe('registerSessionsHandlers', () => {
       'sessions:list-by-ids',
       'sessions:list-page',
       'sessions:list-hive-page',
-      'sessions:list',
       'sessions:list-archived-branches',
       'sessions:get-tree',
       'sessions:get-workspace',

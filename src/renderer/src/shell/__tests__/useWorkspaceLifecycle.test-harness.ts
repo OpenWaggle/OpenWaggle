@@ -3,6 +3,7 @@ import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
 import { type Mock, vi } from 'vitest'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
 import { useUIStore } from '../ui-store'
 
@@ -182,6 +183,12 @@ export function resetWorkspaceLifecycleMocks() {
     settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' },
     isLoaded: true,
     loadError: null,
+  })
+  useSessionStatusStore.setState({
+    statuses: new Map(),
+    completedAt: new Map(),
+    lastVisitedAt: new Map(),
+    phases: new Map(),
   })
   lifecycleMocks.loadChatSessions.mockClear()
   lifecycleMocks.startDraftSession.mockClear()

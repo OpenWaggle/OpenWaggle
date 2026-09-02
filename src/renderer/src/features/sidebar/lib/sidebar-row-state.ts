@@ -149,7 +149,13 @@ export function resolveSidebarRowState(input: {
 
 /** True when any of a session's conversation branches holds an interrupted run. */
 export function sessionHasInterruptedRun(session: SessionSummary) {
-  return session.branches?.some((branch) => branch.interruptedRun) ?? false
+  if (session.branches?.some((branch) => branch.interruptedRun)) return true
+  const status = session.latestRun?.status
+  return (
+    status === 'interrupted' ||
+    status === 'interrupted-by-host-loss' ||
+    status === 'interrupted-by-interaction-timeout'
+  )
 }
 
 export interface SidebarStateCount {

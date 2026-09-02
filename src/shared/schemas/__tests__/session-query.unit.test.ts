@@ -54,6 +54,16 @@ describe('Session query v2 boundary', () => {
     ).toThrow(/unexpected/)
   })
 
+  it('decodes the indexed interrupted Session catalog filter', () => {
+    expect(
+      decodeSessionQueryRequest({
+        contractVersion: 2,
+        requestId: 'interrupted-sessions',
+        query: { operation: 'list', archived: false, interrupted: true, limit: 100 },
+      }).query,
+    ).toEqual({ operation: 'list', archived: false, interrupted: true, limit: 100 })
+  })
+
   it('requires bounded positive page sizes', () => {
     expect(() =>
       decodeSessionQueryRequest({

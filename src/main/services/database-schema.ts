@@ -100,6 +100,10 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     updated_at INTEGER NOT NULL
   )
   `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_active_runs_status_session
+  ON session_active_runs (status, session_id)
+  `,
 ] as const
 
 export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [

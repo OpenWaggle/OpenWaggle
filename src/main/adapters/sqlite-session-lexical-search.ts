@@ -69,6 +69,14 @@ function lexicalCandidateRows(
           OR session_id IN (SELECT session_id FROM authorized_sessions))
         AND session_title_search MATCH ${ftsQuery}
       UNION ALL
+      SELECT session_id, bm25(session_project_search, 0.0, 4.0) AS score,
+        ${'project'} AS matched_field,
+        snippet(session_project_search, 1, '', '', ' … ', 12) AS snippet, 0 AS exact_match
+      FROM session_project_search
+      WHERE (${allSessionsAuthorized ? 1 : 0} = 1
+          OR session_id IN (SELECT session_id FROM authorized_sessions))
+        AND session_project_search MATCH ${ftsQuery}
+      UNION ALL
       SELECT session_id, bm25(session_delegation_search, 0.0, 0.0, 5.0) AS score,
         ${'objective'} AS matched_field,
         snippet(session_delegation_search, 2, '', '', ' … ', 12) AS snippet, 0 AS exact_match

@@ -65,6 +65,22 @@ describe('Sessions CLI option contract', () => {
     ).toThrow('Choose either --credential-stdin or --profile-credential-file')
   })
 
+  it.each([['--stdin'], ['--request-json', '-']])(
+    'rejects credential input that competes with message input on stdin: %s',
+    (...messageInput) => {
+      expect(
+        validate([
+          'message',
+          'session',
+          '--profile',
+          'helper',
+          '--credential-stdin',
+          ...messageInput,
+        ]),
+      ).toThrow('--credential-stdin cannot share stdin with --stdin or --request-json -')
+    },
+  )
+
   it('rejects values assigned to boolean flags instead of silently disabling them', () => {
     expect(validate(['list', '--json=false'])).toThrow('--json do not accept values')
     expect(validate(['launch', '.', '--text', 'work', '--yolo=false'])).toThrow(

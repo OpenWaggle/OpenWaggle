@@ -50,6 +50,21 @@ function makeLayer(filename: string, model?: SessionEmbeddingModel) {
           head_node_id TEXT
         )
       `)
+      yield* sql.unsafe(`
+        CREATE TABLE session_active_runs (
+          run_id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+          branch_id TEXT NOT NULL REFERENCES session_branches(id) ON DELETE CASCADE,
+          run_mode TEXT NOT NULL,
+          status TEXT NOT NULL,
+          runtime_json TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      `)
+      yield* sql.unsafe(`
+        CREATE INDEX idx_session_active_runs_status_session
+        ON session_active_runs (status, session_id)
+      `)
       for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) {
         yield* sql.unsafe(statement)
       }

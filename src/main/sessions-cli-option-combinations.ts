@@ -24,6 +24,12 @@ function validateCredentialSource(arguments_: ParsedArguments) {
   ) {
     throw new Error('Choose either --credential-stdin or --profile-credential-file, not both.')
   }
+  if (
+    arguments_.options.has('credential-stdin') &&
+    (arguments_.options.has('stdin') || arguments_.options.get('request-json')?.at(-1) === '-')
+  ) {
+    throw new Error('--credential-stdin cannot share stdin with --stdin or --request-json -.')
+  }
 }
 
 function validateWorkspaceOptions(arguments_: ParsedArguments) {
