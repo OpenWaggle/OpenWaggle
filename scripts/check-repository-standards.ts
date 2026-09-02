@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
+import { collectForbiddenReferenceViolations } from './standards/forbidden-references'
 import { withoutCommentLines } from './standards/comment-stripping'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
@@ -13,31 +14,11 @@ import {
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
 
-interface Violation {
+export interface Violation {
   readonly detail?: string
   readonly file: string
   readonly message: string
 }
-
-const legacyAgentFile = [['CLA', 'UDE'].join(''), 'md'].join('.')
-const legacyAgentDirectory = ['.', 'claude'].join('')
-const legacyLearningsName = ['learn', 'ings'].join('')
-const legacyLessonsName = ['less', 'ons'].join('')
-const legacyLearningsFile = ['docs', [legacyLearningsName, 'md'].join('.')].join('/')
-const legacyLessonsFile = ['docs', [legacyLessonsName, 'md'].join('.')].join('/')
-const legacyLearningsAlias = [legacyLearningsName.toUpperCase(), 'md'].join('.')
-const legacyLessonsAlias = [legacyLessonsName.toUpperCase(), 'md'].join('.')
-const legacyVendorRuntime = ['Claude', 'Code'].join(' ')
-
-const forbiddenReferences: string[] = [
-  legacyAgentFile,
-  legacyAgentDirectory,
-  legacyLearningsFile,
-  legacyLessonsFile,
-  legacyLearningsAlias,
-  legacyLessonsAlias,
-  legacyVendorRuntime,
-]
 
 const scanGlobs: string[] = [
   '**/*.{adoc,astro,cjs,css,html,js,json,jsonc,jsx,md,mdx,mjs,py,sh,toml,ts,tsx,txt,yaml,yml}',
@@ -69,40 +50,6 @@ const tsconfigPattern = /(^|\/)tsconfig[^/]*\.json$/
 
 function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
-}
-
-/**
- * The legacy agent directory is a dotted name, so a bare substring search also
- * matches inside unrelated dotted identifiers -- notably every Bedrock Anthropic
- * model id (`eu.anthropic.claude-...`), which we legitimately reference when
- * documenting review tooling. Require the match not to be preceded by an
- * identifier character, so a real path reference still trips the guard while a
- * dotted identifier does not.
- */
-function containsForbiddenReference(contents: string, reference: string) {
-  if (!reference.startsWith('.')) {
-    return contents.includes(reference)
-  }
-  const escaped = reference.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
-  return new RegExp(String.raw`(?<![0-9A-Za-z])` + escaped).test(contents)
-}
-
-function collectForbiddenReferenceViolations(file: string, contents: string) {
-  const violations: Violation[] = []
-
-  for (const reference of forbiddenReferences) {
-    if (!containsForbiddenReference(contents, reference)) {
-      continue
-    }
-
-    violations.push({
-      detail: reference,
-      file,
-      message: 'Remove stale legacy-agent instruction reference.',
-    })
-  }
-
-  return violations
 }
 
 function collectTsconfigViolations(file: string, contents: string) {

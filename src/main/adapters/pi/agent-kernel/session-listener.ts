@@ -185,6 +185,9 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
       'summarization_retry_scheduled',
       'summarization_retry_attempt_start',
       'summarization_retry_finished',
+      // Session-side bash output deltas are TUI-only in Pi; the renderer
+      // projects tool executions through tool_execution_* events instead.
+      'bash_execution_update',
       () => undefined,
     )
     .exhaustive()

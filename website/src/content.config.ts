@@ -155,7 +155,11 @@ function docsMarkdownLoader(): Loader {
       }));
 
       for (const entry of loadedEntries) {
-        store.set(entry);
+        // MDX entries compile their own imports/components through the MDX
+        // integration at render time; pre-rendering them here would emit raw
+        // import statements as text. Markdown entries still pre-render.
+        const isMdx = /\.mdx$/u.test(entry.filePath ?? '');
+        store.set(isMdx ? { ...entry, rendered: undefined, deferredRender: true } : entry);
       }
     },
   };
