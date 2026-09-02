@@ -236,6 +236,40 @@ function formUiRules(selector: string) {
 }`
 }
 
+function syntaxUiRules(selector: string) {
+  const classes = OPENWAGGLE_EXTENSION_UI_CLASS_NAMES
+
+  return `${selector} .${classes.syntaxBlock} {
+  background: var(--ow-color-surface);
+  border: 1px solid var(--ow-color-border);
+  border-radius: var(--ow-radius-md);
+  box-sizing: border-box;
+  color: var(--ow-color-text-subtle);
+  font-family: var(--ow-font-family-mono);
+  font-size: var(--ow-text-sm);
+  line-height: var(--ow-text-sm--line-height);
+  margin: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: calc(var(--ow-spacing) * 3);
+  white-space: pre;
+}
+
+${selector} .${classes.syntaxBlock}[data-ow-wrap="true"] {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+${selector} .${classes.syntaxLineNumber} {
+  color: var(--ow-color-text-dim);
+  display: inline-block;
+  margin-right: calc(var(--ow-spacing) * 4);
+  text-align: right;
+  user-select: none;
+  width: calc(var(--ow-spacing) * 10);
+}`
+}
+
 function extensionUiRules(selector: string) {
   return `${baseUiRules(selector)}
 
@@ -243,7 +277,9 @@ ${controlUiRules(selector)}
 
 ${badgeUiRules(selector)}
 
-${formUiRules(selector)}`
+${formUiRules(selector)}
+
+${syntaxUiRules(selector)}`
 }
 
 export function createOpenWaggleExtensionUiStylesheet(

@@ -1,5 +1,7 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
 import {
+  SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -13,6 +15,7 @@ import {
   SETTINGS_KEY_RECENT_PROJECTS,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
+  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
 } from './keys'
 import {
@@ -31,6 +34,7 @@ import {
   resolveRecentProjects,
   resolveSelectedModel,
   resolveSkillTogglesByProject,
+  resolveSyntaxThemeSelections,
   resolveThinkingLevel,
   sanitizeEnabledModels,
   sanitizeFavoriteModels,
@@ -87,9 +91,15 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffSyntaxTheme = resolveDiffSyntaxTheme(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_SYNTAX_THEME),
   )
+  const syntaxThemeSelections = resolveSyntaxThemeSelections(
+    getStoredValue(storedSettings, SETTINGS_KEY_SYNTAX_THEME_SELECTIONS),
+  )
   const diffView = resolveDiffView(getStoredValue(storedSettings, SETTINGS_KEY_DIFF_VIEW))
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
+  )
+  const appearancePreferences = resolveAppearancePreferences(
+    getStoredValue(storedSettings, SETTINGS_KEY_APPEARANCE_PREFERENCES),
   )
 
   return {
@@ -106,8 +116,10 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       defaultSessionEnvironmentMode,
       defaultAuthorizationMode,
       diffSyntaxTheme,
+      syntaxThemeSelections,
       diffView,
       diffWrapLines,
+      appearancePreferences,
     } satisfies Settings,
   }
 }
@@ -119,12 +131,25 @@ function resolveNextDiffSettings(current: Settings, partial: Partial<Settings>) 
       partial.diffSyntaxTheme !== undefined && isValidDiffSyntaxTheme(partial.diffSyntaxTheme)
         ? partial.diffSyntaxTheme
         : current.diffSyntaxTheme,
+    syntaxThemeSelections:
+      partial.syntaxThemeSelections !== undefined
+        ? resolveSyntaxThemeSelections(partial.syntaxThemeSelections)
+        : current.syntaxThemeSelections,
     diffView:
       partial.diffView !== undefined && isValidDiffView(partial.diffView)
         ? partial.diffView
         : current.diffView,
     diffWrapLines:
       typeof partial.diffWrapLines === 'boolean' ? partial.diffWrapLines : current.diffWrapLines,
+  }
+}
+
+function resolveNextAppearanceSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    appearancePreferences:
+      partial.appearancePreferences !== undefined
+        ? resolveAppearancePreferences(partial.appearancePreferences)
+        : current.appearancePreferences,
   }
 }
 
@@ -172,6 +197,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
       ? resolveDefaultAuthorizationMode(partial.defaultAuthorizationMode)
       : current.defaultAuthorizationMode
   const diffSettings = resolveNextDiffSettings(current, partial)
+  const appearanceSettings = resolveNextAppearanceSettings(current, partial)
 
   return {
     ...current,
@@ -187,5 +213,6 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
     ...diffSettings,
+    ...appearanceSettings,
   } satisfies Settings
 }

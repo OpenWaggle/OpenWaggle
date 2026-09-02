@@ -65,6 +65,7 @@ interface UIState {
   feedbackErrorContext: AgentErrorInfo | null
   feedbackCooldownActive: boolean
   lastRightSidebarPanel: RightSidebarPanel
+  workspaceTreeOpen: boolean
 
   toggleSidebar: () => void
   toggleTerminal: () => void
@@ -85,6 +86,7 @@ interface UIState {
   closeFeedbackModal: () => void
   startFeedbackCooldown: () => void
   setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
+  toggleWorkspaceTree: () => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -106,6 +108,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   feedbackErrorContext: null,
   feedbackCooldownActive: false,
   lastRightSidebarPanel: 'diff',
+  workspaceTreeOpen: true,
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -200,6 +203,10 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setLastRightSidebarPanel(panel) {
     set({ lastRightSidebarPanel: panel })
+  },
+
+  toggleWorkspaceTree() {
+    set({ workspaceTreeOpen: !get().workspaceTreeOpen })
   },
 }))
 

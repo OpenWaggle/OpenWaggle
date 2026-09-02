@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
+import { closeElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { MainWindowPage } from '../page-models/main-window.page'
@@ -10,6 +11,8 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
+const USER_DATA_REMOVE_RETRIES = 3
+const USER_DATA_REMOVE_RETRY_DELAY_MS = 500
 
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
@@ -68,14 +71,16 @@ export class OpenWaggleApp {
       } else {
         console.error('[electron-qa] launch failed before Electron created a page')
       }
-      await app?.close().catch(() => undefined)
+      if (app !== null) {
+        await closeElectronApplication(app)
+      }
       await fs.rm(userDataDir, { recursive: true, force: true })
       throw error
     }
   }
 
   async restart(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
@@ -85,7 +90,7 @@ export class OpenWaggleApp {
   }
 
   async close(): Promise<void> {
-    await this.app.close()
+    await closeElectronApplication(this.app)
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {
@@ -101,21 +106,42 @@ export class OpenWaggleApp {
   async cleanup(): Promise<void> {
     let evidenceError: unknown
     try {
-      const directory = await evidenceDirectory()
-      const screenshotPath = path.join(directory, evidenceName(this.evidencePrefix))
-      await this.currentWindow.waitForTimeout(QA_SCREENSHOT_SETTLE_MS)
-      await this.currentWindow.screenshot({ path: screenshotPath })
-      console.info(`[electron-qa] screenshot: ${screenshotPath}`)
+      await this.captureEvidence(this.evidencePrefix)
     } catch (error) {
       evidenceError = error
     } finally {
       await this.close().catch(() => undefined)
-      await fs.rm(this.userDataDir, { recursive: true, force: true })
+      // A just-killed process tree can hold handles on the user-data dir for a moment;
+      // a bounded retry keeps that race from failing an otherwise-passing test.
+      let attempt = 0
+      while (true) {
+        try {
+          await fs.rm(this.userDataDir, { recursive: true, force: true })
+          break
+        } catch (error) {
+          if (attempt >= USER_DATA_REMOVE_RETRIES) {
+            throw error
+          }
+          attempt += 1
+          await this.currentWindow
+            .waitForTimeout(USER_DATA_REMOVE_RETRY_DELAY_MS)
+            .catch(() => undefined)
+        }
+      }
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)
       expect.soft(evidenceError, 'Electron QA must capture its final screenshot').toBeUndefined()
     }
+  }
+
+  async captureEvidence(prefix: string): Promise<string> {
+    const directory = await evidenceDirectory()
+    const screenshotPath = path.join(directory, evidenceName(prefix))
+    await this.currentWindow.waitForTimeout(QA_SCREENSHOT_SETTLE_MS)
+    await this.currentWindow.screenshot({ path: screenshotPath })
+    console.info(`[electron-qa] screenshot: ${screenshotPath}`)
+    return screenshotPath
   }
 
   async desktopState() {
@@ -208,6 +234,70 @@ export class OpenWaggleApp {
         window.webContents.send('agent:worktree-launch', launchPayload)
       }
     }, payload)
+  }
+
+  /**
+   * Replaces the next classic agent dispatch with a real main-process IPC probe.
+   * The renderer still crosses contextBridge and IPC exactly as production does; only the
+   * provider run is stubbed so E2E can inspect the payload without network credentials.
+   * Restarting the app restores the production handler.
+   */
+  async installAgentSendProbe(): Promise<void> {
+    await this.app.evaluate(({ BrowserWindow, ipcMain }) => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSendProbe?: unknown
+      }
+      probeGlobal.__openWaggleAgentSendProbe = null
+      ipcMain.removeHandler('agent:send-message')
+      ipcMain.handle('agent:send-message', (_event, sessionId, payload, model) => {
+        probeGlobal.__openWaggleAgentSendProbe = { sessionId, payload, model }
+        setTimeout(() => {
+          for (const window of BrowserWindow.getAllWindows()) {
+            window.webContents.send('agent:run-completed', { sessionId })
+          }
+        }, 25)
+        return { outcome: 'delivered' }
+      })
+      ipcMain.removeHandler('providers:get-models')
+      ipcMain.handle('providers:get-models', () => [
+        {
+          provider: 'e2e-probe',
+          displayName: 'E2E Probe',
+          auth: { type: 'none' },
+          models: [
+            {
+              id: 'e2e-probe/visualization-context',
+              modelId: 'visualization-context',
+              name: 'Visualization Context Probe',
+              provider: 'e2e-probe',
+              available: true,
+              availableThinkingLevels: ['off'],
+              contextWindow: 32_768,
+            },
+          ],
+        },
+      ])
+    })
+    const settingsResult = await this.currentWindow.evaluate(() =>
+      window.api.updateSettings({
+        enabledModels: ['e2e-probe/visualization-context'],
+        selectedModel: 'e2e-probe/visualization-context',
+      }),
+    )
+    if (!settingsResult.ok) {
+      throw new Error(`Failed to configure the agent send probe: ${settingsResult.error}`)
+    }
+    await this.currentWindow.reload()
+    await this.mainWindow().waitUntilReady()
+  }
+
+  async readAgentSendProbe(): Promise<unknown> {
+    return this.app.evaluate(() => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSendProbe?: unknown
+      }
+      return probeGlobal.__openWaggleAgentSendProbe ?? null
+    })
   }
 
   mainWindow(): MainWindowPage {

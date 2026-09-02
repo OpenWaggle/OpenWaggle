@@ -1,9 +1,112 @@
+import { SessionId } from '@shared/types/brand'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatDisplayPathProvider } from '../ChatDisplayPathContext'
 import { StreamingText } from '../StreamingText'
 
+const syntaxMocks = vi.hoisted(() => ({
+  highlight: vi.fn(async (input?: { source: string; language: string; theme: string }) => ({
+    status: 'plain-text' as const,
+    language: input?.language ?? 'text',
+    theme: input?.theme ?? 'dark-plus',
+    lines: (input?.source ?? '').split('\n').map((line: string) => [{ content: line }]),
+    elapsedMs: 0,
+  })),
+}))
+
+vi.mock('@/shared/lib/syntax/syntax-service', () => ({
+  syntaxService: { highlight: syntaxMocks.highlight },
+}))
+
 describe('StreamingText', () => {
+  beforeEach(() => syntaxMocks.highlight.mockClear())
+  it('renders a complete visualize reference between surrounding markdown', () => {
+    const path = '/Users/diego/.codex/visualizations/thread-1/latency-map.html'
+
+    render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={[
+          'Before the visualization.',
+          '',
+          `visualize{"path":"${path}","title":"Latency map"}`,
+          '',
+          'After the visualization.',
+        ].join('\n')}
+      />,
+    )
+
+    expect(screen.getByText('Before the visualization.')).toBeInTheDocument()
+    expect(screen.getByText('After the visualization.')).toBeInTheDocument()
+    expect(screen.queryByText(/visualize/)).toBeNull()
+    expect(screen.getByRole('region', { name: 'Latency map' })).toHaveAttribute(
+      'data-visualization-path',
+      path,
+    )
+  })
+
+  it('withholds an incomplete visualize reference until streaming completes it', () => {
+    const path = '/Users/diego/.codex/visualizations/thread-1/stream-map.html'
+    const { rerender } = render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={'Visible before.\n\nvisualize{"path":"/Users/diego/.codex/visualizations'}
+        isStreaming
+      />,
+    )
+
+    expect(screen.getByText('Visible before.')).toBeInTheDocument()
+    expect(screen.queryByText(/visualize/)).toBeNull()
+    expect(screen.queryByRole('region')).toBeNull()
+
+    rerender(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={`Visible before.\n\nvisualize{"path":"${path}"}`}
+        isStreaming
+      />,
+    )
+
+    expect(screen.getByRole('region', { name: 'Interactive visualization' })).toHaveAttribute(
+      'data-visualization-path',
+      path,
+    )
+  })
+
+  it.each(['', 'vis', 'visualize', 'visualize'])(
+    'withholds a split visualize opening marker ending in %s',
+    (partialMarker) => {
+      render(
+        <StreamingText
+          text={`Visible before. ${partialMarker}`}
+          isStreaming
+          visualizationSessionId={SessionId('session-visualization-1')}
+        />,
+      )
+
+      expect(screen.getByText('Visible before.')).toBeInTheDocument()
+      expect(screen.queryByText(/visualize/u)).toBeNull()
+    },
+  )
+
+  it('does not activate a visualize reference without an owning assistant session', () => {
+    render(<StreamingText text={'visualize{"path":"/tmp/extension-injection.html"}'} />)
+
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByText(/visualize/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['relative path', 'visualize{"path":"relative-map.html"}'],
+    ['unknown capability', 'visualize{"path":"/repo/map.html","allowFileAccess":true}'],
+    ['unsupported mode', 'visualize{"path":"/repo/map.html","mode":"fullscreen"}'],
+  ])('fails closed for a completed reference with %s', (_label, reference) => {
+    render(<StreamingText visualizationSessionId={SessionId('thread-1')} text={reference} />)
+
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByText(/visualize/)).toBeInTheDocument()
+  })
+
   it('renders allowed markdown links with safe attributes', () => {
     render(
       <StreamingText
@@ -40,15 +143,14 @@ describe('StreamingText', () => {
     expect(container.querySelector('script')).toBeNull()
   })
 
-  it('preserves syntax highlighting classes for fenced code blocks', () => {
+  it('preserves language metadata and a safe fallback for fenced code blocks', () => {
     const { container } = render(<StreamingText text={'```ts\nconst value = 1\n```'} />)
 
     const code = container.querySelector('code')
     expect(code).toBeTruthy()
     expect(code?.className).toContain('language-ts')
-    // Shiki highlights using inline styles on spans, not hljs class names
-    const highlightedSpan = container.querySelector('code span[style]')
-    expect(highlightedSpan).toBeTruthy()
+    expect(container.querySelector('[data-syntax-status="plain-text"]')).toBeTruthy()
+    expect(container).toHaveTextContent('const value = 1')
   })
 
   it('renders text immediately when streaming is false', () => {
@@ -69,6 +171,20 @@ describe('StreamingText', () => {
     rerender(<StreamingText text="omega" isStreaming />)
 
     expect(screen.getByText('omega')).toBeInTheDocument()
+  })
+
+  it('keeps a byte-zero streaming fence plain until the response completes', async () => {
+    const source = '```objective-c\nNSString *value = @"OpenWaggle";\n```'
+    const { rerender } = render(<StreamingText text={source} isStreaming />)
+
+    expect(syntaxMocks.highlight).not.toHaveBeenCalled()
+    expect(screen.getByText('objective-c')).toBeInTheDocument()
+
+    rerender(<StreamingText text={source} isStreaming={false} />)
+    await vi.waitFor(() => expect(syntaxMocks.highlight).toHaveBeenCalledTimes(1))
+    expect(syntaxMocks.highlight).toHaveBeenCalledWith(
+      expect.objectContaining({ language: 'objective-c' }),
+    )
   })
 
   it('renders text immediately when streaming ends', () => {

@@ -19,6 +19,7 @@ import {
   packageBoundarySourceGlobs,
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
+import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
 interface Violation {
   readonly detail?: string
@@ -152,6 +153,7 @@ async function collectViolationsForFile(file: string) {
     ...collectUnguardedDesktopUiViolations(file, contents),
     ...collectScriptedElectronLaunchViolations(file, contents),
     ...collectSessionSummaryColumnViolations(file, contents),
+    ...collectSyntaxRenderingViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
 
@@ -185,16 +187,14 @@ const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
  * The rule is "use the shared fragment", not "avoid one particular column name". Two earlier versions
  * were wrong in opposite directions: firing only when the list mentioned `created_at` let through the
  * very defect it was written for, and skipping any query containing `count(` anywhere exempted an
- * inline list that merely carried a `COUNT(...)` subquery - which is the shape the detail-side row
- * actually uses, so a list missing `environment_mode` and `worktree_path` went unreported again.
- * Judging the projection alone keeps `SELECT COUNT(*) AS total` passing and that subquery failing.
+ * inline list that carried a `COUNT(...)` subquery. Judging only the projection keeps a pure
+ * `SELECT COUNT(*)` passing while still rejecting mixed aggregate-and-column projections.
  */
 const SESSION_SUMMARY_PROJECTION = /\bselect\b(?<projection>[\s\S]*?)\bfrom\b/iu
 /**
  * A projection that names no columns of its own: only aggregate terms.
  *
- * Checked term by term. An earlier version matched anything whose *first* term was an aggregate, so an
- * inline column list sitting behind a `COUNT(*)` was exempt - the same hole, in a different disguise,
+ * Checked term by term; matching only the first aggregate wrongly exempted later inline columns,
  * as the version that skipped any query containing `count(` at all.
  */
 function namesNoColumns(projection: string) {

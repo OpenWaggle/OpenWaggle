@@ -1,13 +1,15 @@
+import { spawn } from 'node:child_process'
 import type {
   BaseWindow,
   BaseWindowConstructorOptions,
   BrowserWindowConstructorOptions,
   MessageBoxOptions,
   OpenDialogOptions,
+  SaveDialogOptions,
   WebContents,
 } from 'electron'
 import * as Electron from 'electron'
-import { env } from './env'
+import { env, getSafeChildEnv } from './env'
 
 export class AutomationDesktopUiError extends Error {
   constructor(api: string) {
@@ -18,6 +20,12 @@ export class AutomationDesktopUiError extends Error {
 
 export function isAutomationMode() {
   return env.OPENWAGGLE_AUTOMATION === '1'
+}
+
+export function assertExternalApplicationLaunchAllowed() {
+  if (isAutomationMode()) {
+    throw new AutomationDesktopUiError('external-application.launch')
+  }
 }
 
 function blockedAsyncMethod(api: string) {
@@ -57,6 +65,7 @@ export function installAutomationDesktopUiBlockers() {
     [Electron.dialog, 'showSaveDialog'],
     [Electron.shell, 'openExternal'],
     [Electron.shell, 'openPath'],
+    [Electron.shell, 'trashItem'],
   ] as const
   const blockedSyncApis = [
     [Electron.dialog, 'showErrorBox'],
@@ -129,6 +138,37 @@ export function openPath(targetPath: string) {
   return Electron.shell.openPath(targetPath)
 }
 
+export function showItemInFolder(targetPath: string) {
+  return Electron.shell.showItemInFolder(targetPath)
+}
+
+export function trashItem(targetPath: string) {
+  return Electron.shell.trashItem(targetPath)
+}
+
+export function launchExternalApplication(command: string, args: readonly string[]): Promise<void> {
+  assertExternalApplicationLaunchAllowed()
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, [...args], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: getSafeChildEnv(),
+    })
+    const handleError = (error: Error) => {
+      child.removeListener('spawn', handleSpawn)
+      reject(error)
+    }
+    const handleSpawn = () => {
+      child.removeListener('error', handleError)
+      child.unref()
+      resolve()
+    }
+    child.once('error', handleError)
+    child.once('spawn', handleSpawn)
+  })
+}
+
 export function showMessageBox(ownerWindow: BaseWindow | null, options: MessageBoxOptions) {
   return ownerWindow
     ? Electron.dialog.showMessageBox(ownerWindow, options)
@@ -139,4 +179,10 @@ export function showOpenDialog(ownerWindow: BaseWindow | null, options: OpenDial
   return ownerWindow
     ? Electron.dialog.showOpenDialog(ownerWindow, options)
     : Electron.dialog.showOpenDialog(options)
+}
+
+export function showSaveDialog(ownerWindow: BaseWindow | null, options: SaveDialogOptions) {
+  return ownerWindow
+    ? Electron.dialog.showSaveDialog(ownerWindow, options)
+    : Electron.dialog.showSaveDialog(options)
 }

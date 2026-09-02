@@ -189,12 +189,60 @@ The transient status toolbar above the composer while a Waggle invocation is pen
 _Avoid_: Waggle mode toolbar, ready banner
 
 **Workspace file surface**:
-The route-backed right-side file browser, preview, and editor opened from project file search or file links. It supports optimistic edits with visible save state while keeping filesystem authority in the main process.
-_Avoid_: read-only attachment preview, renderer filesystem access
+The session-scoped place for inspecting one project file from the active Working path.
+_Avoid_: IDE workspace, read-only attachment preview, renderer filesystem access
+
+**Focused file edit**:
+An explicit single-file editing state for a targeted manual change within the Workspace file surface.
+_Avoid_: IDE mode, full workspace editing, language-service session
+
+**Large-file source view**:
+The read-only form of the Workspace file surface for a text file too large for Focused file edit.
+_Avoid_: large-file mode, force full edit, oversized editor model
+
+**Progressive syntax rendering**:
+The code-rendering lifecycle in which readable source appears before its Syntax theme tokens.
+_Avoid_: highlighting spinner, blocking tokenization, plain-text preview
+
+**Syntax-eligible content**:
+Code or structured text with a reliable Syntax language or declared data format.
+_Avoid_: highlight every monospace string, tokenize logs, infer a language from prose
+
+**External editor handoff**:
+Opening the active file from the exact Working path in another installed editor.
+_Avoid_: export to editor, temporary editor copy, VS Code-only action
 
 **Transcript agent-loop surface**:
 The durable chat-transcript surface for rendering Pi tool progress, tool results, approvals, and custom agent-loop messages.
 _Avoid_: ephemeral-only tool UI
+
+**Inline visualization**:
+The complete in-conversation capability in which an agent following the Visualize authoring contract emits a structured `visualize` content reference to an agent-authored HTML fragment and OpenWaggle presents it as interactive sandboxed transcript content. The capability spans authoring, content reference handling, storage and replay, host-provided runtime services, failure fallback, and explicit export; it is not merely an HTML renderer.
+_Avoid_: HTML attachment, workspace-file preview, extension frame, MCP App, hosted site
+
+**Visualize compatibility**:
+Compatibility with the documented Visualize authoring and host contract, including its HTML-fragment rules, structured `visualize` content reference, supported attributes, CDN allowlist, theme and icon environment, and documented host interactions. OpenWaggle owns the internal storage and renderer; Codex-private directives, sandbox APIs, and implementation details are outside this compatibility promise.
+_Avoid_: Codex renderer clone, private directive compatibility
+
+**Inline visualization source**:
+The durable, source-session-owned HTML fragment named by an Inline visualization's structured content reference. It remains the live source when the transcript is revisited: updating the same file updates the visualization, while a missing or rejected source produces a stable fallback. OpenWaggle does not automatically freeze a separate copy for each reference.
+_Avoid_: per-message visualization snapshot, temporary preview file
+
+**Inline visualization producer**:
+The authenticated agent turn whose transcript output contains an Inline visualization's structured content reference. Any agent runtime may produce one when its session can emit the documented reference and write to a host-authorized source root; Pi is the first adapter, not part of the visualization contract. An OpenWaggle extension may supply skills, tools, or runtime resources that help the agent author the source, but renderer and extension-frame code cannot inject Inline visualizations directly into transcript history.
+_Avoid_: extension-injected transcript content, renderer-authored visualization
+
+**Inline visualization environment**:
+The versioned, OpenWaggle-owned sandbox and host runtime shared by every Inline visualization. Installed extensions cannot add globals, resource origins, styles, IPC methods, or permissions to this environment, so replay and authority do not depend on which extensions are installed.
+_Avoid_: extension-augmented visualization sandbox, per-extension CSP
+
+**Visualization focus layer**:
+The app-wide modal presentation of an Inline visualization. It promotes the same mounted frame in place, without reparenting or frame navigation, so local interaction state survives the transition and narrow chat layouts do not constrain the visual.
+_Avoid_: widened transcript card, second visualization frame, visualization route
+
+**Inline visualization state snapshot**:
+A bounded JSON value that an Inline visualization explicitly reports through its authenticated host runtime to describe its current semantic selection, filters, or controls. OpenWaggle scopes the untrusted snapshot to the active session and source, and attaches the most recently updated mounted snapshot as clearly delimited user context when that user next addresses the agent. It is not DOM capture, trusted instruction, or durable transcript state.
+_Avoid_: visualization DOM scrape, hidden system prompt, trusted widget state
 
 **Blocking agent-loop interaction**:
 An Interactive agent-loop contribution that pauses agent progress until the user responds.
@@ -496,6 +544,16 @@ _Avoid_: renderer-only history
 OpenWaggle-owned live state for an interaction request waiting for user feedback.
 _Avoid_: extension-local pending prompt
 
+### CI gates
+
+**Fast gate**:
+The required checks that run on every pull-request branch update and prove a change is safe to request merge.
+_Avoid_: pre-merge CI, push checks, quick checks
+
+**Full gate**:
+The complete required-check set the merge queue evaluates on a speculative merge result; the only path that lands a pull request on `main`.
+_Avoid_: post-merge CI, main CI, landing checks
+
 ### Source control and diff
 
 **Source control provider**:
@@ -628,6 +686,10 @@ _Avoid_: branch picker (it picks a run target, not a branch to manage), branch m
 The token-colour scheme applied to code text inside a diff (keyword, string, comment, and so on), supplied by the diff renderer and selectable by the user. It is deliberately **not** part of the Design token contract: its taxonomy is language grammar scopes, not semantic presentation roles.
 _Avoid_: Appearance (that governs chrome, not code tokens), colour scheme, palette
 
+**Syntax language**:
+The standard language identity used to choose a grammar for Syntax-eligible content.
+_Avoid_: language service, compiler mode, file type selector
+
 **Syntax theme preview**:
 The live patch rendered inside the Syntax theme picker, using the real renderer and the real Diff chrome, so the choice is made by looking rather than by reading a description.
 _Avoid_: sample, thumbnail (it is a working diff, not an image), swatch
@@ -714,6 +776,8 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Relationships
 
+- A **Fast gate** passes before a pull request asks for merge; the **Full gate** is what actually lands it.
+- The **Full gate** always includes the **Fast gate** plus the platform and package checks that do not run per push.
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
 - A **Development extension fixture** may be copied into a project for manual QA, but it is not an installed or bundled product extension.
 - An installed OpenWaggle app exposes **Extension authoring roots** for user-authored and agent-authored OpenWaggle extension packages.
@@ -879,6 +943,11 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - The **Run target picker** only searches and selects existing refs; branch creation, copy-name, origin policy, change-request checkout, and branch administration live outside that focused choice (ADR 0017).
 - The **Changed-file navigator** lists files within the active diff scope, so its contents change with **Working-tree diff**, **Branch diff**, or **Turn diff** selection.
 - The **Diff chrome** is a set of **Derived tokens**, so it always matches the active **Appearance**; the **Syntax theme** is independent and selectable on its own.
+- A **Workspace file surface** belongs to exactly one **Working path** and presents one active file.
+- A **Focused file edit** belongs to the active file and is unavailable in a **Large-file source view**.
+- An **External editor handoff** targets the same exact **Working path** as the **Workspace file surface**.
+- **Progressive syntax rendering** applies a **Syntax theme** to **Syntax-eligible content** through its **Syntax language**.
+- A recovered **Focused file edit** never replaces a changed file without an explicit choice.
 - A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
 - A **Review** targets the agent, whereas a **Change request** targets a remote (GitHub/GitLab); they share no state.
 
@@ -1123,3 +1192,4 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "mode" is ambiguous between appearance polarity and git isolation. Resolved: **Colour scheme** is light-or-dark polarity; **Session environment mode** is `local` versus `worktree` git isolation.
 - "pin" was used for both projects and sessions (issue #97 was written as project pinning). Resolved: only sessions are pinnable. A **Pinned session** is reachable by one **Pinned shortcut**, whereas a pinned project never could be — it has no single thing to open.
 - "pinned order" conflated two ideas. Resolved: **Manual order** is the sequence the user drags and owns; **Pinned sort** is the rule currently ordering the section. Switching **Pinned sort** away from Manual and back must return the user's **Manual order** unchanged.
+- "green CI" was used to mean both the three enforced merge checks and the whole pipeline including Electron E2E. Resolved: the enforced pre-merge set is the **Fast gate**; the **Full gate** runs only on the merge queue's speculative merge result. Documentation claiming "current green CI" is required for merges described the Full gate, not the enforced reality.

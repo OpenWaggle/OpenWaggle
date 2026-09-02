@@ -168,6 +168,24 @@ export async function listSessionDetails(limit?: number, offset = 0): Promise<Se
   return sessions.filter(isSessionDetail)
 }
 
+export async function listSessionWorkspaceRoots(): Promise<
+  readonly { readonly projectPath: string | null; readonly worktreePath: string | null }[]
+> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{
+        readonly project_path: string | null
+        readonly worktree_path: string | null
+      }>`SELECT project_path, worktree_path FROM sessions`
+      return rows.map((row) => ({
+        projectPath: row.project_path,
+        worktreePath: row.worktree_path,
+      }))
+    }),
+  )
+}
+
 export async function getSessionDetail(id: SessionId): Promise<SessionDetail | null> {
   return runStoreEffect(
     Effect.gen(function* () {

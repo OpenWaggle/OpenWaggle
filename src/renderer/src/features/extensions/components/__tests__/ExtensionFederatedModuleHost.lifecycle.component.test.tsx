@@ -1,8 +1,10 @@
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { DEFAULT_APPEARANCE_PREFERENCES } from '@shared/types/appearance-preferences'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { mountExtensionFrame } from '../../lib/extension-federated-frame-mount'
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
@@ -12,10 +14,14 @@ const apiMock = vi.hoisted(() => ({
   registerExtensionFrame: vi.fn(),
   unregisterExtensionFrame: vi.fn(),
 }))
+const syntaxMock = vi.hoisted(() => ({
+  highlightExtensionSyntax: vi.fn(),
+}))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
+vi.mock('../../lib/extension-syntax-sdk', () => syntaxMock)
 
 const ENTRY: ExtensionContributionRegistryEntry = {
   extensionId: 'sample-extension',
@@ -92,6 +98,28 @@ function dispatchResizeFromWindow(frameId: string, height: number) {
   )
 }
 
+function dispatchSyntaxMessage(
+  frameId: string,
+  message:
+    | { readonly type: 'syntax-highlight'; readonly requestId: string; readonly source: string }
+    | { readonly type: 'syntax-highlight-cancel'; readonly requestId: string },
+) {
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: window,
+      data: {
+        channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+        frameId,
+        type: message.type,
+        requestId: message.requestId,
+        ...(message.type === 'syntax-highlight'
+          ? { input: { source: message.source, language: 'typescript' } }
+          : {}),
+      },
+    }),
+  )
+}
+
 describe('ExtensionFederatedModuleHost lifecycle performance', () => {
   beforeEach(() => {
     apiMock.invokeExtension.mockReset()
@@ -105,7 +133,10 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
       }),
     )
     apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
+    syntaxMock.highlightExtensionSyntax.mockReset()
+    syntaxMock.highlightExtensionSyntax.mockImplementation(() => new Promise(() => undefined))
     document.documentElement.setAttribute('data-theme', 'dark')
+    setRuntimeAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES)
   })
 
   it('does not remount when an equivalent registry entry object is recreated', async () => {
@@ -130,6 +161,27 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
     })
 
     document.documentElement.setAttribute('data-theme', 'debug')
+
+    await waitFor(() => {
+      expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(1)
+      expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('remounts with a fresh theme context when typography changes', async () => {
+    render(<ExtensionFederatedModuleHost entry={ENTRY} />)
+    const frame = extensionFrame()
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', frameUrl(extensionFrameId(frame)))
+    })
+
+    setRuntimeAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      typography: {
+        ...DEFAULT_APPEARANCE_PREFERENCES.typography,
+        codeFontSize: DEFAULT_APPEARANCE_PREFERENCES.typography.codeFontSize + 1,
+      },
+    })
 
     await waitFor(() => {
       expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(1)
@@ -167,5 +219,46 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
 
     cleanup?.()
     await Promise.resolve()
+  })
+
+  it('cancels request-scoped and outstanding frame syntax work', () => {
+    const frame = document.createElement('iframe')
+    Object.defineProperty(frame, 'contentWindow', {
+      configurable: true,
+      value: window,
+    })
+    const cleanup = mountExtensionFrame({
+      entry: ENTRY,
+      frame,
+      frameId: 'frame-syntax',
+      frameRuntimeSupported: true,
+      getCurrentFrameWindow: () => window,
+      moduleUrl: 'openwaggle-extension://runtime/module/sample/dist/settings.js',
+      mountKey: 'mount-key',
+      reportStatus: vi.fn(),
+    })
+
+    dispatchSyntaxMessage('frame-syntax', {
+      type: 'syntax-highlight',
+      requestId: 'syntax-1',
+      source: 'const first = 1',
+    })
+    const firstSignal = syntaxMock.highlightExtensionSyntax.mock.calls[0]?.[1]?.signal
+    if (!firstSignal) throw new Error('Expected a cancellable syntax request.')
+    dispatchSyntaxMessage('frame-syntax', {
+      type: 'syntax-highlight-cancel',
+      requestId: 'syntax-1',
+    })
+    expect(firstSignal.aborted).toBe(true)
+
+    dispatchSyntaxMessage('frame-syntax', {
+      type: 'syntax-highlight',
+      requestId: 'syntax-2',
+      source: 'const second = 2',
+    })
+    const secondSignal = syntaxMock.highlightExtensionSyntax.mock.calls[1]?.[1]?.signal
+    if (!secondSignal) throw new Error('Expected a cancellable syntax request.')
+    cleanup?.()
+    expect(secondSignal.aborted).toBe(true)
   })
 })

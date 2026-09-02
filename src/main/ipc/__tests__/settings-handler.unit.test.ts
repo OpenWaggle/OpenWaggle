@@ -192,6 +192,57 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
 
+    it('validates and applies appearance and session-default settings', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      expect(handler).toBeDefined()
+
+      const update = {
+        defaultSessionEnvironmentMode: 'worktree',
+        diffSyntaxTheme: 'pierre-dark-vibrant',
+        syntaxThemeSelections: {
+          light: 'bundled:github-light',
+          dark: 'bundled:github-dark',
+          'high-contrast-light': 'bundled:github-light-high-contrast',
+          'high-contrast-dark': 'bundled:github-dark-high-contrast',
+        },
+        diffView: 'split',
+        diffWrapLines: true,
+        appearancePreferences: {
+          typography: {
+            ...DEFAULT_SETTINGS.appearancePreferences.typography,
+            interfaceFontFamily: 'Inter, system-ui, sans-serif',
+            codeFontSize: 14,
+          },
+          motion: 'reduced',
+        },
+      } as const
+
+      const result = await handler?.({}, update)
+
+      expect(result).toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(update))
+    })
+
+    it('rejects incomplete syntax theme selections', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      const result = await handler?.(
+        {},
+        {
+          syntaxThemeSelections: {
+            light: 'bundled:github-light',
+            dark: 'bundled:github-dark',
+          },
+        },
+      )
+
+      expect(result).toEqual({ ok: false, error: expect.any(String) })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
     it('rejects duplicate shortcut bindings without replacing existing customizations', async () => {
       const currentSettings = {
         ...DEFAULT_SETTINGS,

@@ -20,6 +20,12 @@ const EXTENSION_FRAME_TITLE = `Extension module: ${GITHUB_ISSUES_SETTINGS_TITLE}
 const SAVED_REPOSITORY_OWNER = 'OpenWaggle-e2e'
 const SAVED_REPOSITORY_NAME = 'OpenWaggle-e2e-fixture'
 const EXTENSION_CONFIG_KEY = 'github.issues.config'
+// The extension host mounts federation modules and iframes asynchronously. Under loaded
+// CI runners that regularly exceeds the 5s default expect budget, so the mount-dependent
+// assertions below use an explicit ceiling. The ceiling is not a wait: assertions still
+// resolve as soon as the element appears.
+const EXTENSION_MOUNT_TIMEOUT = 30_000
+const EXTENSION_TEST_TIMEOUT = 180_000
 
 function readStoredConfiguration(userDataDir: string) {
   const database = new DatabaseSync(path.join(userDataDir, 'openwaggle.db'), { readOnly: true })
@@ -66,6 +72,9 @@ function lifecycleButton(page: Page, action: string) {
 }
 
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
+  // The mount and unmount assertions below each carry a 30s ceiling; the default 90s
+  // test timeout would fire first once two of them are slow and waste a retry slot.
+  test.setTimeout(EXTENSION_TEST_TIMEOUT)
   const app = await OpenWaggleApp.launch('openwaggle-extension-host-e2e-')
   const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-extension-project-'))
 
@@ -99,13 +108,15 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
 
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_EXTENSION_NAME }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
     ).toHaveCount(0)
 
     await lifecycleButton(page, 'Trust').click()
-    await expect(lifecycleButton(page, 'Enable')).toBeEnabled()
+    await expect(lifecycleButton(page, 'Enable')).toBeEnabled({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
     await lifecycleButton(page, 'Enable').click()
     await expect(page.getByText('Reload required')).toBeVisible()
@@ -117,11 +128,15 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await expect(page.getByText('Reloaded')).toBeVisible()
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
 
     const settingsFrame = page.frameLocator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)
-    await expect(settingsFrame.getByText('Extension configuration')).toBeVisible()
-    await expect(settingsFrame.getByRole('heading', { name: 'GitHub Issues' })).toBeVisible()
+    await expect(settingsFrame.getByText('Extension configuration')).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
+    await expect(settingsFrame.getByRole('heading', { name: 'GitHub Issues' })).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
     await settingsFrame.getByLabel('Repository owner').fill(SAVED_REPOSITORY_OWNER)
     await settingsFrame.getByLabel('Repository name').fill(SAVED_REPOSITORY_NAME)
@@ -144,17 +159,21 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
       })
 
     await lifecycleButton(page, 'Disable').click()
-    await expect(lifecycleButton(page, 'Enable')).toBeVisible()
+    await expect(lifecycleButton(page, 'Enable')).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
-    ).toHaveCount(0)
-    await expect(page.locator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)).toHaveCount(0)
+    ).toHaveCount(0, { timeout: EXTENSION_MOUNT_TIMEOUT })
+    await expect(page.locator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)).toHaveCount(0, {
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
     await app.confirmNativeDialogs()
     await lifecycleButton(page, 'Remove').click()
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_EXTENSION_NAME }),
-    ).toHaveCount(0)
+    ).toHaveCount(0, { timeout: EXTENSION_MOUNT_TIMEOUT })
     await expect
       .poll(() =>
         projectExtensionFixtureExists({

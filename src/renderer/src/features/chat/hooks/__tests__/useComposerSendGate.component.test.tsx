@@ -1,6 +1,11 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import { SessionId } from '@shared/types/brand'
 import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  clearInlineVisualizationStatesForTests,
+  reportInlineVisualizationState,
+} from '../../state/inline-visualization-state'
 
 const { useSessionContextRowMock, stashDraftWorktreePlanMock } = vi.hoisted(() => ({
   useSessionContextRowMock: vi.fn(),
@@ -38,6 +43,8 @@ describe('useComposerSendGate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+
+  afterEach(clearInlineVisualizationStatesForTests)
 
   it('reports why sending is refused when the session worktree has vanished', () => {
     /*
@@ -105,5 +112,38 @@ describe('useComposerSendGate', () => {
 
     expect(result.current.sendBlockedReason).toBeNull()
     expect(onSend).toHaveBeenCalledWith(PAYLOAD)
+  })
+
+  it('attaches the latest mounted visualization state to an active-session send', async () => {
+    const activeSessionId = SessionId('session-a')
+    useSessionContextRowMock.mockReturnValue(stripWith({ kind: 'proceed' }))
+    reportInlineVisualizationState({
+      instanceId: 'frame-a',
+      sessionId: activeSessionId,
+      sourcePath: '/repo/map.html',
+      title: 'Map',
+      state: { selected: 'api' },
+    })
+    const onSend = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useComposerSendGate({
+        activeSessionId,
+        session: null,
+        isFirstMessage: false,
+        onSend,
+        onToast: vi.fn(),
+      }),
+    )
+
+    await result.current.guardedSend(PAYLOAD)
+
+    expect(onSend).toHaveBeenCalledWith({
+      ...PAYLOAD,
+      visualizationContext: {
+        title: 'Map',
+        sourcePath: '/repo/map.html',
+        state: { selected: 'api' },
+      },
+    })
   })
 })

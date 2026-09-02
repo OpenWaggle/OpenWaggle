@@ -1,13 +1,13 @@
 ---
 title: "@openwaggle/extension-sdk"
-description: "Browser-safe OpenWaggle extension SDK types, broker helpers, theme helpers, and federated-module context helpers."
+description: "Browser-safe OpenWaggle extension SDK types, broker helpers, themes, host syntax highlighting, and federated-module context helpers."
 order: 2
 section: "Packages"
 ---
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
 
-Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
+Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme and syntax helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
 
 <package-install packages="@openwaggle/extension-sdk"></package-install>
 
@@ -39,6 +39,7 @@ Supported public subpaths include:
 | `@openwaggle/extension-sdk/runtime` | Runtime contribution schemas, types, and SDK creation. |
 | `@openwaggle/extension-sdk/docs` | Documentation discovery schemas and DTOs. |
 | `@openwaggle/extension-sdk/theme` | Theme token and CSS-variable helpers. |
+| `@openwaggle/extension-sdk/syntax` | Host-backed syntax highlighting types and plain-text fallback helper. |
 | `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
 | `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
 
@@ -105,6 +106,20 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 ```
 
 Declare matching capabilities and methods in `openwaggle.extension.json`; undeclared capability calls fail closed.
+
+## Host Syntax Highlighting
+
+Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active Syntax theme, canonical language aliases, worker scheduling, size limits, caching, and safe Plain Text fallback.
+
+```ts
+const result = await context.sdk.surface.syntax.highlight({
+  source: 'export const ready = true',
+  language: 'typescript',
+  priority: 'visible',
+})
+```
+
+You can provide `path` instead of `language` when the filename is the reliable signal. The result contains token lines rather than HTML, so extensions keep control of rendering without accepting executable or unsanitized host markup. Do not instantiate a second Shiki highlighter inside the extension frame; doing so bypasses the host's theme, worker, and performance policy.
 
 ## Manifest Typing
 
@@ -178,6 +193,7 @@ Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallba
 - Do not import OpenWaggle renderer feature files, Zustand stores, Electron IPC helpers, main-process services, or Pi SDK internals.
 - Do not deep-import from `@openwaggle/extension-sdk/src`, `dist`, or `dist-cjs`.
 - Use `context.theme` and SDK UI helpers instead of importing OpenWaggle app CSS or Tailwind internals.
+- Use `context.sdk.surface.syntax` instead of bundling a separate syntax highlighter or shipping pre-highlighted HTML.
 - Bundle compatible helper code into your extension artifact or resolve the versioned package supplied by the installed SDK path.
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).

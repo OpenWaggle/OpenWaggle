@@ -2,7 +2,7 @@ import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import type { WorkspaceFileEntry } from '@shared/types/workspace-files'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, File, Folder, Search } from 'lucide-react'
-import { useState } from 'react'
+import { type DragEvent, useState } from 'react'
 import { workspaceFilesQueryOptions } from '@/queries/workspace-files'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
@@ -72,45 +72,45 @@ function parentDirectories(path: string) {
 interface TreeRowsProps {
   readonly node: FileTreeNode
   readonly depth: number
-  readonly currentPath: string
-  readonly expanded: ReadonlySet<string>
-  readonly onToggleDirectory: (path: string) => void
-  readonly onOpenFile: (path: string) => void
+  readonly state: {
+    readonly currentPath: string
+    readonly expanded: ReadonlySet<string>
+    readonly dragSource: string | null
+  }
+  readonly actions: {
+    readonly onToggleDirectory: (path: string) => void
+    readonly onOpenFile: (path: string) => void
+    readonly onDragStart: (event: DragEvent<HTMLElement>, path: string) => void
+    readonly onDropIntoDirectory: (event: DragEvent<HTMLElement>, path: string) => void
+  }
 }
 
-function TreeRows({
-  node,
-  depth,
-  currentPath,
-  expanded,
-  onToggleDirectory,
-  onOpenFile,
-}: TreeRowsProps) {
+function TreeRows({ node, depth, state, actions }: TreeRowsProps) {
   return (
     <>
       {sortedDirectories(node).map((directory) => {
-        const open = expanded.has(directory.path) || currentPath.startsWith(`${directory.path}/`)
+        const open =
+          state.expanded.has(directory.path) || state.currentPath.startsWith(`${directory.path}/`)
         return (
           <div key={directory.path}>
             <Button
               variant="unstyled"
               className="flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left text-xs text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"
               style={{ paddingLeft: `${String(depth * TREE_INDENT_PX + DIRECTORY_OFFSET_PX)}px` }}
-              onClick={() => onToggleDirectory(directory.path)}
+              onClick={() => actions.onToggleDirectory(directory.path)}
+              draggable
+              onDragStart={(event) => actions.onDragStart(event, directory.path)}
+              onDragOver={(event) => {
+                if (state.dragSource) event.preventDefault()
+              }}
+              onDrop={(event) => actions.onDropIntoDirectory(event, directory.path)}
             >
               {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
               <Folder className="size-3.5 text-accent/70" />
               <span className="truncate">{directory.name}</span>
             </Button>
             {open && (
-              <TreeRows
-                node={directory}
-                depth={depth + 1}
-                currentPath={currentPath}
-                expanded={expanded}
-                onToggleDirectory={onToggleDirectory}
-                onOpenFile={onOpenFile}
-              />
+              <TreeRows node={directory} depth={depth + 1} state={state} actions={actions} />
             )}
           </div>
         )
@@ -120,12 +120,14 @@ function TreeRows({
           key={file.path}
           variant="unstyled"
           className={`flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left text-xs ${
-            file.path === currentPath
+            file.path === state.currentPath
               ? 'bg-accent/10 text-accent'
               : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
           }`}
           style={{ paddingLeft: `${String(depth * TREE_INDENT_PX + FILE_OFFSET_PX)}px` }}
-          onClick={() => onOpenFile(file.path)}
+          onClick={() => actions.onOpenFile(file.path)}
+          draggable
+          onDragStart={(event) => actions.onDragStart(event, file.path)}
           title={file.path}
         >
           <File className="size-3.5 shrink-0" />
@@ -140,15 +142,18 @@ export function WorkspaceFileBrowser({
   projectPath,
   currentPath,
   onOpenFile,
+  onMoveEntry,
 }: {
   readonly projectPath: string
   readonly currentPath: string
   readonly onOpenFile: (path: string) => void
+  readonly onMoveEntry: (sourcePath: string, targetPath: string) => void
 }) {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(parentDirectories(currentPath)),
   )
+  const [dragSource, setDragSource] = useState<string | null>(null)
   const search = workspaceExplorerSearch(query)
   const filesQuery = useQuery(workspaceFilesQueryOptions(projectPath, search.query, search.limit))
   const files = filesQuery.data ?? []
@@ -166,8 +171,23 @@ export function WorkspaceFileBrowser({
     })
   }
 
+  function startDrag(event: DragEvent<HTMLElement>, path: string) {
+    event.dataTransfer.effectAllowed = 'move'
+    setDragSource(path)
+  }
+
+  function dropIntoDirectory(event: DragEvent<HTMLElement>, directory: string) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!dragSource) return
+    const basename = dragSource.slice(dragSource.lastIndexOf('/') + 1)
+    const targetPath = directory ? `${directory}/${basename}` : basename
+    setDragSource(null)
+    if (targetPath !== dragSource) onMoveEntry(dragSource, targetPath)
+  }
+
   return (
-    <aside className="flex w-52.5 shrink-0 flex-col border-r border-border bg-bg-secondary/80">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-9 items-center gap-1.5 border-b border-border px-2">
         <Search className="size-3.5 text-text-muted" />
         <TextInput
@@ -180,7 +200,15 @@ export function WorkspaceFileBrowser({
           className="h-8 px-0 text-xs"
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-1">
+      <nav
+        aria-label="Workspace files"
+        className="min-h-0 flex-1 overflow-auto p-1"
+        onDragOver={(event) => {
+          if (dragSource) event.preventDefault()
+        }}
+        onDrop={(event) => dropIntoDirectory(event, '')}
+        onDragEnd={() => setDragSource(null)}
+      >
         {filesQuery.isLoading ? (
           <p className="p-3 text-xs text-text-muted">Loading files…</p>
         ) : filesQuery.error ? (
@@ -191,6 +219,8 @@ export function WorkspaceFileBrowser({
               key={file.path}
               variant="unstyled"
               onClick={() => onOpenFile(file.path)}
+              draggable
+              onDragStart={(event) => startDrag(event, file.path)}
               className={`flex h-7 w-full items-center gap-1.5 rounded px-2 text-left text-xs ${
                 file.path === currentPath
                   ? 'bg-accent/10 text-accent'
@@ -206,19 +236,22 @@ export function WorkspaceFileBrowser({
           <TreeRows
             node={tree}
             depth={0}
-            currentPath={currentPath}
-            expanded={expanded}
-            onToggleDirectory={toggleDirectory}
-            onOpenFile={onOpenFile}
+            state={{ currentPath, expanded, dragSource }}
+            actions={{
+              onToggleDirectory: toggleDirectory,
+              onOpenFile,
+              onDragStart: startDrag,
+              onDropIntoDirectory: dropIntoDirectory,
+            }}
           />
         )}
-      </div>
+      </nav>
       {truncated && (
         <p className="border-t border-border px-2 py-1.5 text-xs text-text-muted">
           Showing the first {WORKSPACE_FILES.EXPLORER_RESULT_LIMIT.toLocaleString()} files. Filter
           to find files outside this list.
         </p>
       )}
-    </aside>
+    </div>
   )
 }
