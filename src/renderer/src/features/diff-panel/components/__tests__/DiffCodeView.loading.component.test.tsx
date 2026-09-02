@@ -73,9 +73,13 @@ describe('diff loading edges', () => {
 
   it('accepts a completed header-only Pierre render', async () => {
     pierreMocks.headerOnly.mockReturnValue(true)
-    renderDiff([fileDiff('src/renamed.ts')])
+    const { container } = renderDiff([fileDiff('src/renamed.ts')])
 
     await waitFor(() => expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument())
+    expect(container.querySelector('[data-diff-code-ready]')).toHaveAttribute(
+      'data-diff-code-ready',
+      'true',
+    )
   })
 
   it('surfaces an oversized parser failure instead of spinning forever', async () => {
