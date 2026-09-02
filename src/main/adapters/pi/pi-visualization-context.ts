@@ -15,6 +15,7 @@ export type PiContextMessage = Parameters<
 type PiCompactionContextTransform = (
   messages: PiContextMessage[],
   referenceMessages: PiContextMessage[],
+  options: { willRetry: boolean },
   signal?: AbortSignal,
 ) => Promise<PiContextMessage[]>
 
@@ -79,10 +80,12 @@ function completesPromptTurn(message: PiContextMessage) {
   )
 }
 
-function promptIdentity(message: PiContextMessage | undefined) {
-  if (message?.role === 'user') return `user:${String(message.timestamp)}`
+function promptFingerprint(message: PiContextMessage | undefined) {
+  if (message?.role === 'user') {
+    return JSON.stringify(['user', message.timestamp, message.content])
+  }
   return message?.role === 'custom' && message.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
-    ? `waggle:${String(message.timestamp)}`
+    ? JSON.stringify(['waggle', message.timestamp, message.content, message.details])
     : null
 }
 
@@ -94,6 +97,7 @@ function promptIdentity(message: PiContextMessage | undefined) {
 export async function filterConsumedVisualizationContext(
   messages: PiContextMessage[],
   referenceMessages: PiContextMessage[] = messages,
+  options: { willRetry?: boolean } = {},
 ): Promise<PiContextMessage[]> {
   let latestPromptIndex = -1
   let latestVisualizationAsideIndex = -1
@@ -109,15 +113,15 @@ export async function filterConsumedVisualizationContext(
     }
   }
   const referenceLatestPromptIndex = referenceMessages.findLastIndex(
-    (message) => promptIdentity(message) !== null,
+    (message) => promptFingerprint(message) !== null,
   )
-  const referenceLatestPromptCompleted = referenceMessages
-    .slice(referenceLatestPromptIndex + 1)
-    .some(completesPromptTurn)
+  const referenceLatestPromptCompleted =
+    !options.willRetry &&
+    referenceMessages.slice(referenceLatestPromptIndex + 1).some(completesPromptTurn)
   const latestPromptConsumed =
     latestPromptIndex < 0 ||
-    promptIdentity(messages[latestPromptIndex]) !==
-      promptIdentity(referenceMessages[referenceLatestPromptIndex]) ||
+    promptFingerprint(messages[latestPromptIndex]) !==
+      promptFingerprint(referenceMessages[referenceLatestPromptIndex]) ||
     referenceLatestPromptCompleted
 
   return messages.flatMap((message, index) => {
@@ -152,15 +156,8 @@ export function bindVisualizationContextFilter(session: AgentSession) {
   const transformCompactionContext: PiCompactionContextTransform = async (
     messages,
     referenceMessages,
-    signal,
-  ) => {
-    const transformed = await transformBaseContext(messages, signal)
-    const transformedReference =
-      messages === referenceMessages
-        ? transformed
-        : await transformBaseContext(referenceMessages, signal)
-    return filterConsumedVisualizationContext(transformed, transformedReference)
-  }
+    options,
+  ) => filterConsumedVisualizationContext(messages, referenceMessages, options)
   Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
 }
 

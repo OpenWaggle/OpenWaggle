@@ -47,6 +47,7 @@ export async function createNativeSession(options: {
   initialContext?: string
   cancelAutomaticCompaction?: boolean
   supportsCompaction?: boolean
+  contextEventCounter?: { value: number }
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -96,6 +97,12 @@ export async function createNativeSession(options: {
     },
   })
   const extension: ExtensionFactory = (pi) => {
+    if (options.contextEventCounter) {
+      pi.on('context', (event) => {
+        if (options.contextEventCounter) options.contextEventCounter.value += 1
+        return { messages: event.messages }
+      })
+    }
     pi.on('session_compact', (event) => {
       options.compactionEvents.push(event)
     })

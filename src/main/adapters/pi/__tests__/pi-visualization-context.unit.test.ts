@@ -14,7 +14,7 @@ function user(text: string, timestamp: number): PiContextMessage {
 function assistant(
   text: string,
   timestamp: number,
-  stopReason: 'stop' | 'toolUse' = 'stop',
+  stopReason: 'stop' | 'toolUse' | 'length' = 'stop',
 ): PiContextMessage {
   return {
     role: 'assistant',
@@ -97,6 +97,42 @@ describe('Pi visualization context filtering', () => {
 
     expect(filtered[0]).toEqual(atomicPrompt)
     expect(JSON.stringify(filtered)).toContain('active selection')
+  })
+
+  it('keeps atomic context when overflow compaction will retry the same prompt', async () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'retry selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const atomicPrompt = user(buildAtomicVisualizationPrompt(context, 'retry this prompt'), 1)
+
+    const filtered = await filterConsumedVisualizationContext(
+      [atomicPrompt, assistant('truncated', 2, 'length')],
+      undefined,
+      { willRetry: true },
+    )
+
+    expect(filtered[0]).toEqual(atomicPrompt)
+    expect(JSON.stringify(filtered)).toContain('retry selection')
+  })
+
+  it('does not correlate different same-millisecond prompts', async () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'older colliding selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const olderPrompt = user(buildAtomicVisualizationPrompt(context, 'older prompt'), 1)
+    const activePrompt = user('different active prompt', 1)
+
+    const filtered = await filterConsumedVisualizationContext(
+      [olderPrompt],
+      [olderPrompt, assistant('older answer', 2), activePrompt, assistant('tool', 3, 'toolUse')],
+    )
+
+    expect(filtered[0]).toEqual(user('older prompt', 1))
+    expect(JSON.stringify(filtered)).not.toContain('older colliding selection')
   })
 
   it('keeps the current aside but removes it after the next user prompt begins', async () => {

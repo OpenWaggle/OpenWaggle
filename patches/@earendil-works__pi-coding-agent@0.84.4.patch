@@ -35,7 +35,7 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..66b6ad527a9b9cd1ec45bba5ac5beda0
      /**
       * Send a prompt to the agent.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd4826d65b 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..0db60c1215c774a55617f47ef06d2710e2b3a673 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -22,7 +22,7 @@ import { sleep } from "../utils/sleep.js";
@@ -377,41 +377,35 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1448,7 +1549,32 @@ export class AgentSession {
+@@ -1447,8 +1548,25 @@ export class AgentSession {
+     // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
-     async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
+-    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
 -        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), undefined);
-+        let compactPreparation = preparation;
-+        const transformCompactionContext = this.agent.transformCompactionContext
-+            ? (messages, referenceMessages) => this.agent.transformCompactionContext(messages, referenceMessages, signal)
-+            : this.agent.transformContext
-+                ? (messages) => this.agent.transformContext(messages, signal)
-+                : undefined;
-+        if (transformCompactionContext) {
-+            const transformPortablePreparation = async (candidate) => ({
-+                ...candidate,
-+                messagesToSummarize: await transformCompactionContext(candidate.messagesToSummarize, candidate.messagesForNativeCompaction),
-+                turnPrefixMessages: await transformCompactionContext(candidate.turnPrefixMessages, candidate.messagesForNativeCompaction),
-+            });
-+            if (selectCompactionMechanism(requestModel) === "native") {
-+                compactPreparation = {
-+                    ...preparation,
-+                    messagesForNativeCompaction: await transformCompactionContext(preparation.messagesForNativeCompaction, preparation.messagesForNativeCompaction),
-+                    ...(preparation.portableFallback
-+                        ? { portableFallback: await transformPortablePreparation(preparation.portableFallback) }
-+                        : {}),
-+                };
++    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason, willRetry) {
++        const transformPreparation = this.agent.transformCompactionContext
++            ? async (candidate, mechanism) => {
++                const transformMessages = (messages) => messages.length === 0
++                    ? messages
++                    : this.agent.transformCompactionContext(messages, candidate.messagesForNativeCompaction, { willRetry }, signal);
++                return mechanism === "native"
++                    ? {
++                        ...candidate,
++                        messagesForNativeCompaction: await transformMessages(candidate.messagesForNativeCompaction),
++                    }
++                    : {
++                        ...candidate,
++                        messagesToSummarize: await transformMessages(candidate.messagesToSummarize),
++                        turnPrefixMessages: await transformMessages(candidate.turnPrefixMessages),
++                    };
 +            }
-+            else {
-+                compactPreparation = await transformPortablePreparation(preparation);
-+            }
-+        }
-+        return compact(compactPreparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt);
++            : undefined;
++        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt, transformPreparation);
      }
      /**
       * Manually compact the session context.
-@@ -1474,10 +1575,24 @@ export class AgentSession {
+@@ -1474,10 +1592,24 @@ export class AgentSession {
              if (!this.model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
@@ -438,7 +432,16 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -1530,13 +1645,12 @@ export class AgentSession {
+@@ -1520,7 +1652,7 @@ export class AgentSession {
+             }
+             else {
+                 // Shared default summary generator, also used by automatic compaction.
+-                const result = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, this._compactionAbortController.signal, env, "manual");
++                const result = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, this._compactionAbortController.signal, env, "manual", false);
+                 summary = result.summary;
+                 firstKeptEntryId = result.firstKeptEntryId;
+                 tokensBefore = result.tokensBefore;
+@@ -1530,13 +1662,12 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -455,7 +458,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1547,6 +1661,7 @@ export class AgentSession {
+@@ -1547,6 +1678,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -463,7 +466,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1625,7 +1740,7 @@ export class AgentSession {
+@@ -1625,7 +1757,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -472,7 +475,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
          const settings = this.settingsManager.getCompactionSettings();
          if (!settings.enabled)
              return false;
-@@ -1656,6 +1771,9 @@ export class AgentSession {
+@@ -1656,6 +1788,9 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -482,7 +485,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
                  return await this._runAutoCompaction("overflow", false);
              }
              if (this._overflowRecoveryAttempted) {
-@@ -1715,7 +1833,7 @@ export class AgentSession {
+@@ -1715,7 +1850,7 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -491,7 +494,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
              return await this._runAutoCompaction("threshold", false);
          }
          return false;
-@@ -1734,13 +1852,24 @@ export class AgentSession {
+@@ -1734,13 +1869,24 @@ export class AgentSession {
          const settings = this.settingsManager.getCompactionSettings();
          let started = false;
          let fromExtension = false;
@@ -518,7 +521,16 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
              if (!preparation) {
                  return false;
              }
-@@ -1817,13 +1946,12 @@ export class AgentSession {
+@@ -1794,7 +1940,7 @@ export class AgentSession {
+             }
+             else {
+                 // Shared default summary generator, also used by manual compaction.
+-                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason);
++                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason, willRetry);
+                 summary = compactResult.summary;
+                 firstKeptEntryId = compactResult.firstKeptEntryId;
+                 tokensBefore = compactResult.tokensBefore;
+@@ -1817,13 +1963,12 @@ export class AgentSession {
                  });
                  return false;
              }
@@ -535,7 +547,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1834,6 +1962,7 @@ export class AgentSession {
+@@ -1834,6 +1979,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -543,7 +555,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1843,15 +1972,7 @@ export class AgentSession {
+@@ -1843,15 +1989,7 @@ export class AgentSession {
              };
              this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
              if (willRetry) {
@@ -560,7 +572,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
                  return true;
              }
              // Auto-compaction can complete while follow-up/steering/custom messages are waiting.
-@@ -1884,6 +2005,18 @@ export class AgentSession {
+@@ -1884,6 +2022,18 @@ export class AgentSession {
          }
          finally {
              this._autoCompactionAbortController = undefined;
@@ -579,7 +591,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
          }
      }
      /**
-@@ -1976,7 +2109,7 @@ export class AgentSession {
+@@ -1976,7 +2126,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -588,7 +600,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2529,7 +2662,7 @@ export class AgentSession {
+@@ -2529,7 +2679,7 @@ export class AgentSession {
              let summaryDetails;
              let summaryUsage;
              if (options.summarize && entriesToSummarize.length > 0 && !extensionSummary) {
@@ -597,7 +609,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
                  const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(model);
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
-@@ -2605,7 +2738,7 @@ export class AgentSession {
+@@ -2605,7 +2755,7 @@ export class AgentSession {
                  this.sessionManager.appendLabelChange(targetId, label);
              }
              // Update agent state
@@ -607,7 +619,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
              // Emit session_tree event
              await this._extensionRunner.emit({
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..626d0be5f3557b227294e6e09a1453bfb708d6ae 100644
+index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..1e2044a6aeb405fd19ec583d4ecc1904bf39bd1d 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -16,6 +16,8 @@ export interface CompactionDetails {
@@ -644,7 +656,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..626d0be5f3557b227294e6e09a1453bf
      /** Messages that will be turned into turn prefix summary (if splitting) */
      turnPrefixMessages: AgentMessage[];
      /** Whether this is a split turn (cut point in middle of turn) */
-@@ -129,8 +135,15 @@ export interface CompactionPreparation {
+@@ -129,8 +135,16 @@ export interface CompactionPreparation {
      fileOps: FileOperations;
      /** Compaction settions from settings.jsonl	*/
      settings: CompactionSettings;
@@ -656,21 +668,21 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..626d0be5f3557b227294e6e09a1453bf
 +    nativeRequestOverheadTokens?: number;
 +    portableCustomInstructions?: string;
 +}
++export type CompactionPreparationTransform = (preparation: CompactionPreparation, mechanism: "native" | "portable") => Promise<CompactionPreparation>;
 +export declare function estimatePortableCompactionRequestOverheadTokens(customInstructions?: string, previousSummary?: string, messages?: AgentMessage[]): number;
 +export declare function prepareCompaction(pathEntries: SessionEntry[], settings: CompactionSettings, model?: Model<any>, requestOptions?: CompactionPreparationOptions): CompactionPreparation | undefined;
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -139,5 +152,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -139,5 +153,5 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
 -export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
-+export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string): Promise<CompactionResult>;
++export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string, systemPrompt?: string, transformPreparation?: CompactionPreparationTransform): Promise<CompactionResult>;
  //# sourceMappingURL=compaction.d.ts.map
-\ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b4bfd093d 100644
+index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..36ed4f4dfc100062a2e7fb872051ffc30e229cca 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,10 +4,11 @@
@@ -1125,22 +1137,25 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
  /**
   * Generate summaries for compaction using prepared data.
   * Returns CompactionResult - SessionManager adds uuid/parentUuid when saving.
-@@ -606,8 +773,56 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
+@@ -606,8 +773,64 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
   * @param customInstructions - Optional custom focus for the summary
   * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
 -export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId) {
 -    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = preparation;
-+export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId, systemPrompt = "") {
++export async function compact(preparation, model, apiKey, headers, customInstructions, signal, thinkingLevel, streamFn, env, retry, callbacks, sessionId, systemPrompt = "", transformPreparation) {
 +    let selectedPreparation = preparation;
 +    if (selectCompactionMechanism(model) === "native") {
++        const nativePreparation = transformPreparation
++            ? await transformPreparation(preparation, "native")
++            : preparation;
 +        try {
 +            const nativeInstructions = customInstructions?.trim()
 +                ? `${systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
 +                : systemPrompt;
 +            const response = await compactResponses(model, {
 +                systemPrompt: nativeInstructions,
-+                messages: convertToLlm(preparation.messagesForNativeCompaction),
++                messages: convertToLlm(nativePreparation.messagesForNativeCompaction),
 +            }, {
 +                apiKey,
 +                headers,
@@ -1177,14 +1192,19 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..44b90396f317a38f427513685123585b
 +            if (signal?.aborted || !isNativeEndpointUnavailable(error) || !preparation.portableFallback) {
 +                throw error;
 +            }
-+            selectedPreparation = preparation.portableFallback;
++            selectedPreparation = transformPreparation
++                ? await transformPreparation(preparation.portableFallback, "portable")
++                : preparation.portableFallback;
 +        }
++    }
++    else if (transformPreparation) {
++        selectedPreparation = await transformPreparation(preparation, "portable");
 +    }
 +    const { firstKeptEntryId, messagesToSummarize, turnPrefixMessages, isSplitTurn, tokensBefore, previousSummary, fileOps, settings, } = selectedPreparation;
      // Generate summaries and merge into one
      let summary;
      let summaryUsage;
-@@ -641,7 +856,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
+@@ -641,7 +864,13 @@ export async function compact(preparation, model, apiKey, headers, customInstruc
          firstKeptEntryId,
          tokensBefore,
          usage: summaryUsage,
@@ -1344,7 +1364,7 @@ index 7d93ba62bdb5d47e129751e8075cbb34620322ad..bf8c71bce72ebaea987ea5ac954a177a
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..589dff16fd894275ee6e348f54b0d875ae2aca70 100644
+index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..fe6653ee2788e250996fdbcecc2b62af8657171c 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -11,7 +11,7 @@ import { findInitialModel } from "./model-resolver.js";
@@ -1426,7 +1446,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..589dff16fd894275ee6e348f54b0d875
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 8cdfbdec42f696b8cd6b762a92180a81ec142433..15bb355e3c6cd6a6b15b7febbd3240b4c13b50eb 100644
+index 8cdfbdec42f696b8cd6b762a92180a81ec142433..30dc23ebeca3cf16a8e3b0c7f5dc3f37ef07cb64 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -1517,7 +1537,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..15bb355e3c6cd6a6b15b7febbd3240b4
       * Get session header.
       */
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index f887c04976596f8956bc04c16ca59c4030e09f92..3236ed1b693b71e205e0bef0db27e0079be94b9a 100644
+index f887c04976596f8956bc04c16ca59c4030e09f92..f5d61f163596fa82c29112da2e2cae1e4b6ba0bc 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,5 +1,5 @@
@@ -1875,7 +1895,7 @@ index 3e9241dc237322f9ba64aac399f4eda31ac4715c..f03d0312bdfbc252d491a3f49752f44e
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..539f12374e49cd8950367a6bd1441d6bf6d6aad7 100644
+index 01017cdbf6a26b3d36e236c7f9e835fbf0fa5c3a..220a877171eb2000ac504f55ef6b4f1735769f5d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
