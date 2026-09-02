@@ -377,17 +377,36 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..9d25bc0e1dd07b9a268f060a8e5350dd
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1448,7 +1549,13 @@ export class AgentSession {
+@@ -1448,7 +1549,32 @@ export class AgentSession {
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
      async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
 -        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), undefined);
-+        const compactPreparation = selectCompactionMechanism(requestModel) === "native" && this.agent.transformContext
-+            ? {
-+                ...preparation,
-+                messagesForNativeCompaction: await this.agent.transformContext(preparation.messagesForNativeCompaction, signal),
++        let compactPreparation = preparation;
++        const transformCompactionContext = this.agent.transformCompactionContext
++            ? (messages, referenceMessages) => this.agent.transformCompactionContext(messages, referenceMessages, signal)
++            : this.agent.transformContext
++                ? (messages) => this.agent.transformContext(messages, signal)
++                : undefined;
++        if (transformCompactionContext) {
++            const transformPortablePreparation = async (candidate) => ({
++                ...candidate,
++                messagesToSummarize: await transformCompactionContext(candidate.messagesToSummarize, candidate.messagesForNativeCompaction),
++                turnPrefixMessages: await transformCompactionContext(candidate.turnPrefixMessages, candidate.messagesForNativeCompaction),
++            });
++            if (selectCompactionMechanism(requestModel) === "native") {
++                compactPreparation = {
++                    ...preparation,
++                    messagesForNativeCompaction: await transformCompactionContext(preparation.messagesForNativeCompaction, preparation.messagesForNativeCompaction),
++                    ...(preparation.portableFallback
++                        ? { portableFallback: await transformPortablePreparation(preparation.portableFallback) }
++                        : {}),
++                };
 +            }
-+            : preparation;
++            else {
++                compactPreparation = await transformPortablePreparation(preparation);
++            }
++        }
 +        return compact(compactPreparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt);
      }
      /**

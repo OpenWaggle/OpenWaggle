@@ -79,19 +79,47 @@ describe('Pi repeated native compaction events', () => {
       ),
     })
     sessionManager.appendMessage(fauxAssistantMessage('Inspection complete'))
-    sessionManager.appendMessage({
-      role: 'user',
-      content: 'Continue without the old selection',
-      timestamp: Date.now(),
-    })
     bindVisualizationContextFilter(session)
 
     await session.compact()
 
     expect(requestBodies).toHaveLength(1)
     expect(requestBodies[0]).toContain('Inspect the selected service')
-    expect(requestBodies[0]).toContain('Continue without the old selection')
     expect(requestBodies[0]).not.toContain('transient selected service')
+  })
+
+  it('filters consumed visualization state before Portable compaction', async () => {
+    const directory = createNativeTempDirectory('openwaggle-portable-events-filter-context-')
+    const events: SessionCompactEvent[] = []
+    const portablePrompts: string[] = []
+    const visualizationContext = [
+      '[OpenWaggle inline visualization context]',
+      'portable transient selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const { session, sessionManager } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      supportsCompaction: false,
+      initialContext: buildAtomicVisualizationPrompt(
+        visualizationContext,
+        'Inspect the portable selection',
+      ),
+      responses: [
+        (context) => {
+          portablePrompts.push(JSON.stringify(context))
+          return fauxAssistantMessage('Portable checkpoint')
+        },
+      ],
+    })
+    sessionManager.appendMessage(fauxAssistantMessage('Portable inspection complete'))
+    bindVisualizationContextFilter(session)
+
+    await session.compact()
+
+    expect(portablePrompts).toHaveLength(1)
+    expect(portablePrompts[0]).toContain('Inspect the portable selection')
+    expect(portablePrompts[0]).not.toContain('portable transient selection')
   })
 
   it('emits the newly appended checkpoint for repeated automatic compactions', async () => {

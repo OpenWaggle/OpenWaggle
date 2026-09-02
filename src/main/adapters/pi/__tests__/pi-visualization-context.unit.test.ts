@@ -11,14 +11,18 @@ function user(text: string, timestamp: number): PiContextMessage {
   return { role: 'user', content: [{ type: 'text', text }], timestamp }
 }
 
-function assistant(text: string, timestamp: number): PiContextMessage {
+function assistant(
+  text: string,
+  timestamp: number,
+  stopReason: 'stop' | 'toolUse' = 'stop',
+): PiContextMessage {
   return {
     role: 'assistant',
     api: 'openai-completions',
     provider: 'openai',
     model: 'gpt-5.5',
     content: [{ type: 'text', text }],
-    stopReason: 'stop',
+    stopReason,
     usage: {
       input: 0,
       output: 0,
@@ -59,6 +63,40 @@ describe('Pi visualization context filtering', () => {
 
     expect(filtered[0]).toEqual(user('inspect the selection', 1))
     expect(JSON.stringify(filtered)).not.toContain('current selection')
+  })
+
+  it('strips atomic context after its turn completes without a newer prompt', async () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'completed selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const atomicPrompt = user(buildAtomicVisualizationPrompt(context, 'inspect the selection'), 1)
+
+    const filtered = await filterConsumedVisualizationContext([
+      atomicPrompt,
+      assistant('completed answer', 2),
+    ])
+
+    expect(filtered[0]).toEqual(user('inspect the selection', 1))
+    expect(JSON.stringify(filtered)).not.toContain('completed selection')
+  })
+
+  it('keeps atomic context while a tool-use turn still needs another model call', async () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'active selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const atomicPrompt = user(buildAtomicVisualizationPrompt(context, 'inspect the selection'), 1)
+
+    const filtered = await filterConsumedVisualizationContext([
+      atomicPrompt,
+      assistant('calling a tool', 2, 'toolUse'),
+    ])
+
+    expect(filtered[0]).toEqual(atomicPrompt)
+    expect(JSON.stringify(filtered)).toContain('active selection')
   })
 
   it('keeps the current aside but removes it after the next user prompt begins', async () => {

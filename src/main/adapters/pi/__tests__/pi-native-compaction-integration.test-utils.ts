@@ -46,6 +46,7 @@ export async function createNativeSession(options: {
   systemPrompt?: string
   initialContext?: string
   cancelAutomaticCompaction?: boolean
+  supportsCompaction?: boolean
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -54,7 +55,7 @@ export async function createNativeSession(options: {
   })
   const nativeModel = {
     ...faux.getModel(),
-    compat: { supportsCompaction: true },
+    compat: { supportsCompaction: options.supportsCompaction ?? true },
   }
   if (options.responses) faux.setResponses(options.responses)
   const modelRuntime = await ModelRuntime.create({

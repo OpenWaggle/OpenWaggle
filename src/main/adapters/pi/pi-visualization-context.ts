@@ -12,6 +12,12 @@ export type PiContextMessage = Parameters<
   NonNullable<AgentSession['agent']['transformContext']>
 >[0][number]
 
+type PiCompactionContextTransform = (
+  messages: PiContextMessage[],
+  referenceMessages: PiContextMessage[],
+  signal?: AbortSignal,
+) => Promise<PiContextMessage[]>
+
 function readWaggleVisualizationContext(message: PiContextMessage) {
   if (
     message.role !== 'custom' ||
@@ -64,6 +70,22 @@ function stripConsumedAtomicVisualizationContext(message: PiContextMessage) {
   }
 }
 
+function completesPromptTurn(message: PiContextMessage) {
+  return (
+    message.role === 'assistant' &&
+    message.stopReason !== 'pending' &&
+    message.stopReason !== 'toolUse' &&
+    message.stopReason !== 'deferred'
+  )
+}
+
+function promptIdentity(message: PiContextMessage | undefined) {
+  if (message?.role === 'user') return `user:${String(message.timestamp)}`
+  return message?.role === 'custom' && message.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
+    ? `waggle:${String(message.timestamp)}`
+    : null
+}
+
 /**
  * Keeps visualization state visible to the provider only for the turn that supplied it.
  * Pi persists input messages for replay, so consumed asides and older Waggle snapshots must be
@@ -71,6 +93,7 @@ function stripConsumedAtomicVisualizationContext(message: PiContextMessage) {
  */
 export async function filterConsumedVisualizationContext(
   messages: PiContextMessage[],
+  referenceMessages: PiContextMessage[] = messages,
 ): Promise<PiContextMessage[]> {
   let latestPromptIndex = -1
   let latestVisualizationAsideIndex = -1
@@ -85,26 +108,60 @@ export async function filterConsumedVisualizationContext(
       latestVisualizationAsideIndex = index
     }
   }
+  const referenceLatestPromptIndex = referenceMessages.findLastIndex(
+    (message) => promptIdentity(message) !== null,
+  )
+  const referenceLatestPromptCompleted = referenceMessages
+    .slice(referenceLatestPromptIndex + 1)
+    .some(completesPromptTurn)
+  const latestPromptConsumed =
+    latestPromptIndex < 0 ||
+    promptIdentity(messages[latestPromptIndex]) !==
+      promptIdentity(referenceMessages[referenceLatestPromptIndex]) ||
+    referenceLatestPromptCompleted
 
   return messages.flatMap((message, index) => {
     if (message.role === 'custom' && message.customType === PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE) {
-      return index === latestVisualizationAsideIndex && index > latestPromptIndex ? [message] : []
+      return !latestPromptConsumed &&
+        index === latestVisualizationAsideIndex &&
+        index > latestPromptIndex
+        ? [message]
+        : []
     }
     const cleanMessage = stripWaggleVisualizationContext(
-      index < latestPromptIndex ? stripConsumedAtomicVisualizationContext(message) : message,
+      index < latestPromptIndex || (latestPromptConsumed && index === latestPromptIndex)
+        ? stripConsumedAtomicVisualizationContext(message)
+        : message,
     )
     const activeWaggleAside =
-      index === latestPromptIndex ? transientWaggleVisualizationAside(message) : null
+      !latestPromptConsumed && index === latestPromptIndex
+        ? transientWaggleVisualizationAside(message)
+        : null
     return activeWaggleAside ? [cleanMessage, activeWaggleAside] : [cleanMessage]
   })
 }
 
 export function bindVisualizationContextFilter(session: AgentSession) {
   const previousTransform = session.agent.transformContext?.bind(session.agent)
+  const transformBaseContext = async (messages: PiContextMessage[], signal?: AbortSignal) =>
+    previousTransform ? await previousTransform(messages, signal) : messages
   session.agent.transformContext = async (messages, signal) => {
-    const transformed = previousTransform ? await previousTransform(messages, signal) : messages
+    const transformed = await transformBaseContext(messages, signal)
     return filterConsumedVisualizationContext(transformed)
   }
+  const transformCompactionContext: PiCompactionContextTransform = async (
+    messages,
+    referenceMessages,
+    signal,
+  ) => {
+    const transformed = await transformBaseContext(messages, signal)
+    const transformedReference =
+      messages === referenceMessages
+        ? transformed
+        : await transformBaseContext(referenceMessages, signal)
+    return filterConsumedVisualizationContext(transformed, transformedReference)
+  }
+  Reflect.set(session.agent, 'transformCompactionContext', transformCompactionContext)
 }
 
 export { PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE }
