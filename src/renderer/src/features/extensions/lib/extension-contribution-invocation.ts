@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import { projectName } from '@/shared/lib/format'
 import { api } from '@/shared/lib/ipc'
 import { refreshPreferencesAfterExtensionInvoke } from './extension-broker-preferences'
 
@@ -13,7 +14,7 @@ function outOfScopeInvokeFailure(projectPath: string): ExtensionInvokeResult {
     ok: false,
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
-      message: `Project "${projectPath}" is outside this extension contribution scope.`,
+      message: `Project "${projectName(projectPath)}" is outside this extension contribution scope.`,
     },
   }
 }

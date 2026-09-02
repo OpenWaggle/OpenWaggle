@@ -1,10 +1,14 @@
 import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
+import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
+
+type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 
 /** The ordinary case: main ran the turn. */
 const DELIVERED_REPORT = { outcome: 'delivered' } as const
@@ -15,6 +19,8 @@ const {
   hasActiveRunMock,
   runRenderSnapshots,
   setRunRenderMessagesMock,
+  setFirstSendRecoveryMock,
+  firstSendRecoveryCalls,
   useBackgroundRunStoreMock,
   upsertSessionMock,
   useChatStoreMock,
@@ -37,18 +43,24 @@ const {
     })
   })
   const hasActiveRunMock = vi.fn((_id: SessionId) => false)
+  const firstSendRecoveryCalls: Array<readonly [SessionId, unknown]> = []
+  const setFirstSendRecoveryMock = vi.fn((id: SessionId, recovery: unknown) => {
+    firstSendRecoveryCalls.push([id, recovery])
+  })
   const useBackgroundRunStoreMock = vi.fn(
     (
       selector: (state: {
         getRunRenderSnapshot: (sessionId: SessionId) => unknown
         hasActiveRun: (sessionId: SessionId) => boolean
         setRunRenderMessages: (sessionId: SessionId, messages: readonly unknown[]) => void
+        setFirstSendRecovery: typeof setFirstSendRecoveryMock
       }) => unknown,
     ) =>
       selector({
         getRunRenderSnapshot: getRunRenderSnapshotMock,
         hasActiveRun: hasActiveRunMock,
         setRunRenderMessages: setRunRenderMessagesMock,
+        setFirstSendRecovery: setFirstSendRecoveryMock,
       }),
   )
   const upsertSessionMock = vi.fn()
@@ -86,6 +98,8 @@ const {
     runRenderSnapshots,
     getRunRenderSnapshotMock,
     setRunRenderMessagesMock,
+    setFirstSendRecoveryMock,
+    firstSendRecoveryCalls,
     hasActiveRunMock,
     useBackgroundRunStoreMock,
     upsertSessionMock,
@@ -109,7 +123,10 @@ vi.mock('@/features/chat/state/chat-store', () => ({
 
 const { useAgentChat } = await import('../useAgentChat')
 
-function emitAgentEvent(payload: unknown) {
+function emitAgentEvent(payload: AgentEventPayload) {
+  // WorkspaceShell owns the durable session-scoped event listener in production. This focused hook
+  // harness mirrors that listener while still delivering the event to useAgentChat's stream logic.
+  useAgentLoopEventStore.getState().applyEvent(payload.sessionId, payload.event)
   for (const handler of agentEventHandlers) {
     handler(payload)
   }
@@ -237,10 +254,13 @@ export function installUseAgentChatTestLifecycle() {
     hasActiveRunMock.mockReturnValue(false)
     runRenderSnapshots.clear()
     setRunRenderMessagesMock.mockClear()
+    setFirstSendRecoveryMock.mockClear()
+    firstSendRecoveryCalls.length = 0
     upsertSessionMock.mockReset()
     useChatStoreMock.mockClear()
     agentEventHandlers.length = 0
     runCompletedHandlers.length = 0
+    useAgentLoopEventStore.setState({ sessionsById: new Map() })
     useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
   })
 }
@@ -254,6 +274,7 @@ export {
   createSessionWithMessages,
   emitAgentEvent,
   emitRunCompleted,
+  firstSendRecoveryCalls,
   getRunRenderSnapshotMock,
   hasActiveRunMock,
   runRenderSnapshots,

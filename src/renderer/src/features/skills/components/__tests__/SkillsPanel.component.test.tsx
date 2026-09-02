@@ -90,4 +90,11 @@ describe('SkillsPanel markdown safety', () => {
     expect(code).toBeTruthy()
     expect(code?.className).toContain('language-ts')
   })
+
+  it('shows the standards file relative to the project', () => {
+    renderPanel('')
+
+    expect(screen.getAllByText('AGENTS.md')).toHaveLength(2)
+    expect(screen.queryByText('/tmp/project/AGENTS.md')).toBeNull()
+  })
 })

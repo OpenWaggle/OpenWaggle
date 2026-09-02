@@ -1,20 +1,65 @@
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { resetPhaseForSession, updatePhaseFromTransportEvent } from '../agent/phase-tracker'
 import { broadcastToWindows } from './broadcast'
-import { applyEventToStreamBuffer } from './stream-buffer'
+import {
+  applyEventToStreamBuffer,
+  getStreamBuffer,
+  setWorktreeLaunchSnapshot,
+} from './stream-buffer'
 
 export {
   clearStreamBuffer,
   getStreamBuffer,
   listStreamBuffers,
+  setWorktreeLaunchSnapshot,
   startStreamBuffer,
 } from './stream-buffer'
 
 export function emitRunCompleted(sessionId: SessionId) {
   broadcastToWindows('agent:run-completed', { sessionId })
+}
+
+function appendLaunchDetails(existing: readonly string[] | undefined, incoming: readonly string[]) {
+  return [...new Set([...(existing ?? []), ...incoming])]
+}
+
+export function emitWorktreeLaunchProgress(sessionId: SessionId, progress: WorktreeLaunchProgress) {
+  const now = Date.now()
+  const existing = getStreamBuffer(sessionId)?.worktreeLaunch
+  const launch = {
+    ...existing,
+    ...progress,
+    status: progress.stage === 'starting-task' ? ('complete' as const) : ('running' as const),
+    stage: progress.stage,
+    startedAt: existing?.startedAt ?? now,
+    updatedAt: now,
+    details: appendLaunchDetails(existing?.details, progress.details),
+  }
+  setWorktreeLaunchSnapshot(sessionId, launch)
+  broadcastToWindows('agent:worktree-launch', { sessionId, launch })
+}
+
+export function emitWorktreeLaunchFailure(sessionId: SessionId, errorMessage: string) {
+  const existing = getStreamBuffer(sessionId)?.worktreeLaunch
+  if (!existing || existing.status === 'complete') return
+  const launch = {
+    ...existing,
+    status: 'failed' as const,
+    updatedAt: Date.now(),
+    errorMessage,
+    details: appendLaunchDetails(existing.details, [errorMessage]),
+  }
+  setWorktreeLaunchSnapshot(sessionId, launch)
+  broadcastToWindows('agent:worktree-launch', { sessionId, launch })
+}
+
+export function clearWorktreeLaunch(sessionId: SessionId) {
+  setWorktreeLaunchSnapshot(sessionId, null)
+  broadcastToWindows('agent:worktree-launch', { sessionId, launch: null })
 }
 
 export function emitTransportEvent(sessionId: SessionId, event: AgentTransportEvent) {

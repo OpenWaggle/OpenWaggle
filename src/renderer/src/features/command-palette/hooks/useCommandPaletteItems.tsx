@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { extensionSlashCommandText } from '@/features/composer/commands'
 import { consumeActiveSlashCommand } from '@/features/composer/lib'
+import type { SlashMenuFilter } from '@/features/composer/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
@@ -40,11 +41,13 @@ function sessionIdFromPathname(pathname: string) {
 }
 
 interface UseCommandPaletteItemsInput extends CommandPaletteCallbacks {
+  readonly filter: SlashMenuFilter
   readonly query: string
   readonly slashSkills: readonly SkillDiscoveryItem[]
 }
 
 export function useCommandPaletteItems({
+  filter,
   query,
   slashSkills,
   onSelectSkill,
@@ -85,14 +88,20 @@ export function useCommandPaletteItems({
     insertComposerCommandText(extensionSlashCommandText(entry))
     closeSlashCommandMenu()
   }
+  const skillItems = createSkillItems(slashSkills, lowerQuery, actions.selectSkill)
+  const presetItems = createPresetItems(wagglePresets, lowerQuery, actions.selectPreset)
+  const configureWaggleItems = createConfigureWaggleItem(lowerQuery, actions.configureWaggle)
+  if (filter === 'skills') return skillItems
+  if (filter === 'waggle') return [...presetItems, ...configureWaggleItems]
+
   return [
-    ...createSkillItems(slashSkills, lowerQuery, actions.selectSkill),
-    ...createPresetItems(wagglePresets, lowerQuery, actions.selectPreset),
+    ...skillItems,
+    ...presetItems,
     ...createExtensionSlashCommandItems({
       registry: extensionContributions,
       lowerQuery,
       insertCommand: insertExtensionSlashCommand,
     }),
-    ...createConfigureWaggleItem(lowerQuery, actions.configureWaggle),
+    ...configureWaggleItems,
   ]
 }

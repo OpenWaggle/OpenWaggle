@@ -1,4 +1,5 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -10,6 +11,7 @@ export interface AgentRunInput {
   readonly model: SupportedModelId
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly onTitleAssigned?: (title: string) => void
 }
 

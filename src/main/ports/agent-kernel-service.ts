@@ -1,4 +1,5 @@
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
@@ -37,6 +38,7 @@ export interface AgentKernelRunInput {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly waggle?: AgentKernelWaggleRunOptions
 }
 

@@ -86,11 +86,10 @@ function renderSettings(context, config, initialStatus = '') {
         labels: normalizeLabels(labelsField.input.value),
       })
       await setStoredValue(context, STORAGE_CONFIG, CONFIG_KEY, nextConfig)
-      renderSettings(
-        context,
-        nextConfig,
-        'Configuration saved. The side panel will use it on the next refresh.',
-      )
+      ownerField.input.value = nextConfig.owner
+      repoField.input.value = nextConfig.repo
+      labelsField.input.value = nextConfig.labels.join(', ')
+      status.textContent = 'Configuration saved. The side panel will use it on the next refresh.'
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : String(error)
     } finally {

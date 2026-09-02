@@ -7,9 +7,10 @@ import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
-import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
+import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-components'
 import { Button } from '@/shared/ui/Button'
+import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { renderTextWithMentions } from './MentionText'
 
 const USER_REMARK_PLUGINS = [remarkGfm]
@@ -50,11 +51,10 @@ function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
   return <li>{processChildrenForComposerReferences(children)}</li>
 }
 
-const userMarkdownComponents: Components = {
-  ...safeMarkdownComponents,
+const userMarkdownComponents: Components = createSyntaxMarkdownComponents({
   p: UserMarkdownParagraph,
   li: UserMarkdownListItem,
-}
+})
 
 function isAttachmentText(content: string) {
   return content.startsWith(ATTACHMENT_TEXT_PREFIX)
@@ -132,18 +132,19 @@ function UserMessageContent({
   readonly message: UIMessage
   readonly contentParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[]
 }) {
+  const formatDisplayText = useChatDisplayTextFormatter()
   if (contentParts.length === 0) return null
   return (
     <div className="prose prose-user min-w-0 flex-1 max-w-none break-words [overflow-wrap:anywhere]">
-      {contentParts.map((part, index) => (
+      {contentParts.map((part) => (
         <ReactMarkdown
-          key={`${message.id}-text-${String(index)}`}
+          key={`${message.id}-text-${part.content}`}
           remarkPlugins={USER_REMARK_PLUGINS}
           rehypePlugins={safeMarkdownRehypePlugins}
           urlTransform={safeMarkdownUrlTransform}
           components={userMarkdownComponents}
         >
-          {part.content}
+          {formatDisplayText(part.content)}
         </ReactMarkdown>
       ))}
     </div>

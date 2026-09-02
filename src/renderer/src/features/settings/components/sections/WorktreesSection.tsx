@@ -142,7 +142,7 @@ export function WorktreesSection() {
                     {worktree.isMain ? ' (main)' : ''}
                   </span>
                   <span className="text-xs text-text-tertiary">
-                    {worktree.branch ?? 'detached'} · {worktree.path}
+                    {worktree.branch ?? 'detached'}
                   </span>
                 </div>
                 {!worktree.isMain && (

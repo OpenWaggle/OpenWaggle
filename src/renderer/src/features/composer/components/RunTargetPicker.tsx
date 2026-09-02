@@ -1,10 +1,10 @@
 import type { SessionContextRowState } from '@/features/git'
 import { selectWorkingTreeStatus, useGitStore } from '@/features/git'
+import { DOCK_MENU_POPOVER_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
 import { useBranchPickerController } from '../hooks/useBranchPickerController'
 import { BranchPickerList } from './BranchPickerList'
 import { BranchPickerSearch } from './BranchPickerSearch'
-import { RunTargetOptions } from './RunTargetOptions'
 import { RunTargetTrigger } from './RunTargetTrigger'
 
 interface RunTargetPickerProps {
@@ -49,10 +49,27 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
     : controller.currentBranch
   const isMissing = isWorktree && !hasWorktree && strip?.baseRef == null
 
+  if (strip?.editable === false) {
+    return (
+      <RunTargetTrigger
+        isMissing={isMissing}
+        isOpen={false}
+        onToggle={() => {}}
+        readOnly
+        selectedRef={selectedRef}
+      />
+    )
+  }
+
+  function setBranchMenuOpen(open: boolean) {
+    if (!open) controller.setBranchQuery('')
+    controller.openMenu(open ? 'branch' : null)
+  }
+
   function selectRef(name: string) {
     if (isWorktree && strip) {
       strip.setBaseRef(name)
-      controller.openMenu(null)
+      setBranchMenuOpen(false)
       return
     }
     void controller.checkoutBranch(name)
@@ -60,16 +77,18 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
 
   return (
     <Popover
+      ariaLabel="Choose a run target"
       open={controller.branchMenuOpen}
-      onOpenChange={(open) => controller.openMenu(open ? 'branch' : null)}
+      onOpenChange={setBranchMenuOpen}
       placement="top-end"
-      className="w-80 p-2"
+      className={DOCK_MENU_POPOVER_CLASS}
+      role="dialog"
       trigger={
         <RunTargetTrigger
           selectedRef={selectedRef}
           isOpen={controller.branchMenuOpen}
           isMissing={isMissing}
-          onToggle={(open) => controller.openMenu(open ? 'branch' : null)}
+          onToggle={setBranchMenuOpen}
         />
       }
     >
@@ -84,12 +103,6 @@ export function RunTargetPicker({ strip, onToast }: RunTargetPickerProps) {
         remoteBranches={controller.remoteBranches}
         selectedRef={selectedRef}
         onSelectRef={selectRef}
-      />
-      <RunTargetOptions
-        strip={strip}
-        selectedRef={selectedRef}
-        onOpenActionDialog={controller.openActionDialog}
-        onToast={onToast}
       />
     </Popover>
   )

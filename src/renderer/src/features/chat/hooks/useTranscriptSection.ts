@@ -8,6 +8,7 @@ import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
+import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useSessionStore } from '@/features/sessions/state'
 import {
   mergeCustomMessages,
@@ -101,6 +102,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
+  const worktreeLaunch = useBackgroundRunStore((state) =>
+    activeSessionId ? (state.worktreeLaunchBySessionId.get(activeSessionId) ?? null) : null,
+  )
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const draftBranchSourceNodeId =
     activeSessionId &&
@@ -149,6 +153,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     waggleMetadataLookup,
     phase,
     interruptedRun,
+    worktreeLaunch,
   })
 
   // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
@@ -163,6 +168,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     messages: transcriptMessages,
     isLoading: transcriptLoading,
     projectPath,
+    worktreePath: activeSession?.worktreePath ?? null,
     recentProjects,
     activeSessionId,
     chatRows,

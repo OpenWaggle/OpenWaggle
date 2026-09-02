@@ -2,15 +2,27 @@
 
 ## Git Hooks
 
-Husky is configured with a `pre-push` hook that runs only when pushing to `main`:
+Husky is configured with a `pre-push` hook. Pushes to `main` run the heavyweight gates:
 
-- `pnpm check`
-- `pnpm format`
-- `pnpm test:all` (includes headless Playwright e2e)
+- `pnpm prepush:main` (`pnpm check`, `pnpm format`, `pnpm test:all` including headless Playwright e2e)
+
+Feature-branch pushes run `pnpm verify`: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. This keeps deterministic failures out of CI entirely; `--no-verify` remains available to humans for exceptional cases.
 
 ## CI/CD
 
-Every push to `main` and every PR runs CI for typechecking, linting, and tests. The current release workflow is still Conventional Commit derived: when release-eligible commits land on `main`, CI determines the version bump and opens a generated version PR. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for all required checks, and leaves the green PR open as an explicit maintainer gate. If `main` advances, it updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer's protected merge starts a second release run, which verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Preparation runs share a coalescing concurrency group, while every protected-merge publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+CI is tiered (ADR 0029). Every PR push runs the Fast gate: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, and Electron E2E on macOS (functional suite plus the native visual baselines). The merge queue runs the Full gate on each speculative merge result: the Fast gate plus Electron E2E on Linux (functional suite under Xvfb) and Windows, plus the package rehearsals when the merged diff touches package or website/docs surfaces. Clicking merge enqueues the pull request; only a green Full gate on the exact merge result lands it. Linux and Windows E2E are intentionally absent from per-push runs — per-push iteration must not wait on, or retry against, a 15-minute cross-platform matrix. The native visual-regression baselines remain macOS-only; copying Darwin pixels to other platforms would create a noisy rather than meaningful gate.
+
+Pushes to `main` after a queue landing run the static checks only (commit policy, typecheck and lint, unit, integration and component, MCP conformance) as a cheap canary; the queue already validated the merge result. Dispatched CI runs accept a `ci_tier` input — `full` (default, release validation), `fast`, or `visual` (macOS E2E visual baselines only, for pixel-change verification on the runner image).
+
+The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, release-please opens a generated version PR. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. If `main` advances, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer's merge enqueues the release PR through the merge queue like any other; the queued merge result is what lands. The release run then verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+
+### Required-Check Settings Runbook
+
+The workflow's job set and the repository ruleset must stay in sync. The rename retires the `Unit & Component Tests` required context, so apply these settings in the same admin window as the merge — between merge and swap, open PRs wait on a check that no longer reports (use the routine bypass if something must land in that window):
+
+1. `Settings → Rules → Rulesets → OpenWaggle main protections → required_status_checks`: set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Electron E2E (macOS)`, `Electron E2E (Linux)`, `Electron E2E (Windows)`, `Package Release Gate` (replacing `Unit & Component Tests`).
+2. Enable the merge queue on the same ruleset (merge method squash; group up to 6 entries; no minimum wait). Required checks are enforced on the queue's merge result; PR-branch runs of the same jobs are informational for the skipped platform jobs.
+3. Enable `merge_group` events for CI if the repository restricts workflow triggers (the committed workflow already declares `merge_group`).
 
 The workflow currently publishes unsigned platform artifacts. Public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
 
@@ -170,7 +182,7 @@ Package publishing should follow the `ts-match` release model:
 - Publish `extension-sdk` and `waggle-core` before `extension-react` and `pi-waggle`, respectively, and verify each base version is resolvable before publishing its dependent.
 - The release job runs on Node 24 with pinned npm `11.18.0` until that pin is deliberately updated. Do not install `npm@latest` during a release.
 - The protected GitHub `npm` environment has no npm secrets or required reviewers, accepts deployments only from `main`, and prevents concurrent package release runs.
-- The additive `main` ruleset requires pull requests and current green CI, allows only squash and rebase, and blocks force pushes and deletion without a routine bypass. Release Please package PRs remain open until a maintainer or explicitly authorized agent chooses to merge them. Repository settings disable merge commits so GitHub cannot synthesize a package-changing merge subject that passes PR checks but fails the commit policy on `main`.
+- The additive `main` ruleset requires pull requests and green CI at the tier the merge path enforces: the Fast gate on PR branches and the Full gate on each merge-queue merge result (ADR 0029). It allows only squash and rebase, and blocks force pushes and deletion without a routine bypass. Release Please package PRs remain open until a maintainer or explicitly authorized agent chooses to merge them. Repository settings disable merge commits so GitHub cannot synthesize a package-changing merge subject that passes PR checks but fails the commit policy on `main`.
 - Recovery dispatches the Package Release workflow from `main` with the exact merged release commit SHA. The workflow verifies that commit is reachable from `origin/main`, finds the newest first-parent commit that changed a package manifest and uses its parent as the pre-release baseline, matches the merged release Git tree to the successful attested release-candidate artifact, and resumes only missing package versions whose registry integrity still matches. Recovery never rebuilds or replaces an existing version.
 - A bad published version is deprecated and followed by a corrected patch. Do not overwrite or routinely unpublish immutable package history.
 - Normal package releases are stable semver versions published to `latest`. The workflow does not support `next`, `beta`, or `rc` channels until a separate prerelease policy is accepted; the setup-only `bootstrap` tag is the sole exception.

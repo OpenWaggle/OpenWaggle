@@ -28,4 +28,17 @@ describe('CommandDialog', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('offers an explicit backdrop control for pointer dismissal', () => {
+    const onClose = vi.fn()
+    render(
+      <CommandDialog title="Commands" onClose={onClose}>
+        <Button>Action</Button>
+      </CommandDialog>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss Commands' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

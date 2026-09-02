@@ -208,6 +208,8 @@ describe('package release namespace bootstrap GitHub policy', () => {
     expect(mutation?.input).toContain('"name":"OpenWaggle main protections"')
     expect(mutation?.input).toContain('"context":"Package Release Gate"')
     expect(mutation?.input).toContain('"context":"Electron E2E (macOS)"')
+    expect(mutation?.input).toContain('"context":"Electron E2E (Linux)"')
+    expect(mutation?.input).toContain('"context":"Electron E2E (Windows)"')
     expect(mutation?.input).toContain(
       '"require_extra_approval_for_unattributed_changes":true',
     )
@@ -252,6 +254,8 @@ describe('package release namespace bootstrap GitHub policy', () => {
       { context: 'Typecheck & Lint' },
       { context: 'Unit & Component Tests' },
       { context: 'Electron E2E (macOS)' },
+      { context: 'Electron E2E (Linux)' },
+      { context: 'Electron E2E (Windows)' },
       {},
     ])
     const { dependencies, requests } = createDependencies(rulesetOverrides(ruleset))

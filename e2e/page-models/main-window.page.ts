@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 const THREAD_VISIBILITY_TIMEOUT_MS = 12_000
+const WINDOW_READINESS_TIMEOUT_MS = 30_000
 const NEW_THREAD_LABEL = 'New session'
 const SCROLL_BOTTOM_TOLERANCE_PX = 40
 
@@ -8,7 +9,9 @@ export class MainWindowPage {
   constructor(readonly page: Page) {}
 
   async waitUntilReady(): Promise<void> {
-    await expect(this.page.getByRole('button', { name: NEW_THREAD_LABEL }).first()).toBeVisible()
+    await expect(this.page.getByRole('button', { name: NEW_THREAD_LABEL }).first()).toBeVisible({
+      timeout: WINDOW_READINESS_TIMEOUT_MS,
+    })
   }
 
   newThreadButton(): Locator {
@@ -43,6 +46,11 @@ export class MainWindowPage {
     const thread = this.threadItem(title)
     await expect(thread).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
     await thread.click()
+    // Clicking a client-side route can resolve before React commits the chat panel. Tests that
+    // immediately emit main-process events would then race the renderer's IPC subscription and
+    // lose the event on slower CI runners. The composer is the stable signal that the active
+    // session surface (and its subscriptions) has mounted.
+    await expect(this.messageInput()).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
   }
 
   async pasteIntoComposer(text: string): Promise<void> {

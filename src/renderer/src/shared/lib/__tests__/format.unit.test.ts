@@ -41,8 +41,10 @@ describe('truncate', () => {
 })
 
 describe('projectName', () => {
-  it('handles null and slash-delimited paths', () => {
+  it('handles null, POSIX, and Windows paths', () => {
     expect(projectName(null)).toBe('No project')
     expect(projectName('/Users/diego/OpenWaggle')).toBe('OpenWaggle')
+    expect(projectName('C:\\Users\\runner\\OpenWaggle')).toBe('OpenWaggle')
+    expect(projectName('C:\\Users\\runner\\OpenWaggle\\')).toBe('OpenWaggle')
   })
 })

@@ -118,5 +118,13 @@ describe('OpenWaggle extension context', () => {
     expect(modules.ui.createStylesheet()).toContain('.ow-extension-root .ow-extension-button')
     await expect(surfaceSdk.sendAction('refresh')).resolves.toBeUndefined()
     await expect(surfaceSdk.respondInteraction(null)).resolves.toBeUndefined()
+    await expect(
+      surfaceSdk.syntax.highlight({ source: 'const value = 1', language: 'typescript' }),
+    ).resolves.toEqual({
+      status: 'plain-text',
+      language: 'typescript',
+      lines: [[{ content: 'const value = 1' }]],
+      diagnostic: 'Host syntax highlighting is unavailable.',
+    })
   })
 })

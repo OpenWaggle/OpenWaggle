@@ -7,10 +7,13 @@ const {
   broadcastToWindowsMock,
   clearAgentPhaseMock,
   clearStreamBufferMock,
+  emitErrorAndFinishMock,
   emitRunCompletedMock,
   emitTransportEventMock,
   emitWaggleTransportEventMock,
   emitWaggleTurnEventMock,
+  emitWorktreeLaunchFailureMock,
+  emitWorktreeLaunchProgressMock,
   executeWaggleRunMock,
   startStreamBufferMock,
   typedHandleMock,
@@ -19,10 +22,13 @@ const {
   broadcastToWindowsMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
+  emitErrorAndFinishMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
   emitTransportEventMock: vi.fn(),
   emitWaggleTransportEventMock: vi.fn(),
   emitWaggleTurnEventMock: vi.fn(),
+  emitWorktreeLaunchFailureMock: vi.fn(),
+  emitWorktreeLaunchProgressMock: vi.fn(),
   executeWaggleRunMock: vi.fn(),
   startStreamBufferMock: vi.fn(),
   typedHandleMock: vi.fn(),
@@ -45,10 +51,13 @@ vi.mock('../../utils/broadcast', () => ({
 vi.mock('../../utils/stream-bridge', () => ({
   clearAgentPhase: clearAgentPhaseMock,
   clearStreamBuffer: clearStreamBufferMock,
+  emitErrorAndFinish: emitErrorAndFinishMock,
   emitRunCompleted: emitRunCompletedMock,
   emitTransportEvent: emitTransportEventMock,
   emitWaggleTransportEvent: emitWaggleTransportEventMock,
   emitWaggleTurnEvent: emitWaggleTurnEventMock,
+  emitWorktreeLaunchFailure: emitWorktreeLaunchFailureMock,
+  emitWorktreeLaunchProgress: emitWorktreeLaunchProgressMock,
   startStreamBuffer: startStreamBufferMock,
 }))
 
@@ -96,10 +105,13 @@ describe('registerWaggleHandlers', () => {
     broadcastToWindowsMock.mockReset()
     clearAgentPhaseMock.mockReset()
     clearStreamBufferMock.mockReset()
+    emitErrorAndFinishMock.mockReset()
     emitRunCompletedMock.mockReset()
     emitTransportEventMock.mockReset()
     emitWaggleTransportEventMock.mockReset()
     emitWaggleTurnEventMock.mockReset()
+    emitWorktreeLaunchFailureMock.mockReset()
+    emitWorktreeLaunchProgressMock.mockReset()
     executeWaggleRunMock.mockReset()
     startStreamBufferMock.mockReset()
     typedHandleMock.mockReset()
@@ -134,6 +146,60 @@ describe('registerWaggleHandlers', () => {
     expect(emitTransportEventMock).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({ type: 'agent_start', runId: `waggle-${SESSION_ID}` }),
+    )
+  })
+
+  it('publishes worktree launch progress emitted by a Waggle first send', async () => {
+    const progress = {
+      stage: 'checking-out-files' as const,
+      details: ['Checking out files'],
+    }
+    executeWaggleRunMock.mockImplementation((input) =>
+      Effect.sync(() => {
+        input.onWorktreeLaunch?.(progress)
+        return { outcome: 'success', newMessages: [] }
+      }),
+    )
+
+    registerWaggleHandlers()
+    const send = getSendHandler()
+    await Effect.runPromise(
+      send(
+        {},
+        SESSION_ID,
+        { text: 'Review this patch', thinkingLevel: 'medium', attachments: [] },
+        SELECTED_MODEL,
+        inheritedFirstAgentConfig(),
+      ),
+    )
+
+    expect(emitWorktreeLaunchProgressMock).toHaveBeenCalledWith(SESSION_ID, progress)
+  })
+
+  it('marks an in-progress Waggle worktree launch as failed when setup is refused', async () => {
+    executeWaggleRunMock.mockReturnValue(
+      Effect.succeed({
+        outcome: 'error',
+        message: 'Could not create worktree',
+        code: 'worktree-creation-failed',
+      }),
+    )
+
+    registerWaggleHandlers()
+    const send = getSendHandler()
+    await Effect.runPromise(
+      send(
+        {},
+        SESSION_ID,
+        { text: 'Review this patch', thinkingLevel: 'medium', attachments: [] },
+        SELECTED_MODEL,
+        inheritedFirstAgentConfig(),
+      ),
+    )
+
+    expect(emitWorktreeLaunchFailureMock).toHaveBeenCalledWith(
+      SESSION_ID,
+      'Could not create worktree',
     )
   })
 })

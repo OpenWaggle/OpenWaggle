@@ -11,6 +11,7 @@ import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shar
 import { useEffect } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
 import type { ParsedMcpAppResource } from './mcp-app-resource'
 
@@ -72,12 +73,16 @@ interface McpAppBridgeInput {
 }
 
 async function confirmToolCall(input: McpAppBridgeInput, name: string, arguments_: unknown) {
+  const displayArguments = formatDisplayPathsInText(
+    JSON.stringify(arguments_, null, JSON_INDENT_SPACES),
+    [input.projectPath],
+  )
   return api.showConfirm(
     `Allow ${input.descriptor.toolTitle} to call an MCP tool?`,
     [
       `Server: ${input.descriptor.serverLabel}`,
       `Tool: ${name}`,
-      `Arguments: ${JSON.stringify(arguments_, null, JSON_INDENT_SPACES)}`,
+      `Arguments: ${displayArguments}`,
       '',
       'This approval applies only to this call from the sandboxed App.',
     ].join('\n'),
@@ -137,10 +142,11 @@ function registerServerHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
 function registerHostHandlers(bridge: AppBridge, input: McpAppBridgeInput) {
   bridge.onmessage = async ({ content }) => {
     const message = `MCP App message from ${input.descriptor.serverLabel}\n\n${textFromContent(jsonValue(content))}`
+    const displayMessage = formatDisplayPathsInText(message, [input.projectPath])
     const confirmed = await api.showConfirm(
       'Add this untrusted MCP App message to your draft?',
       [
-        message,
+        displayMessage,
         '',
         'OpenWaggle will append this content to your current editable draft. It will not be sent automatically.',
       ].join('\n'),

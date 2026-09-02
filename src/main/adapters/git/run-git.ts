@@ -28,6 +28,8 @@ export interface GitExecResult {
   readonly maxBufferExceeded?: boolean
   /** The command was killed for exceeding `timeoutMs`, rather than failing on its own terms. */
   readonly timedOut?: boolean
+  /** The owning operation was cancelled and the Git child was terminated. */
+  readonly aborted?: boolean
 }
 
 /** Node's error code when a child is killed for exceeding `maxBuffer`. */
@@ -45,6 +47,7 @@ export interface RunGitOptions {
    * on interactive paths: a diff load, a cached status refresh, the gate a Commit & push waits for.
    */
   readonly timeoutMs?: number
+  readonly signal?: AbortSignal
 }
 
 function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
@@ -76,6 +79,7 @@ function normalizeGitError(error: unknown): GitExecResult {
     code: typeof value.code === 'number' ? value.code : 1,
     ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
+    ...(value.name === 'AbortError' || value.code === 'ABORT_ERR' ? { aborted: true } : {}),
   }
 }
 
@@ -101,6 +105,7 @@ export async function runGit(
       cwd: projectPath,
       maxBuffer,
       ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
+      ...(options.signal ? { signal: options.signal } : {}),
       ...(options.env ? { env: getEnvWithOverrides(options.env) } : {}),
     })
     return normalizeGitSuccess(output)

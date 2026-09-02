@@ -77,6 +77,10 @@ async function openSeededSession(app: OpenWaggleApp) {
   await app.restart()
   const mainWindow = app.mainWindow()
   await mainWindow.openThread(SESSION_TITLE)
+  // The composer exists before the persisted transcript has necessarily hydrated on slower
+  // runners. Transient main-process events must be injected only after this concrete session is
+  // active, otherwise the test is exercising route setup rather than the notification surface.
+  await expect(mainWindow.page.getByText('Check the open GitHub issues.')).toBeVisible()
   return { mainWindow, sessionId }
 }
 
@@ -86,24 +90,124 @@ test('the composer access control names the mode in force, in the documented voc
   try {
     const { mainWindow } = await openSeededSession(app)
     const page = mainWindow.page
-    const select = page.getByRole('combobox', { name: 'Session access mode' })
+    const trigger = page.getByRole('button', { name: 'Session access mode: YOLO' })
 
-    await expect(select).toBeVisible()
-    // One vocabulary in both states. The contraction "Ask" is ruled out by CONTEXT.md, and swapping
-    // option text on focus depended on Chromium repainting before the native popup opened.
-    await expect(
-      page.getByRole('option', { exact: true, name: 'YOLO (Full access)' }),
-    ).toBeAttached()
-    await expect(page.getByRole('option', { exact: true, name: 'Ask for Approval' })).toBeAttached()
-    await expect(page.getByRole('option', { name: 'YOLO', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('option', { name: 'Ask', exact: true })).toHaveCount(0)
+    const header = page.locator('header')
+    const headerIdentity = header.locator('[data-qa="header-identity"]')
+    const headerActions = header.locator('[data-qa="header-actions"]')
+    const headerTitle = header.locator('[data-qa="header-session-title"]')
+    const headerLayout = await Promise.all([
+      header.boundingBox(),
+      headerIdentity.boundingBox(),
+      headerActions.boundingBox(),
+      headerTitle.boundingBox(),
+    ])
+    const [headerBox, identityBox, actionsBox, titleBox] = headerLayout
 
-    // The seeded session holds no override, so the inherited option names the effective mode and
-    // marks it as inherited rather than showing the bare word "Default".
-    await expect(select).toHaveValue('inherit')
+    expect(headerBox).not.toBeNull()
+    expect(identityBox).not.toBeNull()
+    expect(actionsBox).not.toBeNull()
+    expect(titleBox).not.toBeNull()
+    if (headerBox && identityBox && actionsBox && titleBox) {
+      expect(titleBox.height).toBeLessThanOrEqual(20)
+      expect(identityBox.x + identityBox.width).toBeLessThanOrEqual(actionsBox.x)
+      expect(identityBox.y).toBeGreaterThanOrEqual(headerBox.y)
+      expect(identityBox.y + identityBox.height).toBeLessThanOrEqual(
+        headerBox.y + headerBox.height,
+      )
+    }
+
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+    // The compact trigger stays short while the menu uses the canonical documented vocabulary.
     await expect(
-      page.getByRole('option', { exact: true, name: 'Default · YOLO (Full access)' }),
-    ).toBeAttached()
+      page.getByRole('menuitemradio', { exact: true, name: 'YOLO (Full Access)' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('menuitemradio', { exact: true, name: 'Ask for Approval' }),
+    ).toBeVisible()
+
+    await expect(
+      page.getByRole('menuitemradio', { exact: true, name: 'YOLO (Full Access)' }),
+    ).toBeChecked()
+    await expect(page.getByRole('menuitemradio')).toHaveCount(2)
+    await expect(page.getByText(/Default/)).toHaveCount(0)
+
+    await page.keyboard.press('Escape')
+    await app.resizeMainWindow(720, 700)
+    const toolbar = page.getByTestId('composer-toolbar')
+    const toolbarActions = page.getByTestId('composer-toolbar-actions')
+    const sendButton = page.getByRole('button', { name: 'Send message' })
+    await expect(toolbar).toBeVisible()
+    await expect(toolbarActions).toBeVisible()
+    await expect(sendButton).toBeVisible()
+    await expect
+      .poll(async () => {
+        const [toolbarBox, toolbarActionsBox, sendButtonBox] = await Promise.all([
+          toolbar.boundingBox(),
+          toolbarActions.boundingBox(),
+          sendButton.boundingBox(),
+        ])
+        if (!toolbarBox || !toolbarActionsBox || !sendButtonBox) return false
+        return (
+          toolbarActionsBox.x >= toolbarBox.x &&
+          toolbarActionsBox.x + toolbarActionsBox.width <= toolbarBox.x + toolbarBox.width &&
+          sendButtonBox.x >= toolbarBox.x &&
+          sendButtonBox.x + sendButtonBox.width <= toolbarBox.x + toolbarBox.width
+        )
+      })
+      .toBe(true)
+  } finally {
+    await app.cleanup()
+  }
+})
+
+test('worktree setup becomes a compact expandable trace before agent streaming', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-e2e-worktree-launch-')
+
+  try {
+    const { mainWindow, sessionId } = await openSeededSession(app)
+    const page = mainWindow.page
+
+    await app.emitWorktreeLaunch({
+      sessionId,
+      launch: {
+        status: 'running',
+        stage: 'checking-out-files',
+        startedAt: 1,
+        updatedAt: 2,
+        details: ['Preparing the session worktree', 'Creating session-a-worktree from main'],
+      },
+    })
+
+    const preflight = page.getByRole('region', { name: 'Creating a worktree' })
+    await expect(preflight).toBeVisible()
+    await expect(preflight.getByText('Preparing workspace')).toBeVisible()
+    await expect(preflight.locator('span').filter({ hasText: /^Checking out files$/u })).toBeVisible()
+    await expect(preflight.getByRole('button', { name: 'Work locally' })).toBeVisible()
+    await expect(preflight.getByRole('button', { name: 'Cancel' })).toBeVisible()
+
+    await app.emitWorktreeLaunch({
+      sessionId,
+      launch: {
+        status: 'complete',
+        stage: 'starting-task',
+        startedAt: 1,
+        updatedAt: 3,
+        details: [
+          'Preparing the session worktree',
+          'Creating session-a-worktree from main',
+          'Created session-a-worktree from main',
+          'Starting the task in the new worktree',
+        ],
+      },
+    })
+
+    await expect(preflight).toHaveCount(0)
+    const trace = page.getByRole('button', { name: /Worktree created/ })
+    await expect(trace).toBeVisible()
+    await trace.click()
+    await expect(page.getByText('Created session-a-worktree from main')).toBeVisible()
   } finally {
     await app.cleanup()
   }
@@ -161,17 +265,19 @@ test('notifications float clear of the composer, most severe first', async () =>
     const { mainWindow, sessionId } = await openSeededSession(app)
     const page = mainWindow.page
 
-    await app.emitAgentEvent(notification(sessionId, 'error', 'Could not reach api.github.com'))
-    await app.emitAgentEvent(notification(sessionId, 'info', 'Ponytail loaded: full'))
+    // The region must pre-exist the notification; inserting a live region and its text together is
+    // not announced consistently by assistive technology.
+    const announcer = page.getByRole('status', { name: 'Agent notification announcements' })
+    await expect(announcer).toHaveText('')
 
+    await app.emitAgentEvent(notification(sessionId, 'error', 'Could not reach api.github.com'))
     const stack = page.getByLabel('Agent notifications')
     await expect(stack).toBeVisible()
     await expect(stack.getByText('Could not reach api.github.com')).toBeVisible()
-
-    // The announcement comes from a region that already existed, which is what makes it audible. A
-    // live region added with its content is not announced.
-    const announcer = page.locator('[role="status"][aria-live="polite"]').first()
     await expect(announcer).toHaveText('Could not reach api.github.com')
+
+    await app.emitAgentEvent(notification(sessionId, 'info', 'Ponytail loaded: full'))
+    await expect(stack.getByText('Ponytail loaded: full')).toBeVisible()
 
     // The error outranks the later informational notice, so it is the frontmost card.
     const labels = await stack.locator('[data-notification-level]').evaluateAll((cards) =>

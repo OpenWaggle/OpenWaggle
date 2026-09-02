@@ -1,6 +1,7 @@
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { PackageContributionDetails } from './ExtensionContributionSummary'
 import type { PackageContributionSummary } from './extension-contribution-summary-model'
 
@@ -42,9 +43,11 @@ function MetadataItem({
 export function PackageMetadata({
   extensionPackage,
   contributionSummary,
+  displayRoots,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
   readonly contributionSummary: PackageContributionSummary | null
+  readonly displayRoots: readonly string[]
 }) {
   const manifest = extensionPackage.manifest
   return (
@@ -62,7 +65,9 @@ export function PackageMetadata({
       </MetadataItem>
       <MetadataItem label="Install source">{formatInstallSource(extensionPackage)}</MetadataItem>
       <MetadataItem label="Build command" valueClassName="truncate">
-        {extensionPackage.buildPlan?.command ?? 'Not declared'}
+        {extensionPackage.buildPlan?.command
+          ? formatDisplayPathsInText(extensionPackage.buildPlan.command, displayRoots)
+          : 'Not declared'}
       </MetadataItem>
       {extensionPackage.buildPlan ? (
         <MetadataItem label="Build status" valueClassName="truncate">
@@ -74,7 +79,7 @@ export function PackageMetadata({
       </MetadataItem>
       {extensionPackage.lifecycle?.buildLog ? (
         <MetadataItem label="Build log" valueClassName="truncate font-mono">
-          {extensionPackage.lifecycle.buildLog}
+          {formatDisplayPathsInText(extensionPackage.lifecycle.buildLog, displayRoots)}
         </MetadataItem>
       ) : null}
     </div>

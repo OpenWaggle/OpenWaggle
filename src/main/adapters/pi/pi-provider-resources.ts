@@ -6,6 +6,7 @@ import type {
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
+import { env } from '../../env'
 import { isPathInside } from '../../utils/paths'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 
@@ -14,6 +15,7 @@ export interface PiRuntimeServicesOptions {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly visualizationDirectory?: string
 }
 
 type PiResourceLoaderOptions = NonNullable<
@@ -89,19 +91,32 @@ function filterDisabledCatalogSkills(
     diagnostics: base.diagnostics,
   }
 }
+
+function disableExecutableExtensionsForAutomation() {
+  return env.OPENWAGGLE_AUTOMATION === '1'
+}
+
+export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoaderOptions {
+  return disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}
+}
+
 export function createOpenWagglePiResourceLoaderOptions(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
   settingsManager?: SettingsManager,
+  builtInSkillPaths: readonly string[] = [],
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
+  const disableExtensions = disableExecutableExtensionsForAutomation()
   return {
-    additionalExtensionPaths: settingsManager
-      ? []
-      : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
-    additionalSkillPaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
+    additionalExtensionPaths:
+      disableExtensions || settingsManager
+        ? []
+        : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
+    additionalSkillPaths: [
+      ...builtInSkillPaths,
+      ...(settingsManager ? [] : includeExistingPath(getOpenWaggleSkillsRoot(projectPath))),
+    ],
     additionalPromptTemplatePaths: settingsManager
       ? []
       : includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
@@ -109,6 +124,20 @@ export function createOpenWagglePiResourceLoaderOptions(
       ? []
       : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
     skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
-    ...(options.extensionFactories ? { extensionFactories: [...options.extensionFactories] } : {}),
+    ...(options.visualizationDirectory
+      ? {
+          appendSystemPrompt: [
+            [
+              '## Inline visualization authoring',
+              `The durable visualization directory for this session is ${JSON.stringify(options.visualizationDirectory)}.`,
+              'When using the visualize skill, write its HTML fragment there and emit the absolute path in the documented visualize reference.',
+            ].join('\n'),
+          ],
+        }
+      : {}),
+    ...(disableExtensions ? { noExtensions: true } : {}),
+    ...(!disableExtensions && options.extensionFactories
+      ? { extensionFactories: [...options.extensionFactories] }
+      : {}),
   }
 }

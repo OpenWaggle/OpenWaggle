@@ -8,14 +8,13 @@
  * message persistence, error classification) lives in AgentRunService.
  */
 import { randomUUID } from 'node:crypto'
-import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import {
   agentLoopResponseInputSchema,
   toAgentLoopResponseInput,
 } from '@shared/schemas/agent-loop-interaction'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
-import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -27,7 +26,7 @@ import {
   cancelAgentLoopInteractionsForRun,
   submitAgentLoopInteractionResponse,
 } from '../application/agent-loop-interaction-broker'
-import { type AgentRunResult, executeAgentRun } from '../application/agent-run-service'
+import { executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -36,6 +35,8 @@ import {
   clearStreamBuffer,
   emitRunCompleted,
   emitTransportEvent,
+  emitWorktreeLaunchFailure,
+  emitWorktreeLaunchProgress,
   getStreamBuffer,
   listStreamBuffers,
   startStreamBuffer,
@@ -48,6 +49,7 @@ import {
   cancelSessionRuns,
   hasAnyActiveRun,
 } from './active-agent-runs'
+import { describeSendOutcome, handleRunResult } from './agent-run-result'
 import { runAgentRequestedWaggle } from './agent-waggle-handoff'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle } from './typed-ipc'
@@ -61,56 +63,6 @@ function clearSessionTransportState(sessionId: SessionId) {
 function emitCancelledCompletion(sessionId: SessionId) {
   clearSessionTransportState(sessionId)
   emitRunCompleted(sessionId)
-}
-
-/**
- * A send that produced no turn was not delivered, whatever the transport did afterwards.
- *
- * `aborted` is reported as its own outcome rather than as a failure. A run cancelled before its prompt was sent
- * reports the same thing as one cancelled mid-turn, so it is evidence in neither direction - and raising it as
- * an error dismantled the ordinary Stop flow, where a queued follow-up send begins the moment the stopped run
- * settles and the superseded send's reply arrives afterwards.
- */
-function describeSendOutcome(result: AgentRunResult): AgentSendReport {
-  return (
-    matchBy(result, 'outcome')
-      .with('success', () => ({ outcome: 'delivered' as const }))
-      .with('aborted', () => ({ outcome: 'cancelled' as const }))
-      /*
-       * A run that reached the transport had the message: `transportEmitted` marks a failure raised *after* the
-       * turn began, such as a provider error or a rate limit, as opposed to a refusal raised before it. Reporting
-       * both as refusals made a caller restore a review the agent already held and offer it for a second
-       * submission - and it drove the renderer to guess at delivery from stream events, which cannot tell one
-       * send from the next in the same session. Main knows; it now says so.
-       */
-      .with('error', (value) =>
-        value.transportEmitted === true
-          ? { outcome: 'delivered' as const }
-          : {
-              outcome: 'refused' as const,
-              ...(value.message === undefined ? {} : { message: value.message }),
-              ...(value.code === undefined ? {} : { code: value.code }),
-            },
-      )
-      .otherwise((value) => ({
-        outcome: 'refused' as const,
-        ...(value.message === undefined ? {} : { message: value.message }),
-        ...(value.code === undefined ? {} : { code: value.code }),
-      }))
-  )
-}
-
-function handleRunResult(sessionId: SessionId, result: AgentRunResult) {
-  if (result.outcome === 'error' && result.transportEmitted) {
-    return
-  }
-
-  matchBy(result, 'outcome')
-    .with('success', 'aborted', () => undefined)
-    .with('invalid-model', 'not-found', 'error', (value) =>
-      emitErrorAndFinish(sessionId, value.message, value.code),
-    )
-    .exhaustive()
 }
 
 /**
@@ -157,6 +109,7 @@ function registerAgentRunHandlers() {
             model,
             signal: abortController.signal,
             onEvent: onEventWithUsageCapture,
+            onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(sessionId, progress),
             onTitleAssigned: (title) => {
               broadcastToWindows('sessions:title-updated', { sessionId, title })
             },
@@ -188,6 +141,9 @@ function registerAgentRunHandlers() {
           }
 
           // ─── Transport: respond based on outcome ─────────
+          if (result.outcome === 'error' || result.outcome === 'invalid-model') {
+            emitWorktreeLaunchFailure(sessionId, result.message)
+          }
           handleRunResult(sessionId, result)
           /*
            * Reported back, because main recovers every run failure into a value rather than failing the Effect:

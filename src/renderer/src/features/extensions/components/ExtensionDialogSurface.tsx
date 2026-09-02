@@ -3,6 +3,7 @@ import type { JsonValue } from '@shared/types/json'
 import { MessageSquare, RefreshCw, ShieldAlert, X } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import type {
@@ -191,7 +192,7 @@ function extensionDialogBody({
           </Button>
         }
         icon={<ShieldAlert className="size-4" />}
-        message={error}
+        message={formatDisplayPathsInText(error, projectPaths)}
         title="Could not load extension dialog registry"
       />
     )
@@ -220,7 +221,7 @@ function extensionDialogBody({
   return (
     <ExtensionDialogStatusCard
       icon={<ShieldAlert className="size-4" />}
-      message={resolution.message}
+      message={formatDisplayPathsInText(resolution.message, projectPaths)}
       title={resolution.title}
     />
   )

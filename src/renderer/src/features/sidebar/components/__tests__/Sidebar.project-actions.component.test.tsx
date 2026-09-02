@@ -269,8 +269,9 @@ describe('Sidebar project actions', () => {
     await waitFor(() => {
       expect(showConfirmMock).toHaveBeenCalledWith(
         expect.stringContaining('Archive 1 session'),
-        expect.stringContaining(PROJECT_PATH),
+        'Project: openwaggle',
       )
+      expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
       expect(archiveSessionMock).toHaveBeenCalledWith(SESSION_ID)
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
@@ -321,8 +322,9 @@ describe('Sidebar project actions', () => {
     await waitFor(() => {
       expect(showConfirmMock).toHaveBeenCalledWith(
         expect.stringContaining('permanently delete 2 sessions'),
-        expect.stringContaining(PROJECT_PATH),
+        'Project: OpenWaggle Local\nThis cannot be undone.',
       )
+      expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
       expect(cancelAgentMock).toHaveBeenCalledWith(SESSION_ID)
       expect(deleteSessionMock).toHaveBeenCalledWith(SESSION_ID)
       expect(deleteSessionMock).toHaveBeenCalledWith(ARCHIVED_SESSION_ID)

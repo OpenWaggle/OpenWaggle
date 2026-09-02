@@ -1,22 +1,34 @@
 import { join } from 'node:path'
-import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, shell } from 'electron'
+import { electronApp, is } from '@electron-toolkit/utils'
+import { app } from 'electron'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
-import { configureApplicationMenu, installDevToolsShortcut } from './application-menu'
+import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { installDevToolsShortcut } from './application-menu'
+import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
+import {
+  configureDesktopUiAfterReady,
+  focusWindow,
+  prepareDesktopUi,
+  revealWindow,
+} from './desktop-window-policy'
 import { env } from './env'
 import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
+import { openExternalFromRenderer } from './external-navigation'
+import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
+import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import {
+  configureInlineVisualizationProcessIsolation,
   devRendererUrl,
   INDEX_HTML,
-  RENDERER_PROTOCOL,
-  RENDERER_PROTOCOL_HOST,
+  isTrustedRendererRequest,
   RENDERER_PROTOCOL_ORIGIN,
   registerRendererProtocolOnce,
   registerRendererScheme,
+  rendererUrlWithAutomationIdentity,
 } from './renderer-protocol'
 import {
   assertSecureWebPreferences,
@@ -46,6 +58,7 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
 const appIconPath = is.dev
@@ -135,6 +148,13 @@ async function bootstrapServicesAndWindow() {
   await settingsStoreModule.initializeSettingsStore()
   startupMark('settings-store-initialized')
 
+  if (isAutomationMode() && env.OPENWAGGLE_AUTOMATION_PROJECT_PATH) {
+    settingsStoreModule.updateSettings({
+      projectPath: env.OPENWAGGLE_AUTOMATION_PROJECT_PATH,
+      recentProjects: [env.OPENWAGGLE_AUTOMATION_PROJECT_PATH],
+    })
+  }
+
   await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   startupMark('interrupted-runs-reconciled')
 
@@ -151,35 +171,15 @@ async function bootstrapServicesAndWindow() {
   registerRendererProtocolOnce()
   registerExtensionFrameProtocolOnce()
   registerExtensionRuntimeProtocolOnce()
+  registerInlineVisualizationProtocolOnce({
+    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  })
   startupMark('protocol-handlers-registered')
 
   createWindow()
   startupMark('main-window-created')
 
-  void initializeAutoUpdaterAfterWindow()
-}
-
-function isTrustedRendererProtocolRequest(url: string) {
-  try {
-    const parsedUrl = new URL(url)
-    return (
-      parsedUrl.protocol === `${RENDERER_PROTOCOL}:` && parsedUrl.host === RENDERER_PROTOCOL_HOST
-    )
-  } catch {
-    return false
-  }
-}
-
-function isTrustedRendererRequest(url: string) {
-  if (url.startsWith('file://')) return true
-  if (isTrustedRendererProtocolRequest(url)) return true
-  if (!env.ELECTRON_RENDERER_URL) return false
-
-  try {
-    return new URL(url).origin === new URL(env.ELECTRON_RENDERER_URL).origin
-  } catch {
-    return false
-  }
+  if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
 }
 
 function createWindow() {
@@ -189,7 +189,7 @@ function createWindow() {
   }
   assertSecureWebPreferences(webPreferences)
 
-  const mainWindow = new BrowserWindow({
+  const mainWindow = createBrowserWindow({
     width: WIDTH,
     height: HEIGHT,
     minWidth: MIN_WIDTH,
@@ -202,11 +202,12 @@ function createWindow() {
     webPreferences,
   })
   installCspHeaders(mainWindow.webContents.session)
-  installDevToolsShortcut(mainWindow)
+  if (!isAutomationMode()) installDevToolsShortcut(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     startupMark('window-ready-to-show')
-    mainWindow.show()
+    if (isAutomationMode()) return
+    revealWindow(mainWindow)
     startupMark('window-shown')
   })
 
@@ -221,7 +222,7 @@ function createWindow() {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    openExternalFromRenderer(details.url)
     return { action: 'deny' }
   })
 
@@ -231,19 +232,25 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(rendererOrigin)) {
       event.preventDefault()
-      shell.openExternal(url)
+      openExternalFromRenderer(url)
     }
   })
+  installInlineVisualizationNavigationGuard(mainWindow.webContents)
 
   const mediaPermissions = new Set(['media', 'microphone'])
   mainWindow.webContents.session.setPermissionCheckHandler(
     (_webContents, permission, requestingOrigin) => {
+      if (isAutomationMode()) return false
       if (!mediaPermissions.has(permission)) return false
       return isTrustedRendererRequest(requestingOrigin)
     },
   )
   mainWindow.webContents.session.setPermissionRequestHandler(
     (_webContents, permission, callback, details) => {
+      if (isAutomationMode()) {
+        callback(false)
+        return
+      }
       if (!mediaPermissions.has(permission)) {
         callback(false)
         return
@@ -255,24 +262,21 @@ function createWindow() {
   const rendererDevUrl = devRendererUrl()
   startupMark('renderer-load-start')
   if (rendererDevUrl !== null) {
-    void mainWindow.loadURL(rendererDevUrl)
+    void mainWindow.loadURL(rendererUrlWithAutomationIdentity(rendererDevUrl))
   } else {
-    void mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
+    void mainWindow.loadURL(
+      rendererUrlWithAutomationIdentity(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`),
+    )
   }
 }
 
 function focusExistingWindow() {
-  const existingWindow = BrowserWindow.getAllWindows()[0]
+  const existingWindow = getAllBrowserWindows()[0]
   if (!existingWindow) {
     return
   }
 
-  if (existingWindow.isMinimized()) {
-    existingWindow.restore()
-  }
-
-  existingWindow.show()
-  existingWindow.focus()
+  focusWindow(existingWindow)
 }
 
 function registerAppLifecycle() {
@@ -280,15 +284,7 @@ function registerAppLifecycle() {
     .whenReady()
     .then(() => {
       electronApp.setAppUserModelId('com.openwaggle.app')
-      if (process.platform === 'darwin') {
-        app.dock?.setIcon(appIconPath)
-      }
-
-      app.on('browser-window-created', (_, window) => {
-        optimizer.watchWindowShortcuts(window)
-      })
-
-      configureApplicationMenu(app.name)
+      configureDesktopUiAfterReady(app, appIconPath)
 
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))
@@ -299,7 +295,7 @@ function registerAppLifecycle() {
       })
 
       app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        if (getAllBrowserWindows().length === 0) createWindow()
       })
     })
     .catch((error: unknown) => {
@@ -335,6 +331,7 @@ function registerAppLifecycle() {
 
 function startApp() {
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+  prepareDesktopUi(app)
 
   if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {
     if (!app.requestSingleInstanceLock()) {

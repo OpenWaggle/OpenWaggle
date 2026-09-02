@@ -1,20 +1,29 @@
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
+import { Check, ChevronDown, GitFork, Laptop } from 'lucide-react'
+import { useState } from 'react'
 import type { SessionContextRowState } from '@/features/git/hooks/useSessionContextRow'
 import { Button } from '@/shared/ui/Button'
-import { Select } from '@/shared/ui/Select'
+import {
+  CONTEXT_MENU_TRIGGER_CLASS,
+  DENSE_MENU_ITEM_CLASS,
+  DOCK_MENU_POPOVER_CLASS,
+  MENU_SECTION_LABEL_CLASS,
+} from '@/shared/ui/menu-styles'
+import { Popover } from '@/shared/ui/Popover'
 
 const ENV_MODE_LABELS: Record<SessionEnvironmentMode, string> = {
   local: 'Current checkout',
   worktree: 'New worktree',
 }
 
+const ENV_MODE_DESCRIPTIONS: Record<SessionEnvironmentMode, string> = {
+  local: 'Run in the checkout opened in OpenWaggle',
+  worktree: 'Create an isolated checkout on first send',
+}
+
 const NOTICE_ACTION_CLASS =
   'shrink-0 whitespace-nowrap rounded-md border border-border px-1.5 py-0.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover'
-
-function toEnvMode(value: string): SessionEnvironmentMode {
-  return value === 'worktree' ? 'worktree' : 'local'
-}
 
 interface SessionContextRowProps {
   readonly strip: SessionContextRowState
@@ -65,6 +74,8 @@ function MissingWorktreeNotice({
 }
 
 export function SessionContextRow({ strip }: SessionContextRowProps) {
+  const [open, setOpen] = useState(false)
+
   if (!strip.visible) return null
 
   /*
@@ -76,24 +87,81 @@ export function SessionContextRow({ strip }: SessionContextRowProps) {
     return <MissingWorktreeNotice reason={strip.sendPlan.reason} strip={strip} />
   }
 
-  return (
-    <div className="flex min-w-0 items-center gap-1.5 text-xs text-text-tertiary">
-      <span className="shrink-0">Run in</span>
-      <Select
-        aria-label="Session environment mode"
-        value={strip.envMode}
-        onChange={(event) => strip.setEnvMode(toEnvMode(event.target.value))}
-        selectSize="xs"
+  if (strip.editable === false) {
+    const Icon = strip.envMode === 'worktree' ? GitFork : Laptop
+    return (
+      <span
+        className="flex min-w-0 items-center gap-2 text-text-secondary"
+        title={`Session environment: ${ENV_MODE_LABELS[strip.envMode]}`}
       >
-        {SESSION_ENVIRONMENT_MODES.map((mode) => (
-          <option key={mode} value={mode}>
-            {ENV_MODE_LABELS[mode]}
-          </option>
-        ))}
-      </Select>
+        <Icon aria-hidden="true" className="size-4 shrink-0 text-text-tertiary" />
+        <span className="truncate">
+          {strip.envMode === 'worktree' ? 'Local worktree' : ENV_MODE_LABELS[strip.envMode]}
+        </span>
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-sm text-text-tertiary">
+      <Popover
+        className={DOCK_MENU_POPOVER_CLASS}
+        onOpenChange={setOpen}
+        open={open}
+        placement="top-start"
+        role="menu"
+        trigger={({ toggle }) => {
+          const Icon = strip.envMode === 'worktree' ? GitFork : Laptop
+          return (
+            <Button
+              aria-label={`Session environment mode: ${ENV_MODE_LABELS[strip.envMode]}`}
+              className={CONTEXT_MENU_TRIGGER_CLASS}
+              onClick={toggle}
+              title={ENV_MODE_LABELS[strip.envMode]}
+              variant="unstyled"
+            >
+              <Icon aria-hidden="true" className="size-4 shrink-0 text-text-tertiary" />
+              <span className="min-w-0 truncate @max-xl/session-dock:hidden">
+                {ENV_MODE_LABELS[strip.envMode]}
+              </span>
+              <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-text-muted" />
+            </Button>
+          )
+        }}
+      >
+        <div className={MENU_SECTION_LABEL_CLASS}>Run environment</div>
+        {SESSION_ENVIRONMENT_MODES.map((mode) => {
+          const Icon = mode === 'worktree' ? GitFork : Laptop
+          const checked = mode === strip.envMode
+          return (
+            <Button
+              aria-checked={checked}
+              className={DENSE_MENU_ITEM_CLASS}
+              key={mode}
+              onClick={() => {
+                strip.setEnvMode(mode)
+                setOpen(false)
+              }}
+              role="menuitemradio"
+              variant="unstyled"
+            >
+              <Icon aria-hidden="true" className="size-4 shrink-0 text-text-tertiary" />
+              <span className="flex min-w-0 flex-1 flex-col items-start">
+                <span className="font-medium text-text-primary">{ENV_MODE_LABELS[mode]}</span>
+                <span className="text-xs font-normal text-text-tertiary">
+                  {ENV_MODE_DESCRIPTIONS[mode]}
+                </span>
+              </span>
+              {checked ? (
+                <Check aria-hidden="true" className="size-4 shrink-0 text-accent" />
+              ) : null}
+            </Button>
+          )
+        })}
+      </Popover>
 
       {strip.sendPlan.kind === 'blocked' ? (
-        <span role="alert" className="min-w-0 truncate text-status-error">
+        <span role="alert" className="sr-only">
           {strip.sendPlan.reason}
         </span>
       ) : null}

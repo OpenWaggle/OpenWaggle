@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolCallBlock } from '../ToolCallBlock'
 
@@ -8,6 +9,16 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     copyToClipboard: (...args: unknown[]) => mockCopyToClipboard(...args),
   },
+}))
+
+vi.mock('@pierre/diffs/react', () => ({
+  PatchDiff: ({ patch }: { readonly patch: string }) => (
+    <div data-testid="diffs-container">
+      <pre data-testid="patch-diff">{patch}</pre>
+    </div>
+  ),
+  useWorkerPool: () => undefined,
+  WorkerPoolContextProvider: ({ children }: { readonly children: ReactNode }) => children,
 }))
 
 describe('ToolCallBlock', () => {
@@ -156,7 +167,7 @@ describe('ToolCallBlock', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByText('$')).toBeInTheDocument()
+    expect(screen.getByText('$ npm test')).toBeInTheDocument()
   })
 
   it('shows error content when expanded and errored', () => {
@@ -199,7 +210,7 @@ describe('ToolCallBlock', () => {
     expect(screen.queryByText(/fullOutputPath/)).toBeNull()
   })
 
-  it('renders Pi edit diff details inline for small diffs', () => {
+  it('renders Pi edit diff details inline for small diffs', async () => {
     render(
       <ToolCallBlock
         name="edit"
@@ -221,10 +232,12 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Edited src/app.ts')).toBeInTheDocument()
     expect(screen.getAllByText('+1')).toHaveLength(2)
     expect(screen.getAllByText('-1')).toHaveLength(2)
-    expect(screen.getByText('+new line')).toBeInTheDocument()
+    expect(
+      await screen.findByTestId('diffs-container', undefined, { timeout: 10_000 }),
+    ).toBeInTheDocument()
   })
 
-  it('syntax highlights read tool file content using the existing Shiki pipeline', async () => {
+  it('routes read tool file content through the syntax surface with a safe fallback', async () => {
     const { container } = render(
       <ToolCallBlock
         name="read"
@@ -237,12 +250,10 @@ describe('ToolCallBlock', () => {
     fireEvent.click(screen.getByRole('button', { name: /Read src\/example\.ts/ }))
 
     expect(container.querySelector('code.language-typescript')).toBeTruthy()
-    await waitFor(() => {
-      expect(container.querySelector('code span[style]')).toBeTruthy()
-    })
+    expect(container.querySelector('[data-syntax-status="plain-text"]')).toBeTruthy()
   })
 
-  it('uses plain rendering for very large file previews to keep expansion responsive', () => {
+  it('uses viewport rendering for very large file previews to keep expansion responsive', () => {
     const largeContent = `${'line\n'.repeat(1_201)}`
     const { container } = render(
       <ToolCallBlock
@@ -257,10 +268,11 @@ describe('ToolCallBlock', () => {
 
     expect(
       screen.getByText(
-        'Large file preview shown without syntax highlighting to keep the UI responsive.',
+        'Large file preview uses viewport-only highlighting to keep the UI responsive.',
       ),
     ).toBeInTheDocument()
-    expect(container.querySelector('code.language-typescript')).toBeNull()
+    expect(screen.getByLabelText('Large file source preview')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-line-number]').length).toBeLessThan(100)
   })
 
   it('copies path values from expanded tool details', () => {

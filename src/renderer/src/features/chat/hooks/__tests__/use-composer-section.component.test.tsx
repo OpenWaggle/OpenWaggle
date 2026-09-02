@@ -43,6 +43,7 @@ function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
     status: 'ready',
     compactionStatus: null,
     activeSessionId: SESSION_ID,
+    recentProjects: [],
     session: null,
     isFirstMessage: false,
     waggleStatus: 'idle',
@@ -69,6 +70,8 @@ function composerSectionParams(): Parameters<typeof useComposerSection>[0] {
     handleCloseForkSelector: vi.fn(),
     handleSelectForkTarget: vi.fn(),
     handleCloneToNewSession: vi.fn(),
+    handleOpenProject: vi.fn().mockResolvedValue(undefined),
+    handleSelectProjectPath: vi.fn(),
     handleSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),
   }
 }

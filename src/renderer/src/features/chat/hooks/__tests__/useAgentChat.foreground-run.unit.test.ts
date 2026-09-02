@@ -13,6 +13,7 @@ import {
   createSessionWithId,
   emitAgentEvent,
   emitRunCompleted,
+  firstSendRecoveryCalls,
   installUseAgentChatTestLifecycle,
   SEND_PAYLOAD,
   useAgentChat,
@@ -20,6 +21,36 @@ import {
 
 describe('useAgentChat foreground run', () => {
   installUseAgentChatTestLifecycle()
+
+  it('retains the exact first turn until a blank session run completes', async () => {
+    const model = SupportedModelId('claude-sonnet-4-5')
+    const { result } = renderHook(() =>
+      useAgentChat(
+        SessionId('session-1'),
+        createSessionWithId(SessionId('session-1')),
+        model,
+        'medium',
+      ),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+    })
+
+    expect(firstSendRecoveryCalls).toContainEqual([
+      SessionId('session-1'),
+      { payload: SEND_PAYLOAD, waggleConfig: null, model },
+    ])
+
+    await act(async () => {
+      emitRunCompleted({ sessionId: SessionId('session-1') })
+      await sendPromise
+    })
+
+    expect(firstSendRecoveryCalls.at(-1)).toEqual([SessionId('session-1'), null])
+  })
+
   it('streams optimistic user and assistant text through OpenWaggle runtime events', async () => {
     const { result } = renderHook(() =>
       useAgentChat(

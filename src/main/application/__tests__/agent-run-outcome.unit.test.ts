@@ -22,6 +22,7 @@ const context = {
   sessionId: SessionId('session-1'),
   runId: 'run-1',
   model: SupportedModelId('anthropic/claude-sonnet-4-5'),
+  signal: new AbortController().signal,
 }
 
 function assistantMessage(): Message {

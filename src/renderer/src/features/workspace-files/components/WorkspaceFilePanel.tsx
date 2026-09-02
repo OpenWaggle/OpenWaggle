@@ -1,186 +1,140 @@
-import type {
-  WorkspaceBinaryFileReadResult,
-  WorkspaceFileReadResult,
-  WorkspaceUnavailableFileReadResult,
-} from '@shared/types/workspace-files'
-import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, FolderTree, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { workspaceFileQueryOptions } from '@/queries/workspace-files'
 import { api } from '@/shared/lib/ipc'
-import { Button } from '@/shared/ui/Button'
+import { WorkspaceTreePanel } from '@/shared/ui/WorkspaceTreePanel'
 import { useUIStore } from '@/shell/ui-store'
+import { useWorkspaceEntryMutations } from '../hooks/useWorkspaceEntryMutations'
+import { useWorkspaceFileNavigation } from '../hooks/useWorkspaceFileNavigation'
+import { useWorkspaceFileWatcher } from '../hooks/useWorkspaceFileWatcher'
 import { WorkspaceFileBrowser } from './WorkspaceFileBrowser'
-import { WorkspaceFileEditor } from './WorkspaceFileEditor'
+import { GoToLineDialog, WorkspaceMutationDialog } from './WorkspaceFileDialogs'
+import { WorkspaceFilePanelHeader } from './WorkspaceFilePanelHeader'
+import { WorkspaceFilePane } from './WorkspaceFilePreview'
 
-function BlobPreview({ file }: { readonly file: WorkspaceBinaryFileReadResult }) {
-  const [url] = useState(() => {
-    const buffer = new ArrayBuffer(file.data.byteLength)
-    new Uint8Array(buffer).set(file.data)
-    return URL.createObjectURL(new Blob([buffer], { type: file.mimeType }))
-  })
-
-  useEffect(() => () => URL.revokeObjectURL(url), [url])
-
-  if (file.previewKind === 'image') {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_center,var(--color-bg-hover)_1px,transparent_1px)] bg-size-(--preview-grid-size) p-6 [--preview-grid-size:1rem_1rem]">
-        <img src={url} alt={file.basename} className="max-h-full max-w-full object-contain" />
-      </div>
-    )
-  }
-  return (
-    <iframe
-      title={file.basename}
-      src={url}
-      sandbox=""
-      className="min-h-0 flex-1 border-0 bg-text-primary"
-    />
-  )
-}
-
-function UnavailablePreview({ file }: { readonly file: WorkspaceUnavailableFileReadResult }) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-      <p className="text-sm font-medium text-text-secondary">Preview unavailable</p>
-      <p className="max-w-sm text-xs leading-5 text-text-tertiary">{file.reason}</p>
-    </div>
-  )
-}
-
-function FilePreviewContent({
-  file,
-  projectPath,
-  line,
-}: {
-  readonly file: WorkspaceFileReadResult | undefined
-  readonly projectPath: string | null
-  readonly line: number | null
-}) {
-  if (!projectPath) return <PanelMessage text="Open a project to read this file." />
-  if (!file) return <PanelMessage text="File unavailable." error />
-  if (
-    file.previewKind === 'text' ||
-    file.previewKind === 'markdown' ||
-    file.previewKind === 'html'
-  ) {
-    return (
-      <WorkspaceFileEditor
-        key={file.path}
-        projectPath={projectPath}
-        file={file}
-        targetLine={line}
-      />
-    )
-  }
-  if (file.previewKind === 'image' || file.previewKind === 'pdf') {
-    return <BlobPreview key={file.revision} file={file} />
-  }
-  if (file.previewKind === 'binary' || file.previewKind === 'oversized') {
-    return <UnavailablePreview file={file} />
-  }
-  return null
-}
-
-export function WorkspaceFilePanel({
-  projectPath,
-  relativePath,
-  line,
-  onClose,
-  onOpenFile,
-}: {
+interface WorkspaceFilePanelProps {
   readonly projectPath: string | null
   readonly relativePath: string
   readonly line: number | null
   readonly onClose: () => void
   readonly onOpenFile: (path: string, line?: number | null) => void
+}
+
+function WorkspaceFilePanelBody({
+  state,
+  actions,
+}: {
+  readonly state: {
+    readonly workspaceTreeOpen: boolean
+    readonly projectPath: string | null
+    readonly relativePath: string
+    readonly line: number | null
+  }
+  readonly actions: {
+    readonly onOpenFile: (path: string, line?: number | null) => void
+    readonly onMoveEntry: (sourcePath: string, targetPath: string) => void
+  }
 }) {
-  const [explorerOpen, setExplorerOpen] = useState(true)
-  const showToast = useUIStore((state) => state.showToast)
-  const fileQuery = useQuery(workspaceFileQueryOptions(projectPath, relativePath))
-  const file = fileQuery.data
-
   return (
-    <div className="flex size-full min-h-0 flex-col bg-bg">
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-bg-secondary px-2">
-        <Button
-          variant={explorerOpen ? 'accent' : 'ghost'}
-          size="icon-sm"
-          aria-label="Toggle file explorer"
-          title="Toggle file explorer"
-          onClick={() => setExplorerOpen((current) => !current)}
-        >
-          <FolderTree className="size-3.5" />
-        </Button>
-        <span
-          className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary"
-          title={relativePath}
-        >
-          {relativePath}
-          {line ? <span className="text-accent">:{line}</span> : null}
-        </span>
-        {projectPath && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Open in default editor"
-            aria-label="Open file in default editor"
-            onClick={() => {
-              void api.openWorkspaceFileExternal(projectPath, relativePath).catch((error) => {
-                showToast(error instanceof Error ? error.message : String(error), 'error')
-              })
-            }}
-          >
-            <ExternalLink className="size-3.5" />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Close file panel"
-          aria-label="Close file panel"
-          onClick={onClose}
-        >
-          <X className="size-3.5" />
-        </Button>
-      </header>
-
-      <div className="flex min-h-0 flex-1">
-        {explorerOpen && projectPath && (
-          <WorkspaceFileBrowser
-            projectPath={projectPath}
-            currentPath={relativePath}
-            onOpenFile={onOpenFile}
-          />
-        )}
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {fileQuery.isLoading ? (
-            <PanelMessage text="Loading file…" />
-          ) : fileQuery.error ? (
-            <PanelMessage text={fileQuery.error.message} error />
-          ) : (
-            <FilePreviewContent file={file} projectPath={projectPath} line={line} />
-          )}
+          <WorkspaceFilePane
+            projectPath={state.projectPath}
+            relativePath={state.relativePath}
+            line={state.line}
+          />
         </div>
       </div>
+      {state.projectPath ? (
+        <WorkspaceTreePanel open={state.workspaceTreeOpen}>
+          <WorkspaceFileBrowser
+            projectPath={state.projectPath}
+            currentPath={state.relativePath}
+            onOpenFile={actions.onOpenFile}
+            onMoveEntry={actions.onMoveEntry}
+          />
+        </WorkspaceTreePanel>
+      ) : null}
     </div>
   )
 }
 
-function PanelMessage({
-  text,
-  error = false,
-}: {
-  readonly text: string
-  readonly error?: boolean
-}) {
+export function WorkspaceFilePanel(input: WorkspaceFilePanelProps) {
+  const navigation = useWorkspaceFileNavigation(input)
+  const mutations = useWorkspaceEntryMutations({
+    projectPath: input.projectPath,
+    relativePath: input.relativePath,
+    onOpenFile: input.onOpenFile,
+    onClose: input.onClose,
+  })
+  useWorkspaceFileWatcher(input.projectPath, mutations.refreshAllWatchedQueries)
+  const showToast = useUIStore((state) => state.showToast)
+  const workspaceTreeOpen = useUIStore((state) => state.workspaceTreeOpen)
+  const toggleWorkspaceTree = useUIStore((state) => state.toggleWorkspaceTree)
+
+  function moveEntry(sourcePath: string, targetPath: string) {
+    void mutations
+      .move(sourcePath, targetPath)
+      .then((moved) => (moved ? mutations.refresh() : undefined))
+      .catch((error: unknown) =>
+        showToast(error instanceof Error ? error.message : String(error), 'error'),
+      )
+  }
+
+  function openGoToLine() {
+    navigation.setGoToLineValue(input.line ? String(input.line) : '')
+    navigation.setGoToLineOpen(true)
+  }
+
   return (
-    <output
-      className={`flex min-h-0 flex-1 items-center justify-center p-8 text-center text-xs ${
-        error ? 'text-error' : 'text-text-tertiary'
-      }`}
-    >
-      {text}
-    </output>
+    <div className="flex size-full min-h-0 flex-col bg-bg">
+      <WorkspaceFilePanelHeader
+        state={{
+          projectPath: input.projectPath,
+          relativePath: input.relativePath,
+          line: input.line,
+          workspaceTreeOpen,
+        }}
+        actions={{
+          onToggleWorkspaceTree: toggleWorkspaceTree,
+          onExternalEditorError: (error: unknown) =>
+            showToast(error instanceof Error ? error.message : String(error), 'error'),
+          onGoToLine: openGoToLine,
+          onBeginMutation: mutations.begin,
+          onCopyRelativePath: () => void navigator.clipboard.writeText(input.relativePath),
+          onReveal: () => {
+            if (input.projectPath)
+              void api.revealWorkspaceEntry(input.projectPath, input.relativePath)
+          },
+          onClose: input.onClose,
+        }}
+      />
+      <WorkspaceMutationDialog
+        state={{
+          action: mutations.action,
+          path: mutations.path,
+          relativePath: input.relativePath,
+        }}
+        actions={{
+          onPathChange: mutations.setPath,
+          onApply: () => void mutations.apply(),
+          onClose: mutations.close,
+        }}
+      />
+      <GoToLineDialog
+        open={navigation.goToLineOpen}
+        value={navigation.goToLineValue}
+        onValueChange={navigation.setGoToLineValue}
+        onApply={navigation.goToLine}
+        onClose={() => navigation.setGoToLineOpen(false)}
+      />
+      <WorkspaceFilePanelBody
+        state={{
+          workspaceTreeOpen,
+          projectPath: input.projectPath,
+          relativePath: input.relativePath,
+          line: input.line,
+        }}
+        actions={{ onOpenFile: input.onOpenFile, onMoveEntry: moveEntry }}
+      />
+    </div>
   )
 }

@@ -1,9 +1,11 @@
 import type { OAuthFlowStatus } from './auth'
+import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
 import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
+import type { WorkspaceFilesChangedEvent } from './workspace-files'
 
 export interface IpcSendChannelMap {
   'agent:cancel-waggle': {
@@ -33,6 +35,9 @@ export interface IpcEventChannelMap {
   }
   'agent:run-completed': {
     payload: { sessionId: SessionId }
+  }
+  'agent:worktree-launch': {
+    payload: WorktreeLaunchEventPayload
   }
   'window:fullscreen-changed': {
     payload: boolean
@@ -73,6 +78,9 @@ export interface IpcEventChannelMap {
    */
   'git:working-tree-changed': {
     payload: { workingPath: string }
+  }
+  'workspace-files:changed': {
+    payload: WorkspaceFilesChangedEvent
   }
   'updater:status-changed': {
     payload: UpdateStatus

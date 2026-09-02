@@ -15,6 +15,7 @@ import {
 } from '@/features/settings/lib/mcp-capability-formatters'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { TextInput } from '@/shared/ui/TextInput'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -170,11 +171,7 @@ export function ResourceCard({
           </Button>
         )}
       </div>
-      {result && (
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-bg-secondary p-2 text-xs text-text-secondary">
-          {resourceAttachmentText(result, resource.uri)}
-        </pre>
-      )}
+      {result && <StructuredPayload value={result} className="max-h-48" />}
     </div>
   )
 }

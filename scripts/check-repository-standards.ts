@@ -2,17 +2,25 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
 import { collectForbiddenReferenceViolations } from './standards/forbidden-references'
-import { withoutCommentLines } from './standards/comment-stripping'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
+import {
+  collectScriptedElectronLaunchViolations,
+  collectUnguardedDesktopUiViolations,
+} from './standards/electron-automation'
 import {
   collectRendererDesignTokenExemptionViolations,
   readRendererDesignTokenExemptions,
 } from './standards/renderer-design-token-exemptions'
 import {
+  collectSessionBranchConventionViolations,
+  containsSessionBranchPrefix,
+} from './standards/session-branch'
+import {
   collectPackageBoundaryViolations,
   packageBoundarySourceGlobs,
   type RepositoryViolation,
 } from './repository-package-boundaries.js'
+import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
 export interface Violation {
   readonly detail?: string
@@ -80,59 +88,6 @@ function collectToolingConfigViolations(file: string) {
   ]
 }
 
-/**
- * The Session worktree branch convention must exist in exactly one place.
- *
- * Observed failure: worktree birth derived the branch from the session id while
- * worktree recreation derived it from the recorded path's last segment. Recreation is
- * supposed to reattach the surviving branch so commits made in the old tree are kept;
- * because the two names disagreed it created a divergent branch at the base ref and
- * stranded the session's commit on the orphaned original. A single source of truth is
- * only durable if re-deriving the name elsewhere is caught.
- */
-const SESSION_BRANCH_PREFIX_LITERAL = ['ow', 'session-'].join('/')
-const SESSION_BRANCH_CONVENTION_OWNER = 'src/shared/utils/worktree.ts'
-const POLICY_SCRIPT_OWN_PATH = 'scripts/check-repository-standards.ts'
-
-/*
- * Match the prefix wherever it appears in code, not only where a quote sits immediately before it.
- *
- * Two rounds of independent review have narrowed this. The first version tested only template
- * literals, so `const p = 'ow/session-probe'` passed. The second required a quote or backtick
- * directly before the prefix, which still missed every use where it is not at the start of the
- * string - verified that `` `refs/heads/ow/session-${id}` `` slipped through untouched, which is
- * one of the most natural ways to write it.
- *
- * Comment lines are stripped first so prose that documents the convention (including this file and
- * the JSDoc in the git worktree adapter) is not reported as a violation.
- */
-export function containsSessionBranchPrefix(code: string) {
-  return code.includes(SESSION_BRANCH_PREFIX_LITERAL)
-}
-
-function collectSessionBranchConventionViolations(file: string, contents: string) {
-  const normalized = normalizePath(file)
-  if (normalized === SESSION_BRANCH_CONVENTION_OWNER) return []
-  // This checker must contain the pattern it looks for.
-  if (normalized === POLICY_SCRIPT_OWN_PATH) return []
-  /*
-   * Code only. The convention is about how a branch name is *built*, so prose that
-   * documents it (docs, ADRs, review records) is not a violation, and neither are tests
-   * that assert the resulting string.
-   */
-  if (!/\.(?:ts|tsx|mts|cts)$/.test(normalized)) return []
-  if (normalized.includes('__tests__')) return []
-  const code = withoutCommentLines(contents)
-  if (!containsSessionBranchPrefix(code)) return []
-  return [
-    {
-      file: normalized,
-      message: `Session worktree branch names must come from sessionWorktreeBranch() or sessionWorktreeBranchForId() in ${SESSION_BRANCH_CONVENTION_OWNER}`,
-      detail: `found a local "${SESSION_BRANCH_PREFIX_LITERAL}" literal in code`,
-    },
-  ]
-}
-
 async function collectViolationsForFile(file: string) {
   const contents = await readFile(file, 'utf8')
 
@@ -142,9 +97,15 @@ async function collectViolationsForFile(file: string) {
     ...collectToolingConfigViolations(file),
     ...collectPackageBoundaryViolations(file, contents),
     ...collectSessionBranchConventionViolations(file, contents),
+    ...collectUnguardedDesktopUiViolations(file, contents),
+    ...collectScriptedElectronLaunchViolations(file, contents),
     ...collectSessionSummaryColumnViolations(file, contents),
+    ...collectSyntaxRenderingViolations(file, contents),
   ] satisfies readonly RepositoryViolation[]
 }
+
+export { collectScriptedElectronLaunchViolations, collectUnguardedDesktopUiViolations }
+export { containsSessionBranchPrefix }
 
 function printViolations(violations: readonly Violation[]) {
   for (const violation of violations) {
@@ -173,16 +134,14 @@ const SESSION_SUMMARY_COLUMN_FRAGMENT = 'sessionSummaryColumns'
  * The rule is "use the shared fragment", not "avoid one particular column name". Two earlier versions
  * were wrong in opposite directions: firing only when the list mentioned `created_at` let through the
  * very defect it was written for, and skipping any query containing `count(` anywhere exempted an
- * inline list that merely carried a `COUNT(...)` subquery - which is the shape the detail-side row
- * actually uses, so a list missing `environment_mode` and `worktree_path` went unreported again.
- * Judging the projection alone keeps `SELECT COUNT(*) AS total` passing and that subquery failing.
+ * inline list that carried a `COUNT(...)` subquery. Judging only the projection keeps a pure
+ * `SELECT COUNT(*)` passing while still rejecting mixed aggregate-and-column projections.
  */
 const SESSION_SUMMARY_PROJECTION = /\bselect\b(?<projection>[\s\S]*?)\bfrom\b/iu
 /**
  * A projection that names no columns of its own: only aggregate terms.
  *
- * Checked term by term. An earlier version matched anything whose *first* term was an aggregate, so an
- * inline column list sitting behind a `COUNT(*)` was exempt - the same hole, in a different disguise,
+ * Checked term by term; matching only the first aggregate wrongly exempted later inline columns,
  * as the version that skipped any query containing `count(` at all.
  */
 function namesNoColumns(projection: string) {

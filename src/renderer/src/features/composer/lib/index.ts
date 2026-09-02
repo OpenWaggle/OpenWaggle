@@ -1,11 +1,12 @@
 export { buildComposerDraftContextKey } from './composer-draft-context'
 export {
   consumeActiveSlashCommand,
+  insertComposerInvocation,
   insertSkillReferenceAtActiveSlash,
   insertSlashCommandTextAtActiveSlash,
   insertWagglePresetAtActiveSlash,
 } from './composer-editor-text'
-export { setEditorText } from './lexical-utils'
+export { setEditorDraft, setEditorText } from './lexical-utils'
 export {
   findSlashCommandMatch,
   replaceSlashCommandMatch,

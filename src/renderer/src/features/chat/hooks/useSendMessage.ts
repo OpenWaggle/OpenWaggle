@@ -6,6 +6,8 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
+import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { flushDraftWorktreePlanToSession } from '@/features/git'
 import { useWaggleStore } from '@/features/waggle/state'
@@ -55,6 +57,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const sessionId = await createSession(projectPath)
       await flushDraftWorktreePlanToSession(projectPath, sessionId)
+      await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
        * the send had succeeded: a review submitted as a session's first message was cleared and never
@@ -63,7 +66,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       await sendMessageToSession(sessionId, payload, null)
       return
     }
-    await sendMessage(payload)
+    await sendMessage(withInlineVisualizationContext(activeSessionId, payload))
   }
 
   async function handleSendText(content: string) {
@@ -77,6 +80,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const sessionId = await createSession(projectPath)
       await flushDraftWorktreePlanToSession(projectPath, sessionId)
+      await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       startWaggleCollaboration(sessionId, config)
       /*
        * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
@@ -87,7 +91,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       await sendMessageToSession(sessionId, payload, config)
       return
     }
-    await sendWaggleMessage(payload, config)
+    await sendWaggleMessage(withInlineVisualizationContext(activeSessionId, payload), config)
   }
 
   return { handleSend, handleSendText, handleSendWaggle }
@@ -115,6 +119,11 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])
+    useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, {
+      payload,
+      waggleConfig: config,
+      model,
+    })
 
     try {
       /*
@@ -127,7 +136,10 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
       const report = config
         ? await api.sendWaggleMessage(sessionId, payload, model, config)
         : await api.sendMessage(sessionId, payload, model)
-      if (report.outcome === 'delivered') return
+      if (report.outcome === 'delivered') {
+        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+        return
+      }
       /*
        * A cancellation is reported too, so work the user may still want is not discarded - but it carries its
        * outcome, because a caller must not tell the user their turn "could not start" when they stopped it.
@@ -135,7 +147,9 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
       throw new MessageNotDelivered(report.outcome, report.message)
     } catch (error) {
       if (config) useWaggleStore.getState().stopCollaboration(sessionId)
-      useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+      if (error instanceof MessageNotDelivered && error.outcome === 'cancelled') {
+        useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+      }
       logger.error('First message send failed', {
         sessionId: String(sessionId),
         error: error instanceof Error ? error.message : String(error),

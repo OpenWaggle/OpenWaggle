@@ -6,6 +6,7 @@
  * from `src/shared/schema.ts`.
  */
 
+import { MAX_INLINE_VISUALIZATION_PATH_LENGTH } from '@shared/constants/inline-visualization'
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
@@ -57,11 +58,33 @@ export const preparedAttachmentSchema = Schema.Struct({
   extractedText: Schema.String,
 })
 
+const MAX_INLINE_VISUALIZATION_STATE_BYTES = 16 * 1024
+const MAX_INLINE_VISUALIZATION_TITLE_LENGTH = 250
+const inlineVisualizationStateSchema = jsonValueSchema.pipe(
+  Schema.filter((value) => {
+    try {
+      return (
+        new TextEncoder().encode(JSON.stringify(value)).byteLength <=
+        MAX_INLINE_VISUALIZATION_STATE_BYTES
+      )
+    } catch {
+      return false
+    }
+  }),
+)
+
 export const agentSendPayloadSchema = Schema.Struct({
   text: Schema.String,
   thinkingLevel: Schema.Literal(...THINKING_LEVELS),
   attachments: Schema.mutable(Schema.Array(preparedAttachmentSchema)),
   waggle: Schema.optional(waggleInvocationSchema),
+  visualizationContext: Schema.optional(
+    Schema.Struct({
+      title: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_TITLE_LENGTH)),
+      sourcePath: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_PATH_LENGTH)),
+      state: inlineVisualizationStateSchema,
+    }),
+  ),
 })
 
 export function toAgentSendPayload(
@@ -72,6 +95,7 @@ export function toAgentSendPayload(
     thinkingLevel: input.thinkingLevel,
     attachments: input.attachments,
     ...(input.waggle ? { waggle: toWaggleInvocation(input.waggle) } : {}),
+    ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
   }
 }
 

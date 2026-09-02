@@ -8,21 +8,32 @@ import { matchesReleaseCiWorkflowAstContract } from './package-release-validator
 import {
   CHECKOUT_STEP,
   COMMIT_POLICY_CHECKOUT_STEP,
+  CONCURRENCY_CANCEL_LINE,
   CONCURRENCY_GROUP,
   DISPATCH_GUARD_STEP,
   EXPECTED_STEPS,
   IMMUTABLE_ACTIONS,
+  QUEUE_ONLY_JOB_CONDITIONS,
+  REQUIRED_COMMANDS,
+  REQUIRED_JOB_RUNNERS,
+  WINDOWS_DISPATCH_GUARD_STEP,
 } from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
   'Typecheck & Lint',
-  'Unit & Component Tests',
+  'Unit Tests',
+  'Integration & Component Tests',
+  'MCP Conformance',
   'Electron E2E (macOS)',
+  'Electron E2E (Linux)',
+  'Electron E2E (Windows)',
 ] as const
 const EXPECTED_CI_JOBS = [
   ...REQUIRED_CI_CHECKS,
-  'Package release rehearsal (Node ${{ matrix.node }})',
+  'Detect Changed Surfaces',
+  'Package Consumer Rehearsal (Node 22.19.0)',
+  'Website & Docs Rehearsal (Node 24.14.0)',
   'Classify Package Release Candidate',
   'Build and attest package artifacts (Release Please PR only)',
   'Package Release Candidate',
@@ -31,7 +42,7 @@ const EXPECTED_CI_JOBS = [
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
-const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'steps'] as const
+const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'timeout-minutes', 'steps'] as const
 
 function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
@@ -71,6 +82,11 @@ function validateTriggers(workflow: string, violations: string[]) {
   if (!hasMainBranchTrigger(workflow, 'pull_request')) {
     violations.push('CI must run on pull requests targeting main.')
   }
+  if (!hasMainBranchTrigger(workflow, 'merge_group')) {
+    violations.push(
+      'CI must run on merge_group entries so the Full gate validates the merge result.',
+    )
+  }
 }
 
 function validateDispatchSupport(
@@ -84,7 +100,12 @@ function validateDispatchSupport(
   }
 
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
-  const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
+  const guardedJobs = requiredJobs.filter((job) => {
+    const expectedGuard = job.name === 'Electron E2E (Windows)'
+      ? WINDOWS_DISPATCH_GUARD_STEP
+      : DISPATCH_GUARD_STEP
+    return readSteps(job)[0] === expectedGuard
+  })
   const checkoutJobs = requiredJobs.filter((job) =>
     readSteps(job).some(
       (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
@@ -105,8 +126,11 @@ function validateDispatchSupport(
 
   for (const job of requiredJobs) {
     const steps = readSteps(job)
+    const expectedGuard = job.name === 'Electron E2E (Windows)'
+      ? WINDOWS_DISPATCH_GUARD_STEP
+      : DISPATCH_GUARD_STEP
     const hasContract =
-      steps[0] === DISPATCH_GUARD_STEP &&
+      steps[0] === expectedGuard &&
       steps.some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP)
     if (!hasContract) {
       violations.push(`CI job ${job.name} must independently guard and check out inputs.head_sha.`)
@@ -125,10 +149,10 @@ function validateConcurrency(workflow: string, violations: string[]) {
   if (
     concurrency.length !== CONCURRENCY_POLICY_FIELD_COUNT ||
     concurrency[0] !== CONCURRENCY_GROUP ||
-    concurrency[1] !== 'cancel-in-progress: true'
+    concurrency[1] !== CONCURRENCY_CANCEL_LINE
   ) {
     violations.push(
-      'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha and cancel stale duplicate work.',
+      'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha, cancel stale duplicate work, and never cancel merge-queue validation.',
     )
   }
 }
@@ -174,27 +198,44 @@ function validateSecurity(
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
-  if (job.name === 'Electron E2E (macOS)') {
-    const e2eJobKeys = [...REQUIRED_JOB_KEYS, 'timeout-minutes']
-    const hasExactE2eContract =
-      jobKeys.length === e2eJobKeys.length &&
-      e2eJobKeys.every((key) => jobKeys.includes(key)) &&
-      /^ {4}runs-on: macos-15$/m.test(job.block)
-    if (!hasExactE2eContract) {
-      violations.push(
-        'CI job Electron E2E (macOS) must keep the exact blocking job contract: name, macos-15 runner, timeout, and steps only.',
-      )
-    }
-    return
-  }
+  const runner = REQUIRED_JOB_RUNNERS.get(job.name)
+  const expectedKeys =
+    runner === undefined
+      ? [...REQUIRED_JOB_KEYS]
+      : QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
+        ? [...REQUIRED_JOB_KEYS, 'if']
+        : [...REQUIRED_JOB_KEYS]
+  const contractRunner = runner ?? 'ubuntu-latest'
   const hasExactJobContract =
-    jobKeys.length === REQUIRED_JOB_KEYS.length &&
-    REQUIRED_JOB_KEYS.every((key) => jobKeys.includes(key)) &&
-    /^ {4}runs-on: ubuntu-latest$/m.test(job.block)
+    jobKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => jobKeys.includes(key)) &&
+    new RegExp(`^ {4}runs-on: ${contractRunner}$`, 'm').test(job.block)
   if (!hasExactJobContract) {
     violations.push(
-      `CI job ${job.name} must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.`,
+      `CI job ${job.name} must keep the exact blocking job contract: name, ${contractRunner} runner, and steps only.`,
     )
+  }
+}
+
+function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
+  const jobNames = new Set(jobs.map((job) => job.name))
+  for (const requiredName of REQUIRED_CI_CHECKS) {
+    if (QUEUE_ONLY_JOB_CONDITIONS.has(requiredName)) continue
+    const job = jobs.find((candidate) => candidate.name === requiredName)
+    if (job !== undefined && job.keys.includes('if')) {
+      violations.push('CI required jobs must run unconditionally for every configured trigger.')
+      break
+    }
+  }
+  for (const [jobName, conditionLines] of QUEUE_ONLY_JOB_CONDITIONS) {
+    const job = jobs.find((candidate) => candidate.name === jobName)
+    if (job === undefined) continue
+    const hasExactCondition = conditionLines.every((line) => job.block.includes(line))
+    if (!hasExactCondition) {
+      violations.push(
+        `CI queue-only job ${jobName} must run exactly on merge-queue results and dispatched full runs.`,
+      )
+    }
   }
 }
 
@@ -212,9 +253,7 @@ function validateRequiredChecks(
       `CI must expose exactly these stable job names: ${EXPECTED_CI_JOBS.join(', ')}.`,
     )
   }
-  if (jobs.some((job) => isRequiredCheck(job.name) && job.keys.includes('if'))) {
-    violations.push('CI required jobs must run unconditionally for every configured trigger.')
-  }
+  validateConditionalJobs(jobs, violations)
   if (/^ {8}continue-on-error:/m.test(workflow)) {
     violations.push('CI required steps must not use continue-on-error.')
   }
@@ -231,14 +270,7 @@ function validateRequiredChecks(
       continue
     }
 
-    const requiredCommand =
-      job.name === 'Typecheck & Lint'
-        ? 'pnpm check'
-        : job.name === 'Unit & Component Tests'
-          ? 'pnpm test'
-          : job.name === 'Electron E2E (macOS)'
-            ? 'pnpm test:e2e'
-            : undefined
+    const requiredCommand = REQUIRED_COMMANDS.get(job.name)
     if (requiredCommand !== undefined) {
       const exactStep = `      - run: ${requiredCommand}`
       if (!actual.includes(exactStep)) {

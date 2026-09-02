@@ -50,7 +50,10 @@ describe('useSendMessage Waggle ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useWaggleStore.getState().reset()
-    useBackgroundRunStore.setState({ renderSnapshotsBySessionId: new Map() })
+    useBackgroundRunStore.setState({
+      renderSnapshotsBySessionId: new Map(),
+      firstSendRecoveryBySessionId: new Map(),
+    })
   })
 
   it('does not stop a newer session when an earlier first-message send fails', async () => {
@@ -95,7 +98,9 @@ describe('useSendMessage Waggle ownership', () => {
     })
     await sending
     await vi.waitFor(() =>
-      expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_A)).toBeNull(),
+      expect(
+        useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_A)?.messages,
+      ).toHaveLength(1),
     )
 
     expect(sendFailure).toMatchObject({ createdSessionId: SESSION_A })

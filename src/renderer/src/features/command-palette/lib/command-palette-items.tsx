@@ -1,6 +1,15 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WagglePreset } from '@shared/types/waggle'
-import { Archive, GitPullRequest, Settings, Shield, ShieldAlert, Swords, User } from 'lucide-react'
+import {
+  Archive,
+  ChartNoAxesCombined,
+  GitPullRequest,
+  Settings,
+  Shield,
+  ShieldAlert,
+  Swords,
+  User,
+} from 'lucide-react'
 import { COMMAND_PALETTE } from '../constants/command-palette'
 import type {
   CommandPaletteActionHandlers,
@@ -20,18 +29,32 @@ export function createBaseCommands(actions: CommandPaletteActionHandlers) {
   ]
 }
 
-export function filterBaseCommands(commands: readonly CommandPaletteItem[], lowerQuery: string) {
-  if (!lowerQuery) return commands
-  return commands.filter((command) => commandMatchesQuery(command, lowerQuery))
-}
-
 export function createSkillItems(
   slashSkills: readonly SkillDiscoveryItem[],
   lowerQuery: string,
   selectSkill: CommandPaletteActionHandlers['selectSkill'],
 ) {
   const items: CommandPaletteItem[] = []
+  if (visualizeSkillMatchesQuery(lowerQuery)) {
+    const diagnostic = slashSkills.find(
+      (skill) => skill.id === 'visualize' && skill.loadStatus === 'error',
+    )
+    items.push({
+      id: 'skill-visualize',
+      label: 'Visualize',
+      description: diagnostic
+        ? `Unavailable: ${diagnostic.loadError ?? diagnostic.description}`
+        : 'Create an interactive visualization in this conversation',
+      icon: <ChartNoAxesCombined className="size-3.5" />,
+      section: 'Skills',
+      trailing: '/visualize',
+      disabled: diagnostic !== undefined,
+      action: diagnostic ? () => undefined : () => selectSkill('visualize', 'Visualize'),
+    })
+  }
+
   for (const skill of slashSkills) {
+    if (skill.id === 'visualize') continue
     if (!skill.enabled || skill.loadStatus !== 'ok') continue
     if (!skillMatchesQuery(skill, lowerQuery)) continue
 
@@ -46,6 +69,14 @@ export function createSkillItems(
   }
 
   return items
+}
+
+function visualizeSkillMatchesQuery(lowerQuery: string) {
+  return (
+    !lowerQuery ||
+    'visualize'.includes(lowerQuery) ||
+    'create an interactive visualization in this conversation'.includes(lowerQuery)
+  )
 }
 
 export function createPresetItems(
@@ -87,13 +118,6 @@ export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: (
       action: configureWaggle,
     },
   ]
-}
-
-function commandMatchesQuery(command: CommandPaletteItem, lowerQuery: string) {
-  return (
-    command.label.toLowerCase().includes(lowerQuery) ||
-    Boolean(command.description?.toLowerCase().includes(lowerQuery))
-  )
 }
 
 function skillMatchesQuery(skill: SkillDiscoveryItem, lowerQuery: string) {

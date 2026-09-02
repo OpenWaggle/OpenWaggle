@@ -1,6 +1,7 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from './Button'
 
@@ -69,7 +70,9 @@ export class PanelErrorBoundary extends Component<
             <h2 className="text-sm font-semibold">{this.props.name} panel error</h2>
           </div>
           {this.state.message && (
-            <p className="mb-3 text-xs text-text-tertiary break-words">{this.state.message}</p>
+            <p className="mb-3 text-xs text-text-tertiary break-words">
+              {formatDisplayPathsInText(this.state.message, [])}
+            </p>
           )}
           <Button variant="accent" size="xs" aria-label="Retry" onClick={this.handleRetry}>
             <RefreshCw className="size-3" />

@@ -19,6 +19,7 @@ export * from './docs.js';
 export { type JsonArray, type JsonObject, type JsonPrimitive, type JsonValue, jsonPrimitiveSchema, jsonValueSchema, } from './json.js';
 export * from './manifest.js';
 export { createRuntimeContributionSdk, extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema, } from './runtime.js';
+export * from './syntax.js';
 export type * from './theme.js';
 export { createOpenWaggleExtensionTheme, extensionThemeCssVariableEntries, isOpenWaggleExtensionTheme, OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES, } from './theme.js';
 export type * from './types.js';
@@ -1957,6 +1958,7 @@ export {};
 ```ts
 import type { ExtensionBrokerSdk } from './broker.js';
 import type { JsonValue } from './json.js';
+import { type OpenWaggleExtensionSyntaxSdk } from './syntax.js';
 import { createOpenWaggleExtensionTheme, extensionThemeCssVariableEntries, type OpenWaggleExtensionTheme } from './theme.js';
 import type { ExtensionContributionRegistryEntry } from './types.js';
 import { createOpenWaggleExtensionUiStylesheet, OPENWAGGLE_EXTENSION_UI_ATTRIBUTES, OPENWAGGLE_EXTENSION_UI_CLASS_NAMES, openWaggleExtensionClassName } from './ui.js';
@@ -1983,6 +1985,7 @@ export interface OpenWaggleExtensionSurfaceContext {
 export interface OpenWaggleExtensionSurfaceSdk {
     readonly sendAction: (actionId: string, payload?: JsonValue) => Promise<void>;
     readonly respondInteraction: (value: JsonValue | null) => Promise<void>;
+    readonly syntax: OpenWaggleExtensionSyntaxSdk;
 }
 export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
     readonly surface: OpenWaggleExtensionSurfaceSdk;
@@ -2023,6 +2026,43 @@ export declare function createOpenWaggleExtensionSharedModules(theme?: OpenWaggl
 export declare function createOpenWaggleExtensionSurfaceContext(input: CreateOpenWaggleExtensionSurfaceContextInput): OpenWaggleExtensionSurfaceContext;
 ```
 
+### Declarations from `dist/syntax.d.ts`
+
+```ts
+export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'background';
+export interface OpenWaggleExtensionSyntaxHighlightInput {
+    readonly source: string;
+    readonly language?: string;
+    readonly path?: string;
+    readonly priority?: OpenWaggleExtensionSyntaxPriority;
+}
+export interface OpenWaggleExtensionSyntaxToken {
+    readonly content: string;
+    readonly color?: string;
+    readonly backgroundColor?: string;
+    readonly fontStyle?: number;
+}
+export interface OpenWaggleExtensionSyntaxHighlightResult {
+    readonly status: 'highlighted' | 'plain-text';
+    readonly language: string;
+    readonly foreground?: string;
+    readonly background?: string;
+    readonly lines: readonly (readonly OpenWaggleExtensionSyntaxToken[])[];
+    readonly diagnostic?: string;
+}
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+    readonly signal?: AbortSignal;
+}
+export interface OpenWaggleExtensionSyntaxSdk {
+    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput, options?: OpenWaggleExtensionSyntaxHighlightOptions) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
+}
+export declare function createPlainExtensionSyntaxResult(input: {
+    readonly source: string;
+    readonly language?: string;
+    readonly diagnostic?: string;
+}): OpenWaggleExtensionSyntaxHighlightResult;
+```
+
 ### Declarations from `dist/theme.d.ts`
 
 ```ts
@@ -2037,7 +2077,7 @@ export declare function extensionThemeCssVariableEntries(theme: OpenWaggleExtens
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light' | 'high-contrast-dark' | 'high-contrast-light';
 export interface OpenWaggleExtensionTypeScaleEntry {
     readonly fontSize: string;
     readonly lineHeight: string;
@@ -2119,6 +2159,7 @@ export interface OpenWaggleExtensionThemeCssVariableEntry {
 }
 export type ExtensionThemeCssVariableResolver = (cssVariable: string, fallback: string) => string;
 export interface CreateOpenWaggleExtensionThemeOptions {
+    readonly colorScheme?: OpenWaggleExtensionColorScheme;
     readonly resolveCssVariable?: ExtensionThemeCssVariableResolver;
 }
 ```
@@ -2423,6 +2464,8 @@ export declare const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES: {
     readonly badge: 'ow-extension-badge';
     readonly field: 'ow-extension-field';
     readonly alert: 'ow-extension-alert';
+    readonly syntaxBlock: 'ow-syntax-block';
+    readonly syntaxLineNumber: 'ow-syntax-line-number';
 };
 export declare const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES: {
     readonly tone: 'data-ow-tone';
@@ -4628,6 +4671,7 @@ Types: `dist/context.d.ts`
 ```ts
 import type { ExtensionBrokerSdk } from './broker.js';
 import type { JsonValue } from './json.js';
+import { type OpenWaggleExtensionSyntaxSdk } from './syntax.js';
 import { createOpenWaggleExtensionTheme, extensionThemeCssVariableEntries, type OpenWaggleExtensionTheme } from './theme.js';
 import type { ExtensionContributionRegistryEntry } from './types.js';
 import { createOpenWaggleExtensionUiStylesheet, OPENWAGGLE_EXTENSION_UI_ATTRIBUTES, OPENWAGGLE_EXTENSION_UI_CLASS_NAMES, openWaggleExtensionClassName } from './ui.js';
@@ -4654,6 +4698,7 @@ export interface OpenWaggleExtensionSurfaceContext {
 export interface OpenWaggleExtensionSurfaceSdk {
     readonly sendAction: (actionId: string, payload?: JsonValue) => Promise<void>;
     readonly respondInteraction: (value: JsonValue | null) => Promise<void>;
+    readonly syntax: OpenWaggleExtensionSyntaxSdk;
 }
 export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
     readonly surface: OpenWaggleExtensionSurfaceSdk;
@@ -6487,6 +6532,43 @@ export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
 export {};
 ```
 
+### Declarations from `dist/syntax.d.ts`
+
+```ts
+export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'background';
+export interface OpenWaggleExtensionSyntaxHighlightInput {
+    readonly source: string;
+    readonly language?: string;
+    readonly path?: string;
+    readonly priority?: OpenWaggleExtensionSyntaxPriority;
+}
+export interface OpenWaggleExtensionSyntaxToken {
+    readonly content: string;
+    readonly color?: string;
+    readonly backgroundColor?: string;
+    readonly fontStyle?: number;
+}
+export interface OpenWaggleExtensionSyntaxHighlightResult {
+    readonly status: 'highlighted' | 'plain-text';
+    readonly language: string;
+    readonly foreground?: string;
+    readonly background?: string;
+    readonly lines: readonly (readonly OpenWaggleExtensionSyntaxToken[])[];
+    readonly diagnostic?: string;
+}
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+    readonly signal?: AbortSignal;
+}
+export interface OpenWaggleExtensionSyntaxSdk {
+    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput, options?: OpenWaggleExtensionSyntaxHighlightOptions) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
+}
+export declare function createPlainExtensionSyntaxResult(input: {
+    readonly source: string;
+    readonly language?: string;
+    readonly diagnostic?: string;
+}): OpenWaggleExtensionSyntaxHighlightResult;
+```
+
 ### Declarations from `dist/theme.d.ts`
 
 ```ts
@@ -6501,7 +6583,7 @@ export declare function extensionThemeCssVariableEntries(theme: OpenWaggleExtens
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light' | 'high-contrast-dark' | 'high-contrast-light';
 export interface OpenWaggleExtensionTypeScaleEntry {
     readonly fontSize: string;
     readonly lineHeight: string;
@@ -6583,6 +6665,7 @@ export interface OpenWaggleExtensionThemeCssVariableEntry {
 }
 export type ExtensionThemeCssVariableResolver = (cssVariable: string, fallback: string) => string;
 export interface CreateOpenWaggleExtensionThemeOptions {
+    readonly colorScheme?: OpenWaggleExtensionColorScheme;
     readonly resolveCssVariable?: ExtensionThemeCssVariableResolver;
 }
 ```
@@ -6887,6 +6970,8 @@ export declare const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES: {
     readonly badge: 'ow-extension-badge';
     readonly field: 'ow-extension-field';
     readonly alert: 'ow-extension-alert';
+    readonly syntaxBlock: 'ow-syntax-block';
+    readonly syntaxLineNumber: 'ow-syntax-line-number';
 };
 export declare const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES: {
     readonly tone: 'data-ow-tone';
@@ -9746,6 +9831,47 @@ export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
 export {};
 ```
 
+## Export `./syntax`
+
+Types: `dist/syntax.d.ts`
+
+### Declarations from `dist/syntax.d.ts`
+
+```ts
+export type OpenWaggleExtensionSyntaxPriority = 'visible' | 'near-viewport' | 'background';
+export interface OpenWaggleExtensionSyntaxHighlightInput {
+    readonly source: string;
+    readonly language?: string;
+    readonly path?: string;
+    readonly priority?: OpenWaggleExtensionSyntaxPriority;
+}
+export interface OpenWaggleExtensionSyntaxToken {
+    readonly content: string;
+    readonly color?: string;
+    readonly backgroundColor?: string;
+    readonly fontStyle?: number;
+}
+export interface OpenWaggleExtensionSyntaxHighlightResult {
+    readonly status: 'highlighted' | 'plain-text';
+    readonly language: string;
+    readonly foreground?: string;
+    readonly background?: string;
+    readonly lines: readonly (readonly OpenWaggleExtensionSyntaxToken[])[];
+    readonly diagnostic?: string;
+}
+export interface OpenWaggleExtensionSyntaxHighlightOptions {
+    readonly signal?: AbortSignal;
+}
+export interface OpenWaggleExtensionSyntaxSdk {
+    readonly highlight: (input: OpenWaggleExtensionSyntaxHighlightInput, options?: OpenWaggleExtensionSyntaxHighlightOptions) => Promise<OpenWaggleExtensionSyntaxHighlightResult>;
+}
+export declare function createPlainExtensionSyntaxResult(input: {
+    readonly source: string;
+    readonly language?: string;
+    readonly diagnostic?: string;
+}): OpenWaggleExtensionSyntaxHighlightResult;
+```
+
 ## Export `./theme`
 
 Types: `dist/theme.d.ts`
@@ -9764,7 +9890,7 @@ export declare function extensionThemeCssVariableEntries(theme: OpenWaggleExtens
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light' | 'high-contrast-dark' | 'high-contrast-light';
 export interface OpenWaggleExtensionTypeScaleEntry {
     readonly fontSize: string;
     readonly lineHeight: string;
@@ -9846,6 +9972,7 @@ export interface OpenWaggleExtensionThemeCssVariableEntry {
 }
 export type ExtensionThemeCssVariableResolver = (cssVariable: string, fallback: string) => string;
 export interface CreateOpenWaggleExtensionThemeOptions {
+    readonly colorScheme?: OpenWaggleExtensionColorScheme;
     readonly resolveCssVariable?: ExtensionThemeCssVariableResolver;
 }
 ```
@@ -11656,6 +11783,8 @@ export declare const OPENWAGGLE_EXTENSION_UI_CLASS_NAMES: {
     readonly badge: 'ow-extension-badge';
     readonly field: 'ow-extension-field';
     readonly alert: 'ow-extension-alert';
+    readonly syntaxBlock: 'ow-syntax-block';
+    readonly syntaxLineNumber: 'ow-syntax-line-number';
 };
 export declare const OPENWAGGLE_EXTENSION_UI_ATTRIBUTES: {
     readonly tone: 'data-ow-tone';
@@ -11681,7 +11810,7 @@ export declare function createOpenWaggleExtensionUiStylesheet(options?: CreateOp
 ### Declarations from `dist/theme-types.d.ts`
 
 ```ts
-export type OpenWaggleExtensionColorScheme = 'dark' | 'light';
+export type OpenWaggleExtensionColorScheme = 'dark' | 'light' | 'high-contrast-dark' | 'high-contrast-light';
 export interface OpenWaggleExtensionTypeScaleEntry {
     readonly fontSize: string;
     readonly lineHeight: string;
@@ -11763,6 +11892,7 @@ export interface OpenWaggleExtensionThemeCssVariableEntry {
 }
 export type ExtensionThemeCssVariableResolver = (cssVariable: string, fallback: string) => string;
 export interface CreateOpenWaggleExtensionThemeOptions {
+    readonly colorScheme?: OpenWaggleExtensionColorScheme;
     readonly resolveCssVariable?: ExtensionThemeCssVariableResolver;
 }
 ```

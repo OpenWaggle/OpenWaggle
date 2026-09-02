@@ -2,8 +2,9 @@ import { WORKSPACE_FILES } from '@shared/constants/resource-limits'
 import { useQuery } from '@tanstack/react-query'
 import { File, Search } from 'lucide-react'
 import { type KeyboardEvent, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { usePreferencesStore } from '@/features/settings/state'
+import { useActiveWorkingPath } from '@/features/git/hooks'
 import { workspaceFilesQueryOptions } from '@/queries/workspace-files'
+import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
 import { TextInput } from '@/shared/ui/TextInput'
@@ -11,7 +12,7 @@ import { useUIStore } from '@/shell/ui-store'
 import { useOpenWorkspaceFile } from '../hooks'
 
 export function ProjectFilePicker() {
-  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const projectPath = useActiveWorkingPath()
   const close = useUIStore((state) => state.closeCommandSurface)
   const openWorkspaceFile = useOpenWorkspaceFile()
   const [query, setQuery] = useState('')
@@ -62,7 +63,7 @@ export function ProjectFilePicker() {
   return (
     <CommandDialog
       title="Go to file"
-      description={projectPath ?? 'No active project'}
+      description={projectPath ? projectName(projectPath) : 'No active project'}
       onClose={close}
       footer={
         <>

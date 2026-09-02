@@ -1,6 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
@@ -155,8 +156,10 @@ export function ModelSelector({
         )}
       >
         {selectedModel && <SelectedModelIcon provider={selectedModel.provider} />}
-        <span className="max-w-45 truncate text-xs">{selectedModel?.name ?? 'Select model'}</span>
-        <span className="text-xs text-text-tertiary">&#x2228;</span>
+        <span className="max-w-45 truncate text-xs @max-xl/composer-toolbar:max-w-20">
+          {selectedModel?.name ?? 'Select model'}
+        </span>
+        <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
       </Button>
 
       {isOpen && (

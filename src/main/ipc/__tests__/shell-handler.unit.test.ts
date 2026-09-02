@@ -77,6 +77,14 @@ describe('shell-handler', () => {
       await handler?.({})
       expect(mockShellOpenPath).toHaveBeenCalledWith('/custom/log/dir')
     })
+
+    it('propagates a blocked automation path instead of dropping the rejection', async () => {
+      mockShellOpenPath.mockRejectedValueOnce(new Error('Blocked native desktop UI'))
+      registerShellHandlers()
+
+      const handler = handlers.get('app:open-logs-dir')
+      await expect(handler?.({})).rejects.toThrow('Blocked native desktop UI')
+    })
   })
 
   describe('app:get-logs-path', () => {

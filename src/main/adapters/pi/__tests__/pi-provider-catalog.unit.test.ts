@@ -5,7 +5,7 @@ import {
   createPiProviderCatalogSnapshot,
   createPiRuntimeServices,
   findPiToolCapableModel,
-  getPiModelAvailableThinkingLevels,
+  resolvePiVisualizeSkillPaths,
 } from '../pi-provider-catalog'
 import {
   createTempProject,
@@ -25,36 +25,15 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('getPiModelAvailableThinkingLevels', () => {
-  it('returns off only for non-reasoning models', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-4.1-mini', reasoning: false })).toEqual([
-      'off',
-    ])
-  })
-
-  it('returns standard Pi thinking levels for reasoning models without xhigh support', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-5', reasoning: true })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-    ])
-  })
-
-  it('returns xhigh for Pi-supported model families', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-5.4', reasoning: true })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-    ])
-  })
-})
-
 describe('createPiProviderCatalogSnapshot', () => {
+  it('keeps Pi services available when built-in Visualize installation fails', async () => {
+    const install = vi.fn(async () => {
+      throw new Error('read-only agent directory')
+    })
+
+    await expect(resolvePiVisualizeSkillPaths('/read-only/pi-agent', install)).resolves.toEqual([])
+  })
+
   it('does not load a user-managed MCP adapter or remove it from other Pi projects', async () => {
     const root = await createTempProject()
     const agentDir = path.join(root, 'pi-agent')
@@ -157,6 +136,26 @@ describe('createPiProviderCatalogSnapshot', () => {
 })
 
 describe('createPiRuntimeServices', () => {
+  it('loads the built-in Visualize skill and binds the current session directory', async () => {
+    const projectPath = await createTempProject()
+    const visualizationDirectory = path.join(projectPath, '.session-visualizations')
+
+    const services = await createPiRuntimeServices(projectPath, { visualizationDirectory })
+    const visualizeSkill = services.resourceLoader
+      .getSkills()
+      .skills.find((skill) => skill.name === 'visualize')
+
+    expect(visualizeSkill?.filePath).toMatch(
+      /openwaggle-built-in-skills[/\\]visualize[/\\]SKILL\.md$/,
+    )
+    await expect(
+      fs.stat(path.join(path.dirname(visualizeSkill?.filePath ?? ''), 'scripts', 'render.py')),
+    ).resolves.toMatchObject({ mode: expect.any(Number) })
+    expect(services.resourceLoader.getAppendSystemPrompt()).toEqual([
+      expect.stringContaining(JSON.stringify(visualizationDirectory)),
+    ])
+  })
+
   it('uses Pi ModelRuntime membership as the tool-capable model contract', async () => {
     const projectPath = await createTempProject()
     const providerId = 'contract-provider'

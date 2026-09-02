@@ -3,6 +3,7 @@ import type { ExtensionContributionRegistryView } from '@shared/types/extensions
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
 import { useChatScrollBehaviour } from '../hooks/useChatScrollBehaviour'
+import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatTranscriptSectionState } from '../model'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
@@ -25,7 +26,10 @@ function TranscriptExtensionCards({
   readonly rowsLength: number
 }) {
   return (
-    <div className="mx-auto w-full max-w-180 px-12 pb-6">
+    <div
+      className={`${CHAT_CONTENT_FRAME_CLASS} pb-6`}
+      data-chat-content-frame="transcript-extensions"
+    >
       <ExtensionAgentLoopSurface
         fallback={null}
         input={{
@@ -167,7 +171,11 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
       <div ref={scrollerRef} {...scrollerProps}>
-        <div ref={contentRef} className="flex min-h-full flex-col">
+        <div
+          ref={contentRef}
+          data-chat-transcript-container
+          className="@container/transcript flex min-h-full flex-col"
+        >
           {/*
            * Keyed by session so the window resets to the newest rows on a switch. The scroller
            * above keeps its identity, because its scroll position and refs must survive.

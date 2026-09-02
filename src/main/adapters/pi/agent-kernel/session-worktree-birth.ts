@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { createLogger } from '../../../logger'
@@ -16,20 +17,46 @@ const logger = createLogger('session-worktree-birth')
 /** Serialize birth per session so concurrent runs (classic + waggle, double-send) can't race. */
 const birthInFlight = new Map<string, Promise<string>>()
 
+interface SessionWorktreeBirthOptions {
+  readonly onProgress?: (progress: WorktreeLaunchProgress) => void
+  readonly signal?: AbortSignal
+}
+
 /**
  * Birth path for a Session worktree (ADR 0010, WS1b). Serialized per session so
  * a fast double-send or a classic+waggle overlap cannot both run `worktree add`
  * (the loser would otherwise throw on "already exists").
  */
-export function ensureSessionWorktreeProjectPath(session: SessionDetail): Promise<string> {
+export async function ensureSessionWorktreeProjectPath(
+  session: SessionDetail,
+  options: SessionWorktreeBirthOptions = {},
+): Promise<string> {
+  // Local-mode recovery must not join an older in-flight worktree birth for this session.
+  if (session.environmentMode !== 'worktree') {
+    return requireSessionProjectPath(session)
+  }
   const key = String(session.id)
   const existing = birthInFlight.get(key)
-  if (existing) return existing
-  const pending = ensureSessionWorktreeProjectPathUnlocked(session).finally(() => {
+  if (existing) {
+    try {
+      return await existing
+    } catch (error) {
+      options.signal?.throwIfAborted()
+      if (!(error instanceof Error) || error.name !== 'AbortError') throw error
+      /*
+       * A replacement send must not inherit the cancelled run's signal. Once the
+       * shared birth settles, retry under this caller's still-live signal. The
+       * deterministic path check below makes this safe even if Git completed the
+       * add just before the old caller observed cancellation.
+       */
+      return ensureSessionWorktreeProjectPath(session, options)
+    }
+  }
+  const pending = ensureSessionWorktreeProjectPathUnlocked(session, options).finally(() => {
     birthInFlight.delete(key)
   })
   birthInFlight.set(key, pending)
-  return pending
+  return await pending
 }
 
 /**
@@ -49,7 +76,10 @@ async function isWorktreeOf(repositoryPath: string, candidatePath: string): Prom
   return candidate.stdout.trim() !== '' && candidate.stdout.trim() === primary.stdout.trim()
 }
 
-async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail): Promise<string> {
+async function ensureSessionWorktreeProjectPathUnlocked(
+  session: SessionDetail,
+  options: SessionWorktreeBirthOptions,
+): Promise<string> {
   const primaryPath = requireSessionProjectPath(session)
 
   if (session.environmentMode !== 'worktree') return primaryPath
@@ -107,7 +137,16 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
    */
   if (existsSync(worktreePath)) {
     if (await isWorktreeOf(primaryPath, worktreePath)) {
+      options.onProgress?.({
+        stage: 'preparing-workspace',
+        details: ['Recovering the session worktree'],
+      })
       await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+      options.onProgress?.({
+        stage: 'worktree-created',
+        details: ['Recovered the existing session worktree'],
+        worktreePath,
+      })
       return worktreePath
     }
     /*
@@ -121,10 +160,37 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
       sessionId,
       worktreePath,
     })
+    options.onProgress?.({
+      stage: 'preparing-workspace',
+      details: ['Preparing the session worktree'],
+    })
     throw new Error(
       `Cannot create this session's worktree: ${worktreePath} already exists and is not a worktree of this repository. Remove or rename that directory, or switch this session to the current checkout.`,
     )
   }
+
+  options.onProgress?.({
+    stage: 'preparing-workspace',
+    details: ['Preparing the session worktree'],
+  })
+
+  return createAndPersistSessionWorktree({
+    session,
+    options,
+    primaryPath,
+    sessionId,
+    worktreePath,
+  })
+}
+
+async function createAndPersistSessionWorktree(input: {
+  readonly session: SessionDetail
+  readonly options: SessionWorktreeBirthOptions
+  readonly primaryPath: string
+  readonly sessionId: string
+  readonly worktreePath: string
+}) {
+  const { session, options, primaryPath, sessionId, worktreePath } = input
 
   const baseRef = await resolveWorktreeBaseRef(session, primaryPath)
   if (!baseRef) {
@@ -135,13 +201,33 @@ async function ensureSessionWorktreeProjectPathUnlocked(session: SessionDetail):
 
   const branch = await resolveSessionWorktreeBranch(primaryPath, sessionId)
 
-  const result = await createGitWorktree(primaryPath, { path: worktreePath, branch, baseRef })
+  options.onProgress?.({
+    stage: 'checking-out-files',
+    details: [`Creating ${branch} from ${baseRef}`],
+    worktreePath,
+    branch,
+    baseRef,
+  })
+
+  options.signal?.throwIfAborted()
+  const createPayload = { path: worktreePath, branch, baseRef }
+  const result = options.signal
+    ? await createGitWorktree(primaryPath, createPayload, { signal: options.signal })
+    : await createGitWorktree(primaryPath, createPayload)
+  options.signal?.throwIfAborted()
   if (!result.ok) {
     throw new Error(
       `Could not create a worktree for this session (${result.code}): ${result.message}. Fix the repository state or switch this session to Local mode.`,
     )
   }
   await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+  options.onProgress?.({
+    stage: 'worktree-created',
+    details: [`Created ${branch} from ${baseRef}`],
+    worktreePath,
+    branch,
+    baseRef,
+  })
   /*
    * Deliberately does NOT invalidate the git status cache here. This module is a Pi
    * adapter and must not import from `ipc/`, where the cache lives. The gap is closed

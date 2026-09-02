@@ -1,6 +1,11 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessagePart } from '@shared/types/agent'
-import type { ActiveRunInfo, BackgroundRunSnapshot, RunMode } from '@shared/types/background-run'
+import type {
+  ActiveRunInfo,
+  BackgroundRunSnapshot,
+  RunMode,
+  WorktreeLaunchSnapshot,
+} from '@shared/types/background-run'
 import { type SessionId, ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -12,6 +17,7 @@ interface ActiveStreamBuffer {
   readonly startedAt: number
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
+  readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }
 
 const activeBuffers = new Map<SessionId, ActiveStreamBuffer>()
@@ -227,6 +233,20 @@ export function clearStreamBuffer(sessionId: SessionId) {
   activeBuffers.delete(sessionId)
 }
 
+export function setWorktreeLaunchSnapshot(
+  sessionId: SessionId,
+  snapshot: WorktreeLaunchSnapshot | null,
+) {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  if (snapshot === null) {
+    const { worktreeLaunch: _worktreeLaunch, ...withoutLaunch } = buffer
+    activeBuffers.set(sessionId, withoutLaunch)
+    return
+  }
+  activeBuffers.set(sessionId, { ...buffer, worktreeLaunch: snapshot })
+}
+
 export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | null {
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return null
@@ -237,6 +257,7 @@ export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | n
     startedAt: buffer.startedAt,
     ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
     parts: [...buffer.parts],
+    ...(buffer.worktreeLaunch ? { worktreeLaunch: buffer.worktreeLaunch } : {}),
   }
 }
 

@@ -5,6 +5,7 @@ import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
+import { isRunCancellation } from '../run-cancellation'
 import type { AgentRunResult } from './types'
 
 const logger = createLogger('agent-run-service')
@@ -26,6 +27,7 @@ interface BuildAgentRunOutcomeInput {
 
 interface BuildAgentRunFailureInput {
   readonly error: unknown
+  readonly signal: AbortSignal
   /** Whether the agent already had the message when this failed - see the outcome below. */
   readonly reachedAgent?: boolean
   readonly assignedTitle?: string
@@ -62,13 +64,14 @@ export function buildAgentRunOutcome({
 
 export function recoverAgentRunFailure({
   error,
+  signal,
   assignedTitle,
   sessionId,
   runId,
   model,
   reachedAgent = false,
 }: BuildAgentRunFailureInput): Effect.Effect<AgentRunResult> {
-  if (error instanceof Error && error.message === 'aborted') {
+  if (isRunCancellation(error, signal)) {
     return Effect.succeed({
       outcome: 'aborted' as const,
       ...(assignedTitle ? { assignedTitle } : {}),

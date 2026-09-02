@@ -88,6 +88,7 @@ function createSection(): ChatTranscriptSectionState {
     messages: [defaultMessage],
     isLoading: false,
     projectPath: PROJECT_PATH,
+    worktreePath: null,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
     chatRows: [

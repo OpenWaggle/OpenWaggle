@@ -6,8 +6,12 @@ import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limit
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { PreparedAttachment } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
+import { app } from 'electron'
 import { createLogger } from '../logger'
-import { rememberPreparedAttachment } from '../utils/attachment-registry'
+import {
+  configurePreparedAttachmentRegistry,
+  rememberPreparedAttachment,
+} from '../utils/attachment-registry'
 import {
   buildTempPromptFilename,
   cleanupTempAttachments,
@@ -172,7 +176,7 @@ function registerPrepareAttachmentHandler() {
       const prepared: PreparedAttachment[] = []
       for (const filePath of resolvedPaths) {
         const attachment = yield* Effect.promise(() => prepareAttachment(filePath))
-        rememberPreparedAttachment(attachment, filePath)
+        yield* Effect.promise(() => rememberPreparedAttachment(attachment, filePath))
         prepared.push(attachment)
       }
       return prepared
@@ -218,13 +222,14 @@ function registerPrepareFromTextAttachmentHandler() {
           sizeBytes: stats.size,
           extractedText: text,
         }
-        rememberPreparedAttachment(attachment, filePath)
+        yield* Effect.promise(() => rememberPreparedAttachment(attachment, filePath))
         return attachment
       }),
   )
 }
 
 export function registerAttachmentHandlers(): void {
+  configurePreparedAttachmentRegistry(app.getPath('userData'))
   void cleanupTempAttachments().catch((error: unknown) => {
     logger.warn('Temp prompt attachment cleanup failed during startup', describeUnknownError(error))
   })

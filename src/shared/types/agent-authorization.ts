@@ -5,7 +5,7 @@ export type AgentAuthorizationMode = (typeof AGENT_AUTHORIZATION_MODES)[number]
 export const DEFAULT_AGENT_AUTHORIZATION_MODE: AgentAuthorizationMode = 'yolo'
 
 export const AGENT_AUTHORIZATION_MODE_LABELS = {
-  yolo: 'YOLO (Full access)',
+  yolo: 'YOLO (Full Access)',
   'ask-for-approval': 'Ask for Approval',
 } satisfies Record<AgentAuthorizationMode, string>
 

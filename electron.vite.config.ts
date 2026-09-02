@@ -7,14 +7,20 @@ import babel from '@rolldown/plugin-babel'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
+import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
 const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/extensions/loader.js'
 const PI_EXTENSION_IMPORT_META_RESOLVE_LINE =
   'return fileURLToPath(import.meta.resolve(specifier));'
 const PI_EXTENSION_BUNDLED_RESOLVE_LINE = 'return specifier;'
-const PI_EXTENSION_NODE_ALIAS_BRANCH =
-  '...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),'
+const PI_EXTENSION_NODE_ALIAS_BRANCH = [
+  '...(isBunBinary || isNodeSeaBinary || isBundledNode',
+  '            ? { virtualModules: VIRTUAL_MODULES, tryNative: false }',
+  '            : isTypeScriptSourceRuntime',
+  '                ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }',
+  '                : { alias: getAliases() }),',
+].join('\n')
 const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
   '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
 const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'
@@ -219,6 +225,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    worker: {
+      // Module workers preserve Shiki's per-language dynamic imports. The IIFE
+      // default inlines every bundled grammar into one 10+ MiB first-use asset.
+      format: 'es',
+    },
     server: {
       cors: {
         origin: '*',
@@ -229,12 +240,21 @@ export default defineConfig({
       watch: {
         ignored: MCP_CONFIG_WATCH_IGNORES,
       },
+      // Transform the renderer and syntax worker graph while the dev server is
+      // starting. Without this warmup, opening the first syntax-eligible file
+      // causes Vite to discover Shiki on demand and reload the renderer.
+      warmup: {
+        clientFiles: [
+          './src/main.tsx',
+          './src/shared/lib/syntax/syntax.worker.ts',
+        ],
+      },
     },
     optimizeDeps: {
-      // Force re-optimization in dev so Vite does not serve stale prebundled
-      // dependency copies after local dependency changes or upgrades.
-      force: true,
-      include: ['react/compiler-runtime'],
+      // Shiki's WASM engine is imported only by the syntax worker. Include it
+      // up front so the first TypeScript file cannot trigger dependency
+      // optimization and a renderer reload in the middle of a user action.
+      include: ['react/compiler-runtime', 'shiki', 'shiki/wasm'],
     },
     resolve: {
       alias: {
@@ -247,9 +267,11 @@ export default defineConfig({
       },
     },
     plugins: [
+      isolatedTailwindSourcePlugin(),
       tanstackRouter({
         routesDirectory: resolve('src/renderer/src/routes'),
         generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts'),
+        autoCodeSplitting: true,
       }),
       svgr(),
       react(),

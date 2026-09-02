@@ -32,18 +32,32 @@ describe('registerGitHandlers branches', () => {
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
           .with(
-            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track) refs/heads refs/remotes',
+            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track)%09%(committerdate:unix) refs/heads refs/remotes',
             () =>
               cb(
                 null,
                 [
-                  'refs/heads/main\tmain\torigin/main\t*\t[ahead 2, behind 1]',
-                  'refs/heads/feature\tfeature\torigin/feature\t\t',
-                  'refs/remotes/origin/main\torigin/main\t\t\t',
-                  'refs/remotes/origin/HEAD\torigin/HEAD\t\t\t',
+                  'refs/heads/older\tolder\torigin/older\t\t\t200',
+                  'refs/heads/main\tmain\torigin/main\t*\t[ahead 2, behind 1]\t100',
+                  'refs/remotes/origin/main\torigin/main\t\t\t\t500',
+                  'refs/heads/newest\tnewest\torigin/newest\t\t\t300',
+                  'refs/remotes/origin/HEAD\torigin/HEAD\t\t\t\t600',
                 ].join('\n'),
                 '',
               ),
+          )
+          .with('reflog show --all --date=unix --format=%gD', () =>
+            cb(
+              null,
+              [
+                'refs/heads/newest@{300}',
+                'refs/heads/older@{250}',
+                'refs/heads/older@{100}',
+                'refs/heads/main@{50}',
+                'refs/remotes/origin/main@{400}',
+              ].join('\n'),
+              '',
+            ),
           )
           .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
@@ -58,10 +72,60 @@ describe('registerGitHandlers branches', () => {
     expect(result).toMatchObject({
       currentBranch: 'main',
       branches: [
-        { name: 'feature' },
         { name: 'main', isRemote: false, isCurrent: true, ahead: 2, behind: 1 },
+        { name: 'newest' },
+        { name: 'older' },
         { name: 'origin/main' },
       ],
+    })
+  })
+
+  it('keeps an older branch below a newer branch after the older branch receives a new commit', async () => {
+    execFileMock.mockImplementation(
+      (
+        _cmd: string,
+        args: string[],
+        _opts: unknown,
+        cb: (err: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const key = args.join(' ')
+        match(key)
+          .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .with(
+            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track)%09%(committerdate:unix) refs/heads refs/remotes',
+            () =>
+              cb(
+                null,
+                [
+                  'refs/heads/main\tmain\t\t*\t\t100',
+                  'refs/heads/older\tolder\t\t\t\t999',
+                  'refs/heads/newer\tnewer\t\t\t\t300',
+                ].join('\n'),
+                '',
+              ),
+          )
+          .with('reflog show --all --date=unix --format=%gD', () =>
+            cb(
+              null,
+              [
+                'refs/heads/older@{999}',
+                'refs/heads/newer@{300}',
+                'refs/heads/older@{100}',
+                'refs/heads/main@{50}',
+              ].join('\n'),
+              '',
+            ),
+          )
+          .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
+      },
+    )
+
+    registerGitHandlers()
+    const result = await registeredHandler('git:branches:list')?.({}, '/tmp/repo')
+
+    expect(result).toMatchObject({
+      branches: [{ name: 'main' }, { name: 'newer' }, { name: 'older' }],
     })
   })
 

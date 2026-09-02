@@ -1,5 +1,6 @@
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
 import type { Session, WebPreferences } from 'electron'
 
 const SECURITY_PREFERENCE_EXPECTATIONS = [
@@ -25,7 +26,13 @@ const SCRIPT_SRC_VALUES = [
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
 const IMG_SRC_VALUES = ["'self'", 'data:', 'blob:'] as const
 const EXTENSION_FRAME_SOURCE = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` as const
-const FRAME_SRC_VALUES = ["'self'", 'blob:', EXTENSION_FRAME_SOURCE] as const
+const INLINE_VISUALIZATION_FRAME_SOURCE = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:` as const
+const FRAME_SRC_VALUES = [
+  "'self'",
+  'blob:',
+  EXTENSION_FRAME_SOURCE,
+  INLINE_VISUALIZATION_FRAME_SOURCE,
+] as const
 const CONNECT_SRC_VALUES = [
   "'self'",
   'ws://localhost:*',
@@ -87,12 +94,54 @@ export function applyContentSecurityPolicyHeader(
   }
 }
 
-function isExtensionFrameProtocolUrl(url: string) {
+function hasProtocolManagedContentSecurityPolicy(url: string) {
   try {
-    return new URL(url).protocol === `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:`
+    const requestProtocol = new URL(url).protocol
+    return (
+      requestProtocol === `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` ||
+      requestProtocol === `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`
+    )
   } catch {
     return false
   }
+}
+
+export function isInlineVisualizationUrl(url: string | undefined) {
+  if (!url) return false
+  try {
+    return new URL(url).protocol === `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:`
+  } catch {
+    return false
+  }
+}
+
+export function shouldBlockInlineVisualizationFrameNavigation(input: {
+  readonly isMainFrame: boolean
+  readonly destinationUrl?: string
+  readonly frameUrl?: string
+  readonly frameIsVisualization?: boolean
+  readonly initiatorUrl?: string
+}) {
+  const currentVisualizationIsLeaving =
+    isInlineVisualizationUrl(input.frameUrl) && input.frameUrl !== input.destinationUrl
+  return (
+    !input.isMainFrame &&
+    (input.frameIsVisualization === true ||
+      currentVisualizationIsLeaving ||
+      isInlineVisualizationUrl(input.initiatorUrl))
+  )
+}
+
+export function shouldBlockInlineVisualizationDocumentRequest(input: {
+  readonly resourceType: string
+  readonly requestUrl: string
+  readonly frameUrl?: string
+}) {
+  return (
+    input.resourceType === 'subFrame' &&
+    isInlineVisualizationUrl(input.frameUrl) &&
+    input.requestUrl !== input.frameUrl
+  )
 }
 
 export function assertSecureWebPreferences(preferences: WebPreferences): void {
@@ -112,7 +161,7 @@ export function installCspHeaders(session: SessionWithHeadersHandler): void {
   }
 
   session.webRequest.onHeadersReceived((details, callback) => {
-    if (isExtensionFrameProtocolUrl(details.url)) {
+    if (hasProtocolManagedContentSecurityPolicy(details.url)) {
       callback({ responseHeaders: details.responseHeaders })
       return
     }

@@ -7,4 +7,5 @@ export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
   medium: 'Medium',
   high: 'High',
   xhigh: 'Extra High',
+  max: 'Max',
 }

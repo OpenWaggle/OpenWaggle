@@ -43,7 +43,10 @@ export function McpSection({ sessionId }: McpSectionProps) {
         onSetGlobal={(on) => void controller.setScopeState('global', on ? 'on' : 'off')}
         onChanged={() => void controller.refresh()}
       />
-      <McpNoticesPanel notices={controller.view?.notices ?? []} />
+      <McpNoticesPanel
+        notices={controller.view?.notices ?? []}
+        projectPath={settings.projectPath}
+      />
       <McpMigrationPanel
         projectPath={settings.projectPath}
         settingsBusy={controller.busy}
@@ -69,10 +72,12 @@ export function McpSection({ sessionId }: McpSectionProps) {
       <McpSourcesPanel
         sources={sources}
         selectedSource={controller.selectedSource}
+        projectPath={settings.projectPath}
         onSelectSource={controller.selectSource}
       />
       <McpSourceEditor
         selectedSource={controller.selectedSource}
+        projectPath={settings.projectPath}
         rawJson={controller.rawJson}
         busy={controller.busy}
         onSave={() => void controller.saveSelectedSource()}

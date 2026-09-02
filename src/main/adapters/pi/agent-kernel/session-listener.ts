@@ -173,6 +173,7 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
     .with('message_start', (value) => handleMessageStart(state, value))
     .with('message_update', (value) => handleMessageUpdate(state, value))
     .with('message_end', (value) => handleMessageEnd(state, value))
+    .with('bash_execution_update', () => undefined)
     .with('tool_execution_start', (value) => handleToolExecutionStart(state, value))
     .with('tool_execution_update', (value) => handleToolExecutionUpdate(state, value))
     .with('tool_execution_end', (value) => handleToolExecutionEnd(state, value))

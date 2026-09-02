@@ -17,8 +17,16 @@ Attach files to your messages for the agent to analyze.
 
 ### How to Attach
 
-- Click the **+** button in the composer toolbar.
+- Click the **+** button in the composer toolbar, then choose **Attach files**.
 - Or drag and drop files onto the composer.
+
+The same menu collects the composer's existing context actions:
+
+- **Reference project file** opens the project file picker. Typing `@` still opens it directly.
+- **Use a skill** opens enabled project skills. Typing `/` still opens the combined command menu.
+- **Start Waggle** opens saved multi-agent collaboration presets.
+
+These entries route through the same draft and picker behavior as their keyboard shortcuts. The plus menu does not create a second attachment or skill system.
 
 Up to **5 files** can be attached per message. Attachment chips appear above the text input showing filenames. Click the X on any chip to remove it.
 

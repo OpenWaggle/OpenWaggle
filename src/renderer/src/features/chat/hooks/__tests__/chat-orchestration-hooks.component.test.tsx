@@ -4,6 +4,7 @@ import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatStore } from '../../state/chat-store'
@@ -27,6 +28,7 @@ const apiMock = vi.hoisted(() => {
     getAgentEventHandler: () => agentEventHandler,
     getRunCompletedHandler: () => runCompletedHandler,
     listActiveRuns: vi.fn(),
+    getBackgroundRun: vi.fn(),
     compactSession: vi.fn(),
     cancelWaggle: vi.fn(),
     cloneSessionToNew: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     compactSession: apiMock.compactSession,
     forkSessionToNew: apiMock.forkSessionToNew,
     listActiveRuns: apiMock.listActiveRuns,
+    getBackgroundRun: apiMock.getBackgroundRun,
     onAgentEvent: apiMock.onAgentEvent,
     onRunCompleted: apiMock.onRunCompleted,
   },
@@ -163,6 +166,7 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
 describe('chat orchestration hooks', () => {
   beforeEach(() => {
     apiMock.listActiveRuns.mockReset()
+    apiMock.getBackgroundRun.mockReset().mockResolvedValue(null)
     apiMock.compactSession.mockReset()
     apiMock.cancelWaggle.mockReset()
     apiMock.cloneSessionToNew.mockReset()
@@ -174,7 +178,10 @@ describe('chat orchestration hooks', () => {
     useBackgroundRunStore.setState({
       activeRunIds: new Set(),
       renderSnapshotsBySessionId: new Map(),
+      worktreeLaunchBySessionId: new Map(),
+      firstSendRecoveryBySessionId: new Map(),
     })
+    useAgentLoopEventStore.setState({ sessionsById: new Map() })
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({
       activeSessionId: null,
@@ -199,6 +206,27 @@ describe('chat orchestration hooks', () => {
       event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 },
     })
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
+
+    requireAgentEventHandler()({
+      sessionId: SESSION_ID,
+      event: {
+        type: 'agent_interaction_request',
+        timestamp: 1,
+        interaction: {
+          interactionId: 'persistent-error',
+          sessionId: SESSION_ID,
+          runId: 'run-1',
+          kind: 'notify',
+          source: 'pi-ui',
+          createdAt: 1,
+          level: 'error',
+          message: 'Could not reach api.github.com',
+        },
+      },
+    })
+    expect(
+      useAgentLoopEventStore.getState().sessionsById.get(SESSION_ID)?.interactionEvents,
+    ).toHaveLength(1)
 
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
     await waitFor(() => expect(refreshSession).toHaveBeenCalledWith(SESSION_ID))

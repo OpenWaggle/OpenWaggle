@@ -55,6 +55,8 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/middleware-websocket@3.972.42"
   - "@aws-sdk/nested-clients@3.997.34"
   - "@aws-sdk/token-providers@3.1092.0"
+  # Pi publishes its runtime packages as a matched set. Keep these exact while
+  # 0.84.4 completes the normal seven-day minimum-release-age window.
   - "@earendil-works/pi-agent-core@0.84.4"
   - "@earendil-works/pi-ai@0.84.4"
   - "@earendil-works/pi-client@0.84.4"

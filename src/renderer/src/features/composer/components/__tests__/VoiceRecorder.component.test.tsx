@@ -98,7 +98,7 @@ describe('VoiceRecorder', () => {
       />,
     )
 
-    expect(screen.getByTitle('Attach files')).toBeEnabled()
+    expect(screen.getByTitle('Add to message')).toBeEnabled()
     expect(screen.getByTitle('Stop recording')).toBeInTheDocument()
     expect(screen.getByTitle('Send recording')).toBeInTheDocument()
     expect(screen.getByText('0:09')).toBeInTheDocument()

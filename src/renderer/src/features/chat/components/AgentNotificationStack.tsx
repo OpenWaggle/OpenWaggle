@@ -9,6 +9,7 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { notificationLifetimeMs, orderNotifications } from '../lib/notification-stack-model'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 import { PoliteAnnouncer } from './PoliteAnnouncer'
 
 const MAX_VISIBLE_NOTIFICATIONS = 3
@@ -165,6 +166,7 @@ function NotificationCard({
 }) {
   const tone = notificationTone(notification.level)
   const Icon = notificationIcon(notification.level)
+  const displayMessage = useChatDisplayText(notification.message)
 
   return (
     <div
@@ -192,7 +194,7 @@ function NotificationCard({
           <p className="text-xs font-medium tracking-widest text-text-muted uppercase">
             {notificationLabel(notification.level)}
           </p>
-          <p className="min-w-0 text-xs leading-5 text-text-secondary">{notification.message}</p>
+          <p className="min-w-0 text-xs leading-5 text-text-secondary">{displayMessage}</p>
         </div>
       </div>
     </div>
@@ -207,14 +209,17 @@ function NotificationCard({
  * so it belongs somewhere else. Follows T3 Code's placement (`ui/toast.tsx:562`), including the
  * offset below the header so it does not land on the window chrome.
  *
- * Remounted per session by its key at the mount site, so dismissals reset with the session rather
- * than accumulating in a set that only ever grows, and switching away and back cannot resurrect a
- * notice already gone. T3 Code achieves the same by filtering toasts to the active thread.
+ * Remounted per session by its key at the mount site, so the local set cannot grow across the
+ * workspace lifetime. The dismissal callback also removes the event from workspace-lifetime state,
+ * so switching away and back cannot resurrect a notice already gone. T3 Code achieves the same by
+ * filtering toasts to the active thread.
  */
 export function AgentNotificationStack({
   events,
+  onDismiss,
 }: {
   readonly events: readonly AgentInteractionEvent[]
+  readonly onDismiss?: (id: string) => void
 }) {
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [expanded, setExpanded] = useState(false)
@@ -225,12 +230,17 @@ export function AgentNotificationStack({
     [events, dismissedIds],
   )
 
-  const dismiss = useCallback((id: string) => {
-    setDismissedIds((current) => new Set(current).add(id))
-  }, [])
+  const dismiss = useCallback(
+    (id: string) => {
+      setDismissedIds((current) => new Set(current).add(id))
+      onDismiss?.(id)
+    },
+    [onDismiss],
+  )
 
   const visible = expanded ? notifications : notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS)
-  const hiddenCount = notifications.length - visible.length
+  const overflowCount = Math.max(0, notifications.length - MAX_VISIBLE_NOTIFICATIONS)
+  const latestDisplayMessage = useChatDisplayText(notifications[0]?.message ?? '')
 
   return (
     <>
@@ -248,7 +258,10 @@ export function AgentNotificationStack({
 
       {/* Always mounted, so the newest notice is actually announced. A live region added in the same
           commit as its text is not announced. */}
-      <PoliteAnnouncer message={notifications[0]?.message ?? null} />
+      <PoliteAnnouncer
+        message={latestDisplayMessage || null}
+        label="Agent notification announcements"
+      />
 
       {notifications.length === 0 ? null : (
         <output
@@ -283,7 +296,7 @@ export function AgentNotificationStack({
               <NotificationCard notification={notification} onDismiss={dismiss} />
             </div>
           ))}
-          {hiddenCount > 0 ? (
+          {overflowCount > 0 ? (
             // A button, not inert text: with four or more notices a keyboard-only user could see
             // that more existed and had no way to reach them except dismissing the front ones one
             // at a time. Errors persist, so errors are exactly what queues up here.
@@ -295,7 +308,7 @@ export function AgentNotificationStack({
                 size="xs"
                 variant="ghost"
               >
-                {expanded ? 'Show fewer notices' : `${String(hiddenCount)} more behind`}
+                {expanded ? 'Show fewer notices' : `${String(overflowCount)} more behind`}
               </Button>
             </div>
           ) : null}

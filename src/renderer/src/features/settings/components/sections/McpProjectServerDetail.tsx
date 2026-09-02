@@ -1,6 +1,5 @@
 import type { McpServerSummary } from '@shared/types/mcp'
 import { cn } from '@/shared/lib/cn'
-import { tildifyPath } from '@/shared/lib/tildify-path'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { StatusPill } from './McpSectionPanelPrimitives'
 
@@ -83,7 +82,6 @@ function ServerGroup({
 /** Right pane: the selected project's servers (shared global + its own) with per-project toggles. */
 export function McpProjectServerDetail({
   label,
-  projectPath,
   servers,
   masterOn,
   busy,
@@ -92,7 +90,6 @@ export function McpProjectServerDetail({
   onToggleServer,
 }: {
   readonly label: string
-  readonly projectPath: string
   readonly servers: readonly McpServerSummary[]
   readonly masterOn: boolean
   readonly busy: boolean
@@ -107,7 +104,7 @@ export function McpProjectServerDetail({
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold text-text-primary">{label}</div>
-          <div className="truncate text-xs text-text-muted">{tildifyPath(projectPath)}</div>
+          <div className="truncate text-xs text-text-muted">Project MCP configuration</div>
         </div>
         <span className="text-xs text-text-tertiary">project MCP</span>
         <ToggleSwitch

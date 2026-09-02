@@ -23,6 +23,7 @@ import { hydrateAgentRunPayload, runAgentKernel } from './agent-run/kernel'
 import { buildAgentRunOutcome, recoverAgentRunFailure } from './agent-run/outcome'
 import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
+import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
@@ -53,6 +54,7 @@ export function executeAgentRun(input: AgentRunInput) {
   // Whether the agent got the message: a failure after that point is not a refused send.
   let reachedAgent = false
   const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
+  const worktreeLaunchEvents = createWorktreeLaunchEventCollector()
 
   return Effect.gen(function* () {
     const preflight = yield* loadAgentRunPreflight(input)
@@ -67,6 +69,10 @@ export function executeAgentRun(input: AgentRunInput) {
     const agentResult = yield* runAgentKernel(
       {
         ...input,
+        onWorktreeLaunch: (progress) => {
+          input.onWorktreeLaunch?.(progress)
+          worktreeLaunchEvents.record(progress)
+        },
         onEvent: (event) => {
           if (isDurableAgentLoopEvent(event)) {
             durableAgentLoopEvents.push(event)
@@ -86,6 +92,10 @@ export function executeAgentRun(input: AgentRunInput) {
      * run whose persistence then failed was reported as delivered, and the submitted review was discarded.
      */
     reachedAgent = agentResult.aborted !== true && agentResult.newMessages.length > 0
+    const worktreeCreatedEvent = worktreeLaunchEvents.createdEvent()
+    if (reachedAgent && worktreeCreatedEvent) {
+      durableAgentLoopEvents.unshift(worktreeCreatedEvent)
+    }
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: agentResult.sessionSnapshot,
@@ -126,6 +136,7 @@ export function executeAgentRun(input: AgentRunInput) {
         recoverAgentRunFailure({
           reachedAgent,
           error,
+          signal: input.signal,
           assignedTitle,
           sessionId: input.sessionId,
           runId: input.runId,

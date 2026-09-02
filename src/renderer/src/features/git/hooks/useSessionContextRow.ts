@@ -33,6 +33,7 @@ interface UseSessionContextRowInput {
 
 export interface SessionContextRowState {
   readonly visible: boolean
+  readonly editable: boolean
   readonly envMode: SessionEnvironmentMode
   readonly baseRef: string | null
   /** The Session worktree path once it exists, so the run target can show its branch. */
@@ -299,9 +300,8 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
      * is nothing left to choose. A vanished worktree is the exception: the row has to
      * come back to carry the message and the recover/switch actions.
      */
-    visible:
-      sessionKey !== '' &&
-      ((isFirstMessage && !hasWorktree) || sendPlan.kind === 'worktree-missing'),
+    visible: sessionKey !== '',
+    editable: isFirstMessage && !hasWorktree && sendPlan.kind !== 'worktree-missing',
     envMode,
     baseRef,
     worktreePath: recordedWorktreePath,

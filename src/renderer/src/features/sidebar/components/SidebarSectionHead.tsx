@@ -75,13 +75,3 @@ export function SidebarIconButton({
     </Button>
   )
 }
-
-/**
- * The prototype's `.hint-row`: what a project has instead of rows.
- *
- * Says why a group looks empty. "No sessions yet" and "3 pinned above" are different
- * situations and an empty group cannot distinguish them on its own.
- */
-export function SidebarHintRow({ children }: { readonly children: React.ReactNode }) {
-  return <div className="px-2.5 pt-0.5 pb-1.5 pl-8 text-xs text-text-muted italic">{children}</div>
-}

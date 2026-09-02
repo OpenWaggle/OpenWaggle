@@ -1,6 +1,7 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ChatRowRenderer } from './ChatRowRenderer'
@@ -23,6 +24,7 @@ function getChatRowKey(row: ChatRow) {
     .with('message', (value) => `message:${value.message.id}`)
     .with('waggle-turn', (value) => value.id)
     .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
+    .with('worktree-launch', (value) => `worktree-launch:${value.id}`)
     .with(
       'agent-loop-custom-message',
       (value) => `custom:${value.event.timestamp}:${value.event.name}`,
@@ -106,7 +108,10 @@ export function TranscriptWindow({
       {/* Focus lands here when the transcript reaches its start, so a keyboard user keeps a place. */}
       <div ref={startRef} tabIndex={-1} className="outline-none" />
       {hiddenCount > 0 ? (
-        <div className="mx-auto w-full max-w-180 px-12 pt-5 pb-6">
+        <div
+          className={`${CHAT_CONTENT_FRAME_CLASS} pt-5 pb-6`}
+          data-chat-content-frame="transcript-history"
+        >
           <Button
             variant="secondary"
             type="button"
@@ -139,7 +144,8 @@ function TranscriptRows({
         return (
           <div
             key={getChatRowKey(row)}
-            className="mx-auto w-full max-w-180 px-12 pb-6"
+            className={`${CHAT_CONTENT_FRAME_CLASS} pb-6`}
+            data-chat-content-frame="transcript-row"
             {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
             style={index === 0 && !hasEarlier ? { paddingTop: PADDING_TOP } : undefined}
           >

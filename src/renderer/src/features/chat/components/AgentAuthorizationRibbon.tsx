@@ -6,8 +6,10 @@ import type {
 import { ChevronDown, LockKeyhole } from 'lucide-react'
 import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { allowScopeChoices, ribbonTargetLine } from '../lib/agent-authorization-ribbon-model'
 import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 /**
  * The decision row for an authorization request.
@@ -29,6 +31,9 @@ function RibbonIdentity({
   readonly scopeKey: AgentAuthorizationScopeKey
   readonly queuedCount: number
 }) {
+  const requester = useChatDisplayText(scopeKey.requester)
+  const title = useChatDisplayText(interaction.title)
+  const targetLine = useChatDisplayText(ribbonTargetLine(scopeKey))
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <LockKeyhole className="size-3.5 shrink-0 text-accent" />
@@ -38,7 +43,7 @@ function RibbonIdentity({
             Needs decision
           </span>
           <span className="rounded bg-bg-tertiary px-1.5 py-0.5 font-mono text-xs text-text-tertiary">
-            {scopeKey.requester}
+            {requester}
           </span>
           {queuedCount > 0 ? (
             <span className="text-xs text-text-muted tabular-nums">1/{queuedCount + 1}</span>
@@ -48,9 +53,9 @@ function RibbonIdentity({
           className="mt-0.5 truncate text-xs font-medium text-text-primary"
           id={`authorization-${interaction.interactionId}`}
         >
-          {interaction.title}
+          {title}
         </p>
-        <p className="mt-0.5 truncate text-xs text-text-muted">{ribbonTargetLine(scopeKey)}</p>
+        <p className="mt-0.5 truncate text-xs text-text-muted">{targetLine}</p>
       </div>
     </div>
   )
@@ -138,6 +143,7 @@ function AllowScopeMenu({
 
 function RibbonDetails({ message }: { readonly message: string }) {
   const [open, setOpen] = useState(false)
+  const displayMessage = useChatDisplayText(message)
 
   return (
     <>
@@ -156,9 +162,9 @@ function RibbonDetails({ message }: { readonly message: string }) {
           {/* The payload lives here, never in the label. Pre-wrapped because every consent body is
               built as several lines, and capped so a large one scrolls instead of pushing the
               composer off screen. */}
-          <pre className="max-h-40 max-w-full min-w-0 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
-            {message}
-          </pre>
+          <PlainTextBlock reason="prose" className="max-h-40 max-w-full min-w-0 bg-transparent p-0">
+            {displayMessage}
+          </PlainTextBlock>
         </div>
       ) : null}
     </>
@@ -182,6 +188,7 @@ export function AgentAuthorizationRibbon({
   readonly error: string | null
   readonly submit: (response: AgentLoopInteractionResponse) => void
 }) {
+  const displayError = useChatDisplayText(error ?? '')
   return (
     <section
       aria-labelledby={`authorization-${interaction.interactionId}`}
@@ -227,9 +234,9 @@ export function AgentAuthorizationRibbon({
 
       {interaction.message ? <RibbonDetails message={interaction.message} /> : null}
 
-      {error ? (
+      {displayError ? (
         <p className="mt-2 text-xs leading-5 text-error" role="alert">
-          {error}
+          {displayError}
         </p>
       ) : null}
     </section>

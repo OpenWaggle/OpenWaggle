@@ -8,8 +8,6 @@ import { useGitStore } from '@/features/git/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { RunTargetPicker } from '../RunTargetPicker'
 
-const copyToClipboard = vi.fn()
-
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
@@ -17,14 +15,13 @@ vi.mock('@/shared/lib/ipc', () => ({
     getGitStatus: vi.fn().mockResolvedValue(null),
     listGitBranches: vi.fn().mockResolvedValue(null),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'Checked out' }),
-    createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    copyToClipboard: (text: string) => copyToClipboard(text),
   },
 }))
 
 function stripState(overrides: Partial<SessionContextRowState> = {}): SessionContextRowState {
   return {
     visible: true,
+    editable: true,
     envMode: 'worktree',
     baseRef: 'main',
     worktreePath: null,
@@ -45,7 +42,6 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
 
 describe('RunTargetPicker', () => {
   beforeEach(() => {
-    copyToClipboard.mockClear()
     useComposerStore.setState(useComposerStore.getInitialState())
     useComposerActionStore.setState(useComposerActionStore.getInitialState())
     usePreferencesStore.setState({
@@ -132,6 +128,7 @@ describe('RunTargetPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /Run target/ }))
     expect(useComposerStore.getState().branchMenuOpen).toBe(true)
     expect(screen.getByPlaceholderText('Search branches')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveClass('mb-3')
   })
 
   it('lists local and remote refs', () => {
@@ -158,6 +155,23 @@ describe('RunTargetPicker', () => {
     expect(screen.getByText('No branches found.')).toBeInTheDocument()
   })
 
+  it('starts with an unfiltered branch list whenever the picker reopens', () => {
+    render(<RunTargetPicker strip={stripState()} />)
+    const trigger = screen.getByRole('button', { name: /Run target/ })
+
+    fireEvent.click(trigger)
+    fireEvent.change(screen.getByPlaceholderText('Search branches'), {
+      target: { value: 'dev' },
+    })
+    expect(screen.queryByText('origin/main')).toBeNull()
+
+    fireEvent.click(trigger)
+    fireEvent.click(trigger)
+
+    expect(screen.getByText('origin/main')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search branches')).toHaveValue('')
+  })
+
   // The whole point of merging the two controls: in worktree mode the highlighted
   // ref is the base to branch from, which is usually NOT the checked-out branch.
   it('marks the base ref as selected in worktree mode, not the checked-out branch', () => {
@@ -171,10 +185,12 @@ describe('RunTargetPicker', () => {
   it('sets the base ref instead of checking out when creating a worktree', () => {
     const setBaseRef = vi.fn()
     useComposerStore.setState({ branchMenuOpen: true })
+    useComposerActionStore.setState({ branchQuery: 'dev' })
     render(<RunTargetPicker strip={stripState({ setBaseRef })} />)
     fireEvent.click(screen.getByRole('button', { name: /^develop/ }))
     expect(setBaseRef).toHaveBeenCalledWith('develop')
     expect(useComposerStore.getState().branchMenuOpen).toBe(false)
+    expect(useComposerActionStore.getState().branchQuery).toBe('')
   })
 
   // Guards the mode branch in selectRef: without this, removing the worktree early
@@ -191,63 +207,18 @@ describe('RunTargetPicker', () => {
     expect(setBaseRef).not.toHaveBeenCalled()
   })
 
-  it('opens the create-branch dialog from the menu', () => {
+  it('only searches and selects existing refs', () => {
     useComposerStore.setState({ branchMenuOpen: true })
     render(<RunTargetPicker strip={stripState()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'New branch…' }))
-    expect(useComposerActionStore.getState().actionDialog).toBe('create-branch')
-  })
 
-  it('copies the run target ref', () => {
-    useComposerStore.setState({ branchMenuOpen: true })
-    render(<RunTargetPicker strip={stripState({ baseRef: 'develop' })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Copy branch name' }))
-    expect(copyToClipboard).toHaveBeenCalledWith('develop')
-  })
-
-  it('exposes start-from-origin only when a worktree will be created', () => {
-    const setStartFromOrigin = vi.fn()
-    useComposerStore.setState({ branchMenuOpen: true })
-    const { unmount } = render(<RunTargetPicker strip={stripState({ setStartFromOrigin })} />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Start from origin' }))
-    expect(setStartFromOrigin).toHaveBeenCalledWith(true)
-    unmount()
-
-    render(<RunTargetPicker strip={stripState({ envMode: 'local' })} />)
+    expect(screen.getByPlaceholderText('Search branches')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^develop/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New branch…' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy branch name' })).not.toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: 'Start from origin' })).not.toBeInTheDocument()
-  })
-
-  it('loads change requests when the checkout control is clicked', () => {
-    const loadChangeRequests = vi.fn(async () => {})
-    useComposerStore.setState({ branchMenuOpen: true })
-    render(<RunTargetPicker strip={stripState({ loadChangeRequests })} />)
-    fireEvent.click(screen.getByRole('button', { name: /checkout change request/i }))
-    expect(loadChangeRequests).toHaveBeenCalled()
-  })
-
-  it('checks out a selected change request', () => {
-    const checkoutChangeRequest = vi.fn(async () => true)
-    useComposerStore.setState({ branchMenuOpen: true })
-    render(
-      <RunTargetPicker
-        strip={stripState({
-          checkoutChangeRequest,
-          changeRequests: [
-            {
-              title: 'Fix bug',
-              url: 'https://x/1',
-              baseRef: 'main',
-              headRef: 'fix',
-              state: 'open',
-            },
-          ],
-        })}
-      />,
-    )
-    fireEvent.change(screen.getByLabelText('Checkout change request'), {
-      target: { value: 'fix' },
-    })
-    expect(checkoutChangeRequest).toHaveBeenCalledWith('fix')
+    expect(
+      screen.queryByRole('button', { name: /checkout change request/i }),
+    ).not.toBeInTheDocument()
   })
 
   /**

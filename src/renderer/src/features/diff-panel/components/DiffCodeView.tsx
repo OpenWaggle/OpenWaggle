@@ -1,14 +1,23 @@
-import type { CodeViewItem, CodeViewLineSelection } from '@pierre/diffs'
-import { CodeView, type CodeViewHandle } from '@pierre/diffs/react'
-import type { GitFileDiff } from '@shared/types/git'
-import { type Ref, useCallback, useMemo, useState } from 'react'
+import type { CodeViewItem } from '@pierre/diffs'
 import {
-  buildCodeViewItems,
-  codeViewItemId,
-  type ReviewAnnotationMetadata,
-} from '@/features/diff-panel/lib/code-view-items'
+  CodeView,
+  type CodeViewHandle,
+  useWorkerPool,
+  WorkerPoolContextProvider,
+} from '@pierre/diffs/react'
+import type { GitFileDiff } from '@shared/types/git'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useDiffCodeSelection } from '@/features/diff-panel/hooks/useDiffCodeSelection'
+import { useDiffCodeViewReady } from '@/features/diff-panel/hooks/useDiffCodeViewReady'
+import {
+  type DiffFileNavigation,
+  usePreparedDiffFileNavigation,
+} from '@/features/diff-panel/hooks/usePreparedDiffFileNavigation'
+import { useProgressiveCodeViewItems } from '@/features/diff-panel/hooks/useProgressiveCodeViewItems'
+import type { ReviewAnnotationMetadata } from '@/features/diff-panel/lib/code-view-items'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { ReviewCommentLocation } from '@/features/diff-panel/state/review-store'
+import { registerPendingPierreSyntaxResources } from '@/shared/lib/syntax/pierre-syntax-runtime'
 import { Spinner } from '@/shared/ui/Spinner'
 import { DiffLoadError } from './DiffLoadError'
 import { InlineComment } from './InlineComment'
@@ -33,7 +42,6 @@ export interface DiffCodeViewReview {
 }
 
 interface DiffCodeViewProps {
-  readonly viewerRef?: Ref<CodeViewHandle<ReviewAnnotationMetadata>>
   readonly files: readonly GitFileDiff[]
   readonly isLoading: boolean
   /** A failed load, which must never be presented as an empty diff. */
@@ -41,9 +49,41 @@ interface DiffCodeViewProps {
   readonly onRetryLoad: () => void
   readonly viewOptions: DiffViewOptions
   readonly review: DiffCodeViewReview
+  readonly fileNavigation?: DiffFileNavigation | null
+}
+
+function DiffCodeViewReadiness({ children }: { readonly children: ReactNode }) {
+  const codeViewReady = useDiffCodeViewReady()
+  return (
+    <div
+      ref={codeViewReady.rootRef}
+      data-diff-code-ready={codeViewReady.ready ? 'true' : 'false'}
+      className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
+    >
+      {children}
+      {!codeViewReady.ready ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-diff-bg">
+          <Spinner />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function DiffWorkerPoolTheme({ theme }: { readonly theme: string }) {
+  const workerPool = useWorkerPool()
+  useEffect(() => {
+    void workerPool?.setRenderOptions({ theme })
+  }, [theme, workerPool])
+  return null
 }
 
 const CODE_VIEW_LAYOUT = { paddingTop: 10, paddingBottom: 10, gap: 10 } as const
+const DIFF_AST_CACHE_ENTRIES = 64
+
+function createPierreWorker() {
+  return new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), { type: 'module' })
+}
 
 /**
  * Which non-diff state to show, if any.
@@ -57,9 +97,22 @@ function resolveDiffPlaceholder(input: {
   readonly loadError: string | null
   readonly fileCount: number
 }) {
-  if (input.isLoading) return 'loading'
   if (input.loadError !== null) return 'error'
+  if (input.isLoading) return 'loading'
   return input.fileCount === 0 ? 'empty' : 'diff'
+}
+
+function resolveCodeViewPlaceholder(
+  isLoading: boolean,
+  loadError: string | null,
+  fileCount: number,
+  itemsReady: boolean,
+) {
+  return resolveDiffPlaceholder({
+    isLoading: isLoading || (fileCount > 0 && !itemsReady),
+    loadError,
+    fileCount,
+  })
 }
 
 /** Loading, failed, or empty - anything other than an actual diff. */
@@ -143,35 +196,72 @@ function filePathOfItem(item: CodeViewItem<ReviewAnnotationMetadata>) {
   return item.type === 'diff' ? item.fileDiff.name : item.file.name
 }
 
+/**
+ * Match the item id exactly. A suffix test resolves `diff:docs/README.md` to `README.md` whenever
+ * both exist, moving review comments and their snippets onto a file the reviewer never selected.
+ */
+function buildPatchByPath(files: readonly GitFileDiff[]) {
+  return new Map(files.map((file) => [file.path, file.diff] as const))
+}
+
+function useDiffAnnotationRenderer(review: DiffCodeViewReview) {
+  return useCallback(
+    (
+      annotation: { metadata?: ReviewAnnotationMetadata | undefined },
+      item: CodeViewItem<ReviewAnnotationMetadata>,
+    ) => {
+      const metadata = annotation.metadata
+      if (metadata === undefined) return null
+      if (metadata.kind === 'pending') {
+        const comment = review.comments.find((entry) => entry.id === metadata.commentId)
+        if (comment === undefined) return null
+        return (
+          <PendingComment comment={comment} onRemove={() => review.onRemoveComment(comment.id)} />
+        )
+      }
+      const location = review.activeCommentLocation
+      if (location === null || location.filePath !== filePathOfItem(item)) return null
+      return (
+        <InlineComment
+          startLine={location.line}
+          endLine={location.endLine ?? location.line}
+          hasPendingReview={review.comments.length > 0}
+          onAddSingleComment={(content) => review.onAddSingleComment(location, content)}
+          onAddToReview={(content) => review.onAddToReview(location, content)}
+          onCancel={() => review.onSetActiveComment(null)}
+        />
+      )
+    },
+    [review],
+  )
+}
+
 export function DiffCodeView({
-  viewerRef,
   files,
   isLoading,
   loadError,
   onRetryLoad,
   viewOptions,
   review,
+  fileNavigation = null,
 }: DiffCodeViewProps) {
-  const {
-    comments,
-    activeCommentLocation,
-    onSetActiveComment,
-    onAddSingleComment,
-    onAddToReview,
-    onRemoveComment,
-  } = review
-  const [selection, setSelection] = useState<CodeViewLineSelection | null>(null)
-
-  const patchByPath = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const file of files) map.set(file.path, file.diff)
-    return map
-  }, [files])
-
-  const items = useMemo(
-    () => buildCodeViewItems(files, buildAnnotationsByPath(comments, activeCommentLocation)),
-    [files, comments, activeCommentLocation],
+  const viewerRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null)
+  const patchByPath = useMemo(() => buildPatchByPath(files), [files])
+  const [selection, handleSelectionChange] = useDiffCodeSelection(
+    patchByPath,
+    review.onSetActiveComment,
   )
+
+  const annotationsByPath = useMemo(
+    () => buildAnnotationsByPath(review.comments, review.activeCommentLocation),
+    [review.comments, review.activeCommentLocation],
+  )
+  const {
+    items,
+    preparedPaths,
+    error: preparationError,
+  } = useProgressiveCodeViewItems(files, annotationsByPath)
+  usePreparedDiffFileNavigation(viewerRef, fileNavigation, preparedPaths)
 
   const options = useMemo(
     () => ({
@@ -184,87 +274,47 @@ export function DiffCodeView({
     }),
     [viewOptions.syntaxTheme, viewOptions.diffView, viewOptions.wrapLines],
   )
+  const renderAnnotation = useDiffAnnotationRenderer(review)
 
-  const renderAnnotation = useCallback(
-    (
-      annotation: { metadata?: ReviewAnnotationMetadata | undefined },
-      item: CodeViewItem<ReviewAnnotationMetadata>,
-    ) => {
-      const metadata = annotation.metadata
-      if (metadata === undefined) return null
-
-      if (metadata.kind === 'pending') {
-        const comment = comments.find((c) => c.id === metadata.commentId)
-        if (comment === undefined) return null
-        return <PendingComment comment={comment} onRemove={() => onRemoveComment(comment.id)} />
-      }
-
-      const location = activeCommentLocation
-      if (location === null || location.filePath !== filePathOfItem(item)) return null
-      return (
-        <InlineComment
-          startLine={location.line}
-          endLine={location.endLine ?? location.line}
-          hasPendingReview={comments.length > 0}
-          onAddSingleComment={(content) => onAddSingleComment(location, content)}
-          onAddToReview={(content) => onAddToReview(location, content)}
-          onCancel={() => onSetActiveComment(null)}
-        />
-      )
-    },
-    [
-      comments,
-      activeCommentLocation,
-      onAddSingleComment,
-      onAddToReview,
-      onRemoveComment,
-      onSetActiveComment,
-    ],
+  const effectiveLoadError = loadError ?? preparationError
+  const placeholder = resolveCodeViewPlaceholder(
+    isLoading,
+    effectiveLoadError,
+    files.length,
+    items !== null,
   )
-
-  const handleSelectionChange = useCallback(
-    (next: CodeViewLineSelection | null) => {
-      setSelection(next)
-      if (next === null) {
-        onSetActiveComment(null)
-        return
-      }
-      /*
-       * Match the item id exactly. A suffix test resolved `diff:docs/README.md` to `README.md`
-       * whenever both were in the diff, so the comment - and the filePath sent to the agent, and
-       * the snippet pulled from the patch - named a file the reviewer never looked at.
-       * Same-basename files at different depths are routine (index.ts, README.md, package.json).
-       */
-      const filePath = [...patchByPath.keys()].find((path) => codeViewItemId(path) === next.id)
-      if (filePath === undefined) return
-      const start = Math.min(next.range.start, next.range.end)
-      const end = Math.max(next.range.start, next.range.end)
-      onSetActiveComment({
-        filePath,
-        line: start,
-        endLine: end,
-        lineType: next.range.side === 'deletions' ? 'remove' : 'add',
-      })
-    },
-    [onSetActiveComment, patchByPath],
-  )
-
-  const placeholder = resolveDiffPlaceholder({ isLoading, loadError, fileCount: files.length })
   if (placeholder !== 'diff') {
     return (
-      <DiffPlaceholder kind={placeholder} message={loadError ?? ''} onRetryLoad={onRetryLoad} />
+      <DiffPlaceholder
+        kind={placeholder}
+        message={effectiveLoadError ?? ''}
+        onRetryLoad={onRetryLoad}
+      />
     )
   }
 
+  registerPendingPierreSyntaxResources()
   return (
-    <CodeView<ReviewAnnotationMetadata>
-      ref={viewerRef}
-      className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
-      items={items}
-      options={options}
-      selectedLines={selection}
-      onSelectedLinesChange={handleSelectionChange}
-      renderAnnotation={renderAnnotation}
-    />
+    <DiffCodeViewReadiness>
+      <WorkerPoolContextProvider
+        poolOptions={{
+          workerFactory: createPierreWorker,
+          poolSize: 1,
+          totalASTLRUCacheSize: DIFF_AST_CACHE_ENTRIES,
+        }}
+        highlighterOptions={{ theme: viewOptions.syntaxTheme }}
+      >
+        <DiffWorkerPoolTheme theme={viewOptions.syntaxTheme} />
+        <CodeView<ReviewAnnotationMetadata>
+          ref={viewerRef}
+          className="diff-chrome diff-scroll min-h-0 min-w-0 flex-1 overflow-auto"
+          items={items ?? []}
+          options={options}
+          selectedLines={selection}
+          onSelectedLinesChange={handleSelectionChange}
+          renderAnnotation={renderAnnotation}
+        />
+      </WorkerPoolContextProvider>
+    </DiffCodeViewReadiness>
   )
 }

@@ -1,7 +1,6 @@
 import type { OAuthFlowStatus } from '@shared/types/auth'
 import { isOAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
-import { BrowserWindow } from 'electron'
 import {
   cancelOAuth,
   disconnect,
@@ -10,12 +9,13 @@ import {
   startOAuth,
   submitCode,
 } from '../auth'
+import { getAllBrowserWindows } from '../desktop-ui'
 import { ProviderAuthService } from '../ports/provider-auth-service'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
 import { typedHandle } from './typed-ipc'
 
 function broadcastOAuthStatus(status: OAuthFlowStatus) {
-  for (const window of BrowserWindow.getAllWindows()) {
+  for (const window of getAllBrowserWindows()) {
     window.webContents.send('auth:oauth-status', status)
   }
 }

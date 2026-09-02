@@ -8,6 +8,7 @@ import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
+import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
@@ -27,6 +28,7 @@ import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extensio
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
@@ -61,7 +63,13 @@ const McpServicesLive = Layer.mergeAll(
   FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
 ).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
-  Layer.provide(Layer.mergeAll(ExtensionRuntimeSelectionLive, McpServicesLive)),
+  Layer.provide(
+    Layer.mergeAll(
+      ExtensionRuntimeSelectionLive,
+      McpServicesLive,
+      FilesystemInlineVisualizationLive,
+    ),
+  ),
 )
 const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   AppLogger.Live,
@@ -99,6 +107,8 @@ const AppLayer = Layer.mergeAll(
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
   FilesystemWorkspaceFileLive,
+  WorkspaceProjectAuthorizationLive,
+  FilesystemInlineVisualizationLive,
 )
 
 function makeAppRuntime() {

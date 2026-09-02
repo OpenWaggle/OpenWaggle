@@ -1,3 +1,4 @@
+import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionInterruptedRun } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
@@ -5,6 +6,7 @@ import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { StreamingPhaseState } from '@/features/chat/hooks/useStreamingPhase'
 import { appendInteractionEventRows } from '../lib/build-agent-loop-interaction-rows'
 import type { AgentInteractionEvent, ChatRow, MessageChatRow } from '../lib/types-chat-row'
+import { createWorktreeLaunchRows, isWorktreeCreatedEvent } from '../lib/worktree-launch-row-model'
 
 type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
 type SummaryRow = Extract<ChatRow, { type: 'branch-summary' | 'compaction-summary' }>
@@ -248,6 +250,7 @@ interface BuildChatRowsParams {
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: StreamingPhaseState
   interruptedRun?: SessionInterruptedRun
+  worktreeLaunch?: WorktreeLaunchSnapshot | null
 }
 
 function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
@@ -266,6 +269,17 @@ function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
 
 export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   const rows: ChatRow[] = []
+  const launchRows = createWorktreeLaunchRows({
+    sessionId: params.sessionId,
+    liveLaunch: params.worktreeLaunch,
+    customMessages: params.customMessages ?? [],
+  })
+  let didAppendLaunchRows = false
+  const appendLaunchRows = () => {
+    if (didAppendLaunchRows) return
+    rows.push(...launchRows)
+    didAppendLaunchRows = true
+  }
   appendInterruptedRunRow(rows, params)
 
   const lastMessage = params.messages[params.messages.length - 1]
@@ -274,6 +288,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
 
   for (let index = 0; index < params.messages.length; index += 1) {
     const message = params.messages[index]
+    if (message.role === 'assistant') appendLaunchRows()
     const summaryRow = getSummaryRow(message)
     if (summaryRow) {
       rows.push(summaryRow)
@@ -299,7 +314,11 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     }
   }
 
-  appendCustomMessageRows(rows, params.customMessages ?? [])
+  appendLaunchRows()
+  appendCustomMessageRows(
+    rows,
+    (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
+  )
   appendInteractionEventRows(rows, params.interactionEvents ?? [])
   appendStatusRows(rows, params)
   return groupWaggleTurnRows(rows)

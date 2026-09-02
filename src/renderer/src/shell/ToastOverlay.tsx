@@ -1,5 +1,8 @@
 import { ExternalLink, X } from 'lucide-react'
+import { useChatStore } from '@/features/chat/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
@@ -10,6 +13,8 @@ const logger = createRendererLogger('toast')
 export function ToastOverlay() {
   const toastData = useUIStore((s) => s.toastData)
   const clearToast = useUIStore((s) => s.clearToast)
+  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const worktreePath = useChatStore((state) => state.activeSession?.worktreePath ?? null)
 
   if (!toastData) {
     return null
@@ -17,6 +22,7 @@ export function ToastOverlay() {
 
   const isSuccess = toastData.variant === 'success'
   const isError = toastData.variant === 'error'
+  const displayMessage = formatDisplayPathsInText(toastData.message, [worktreePath, projectPath])
 
   return (
     <div
@@ -27,7 +33,7 @@ export function ToastOverlay() {
         !isSuccess && !isError && 'border-border-light bg-bg-secondary',
       )}
     >
-      <span>{toastData.message}</span>
+      <span>{displayMessage}</span>
       {toastData.action && (
         <Button
           variant="unstyled"

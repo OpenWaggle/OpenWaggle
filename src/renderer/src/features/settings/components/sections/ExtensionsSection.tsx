@@ -129,7 +129,7 @@ function buildScopeGroups({
   const projectGroups = projectPaths.map((projectPath) => ({
     key: `project:${projectPath}`,
     title: projectLabel(projectPath),
-    subtitle: projectPath,
+    subtitle: 'Project extensions and overrides.',
     packages: packagesForProject(packages, projectPath),
   }))
 

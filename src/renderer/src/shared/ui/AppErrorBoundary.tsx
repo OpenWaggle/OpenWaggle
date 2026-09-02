@@ -1,5 +1,6 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from './Button'
 
@@ -53,7 +54,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
           </p>
           {this.state.message && (
             <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-xs text-text-tertiary whitespace-pre-wrap break-words">
-              {this.state.message}
+              {formatDisplayPathsInText(this.state.message, [])}
             </pre>
           )}
           <Button

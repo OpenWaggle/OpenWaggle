@@ -4,22 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
-
 import { useReviewStore } from '../../state/review-store'
 import { DiffPanel } from '../DiffPanel'
 
 import { fileDiff, gitStatus } from './diff-panel.test-harness'
 
 /**
- * CodeView is a measurement-driven renderer (Shiki, virtualization, ResizeObserver)
- * and does not render meaningfully under jsdom. Stub it so these tests exercise OUR
+ * CodeView is measurement-driven and does not render meaningfully under jsdom. Stub it so tests exercise OUR
  * wiring -- items, annotations, selection plumbing -- and verify the real renderer
  * in the Electron app instead.
  */
-// Async factory + dynamic import: vi.mock is hoisted above imports, so the stub
 // cannot be referenced from an ordinary top-level import here.
 vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+  WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
+    .StubWorkerPoolContextProvider,
+  useWorkerPool: () => undefined,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({

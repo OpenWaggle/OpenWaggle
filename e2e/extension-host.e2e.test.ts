@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { expect, type Page, test } from '@playwright/test'
 import {
   GITHUB_ISSUES_EXTENSION_ID,
@@ -16,6 +17,38 @@ import { seedSingleSession } from './support/session-fixtures'
 const SEEDED_SESSION_TITLE = 'Extension host proof session'
 const SEEDED_MESSAGE_TEXT = 'extension-host-proof-project'
 const EXTENSION_FRAME_TITLE = `Extension module: ${GITHUB_ISSUES_SETTINGS_TITLE}`
+const SAVED_REPOSITORY_OWNER = 'OpenWaggle-e2e'
+const SAVED_REPOSITORY_NAME = 'OpenWaggle-e2e-fixture'
+const EXTENSION_CONFIG_KEY = 'github.issues.config'
+// The extension host mounts federation modules and iframes asynchronously. Under loaded
+// CI runners that regularly exceeds the 5s default expect budget, so the mount-dependent
+// assertions below use an explicit ceiling. The ceiling is not a wait: assertions still
+// resolve as soon as the element appears.
+const EXTENSION_MOUNT_TIMEOUT = 30_000
+const EXTENSION_TEST_TIMEOUT = 180_000
+
+function readStoredConfiguration(userDataDir: string) {
+  const database = new DatabaseSync(path.join(userDataDir, 'openwaggle.db'), { readOnly: true })
+  try {
+    const row = database
+      .prepare(
+        `SELECT value_json
+         FROM extension_storage_items
+         WHERE extension_id = ?
+           AND storage_kind = 'config'
+           AND storage_scope_kind = 'project'
+           AND key = ?
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+      )
+      .get(GITHUB_ISSUES_EXTENSION_ID, EXTENSION_CONFIG_KEY) as
+      | { readonly value_json: string }
+      | undefined
+    return row ? JSON.parse(row.value_json) : null
+  } finally {
+    database.close()
+  }
+}
 
 function seededProjectMessage() {
   return {
@@ -39,6 +72,9 @@ function lifecycleButton(page: Page, action: string) {
 }
 
 test('project extension can be trusted, enabled, rendered, disabled, and removed through settings', async () => {
+  // The mount and unmount assertions below each carry a 30s ceiling; the default 90s
+  // test timeout would fire first once two of them are slow and waste a retry slot.
+  test.setTimeout(EXTENSION_TEST_TIMEOUT)
   const app = await OpenWaggleApp.launch('openwaggle-extension-host-e2e-')
   const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-extension-project-'))
 
@@ -72,13 +108,15 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
 
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_EXTENSION_NAME }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
     ).toHaveCount(0)
 
     await lifecycleButton(page, 'Trust').click()
-    await expect(lifecycleButton(page, 'Enable')).toBeEnabled()
+    await expect(lifecycleButton(page, 'Enable')).toBeEnabled({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
     await lifecycleButton(page, 'Enable').click()
     await expect(page.getByText('Reload required')).toBeVisible()
@@ -90,31 +128,52 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await expect(page.getByText('Reloaded')).toBeVisible()
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
 
     const settingsFrame = page.frameLocator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)
-    await expect(settingsFrame.getByText('Extension configuration')).toBeVisible()
-    await expect(settingsFrame.getByRole('heading', { name: 'GitHub Issues' })).toBeVisible()
+    await expect(settingsFrame.getByText('Extension configuration')).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
+    await expect(settingsFrame.getByRole('heading', { name: 'GitHub Issues' })).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
-    await settingsFrame.getByLabel('Repository owner').fill('OpenWaggle')
-    await settingsFrame.getByLabel('Repository name').fill('OpenWaggle')
-    await settingsFrame.getByRole('button', { name: 'Save configuration' }).click()
-    await expect(
-      settingsFrame.getByText('Configuration saved. The side panel will use it on the next refresh.'),
-    ).toBeVisible()
+    await settingsFrame.getByLabel('Repository owner').fill(SAVED_REPOSITORY_OWNER)
+    await settingsFrame.getByLabel('Repository name').fill(SAVED_REPOSITORY_NAME)
+    const saveConfiguration = settingsFrame.getByRole('button', { name: 'Save configuration' })
+    const saveStarted = await saveConfiguration.evaluate((element) => {
+      if (!(element instanceof HTMLButtonElement)) {
+        return false
+      }
+      element.click()
+      return element.disabled
+    })
+    expect(saveStarted).toBe(true)
+    await expect(saveConfiguration).toBeEnabled({ timeout: 30_000 })
+    await expect
+      .poll(() => readStoredConfiguration(app.userDataDir), { timeout: 30_000 })
+      .toEqual({
+        owner: SAVED_REPOSITORY_OWNER,
+        repo: SAVED_REPOSITORY_NAME,
+        labels: ['enhancement', 'ready-for-agent'],
+      })
 
     await lifecycleButton(page, 'Disable').click()
-    await expect(lifecycleButton(page, 'Enable')).toBeVisible()
+    await expect(lifecycleButton(page, 'Enable')).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
-    ).toHaveCount(0)
-    await expect(page.locator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)).toHaveCount(0)
+    ).toHaveCount(0, { timeout: EXTENSION_MOUNT_TIMEOUT })
+    await expect(page.locator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)).toHaveCount(0, {
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
 
     await app.confirmNativeDialogs()
     await lifecycleButton(page, 'Remove').click()
     await expect(
       page.getByRole('heading', { name: GITHUB_ISSUES_EXTENSION_NAME }),
-    ).toHaveCount(0)
+    ).toHaveCount(0, { timeout: EXTENSION_MOUNT_TIMEOUT })
     await expect
       .poll(() =>
         projectExtensionFixtureExists({

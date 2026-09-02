@@ -5,7 +5,11 @@ import type {
   AgentLoopInteractionSubmitResult,
 } from './agent-loop-interaction'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
-import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
+import type {
+  ActiveRunInfo,
+  BackgroundRunSnapshot,
+  WorktreeLaunchEventPayload,
+} from './background-run'
 import type {
   RepositoryPath,
   SessionBranchId,
@@ -43,6 +47,12 @@ import type {
   RemoteVcsStatusResult,
   SessionWorktreeCheck,
 } from './git'
+import type {
+  InlineVisualizationDownloadInput,
+  InlineVisualizationFrameRegisterInput,
+  InlineVisualizationFrameRegisterResult,
+  InlineVisualizationFrameUnregisterInput,
+} from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
 import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
@@ -115,6 +125,7 @@ export interface OpenWaggleApi
   ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
+  onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>
@@ -133,6 +144,12 @@ export interface OpenWaggleApi
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
+
+  registerInlineVisualizationFrame(
+    input: InlineVisualizationFrameRegisterInput,
+  ): Promise<InlineVisualizationFrameRegisterResult>
+  unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput): Promise<void>
+  saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
