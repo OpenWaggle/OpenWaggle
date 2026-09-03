@@ -96,12 +96,11 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
     term.loadAddon(fitAddon)
     term.loadAddon(searchAddon)
     term.loadAddon(new WebLinksAddon((_event, uri) => void api.openExternal(uri)))
+    // The DOM renderer only: xterm's WebGL addon mis-scales glyphs inside this
+    // panel (DPR/viewport mismatch — content renders tiny in the corner), which
+    // is the exact class of surface bug t3code solved with a custom renderer.
+    // The DOM renderer is deterministic and fast enough behind coalesced IPC.
     term.open(container)
-    void import('@xterm/addon-webgl')
-      .then(({ WebglAddon }) => {
-        if (!cleanedUp) term.loadAddon(new WebglAddon())
-      })
-      .catch(() => undefined)
 
     const fitToGrid = () => {
       fitAddon.fit()
@@ -207,6 +206,11 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
     }
   }, [ownerKey, terminalId, cwd, containerRef])
 
+  /** Focus this pane's xterm — called on interaction, not just prop changes. */
+  const focus = () => {
+    termRef.current?.focus()
+  }
+
   const restart = () => {
     void api
       .restartTerminal({
@@ -229,5 +233,5 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       .catch(() => undefined)
   }
 
-  return { status, errorMessage, restart }
+  return { status, errorMessage, restart, focus }
 }

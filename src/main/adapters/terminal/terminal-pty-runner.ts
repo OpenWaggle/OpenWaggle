@@ -28,6 +28,23 @@ export interface PtyRunner {
   readonly load: () => Promise<typeof NodePtyModule>
 }
 
+/**
+ * node-pty 1.1.0 creates the master-side tty.ReadStream without resuming it.
+ * Whether a paused fd-backed stream starts flowing is a runtime detail: plain
+ * Node starts it, Electron's build does not, so the shell's first output (the
+ * prompt) sits in the kernel buffer until some later write kicks the stream —
+ * rendered as a dead, empty terminal. Resuming here is a no-op on runtimes
+ * that already started the stream.
+ */
+function resumeMasterStream(spawned: IPty) {
+  const socket: unknown = Reflect.get(spawned, '_socket')
+  if (socket === null || typeof socket !== 'object') return
+  const resume: unknown = Reflect.get(socket, 'resume')
+  if (typeof resume === 'function') {
+    Reflect.apply(resume, socket, [])
+  }
+}
+
 export function makePtyRunner(loadPty?: () => Promise<typeof NodePtyModule>): PtyRunner {
   let ptyModule: typeof NodePtyModule | null = null
 
@@ -59,6 +76,7 @@ export function makePtyRunner(loadPty?: () => Promise<typeof NodePtyModule>): Pt
           cwd: request.cwd,
           env: childEnv(),
         })
+        resumeMasterStream(spawned)
         return { ok: true, pty: spawned, pid: spawned.pid } satisfies PtySpawnOutcome
       } catch (error) {
         logger.warn('Terminal shell spawn failed, trying fallback', {

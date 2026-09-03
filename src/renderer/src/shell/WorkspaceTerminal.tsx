@@ -22,6 +22,9 @@ export function WorkspaceTerminal() {
   const railRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // The rail mounts only when the panel opens, so rewire on that change —
+    // attaching once at host mount would bind to a rail that does not exist.
+    if (!terminalOpen) return
     const rail = railRef.current
     if (rail === null) return
     let startY = 0
@@ -53,7 +56,7 @@ export function WorkspaceTerminal() {
       rail.removeEventListener('pointerup', onPointerUp)
       rail.removeEventListener('dblclick', onDoubleClick)
     }
-  }, [])
+  }, [terminalOpen])
 
   return (
     <div

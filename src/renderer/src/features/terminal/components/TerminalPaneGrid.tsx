@@ -53,7 +53,7 @@ export function TerminalPaneGrid(props: TerminalPaneGridProps) {
             <Button
               size="xs"
               variant="ghost"
-              className="absolute right-1.5 bottom-1 z-20 hidden group-hover/pane:block"
+              className="absolute right-1.5 bottom-1 z-20 opacity-70 hover:opacity-100"
               title="Close pane"
               aria-label="Close pane"
               onClick={() => props.onClosePane(pane.terminalId)}

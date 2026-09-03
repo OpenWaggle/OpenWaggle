@@ -48,13 +48,16 @@ Electron architecture:
    on demand when its pane is viewed, after revalidating the cwd; a missing
    Working path surfaces an error instead of silently spawning elsewhere.
 
-4. **Renderer is xterm.js 6 + WebGL, not Ghostty WASM.** T3 Code's Ghostty VT
-   engine wins VT-parser microbenchmarks but brings a vendored WASM binary, a
-   bespoke Canvas 2D renderer (slower than WebGL for heavy output), and a
-   custom IME/selection/surface stack we would own forever. xterm.js 6 with
-   its WebGL addon is what VSCode ships; paired with frame-coalesced IPC
-   batching and debounced resize it meets the performance bar without the
-   maintenance tax.
+4. **Renderer is xterm.js 6 with the DOM renderer, not Ghostty WASM.** T3
+   Code's Ghostty VT engine wins VT-parser microbenchmarks but brings a
+   vendored WASM binary, a bespoke Canvas 2D renderer, and a custom
+   IME/selection/surface stack we would own forever. We initially shipped
+   xterm's WebGL addon, but it mis-scales glyphs inside the panel
+   (devicePixelRatio/viewport mismatch — content renders tiny in the corner),
+   the exact class of surface bug t3 code solved by hand-rolling a renderer;
+   the DOM renderer is deterministic in-app and fast enough behind coalesced
+   IPC. Revisit WebGL behind a user setting only with in-app visual
+   validation.
 
 5. **Output is coalesced, targeted, and offset-gated.** PTY chunks buffer
    ~10 ms per terminal and flush to windows attached to that terminal only —

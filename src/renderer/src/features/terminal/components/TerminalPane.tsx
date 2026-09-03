@@ -26,12 +26,17 @@ export function TerminalPane(props: TerminalPaneProps) {
   const onFocusRef = useRef(props.onFocus)
   const { ownerKey, terminalId, cwd } = props
 
-  const { status, errorMessage, restart } = useTerminalPaneSession({
+  const { status, errorMessage, restart, focus } = useTerminalPaneSession({
     ownerKey,
     terminalId,
     cwd,
     containerRef,
     onSearchAddon: props.onSearchAddon,
+  })
+  const focusRef = useRef(focus)
+
+  useEffect(() => {
+    focusRef.current = focus
   })
 
   const runtimeKey = runtimeKeyOf(ownerKey, terminalId)
@@ -45,7 +50,13 @@ export function TerminalPane(props: TerminalPaneProps) {
   useEffect(() => {
     const pane = paneRef.current
     if (pane === null) return
-    const handleMouseDown = () => onFocusRef.current()
+    // Focus the terminal directly on interaction: state-driven focus alone
+    // misses clicks when the focused prop does not change (e.g. after the
+    // user clicked a header button, which steals focus from the pane).
+    const handleMouseDown = () => {
+      onFocusRef.current()
+      focusRef.current()
+    }
     pane.addEventListener('mousedown', handleMouseDown)
     return () => pane.removeEventListener('mousedown', handleMouseDown)
   }, [])
