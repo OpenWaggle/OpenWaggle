@@ -89,8 +89,8 @@
   },
   "dependencies": {
     "@diegogbrisa/ts-match": "1.6.2",
-    "@earendil-works/pi-ai": "0.84.3",
-    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
     "@headless-tree/core": "1.7.0",
     "@headless-tree/react": "1.7.0",
     "@huggingface/transformers": "4.2.0",

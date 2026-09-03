@@ -24,6 +24,7 @@ export const docsNav: NavSection[] = [
       { title: 'Waggle Mode', slug: 'using-openwaggle/waggle-mode' },
       { title: 'Attachments & Voice', slug: 'using-openwaggle/attachments-voice' },
       { title: 'Context Management', slug: 'using-openwaggle/context-management' },
+      { title: 'Token Benchmarks', slug: 'using-openwaggle/token-benchmarks' },
     ],
   },
   {
