@@ -151,7 +151,7 @@ describe('preload api surface contract', () => {
       'onAgentPhase',
       'onRunCompleted',
       'onPrepareAttachmentFromTextProgress',
-      'onTerminalData',
+      'onTerminalEvent',
       'onFullscreenChanged',
       'onWaggleEvent',
       'onWaggleTurnEvent',

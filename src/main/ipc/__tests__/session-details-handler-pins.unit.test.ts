@@ -2,7 +2,6 @@ import { SessionId } from '@shared/types/brand'
 import type { PinnedSession } from '@shared/types/session'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  getInvokeHandler,
   listPinnedSessionsMock,
   loadSessionDetailsHandlers,
   movePinnedSessionMock,
@@ -10,6 +9,7 @@ import {
   resetSessionDetailsHandlerMocks,
   unpinSessionMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 /**
  * Pinned session IPC channels (issue #97).

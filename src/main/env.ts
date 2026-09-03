@@ -32,6 +32,9 @@ export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
+/** The user's login shell, when known; terminal shell resolution falls back from here. */
+export const userShell: string | undefined = process.env.SHELL
+
 const MACOS_NPM_COMPATIBLE_PATH_DIRS = [
   '/opt/homebrew/bin',
   '/usr/local/bin',

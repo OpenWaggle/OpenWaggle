@@ -3,6 +3,7 @@ import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
 import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
+import type { TerminalEventPayload } from './terminal'
 import type { UpdateStatus } from './updater'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 import type { WorkspaceFilesChangedEvent } from './workspace-files'
@@ -12,7 +13,7 @@ export interface IpcSendChannelMap {
     args: [sessionId: SessionId]
   }
   'terminal:write': {
-    args: [terminalId: string, data: string]
+    args: [ownerKey: string, terminalId: string, data: string]
   }
   'clipboard:write-text': {
     args: [text: string]
@@ -27,8 +28,8 @@ export interface IpcEventChannelMap {
   'agent:event': {
     payload: { sessionId: SessionId; event: AgentTransportEvent }
   }
-  'terminal:data': {
-    payload: { terminalId: string; data: string }
+  'terminal:event': {
+    payload: TerminalEventPayload
   }
   'agent:phase': {
     payload: AgentPhaseEventPayload

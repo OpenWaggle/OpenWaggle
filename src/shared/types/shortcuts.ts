@@ -3,6 +3,8 @@ export const SHORTCUT_COMMANDS = [
   'filePicker.toggle',
   'chat.new',
   'terminal.toggle',
+  'terminal.new',
+  'terminal.split',
   'sidebar.toggle',
   'diff.toggle',
   'sessionTree.toggle',
@@ -85,7 +87,19 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   {
     command: 'terminal.toggle',
     label: 'Toggle terminal',
-    description: 'Show or hide the project terminal',
+    description: 'Show or hide the session terminal',
+    group: 'Workspace',
+  },
+  {
+    command: 'terminal.new',
+    label: 'New terminal',
+    description: 'Open another terminal for the active session',
+    group: 'Workspace',
+  },
+  {
+    command: 'terminal.split',
+    label: 'Split terminal',
+    description: 'Split the active terminal tab into another pane',
     group: 'Workspace',
   },
   {
@@ -113,6 +127,8 @@ export const DEFAULT_SHORTCUT_BINDINGS: Readonly<Record<ShortcutCommand, Shortcu
   'filePicker.toggle': { key: 'P', mod: true },
   'chat.new': { key: 'N', mod: true },
   'terminal.toggle': { key: 'J', mod: true },
+  'terminal.new': { key: 'J', mod: true, shift: true },
+  'terminal.split': { key: '\\', mod: true },
   'sidebar.toggle': { key: 'B', mod: true },
   'diff.toggle': { key: 'D', mod: true },
   'sessionTree.toggle': { key: 'Y', mod: true, shift: true },

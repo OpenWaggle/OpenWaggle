@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitWorktreeMutationResult, SessionWorktreeCheck } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { TerminalService } from '../../ports/terminal-service'
 import { resolveSessionWorktreeBranch } from '../../services/git/session-branch-resolution'
 import { typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
@@ -82,6 +83,10 @@ export function registerGitWorktreeHandlers(): void {
       if (result.ok) {
         invalidateGitStatusCache(payload.path)
         invalidateGitStatusCache(projectPath)
+        // Shells living in a removed tree are gone for good; their scrollback
+        // goes with them instead of replaying into a dead directory (ADR 0030).
+        const terminals = yield* TerminalService
+        yield* terminals.closeAllUnderPath(payload.path, true)
       }
       return result
     }),

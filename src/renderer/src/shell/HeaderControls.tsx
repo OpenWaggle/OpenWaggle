@@ -100,7 +100,7 @@ function terminalTitle(projectPath: string | null, terminalOpen: boolean) {
     return 'No project selected'
   }
 
-  return terminalOpen ? 'Hide terminal' : 'Open terminal'
+  return terminalOpen ? 'Hide session terminal' : 'Open session terminal'
 }
 
 export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonProps) {

@@ -29,6 +29,7 @@ import type {
   RemoteVcsStatusResult,
   SessionWorktreeCheck,
 } from './git'
+import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
 import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
 import type { SupportedModelId } from './llm'
 import type { AgentPhaseState } from './phase'
@@ -46,19 +47,9 @@ import type { WaggleConfig, WagglePreset } from './waggle'
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
 
-export interface IpcIntegrationInvokeChannelMap extends IpcWorkspaceFileInvokeChannelMap {
-  'terminal:create': {
-    args: [projectPath: string]
-    return: string
-  }
-  'terminal:close': {
-    args: [terminalId: string]
-    return: undefined
-  }
-  'terminal:resize': {
-    args: [terminalId: string, cols: number, rows: number]
-    return: undefined
-  }
+export interface IpcIntegrationInvokeChannelMap
+  extends IpcWorkspaceFileInvokeChannelMap,
+    IpcTerminalInvokeChannelMap {
   'git:status': {
     args: [workingPath: WorkingPath]
     return: GitStatusSummary

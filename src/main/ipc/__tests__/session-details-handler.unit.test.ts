@@ -16,7 +16,6 @@ import {
   deleteVisualizationSessionMock,
   emitRunCompletedMock,
   forkRuntimeSessionMock,
-  getInvokeHandler,
   getSessionDetailMock,
   listSessionDetailsMock,
   loadSessionDetailsHandlers,
@@ -25,6 +24,7 @@ import {
   setAuthorizationModeMock,
   typedHandleMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('registerSessionDetailsHandlers', () => {
   let registerSessionDetailsHandlers: Awaited<
