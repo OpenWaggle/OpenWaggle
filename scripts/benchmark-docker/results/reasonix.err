@@ -1,0 +1,1 @@
+warning: bash sandbox requested but unavailable on this host; refusing to run unconfined. Install bubblewrap (`bwrap`) or set [sandbox] bash = "off" in config.toml / Settings -> Sandbox to restore pre-1.16 unconfined shell execution.

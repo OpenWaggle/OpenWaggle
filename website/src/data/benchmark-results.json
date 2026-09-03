@@ -1,0 +1,14 @@
+{
+  "measuredAt": "2026-09-02",
+  "model": "z-ai/glm-5.3-flash",
+  "entries": [
+    { "id": "openwaggle", "turnOneTokens": 1609, "perTurnDelta": 13 },
+    { "id": "pi", "turnOneTokens": 1356 },
+    { "id": "aider", "turnOneTokens": 587 },
+    { "id": "dsh", "turnOneTokens": 1115 },
+    { "id": "reasonix", "turnOneTokens": 5279 },
+    { "id": "opencode", "turnOneTokens": 7054 },
+    { "id": "codex", "turnOneTokens": 9957 },
+    { "id": "claude-code", "turnOneTokens": 17608 }
+  ]
+}
