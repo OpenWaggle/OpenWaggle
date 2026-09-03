@@ -1,4 +1,5 @@
 import { TERMINAL } from '@shared/constants/resource-limits'
+import type { TerminalOpenInput } from '@shared/types/terminal'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTerminalStore } from '../../state/terminal-store'
@@ -7,12 +8,14 @@ import { TerminalPanel } from '../TerminalPanel'
 const mocks = vi.hoisted(() => {
   let projectPath: string | null = '/tmp/project-x'
   return {
-    openTerminal: vi.fn(async () => ({
+    openTerminal: vi.fn(async (_input: TerminalOpenInput) => ({
       history: '',
+      outputBytes: 0,
       running: true,
     })),
-    restartTerminal: vi.fn(async () => ({
+    restartTerminal: vi.fn(async (_input: TerminalOpenInput) => ({
       history: '',
+      outputBytes: 0,
       running: true,
     })),
     closeTerminal: vi.fn(async () => undefined),
@@ -121,8 +124,8 @@ describe('TerminalPanel', () => {
       value: new EventTarget(),
     })
     mocks.setProjectPath('/tmp/project-x')
-    mocks.openTerminal.mockResolvedValue({ history: '', running: true })
-    mocks.restartTerminal.mockResolvedValue({ history: '', running: true })
+    mocks.openTerminal.mockResolvedValue({ history: '', outputBytes: 0, running: true })
+    mocks.restartTerminal.mockResolvedValue({ history: '', outputBytes: 0, running: true })
     useTerminalStore.setState({
       groups: {},
       activity: {},

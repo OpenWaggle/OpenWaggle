@@ -17,6 +17,8 @@ function actions(): CoreCommandActions {
     setProjectPath: vi.fn().mockResolvedValue(undefined),
     toggleSidebar: vi.fn(),
     toggleTerminal: vi.fn(),
+    newTerminal: vi.fn(),
+    splitTerminal: vi.fn(),
   }
 }
 

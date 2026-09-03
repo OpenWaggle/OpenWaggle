@@ -2,7 +2,8 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import { SessionId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { runtimeKeyOf, terminalOwnerContext, terminalTabTitle } from '../../lib/terminal-owner'
-import { TERMINAL_PANEL_DEFAULT_HEIGHT, useTerminalStore } from '../terminal-store'
+import { useTerminalStore } from '../terminal-store'
+import { TERMINAL_PANEL_DEFAULT_HEIGHT } from '../terminal-store-persistence'
 
 const OWNER = 'owner-1'
 
@@ -200,7 +201,12 @@ describe('terminal store runtime events', () => {
   it('applyRuntimeEvent ignores output and cleared events', () => {
     resetStore()
 
-    store().applyRuntimeEvent(OWNER, 'term-1', { type: 'output', data: 'hello' })
+    store().applyRuntimeEvent(OWNER, 'term-1', {
+      type: 'output',
+      data: 'hello',
+      startOffset: 0,
+      endOffset: 5,
+    })
     store().applyRuntimeEvent(OWNER, 'term-1', { type: 'cleared' })
 
     const state = store()

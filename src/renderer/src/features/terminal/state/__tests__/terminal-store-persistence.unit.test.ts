@@ -191,6 +191,7 @@ describe('terminalStorageOptions', () => {
 
   it('round-trips a persisted snapshot through the debounced storage chain', async () => {
     const storage = terminalStorageOptions()
+    if (storage === undefined) throw new Error('Expected storage to be configured')
     const snapshot = { state: { groups: VALID_GROUP }, version: 1 }
 
     await storage.setItem(TERMINAL_STORAGE_KEY, snapshot)
