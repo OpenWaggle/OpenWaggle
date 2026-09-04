@@ -73,6 +73,32 @@ describe('Pi Native endpoint fallback', () => {
     },
   )
 
+  it('falls back after one request when a 501 endpoint is unavailable and retries are enabled', async () => {
+    const nativeFetch = vi.fn(async () => makeCompactResponse([], 501))
+    vi.stubGlobal('fetch', nativeFetch)
+    const portableStream = createPortableStream()
+
+    const result = await compact(
+      makePreparation(),
+      makeNativeModel(),
+      'test-key',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      portableStream,
+      undefined,
+      { enabled: true, maxRetries: 3, baseDelayMs: 0 },
+      undefined,
+      'session-1',
+      'System instructions',
+    )
+
+    expect(nativeFetch).toHaveBeenCalledOnce()
+    expect(portableStream).toHaveBeenCalledOnce()
+    expect(result.details).toMatchObject({ mechanism: 'portable' })
+  })
+
   it('reconstructs authoritative raw history after a prior Native checkpoint', async () => {
     const sessionManager = SessionManager.inMemory('/repo')
     sessionManager.appendMessage({

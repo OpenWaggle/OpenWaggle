@@ -12,7 +12,7 @@ index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..cc3b45b94f8ff61464a2a4103c1d1887
          await this.finishSessionReplacement(options?.withSession);
          return { cancelled: false };
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..fc21870e8beba9caf4ab1f2207aea2a8786cfe6a 100644
+index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..73363e587d01109185408de13e19eace230ff981 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -108,6 +108,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -62,7 +62,7 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..fc21870e8beba9caf4ab1f2207aea2a8
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1ddd9bfc1 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..c6de78c75ded36c66b29ac01613b10698ed5e9f4 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -22,16 +22,17 @@ import { sleep } from "../utils/sleep.js";
@@ -332,7 +332,47 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      /**
       * Send a prompt to the agent.
-@@ -856,6 +982,9 @@ export class AgentSession {
+@@ -823,20 +949,7 @@ export class AgentSession {
+         const preflightResult = options?.preflightResult;
+         let messages;
+         try {
+-            // Handle extension commands first (execute immediately, even during streaming)
+-            // Extension commands manage their own LLM interaction via pi.sendMessage()
+-            if (expandPromptTemplates && text.startsWith("/")) {
+-                const handled = await this._tryExecuteExtensionCommand(text);
+-                if (handled) {
+-                    // Extension command executed, no prompt to send
+-                    preflightResult?.(true);
+-                    return;
+-                }
+-            }
+-            if (this._compactionAbortController !== undefined) {
+-                throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+-            }
+-            // Emit input event for extension interception (before skill/template expansion)
++            // Emit input before command dispatch so extensions can stop or transform active work.
+             let currentText = text;
+             let currentImages = options?.images;
+             if (this._extensionRunner.hasHandlers("input")) {
+@@ -850,12 +963,27 @@ export class AgentSession {
+                     currentImages = inputResult.images ?? currentImages;
+                 }
+             }
++            // Extension commands still execute immediately, even during streaming.
++            // Commands manage their own LLM interaction via pi.sendMessage().
++            if (expandPromptTemplates && currentText.startsWith("/")) {
++                const handled = await this._tryExecuteExtensionCommand(currentText);
++                if (handled) {
++                    preflightResult?.(true);
++                    return;
++                }
++            }
++            if (this._compactionAbortController !== undefined) {
++                throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
++            }
+             // Expand skill commands (/skill:name args) and prompt templates (/template args)
+             let expandedText = currentText;
+             if (expandPromptTemplates) {
                  expandedText = this._expandSkillCommand(expandedText);
                  expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
              }
@@ -342,7 +382,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              // If streaming, queue via steer() or followUp() based on option
              if (this.isStreaming) {
                  if (!options?.streamingBehavior) {
-@@ -868,7 +997,7 @@ export class AgentSession {
+@@ -868,7 +996,7 @@ export class AgentSession {
                      await this._queueSteer(expandedText, currentImages);
                  }
                  preflightResult?.(true);
@@ -351,7 +391,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              }
              // Flush any pending bash and custom messages before the new prompt
              this._flushPendingBashMessages();
-@@ -888,12 +1017,9 @@ export class AgentSession {
+@@ -888,12 +1016,9 @@ export class AgentSession {
                  }
                  throw new Error(formatNoApiKeyFoundMessage(this.model.provider));
              }
@@ -367,7 +407,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              // Build messages array (custom message if any, then user message)
              messages = [];
              // Add user message
-@@ -1013,7 +1139,7 @@ export class AgentSession {
+@@ -1013,7 +1138,7 @@ export class AgentSession {
       * @param images Optional image attachments to include with the message
       * @throws Error if text is an extension command
       */
@@ -376,7 +416,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
          // Check for extension commands (cannot be queued)
          if (text.startsWith("/")) {
              this._throwIfExtensionCommand(text);
-@@ -1021,7 +1147,11 @@ export class AgentSession {
+@@ -1021,7 +1146,11 @@ export class AgentSession {
          // Expand skill commands and prompt templates
          let expandedText = this._expandSkillCommand(text);
          expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
@@ -388,7 +428,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1118,6 +1248,7 @@ export class AgentSession {
+@@ -1118,6 +1247,7 @@ export class AgentSession {
              }
          }
          else if (options?.triggerTurn) {
@@ -396,7 +436,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              await this._runAgentPrompt(appMessage);
          }
          else if (this.isStreaming) {
-@@ -1250,13 +1381,13 @@ export class AgentSession {
+@@ -1250,13 +1380,13 @@ export class AgentSession {
       * @throws Error if no auth is configured for the model
       */
      async setModel(model, options = {}) {
@@ -414,7 +454,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -1265,7 +1396,7 @@ export class AgentSession {
+@@ -1265,7 +1395,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -423,7 +463,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -1305,10 +1436,13 @@ export class AgentSession {
+@@ -1305,10 +1435,13 @@ export class AgentSession {
          const len = scopedModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const next = scopedModels[nextIndex];
@@ -438,7 +478,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -1319,8 +1453,8 @@ export class AgentSession {
+@@ -1319,8 +1452,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -449,7 +489,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -1333,9 +1467,12 @@ export class AgentSession {
+@@ -1333,9 +1466,12 @@ export class AgentSession {
          const len = availableModels.length;
          const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
          const nextModel = availableModels[nextIndex];
@@ -463,7 +503,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -1343,8 +1480,8 @@ export class AgentSession {
+@@ -1343,8 +1479,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -474,7 +514,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1447,8 +1584,33 @@ export class AgentSession {
+@@ -1447,8 +1583,33 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -510,7 +550,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      /**
       * Manually compact the session context.
-@@ -1474,10 +1636,24 @@ export class AgentSession {
+@@ -1474,10 +1635,24 @@ export class AgentSession {
              if (!this.model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
@@ -537,7 +577,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -1520,7 +1696,7 @@ export class AgentSession {
+@@ -1520,7 +1695,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by automatic compaction.
@@ -546,7 +586,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  summary = result.summary;
                  firstKeptEntryId = result.firstKeptEntryId;
                  tokensBefore = result.tokensBefore;
-@@ -1530,13 +1706,12 @@ export class AgentSession {
+@@ -1530,13 +1705,12 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -563,7 +603,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1547,6 +1722,7 @@ export class AgentSession {
+@@ -1547,6 +1721,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -571,7 +611,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1625,7 +1801,7 @@ export class AgentSession {
+@@ -1625,7 +1800,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -580,7 +620,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
          const settings = this.settingsManager.getCompactionSettings();
          if (!settings.enabled)
              return false;
-@@ -1656,6 +1832,9 @@ export class AgentSession {
+@@ -1656,6 +1831,9 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -590,7 +630,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  return await this._runAutoCompaction("overflow", false);
              }
              if (this._overflowRecoveryAttempted) {
-@@ -1715,7 +1894,7 @@ export class AgentSession {
+@@ -1715,7 +1893,7 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -599,7 +639,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              return await this._runAutoCompaction("threshold", false);
          }
          return false;
-@@ -1734,13 +1913,24 @@ export class AgentSession {
+@@ -1734,13 +1912,24 @@ export class AgentSession {
          const settings = this.settingsManager.getCompactionSettings();
          let started = false;
          let fromExtension = false;
@@ -626,7 +666,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              if (!preparation) {
                  return false;
              }
-@@ -1794,7 +1984,7 @@ export class AgentSession {
+@@ -1794,7 +1983,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by manual compaction.
@@ -635,7 +675,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
-@@ -1817,13 +2007,12 @@ export class AgentSession {
+@@ -1817,13 +2006,12 @@ export class AgentSession {
                  });
                  return false;
              }
@@ -652,7 +692,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -1834,6 +2023,7 @@ export class AgentSession {
+@@ -1834,6 +2022,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -660,7 +700,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -1843,15 +2033,7 @@ export class AgentSession {
+@@ -1843,15 +2032,7 @@ export class AgentSession {
              };
              this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
              if (willRetry) {
@@ -677,7 +717,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  return true;
              }
              // Auto-compaction can complete while follow-up/steering/custom messages are waiting.
-@@ -1884,6 +2066,18 @@ export class AgentSession {
+@@ -1884,6 +2065,18 @@ export class AgentSession {
          }
          finally {
              this._autoCompactionAbortController = undefined;
@@ -696,7 +736,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
          }
      }
      /**
-@@ -1976,7 +2170,7 @@ export class AgentSession {
+@@ -1976,7 +2169,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -705,7 +745,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2529,7 +2723,7 @@ export class AgentSession {
+@@ -2529,7 +2722,7 @@ export class AgentSession {
              let summaryDetails;
              let summaryUsage;
              if (options.summarize && entriesToSummarize.length > 0 && !extensionSummary) {
@@ -714,7 +754,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..0f2562f0e0ad2d506bb6028f4fd8bce1
                  const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(model);
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
-@@ -2605,7 +2799,7 @@ export class AgentSession {
+@@ -2605,7 +2798,7 @@ export class AgentSession {
                  this.sessionManager.appendLabelChange(targetId, label);
              }
              // Update agent state

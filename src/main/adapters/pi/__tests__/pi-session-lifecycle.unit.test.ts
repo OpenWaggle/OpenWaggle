@@ -66,6 +66,35 @@ describe('Pi session lifecycle', () => {
     await expect(disposeOpenWagglePiSession(session)).resolves.toBeUndefined()
   })
 
+  it('emits input before executing a registered extension command', async () => {
+    const projectPath = await createTempProject()
+    const events: string[] = []
+    const factory: ExtensionFactory = (pi) => {
+      pi.on('input', () => {
+        events.push('input')
+        return { action: 'continue' }
+      })
+      pi.registerCommand('registered-command', {
+        description: 'Ordering probe',
+        handler: async () => {
+          events.push('command')
+        },
+      })
+    }
+    const services = await createPiRuntimeServices(projectPath, {
+      extensionFactories: [factory],
+    })
+    const { session } = await createOpenWaggleAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(projectPath),
+    })
+
+    await session.prompt('/registered-command')
+
+    expect(events).toEqual(['input', 'command'])
+    await disposeOpenWagglePiSession(session)
+  })
+
   it('executes raw lifecycle operations without process-global mutation', async () => {
     const projectPath = await createTempProject()
     const services = await createPiRuntimeServices(projectPath)
