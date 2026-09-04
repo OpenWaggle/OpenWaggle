@@ -10,18 +10,25 @@ import {
 import {
   recordSessionChangeRequest,
   recordSessionCommit,
+  type SessionOutputOccurrenceContext,
 } from '../../application/session-resource-recording'
 import { createLogger } from '../../logger'
 import { broadcastToWindows } from '../../utils/broadcast'
 
 const logger = createLogger('ipc/git-stacked-action')
 
-function recordCommitOutput(result: GitRunStackedActionResult, sessionId: SessionId) {
+function recordCommitOutput(
+  result: GitRunStackedActionResult,
+  sessionId: SessionId,
+  occurrenceContext: SessionOutputOccurrenceContext,
+) {
   return Effect.gen(function* () {
     if (!result.commit) return result
-    const pending = pendingCommitOutput(sessionId, result.commit)
+    const pending = pendingCommitOutput(sessionId, result.commit, occurrenceContext)
     const queued = yield* putPendingSessionOutput(pending).pipe(Effect.either)
-    const recording = yield* recordSessionCommit(sessionId, result.commit).pipe(Effect.either)
+    const recording = yield* recordSessionCommit(sessionId, result.commit, pending).pipe(
+      Effect.either,
+    )
     if (recording._tag === 'Left') {
       logger.warn('Could not record committed output', {
         sessionId,
@@ -54,16 +61,20 @@ function recordCommitOutput(result: GitRunStackedActionResult, sessionId: Sessio
   )
 }
 
-function recordChangeRequestOutput(result: GitRunStackedActionResult, sessionId: SessionId) {
+function recordChangeRequestOutput(
+  result: GitRunStackedActionResult,
+  sessionId: SessionId,
+  occurrenceContext: SessionOutputOccurrenceContext,
+) {
   return Effect.gen(function* () {
     if (!result.ok || !result.changeRequest) return result
     const createdRequest = {
       title: result.changeRequest.title,
       url: result.changeRequest.url,
     }
-    const pending = pendingChangeRequestOutput(sessionId, createdRequest)
+    const pending = pendingChangeRequestOutput(sessionId, createdRequest, occurrenceContext)
     const queued = yield* putPendingSessionOutput(pending).pipe(Effect.either)
-    const recording = yield* recordSessionChangeRequest(sessionId, createdRequest).pipe(
+    const recording = yield* recordSessionChangeRequest(sessionId, createdRequest, pending).pipe(
       Effect.either,
     )
     if (recording._tag === 'Left') {
@@ -96,9 +107,10 @@ function recordChangeRequestOutput(result: GitRunStackedActionResult, sessionId:
 export function recordStackedActionOutputs(
   result: GitRunStackedActionResult,
   sessionId: SessionId,
+  occurrenceContext: SessionOutputOccurrenceContext,
 ) {
   return Effect.gen(function* () {
-    const withCommit = yield* recordCommitOutput(result, sessionId)
-    return yield* recordChangeRequestOutput(withCommit, sessionId)
+    const withCommit = yield* recordCommitOutput(result, sessionId, occurrenceContext)
+    return yield* recordChangeRequestOutput(withCommit, sessionId, occurrenceContext)
   })
 }

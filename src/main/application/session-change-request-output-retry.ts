@@ -8,6 +8,7 @@ import {
   type PendingSessionOutput,
   SessionOutputRetryRepository,
 } from '../ports/session-output-retry-repository'
+import type { SessionOutputOccurrenceContext } from './session-resource-recording'
 
 export interface PendingCommitOutput {
   readonly commitHash: string
@@ -28,26 +29,28 @@ function pendingOutputId(sessionId: SessionId, kind: PendingSessionOutput['kind'
 export function pendingChangeRequestOutput(
   sessionId: SessionId,
   input: RecordSessionChangeRequestInput,
+  occurrenceContext: SessionOutputOccurrenceContext,
 ): PendingChangeRequestSessionOutput {
   return {
     id: pendingOutputId(sessionId, 'change-request', input.url),
     sessionId,
     kind: 'change-request',
     ...input,
-    createdAt: Date.now(),
+    ...occurrenceContext,
   }
 }
 
 export function pendingCommitOutput(
   sessionId: SessionId,
   input: PendingCommitOutput,
+  occurrenceContext: SessionOutputOccurrenceContext,
 ): PendingCommitSessionOutput {
   return {
     id: pendingOutputId(sessionId, 'commit', input.commitHash),
     sessionId,
     kind: 'commit',
     ...input,
-    createdAt: Date.now(),
+    ...occurrenceContext,
   }
 }
 

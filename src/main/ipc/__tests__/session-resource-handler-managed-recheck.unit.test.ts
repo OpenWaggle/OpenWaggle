@@ -141,6 +141,7 @@ describe('completed session resource backfill', () => {
     await expect(invokeList()).resolves.toEqual({
       resources: [MANAGED_RESOURCE],
       backfillComplete: true,
+      progressed: false,
     })
 
     expect(mocks.inspect).toHaveBeenCalledWith('/managed/managed.txt')

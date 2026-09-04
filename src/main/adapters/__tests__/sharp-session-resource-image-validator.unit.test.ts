@@ -1,3 +1,4 @@
+import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import { PNG_BASE64 } from '../../application/__tests__/session-resource-capture.fixtures'
 import { decodeSessionResourceImage } from '../sharp-session-resource-image-validator'
@@ -17,5 +18,35 @@ describe('decodeSessionResourceImage', () => {
     await expect(
       decodeSessionResourceImage(bytes.subarray(0, bytes.byteLength - 30), 'image/png'),
     ).resolves.toBeNull()
+  })
+
+  it('accepts JPEG fill bytes before a marker', async () => {
+    const jpeg = await sharp({
+      create: { width: 1, height: 1, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toBuffer()
+    const withFillByte = Buffer.concat([jpeg.subarray(0, 2), Buffer.from([0xff]), jpeg.subarray(2)])
+
+    await expect(decodeSessionResourceImage(withFillByte, 'image/jpeg')).resolves.toMatchObject({
+      mimeType: 'image/jpeg',
+    })
+  })
+
+  it('accepts a standalone JPEG temporary marker before the frame header', async () => {
+    const jpeg = await sharp({
+      create: { width: 1, height: 1, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toBuffer()
+    const withTemporaryMarker = Buffer.concat([
+      jpeg.subarray(0, 2),
+      Buffer.from([0xff, 0x01]),
+      jpeg.subarray(2),
+    ])
+
+    await expect(
+      decodeSessionResourceImage(withTemporaryMarker, 'image/jpeg'),
+    ).resolves.toMatchObject({ mimeType: 'image/jpeg' })
   })
 })

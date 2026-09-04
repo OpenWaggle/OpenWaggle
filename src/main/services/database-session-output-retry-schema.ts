@@ -7,6 +7,8 @@ export const SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT = `
     summary TEXT,
     title TEXT,
     url TEXT,
+    node_id TEXT,
+    branch_id TEXT,
     created_at INTEGER NOT NULL
   )
   `

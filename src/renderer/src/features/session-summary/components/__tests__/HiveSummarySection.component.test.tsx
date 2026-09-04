@@ -119,4 +119,16 @@ describe('HiveSummarySection', () => {
     fireEvent.click(parent)
     expect(onNavigateSession).toHaveBeenCalledWith('queen')
   })
+
+  it('keeps Hive navigation available when the opened worker is archived', async () => {
+    useSessionStore.setState({ sessions: [queen(0)] })
+    listArchivedSessions.mockResolvedValue([{ ...worker('accepted'), archived: true }])
+    const onNavigateSession = vi.fn()
+    renderHive('worker', onNavigateSession)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Hive/ }))
+    const parent = await screen.findByRole('button', { name: /Parent.*Queen session/ })
+    fireEvent.click(parent)
+    expect(onNavigateSession).toHaveBeenCalledWith('queen')
+  })
 })

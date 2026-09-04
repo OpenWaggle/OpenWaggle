@@ -42,14 +42,14 @@ export function captureLink(input: LinkCaptureInput) {
     const id = linkOccurrenceId(input)
     if (yield* repository.hasOccurrence(input.sessionId, id)) return
     const resourceId = randomUUID()
-    const canonicalKey = `url:${input.link.url}`
+    const canonicalKey = `${input.link.image ? 'image-url' : 'url'}:${input.link.url}`
     const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
     if (existing) {
       yield* repository.upsert({
         id: existing.id,
         sessionId: input.sessionId,
         canonicalKey,
-        kind: input.link.image ? 'image' : existing.kind,
+        kind: existing.kind,
         title: existing.title,
         mimeType: existing.mimeType,
         locator: existing.locator,

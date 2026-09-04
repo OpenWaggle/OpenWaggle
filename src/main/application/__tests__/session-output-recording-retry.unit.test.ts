@@ -34,7 +34,11 @@ describe('pending session output recording', () => {
           }),
       }),
     )
-    const pending = pendingCommitOutput(first, commit)
+    const pending = pendingCommitOutput(first, commit, {
+      nodeId: 'node-at-commit',
+      branchId: 'branch-at-commit',
+      createdAt: 1000,
+    })
 
     await Effect.runPromise(putPendingSessionOutput(pending).pipe(Effect.provide(layer)))
 

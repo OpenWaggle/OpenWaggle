@@ -26,4 +26,16 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     name: 'session-output-retry-queue',
     statements: [SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT],
   },
+  {
+    id: 31,
+    name: 'session-output-retry-node-provenance',
+    skipIfColumn: { table: 'session_output_retries', column: 'node_id' },
+    statements: [`ALTER TABLE session_output_retries ADD COLUMN node_id TEXT`],
+  },
+  {
+    id: 32,
+    name: 'session-output-retry-branch-provenance',
+    skipIfColumn: { table: 'session_output_retries', column: 'branch_id' },
+    statements: [`ALTER TABLE session_output_retries ADD COLUMN branch_id TEXT`],
+  },
 ] as const

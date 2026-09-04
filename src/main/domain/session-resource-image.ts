@@ -12,6 +12,7 @@ const JPEG_SCAN_GUARD_BYTES = 8
 const JPEG_MARKER_PREFIX = 0xff
 const JPEG_START_OF_IMAGE = 0xd8
 const JPEG_END_OF_IMAGE = 0xd9
+const JPEG_TEMPORARY_MARKER = 0x01
 const JPEG_SEGMENT_MIN_LENGTH = 2
 const JPEG_HEIGHT_HIGH_OFFSET = 3
 const JPEG_HEIGHT_LOW_OFFSET = 4
@@ -19,6 +20,19 @@ const JPEG_WIDTH_HIGH_OFFSET = 5
 const JPEG_WIDTH_LOW_OFFSET = 6
 const JPEG_START_OF_FRAME_MARKERS = new Set([
   0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf,
+])
+const JPEG_STANDALONE_MARKERS = new Set([
+  JPEG_TEMPORARY_MARKER,
+  0xd0,
+  0xd1,
+  0xd2,
+  0xd3,
+  0xd4,
+  0xd5,
+  0xd6,
+  0xd7,
+  JPEG_START_OF_IMAGE,
+  JPEG_END_OF_IMAGE,
 ])
 const PNG_MIN_HEADER_LENGTH = 24
 const PNG_CHUNK_TYPE_START = 12
@@ -98,16 +112,24 @@ function validDimensions(width: number, height: number) {
   return width > 0 && height > 0 && width * height <= MAX_IMAGE_PIXELS
 }
 
+function readJpegMarker(bytes: Uint8Array, initialOffset: number) {
+  if (bytes[initialOffset] !== JPEG_MARKER_PREFIX) return null
+  let offset = initialOffset
+  while (bytes[offset] === JPEG_MARKER_PREFIX) offset += DIMENSION_BASE
+  const marker = bytes[offset]
+  return marker === undefined ? null : { marker, nextOffset: offset + DIMENSION_BASE }
+}
+
 function jpegDimensions(bytes: Uint8Array) {
   let offset = JPEG_INITIAL_OFFSET
   while (offset + JPEG_SCAN_GUARD_BYTES < bytes.byteLength) {
-    if (bytes[offset] !== JPEG_MARKER_PREFIX) return null
-    const marker = bytes[offset + DIMENSION_BASE] ?? 0
-    offset += JPEG_INITIAL_OFFSET
-    if (marker === JPEG_START_OF_IMAGE || marker === JPEG_END_OF_IMAGE) continue
+    const record = readJpegMarker(bytes, offset)
+    if (!record) return null
+    offset = record.nextOffset
+    if (JPEG_STANDALONE_MARKERS.has(record.marker)) continue
     const length = ((bytes[offset] ?? 0) << BYTE_SHIFT) | (bytes[offset + DIMENSION_BASE] ?? 0)
     if (length < JPEG_SEGMENT_MIN_LENGTH || offset + length > bytes.byteLength) return null
-    if (JPEG_START_OF_FRAME_MARKERS.has(marker)) {
+    if (JPEG_START_OF_FRAME_MARKERS.has(record.marker)) {
       return {
         height:
           ((bytes[offset + JPEG_HEIGHT_HIGH_OFFSET] ?? 0) << BYTE_SHIFT) |

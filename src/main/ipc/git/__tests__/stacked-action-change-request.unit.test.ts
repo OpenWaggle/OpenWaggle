@@ -22,7 +22,7 @@ function destination(remoteUrl: string | null, multiplePushUrls = false): GitPus
 describe('change-request pushed-head compatibility', () => {
   it.each([
     ['another host', 'git@github.enterprise.test:contributor/project.git', false],
-    ['another repository', 'git@github.com:contributor/other-project.git', false],
+    ['another same-owner repository', 'git@github.com:upstream/other-project.git', false],
     ['another enterprise port', 'ssh://git@github.com:9443/contributor/project.git', false],
     ['multiple push URLs', null, true],
   ])('fails closed for a pushed head in %s', async (_case, remoteUrl, multiplePushUrls) => {
@@ -60,5 +60,47 @@ describe('change-request pushed-head compatibility', () => {
 
     expect(payload).toMatchObject({ headRef: 'feature/current', baseRef: 'main' })
     expect(payload).not.toHaveProperty('headOwner')
+    expect(payload).not.toHaveProperty('headRepository')
+  })
+
+  it('carries a GitLab fork project into merge-request creation', async () => {
+    const payload = await buildOpenChangeRequestPayload(
+      deps('git@gitlab.com:upstream/team/project.git'),
+      '/repo',
+      { action: 'create_pr' },
+      { status: 'unchanged', name: null },
+      destination('git@gitlab.com:contributors/alex/project.git'),
+    )
+
+    expect(payload).toMatchObject({
+      headRef: 'feature/current',
+      baseRef: 'main',
+      headRepository: 'contributors/alex/project',
+    })
+    expect(payload).not.toHaveProperty('headOwner')
+  })
+
+  it('supports a renamed GitLab fork project', async () => {
+    const payload = await buildOpenChangeRequestPayload(
+      deps('git@gitlab.com:upstream/team/project.git'),
+      '/repo',
+      { action: 'create_pr' },
+      { status: 'unchanged', name: null },
+      destination('git@gitlab.com:contributors/alex/project-fork.git'),
+    )
+
+    expect(payload).toMatchObject({ headRepository: 'contributors/alex/project-fork' })
+  })
+
+  it('supports a renamed GitHub fork owned by a contributor', async () => {
+    const payload = await buildOpenChangeRequestPayload(
+      deps('git@github.com:upstream/project.git'),
+      '/repo',
+      { action: 'create_pr' },
+      { status: 'unchanged', name: null },
+      destination('git@github.com:contributor/project-fork.git'),
+    )
+
+    expect(payload).toMatchObject({ headOwner: 'contributor' })
   })
 })

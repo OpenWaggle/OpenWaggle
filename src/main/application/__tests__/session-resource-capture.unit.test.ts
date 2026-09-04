@@ -149,6 +149,7 @@ describe('captureSuccessfulRunResources', () => {
         index: 0,
         nodeId: 'user-message',
         createdAt: 1000,
+        repairResource: unavailable,
       }).pipe(
         Effect.provide(
           sessionResourceTestLayer(upserts, {
@@ -232,7 +233,7 @@ describe('captureSuccessfulRunResources', () => {
     expect(fetchedUrls).toEqual([])
     expect(upserts).toContainEqual(
       expect.objectContaining({
-        canonicalKey: 'url:https://images.example/architecture.png',
+        canonicalKey: 'image-url:https://images.example/architecture.png',
         kind: 'image',
         mimeType: null,
         locator: 'https://images.example/architecture.png',

@@ -1,6 +1,9 @@
 import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { pendingCommitOutput } from '../../application/session-change-request-output-retry'
+import {
+  pendingChangeRequestOutput,
+  pendingCommitOutput,
+} from '../../application/session-change-request-output-retry'
 import {
   getSessionResourceHandlerMocks,
   invokeSessionResourceHandler as invoke,
@@ -77,12 +80,59 @@ describe('session resource IPC handlers', () => {
   it('retries a pending commit Output when its originating Session Summary refreshes', async () => {
     const sessionId = SessionId('session-one')
     const commit = { commitHash: 'abc123', summary: 'Complete resource hub' }
-    handlerMocks.pendingOutputs.push(pendingCommitOutput(sessionId, commit))
+    handlerMocks.pendingOutputs.push(
+      pendingCommitOutput(sessionId, commit, {
+        nodeId: 'node-at-commit',
+        branchId: 'branch-at-commit',
+        createdAt: 1000,
+      }),
+    )
 
     await invoke('sessions:resources:list', sessionId)
 
     expect(handlerMocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId, kind: 'commit', canonicalKey: 'commit:abc123' }),
+      expect.objectContaining({
+        sessionId,
+        kind: 'commit',
+        canonicalKey: 'commit:abc123',
+        createdAt: 1000,
+        occurrence: expect.objectContaining({
+          nodeId: 'node-at-commit',
+          branchId: 'branch-at-commit',
+          createdAt: 1000,
+        }),
+      }),
+    )
+    expect(handlerMocks.pendingOutputs).toEqual([])
+  })
+
+  it('reuses a pending change request Output provenance during manual retry', async () => {
+    const sessionId = SessionId('session-one')
+    const request = {
+      title: 'Complete resource hub',
+      url: 'https://github.com/openwaggle/openwaggle/pull/42',
+    }
+    handlerMocks.pendingOutputs.push(
+      pendingChangeRequestOutput(sessionId, request, {
+        nodeId: 'node-at-request',
+        branchId: 'branch-at-request',
+        createdAt: 2000,
+      }),
+    )
+
+    await invoke('sessions:resources:record-change-request', sessionId, request)
+
+    expect(handlerMocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId,
+        kind: 'change-request',
+        createdAt: 2000,
+        occurrence: expect.objectContaining({
+          nodeId: 'node-at-request',
+          branchId: 'branch-at-request',
+          createdAt: 2000,
+        }),
+      }),
     )
     expect(handlerMocks.pendingOutputs).toEqual([])
   })
@@ -114,6 +164,7 @@ describe('session resource IPC handlers', () => {
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
       backfillComplete: true,
+      progressed: true,
     })
 
     expect(handlerMocks.listResourceProjectionPage).toHaveBeenCalledWith(
@@ -130,12 +181,14 @@ describe('session resource IPC handlers', () => {
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
       backfillComplete: false,
+      progressed: true,
     })
 
     expect(handlerMocks.advanceBackfillCursor).toHaveBeenCalledWith(SessionId('session-one'), 41)
     handlerMocks.list.mockClear()
     await expect(invoke('sessions:resources:backfill', SessionId('session-one'))).resolves.toEqual({
       backfillComplete: false,
+      progressed: true,
     })
     expect(handlerMocks.list).toHaveBeenCalledOnce()
   })
@@ -202,6 +255,7 @@ describe('session resource IPC handlers', () => {
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
       backfillComplete: false,
+      progressed: true,
     })
 
     expect(handlerMocks.advanceBackfillCursor).not.toHaveBeenCalled()
@@ -233,6 +287,7 @@ describe('session resource IPC handlers', () => {
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
       backfillComplete: false,
+      progressed: false,
     })
 
     expect(handlerMocks.advanceBackfillCursor).not.toHaveBeenCalled()

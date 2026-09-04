@@ -71,6 +71,8 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
           kind: 'commit',
           commitHash: 'abc123',
           summary: 'Persisted commit',
+          nodeId: 'node-at-commit',
+          branchId: 'branch-at-commit',
           createdAt: 1000,
         })
         yield* repository.put({
@@ -79,6 +81,8 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
           kind: 'change-request',
           title: 'Persisted PR',
           url: 'https://github.com/openwaggle/openwaggle/pull/1',
+          nodeId: 'node-at-request',
+          branchId: 'branch-at-request',
           createdAt: 2000,
         })
       }).pipe(Effect.provide(firstLayer)),
@@ -99,10 +103,20 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
     )
 
     expect(result.first).toEqual([
-      expect.objectContaining({ kind: 'commit', commitHash: 'abc123' }),
+      expect.objectContaining({
+        kind: 'commit',
+        commitHash: 'abc123',
+        nodeId: 'node-at-commit',
+        branchId: 'branch-at-commit',
+      }),
     ])
     expect(result.second).toEqual([
-      expect.objectContaining({ kind: 'change-request', title: 'Persisted PR' }),
+      expect.objectContaining({
+        kind: 'change-request',
+        title: 'Persisted PR',
+        nodeId: 'node-at-request',
+        branchId: 'branch-at-request',
+      }),
     ])
     expect(result.preserved).toHaveLength(1)
     expect(result.removed).toEqual([])

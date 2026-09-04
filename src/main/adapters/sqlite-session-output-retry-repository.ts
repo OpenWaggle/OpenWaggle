@@ -17,6 +17,8 @@ interface PendingOutputRow {
   readonly summary: string | null
   readonly title: string | null
   readonly url: string | null
+  readonly node_id: string | null
+  readonly branch_id: string | null
   readonly created_at: number
 }
 
@@ -28,6 +30,8 @@ function decodeRow(row: PendingOutputRow): PendingSessionOutput {
   const base = {
     id: row.id,
     sessionId: SessionId(row.session_id),
+    nodeId: row.node_id,
+    branchId: row.branch_id,
     createdAt: row.created_at,
   }
   if (row.kind === 'commit' && row.commit_hash !== null && row.summary !== null) {
@@ -47,7 +51,8 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
       put: (output) =>
         sql`
           INSERT INTO session_output_retries (
-            id, session_id, kind, commit_hash, summary, title, url, created_at
+            id, session_id, kind, commit_hash, summary, title, url,
+            node_id, branch_id, created_at
           ) VALUES (
             ${output.id},
             ${output.sessionId},
@@ -56,6 +61,8 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             ${output.kind === 'commit' ? output.summary : null},
             ${output.kind === 'change-request' ? output.title : null},
             ${output.kind === 'change-request' ? output.url : null},
+            ${output.nodeId},
+            ${output.branchId},
             ${output.createdAt}
           )
           ON CONFLICT(id) DO UPDATE SET
@@ -64,14 +71,17 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             commit_hash = excluded.commit_hash,
             summary = excluded.summary,
             title = excluded.title,
-            url = excluded.url
+            url = excluded.url,
+            node_id = excluded.node_id,
+            branch_id = excluded.branch_id
         `.pipe(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('put', cause)),
         ),
       list: (sessionId) =>
         sql<PendingOutputRow>`
-          SELECT id, session_id, kind, commit_hash, summary, title, url, created_at
+          SELECT id, session_id, kind, commit_hash, summary, title, url,
+                 node_id, branch_id, created_at
           FROM session_output_retries
           WHERE session_id = ${sessionId}
           ORDER BY created_at ASC, id ASC

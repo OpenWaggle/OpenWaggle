@@ -259,10 +259,14 @@ export function captureAttachment(input: CaptureAttachmentInput) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
     const fallbackCanonicalKey = `file:${input.attachment.path}`
+    const id = attachmentOccurrenceId(input)
+    const fallbackResource = yield* repository.findByCanonicalKey(
+      input.sessionId,
+      fallbackCanonicalKey,
+    )
     const unavailableResource =
       input.repairResource ??
-      (yield* repository.findByCanonicalKey(input.sessionId, fallbackCanonicalKey))
-    const id = attachmentOccurrenceId(input)
+      (fallbackResource?.occurrences.some((item) => item.id === id) ? fallbackResource : null)
     if (input.repairResource?.available) {
       const store = yield* SessionResourceStore
       yield* repairManagedAttachment(input, id, input.repairResource, repository, store)

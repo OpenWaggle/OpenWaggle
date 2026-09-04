@@ -188,7 +188,7 @@ describe('extension session resource capability', () => {
     ).toHaveLength(1)
   })
 
-  it('adopts legacy URL identity while preserving existing resource semantics', async () => {
+  it('adopts normalized legacy URL identity while preserving existing resource semantics', async () => {
     const existing: SessionResource = {
       ...privateResource(SESSION_ID, 'existing-link'),
       canonicalKey: 'url:HTTPS://EXAMPLE.COM/shared',
@@ -214,7 +214,7 @@ describe('extension session resource capability', () => {
           title: 'Shared source',
           kind: 'image',
           role: 'source',
-          locator: 'HTTPS://EXAMPLE.COM/shared',
+          locator: 'https://example.com/shared',
         },
       }),
     )

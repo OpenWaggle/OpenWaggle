@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, type ChildProcess } from 'node:child_process'
 import { appendFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import type { ElectronApplication } from '@playwright/test'
@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile)
 const ELECTRON_CLOSE_TIMEOUT_MS = 10_000
 const POST_KILL_EXIT_WAIT_MS = 5_000
 const POST_KILL_POLL_MS = 250
+const PLAYWRIGHT_CLOSE_SETTLE_WAIT_MS = 5_000
 const PROCESS_COMMAND_TIMEOUT_MS = 5_000
 const PROCESS_LIST_MAX_BUFFER_BYTES = 10_000_000
 const PROCESS_ENTRY_FIELD_COUNT = 3
@@ -68,7 +69,11 @@ async function listWindowsProcessEntries() {
       '-Command',
       'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress',
     ],
-    { maxBuffer: PROCESS_LIST_MAX_BUFFER_BYTES, timeout: PROCESS_COMMAND_TIMEOUT_MS },
+    {
+      maxBuffer: PROCESS_LIST_MAX_BUFFER_BYTES,
+      timeout: PROCESS_COMMAND_TIMEOUT_MS,
+      windowsHide: true,
+    },
   )
   return parseProcessEntries(JSON.parse(stdout))
 }
@@ -165,10 +170,19 @@ async function killProcessTree(rootPid: number, descendants: readonly ProcessEnt
     // /T walks the tree from the root; /F forces termination.
     await execFileAsync('taskkill', ['/PID', String(rootPid), '/T', '/F'], {
       timeout: PROCESS_COMMAND_TIMEOUT_MS,
+      windowsHide: true,
     }).catch((error: unknown) => {
       console.error(`[electron-qa] taskkill for pid=${rootPid} failed`, error)
     })
     return
+  }
+  // Playwright launches Electron detached on POSIX, making the wrapper a process-group leader.
+  // Kill the group first so a child spawned or reparented after enumeration cannot escape the
+  // descendant snapshot; explicit PID kills below remain the fallback for non-detached fixtures.
+  try {
+    process.kill(-rootPid, 'SIGKILL')
+  } catch {
+    // A non-detached process has no group keyed by its PID.
   }
   for (const entry of [...descendants].reverse()) {
     try {
@@ -184,6 +198,71 @@ async function killProcessTree(rootPid: number, descendants: readonly ProcessEnt
   }
 }
 
+function observePlaywrightProcessClose(childProcess: ChildProcess) {
+  return new Promise<void>((resolve) => {
+    childProcess.once('close', () => resolve())
+  })
+}
+
+async function settlePlaywrightProcessClose(
+  childProcess: ChildProcess,
+  processClose: Promise<void>,
+) {
+  try {
+    childProcess.kill('SIGKILL')
+  } catch {
+    // The bounded tree kill already removed the wrapper.
+  }
+  // Playwright launches Electron with inherited pipes. A surviving Windows child can keep those
+  // pipes open after the shell wrapper exits, preventing ChildProcess "close" and leaving
+  // Playwright's synchronous exit-handler kill registered. Releasing our pipe ends lets the real
+  // wrapper close event settle that bookkeeping without waiting for an orphaned descendant.
+  for (const stream of childProcess.stdio) stream?.destroy()
+
+  let timeoutHandle: NodeJS.Timeout | undefined
+  const outcome = await Promise.race([
+    processClose.then(() => 'closed' as const),
+    new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), PLAYWRIGHT_CLOSE_SETTLE_WAIT_MS)
+    }),
+  ])
+  clearTimeout(timeoutHandle)
+  if (outcome === 'closed') return
+
+  // This is a last-resort runner-safety release after both the OS tree kill and wrapper kill were
+  // bounded. Playwright registers its cleanup removal on this ChildProcess event. Emitting it here
+  // prevents its unbounded synchronous taskkill exit handler from recreating the teardown hang;
+  // callers still fail the test because no native close was observed.
+  childProcess.emit('close', childProcess.exitCode, childProcess.signalCode)
+  await processClose
+  throw new Error(
+    `[electron-qa] pid=${String(childProcess.pid)} did not emit close after bounded teardown.`,
+  )
+}
+
+async function terminateTreeAndSettlePlaywright(
+  childProcess: ChildProcess,
+  rootPid: number,
+  descendants: readonly ProcessEntry[],
+  processClose: Promise<void>,
+) {
+  await killProcessTree(rootPid, descendants)
+  let treeExitError: unknown
+  try {
+    await waitForTreeExit(rootPid, descendants)
+  } catch (error) {
+    treeExitError = error
+  }
+  let playwrightCloseError: unknown
+  try {
+    await settlePlaywrightProcessClose(childProcess, processClose)
+  } catch (error) {
+    playwrightCloseError = error
+  }
+  if (treeExitError !== undefined) throw treeExitError
+  if (playwrightCloseError !== undefined) throw playwrightCloseError
+}
+
 /**
  * Closes a Playwright-launched Electron application with a bounded wait. When the app
  * refuses to exit, the surviving process tree is reported (CI step summary included) and
@@ -192,8 +271,10 @@ async function killProcessTree(rootPid: number, descendants: readonly ProcessEnt
  * root cause of non-clean exits.
  */
 export async function closeElectronApplication(app: ElectronApplication): Promise<void> {
-  const rootPid = app.process().pid
+  const childProcess = app.process()
+  const rootPid = childProcess.pid
   if (rootPid === undefined) throw new Error('Electron process has no pid.')
+  const processClose = observePlaywrightProcessClose(childProcess)
   let closeRejection: unknown
   const closePromise = app.close().catch((error: unknown) => {
     closeRejection = error
@@ -225,11 +306,7 @@ export async function closeElectronApplication(app: ElectronApplication): Promis
     console.error('[electron-qa] failed to enumerate the Electron process tree', error)
   }
   await reportSurvivorTree(rootPid, descendants, enumerationError)
-  await killProcessTree(rootPid, descendants)
-  await waitForTreeExit(rootPid)
-  // Playwright's close promise can remain pending after an externally terminated Windows
-  // process has already disappeared. The rejection handler above keeps it observed; process-tree
-  // exit is the authoritative teardown boundary after the bounded graceful-close attempt.
+  await terminateTreeAndSettlePlaywright(childProcess, rootPid, descendants, processClose)
 }
 
 /**
@@ -239,20 +316,19 @@ export async function closeElectronApplication(app: ElectronApplication): Promis
  * that intentionally skip app quit handlers use this bounded process-tree path instead.
  */
 export async function forceCloseElectronApplication(app: ElectronApplication): Promise<void> {
-  const rootPid = app.process().pid
+  const childProcess = app.process()
+  const rootPid = childProcess.pid
   if (rootPid === undefined) throw new Error('Electron process has no pid.')
+  const processClose = observePlaywrightProcessClose(childProcess)
   let descendants: readonly ProcessEntry[] = []
-  // Windows taskkill /T walks descendants itself. Skipping the CIM query removes an unnecessary
-  // failure point from the force-only path while Unix still needs an explicit child snapshot.
-  if (process.platform !== 'win32') {
-    try {
-      descendants = await listDescendantEntries(rootPid)
-    } catch (error) {
-      console.error('[electron-qa] failed to enumerate the Electron process tree', error)
-    }
+  // Capture lineage while the wrapper is still alive. If taskkill only partially succeeds, the
+  // descendants can be reparented and become impossible to prove dead from the root afterwards.
+  try {
+    descendants = await listDescendantEntries(rootPid)
+  } catch (error) {
+    console.error('[electron-qa] failed to enumerate the Electron process tree', error)
   }
-  await killProcessTree(rootPid, descendants)
-  await waitForTreeExit(rootPid)
+  await terminateTreeAndSettlePlaywright(childProcess, rootPid, descendants, processClose)
 }
 
 /*
@@ -262,17 +338,34 @@ export async function forceCloseElectronApplication(app: ElectronApplication): P
  * re-checked by liveness only, not identity: the snapshot-to-kill window is milliseconds
  * and pid reuse into it is accepted residual risk on Unix (Windows walks the live tree).
  */
-async function waitForTreeExit(rootPid: number) {
+async function waitForTreeExit(rootPid: number, descendants: readonly ProcessEntry[]) {
+  const trackedPids = [...new Set([rootPid, ...descendants.map((entry) => entry.pid)])]
   const deadline = Date.now() + POST_KILL_EXIT_WAIT_MS
   while (Date.now() < deadline) {
-    try {
-      process.kill(rootPid, 0)
-    } catch {
+    const survivors = trackedPids.filter((pid) => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
+      }
+    })
+    if (survivors.length === 0) {
       return
     }
     await new Promise<void>((resolve) => {
       setTimeout(resolve, POST_KILL_POLL_MS)
     })
   }
-  throw new Error(`[electron-qa] pid=${rootPid} still alive after the post-kill wait.`)
+  const survivors = trackedPids.filter((pid) => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  })
+  throw new Error(
+    `[electron-qa] process tree still alive after the post-kill wait: ${survivors.join(', ')}.`,
+  )
 }

@@ -1,5 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import type { SessionResource } from '@shared/types/session-resource'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -7,11 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { usePreferencesStore } from '@/features/settings/state'
+import { useUIStore } from '@/shell/ui-store'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
 import { createSections, makeMessage } from './ChatPanel.test-utils'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
+const listSessionResources = vi.hoisted(() => vi.fn())
+const readSessionResource = vi.hoisted(() => vi.fn())
 let notifyResize = () => {}
 
 class TestResizeObserver {
@@ -43,7 +47,8 @@ vi.mock('@/shared/lib/ipc', () => ({
     prepareAttachments: vi.fn().mockResolvedValue([]),
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
-    listSessionResources: vi.fn().mockResolvedValue([]),
+    listSessionResources,
+    readSessionResource,
     listArchivedSessions: vi.fn().mockResolvedValue([]),
     onRunCompleted: vi.fn(() => () => undefined),
     getVcsStatus: vi.fn().mockResolvedValue(null),
@@ -87,6 +92,14 @@ describe('ChatPanel session summary and setup dock', () => {
       isLoaded: true,
     })
     useProviderStore.setState({ ...useProviderStore.getInitialState(), providerModels: [] })
+    useUIStore.setState({ resourceViewer: null })
+    listSessionResources.mockReset().mockResolvedValue([])
+    readSessionResource.mockReset().mockResolvedValue({
+      resourceId: 'active-image',
+      fileName: 'active.png',
+      mimeType: 'image/png',
+      dataBase64: 'aW1hZ2U=',
+    })
   })
 
   afterEach(() => {
@@ -156,6 +169,7 @@ describe('ChatPanel session summary and setup dock', () => {
 
     act(() => notifyResize())
 
+    expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
     act(() => useSessionSummaryUIStore.getState().togglePanel('session-1'))
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
@@ -186,6 +200,57 @@ describe('ChatPanel session summary and setup dock', () => {
     )
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+  })
+
+  it('orders gallery images by persisted transcript node identity', async () => {
+    const resource = (
+      id: string,
+      title: string,
+      nodeId: string,
+      createdAt: number,
+    ): SessionResource => ({
+      id,
+      sessionId: SessionId('session-1'),
+      canonicalKey: `sha256:${id}`,
+      kind: 'image',
+      title,
+      mimeType: 'image/png',
+      locator: `session-resource://${id}`,
+      managed: true,
+      available: true,
+      isSource: false,
+      isOutput: true,
+      occurrences: [
+        {
+          id: `occurrence-${id}`,
+          nodeId,
+          branchId: 'branch-1',
+          actor: 'agent',
+          activity: 'created',
+          label: null,
+          createdAt,
+        },
+      ],
+      createdAt,
+      updatedAt: createdAt,
+    })
+    listSessionResources.mockResolvedValue([
+      resource('hidden-image', 'hidden.png', 'hidden-node', 1),
+      resource('active-image', 'active.png', 'persisted-node', 2),
+    ])
+    useUIStore.getState().openResourceViewer('session-1', 'active-image')
+    const message = makeMessage({
+      id: 'runtime-message-id',
+      role: 'assistant',
+      metadata: { sessionNodeId: 'persisted-node' },
+    })
+
+    renderPanel({ messages: [message] }, { isFirstMessage: false, session: SESSION })
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: active.png' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 2')).toBeInTheDocument()
   })
 
   it('shows the session setup dock before the first message', () => {

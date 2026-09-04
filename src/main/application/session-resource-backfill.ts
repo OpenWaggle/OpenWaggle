@@ -40,6 +40,7 @@ interface BackfillImageState {
   readonly knownResources: ReadonlyMap<string, SessionResource>
   readonly deferred: BackfillImageInput[]
   projectionBlocked: boolean
+  progressed: boolean
 }
 
 interface BackfillImageInput {
@@ -62,6 +63,7 @@ interface BackfillAttachmentState {
     readonly resource: SessionResource
   }>
   projectionBlocked: boolean
+  progressed: boolean
 }
 
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
@@ -84,6 +86,7 @@ function attemptBackfilledAttachment(
       if (!isBackfillableAttachmentSize(input.attachment.sizeBytes)) {
         yield* captureAttachment(input)
         state.completedOccurrences.add(id)
+        state.progressed = true
         return
       }
       state.projectionBlocked = true
@@ -95,6 +98,7 @@ function attemptBackfilledAttachment(
       ...(repairResource ? { repairResource } : {}),
     })
     state.completedOccurrences.add(id)
+    state.progressed = true
   })
 }
 
@@ -114,11 +118,13 @@ function attemptBackfilledImage(input: BackfillImageInput, state: BackfillImageS
       }
       yield* captureUnavailableGeneratedImage(input)
       state.knownSlots.add(slot)
+      state.progressed = true
       return
     }
     yield* captureGeneratedImage({ ...input, validatedImage: prepared.image })
     state.completedSlots.add(slot)
     state.knownSlots.add(slot)
+    state.progressed = true
   })
 }
 
@@ -240,6 +246,7 @@ export function captureProjectedSessionResources(input: {
         retryUnavailableResourceId: input.retryUnavailableResourceId ?? null,
         deferred: [],
         projectionBlocked: false,
+        progressed: false,
       }
       const imageState: BackfillImageState = {
         budget: { bytes: 0, count: 0, attempts: 0 },
@@ -248,11 +255,13 @@ export function captureProjectedSessionResources(input: {
         knownResources: progress.knownImageResources,
         deferred: [],
         projectionBlocked: false,
+        progressed: false,
       }
       const linkState: BackfillLinkState = {
         count: 0,
         capturedOccurrences: capturedOccurrenceIds(resources),
         projectionBlocked: false,
+        progressed: false,
       }
       for (const projected of projectResourceMessages(input)) {
         const { message } = projected
@@ -280,6 +289,7 @@ export function captureProjectedSessionResources(input: {
         yield* attemptBackfilledImage(deferred, imageState)
       }
       return {
+        progressed: attachmentState.progressed || imageState.progressed || linkState.progressed,
         fullyProjected:
           !attachmentState.projectionBlocked &&
           !imageState.projectionBlocked &&

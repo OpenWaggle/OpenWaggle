@@ -7,6 +7,23 @@ import { SessionResourceRepository } from '../ports/session-resource-repository'
 
 const SHORT_COMMIT_HASH_LENGTH = 12
 
+export interface SessionOutputOccurrenceContext {
+  readonly nodeId: string | null
+  readonly branchId: string | null
+  readonly createdAt: number
+}
+
+export function resolveSessionOutputOccurrenceContext(sessionId: SessionId) {
+  return SessionRepository.pipe(
+    Effect.flatMap((sessions) => sessions.getWorkspace(sessionId)),
+    Effect.map((workspace) => ({
+      nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
+      branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
+      createdAt: Date.now(),
+    })),
+  )
+}
+
 function stableChangeRequestOccurrenceId(sessionId: SessionId, url: string) {
   const digest = createHash('sha256').update(url).digest('hex')
   return `created:change-request:${sessionId}:${digest}`
@@ -15,12 +32,12 @@ function stableChangeRequestOccurrenceId(sessionId: SessionId, url: string) {
 export function recordSessionChangeRequest(
   sessionId: SessionId,
   input: RecordSessionChangeRequestInput,
+  occurrenceContext?: SessionOutputOccurrenceContext,
 ) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
-    const sessions = yield* SessionRepository
-    const workspace = yield* sessions.getWorkspace(sessionId)
-    const createdAt = Date.now()
+    const context = occurrenceContext ?? (yield* resolveSessionOutputOccurrenceContext(sessionId))
+    const createdAt = context.createdAt
     const resourceId = randomUUID()
     return yield* repository.upsert({
       id: resourceId,
@@ -34,8 +51,8 @@ export function recordSessionChangeRequest(
       available: true,
       occurrence: {
         id: stableChangeRequestOccurrenceId(sessionId, input.url),
-        nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
-        branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
+        nodeId: context.nodeId,
+        branchId: context.branchId,
         actor: 'user',
         activity: 'created',
         label: null,
@@ -50,12 +67,12 @@ export function recordSessionChangeRequest(
 export function recordSessionCommit(
   sessionId: SessionId,
   input: { readonly commitHash: string; readonly summary: string },
+  occurrenceContext?: SessionOutputOccurrenceContext,
 ) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
-    const sessions = yield* SessionRepository
-    const workspace = yield* sessions.getWorkspace(sessionId)
-    const createdAt = Date.now()
+    const context = occurrenceContext ?? (yield* resolveSessionOutputOccurrenceContext(sessionId))
+    const createdAt = context.createdAt
     const resourceId = randomUUID()
     return yield* repository.upsert({
       id: resourceId,
@@ -70,8 +87,8 @@ export function recordSessionCommit(
       available: true,
       occurrence: {
         id: `created:commit:${sessionId}:${input.commitHash}`,
-        nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
-        branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
+        nodeId: context.nodeId,
+        branchId: context.branchId,
         actor: 'user',
         activity: 'created',
         label: input.commitHash,

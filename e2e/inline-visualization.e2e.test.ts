@@ -149,11 +149,9 @@ async function expectSecureInteractiveVisualization(
     await expect(sessionTreeToggle).toHaveAttribute('aria-expanded', 'false')
   }
   await expectRightSidebarClosed(page)
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      }),
+  await expect(page.locator('[data-chat-panel-main="true"]')).toHaveAttribute(
+    'data-session-summary-space',
+    'available',
   )
   const summary = page.getByRole('complementary', { name: 'Session Summary' })
   const summaryToggle = page

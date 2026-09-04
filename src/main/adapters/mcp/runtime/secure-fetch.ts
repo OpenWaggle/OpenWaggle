@@ -50,6 +50,7 @@ for (const [network, prefix] of [
   ['198.51.100.0', 24],
   ['203.0.113.0', 24],
   ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
 ] as const) {
   blockedIpv4Addresses.addSubnet(network, prefix, 'ipv4')
 }
@@ -233,6 +234,8 @@ function redirectCredentials(originChanged: boolean, init: RequestInit): Request
 export function createSecureMcpFetch(input: {
   readonly baseUrl: URL
   readonly allowedDomains?: readonly string[]
+  /** Allow redirect hosts discovered at runtime; every hop still passes protocol and SSRF validation. */
+  readonly allowPublicRedirects?: boolean
   readonly allowInsecurePrivateNetwork?: boolean
   readonly allowLoopback?: boolean
   readonly fetchFn?: PinnedFetch
@@ -270,6 +273,9 @@ export function createSecureMcpFetch(input: {
         const location = response.headers.get('location')
         if (!location) throw new Error('MCP HTTP redirect did not include a Location header.')
         const nextUrl = new URL(location, url)
+        if (input.allowPublicRedirects === true && nextUrl.hostname !== url.hostname) {
+          allowedHosts.add(nextUrl.hostname.toLowerCase())
+        }
         init = {
           ...redirectCredentials(
             nextUrl.origin !== url.origin,

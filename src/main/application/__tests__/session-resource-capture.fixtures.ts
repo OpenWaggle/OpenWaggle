@@ -19,6 +19,7 @@ export function sessionResourceTestLayer(
   options: {
     readonly duplicateLocator?: string
     readonly existingResource?: SessionResource
+    readonly existingResources?: readonly SessionResource[]
     readonly removedPaths?: string[]
     readonly storedByteFiles?: string[]
     readonly storedAttachmentFiles?: string[]
@@ -84,7 +85,14 @@ export function sessionResourceTestLayer(
           })
         },
         list: () => Effect.succeed(options.listedResources ?? []),
-        findByCanonicalKey: () => Effect.succeed(options.existingResource ?? null),
+        findByCanonicalKey: (_sessionId, canonicalKey) =>
+          Effect.succeed(
+            options.existingResources
+              ? (options.existingResources.find(
+                  (resource) => resource.canonicalKey === canonicalKey,
+                ) ?? null)
+              : (options.existingResource ?? null),
+          ),
         rekey: (input) =>
           Effect.sync(() => {
             options.rekeyedCanonicalKeys?.push(input.canonicalKey)

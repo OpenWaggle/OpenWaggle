@@ -35,8 +35,8 @@ function retryPendingOutputs(sessionId: SessionId) {
       Effect.forEach(outputs, (output) => {
         const recording =
           output.kind === 'commit'
-            ? recordSessionCommit(sessionId, output)
-            : recordSessionChangeRequest(sessionId, output)
+            ? recordSessionCommit(sessionId, output, output)
+            : recordSessionChangeRequest(sessionId, output, output)
         return recording.pipe(
           Effect.flatMap(() => removePendingSessionOutput(output)),
           Effect.catchAll(() => Effect.void),
@@ -87,20 +87,23 @@ function advanceSessionResourceBackfillPage(sessionId: SessionId) {
     )
     if (page.throughCreatedOrder === null) {
       yield* recheckCompletedManagedResources(sessionId, repository, sessions)
-      return { backfillComplete: true }
+      return { backfillComplete: true, progressed: false }
     }
     let backfillComplete = false
+    let progressed = false
     const result = yield* captureProjectedSessionResources({
       sessionId,
       nodes: page.nodes,
     }).pipe(Effect.option)
     if (result._tag === 'Some') {
+      progressed = result.value.progressed
       if (result.value.fullyProjected) {
         yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
         backfillComplete = !page.hasMore
+        progressed = true
       }
     }
-    return { backfillComplete }
+    return { backfillComplete, progressed }
   })
 }
 
@@ -202,7 +205,7 @@ export function registerSessionResourceHandlers(): void {
             new Error('No matching created change request is pending Output recording.'),
           )
         }
-        const recorded = yield* recordSessionChangeRequest(sessionId, input)
+        const recorded = yield* recordSessionChangeRequest(sessionId, input, pending)
         yield* removePendingSessionOutput(pending)
         return recorded
       }),

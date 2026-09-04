@@ -9,6 +9,7 @@ export interface BackfillLinkState {
   count: number
   readonly capturedOccurrences: Set<string>
   projectionBlocked: boolean
+  progressed: boolean
 }
 
 export function captureBackfilledLinks(input: {
@@ -44,6 +45,7 @@ export function captureBackfilledLinks(input: {
       input.state.count += 1
       yield* captureLink(captureInput)
       input.state.capturedOccurrences.add(id)
+      input.state.progressed = true
     }
   })
 }

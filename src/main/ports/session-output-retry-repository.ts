@@ -5,6 +5,8 @@ import type { SessionOutputRetryRepositoryError } from '../errors'
 interface PendingSessionOutputBase {
   readonly id: string
   readonly sessionId: SessionId
+  readonly nodeId: string | null
+  readonly branchId: string | null
   readonly createdAt: number
 }
 

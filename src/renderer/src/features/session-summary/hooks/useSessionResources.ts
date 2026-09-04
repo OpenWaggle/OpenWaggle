@@ -19,8 +19,14 @@ type SessionResourceThumbnailQueryKey = readonly [
 ]
 
 const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
+const SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS = 2_000
+const SESSION_RESOURCE_BACKFILL_MAX_STALLED_ATTEMPTS = 5
+const SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER = 2
+const SESSION_RESOURCE_QUERY_RETRY_ATTEMPTS = 3
 const SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS = 1_000
 const SESSION_RESOURCE_THUMBNAIL_MAX_ATTEMPTS = 3
+
+class SessionResourceBackfillStalledError extends Error {}
 
 export const sessionResourcesQueryKey = (sessionId: string): SessionResourcesQueryKey =>
   ['session-resources', sessionId] as const
@@ -38,25 +44,60 @@ function versionedSessionResourceThumbnailQueryKey(
 
 export function sessionResourcesQueryOptions(
   sessionId: string | null,
-): OpenWaggleQueryOptions<SessionResourceList, Error, SessionResource[], SessionResourcesQueryKey> {
+): OpenWaggleQueryOptions<
+  SessionResourceQueryState,
+  Error,
+  SessionResource[],
+  SessionResourcesQueryKey
+> {
   return queryOptions({
     queryKey: sessionResourcesQueryKey(sessionId ?? 'none'),
     queryFn: async ({ client, queryKey }) => {
-      if (!sessionId) return { resources: [], backfillComplete: true }
-      const previous = client.getQueryData<SessionResourceList>(queryKey)
+      if (!sessionId) return { resources: [], backfillComplete: true, stalledAttempts: 0 }
+      const previous = client.getQueryData<SessionResourceQueryState>(queryKey)
       if (previous?.backfillComplete === false) {
         const status = await api.advanceSessionResourceBackfill(SessionId(sessionId))
-        if (!status.backfillComplete) return previous
+        if (!status.backfillComplete) {
+          const stalledAttempts = status.progressed ? 0 : previous.stalledAttempts + 1
+          if (stalledAttempts >= SESSION_RESOURCE_BACKFILL_MAX_STALLED_ATTEMPTS) {
+            throw new SessionResourceBackfillStalledError(
+              'Historical session resource indexing stalled. Retry to continue.',
+            )
+          }
+          return { ...previous, stalledAttempts }
+        }
       }
-      const result = await api.listSessionResources(SessionId(sessionId))
-      return Array.isArray(result) ? { resources: result, backfillComplete: true } : result
+      const result: SessionResourceList | SessionResource[] = await api.listSessionResources(
+        SessionId(sessionId),
+      )
+      const normalized: SessionResourceList = Array.isArray(result)
+        ? { resources: result, backfillComplete: true }
+        : result
+      return {
+        ...normalized,
+        stalledAttempts: 0,
+      }
     },
     select: (result) => result.resources,
-    refetchInterval: (query) =>
-      query.state.data?.backfillComplete === false
-        ? SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS
-        : false,
+    retry: (failureCount, error) =>
+      !(error instanceof SessionResourceBackfillStalledError) &&
+      failureCount < SESSION_RESOURCE_QUERY_RETRY_ATTEMPTS,
+    refetchInterval: (query) => {
+      if (query.state.status === 'error' || query.state.data?.backfillComplete !== false) {
+        return false
+      }
+      const stalledAttempts = query.state.data.stalledAttempts
+      return Math.min(
+        SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS *
+          SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER ** stalledAttempts,
+        SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS,
+      )
+    },
   })
+}
+
+interface SessionResourceQueryState extends SessionResourceList {
+  readonly stalledAttempts: number
 }
 
 export function sessionResourceContentQueryOptions(

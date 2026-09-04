@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { GitRunStackedActionResult } from '@shared/types/git'
+import type { SessionWorkspace } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -60,7 +61,11 @@ describe('stacked action Output recording', () => {
     }
 
     const recorded = await Effect.runPromise(
-      recordStackedActionOutputs(result, sessionId).pipe(Effect.provide(layer)),
+      recordStackedActionOutputs(result, sessionId, {
+        nodeId: 'node-at-action',
+        branchId: 'branch-at-action',
+        createdAt: 1000,
+      }).pipe(Effect.provide(layer)),
     )
 
     expect(recorded).toMatchObject({
@@ -123,7 +128,11 @@ describe('stacked action Output recording', () => {
       )
 
       const recorded = await Effect.runPromise(
-        recordStackedActionOutputs(result, sessionId).pipe(Effect.provide(layer)),
+        recordStackedActionOutputs(result, sessionId, {
+          nodeId: 'node-at-action',
+          branchId: 'branch-at-action',
+          createdAt: 1000,
+        }).pipe(Effect.provide(layer)),
       )
 
       expect(recorded.ok).toBe(true)
@@ -131,4 +140,67 @@ describe('stacked action Output recording', () => {
       expect(recorded.changeRequestOutput).toMatchObject({ ok: false, retryPersisted })
     },
   )
+
+  it('keeps the original Output provenance when retry cleanup fails', async () => {
+    const upserts: Parameters<typeof sessionResourceTestLayer>[0] = []
+    const pendingOutputs: PendingSessionOutput[] = []
+    const sessionId = SessionId('originating-session')
+    const layer = Layer.mergeAll(
+      sessionResourceTestLayer(upserts),
+      Layer.succeed(
+        SessionOutputRetryRepository,
+        SessionOutputRetryRepository.of({
+          put: (output) => Effect.sync(() => pendingOutputs.push(output)),
+          list: () => Effect.succeed(pendingOutputs),
+          remove: () =>
+            Effect.fail(
+              new SessionOutputRetryRepositoryError({
+                operation: 'remove',
+                cause: 'database busy',
+              }),
+            ),
+        }),
+      ),
+      Layer.succeed(
+        SessionRepository,
+        SessionRepository.of(
+          fromPartial<SessionRepositoryShape>({
+            getWorkspace: () =>
+              Effect.succeed(
+                fromPartial<SessionWorkspace>({
+                  activeNodeId: 'node-at-commit',
+                  activeBranchId: 'branch-at-commit',
+                }),
+              ),
+          }),
+        ),
+      ),
+    )
+    const result: GitRunStackedActionResult = {
+      ok: true,
+      action: 'commit',
+      branch: { status: 'unchanged', name: 'feature/current' },
+      commit: { commitHash: 'abc123', summary: 'Complete session summary' },
+      changeRequest: null,
+    }
+
+    await Effect.runPromise(
+      recordStackedActionOutputs(result, sessionId, {
+        nodeId: 'node-at-commit',
+        branchId: 'branch-at-commit',
+        createdAt: 1000,
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(pendingOutputs).toHaveLength(1)
+    expect(pendingOutputs[0]).toMatchObject({
+      nodeId: 'node-at-commit',
+      branchId: 'branch-at-commit',
+    })
+    expect(upserts[0]?.occurrence).toMatchObject({
+      nodeId: pendingOutputs[0]?.nodeId,
+      branchId: pendingOutputs[0]?.branchId,
+      createdAt: pendingOutputs[0]?.createdAt,
+    })
+  })
 })

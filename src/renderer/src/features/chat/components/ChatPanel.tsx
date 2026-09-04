@@ -89,7 +89,9 @@ export function ChatPanelContent({
     sections.transcript.chatRows.length,
   )
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
-  const activeMessageIds = new Set(sections.transcript.messages.map((message) => message.id))
+  const activeMessageIds = new Set(
+    sections.transcript.messages.map((message) => message.metadata?.sessionNodeId ?? message.id),
+  )
   const summarySpace = useSessionSummarySpace(rightSidebarOpen)
   return (
     <div className="flex size-full overflow-hidden">
@@ -97,6 +99,7 @@ export function ChatPanelContent({
         ref={summarySpace.panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
+        data-session-summary-space={summarySpace.hasSpace ? 'available' : 'constrained'}
       >
         <ChatDisplayPathProvider
           projectPath={sections.transcript.projectPath}

@@ -131,6 +131,11 @@ export interface OpenChangeRequestPayload {
    * resolve to an unrelated same-named ref in the base repository.
    */
   readonly headOwner?: string
+  /**
+   * Full source repository path for providers that select a fork by project,
+   * for example `group/contributor/project` for GitLab's `--head` flag.
+   */
+  readonly headRepository?: string
   /** Omitted when the provider should use the repository's configured default branch. */
   readonly baseRef?: string
   readonly title: string

@@ -49,6 +49,8 @@ export interface SessionResourceList {
 
 export interface SessionResourceBackfillStatus {
   readonly backfillComplete: boolean
+  /** Whether this page durably advanced the historical projection cursor. */
+  readonly progressed: boolean
 }
 
 export interface SessionResourceContent {

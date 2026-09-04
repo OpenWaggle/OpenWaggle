@@ -55,7 +55,13 @@ function fetchRemoteImage(rawUrl: string, createFetch?: (url: URL) => SecureMcpF
         throw new Error('Remote images must use HTTPS without embedded credentials.')
       }
       const secureFetch = (
-        createFetch ?? ((target) => createSecureMcpFetch({ baseUrl: target, allowLoopback: false }))
+        createFetch ??
+        ((target) =>
+          createSecureMcpFetch({
+            baseUrl: target,
+            allowLoopback: false,
+            allowPublicRedirects: true,
+          }))
       )(url)
       try {
         const response = await secureFetch(url, {

@@ -71,11 +71,21 @@ function findExistingResource(
 ) {
   return Effect.gen(function* () {
     const normalized = yield* repository.findByCanonicalKey(sessionId, normalizedCanonicalKey)
-    if (normalized || legacyCanonicalKey === normalizedCanonicalKey) {
-      return { resource: normalized, legacy: false }
+    if (normalized) return { resource: normalized, legacy: false }
+    if (legacyCanonicalKey !== normalizedCanonicalKey) {
+      const legacy = yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
+      if (legacy) return { resource: legacy, legacy: true }
     }
-    const legacy = yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
-    return { resource: legacy, legacy: legacy !== null }
+    const normalizedLocator = normalizedCanonicalKey.slice('url:'.length)
+    const legacy = (yield* repository.list(sessionId)).find((candidate) => {
+      if (!candidate.canonicalKey.startsWith('url:')) return false
+      try {
+        return new URL(candidate.canonicalKey.slice('url:'.length)).href === normalizedLocator
+      } catch {
+        return false
+      }
+    })
+    return { resource: legacy ?? null, legacy: legacy !== undefined }
   })
 }
 

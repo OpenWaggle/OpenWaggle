@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isEnoent } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { app } from 'electron'
@@ -279,7 +280,11 @@ function makeStore(root: string): SessionResourceStoreShape {
     removeSession: (sessionId) =>
       Effect.tryPromise({
         try: async () => {
-          const realRoot = await fs.realpath(root)
+          const realRoot = await fs.realpath(root).catch((cause: unknown) => {
+            if (isEnoent(cause)) return null
+            throw cause
+          })
+          if (realRoot === null) return
           const target = path.join(realRoot, sessionDirectoryName(String(sessionId)))
           if (!isWithinRoot(realRoot, target)) {
             throw new Error('Session resource cleanup target is invalid.')

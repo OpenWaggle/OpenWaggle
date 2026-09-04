@@ -32,18 +32,23 @@ async function resolveBaseRef(
   return candidate?.trim() || undefined
 }
 
-function compatibleHeadOwner(baseUrl: string | null, destination: GitPushDestination) {
+function compatibleHeadIdentity(
+  baseUrl: string | null,
+  destination: GitPushDestination,
+): Pick<OpenChangeRequestPayload, 'headOwner' | 'headRepository'> | null {
   if (destination.multiplePushUrls || !destination.remoteUrl || !baseUrl) return null
   const base = parseRemoteRepositoryIdentity(baseUrl)
-  if (!base) return detectSourceControlProvider(baseUrl) ? null : undefined
+  if (!base) return detectSourceControlProvider(baseUrl) ? null : {}
   const head = parseRemoteRepositoryIdentity(destination.remoteUrl)
   if (!head || base.provider !== head.provider) return null
   if (base.authority !== head.authority) return null
-  if (base.repository.toLowerCase() !== head.repository.toLowerCase()) return null
+  const sameOwner = base.owner.toLowerCase() === head.owner.toLowerCase()
+  const sameRepository = base.repository.toLowerCase() === head.repository.toLowerCase()
+  if (sameOwner && sameRepository) return {}
   if (base.provider === 'gitlab') {
-    return base.owner.toLowerCase() === head.owner.toLowerCase() ? undefined : null
+    return { headRepository: `${head.owner}/${head.repository}` }
   }
-  return base.owner.toLowerCase() === head.owner.toLowerCase() ? undefined : head.owner
+  return sameOwner ? null : { headOwner: head.owner }
 }
 
 export async function buildOpenChangeRequestPayload(
@@ -60,13 +65,13 @@ export async function buildOpenChangeRequestPayload(
     resolveBaseRef(deps, projectPath, options),
     deps.resolvePrimaryRemoteUrl(projectPath),
   ])
-  const headOwner = pushDestination
-    ? compatibleHeadOwner(primaryRemoteUrl, pushDestination)
-    : undefined
-  if (headOwner === null) return null
+  const headIdentity = pushDestination
+    ? compatibleHeadIdentity(primaryRemoteUrl, pushDestination)
+    : {}
+  if (headIdentity === null) return null
   return {
     headRef,
-    ...(headOwner ? { headOwner } : {}),
+    ...headIdentity,
     ...(baseRef ? { baseRef } : {}),
     title: options.changeRequestTitle?.trim() || 'Update',
     body: options.changeRequestBody,

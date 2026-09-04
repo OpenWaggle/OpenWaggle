@@ -10,6 +10,7 @@ import { GIT_STACKED_ACTIONS } from '@shared/types/git'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import * as Effect from 'effect/Effect'
 import { getSourceControlProvider } from '../../adapters/source-control'
+import { resolveSessionOutputOccurrenceContext } from '../../application/session-resource-recording'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
@@ -69,6 +70,7 @@ async function buildChangeRequestFallbackUrl(
     if (payload.body) url.searchParams.set('body', payload.body)
     return url.toString()
   }
+  if (payload.headRepository) return null
   const url = new URL(`${webUrl}/-/merge_requests/new`)
   url.searchParams.set('merge_request[source_branch]', payload.headRef)
   if (payload.baseRef) url.searchParams.set('merge_request[target_branch]', payload.baseRef)
@@ -208,14 +210,21 @@ export function registerGitStackedActionHandlers(): void {
               message: 'The current branch or push destination changed. Review the action again.',
             } satisfies GitRunStackedActionResult
           }
+          const occurrenceContext = options.sessionId
+            ? yield* resolveSessionOutputOccurrenceContext(options.sessionId).pipe(
+                Effect.catchAll(() =>
+                  Effect.succeed({ nodeId: null, branchId: null, createdAt: Date.now() }),
+                ),
+              )
+            : null
           const result = yield* Effect.promise(() =>
             runStackedGitAction(deps, projectPath, options),
           )
           // Stacked actions commit and push, so the working tree's status changed too.
           invalidateGitStatusCache(projectPath)
           invalidateVcsStatus(projectPath)
-          return options.sessionId
-            ? yield* recordStackedActionOutputs(result, options.sessionId)
+          return options.sessionId && occurrenceContext
+            ? yield* recordStackedActionOutputs(result, options.sessionId, occurrenceContext)
             : result
         }),
       )

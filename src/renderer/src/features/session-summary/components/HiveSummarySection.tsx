@@ -50,7 +50,9 @@ function hiveSummaryModel(
   archivedSessions: ReturnType<typeof useSessionStore.getState>['sessions'],
   sessionId: string,
 ) {
-  const current = sessions.find((session) => String(session.id) === sessionId)
+  const current =
+    sessions.find((session) => String(session.id) === sessionId) ??
+    archivedSessions.find((session) => String(session.id) === sessionId)
   const lineage = lineageOf(current)
   if (!current || !lineage || lineage.role === 'independent') return null
   const workers = sessions.filter((session) => lineageOf(session)?.parentSessionId === sessionId)

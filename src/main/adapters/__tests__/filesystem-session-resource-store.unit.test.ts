@@ -320,4 +320,17 @@ describe('FilesystemSessionResourceStore', () => {
     await expect(fs.stat(sessionDirectory('session-1'))).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(fs.stat(sessionDirectory('session-2'))).resolves.toBeDefined()
   })
+
+  it('treats a missing managed resource root as already cleaned', async () => {
+    await fs.rm(tmpRoot, { recursive: true })
+
+    await expect(
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const store = yield* SessionResourceStore
+          yield* store.removeSession(SessionId('session-without-resources'))
+        }).pipe(Effect.provide(makeFilesystemSessionResourceStoreLayer(tmpRoot))),
+      ),
+    ).resolves.toBeUndefined()
+  })
 })
