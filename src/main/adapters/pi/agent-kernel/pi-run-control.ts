@@ -53,7 +53,10 @@ export function createPiRunControl(
         promptInput.images.length > 0
           ? [...(text ? [{ type: 'text' as const, text }] : []), ...promptInput.images]
           : text
-      await session.sendUserMessage(content, { deliverAs: 'steer' })
+      await session.sendUserMessage(content, {
+        deliverAs: 'steer',
+        expandPromptTemplates: true,
+      })
     },
   }
 }

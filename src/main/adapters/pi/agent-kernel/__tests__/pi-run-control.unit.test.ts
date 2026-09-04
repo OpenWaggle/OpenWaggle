@@ -18,6 +18,24 @@ describe('Pi native run control', () => {
 
     expect(session.sendUserMessage).toHaveBeenCalledWith('Take the safer path', {
       deliverAs: 'steer',
+      expandPromptTemplates: true,
+    })
+  })
+
+  it('expands queued slash commands before delivering steering', async () => {
+    const session = {
+      isCompacting: false,
+      isStreaming: true,
+      model: modelFromReference('openai/gpt-5.5'),
+      sendUserMessage: vi.fn(async () => undefined),
+    }
+    const control = createPiRunControl(session, new AbortController().signal)
+
+    await control.steer(payload('/skill:review-pr'))
+
+    expect(session.sendUserMessage).toHaveBeenCalledWith('/skill:review-pr', {
+      deliverAs: 'steer',
+      expandPromptTemplates: true,
     })
   })
 
@@ -66,6 +84,7 @@ describe('Pi native run control', () => {
     expect(session.sendUserMessage).toHaveBeenCalledOnce()
     expect(session.sendUserMessage).toHaveBeenCalledWith('Continue after the checkpoint', {
       deliverAs: 'steer',
+      expandPromptTemplates: true,
     })
   })
 
@@ -96,7 +115,7 @@ describe('Pi native run control', () => {
       expect.stringMatching(
         /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Explain the selected service/,
       ),
-      { deliverAs: 'steer' },
+      { deliverAs: 'steer', expandPromptTemplates: true },
     )
   })
 
@@ -135,7 +154,7 @@ describe('Pi native run control', () => {
 
     expect(session.sendUserMessage).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ type: 'image', data: 'base64-image' })]),
-      { deliverAs: 'steer' },
+      { deliverAs: 'steer', expandPromptTemplates: true },
     )
   })
 })
