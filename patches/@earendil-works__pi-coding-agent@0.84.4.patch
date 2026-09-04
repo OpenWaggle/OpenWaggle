@@ -1220,7 +1220,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..b7c1b20671fcf246ec27f523e6683958
 +                details: {
 +                    schemaVersion: 1,
 +                    mechanism: "native",
-+                    identity: nativeCompactionIdentity(model, apiKey, headers),
++                    identity: nativeCompactionIdentity(model, apiKey, nativeRequestOptions?.headers ?? headers),
 +                    items: response.output.map(toNativeReplacementRequestItem),
 +                },
 +            };
@@ -1584,7 +1584,7 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..08718a90dfe796471372a680c6a4f4c3
  import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
  import { readdir, stat } from "fs/promises";
  import { join, resolve } from "path";
-@@ -9,6 +9,47 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
+@@ -9,6 +9,61 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
  import { normalizePath, resolvePath } from "../utils/paths.js";
  import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
  export const CURRENT_SESSION_VERSION = 3;
@@ -1602,13 +1602,27 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..08718a90dfe796471372a680c6a4f4c3
 +        return undefined;
 +    }
 +}
++function headerValue(headers, name) {
++    const expectedName = name.toLowerCase();
++    for (const [headerName, value] of Object.entries(headers ?? {})) {
++        if (headerName.toLowerCase() === expectedName && value.trim().length > 0)
++            return value.trim();
++    }
++    return undefined;
++}
 +export function nativeCredentialFingerprint(apiKey, headers) {
-+    const accountId = apiKey ? codexAccountId(apiKey) : undefined;
++    const explicitAccountId = headerValue(headers, "chatgpt-account-id");
++    const authorization = headerValue(headers, "authorization");
++    const authorizationToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
++    const accountId = explicitAccountId ?? (authorizationToken ? codexAccountId(authorizationToken) : undefined) ??
++        (apiKey ? codexAccountId(apiKey) : undefined);
 +    const headerEntries = Object.entries(headers ?? {}).sort(([left], [right]) => left.localeCompare(right));
 +    const credentialMaterial = accountId
 +        ? `codex-account:${accountId}`
-+        : apiKey
-+            ? `api-key:${apiKey}`
++        : authorization
++            ? `authorization:${authorization}`
++            : apiKey
++                ? `api-key:${apiKey}`
 +            : headerEntries.length > 0
 +                ? `headers:${JSON.stringify(headerEntries)}`
 +                : undefined;

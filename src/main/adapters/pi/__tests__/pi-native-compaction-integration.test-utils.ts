@@ -53,6 +53,10 @@ export async function createNativeSession(options: {
     payloadCalls: number
     responseCalls: number
   }
+  providerAuthHeaderState?: {
+    authorization?: string
+    accountId?: string
+  }
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -102,6 +106,14 @@ export async function createNativeSession(options: {
     },
   })
   const extension: ExtensionFactory = (pi) => {
+    if (options.providerAuthHeaderState) {
+      pi.on('before_provider_headers', (event) => {
+        const authorization = options.providerAuthHeaderState?.authorization
+        const accountId = options.providerAuthHeaderState?.accountId
+        if (authorization) event.headers.Authorization = authorization
+        if (accountId) event.headers['chatgpt-account-id'] = accountId
+      })
+    }
     if (options.providerLifecycleCounter) {
       pi.on('before_provider_headers', (event) => {
         if (options.providerLifecycleCounter) options.providerLifecycleCounter.headerCalls += 1
