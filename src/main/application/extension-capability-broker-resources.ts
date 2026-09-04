@@ -23,6 +23,7 @@ import {
   unsupportedMethod,
 } from './extension-capability-broker-openwaggle-common'
 import { emptyObjectPayload, unsupportedPayloadIssues } from './extension-capability-broker-payload'
+import { withSessionResourceLock } from './session-resource-lock'
 
 const PUBLISH_PAYLOAD_KEYS = new Set(['key', 'title', 'kind', 'role', 'locator'])
 
@@ -181,73 +182,82 @@ function publishResource(
   sessionId: SessionId,
   payload: ExtensionSessionResourcePublishPayload,
 ) {
-  return Effect.gen(function* () {
-    const repository = yield* SessionResourceRepository
-    const sessions = yield* SessionRepository
-    const workspace = yield* sessions.getWorkspace(sessionId)
-    const normalizedLocator = new URL(payload.locator).href
-    const canonicalPrefix = payload.kind === 'image' ? 'image-url:' : 'url:'
-    const normalizedCanonicalKey = `${canonicalPrefix}${normalizedLocator}`
-    const legacyCanonicalKey = `${canonicalPrefix}${payload.locator}`
-    const existing = yield* findExistingResource(
-      repository,
-      sessionId,
-      normalizedCanonicalKey,
-      legacyCanonicalKey,
-      payload.kind,
-    )
-    if (existing._tag === 'Blocked') {
-      return yield* auditedFailure({
-        invocation: input.invocation,
-        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
-        message: 'The resource URL is occupied by an incompatible legacy resource.',
-        timestamp: input.timestamp,
-      })
-    }
-    const existingResource = existing._tag === 'Existing' ? existing.resource : null
-    const occurrenceId = publicationOccurrenceId(input, sessionId, payload, normalizedLocator, true)
-    const occurrenceIds = [
-      occurrenceId,
-      publicationOccurrenceId(input, sessionId, payload, payload.locator, true),
-      publicationOccurrenceId(input, sessionId, payload, normalizedLocator, false),
-      publicationOccurrenceId(input, sessionId, payload, payload.locator, false),
-    ].filter((candidate, index, candidates) => candidates.indexOf(candidate) === index)
-    const replayResource = yield* findReplayResource(
-      repository,
-      sessionId,
-      occurrenceIds,
-      existingResource,
-      payload.kind,
-    )
-    if (replayResource) return yield* publishedResourceResult(input, sessionId, replayResource)
-    const metadata = joinedResourceMetadata(existingResource, payload)
-    const createdAt = input.timestamp
-    const resourceId = randomUUID()
-    const resource = yield* repository.upsert({
-      id: resourceId,
-      sessionId,
-      canonicalKey: existingResource?.canonicalKey ?? normalizedCanonicalKey,
-      kind: metadata.kind,
-      title: metadata.title,
-      mimeType: null,
-      locator: normalizedLocator,
-      managedPath: null,
-      available: metadata.available,
-      occurrence: {
-        id: occurrenceId,
-        nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
-        branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
-        actor: 'extension',
-        activity: payload.role === 'output' ? 'created' : 'read',
-        label: input.invocation.contributionId,
+  return withSessionResourceLock(
+    sessionId,
+    Effect.gen(function* () {
+      const repository = yield* SessionResourceRepository
+      const sessions = yield* SessionRepository
+      const workspace = yield* sessions.getWorkspace(sessionId)
+      const normalizedLocator = new URL(payload.locator).href
+      const canonicalPrefix = payload.kind === 'image' ? 'image-url:' : 'url:'
+      const normalizedCanonicalKey = `${canonicalPrefix}${normalizedLocator}`
+      const legacyCanonicalKey = `${canonicalPrefix}${payload.locator}`
+      const existing = yield* findExistingResource(
+        repository,
+        sessionId,
+        normalizedCanonicalKey,
+        legacyCanonicalKey,
+        payload.kind,
+      )
+      if (existing._tag === 'Blocked') {
+        return yield* auditedFailure({
+          invocation: input.invocation,
+          code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
+          message: 'The resource URL is occupied by an incompatible legacy resource.',
+          timestamp: input.timestamp,
+        })
+      }
+      const existingResource = existing._tag === 'Existing' ? existing.resource : null
+      const occurrenceId = publicationOccurrenceId(
+        input,
+        sessionId,
+        payload,
+        normalizedLocator,
+        true,
+      )
+      const occurrenceIds = [
+        occurrenceId,
+        publicationOccurrenceId(input, sessionId, payload, payload.locator, true),
+        publicationOccurrenceId(input, sessionId, payload, normalizedLocator, false),
+        publicationOccurrenceId(input, sessionId, payload, payload.locator, false),
+      ].filter((candidate, index, candidates) => candidates.indexOf(candidate) === index)
+      const replayResource = yield* findReplayResource(
+        repository,
+        sessionId,
+        occurrenceIds,
+        existingResource,
+        payload.kind,
+      )
+      if (replayResource) return yield* publishedResourceResult(input, sessionId, replayResource)
+      const metadata = joinedResourceMetadata(existingResource, payload)
+      const createdAt = input.timestamp
+      const resourceId = randomUUID()
+      const resource = yield* repository.upsert({
+        id: resourceId,
+        sessionId,
+        canonicalKey: existingResource?.canonicalKey ?? normalizedCanonicalKey,
+        kind: metadata.kind,
+        title: metadata.title,
+        mimeType: null,
+        locator: normalizedLocator,
+        managedPath: null,
+        available: metadata.available,
+        occurrence: {
+          id: occurrenceId,
+          nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
+          branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
+          actor: 'extension',
+          activity: payload.role === 'output' ? 'created' : 'read',
+          label: input.invocation.contributionId,
+          createdAt,
+        },
         createdAt,
-      },
-      createdAt,
-      updatedAt: createdAt,
-    })
-    broadcastToWindows('sessions:resources-invalidated', { sessionId })
-    return yield* publishedResourceResult(input, sessionId, resource)
-  })
+        updatedAt: createdAt,
+      })
+      broadcastToWindows('sessions:resources-invalidated', { sessionId })
+      return yield* publishedResourceResult(input, sessionId, resource)
+    }),
+  )
 }
 
 export function routeSessionResourceCapability(input: BrokerRouteInput) {

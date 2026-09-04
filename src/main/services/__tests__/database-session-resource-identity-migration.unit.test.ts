@@ -103,6 +103,16 @@ describe('session resource identity isolation migration', () => {
               NULL, 'https://images.example.com/architecture.png', NULL, 0, 2, 2
             ),
             (
+              'legacy-failed-image', 'session-1',
+              'url:https://failed.example.com/diagram.png', 'image', 'Legacy available image',
+              'image/png', 'https://failed.example.com/diagram.png', NULL, 1, 1, 1
+            ),
+            (
+              'current-failed-image', 'session-1',
+              'image-url:https://failed.example.com/diagram.png', 'image', 'Failed image',
+              'image/png', 'https://failed.example.com/diagram.png', NULL, 0, 2, 2
+            ),
+            (
               'lone-legacy-image', 'session-1',
               'url:HTTPS://LONE.EXAMPLE.COM:443/diagram.png', 'image', 'Lone image',
               'image/png', 'HTTPS://LONE.EXAMPLE.COM:443/diagram.png',
@@ -204,6 +214,12 @@ describe('session resource identity isolation migration', () => {
           canonical_key: 'image-url:https://lone.example.com/diagram.png',
           managed_path: '/managed/lone.png',
           available: 1,
+        }),
+        expect.objectContaining({
+          id: 'current-failed-image',
+          canonical_key: 'image-url:https://failed.example.com/diagram.png',
+          managed_path: null,
+          available: 0,
         }),
         expect.objectContaining({
           id: 'legacy-distinct-copy',

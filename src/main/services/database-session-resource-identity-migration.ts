@@ -63,7 +63,12 @@ function mergeLegacyImage(
   const title = source.updated_at > target.updated_at ? source.title : target.title
   const mimeType = target.mime_type ?? source.mime_type
   const managedPath = target.managed_path ?? source.managed_path
-  const available = Math.max(source.available, target.available)
+  const available =
+    managedPath !== null
+      ? Math.max(source.available, target.available)
+      : source.updated_at > target.updated_at
+        ? source.available
+        : target.available
   const createdAt = Math.min(source.created_at, target.created_at)
   const updatedAt = Math.max(source.updated_at, target.updated_at)
 
