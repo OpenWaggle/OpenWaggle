@@ -12,6 +12,21 @@ interface RenderSnapshotState {
   readonly renderSnapshotsBySessionId: Map<SessionId, RenderSnapshot>
 }
 
+function rebaseRestoredRunningCompaction(
+  status: AgentCompactionStatus | null,
+  messageCount: number,
+): AgentCompactionStatus | null {
+  if (status?.type !== 'compacting' || messageCount === 0) return status
+  const latest = status.timeline.at(-1)
+  if (latest?.phase !== 'running' || latest.messageCountAtStart !== 0) return status
+  return {
+    ...status,
+    timeline: status.timeline.map((item, index) =>
+      index === status.timeline.length - 1 ? { ...item, messageCountAtStart: messageCount } : item,
+    ),
+  }
+}
+
 export function withRunCompactionStatus(
   state: RenderSnapshotState,
   id: SessionId,
@@ -25,7 +40,11 @@ export function withRunCompactionStatus(
     next.delete(id)
     return { renderSnapshotsBySessionId: next }
   }
-  next.set(id, { ...existing, compactionStatus: status, updatedAt: Date.now() })
+  next.set(id, {
+    ...existing,
+    compactionStatus: rebaseRestoredRunningCompaction(status, existing.messages.length),
+    updatedAt: Date.now(),
+  })
   return { renderSnapshotsBySessionId: next }
 }
 
