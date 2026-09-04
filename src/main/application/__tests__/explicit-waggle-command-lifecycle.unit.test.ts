@@ -7,8 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   acquireLeaseMock,
   activateMock,
-  attachmentBindMock,
   attachmentCleanupMock,
+  attachmentResolveMock,
   executeWaggleRunMock,
   emitWorktreeLaunchProgressMock,
   forkSupervisedMock,
@@ -18,8 +18,8 @@ const {
 } = vi.hoisted(() => ({
   acquireLeaseMock: vi.fn(),
   activateMock: vi.fn(),
-  attachmentBindMock: vi.fn(),
   attachmentCleanupMock: vi.fn(),
+  attachmentResolveMock: vi.fn(),
   executeWaggleRunMock: vi.fn(),
   emitWorktreeLaunchProgressMock: vi.fn(),
   forkSupervisedMock: vi.fn(),
@@ -73,9 +73,9 @@ import {
 const SESSION_ID = SessionId('session-lifecycle')
 const attachmentService = SessionControlAttachmentService.of({
   prepare: () => Effect.die('unused'),
-  bind: attachmentBindMock,
+  bind: () => Effect.die('unused'),
   cleanupUnreferenced: attachmentCleanupMock,
-  resolve: () => Effect.die('unused'),
+  resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
 
@@ -133,8 +133,8 @@ describe('explicit Waggle command lifecycle', () => {
     activateMock
       .mockReset()
       .mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 3, intent: {} }))
-    attachmentBindMock.mockReset().mockReturnValue(Effect.void)
     attachmentCleanupMock.mockReset().mockReturnValue(Effect.void)
+    attachmentResolveMock.mockReset().mockReturnValue(Effect.succeed([]))
     executeWaggleRunMock
       .mockReset()
       .mockReturnValue(Effect.succeed({ outcome: 'success', newMessages: [] }))
@@ -236,13 +236,27 @@ describe('explicit Waggle command lifecycle', () => {
   })
 
   it('binds and cleans prepared attachments around explicit Waggle execution', async () => {
+    const hydratedAttachment = {
+      id: 'attachment-1',
+      kind: 'text' as const,
+      name: 'patch.txt',
+      path: '/tmp/patch.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 5,
+      extractedText: 'patch',
+      source: null,
+    }
+    attachmentResolveMock.mockReturnValue(Effect.succeed([hydratedAttachment]))
     await runWaggleCommand(true)
 
-    expect(attachmentBindMock).toHaveBeenCalledWith({
+    expect(attachmentResolveMock).toHaveBeenCalledWith({
       attachmentIds: ['attachment-1'],
       sessionId: SESSION_ID,
       ownerCallerId: 'gui:local-user',
     })
+    expect(executeWaggleRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ hydratedAttachments: [hydratedAttachment] }),
+    )
     expect(attachmentCleanupMock).toHaveBeenCalledWith({ sessionId: SESSION_ID })
   })
 

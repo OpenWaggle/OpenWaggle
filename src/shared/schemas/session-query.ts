@@ -24,6 +24,7 @@ import {
   exportWaitQuerySchema,
   sessionExportManifestSchema,
 } from './session-export-operation'
+import { sessionInputIdSchema, sessionInputJsonWithinLimit } from './session-input'
 
 const discoveryLimit = Schema.Number.pipe(
   Schema.int(),
@@ -48,17 +49,19 @@ const delegationStateSchema = Schema.Literal(
 
 const sessionExportQuerySchema = Schema.Struct({
   operation: Schema.Literal('export'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   limit: transcriptLimit,
   branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
-  branchId: Schema.optional(Schema.String),
+  branchId: Schema.optional(sessionInputIdSchema),
   includeQueueBodies: Schema.optional(Schema.Boolean),
   afterCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   throughCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   snapshotStateRevision: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-  snapshotHeadNodeId: Schema.optional(Schema.String),
+  snapshotHeadNodeId: Schema.optional(sessionInputIdSchema),
   capturedAt: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-  snapshotManifest: Schema.optional(sessionExportManifestSchema),
+  snapshotManifest: Schema.optional(
+    sessionExportManifestSchema.pipe(Schema.filter(sessionInputJsonWithinLimit)),
+  ),
 }).pipe(
   Schema.filter(
     (query) =>
@@ -100,33 +103,33 @@ const sessionQuerySchema = Schema.Union(
       Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
     ),
   }),
-  Schema.Struct({ operation: Schema.Literal('read'), sessionId: Schema.String }),
+  Schema.Struct({ operation: Schema.Literal('read'), sessionId: sessionInputIdSchema }),
   Schema.Struct({
     operation: Schema.Literal('turns'),
-    sessionId: Schema.String,
+    sessionId: sessionInputIdSchema,
     limit: discoveryLimit,
     cursor: Schema.optional(cursor),
   }),
   Schema.Struct({
     operation: Schema.Literal('items'),
-    sessionId: Schema.String,
+    sessionId: sessionInputIdSchema,
     limit: transcriptLimit,
-    runId: Schema.optional(Schema.String),
+    runId: Schema.optional(sessionInputIdSchema),
     branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
-    branchId: Schema.optional(Schema.String),
+    branchId: Schema.optional(sessionInputIdSchema),
     afterCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
     throughCreatedOrder: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-    snapshotHeadNodeId: Schema.optional(Schema.String),
+    snapshotHeadNodeId: Schema.optional(sessionInputIdSchema),
   }),
-  Schema.Struct({ operation: Schema.Literal('status'), sessionId: Schema.String }),
-  Schema.Struct({ operation: Schema.Literal('requests-list'), sessionId: Schema.String }),
+  Schema.Struct({ operation: Schema.Literal('status'), sessionId: sessionInputIdSchema }),
+  Schema.Struct({ operation: Schema.Literal('requests-list'), sessionId: sessionInputIdSchema }),
   sessionExportQuerySchema,
   exportListQuerySchema,
   exportReadQuerySchema,
   exportWaitQuerySchema,
   Schema.Struct({
     operation: Schema.Literal('queue-list'),
-    sessionId: Schema.String,
+    sessionId: sessionInputIdSchema,
     includeBodies: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
@@ -135,15 +138,15 @@ const sessionQuerySchema = Schema.Union(
     cursor: Schema.optional(cursor),
     projectPath: Schema.optional(pathValue),
     workingPath: Schema.optional(pathValue),
-    parentSessionId: Schema.optional(Schema.String),
-    workerSessionId: Schema.optional(Schema.String),
+    parentSessionId: Schema.optional(sessionInputIdSchema),
+    workerSessionId: Schema.optional(sessionInputIdSchema),
     states: Schema.optional(
       Schema.Array(delegationStateSchema).pipe(Schema.maxItems(DELEGATION_STATES.length)),
     ),
   }),
   Schema.Struct({
     operation: Schema.Literal('delegations-read'),
-    delegationId: Schema.String,
+    delegationId: sessionInputIdSchema,
     limit: Schema.optional(
       Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_QUERY_DELEGATION_READ_LIMIT)),
     ),
@@ -155,9 +158,9 @@ const sessionQuerySchema = Schema.Union(
     cursor: Schema.optional(cursor),
     projectPath: Schema.optional(pathValue),
     workingPath: Schema.optional(pathValue),
-    parentSessionId: Schema.optional(Schema.String),
-    workerSessionId: Schema.optional(Schema.String),
-    delegationId: Schema.optional(Schema.String),
+    parentSessionId: Schema.optional(sessionInputIdSchema),
+    workerSessionId: Schema.optional(sessionInputIdSchema),
+    delegationId: Schema.optional(sessionInputIdSchema),
     kinds: Schema.optional(
       Schema.Array(Schema.Literal(...DELEGATION_CONFLICT_KINDS)).pipe(
         Schema.maxItems(DELEGATION_CONFLICT_KINDS.length),
@@ -173,29 +176,32 @@ const sessionQuerySchema = Schema.Union(
     operation: Schema.Literal('wait'),
     targets: Schema.Array(
       Schema.Union(
-        Schema.Struct({ sessionId: Schema.String, condition: Schema.Literal('idle') }),
-        Schema.Struct({ sessionId: Schema.String, condition: Schema.Literal('queue-empty') }),
+        Schema.Struct({ sessionId: sessionInputIdSchema, condition: Schema.Literal('idle') }),
         Schema.Struct({
-          sessionId: Schema.String,
+          sessionId: sessionInputIdSchema,
+          condition: Schema.Literal('queue-empty'),
+        }),
+        Schema.Struct({
+          sessionId: sessionInputIdSchema,
           condition: Schema.Literal('state-revision-after'),
           afterStateRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
         }),
         Schema.Struct({
-          sessionId: Schema.String,
+          sessionId: sessionInputIdSchema,
           condition: Schema.Literal('report-delivered'),
-          reportId: Schema.String,
+          reportId: sessionInputIdSchema,
         }),
         Schema.Struct({
-          sessionId: Schema.String,
+          sessionId: sessionInputIdSchema,
           condition: Schema.Literal('correlated-reply'),
-          correlationId: Schema.String,
+          correlationId: sessionInputIdSchema,
         }),
       ),
     ).pipe(Schema.minItems(1), Schema.maxItems(SESSION_QUERY_WAIT_TARGET_LIMIT)),
     timeoutMs: Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
     after: Schema.optional(
       Schema.Struct({
-        hostInstanceId: Schema.String,
+        hostInstanceId: sessionInputIdSchema,
         sequence: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
       }),
     ),
@@ -204,7 +210,7 @@ const sessionQuerySchema = Schema.Union(
 
 export const sessionQueryRequestSchema: Schema.Schema<SessionQueryRequest> = Schema.Struct({
   contractVersion: Schema.Literal(SESSION_QUERY_CONTRACT_VERSION),
-  requestId: Schema.String,
+  requestId: sessionInputIdSchema,
   query: sessionQuerySchema,
 })
 

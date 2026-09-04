@@ -5,6 +5,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionEmbeddingModel } from '../multilingual-e5-session-embedding-model'
+import { SessionSemanticInferenceCapacityError } from '../session-semantic-inference-gate'
 import { SqliteSessionSemanticProjection } from '../sqlite-session-semantic-projection'
 import {
   SessionSemanticIndexSnapshotCache,
@@ -73,6 +74,64 @@ describe('SQLite Session semantic discovery', () => {
       sessionId: 'worker',
       discoveryEvidence: { matchKind: 'hybrid', rank: 1 },
     })
+  })
+
+  it('degrades hybrid discovery to lexical results when semantic inference is at capacity', async () => {
+    const capacityModel: SessionEmbeddingModel = {
+      ...fakeModel,
+      embedQueries: async () => {
+        throw new SessionSemanticInferenceCapacityError()
+      },
+    }
+    const runtime = makeRuntime(path.join(root, 'semantic-capacity.sqlite'), capacityModel)
+    runtimes.push(runtime)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* new SqliteSessionSemanticProjection(sql, capacityModel).prepareNextBatch(10)
+      }),
+    )
+
+    const result = await executeQuery(runtime, {
+      operation: 'search',
+      query: 'Validate migration',
+      mode: 'hybrid',
+      limit: 3,
+    })
+
+    expect(result.outcome).toMatchObject({
+      operation: 'search',
+      searchBackend: 'lexical',
+      requestedSearchMode: 'hybrid',
+      degradation: { from: 'hybrid', to: 'lexical', reason: 'semantic_unavailable' },
+      sessions: [{ sessionId: 'worker' }],
+    })
+  })
+
+  it('does not hide unrelated semantic failures behind hybrid lexical degradation', async () => {
+    const failedModel: SessionEmbeddingModel = {
+      ...fakeModel,
+      embedQueries: async () => {
+        throw new Error('model data is corrupt')
+      },
+    }
+    const runtime = makeRuntime(path.join(root, 'semantic-failure.sqlite'), failedModel)
+    runtimes.push(runtime)
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* new SqliteSessionSemanticProjection(sql, failedModel).prepareNextBatch(10)
+      }),
+    )
+
+    await expect(
+      executeQuery(runtime, {
+        operation: 'search',
+        query: 'Validate migration',
+        mode: 'hybrid',
+        limit: 3,
+      }),
+    ).rejects.toBeDefined()
   })
 
   it('keeps a newer index snapshot when an older refresh request arrives out of order', async () => {

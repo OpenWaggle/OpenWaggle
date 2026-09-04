@@ -15,6 +15,7 @@ import {
   localSessionProfileManagementEnvelopeSchema,
   localSessionProfileScopeSchema,
 } from './local-session-profile'
+import { sessionInputIdSchema } from './session-input'
 
 const authorizationCeilingSchema = Schema.Literal(...AGENT_AUTHORIZATION_MODES)
 const profileNameSchema = Schema.String.pipe(
@@ -134,8 +135,8 @@ const outcomeSchema = Schema.Union(
 export const localSessionProfileManagementRequestSchema: Schema.Schema<LocalSessionProfileManagementRequest> =
   Schema.Struct({
     contractVersion: Schema.Literal(LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION),
-    requestId: Schema.String,
-    idempotencyKey: Schema.String,
+    requestId: sessionInputIdSchema,
+    idempotencyKey: sessionInputIdSchema,
     command: commandSchema,
   })
 

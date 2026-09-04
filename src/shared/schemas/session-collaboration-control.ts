@@ -5,9 +5,16 @@ import {
   SESSION_COLLABORATION_COLLECTION_LIMIT,
 } from '@shared/session-collaboration-collections'
 import { SESSION_REPORT_REFERENCE_MAX_LENGTH } from '@shared/session-report-reference'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputJsonWithinLimit,
+  sessionInputPathSchema,
+  sessionInputTextSchema,
+} from './session-input'
 import { delegationSpecificationSchema } from './session-lifecycle'
 
-const uniqueStringsSchema = Schema.Array(Schema.String).pipe(
+const uniqueStringsSchema = Schema.Array(sessionInputItemTextSchema).pipe(
   Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
   Schema.filter(
     (items) => hasUniqueCollaborationStrings(items) || 'Collaboration items must be unique.',
@@ -17,8 +24,16 @@ const uniqueStringsSchema = Schema.Array(Schema.String).pipe(
 const reportTargetSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('upstream') }),
   Schema.Struct({ type: Schema.Literal('queen') }),
-  Schema.Struct({ type: Schema.Literal('session'), sessionId: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('sessions'), sessionIds: uniqueStringsSchema }),
+  Schema.Struct({ type: Schema.Literal('session'), sessionId: sessionInputIdSchema }),
+  Schema.Struct({
+    type: Schema.Literal('sessions'),
+    sessionIds: Schema.Array(sessionInputIdSchema).pipe(
+      Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
+      Schema.filter(
+        (items) => hasUniqueCollaborationStrings(items) || 'Collaboration items must be unique.',
+      ),
+    ),
+  }),
   Schema.Struct({
     type: Schema.Literal('worker-reference'),
     reference: Schema.String.pipe(
@@ -30,13 +45,13 @@ const reportTargetSchema = Schema.Union(
 
 export const reportCommandSchema = Schema.Struct({
   operation: Schema.Literal('report'),
-  sessionId: Schema.String,
-  sourceRunId: Schema.optional(Schema.String),
+  sessionId: sessionInputIdSchema,
+  sourceRunId: Schema.optional(sessionInputIdSchema),
   target: reportTargetSchema,
   input: Schema.Struct({
-    text: Schema.String,
+    text: sessionInputTextSchema,
     requestReply: Schema.Boolean,
-    replyToReportId: Schema.optional(Schema.String),
+    replyToReportId: Schema.optional(sessionInputIdSchema),
   }),
 })
 
@@ -48,9 +63,13 @@ const delegationEvidenceSchema = Schema.Struct({
     'source-reference',
     'asserted-note',
   ),
-  summary: Schema.String,
-  reference: Schema.optional(Schema.String),
-  provenance: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
+  summary: sessionInputItemTextSchema,
+  reference: Schema.optional(sessionInputItemTextSchema),
+  provenance: Schema.optional(
+    Schema.Record({ key: sessionInputItemTextSchema, value: sessionInputItemTextSchema }).pipe(
+      Schema.filter(sessionInputJsonWithinLimit),
+    ),
+  ),
 })
 
 const delegationEvidenceCollectionSchema = Schema.Array(delegationEvidenceSchema).pipe(
@@ -63,67 +82,67 @@ const delegationEvidenceCollectionSchema = Schema.Array(delegationEvidenceSchema
 
 export const delegationSubmitCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-submit'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
-  summary: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
+  summary: sessionInputItemTextSchema,
   evidence: delegationEvidenceCollectionSchema,
 })
 
 const revisedDelegationSpecificationSchema = Schema.Struct({
-  objective: Schema.String,
+  objective: sessionInputTextSchema,
   deliverables: uniqueStringsSchema,
   acceptanceCriteria: uniqueStringsSchema,
-  handoffContext: Schema.optional(Schema.String),
+  handoffContext: Schema.optional(sessionInputTextSchema),
   resourceReferences: uniqueStringsSchema,
 })
 
 export const delegationRequestRevisionCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-request-revision'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  feedback: Schema.String,
+  feedback: sessionInputTextSchema,
   revisedSpecification: Schema.optional(revisedDelegationSpecificationSchema),
 })
 
 export const delegationAcceptCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-accept'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
-  note: Schema.optional(Schema.String),
+  note: Schema.optional(sessionInputItemTextSchema),
 })
 
 export const delegationReopenCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-reopen'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
-  reason: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationCancelCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-cancel'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
-  reason: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationStateCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-state'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   state: Schema.Literal('working', 'waiting', 'needs_attention'),
-  reason: Schema.String,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationClaimTargetSchema = Schema.Union(
-  Schema.Struct({ type: Schema.Literal('workspace-file'), path: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('workspace-tree'), path: Schema.String }),
+  Schema.Struct({ type: Schema.Literal('workspace-file'), path: sessionInputPathSchema }),
+  Schema.Struct({ type: Schema.Literal('workspace-tree'), path: sessionInputPathSchema }),
   Schema.Struct({
     type: Schema.Literal('named-resource'),
     scope: Schema.Literal('project', 'repository'),
-    namespace: Schema.String,
-    name: Schema.String,
+    namespace: sessionInputIdSchema,
+    name: sessionInputIdSchema,
   }),
 )
 
@@ -141,55 +160,55 @@ const delegationClaimsSchema = Schema.Array(delegationScopeClaimSchema).pipe(
 
 export const delegationClaimCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-claim'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   claims: delegationClaimsSchema,
-  reason: Schema.String,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationConflictAcknowledgeCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-conflict-acknowledge'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
-  conflictId: Schema.String,
-  reason: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
+  conflictId: sessionInputIdSchema,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationDependencyCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-dependency'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   action: Schema.Literal('add', 'remove'),
-  dependencyDelegationId: Schema.String,
+  dependencyDelegationId: sessionInputIdSchema,
   requiredState: Schema.Literal('ready_for_review', 'accepted'),
-  reason: Schema.String,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationProposeAmendmentCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-propose-amendment'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   baseSpecificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   specification: delegationSpecificationSchema,
-  reason: Schema.String,
+  reason: sessionInputItemTextSchema,
 })
 
 export const delegationAmendCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-amend'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   expectedSpecificationRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   specification: delegationSpecificationSchema,
-  reason: Schema.String,
-  proposalId: Schema.optional(Schema.String),
+  reason: sessionInputItemTextSchema,
+  proposalId: Schema.optional(sessionInputIdSchema),
 })
 
 export const delegationVerifyCommandSchema = Schema.Struct({
   operation: Schema.Literal('delegation-verify'),
-  sessionId: Schema.String,
-  delegationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  delegationId: sessionInputIdSchema,
   submissionRevision: Schema.Number.pipe(Schema.int(), Schema.positive()),
   outcome: Schema.Literal('passed', 'failed', 'inconclusive'),
-  summary: Schema.String,
+  summary: sessionInputItemTextSchema,
   evidence: delegationEvidenceCollectionSchema,
 })

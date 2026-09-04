@@ -7,7 +7,9 @@ export const SESSION_DISCOVERY_SEARCH_ROW_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE session_discovery_search_rows (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-    search_rowid INTEGER NOT NULL UNIQUE
+    search_rowid INTEGER NOT NULL UNIQUE,
+    initial_objective TEXT NOT NULL,
+    current_preview TEXT NOT NULL
   ) WITHOUT ROWID
   `,
   `
@@ -39,8 +41,10 @@ export function refreshSessionLexicalDiscoverySql(sessionIdSql: string) {
         ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
       ), '')
     FROM sessions WHERE sessions.id = ${sessionIdSql};
-    INSERT INTO session_discovery_search_rows (session_id, search_rowid)
-    SELECT sessions.id, last_insert_rowid()
-    FROM sessions WHERE sessions.id = ${sessionIdSql};
+    INSERT INTO session_discovery_search_rows (
+      session_id, search_rowid, initial_objective, current_preview
+    )
+    SELECT session_id, rowid, initial_objective, current_preview
+    FROM session_node_discovery_search WHERE rowid = last_insert_rowid();
   `
 }

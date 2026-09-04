@@ -113,6 +113,7 @@ function runQueuedWaggle(
       model: input.execution.model,
       config: waggle.config,
       abortController: input.controller,
+      hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),
     }),
     (result) => ({ mode: 'waggle' as const, result: explicitWaggleTerminalResult(result) }),

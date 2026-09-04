@@ -1,3 +1,4 @@
+import { isSessionInputTextWithinLimit, SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type {
   PinnedSessionMove,
@@ -29,22 +30,36 @@ export function requireOptionalArgCount(
     : invalid(`Expected ${String(minimum)} to ${String(maximum)} Session operation arguments.`)
 }
 
-export function requiredString(value: unknown, label: string) {
-  return typeof value === 'string' && value.trim().length > 0
-    ? Effect.succeed(value)
-    : invalid(`${label} must be a non-empty string.`)
+export function requiredString(value: unknown, label: string): Effect.Effect<string, Error> {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return invalid(`${label} must be a non-empty string.`)
+  }
+  if (value.length > SESSION_INPUT_LIMITS.pathLength) {
+    return invalid(`${label} exceeds the input limit.`)
+  }
+  return Effect.succeed(value)
+}
+
+function requiredId(value: unknown, label: string): Effect.Effect<string, Error> {
+  return requiredString(value, label).pipe(
+    Effect.flatMap((id) =>
+      id.length <= SESSION_INPUT_LIMITS.idLength
+        ? Effect.succeed(id)
+        : invalid(`${label} exceeds the input limit.`),
+    ),
+  )
 }
 
 export function validateSessionId(value: unknown) {
-  return requiredString(value, 'Session ID').pipe(Effect.map(SessionId))
+  return requiredId(value, 'Session ID').pipe(Effect.map(SessionId))
 }
 
 export function validateSessionNodeId(value: unknown) {
-  return requiredString(value, 'Session node ID').pipe(Effect.map(SessionNodeId))
+  return requiredId(value, 'Session node ID').pipe(Effect.map(SessionNodeId))
 }
 
 export function validateSessionBranchId(value: unknown) {
-  return requiredString(value, 'Session branch ID').pipe(Effect.map(SessionBranchId))
+  return requiredId(value, 'Session branch ID').pipe(Effect.map(SessionBranchId))
 }
 
 function validateOptionalSessionNodeId(value: unknown) {
@@ -90,6 +105,9 @@ export function validateTreeUiStatePatch(value: unknown) {
       if (!Array.isArray(value.expandedNodeIds)) {
         return yield* invalid('Expanded session node IDs must be an array.')
       }
+      if (value.expandedNodeIds.length > SESSION_INPUT_LIMITS.expandedTreeNodeItems) {
+        return yield* invalid('Expanded session node IDs exceed the input limit.')
+      }
       for (const nodeId of value.expandedNodeIds) {
         expandedNodeIds.push(yield* validateSessionNodeId(nodeId))
       }
@@ -119,7 +137,9 @@ export function validateNavigateTreeOptions(value: unknown) {
   }
   if (
     value.customInstructions !== undefined &&
-    (typeof value.customInstructions !== 'string' || value.customInstructions.trim().length === 0)
+    (typeof value.customInstructions !== 'string' ||
+      value.customInstructions.trim().length === 0 ||
+      !isSessionInputTextWithinLimit(value.customInstructions))
   ) {
     return invalid('Session navigation custom instructions must be non-empty.')
   }

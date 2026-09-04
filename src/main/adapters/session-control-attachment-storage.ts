@@ -6,6 +6,7 @@ import type { SessionControlAttachmentServiceShape } from '../ports/session-cont
 import {
   type PreparedAttachmentSnapshot,
   prepareAttachmentFiles,
+  toPublicPreparedAttachment,
 } from '../utils/attachment-preparation'
 import type { AttachmentStoragePolicy } from './session-control-attachment-service'
 
@@ -179,6 +180,7 @@ function prepareAttachments(
           attachment,
         }),
       }))
+      const publicAttachments = stable.map(toPublicPreparedAttachment)
       const now = Date.now()
       return sql
         .withTransaction(
@@ -201,7 +203,7 @@ function prepareAttachments(
             yield* assertStorageQuota(sql, input.ownerCallerId, policy)
           }),
         )
-        .pipe(Effect.as(stable))
+        .pipe(Effect.as(publicAttachments))
     }),
   )
 }

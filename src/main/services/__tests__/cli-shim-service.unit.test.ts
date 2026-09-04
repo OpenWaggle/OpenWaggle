@@ -105,15 +105,22 @@ if [ "$1" = "fail" ]; then exit 7; fi
       env: getSafeChildEnv(),
       stdio: 'ignore',
     })
-    await vi.waitFor(async () => {
-      await expect(readFile(readyPath, 'utf8')).resolves.toBe('ready')
-    })
-    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) =>
-      running.once('exit', (code, signal) => resolve({ code, signal })),
-    )
-    expect(running.kill('SIGTERM')).toBe(true)
-    await expect(exited).resolves.toMatchObject({ signal: null })
-    await expect(readFile(terminatedPath, 'utf8')).resolves.toBe('terminated')
+    try {
+      await vi.waitFor(
+        async () => {
+          await expect(readFile(readyPath, 'utf8')).resolves.toBe('ready')
+        },
+        { timeout: 15_000 },
+      )
+      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+        (resolve) => running.once('exit', (code, signal) => resolve({ code, signal })),
+      )
+      expect(running.kill('SIGTERM')).toBe(true)
+      await expect(exited).resolves.toMatchObject({ signal: null })
+      await expect(readFile(terminatedPath, 'utf8')).resolves.toBe('terminated')
+    } finally {
+      if (running.exitCode === null && running.signalCode === null) running.kill('SIGKILL')
+    }
   })
 
   itPosix('refuses to replace or remove an unrelated command', async () => {

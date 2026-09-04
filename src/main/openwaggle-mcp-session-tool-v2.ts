@@ -180,7 +180,7 @@ export function mcpTransientAuthority(
       ...(projectPath ? { projectPaths: [projectPath] } : {}),
       ...(options.sessionIds.size > 0 ? { sessionIds: [...options.sessionIds] } : {}),
     },
-    authorizationCeiling: 'ask-for-approval',
+    authorizationCeiling: options.authorizationCeiling,
   }
 }
 

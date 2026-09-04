@@ -5,6 +5,7 @@ import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { isEnoent } from '@shared/utils/node-error'
+import { toPublicPreparedAttachment } from './attachment-preparation'
 
 interface PreparedAttachmentCapability {
   readonly attachment: PreparedAttachment
@@ -38,7 +39,7 @@ function normalizeCapabilityPath(filePath: string) {
 }
 
 function compactAttachment(attachment: PreparedAttachment): PreparedAttachment {
-  return { ...attachment, extractedText: '' }
+  return { ...toPublicPreparedAttachment(attachment), extractedText: '' }
 }
 
 function sameOptionalValue(left: string | undefined, right: string | undefined) {
@@ -124,8 +125,9 @@ export async function rememberPreparedAttachment(
 ): Promise<void> {
   await ensureRegistryLoaded()
   const normalizedRealPath = normalizeCapabilityPath(await fs.realpath(realPath))
+  const publicAttachment = toPublicPreparedAttachment(attachment)
   preparedAttachments.set(attachment.id, {
-    attachment: { ...attachment, path: normalizedRealPath },
+    attachment: { ...publicAttachment, path: normalizedRealPath },
     realPath: normalizedRealPath,
     savedAt: Date.now(),
   })

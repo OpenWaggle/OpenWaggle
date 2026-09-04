@@ -27,6 +27,7 @@ import {
 } from './session-collaboration-control'
 import { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 import { exportCancelCommandSchema, exportCreateCommandSchema } from './session-export-operation'
+import { sessionInputIdSchema, sessionInputTextSchema } from './session-input'
 import { sessionOrganizationCommandSchemas } from './session-organization'
 import { inlineVisualizationContextSchema } from './validation'
 import { waggleInvocationSchema } from './waggle'
@@ -35,12 +36,12 @@ export { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 export { sessionControlMutationOutcomeSchema } from './session-control-outcomes'
 
 const steeringInputSchema = Schema.Struct({
-  text: Schema.String,
+  text: sessionInputTextSchema,
   attachmentIds: sessionAttachmentIdsSchema,
   visualizationContext: Schema.optional(inlineVisualizationContextSchema),
 })
 
-const uniqueFollowUpIdsSchema = Schema.Array(Schema.String).pipe(
+const uniqueFollowUpIdsSchema = Schema.Array(sessionInputIdSchema).pipe(
   Schema.maxItems(MAX_FOLLOW_UP_QUEUE_ITEMS),
   Schema.filter(
     (followUpIds) =>
@@ -56,20 +57,20 @@ const messageInputSchema = Schema.Struct({
 
 const steerCommandSchema = Schema.Struct({
   operation: Schema.Literal('steer'),
-  sessionId: Schema.String,
-  expectedRunId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  expectedRunId: sessionInputIdSchema,
   input: steeringInputSchema,
 })
 
 const messageCommandSchema = Schema.Struct({
   operation: Schema.Literal('message'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   input: messageInputSchema,
 })
 
 const startCommandSchema = Schema.Struct({
   operation: Schema.Literal('start'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   interactionTimeoutMs: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
@@ -79,89 +80,89 @@ const startCommandSchema = Schema.Struct({
 
 const followUpCommandSchema = Schema.Struct({
   operation: Schema.Literal('follow-up'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   input: messageInputSchema,
 })
 
 const replaceCommandSchema = Schema.Struct({
   operation: Schema.Literal('replace'),
-  sessionId: Schema.String,
-  expectedRunId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  expectedRunId: sessionInputIdSchema,
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
   input: messageInputSchema,
 })
 
 const interruptCommandSchema = Schema.Struct({
   operation: Schema.Literal('interrupt'),
-  sessionId: Schema.String,
-  expectedRunId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  expectedRunId: sessionInputIdSchema,
 })
 
 const interruptDescendantsCommandSchema = Schema.Struct({
   operation: Schema.Literal('interrupt-descendants'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
 })
 
 const promoteCommandSchema = Schema.Struct({
   operation: Schema.Literal('promote'),
-  sessionId: Schema.String,
-  expectedRunId: Schema.String,
-  followUpId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  expectedRunId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
 })
 
 const queueWithdrawCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-withdraw'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   followUpIds: uniqueFollowUpIdsSchema,
 })
 
 const queueReorderCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-reorder'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
   orderedFollowUpIds: uniqueFollowUpIdsSchema,
 })
 
 const queuePauseCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-pause'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })
 
 const queueResumeCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-resume'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   expectedQueueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })
 
 const queueUpdateAuthorizationCommandSchema = Schema.Struct({
   operation: Schema.Literal('queue-update-authorization'),
-  sessionId: Schema.String,
-  followUpId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  followUpId: sessionInputIdSchema,
   runAuthorizationOverride: Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
 })
 
 const interactionResponseCommandSchema = Schema.Struct({
   operation: Schema.Literal('request-respond', 'approval-respond'),
-  sessionId: Schema.String,
-  runId: Schema.String,
-  interactionId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  runId: sessionInputIdSchema,
+  interactionId: sessionInputIdSchema,
   kind: Schema.Literal('confirm', 'select', 'input', 'editor', 'notify', 'custom'),
   response: agentLoopResponseSchema,
 })
 
 const authorizationSetCommandSchema = Schema.Struct({
   operation: Schema.Literal('authorization-set'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   authorizationMode: Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
 })
 
 export const sessionControlMutationRequestSchema: Schema.Schema<SessionControlMutationRequest> =
   Schema.Struct({
     contractVersion: Schema.Literal(SESSION_CONTROL_CONTRACT_VERSION),
-    requestId: Schema.String,
-    idempotencyKey: Schema.String,
+    requestId: sessionInputIdSchema,
+    idempotencyKey: sessionInputIdSchema,
     command: Schema.Union(
       delegationAcceptCommandSchema,
       delegationCancelCommandSchema,

@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { afterEach, describe, expect, it } from 'vitest'
 import { hydrateAttachmentSources } from '../attachment-hydration'
+import type { PreparedAttachmentSnapshot } from '../attachment-preparation'
 import {
   configurePreparedAttachmentRegistry,
   rememberPreparedAttachment,
@@ -64,5 +65,21 @@ describe('prepared attachment registry', () => {
     expect(registryFile).toBeDefined()
     const persisted = await fs.readFile(path.join(userDataPath, registryFile ?? ''), 'utf8')
     expect(persisted).not.toContain('Durable attachment contents')
+  })
+
+  it('strips Host-only snapshot bytes before persisting a capability', async () => {
+    const { userDataPath, filePath, attachment } = await makeFixture()
+    configurePreparedAttachmentRegistry(userDataPath)
+    const privateAttachment: PreparedAttachmentSnapshot = {
+      ...attachment,
+      immutableSourceBase64: 'aG9zdC1vbmx5LWJ5dGVz',
+    }
+    await rememberPreparedAttachment(privateAttachment, filePath)
+
+    const files = await fs.readdir(userDataPath)
+    const registryFile = files.find((entry) => entry.includes('attachment-capabilities'))
+    const persisted = await fs.readFile(path.join(userDataPath, registryFile ?? ''), 'utf8')
+    expect(persisted).not.toContain('immutableSourceBase64')
+    expect(persisted).not.toContain('aG9zdC1vbmx5LWJ5dGVz')
   })
 })

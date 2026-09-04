@@ -14,7 +14,7 @@ const {
   activatePreparedExternalSessionRunMock,
   prepareExternalSessionRunReplacementMock,
   dispatchLocalSessionCommandMock,
-  attachmentBindMock,
+  attachmentResolveMock,
   attachmentCleanupMock,
   typedHandleMock,
   typedOnMock,
@@ -29,7 +29,7 @@ const {
   activatePreparedExternalSessionRunMock: vi.fn(),
   prepareExternalSessionRunReplacementMock: vi.fn(),
   dispatchLocalSessionCommandMock: vi.fn(),
-  attachmentBindMock: vi.fn(),
+  attachmentResolveMock: vi.fn(),
   attachmentCleanupMock: vi.fn(),
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
@@ -90,9 +90,9 @@ const SESSION_ID = SessionId('session-1')
 const SELECTED_MODEL = SupportedModelId('openai/gpt-5.4')
 const attachmentService = SessionControlAttachmentService.of({
   prepare: () => Effect.die('unused'),
-  bind: attachmentBindMock,
+  bind: () => Effect.die('unused'),
   cleanupUnreferenced: attachmentCleanupMock,
-  resolve: () => Effect.die('unused'),
+  resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
 
@@ -176,7 +176,7 @@ describe('registerWaggleHandlers', () => {
           Effect.provideService(SessionControlAttachmentService, attachmentService),
         ),
       )
-    attachmentBindMock.mockReset().mockReturnValue(Effect.void)
+    attachmentResolveMock.mockReset().mockReturnValue(Effect.succeed([]))
     attachmentCleanupMock.mockReset().mockReturnValue(Effect.void)
     typedHandleMock.mockReset()
     typedOnMock.mockReset()

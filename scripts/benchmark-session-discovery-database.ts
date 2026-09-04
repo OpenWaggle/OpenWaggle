@@ -118,7 +118,8 @@ function populate(database: DatabaseSync, input: BenchmarkInput) {
         value,
         json_object('parts', json_array(
           json_object('type', 'text', 'text', CASE
-            WHEN CAST(value / ? AS INTEGER) = CAST((? - 1) / ? AS INTEGER)
+            WHEN value > 0
+              AND CAST(value / ? AS INTEGER) = CAST((? - 1) / ? AS INTEGER)
               AND value % 100 = 0
             THEN printf('rare benchmarktoken final result for artifact-%08d', value)
             ELSE printf(

@@ -1,6 +1,22 @@
 const DEFAULT_MAX_CONCURRENT_QUERY_INFERENCES = 2
 const DEFAULT_MAX_QUEUED_QUERY_INFERENCES = 32
 
+export class SessionSemanticInferenceCapacityError extends Error {
+  constructor() {
+    super('Semantic inference capacity is temporarily exhausted.')
+    this.name = 'SessionSemanticInferenceCapacityError'
+  }
+}
+
+export function isSessionSemanticInferenceCapacityError(cause: unknown): boolean {
+  let current = cause
+  while (current instanceof Error) {
+    if (current instanceof SessionSemanticInferenceCapacityError) return true
+    current = current.cause
+  }
+  return false
+}
+
 interface PendingInference {
   readonly signal?: AbortSignal
   readonly task: () => Promise<void>
@@ -43,7 +59,7 @@ export class SessionSemanticInferenceGate {
   run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (signal?.aborted) return Promise.reject(cancellationError(signal))
     if (this.#active >= this.maxConcurrent && this.#queue.length >= this.maxQueued) {
-      return Promise.reject(new Error('Semantic inference capacity is temporarily exhausted.'))
+      return Promise.reject(new SessionSemanticInferenceCapacityError())
     }
     return new Promise<T>((resolve, reject) => {
       const pending: PendingInference = {

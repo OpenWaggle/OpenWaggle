@@ -1,8 +1,10 @@
 import { match } from '@diegogbrisa/ts-match'
+import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
 import { decodeSessionLifecycleResponse } from '@shared/schemas/session-lifecycle'
+import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import {
   type LocalSessionCommandResult,
   SESSION_WAGGLE_CONTRACT_VERSION,
@@ -14,32 +16,10 @@ import {
 import { isRecord } from './local-session-client-connection'
 import { localSessionClientProtocolError } from './local-session-client-protocol-error'
 
-function isPreparedAttachment(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    (value.kind === 'text' || value.kind === 'image' || value.kind === 'pdf') &&
-    (value.origin === undefined ||
-      value.origin === 'user-file' ||
-      value.origin === 'auto-paste-text') &&
-    typeof value.name === 'string' &&
-    typeof value.path === 'string' &&
-    typeof value.mimeType === 'string' &&
-    typeof value.sizeBytes === 'number' &&
-    typeof value.extractedText === 'string'
-  )
-}
-
-function isLocalAttachmentsResponse(
-  value: unknown,
-): value is Extract<LocalSessionCommandResult, { contract: 'local-attachments-v1' }>['response'] {
-  return (
-    isRecord(value) &&
-    typeof value.requestId === 'string' &&
-    Array.isArray(value.attachments) &&
-    value.attachments.every(isPreparedAttachment)
-  )
-}
+const localAttachmentsResponseSchema = Schema.Struct({
+  requestId: Schema.String,
+  attachments: Schema.Array(preparedAttachmentSchema),
+})
 
 function isLocalUiResponse(
   value: unknown,
@@ -152,8 +132,8 @@ function isLocalCompactionCancellationResponse(
 function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCommandResult {
   return match(payload.contract)
     .with('local-attachments-v1', () => {
-      if (!isLocalAttachmentsResponse(payload.response)) throw new Error('Invalid attachments.')
-      return { contract: 'local-attachments-v1' as const, response: payload.response }
+      const response = decodeUnknownExactOrThrow(localAttachmentsResponseSchema, payload.response)
+      return { contract: 'local-attachments-v1' as const, response }
     })
     .with('local-ui-v1', () => {
       if (!isLocalUiResponse(payload.response)) throw new Error('Invalid Local UI response.')

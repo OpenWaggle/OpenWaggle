@@ -1,4 +1,6 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { safeDecodeUnknown } from '@shared/schema'
+import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import { describe, expect, it } from 'vitest'
 import { MAX_INLINE_VISUALIZATION_PATH_LENGTH } from '../../constants/inline-visualization'
 import { parseInlineVisualizationReference } from '../../utils/inline-visualization'
@@ -57,5 +59,47 @@ describe('agentSendPayloadSchema visualization context', () => {
     })
 
     expect(decoded.success).toBe(true)
+  })
+
+  it('rejects oversized direct IPC text and prepared attachment metadata', () => {
+    const oversizedText = 'é'.repeat(SESSION_INPUT_LIMITS.persistedTextBytes / 2 + 1)
+    expect(
+      safeDecodeUnknown(agentSendPayloadSchema, { ...BASE_PAYLOAD, text: oversizedText }).success,
+    ).toBe(false)
+    expect(
+      safeDecodeUnknown(agentSendPayloadSchema, {
+        ...BASE_PAYLOAD,
+        attachments: [
+          {
+            id: 'attachment-1',
+            kind: 'text',
+            name: 'large.txt',
+            path: '/repo/large.txt',
+            mimeType: 'text/plain',
+            sizeBytes: ATTACHMENT.MAX_SIZE_BYTES + 1,
+            extractedText: '',
+          },
+        ],
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects more than the supported number of prepared attachments', () => {
+    const attachment = {
+      id: 'attachment-1',
+      kind: 'text',
+      name: 'note.txt',
+      path: '/repo/note.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 1,
+      extractedText: 'note',
+    }
+    const attachments = Array.from({ length: ATTACHMENT.MAX_COUNT + 1 }, (_, index) => ({
+      ...attachment,
+      id: `attachment-${String(index)}`,
+    }))
+    expect(
+      safeDecodeUnknown(agentSendPayloadSchema, { ...BASE_PAYLOAD, attachments }).success,
+    ).toBe(false)
   })
 })

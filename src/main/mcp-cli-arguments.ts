@@ -1,4 +1,5 @@
 import path from 'node:path'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   McpCompatibilityProfile,
   McpConfigCredentialValue,
@@ -85,6 +86,7 @@ const MANAGEMENT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = 
   trust: [...MANAGEMENT_COMMON_OPTIONS, 'allow-unsandboxed'],
 }
 const SERVE_OPTIONS = [
+  'authorization-ceiling',
   'grant',
   'export-root',
   'attachment-root',
@@ -174,6 +176,15 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
   if (arguments_.options.has('compatibility')) {
     compatibility(option(arguments_, 'compatibility'))
   }
+  if (command === 'serve') serveAuthorizationCeiling(arguments_)
+}
+
+export function serveAuthorizationCeiling(arguments_: ParsedArguments): AgentAuthorizationMode {
+  const value = option(arguments_, 'authorization-ceiling') ?? 'ask-for-approval'
+  if (value === 'ask-for-approval' || value === 'yolo') return value
+  throw new Error(
+    `Unsupported MCP authorization ceiling ${JSON.stringify(value)}. Expected "ask-for-approval" or "yolo".`,
+  )
 }
 
 export function projectPath(arguments_: ParsedArguments) {

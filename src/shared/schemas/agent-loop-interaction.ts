@@ -6,6 +6,12 @@ import type {
   AgentLoopInteractionResponseInput,
 } from '@shared/types/agent-loop-interaction'
 import { SessionId } from '@shared/types/brand'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputJsonWithinLimit,
+  sessionInputTextSchema,
+} from './session-input'
 import { jsonValueSchema } from './validation'
 
 const interactionKindSchema = Schema.Literal(
@@ -35,17 +41,17 @@ const confirmResponseSchema = Schema.Struct({
 
 const selectResponseSchema = Schema.Struct({
   kind: Schema.Literal('select'),
-  selected: Schema.NullOr(Schema.String),
+  selected: Schema.NullOr(sessionInputItemTextSchema),
 })
 
 const inputResponseSchema = Schema.Struct({
   kind: Schema.Literal('input'),
-  value: Schema.NullOr(Schema.String),
+  value: Schema.NullOr(sessionInputTextSchema),
 })
 
 const editorResponseSchema = Schema.Struct({
   kind: Schema.Literal('editor'),
-  value: Schema.NullOr(Schema.String),
+  value: Schema.NullOr(sessionInputTextSchema),
 })
 
 const notifyResponseSchema = Schema.Struct({
@@ -55,7 +61,7 @@ const notifyResponseSchema = Schema.Struct({
 
 const customResponseSchema = Schema.Struct({
   kind: Schema.Literal('custom'),
-  value: Schema.NullOr(jsonValueSchema),
+  value: Schema.NullOr(jsonValueSchema.pipe(Schema.filter(sessionInputJsonWithinLimit))),
 })
 
 export const agentLoopResponseSchema: Schema.Schema<AgentLoopInteractionResponse> = Schema.Union(
@@ -77,9 +83,9 @@ interface DecodedAgentLoopInteractionResponseInput {
 
 export const agentLoopResponseInputSchema: Schema.Schema<DecodedAgentLoopInteractionResponseInput> =
   Schema.Struct({
-    sessionId: Schema.String,
-    runId: Schema.String,
-    interactionId: Schema.String,
+    sessionId: sessionInputIdSchema,
+    runId: sessionInputIdSchema,
+    interactionId: sessionInputIdSchema,
     kind: interactionKindSchema,
     response: agentLoopResponseSchema,
   })

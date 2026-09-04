@@ -9,9 +9,30 @@ import { useSessionStatusStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 
 export const SIDEBAR_SESSION_HYDRATION_BATCH_SIZE = 100
-export const SIDEBAR_SEARCH_RESULT_LIMIT = SESSION_QUERY_DISCOVERY_LIMIT
+export const SIDEBAR_SEARCH_PAGE_LIMIT = SESSION_QUERY_DISCOVERY_LIMIT
+
+interface SidebarSearchSourceCursor {
+  readonly cursor?: string
+  readonly exhausted: boolean
+}
+
+export interface SidebarSearchCursor {
+  readonly catalog: SidebarSearchSourceCursor
+  readonly alias?: SidebarSearchSourceCursor
+}
 
 export type SidebarTerminalState = 'completed' | 'error'
+export type SidebarRemoteMode =
+  | { readonly kind: 'none' }
+  | {
+      readonly kind: 'search'
+      readonly query: string
+      readonly projectPaths: readonly string[]
+      readonly cursor?: SidebarSearchCursor
+    }
+  | { readonly kind: 'status'; readonly ids: readonly SessionId[]; readonly offset: number }
+  | { readonly kind: 'interrupted'; readonly cursor?: string }
+  | { readonly kind: 'terminal'; readonly state: SidebarTerminalState; readonly cursor?: string }
 
 function terminalRunStatus(state: SidebarTerminalState) {
   return state === 'completed' ? ('completed' as const) : ('failed' as const)
@@ -33,6 +54,8 @@ export async function hydrateSidebarSessions(ids: readonly SessionId[]) {
 async function querySidebarList(query: {
   readonly searchText?: string
   readonly projectPaths?: readonly string[]
+  readonly cursor?: string
+  readonly limit: number
 }) {
   const response = await api.querySessionControl({
     contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -40,31 +63,84 @@ async function querySidebarList(query: {
     query: {
       operation: 'list',
       archived: false,
-      limit: SIDEBAR_SEARCH_RESULT_LIMIT,
       ...query,
     },
   })
   if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
     throw new Error('Sidebar Session search returned an unexpected response.')
   }
-  return response.outcome.sessions.map((session) => SessionId(session.sessionId))
+  return {
+    ids: response.outcome.sessions.map((session) => SessionId(session.sessionId)),
+    nextCursor: response.outcome.nextCursor,
+  }
 }
 
-export async function querySidebarSearchSources(
+function nextSearchSourceCursor(page: { readonly nextCursor?: string }) {
+  return {
+    exhausted: page.nextCursor === undefined,
+    ...(page.nextCursor ? { cursor: page.nextCursor } : {}),
+  } satisfies SidebarSearchSourceCursor
+}
+
+function initialSearchSourceCursor(current?: SidebarSearchSourceCursor) {
+  return current ?? { exhausted: false }
+}
+
+function querySearchSource(
+  source: SidebarSearchSourceCursor,
+  input: { readonly searchText?: string; readonly projectPaths?: readonly string[] },
+  limit: number,
+) {
+  if (source.exhausted) return Promise.resolve(null)
+  return querySidebarList({
+    ...input,
+    limit,
+    ...(source.cursor ? { cursor: source.cursor } : {}),
+  })
+}
+
+function sidebarSearchPageResult(
+  ids: readonly SessionId[],
+  catalog: SidebarSearchSourceCursor,
+  alias?: SidebarSearchSourceCursor,
+) {
+  if (catalog.exhausted && (alias === undefined || alias.exhausted)) return { ids }
+  return {
+    ids,
+    nextCursor: {
+      catalog,
+      ...(alias ? { alias } : {}),
+    } satisfies SidebarSearchCursor,
+  }
+}
+
+export async function querySidebarSearchPage(
   customAliasProjectPaths: readonly string[],
   query: string,
+  current?: SidebarSearchCursor,
 ) {
   const boundedProjectPaths = customAliasProjectPaths.slice(
     0,
     SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT,
   )
-  const pages = await Promise.all([
-    querySidebarList({ searchText: query }),
-    ...(boundedProjectPaths.length > 0
-      ? [querySidebarList({ projectPaths: boundedProjectPaths })]
-      : []),
+  const catalog = initialSearchSourceCursor(current?.catalog)
+  const alias =
+    boundedProjectPaths.length === 0 ? undefined : initialSearchSourceCursor(current?.alias)
+  const activeSourceCount =
+    Number(!catalog.exhausted) + Number(alias !== undefined && !alias.exhausted)
+  const sourceLimit = Math.floor(SIDEBAR_SEARCH_PAGE_LIMIT / Math.max(1, activeSourceCount))
+  const [catalogPage, aliasPage] = await Promise.all([
+    querySearchSource(catalog, { searchText: query }, sourceLimit),
+    alias
+      ? querySearchSource(alias, { projectPaths: boundedProjectPaths }, sourceLimit)
+      : Promise.resolve(null),
   ])
-  return [...new Set(pages.flat().map(String))].slice(0, SIDEBAR_SEARCH_RESULT_LIMIT).map(SessionId)
+  const nextCatalog = catalogPage ? nextSearchSourceCursor(catalogPage) : catalog
+  const nextAlias = aliasPage ? nextSearchSourceCursor(aliasPage) : alias
+  const ids = [...new Set([...(catalogPage?.ids ?? []), ...(aliasPage?.ids ?? [])].map(String))]
+    .slice(0, SIDEBAR_SEARCH_PAGE_LIMIT)
+    .map(SessionId)
+  return sidebarSearchPageResult(ids, nextCatalog, nextAlias)
 }
 
 export async function queryTerminalSidebarSessions(

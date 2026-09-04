@@ -12,22 +12,27 @@ import type {
   SessionLifecycleResponse,
 } from '@shared/types/session-lifecycle'
 import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
-import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { sessionAttachmentIdsSchema } from './session-attachment'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputPathSchema,
+  sessionInputTextSchema,
+} from './session-input'
 import { sessionTitleSchema } from './session-title'
 
-const projectPathSchema = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_PATH_LENGTH))
+const projectPathSchema = sessionInputPathSchema
 
 const specializationSchema = Schema.Struct({
-  modelId: Schema.optional(Schema.String),
+  modelId: Schema.optional(sessionInputIdSchema),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  agentDefinitionName: Schema.optional(Schema.String),
+  agentDefinitionName: Schema.optional(sessionInputIdSchema),
 })
 
 const newWorktreeSchema = Schema.Struct({
   mode: Schema.Literal('new-worktree'),
-  baseRef: Schema.optional(Schema.String),
+  baseRef: Schema.optional(sessionInputItemTextSchema),
   startFromOrigin: Schema.optional(Schema.Boolean),
 })
 
@@ -35,7 +40,7 @@ const launchWorkspaceSchema = Schema.Union(
   Schema.Struct({ mode: Schema.Literal('current') }),
   Schema.Struct({ mode: Schema.Literal('local') }),
   newWorktreeSchema,
-  Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: Schema.String }),
+  Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
 )
 
 const spawnWorkspaceSchema = Schema.Union(
@@ -48,7 +53,7 @@ const forkWorkspaceSchema = Schema.Union(
   Schema.Struct({ mode: Schema.Literal('share-source') }),
   Schema.Struct({ mode: Schema.Literal('local') }),
   newWorktreeSchema,
-  Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: Schema.String }),
+  Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
 )
 
 const createCommandSchema = Schema.Struct({
@@ -66,14 +71,14 @@ const launchCommandSchema = Schema.Struct({
   workspace: Schema.optional(launchWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  objective: Schema.String,
+  objective: sessionInputTextSchema,
   attachmentIds: sessionAttachmentIdsSchema,
   interactionTimeoutMs: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
   ),
 })
 
-const uniqueSpecificationStringsSchema = Schema.Array(Schema.String).pipe(
+const uniqueSpecificationStringsSchema = Schema.Array(sessionInputItemTextSchema).pipe(
   Schema.maxItems(SESSION_COLLABORATION_COLLECTION_LIMIT),
   Schema.filter(
     (items) =>
@@ -83,7 +88,7 @@ const uniqueSpecificationStringsSchema = Schema.Array(Schema.String).pipe(
 
 const delegationDependenciesSchema = Schema.Array(
   Schema.Struct({
-    delegationId: Schema.String,
+    delegationId: sessionInputIdSchema,
     requiredState: Schema.Literal('ready_for_review', 'accepted'),
   }),
 ).pipe(
@@ -96,18 +101,18 @@ const delegationDependenciesSchema = Schema.Array(
 )
 
 export const delegationSpecificationSchema = Schema.Struct({
-  objective: Schema.String,
+  objective: sessionInputTextSchema,
   deliverables: uniqueSpecificationStringsSchema,
   acceptanceCriteria: uniqueSpecificationStringsSchema,
   dependencies: delegationDependenciesSchema,
-  handoffContext: Schema.optional(Schema.String),
+  handoffContext: Schema.optional(sessionInputTextSchema),
   resourceReferences: uniqueSpecificationStringsSchema,
 })
 
 const spawnCommandSchema = Schema.Struct({
   operation: Schema.Literal('spawn'),
-  parentSessionId: Schema.String,
-  expectedParentRunId: Schema.String,
+  parentSessionId: sessionInputIdSchema,
+  expectedParentRunId: sessionInputIdSchema,
   workspace: Schema.optional(spawnWorkspaceSchema),
   specialization: Schema.optional(specializationSchema),
   runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
@@ -120,8 +125,8 @@ const spawnCommandSchema = Schema.Struct({
 
 const forkCommandSchema = Schema.Struct({
   operation: Schema.Literal('fork'),
-  sourceSessionId: Schema.String,
-  targetNodeId: Schema.optional(Schema.String),
+  sourceSessionId: sessionInputIdSchema,
+  targetNodeId: Schema.optional(sessionInputIdSchema),
   position: Schema.optional(Schema.Literal('before', 'at')),
   title: Schema.optional(sessionTitleSchema),
   workspace: Schema.optional(forkWorkspaceSchema),
@@ -129,8 +134,8 @@ const forkCommandSchema = Schema.Struct({
 
 export const sessionLifecycleRequestSchema: Schema.Schema<SessionLifecycleRequest> = Schema.Struct({
   contractVersion: Schema.Literal(SESSION_LIFECYCLE_CONTRACT_VERSION),
-  requestId: Schema.String,
-  idempotencyKey: Schema.String,
+  requestId: sessionInputIdSchema,
+  idempotencyKey: sessionInputIdSchema,
   command: Schema.Union(
     createCommandSchema,
     forkCommandSchema,

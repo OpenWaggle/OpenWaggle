@@ -24,6 +24,20 @@ export interface PreparedAttachmentSnapshot extends PreparedAttachment {
   readonly immutableSourceBase64: string
 }
 
+/** Remove Host-only snapshot bytes before a prepared attachment crosses a process boundary. */
+export function toPublicPreparedAttachment(attachment: PreparedAttachment): PreparedAttachment {
+  return {
+    id: attachment.id,
+    kind: attachment.kind,
+    ...(attachment.origin ? { origin: attachment.origin } : {}),
+    name: attachment.name,
+    path: attachment.path,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    extractedText: attachment.extractedText,
+  }
+}
+
 const ATTACHMENT_LIMIT_SENTINEL_BYTES = 1
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
 const OPEN_READ_NO_FOLLOW = filesystemConstants.O_RDONLY | (filesystemConstants.O_NOFOLLOW ?? 0)

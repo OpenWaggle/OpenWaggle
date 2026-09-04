@@ -1,4 +1,6 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import {
   HOST_BACKED_MCP_GUI_CHANNELS,
   HOST_UI_REVISION_7_NEW_CHANNELS,
@@ -26,6 +28,12 @@ import { localSessionNegotiationResultSchema } from './local-session-negotiation
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
 import { sessionControlMutationRequestSchema } from './session-control'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputPathSchema,
+  sessionInputTextSchema,
+} from './session-input'
 import { sessionLifecycleRequestSchema } from './session-lifecycle'
 import { sessionQueryRequestSchema } from './session-query'
 import { agentSendPayloadSchema } from './validation'
@@ -48,32 +56,32 @@ export const localSessionClientHelloSchema: Schema.Schema<LocalSessionClientHell
   ),
   clientKind: Schema.Literal('gui', 'cli', 'mcp', 'internal'),
   clientVersion: Schema.String.pipe(Schema.maxLength(LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH)),
-  workingDirectory: Schema.optional(Schema.String),
+  workingDirectory: Schema.optional(sessionInputPathSchema),
   profile: Schema.optional(localSessionProfileNameSchema),
   transientAuthority: Schema.optional(localSessionProfileAuthoritySchema),
   credential: Schema.optional(localSessionCredentialSchema),
 })
 
 const sessionHostEventCursorSchema = Schema.Struct({
-  hostInstanceId: Schema.String,
+  hostInstanceId: sessionInputIdSchema,
   sequence: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
 })
 
 export const localSessionClientFrameSchema: Schema.Schema<LocalSessionClientFrame> = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal('command'),
-    requestId: Schema.String,
+    requestId: sessionInputIdSchema,
     payload: Schema.Unknown,
   }),
   Schema.Struct({
     kind: Schema.Literal('subscribe'),
-    requestId: Schema.String,
+    requestId: sessionInputIdSchema,
     after: Schema.optional(sessionHostEventCursorSchema),
   }),
   Schema.Struct({
     kind: Schema.Literal('unsubscribe'),
-    requestId: Schema.String,
-    subscriptionId: Schema.String,
+    requestId: sessionInputIdSchema,
+    subscriptionId: sessionInputIdSchema,
   }),
 )
 
@@ -82,67 +90,71 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
     Schema.Struct({
       contract: Schema.Literal('local-attachments-v1'),
       request: Schema.Struct({
-        requestId: Schema.String,
+        requestId: sessionInputIdSchema,
         entries: Schema.Array(
           Schema.Struct({
-            path: Schema.String,
+            path: sessionInputPathSchema,
             origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text')),
           }),
-        ),
+        ).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
       }),
     }),
     Schema.Struct({
       contract: Schema.Literal('local-ui-v1'),
       request: Schema.Struct({
-        requestId: Schema.String,
+        requestId: sessionInputIdSchema,
         command: Schema.Union(
-          Schema.Struct({ operation: Schema.Literal('pin'), sessionId: Schema.String }),
-          Schema.Struct({ operation: Schema.Literal('unpin'), sessionId: Schema.String }),
+          Schema.Struct({ operation: Schema.Literal('pin'), sessionId: sessionInputIdSchema }),
+          Schema.Struct({ operation: Schema.Literal('unpin'), sessionId: sessionInputIdSchema }),
           Schema.Struct({
             operation: Schema.Literal('move-pin'),
-            sessionId: Schema.String,
-            afterSessionId: Schema.NullOr(Schema.String),
-            beforeSessionId: Schema.NullOr(Schema.String),
+            sessionId: sessionInputIdSchema,
+            afterSessionId: Schema.NullOr(sessionInputIdSchema),
+            beforeSessionId: Schema.NullOr(sessionInputIdSchema),
           }),
-          Schema.Struct({ operation: Schema.Literal('delete'), sessionId: Schema.String }),
+          Schema.Struct({ operation: Schema.Literal('delete'), sessionId: sessionInputIdSchema }),
           Schema.Struct({
             operation: Schema.Literal('dismiss-interrupted-run'),
-            sessionId: Schema.String,
-            runId: Schema.String,
+            sessionId: sessionInputIdSchema,
+            runId: sessionInputIdSchema,
           }),
           Schema.Struct({
             operation: Schema.Literal('navigate-tree'),
-            sessionId: Schema.String,
-            model: Schema.String,
-            targetNodeId: Schema.String,
+            sessionId: sessionInputIdSchema,
+            model: sessionInputIdSchema,
+            targetNodeId: sessionInputIdSchema,
             options: Schema.optional(
               Schema.Struct({
                 summarize: Schema.optional(Schema.Boolean),
-                customInstructions: Schema.optional(Schema.String),
+                customInstructions: Schema.optional(sessionInputTextSchema),
               }),
             ),
           }),
           Schema.Struct({
             operation: Schema.Literal('rename-branch'),
-            sessionId: Schema.String,
-            branchId: Schema.String,
-            name: Schema.String,
+            sessionId: sessionInputIdSchema,
+            branchId: sessionInputIdSchema,
+            name: sessionInputItemTextSchema,
           }),
           Schema.Struct({
             operation: Schema.Literal('archive-branch'),
-            sessionId: Schema.String,
-            branchId: Schema.String,
+            sessionId: sessionInputIdSchema,
+            branchId: sessionInputIdSchema,
           }),
           Schema.Struct({
             operation: Schema.Literal('restore-branch'),
-            sessionId: Schema.String,
-            branchId: Schema.String,
+            sessionId: sessionInputIdSchema,
+            branchId: sessionInputIdSchema,
           }),
           Schema.Struct({
             operation: Schema.Literal('update-tree-ui-state'),
-            sessionId: Schema.String,
+            sessionId: sessionInputIdSchema,
             patch: Schema.Struct({
-              expandedNodeIds: Schema.optional(Schema.Array(Schema.String)),
+              expandedNodeIds: Schema.optional(
+                Schema.Array(sessionInputIdSchema).pipe(
+                  Schema.maxItems(SESSION_INPUT_LIMITS.expandedTreeNodeItems),
+                ),
+              ),
               branchesSidebarCollapsed: Schema.optional(Schema.Boolean),
               lastVisitedAt: Schema.optional(
                 Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
@@ -159,12 +171,24 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
     Schema.Struct({
       contract: Schema.Literal('session-control-v2'),
       request: sessionControlMutationRequestSchema,
-      transport: Schema.optional(Schema.Struct({ attachmentPaths: Schema.Array(Schema.String) })),
+      transport: Schema.optional(
+        Schema.Struct({
+          attachmentPaths: Schema.Array(sessionInputPathSchema).pipe(
+            Schema.maxItems(ATTACHMENT.MAX_COUNT),
+          ),
+        }),
+      ),
     }),
     Schema.Struct({
       contract: Schema.Literal('session-lifecycle-v2'),
       request: sessionLifecycleRequestSchema,
-      transport: Schema.optional(Schema.Struct({ attachmentPaths: Schema.Array(Schema.String) })),
+      transport: Schema.optional(
+        Schema.Struct({
+          attachmentPaths: Schema.Array(sessionInputPathSchema).pipe(
+            Schema.maxItems(ATTACHMENT.MAX_COUNT),
+          ),
+        }),
+      ),
     }),
     Schema.Struct({
       contract: Schema.Literal('session-query-v2'),
@@ -177,28 +201,28 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
     Schema.Struct({
       contract: Schema.Literal('local-compaction-v1'),
       request: Schema.Struct({
-        requestId: Schema.String,
-        sessionId: Schema.String,
-        model: Schema.String,
-        customInstructions: Schema.optional(Schema.String),
+        requestId: sessionInputIdSchema,
+        sessionId: sessionInputIdSchema,
+        model: sessionInputIdSchema,
+        customInstructions: Schema.optional(sessionInputTextSchema),
       }),
     }),
     Schema.Struct({
       contract: Schema.Literal('local-compaction-cancel-v1'),
       request: Schema.Struct({
-        requestId: Schema.String,
-        sessionId: Schema.String,
+        requestId: sessionInputIdSchema,
+        sessionId: sessionInputIdSchema,
       }),
     }),
     Schema.Struct({
       contract: Schema.Literal('session-waggle-v1'),
       request: Schema.Struct({
         contractVersion: Schema.Literal(SESSION_WAGGLE_CONTRACT_VERSION),
-        requestId: Schema.String,
-        idempotencyKey: Schema.String,
-        sessionId: Schema.String,
+        requestId: sessionInputIdSchema,
+        idempotencyKey: sessionInputIdSchema,
+        sessionId: sessionInputIdSchema,
         payload: agentSendPayloadSchema,
-        model: Schema.String,
+        model: sessionInputIdSchema,
         config: waggleConfigSchema,
       }),
     }),
@@ -206,8 +230,8 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
       contract: Schema.Literal('session-waggle-cancel-v1'),
       request: Schema.Struct({
         contractVersion: Schema.Literal(SESSION_WAGGLE_CONTRACT_VERSION),
-        requestId: Schema.String,
-        sessionId: Schema.String,
+        requestId: sessionInputIdSchema,
+        sessionId: sessionInputIdSchema,
       }),
     }),
   )

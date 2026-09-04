@@ -1,10 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
+import { isSessionInputTextWithinLimit, SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { resolveCliProjectPath } from './cli-project-path'
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
-
-const MAX_CLI_INPUT_BYTES = 16 * 1024 * 1024
 
 const MESSAGE_INPUT_COMMANDS = new Set([
   'launch',
@@ -28,7 +27,7 @@ function readStdin(): Promise<string> {
     let text = ''
     process.stdin.on('data', (chunk: string) => {
       text += chunk
-      if (Buffer.byteLength(text, 'utf8') > MAX_CLI_INPUT_BYTES) {
+      if (!isSessionInputTextWithinLimit(text)) {
         reject(new Error('CLI input exceeds 16 MiB.'))
         process.stdin.destroy()
       }
@@ -40,12 +39,15 @@ function readStdin(): Promise<string> {
 
 async function readUtf8File(filePath: string) {
   const bytes = await readFile(filePath)
-  if (bytes.byteLength > MAX_CLI_INPUT_BYTES) throw new Error('CLI input exceeds 16 MiB.')
+  if (bytes.byteLength > SESSION_INPUT_LIMITS.persistedTextBytes) {
+    throw new Error('CLI input exceeds 16 MiB.')
+  }
   return bytes.toString('utf8')
 }
 
 function withResolvedText(arguments_: ParsedArguments, text: string): ParsedArguments {
   if (text.trim().length === 0) throw new Error('Message input must not be empty.')
+  if (!isSessionInputTextWithinLimit(text)) throw new Error('CLI input exceeds 16 MiB.')
   const options = new Map(arguments_.options)
   options.set('text', [text])
   return { ...arguments_, options }

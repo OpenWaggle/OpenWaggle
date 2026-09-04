@@ -114,13 +114,14 @@ export function transcriptSessionCtes(
         (
           SELECT search_rows.node_id
           FROM session_node_search_rows AS search_rows
+          JOIN session_nodes AS evidence_nodes ON evidence_nodes.id = search_rows.node_id
           WHERE search_rows.session_id = matching_ids.session_id
             AND EXISTS (
               SELECT 1 FROM session_node_search
               WHERE session_node_search.rowid = search_rows.search_rowid
                 AND session_node_search MATCH ${parameters.ftsQuery}
             )
-          ORDER BY search_rows.search_rowid
+          ORDER BY evidence_nodes.created_order, evidence_nodes.id
           LIMIT 1
         ) AS node_id
       FROM matching_term_session_ids AS matching_ids

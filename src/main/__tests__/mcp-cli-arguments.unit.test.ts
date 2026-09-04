@@ -3,6 +3,7 @@ import {
   addDefinition,
   parseMcpCliArguments,
   requireServeScope,
+  serveAuthorizationCeiling,
   target,
   validateMcpCliOptions,
 } from '../mcp-cli-arguments'
@@ -22,6 +23,21 @@ describe('MCP CLI arguments', () => {
     const arguments_ = parseMcpCliArguments(['--stdio', '--origin-session', 'session-1'])
 
     expect(() => validateMcpCliOptions('serve', arguments_)).not.toThrow()
+  })
+
+  it('defaults hosted callers to Ask and requires an explicit reviewed YOLO ceiling', () => {
+    expect(serveAuthorizationCeiling(parseMcpCliArguments(['--stdio']))).toBe('ask-for-approval')
+    expect(
+      serveAuthorizationCeiling(
+        parseMcpCliArguments(['--stdio', '--authorization-ceiling', 'yolo']),
+      ),
+    ).toBe('yolo')
+    expect(() =>
+      validateMcpCliOptions(
+        'serve',
+        parseMcpCliArguments(['--stdio', '--authorization-ceiling', 'unrestricted']),
+      ),
+    ).toThrow('Unsupported MCP authorization ceiling "unrestricted"')
   })
 
   it('enforces management positional and passthrough contracts before adapters run', () => {
@@ -68,7 +84,7 @@ describe('MCP CLI arguments', () => {
     )
   })
 
-  it.each(['workspace', 'session', 'origin-session', 'grant'])(
+  it.each(['workspace', 'session', 'origin-session', 'grant', 'authorization-ceiling'])(
     'rejects serve-only --%s on management commands',
     (name) => {
       const arguments_ = parseMcpCliArguments([`--${name}`, 'value'])

@@ -161,6 +161,7 @@ describe('OpenWaggle MCP Session Control v2 CLI parity', () => {
           attachmentRoots,
           sessionIds: new Set(['session-1']),
           profile: 'attachment-test',
+          authorizationCeiling: 'ask-for-approval',
           userDataRoot: '/tmp/openwaggle-test',
           version: 'test',
         },

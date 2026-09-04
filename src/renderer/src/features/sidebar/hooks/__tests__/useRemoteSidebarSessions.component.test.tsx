@@ -105,6 +105,38 @@ describe('remote sidebar Session filtering', () => {
     expect(apiMocks.listSessionsByIds).toHaveBeenCalledWith([remote.id])
   })
 
+  it('paginates every matching title beyond the first Host search page', async () => {
+    const remote = Array.from({ length: 350 }, (_, index) =>
+      summary(`search-${String(index).padStart(3, '0')}`, `Needle ${String(index)}`),
+    )
+    apiMocks.querySessionControl.mockImplementation(async (request) => {
+      if (request.query.searchText !== 'needle') return listResponse([])
+      return request.query.cursor
+        ? listResponse(remote.slice(200))
+        : listResponse(remote.slice(0, 200), { nextCursor: 'search-page-2' })
+    })
+    apiMocks.listSessionsByIds.mockImplementation(async (ids: readonly SessionId[]) =>
+      remote.filter((session) => ids.includes(session.id)),
+    )
+
+    const { result } = renderHook(() => useRemoteSidebarSessions(hookInput({ query: 'needle' })))
+
+    await waitFor(() => {
+      expect(result.current.sessions).toHaveLength(200)
+      expect(result.current.hasMore).toBe(true)
+    })
+    act(() => result.current.loadMore())
+    await waitFor(() => {
+      expect(result.current.sessions).toHaveLength(350)
+      expect(result.current.hasMore).toBe(false)
+    })
+    const searchCalls = apiMocks.querySessionControl.mock.calls.filter(
+      ([request]) => request.query.searchText === 'needle',
+    )
+    expect(searchCalls).toHaveLength(2)
+    expect(searchCalls[1]?.[0].query.cursor).toBe('search-page-2')
+  })
+
   it('keeps all-active hydration for a live status outside catalog pages', async () => {
     const remote = summary('session-working-101', 'Remote worker')
     apiMocks.listSessionsByIds.mockResolvedValue([remote])
@@ -220,7 +252,7 @@ describe('remote sidebar Session filtering', () => {
     expect(result.current.sessions).toEqual([local])
   })
 
-  it('bounds 1,000 matching custom aliases to one batched Host query', async () => {
+  it('paginates 1,000 matching aliases with at most two Host calls per page', async () => {
     const paths = Array.from({ length: 1_000 }, (_, index) => `/repo/project-${String(index)}`)
     const aliases = Object.fromEntries(paths.map((projectPath) => [projectPath, 'Needle alias']))
     const remote = Array.from({ length: 300 }, (_, index) =>
@@ -228,7 +260,11 @@ describe('remote sidebar Session filtering', () => {
     )
     apiMocks.querySessionControl.mockImplementation(async (request) => {
       if (request.query.searchText === 'needle') return listResponse([])
-      if (request.query.projectPaths) return listResponse(remote)
+      if (request.query.projectPaths) {
+        return request.query.cursor
+          ? listResponse(remote.slice(100))
+          : listResponse(remote.slice(0, 100), { nextCursor: 'alias-page-2' })
+      }
       return listResponse([], { totalCount: 0 })
     })
     apiMocks.listSessionsByIds.mockImplementation(async (ids: readonly SessionId[]) =>
@@ -245,7 +281,15 @@ describe('remote sidebar Session filtering', () => {
       ),
     )
 
-    await waitFor(() => expect(result.current.sessions).toHaveLength(200))
+    await waitFor(() => {
+      expect(result.current.sessions).toHaveLength(100)
+      expect(result.current.hasMore).toBe(true)
+    })
+    act(() => result.current.loadMore())
+    await waitFor(() => {
+      expect(result.current.sessions).toHaveLength(300)
+      expect(result.current.hasMore).toBe(false)
+    })
     const catalogCalls = apiMocks.querySessionControl.mock.calls.filter(
       ([request]) => request.query.searchText === 'needle',
     )
@@ -253,8 +297,12 @@ describe('remote sidebar Session filtering', () => {
       ([request]) => request.query.projectPaths !== undefined,
     )
     expect(catalogCalls).toHaveLength(1)
-    expect(aliasCalls).toHaveLength(1)
+    expect(aliasCalls).toHaveLength(2)
     expect(aliasCalls[0]?.[0].query.projectPaths).toHaveLength(1_000)
-    expect(apiMocks.listSessionsByIds).toHaveBeenCalledTimes(2)
+    expect(aliasCalls[0]?.[0].query.limit).toBe(100)
+    expect(aliasCalls[1]?.[0].query.limit).toBe(200)
+    expect(aliasCalls[1]?.[0].query.cursor).toBe('alias-page-2')
+    expect(catalogCalls.length + aliasCalls.length).toBe(3)
+    expect(apiMocks.listSessionsByIds).toHaveBeenCalledTimes(3)
   })
 })

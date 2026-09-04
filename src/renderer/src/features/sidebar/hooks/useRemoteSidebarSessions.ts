@@ -6,18 +6,14 @@ import type { SidebarRowState } from '../lib/sidebar-row-state'
 import {
   hydrateSidebarSessions,
   queryInterruptedSidebarSessions,
-  querySidebarSearchSources,
+  querySidebarSearchPage,
   queryTerminalSidebarCounts,
   queryTerminalSidebarSessions,
   SIDEBAR_SESSION_HYDRATION_BATCH_SIZE,
+  type SidebarRemoteMode,
+  type SidebarSearchCursor,
   type SidebarTerminalState,
 } from './remote-sidebar-session-query'
-
-type RemoteMode =
-  | { readonly kind: 'none' }
-  | { readonly kind: 'status'; readonly ids: readonly SessionId[]; readonly offset: number }
-  | { readonly kind: 'interrupted'; readonly cursor?: string }
-  | { readonly kind: 'terminal'; readonly state: SidebarTerminalState; readonly cursor?: string }
 
 export interface ExactTerminalCounts {
   readonly completed?: number
@@ -89,7 +85,7 @@ export function useRemoteSidebarSessions(input: {
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [terminalCounts, setTerminalCounts] = useState<ExactTerminalCounts>({})
-  const mode = useRef<RemoteMode>({ kind: 'none' })
+  const mode = useRef<SidebarRemoteMode>({ kind: 'none' })
   const generation = useRef(0)
   const countGeneration = useRef(0)
   const inFlightGeneration = useRef<number | null>(null)
@@ -139,15 +135,22 @@ export function useRemoteSidebarSessions(input: {
   )
 
   const publishSearchPage = useCallback(
-    async (query: string, projectPaths: readonly string[], requestGeneration: number) => {
-      const ids = await querySidebarSearchSources(projectPaths, query)
-      const hydrated = (await hydrateSidebarSessions(ids)).filter(
+    async (
+      query: string,
+      projectPaths: readonly string[],
+      cursor: SidebarSearchCursor | undefined,
+      requestGeneration: number,
+    ) => {
+      const page = await querySidebarSearchPage(projectPaths, query, cursor)
+      const hydrated = (await hydrateSidebarSessions(page.ids)).filter(
         (session) => session.archived !== true,
       )
       if (generation.current !== requestGeneration) return
       setSessions((current) => appendUnique(current, hydrated))
-      mode.current = { kind: 'none' }
-      setHasMore(false)
+      mode.current = page.nextCursor
+        ? { kind: 'search', query, projectPaths, cursor: page.nextCursor }
+        : { kind: 'none' }
+      setHasMore(page.nextCursor !== undefined)
     },
     [],
   )
@@ -229,11 +232,16 @@ export function useRemoteSidebarSessions(input: {
       return
     }
     if (normalizedQuery !== '') {
-      mode.current = { kind: 'none' }
+      mode.current = {
+        kind: 'search',
+        query: normalizedQuery,
+        projectPaths: stableMatchingProjectPaths.current.values,
+      }
       runPage(requestGeneration, () =>
         publishSearchPage(
           normalizedQuery,
           stableMatchingProjectPaths.current.values,
+          undefined,
           requestGeneration,
         ),
       )
@@ -255,6 +263,12 @@ export function useRemoteSidebarSessions(input: {
     const current = mode.current
     if (current.kind === 'none') return
     const requestGeneration = generation.current
+    if (current.kind === 'search') {
+      runPage(requestGeneration, () =>
+        publishSearchPage(current.query, current.projectPaths, current.cursor, requestGeneration),
+      )
+      return
+    }
     if (current.kind === 'status') {
       runPage(requestGeneration, () =>
         publishStatusPage(current.ids, current.offset, requestGeneration),
@@ -270,7 +284,7 @@ export function useRemoteSidebarSessions(input: {
         publishTerminalPage(current.state, current.cursor, requestGeneration),
       )
     }
-  }, [publishInterruptedPage, publishStatusPage, publishTerminalPage, runPage])
+  }, [publishInterruptedPage, publishSearchPage, publishStatusPage, publishTerminalPage, runPage])
 
   const visibleSessions = useMemo(() => {
     const loadedMatches = input.loadedSessions.filter((session) => {

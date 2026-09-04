@@ -34,7 +34,10 @@ export function populateSessionSearchCatalog(database: DatabaseSync) {
         ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
       ), '')
     FROM sessions;
-    INSERT INTO session_discovery_search_rows (session_id, search_rowid)
-    SELECT session_id, rowid FROM session_node_discovery_search;
+    INSERT INTO session_discovery_search_rows (
+      session_id, search_rowid, initial_objective, current_preview
+    )
+    SELECT session_id, rowid, initial_objective, current_preview
+    FROM session_node_discovery_search;
   `)
 }

@@ -1,7 +1,10 @@
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SemanticDiscoveryReadiness } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
-import { SESSION_DISCOVERY_WINDOW_LIMIT } from './session-discovery-window-store'
+import {
+  SESSION_DISCOVERY_WINDOW_LIMIT,
+  type SessionDiscoveryWindowEntry,
+} from './session-discovery-window-store'
 import type { DiscoverySearchRequest } from './sqlite-session-discovery-window'
 import type { SqliteSessionSemanticSearch } from './sqlite-session-semantic-search'
 import type {
@@ -84,8 +87,10 @@ export function loadSelectedSemanticEntries(input: {
   readonly scope: TranscriptSemanticScope | undefined
   readonly readiness: SemanticDiscoveryReadiness | undefined
   readonly usable: boolean
-}) {
-  if (!input.usable || !input.readiness) return Effect.succeed([])
+}): Effect.Effect<readonly SessionDiscoveryWindowEntry[], Error> {
+  if (!input.usable || !input.readiness) {
+    return Effect.succeed<readonly SessionDiscoveryWindowEntry[]>([])
+  }
   return input.scope
     ? input.transcript.search(input.query, input.scope, SESSION_DISCOVERY_WINDOW_LIMIT + 1)
     : input.discovery.search(

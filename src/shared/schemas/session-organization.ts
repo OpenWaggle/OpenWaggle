@@ -1,31 +1,32 @@
 import { Schema } from '@shared/schema'
+import { sessionInputIdSchema, sessionInputItemTextSchema } from './session-input'
 import { sessionTitleSchema } from './session-title'
 
 export const sessionRenameCommandSchema = Schema.Struct({
   operation: Schema.Literal('rename'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   title: sessionTitleSchema,
 })
 
 export const sessionArchiveCommandSchema = Schema.Struct({
   operation: Schema.Literal('archive'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
 })
 
 export const sessionUnarchiveCommandSchema = Schema.Struct({
   operation: Schema.Literal('unarchive'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
 })
 
 export const sessionHandoffCommandSchema = Schema.Struct({
   operation: Schema.Literal('handoff'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   workspace: Schema.Union(
     Schema.Struct({ mode: Schema.Literal('local') }),
-    Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: Schema.String }),
+    Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
     Schema.Struct({
       mode: Schema.Literal('new-worktree'),
-      baseRef: Schema.optional(Schema.String),
+      baseRef: Schema.optional(sessionInputItemTextSchema),
       startFromOrigin: Schema.optional(Schema.Boolean),
     }),
   ),

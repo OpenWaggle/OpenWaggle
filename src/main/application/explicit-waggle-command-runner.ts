@@ -1,5 +1,6 @@
 import type { toAgentSendPayload } from '@shared/schemas/validation'
 import type { toWaggleConfig } from '@shared/schemas/waggle'
+import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
@@ -19,6 +20,7 @@ export function runRegisteredExplicitWaggle(
     readonly sessionId: SessionId
     readonly runId: string
     readonly payload: ReturnType<typeof toAgentSendPayload>
+    readonly hydratedAttachments: HydratedAgentSendPayload['attachments']
     readonly model: SupportedModelId
     readonly config: ReturnType<typeof toWaggleConfig>
     readonly abortController: AbortController
@@ -29,6 +31,7 @@ export function runRegisteredExplicitWaggle(
       sessionId: input.sessionId,
       runId: input.runId,
       payload: input.payload,
+      hydratedAttachments: input.hydratedAttachments,
       model: input.model,
       config: input.config,
       ...toWaggleKernelExecutionContext(input),

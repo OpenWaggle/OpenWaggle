@@ -16,6 +16,7 @@ import {
   SESSION_QUERY_MAX_PATH_LENGTH,
 } from '@shared/types/session-query'
 import { SESSION_QUERY_MAX_WAIT_MS } from '@shared/types/session-wait'
+import { sessionInputIdSchema } from './session-input'
 
 const boundedPath = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_PATH_LENGTH))
 const boundedCursor = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_CURSOR_LENGTH))
@@ -30,7 +31,7 @@ export const exportResourcesSchema: Schema.Schema<readonly SessionExportResource
 
 export const sessionExportManifestSchema: Schema.Schema<SessionExportManifest> = Schema.Struct({
   schemaVersion: Schema.Literal(1),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   title: Schema.String,
   branchScope: Schema.Literal('active-branch', 'tree'),
   activeBranchId: Schema.NullOr(Schema.String),
@@ -82,13 +83,13 @@ export const sessionExportBundleManifestSchema: Schema.Schema<SessionExportBundl
 
 export const exportCreateCommandSchema = Schema.Struct({
   operation: Schema.Literal('export-create'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   format: Schema.Literal(...SESSION_EXPORT_FORMATS),
   destinationPath: boundedPath,
   destinationRoot: Schema.optional(boundedPath),
   overwriteExisting: Schema.optional(Schema.Boolean),
   branchScope: Schema.optional(Schema.Literal('active-branch', 'tree')),
-  branchId: Schema.optional(Schema.String),
+  branchId: Schema.optional(sessionInputIdSchema),
   includeQueueBodies: Schema.optional(Schema.Boolean),
   resources: Schema.optional(exportResourcesSchema),
 }).pipe(
@@ -101,8 +102,8 @@ export const exportCreateCommandSchema = Schema.Struct({
 
 export const exportCancelCommandSchema = Schema.Struct({
   operation: Schema.Literal('export-cancel'),
-  sessionId: Schema.String,
-  exportOperationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
 })
 
 export const exportOperationStatusSchema = Schema.Literal(...SESSION_EXPORT_OPERATION_STATUSES)
@@ -115,7 +116,7 @@ export const exportOperationErrorSchema = Schema.Struct({
 export const exportCreateOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('export-create'),
   effect: Schema.Literal('export-accepted'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   exportOperationId: Schema.String,
   status: exportOperationStatusSchema,
 })
@@ -123,14 +124,14 @@ export const exportCreateOutcomeSchema = Schema.Struct({
 export const exportCancelOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('export-cancel'),
   effect: Schema.Literal('export-cancellation-requested'),
-  sessionId: Schema.String,
-  exportOperationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
   status: exportOperationStatusSchema,
 })
 
 export const exportListQuerySchema = Schema.Struct({
   operation: Schema.Literal('exports-list'),
-  sessionId: Schema.String,
+  sessionId: sessionInputIdSchema,
   limit: Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_EXPORT_OPERATION_QUERY_LIMIT)),
   cursor: Schema.optional(boundedCursor),
   statuses: Schema.optional(
@@ -144,19 +145,19 @@ export const exportListQuerySchema = Schema.Struct({
 
 export const exportReadQuerySchema = Schema.Struct({
   operation: Schema.Literal('exports-read'),
-  sessionId: Schema.String,
-  exportOperationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
   includeQueueBodies: Schema.optional(Schema.Boolean),
 })
 
 export const exportWaitQuerySchema = Schema.Struct({
   operation: Schema.Literal('exports-wait'),
-  sessionId: Schema.String,
-  exportOperationId: Schema.String,
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
   timeoutMs: Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
   after: Schema.optional(
     Schema.Struct({
-      hostInstanceId: Schema.String,
+      hostInstanceId: sessionInputIdSchema,
       sequence: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
     }),
   ),

@@ -61,6 +61,7 @@ export interface WaggleRunInput extends Partial<WaggleExecutionContext> {
   readonly sessionId: SessionId
   readonly runId: string
   readonly payload: AgentSendPayload
+  readonly hydratedAttachments?: HydratedAgentSendPayload['attachments']
   readonly model: SupportedModelId
   readonly config: WaggleConfig
   readonly signal: AbortSignal
@@ -114,9 +115,9 @@ function prepareWaggleRun(input: WaggleRunInput) {
     const assignedTitle = yield* assignPreparedTitle(input, session)
     const hydratedPayload: HydratedAgentSendPayload = {
       ...input.payload,
-      attachments: yield* Effect.promise(() =>
-        hydratePayloadAttachments(input.payload.attachments),
-      ),
+      attachments:
+        input.hydratedAttachments ??
+        (yield* Effect.promise(() => hydratePayloadAttachments(input.payload.attachments))),
     }
     const enabledOpenWaggleExtensionPackagePaths =
       yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)

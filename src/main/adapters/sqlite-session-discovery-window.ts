@@ -62,6 +62,7 @@ export function discoveryModeOutcome(
   query: DiscoverySearchRequest['query'],
   semanticReadiness?: SemanticDiscoveryReadiness,
   semanticUsed = false,
+  semanticDegradationReason?: string,
 ) {
   const requestedSearchMode = defaultSessionSearchMode(query)
   const partialCoverage = semanticReadiness?.status === 'partial'
@@ -81,7 +82,9 @@ export function discoveryModeOutcome(
                 degradation: {
                   from: 'hybrid' as const,
                   to: 'lexical' as const,
-                  reason: partialCoverage ? 'semantic_partial_coverage' : 'semantic_not_ready',
+                  reason:
+                    semanticDegradationReason ??
+                    (partialCoverage ? 'semantic_partial_coverage' : 'semantic_not_ready'),
                 },
               }
             : {}),

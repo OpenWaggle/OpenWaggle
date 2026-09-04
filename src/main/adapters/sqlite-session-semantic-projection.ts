@@ -5,19 +5,15 @@ import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { sessionDiscoveryDocument } from './session-discovery-document'
 import { encodeFloat32Vector } from './session-flat-vector-index'
+import {
+  loadCurrentSemanticProjectionRow,
+  loadSemanticProjectionCounts,
+  type SessionSemanticProjectionRow,
+} from './sqlite-session-semantic-projection-source'
 
 export { sessionDiscoveryDocument } from './session-discovery-document'
 
 const DEFAULT_PROJECTION_BATCH_SIZE = 32
-
-interface ProjectionRow {
-  readonly session_id: string
-  readonly title: string
-  readonly specification_json: string | null
-  readonly initial_content_json: string | null
-  readonly preview_content_json: string | null
-  readonly queued_at: number
-}
 
 interface SemanticStateRow {
   readonly status: 'preparing' | 'ready' | 'failed'
@@ -36,7 +32,7 @@ function sourceHash(value: string) {
 }
 
 function loadProjectionRows(sql: SqlClient.SqlClient, limit: number) {
-  return sql<ProjectionRow>`
+  return sql<SessionSemanticProjectionRow>`
     SELECT queue.session_id, sessions.title, queue.queued_at,
       specifications.specification_json,
       (SELECT initial.content_json FROM session_nodes AS initial
@@ -59,13 +55,40 @@ function loadProjectionRows(sql: SqlClient.SqlClient, limit: number) {
 function publishProjectionBatch(
   sql: SqlClient.SqlClient,
   model: SessionEmbeddingModel,
-  rows: readonly ProjectionRow[],
+  rows: readonly SessionSemanticProjectionRow[],
   vectors: readonly Float32Array[],
   preparationOperationId: string,
   now: number,
 ) {
   return sql.withTransaction(
     Effect.gen(function* () {
+      const publishable: Array<{
+        readonly row: SessionSemanticProjectionRow
+        readonly vector: Float32Array
+        readonly document: string
+      }> = []
+      for (const [index, row] of rows.entries()) {
+        const vector = vectors[index]
+        if (!vector || vector.length !== model.metadata.dimensions) {
+          return yield* Effect.fail(new Error('Semantic projection vector dimensions mismatch.'))
+        }
+        const document = sessionDiscoveryDocument(row)
+        const current = (yield* loadCurrentSemanticProjectionRow(sql, row.session_id))[0]
+        if (
+          current?.queued_at === row.queued_at &&
+          sessionDiscoveryDocument(current) === document
+        ) {
+          publishable.push({ row, vector, document })
+        }
+      }
+      if (publishable.length === 0) {
+        const counts = (yield* loadSemanticProjectionCounts(sql))[0] ?? {
+          prepared: 0,
+          pending: 0,
+          revision: 0,
+        }
+        return { prepared: 0, pending: counts.pending, snapshotRevision: counts.revision }
+      }
       const revisions = yield* sql<{ readonly revision: number }>`
         SELECT MAX(
           COALESCE(MAX(snapshot_revision), 0),
@@ -76,12 +99,7 @@ function publishProjectionBatch(
         FROM session_discovery_embeddings
       `
       const revision = revisions[0]?.revision ?? 1
-      for (const [index, row] of rows.entries()) {
-        const vector = vectors[index]
-        if (!vector || vector.length !== model.metadata.dimensions) {
-          return yield* Effect.fail(new Error('Semantic projection vector dimensions mismatch.'))
-        }
-        const document = sessionDiscoveryDocument(row)
+      for (const { row, vector, document } of publishable) {
         yield* sql`
           INSERT INTO session_discovery_embeddings (
             session_id, model_id, model_revision, dimensions, source_hash,
@@ -130,7 +148,7 @@ function publishProjectionBatch(
           preparation_operation_id = excluded.preparation_operation_id,
           failure_message = NULL, updated_at = excluded.updated_at
       `
-      return { prepared: rows.length, pending: count.pending, snapshotRevision: revision }
+      return { prepared: publishable.length, pending: count.pending, snapshotRevision: revision }
     }),
   )
 }

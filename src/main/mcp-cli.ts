@@ -9,6 +9,7 @@ import {
   parseMcpCliArguments,
   readSecretFromStdin,
   requireServeScope,
+  serveAuthorizationCeiling,
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
 import { runMcpManagementCommand } from './mcp-cli-management'
@@ -34,11 +35,13 @@ Usage:
   openwaggle mcp registry search|get|add <query-or-name> [--package npm|pypi|nuget|oci|mcpb]
   openwaggle mcp doctor
   openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
+                       [--authorization-ceiling ask-for-approval|yolo]
                        [--workspace <path>]... [--session <id>]...
                        [--export-root <path>]...
                        [--attachment-root <path>]...
                        [--origin-session <id>]
   openwaggle mcp serve --http <port> --token-stdin [--profile <name>]
+                       [--authorization-ceiling ask-for-approval|yolo]
                        [--grant <capability>]... [--workspace <path>]...
                        [--export-root <path>]...
                        [--attachment-root <path>]...
@@ -112,6 +115,7 @@ async function runServeCommand(arguments_: ParsedArguments) {
     sessionIds: new Set(scope.sessions),
     ...(originSessionId ? { originSessionId } : {}),
     profile,
+    authorizationCeiling: serveAuthorizationCeiling(arguments_),
     userDataRoot: app.getPath('userData'),
     version: app.getVersion(),
     stderr: process.stderr,

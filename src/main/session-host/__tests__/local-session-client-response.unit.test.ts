@@ -2,6 +2,36 @@ import { describe, expect, it } from 'vitest'
 import { decodeLocalSessionCommandResponse } from '../local-session-client-response'
 
 describe('Local Session client Host UI response decoding', () => {
+  it('rejects Host-only attachment snapshot bytes in a client response', () => {
+    expect(() =>
+      decodeLocalSessionCommandResponse(
+        {
+          kind: 'response',
+          requestId: 'wire-request',
+          payload: {
+            contract: 'local-attachments-v1',
+            response: {
+              requestId: 'prepare-request',
+              attachments: [
+                {
+                  id: 'attachment-1',
+                  kind: 'text',
+                  name: 'notes.txt',
+                  path: '/tmp/notes.txt',
+                  mimeType: 'text/plain',
+                  sizeBytes: 5,
+                  extractedText: 'notes',
+                  immutableSourceBase64: 'bm90ZXM=',
+                },
+              ],
+            },
+          },
+        },
+        'wire-request',
+      ),
+    ).toThrow()
+  })
+
   it('decodes an exact Host UI response', () => {
     expect(
       decodeLocalSessionCommandResponse(

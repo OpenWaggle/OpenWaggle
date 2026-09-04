@@ -7,12 +7,19 @@
  */
 
 import { MAX_INLINE_VISUALIZATION_PATH_LENGTH } from '@shared/constants/inline-visualization'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { AGENT_AUTHORIZATION_CAPABILITIES } from '@shared/types/agent-authorization-grants'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputPathSchema,
+  sessionInputTextSchema,
+} from './session-input'
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
@@ -48,14 +55,14 @@ const jsonLooseRecordSchema = Schema.Record({
 })
 
 export const preparedAttachmentSchema = Schema.Struct({
-  id: Schema.String,
+  id: sessionInputIdSchema,
   kind: attachmentKindSchema,
   origin: Schema.optional(attachmentOriginSchema),
-  name: Schema.String,
-  path: Schema.String,
-  mimeType: Schema.String,
-  sizeBytes: Schema.Number,
-  extractedText: Schema.String,
+  name: sessionInputItemTextSchema,
+  path: sessionInputPathSchema,
+  mimeType: sessionInputItemTextSchema,
+  sizeBytes: Schema.Number.pipe(Schema.int(), Schema.between(0, ATTACHMENT.MAX_SIZE_BYTES)),
+  extractedText: Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)),
 })
 
 const MAX_INLINE_VISUALIZATION_STATE_BYTES = 16 * 1024
@@ -80,9 +87,11 @@ export const inlineVisualizationContextSchema = Schema.Struct({
 })
 
 export const agentSendPayloadSchema = Schema.Struct({
-  text: Schema.String,
+  text: sessionInputTextSchema,
   thinkingLevel: Schema.Literal(...THINKING_LEVELS),
-  attachments: Schema.mutable(Schema.Array(preparedAttachmentSchema)),
+  attachments: Schema.mutable(
+    Schema.Array(preparedAttachmentSchema).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
+  ),
   waggle: Schema.optional(waggleInvocationSchema),
   visualizationContext: Schema.optional(inlineVisualizationContextSchema),
 })

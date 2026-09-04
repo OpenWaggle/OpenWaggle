@@ -35,6 +35,7 @@ function registerServerResources(server: McpServer, options: OpenWaggleMcpServeO
           mimeType: 'application/json',
           text: JSON.stringify({
             profile: options.profile,
+            authorizationCeiling: options.authorizationCeiling,
             grants: [...options.grants].sort(),
             workspaceRoots: options.workspaceRoots,
             exportRoots: options.exportRoots ?? [],

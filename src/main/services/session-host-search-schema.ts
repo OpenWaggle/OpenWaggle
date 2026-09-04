@@ -27,6 +27,14 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   ON sessions (project_path, archived, updated_at DESC, id DESC)
   `,
   `
+  CREATE INDEX idx_sessions_exact_id_nocase
+  ON sessions (id COLLATE NOCASE)
+  `,
+  `
+  CREATE INDEX idx_sessions_exact_title_nocase
+  ON sessions (title COLLATE NOCASE)
+  `,
+  `
   CREATE TABLE session_semantic_discovery_state (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     status TEXT NOT NULL CHECK (status IN ('preparing', 'ready', 'failed')),
@@ -131,8 +139,9 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     INSERT INTO session_node_discovery_search (
       session_id, initial_objective, current_preview
     ) VALUES (new.id, '', '');
-    INSERT INTO session_discovery_search_rows (session_id, search_rowid)
-    VALUES (new.id, last_insert_rowid());
+    INSERT INTO session_discovery_search_rows (
+      session_id, search_rowid, initial_objective, current_preview
+    ) VALUES (new.id, last_insert_rowid(), '', '');
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;

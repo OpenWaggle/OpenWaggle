@@ -3,8 +3,10 @@ import type { LocalSessionProfileAuthority } from '@shared/types/local-session-p
 import * as Effect from 'effect/Effect'
 import {
   SESSION_DISCOVERY_WINDOW_LIMIT,
+  type SessionDiscoveryWindowEntry,
   type SessionDiscoveryWindowStore,
 } from './session-discovery-window-store'
+import { isSessionSemanticInferenceCapacityError } from './session-semantic-inference-gate'
 import {
   discoveryCursor,
   selectDiscoveryEntries,
@@ -35,6 +37,8 @@ import type {
   SqliteSessionTranscriptSemanticSearch,
   TranscriptSemanticScope,
 } from './sqlite-session-transcript-semantic-search'
+
+const EMPTY_SEMANTIC_ENTRIES: readonly SessionDiscoveryWindowEntry[] = []
 
 function loadAuthorizedWindowIds(
   sql: SqlClient.SqlClient,
@@ -150,7 +154,7 @@ export function searchSessions(
       )
     }
     const lexicalRows = yield* loadLexicalRowsForMode(sql, authority, request, mode)
-    const semanticEntries = yield* loadSelectedSemanticEntries({
+    const semanticEntryEffect = loadSelectedSemanticEntries({
       query: request.query.query.trim(),
       authority,
       request,
@@ -160,12 +164,22 @@ export function searchSessions(
       readiness: semanticSelection.readiness,
       usable: semanticSelection.usable,
     })
-    const entries = selectDiscoveryEntries(
-      mode,
-      semanticSelection.usable,
-      lexicalRows,
-      semanticEntries,
-    )
+    const semanticResult = yield* mode === 'hybrid'
+      ? semanticEntryEffect.pipe(
+          Effect.map((entries) => ({ entries, unavailable: false as const })),
+          Effect.catchIf(isSessionSemanticInferenceCapacityError, () =>
+            Effect.succeed({
+              entries: EMPTY_SEMANTIC_ENTRIES,
+              unavailable: true as const,
+            }),
+          ),
+        )
+      : semanticEntryEffect.pipe(
+          Effect.map((entries) => ({ entries, unavailable: false as const })),
+        )
+    const semanticEntries = semanticResult.entries
+    const semanticUsable = semanticSelection.usable && !semanticResult.unavailable
+    const entries = selectDiscoveryEntries(mode, semanticUsable, lexicalRows, semanticEntries)
     const window = windows.create({
       ...identity,
       entries,
@@ -177,7 +191,8 @@ export function searchSessions(
       modeOutcome: discoveryModeOutcome(
         request.query,
         semanticSelection.publicReadiness,
-        semanticSelection.usable,
+        semanticUsable,
+        semanticResult.unavailable ? 'semantic_unavailable' : undefined,
       ),
       now: Date.now(),
     })

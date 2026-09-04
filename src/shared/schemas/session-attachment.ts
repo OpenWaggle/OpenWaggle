@@ -1,7 +1,8 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
+import { sessionInputIdSchema } from './session-input'
 
-export const sessionAttachmentIdsSchema = Schema.Array(Schema.String).pipe(
+export const sessionAttachmentIdsSchema = Schema.Array(sessionInputIdSchema).pipe(
   Schema.maxItems(ATTACHMENT.MAX_COUNT),
   Schema.filter(
     (attachmentIds) =>

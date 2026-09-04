@@ -115,6 +115,7 @@ describe('Session Control prepared attachment storage', () => {
           SELECT COUNT(*) AS count FROM session_prepared_attachments
         `
         return {
+          prepared,
           resolved,
           replay,
           wrongOwner,
@@ -125,6 +126,7 @@ describe('Session Control prepared attachment storage', () => {
     )
 
     expect(result.resolved).toHaveLength(1)
+    expect(Object.keys(result.prepared)).not.toContain('immutableSourceBase64')
     expect(result.replay._tag).toBe('Left')
     expect(result.wrongOwner._tag).toBe('Left')
     expect(result.countBeforeDelete).toBe(1)

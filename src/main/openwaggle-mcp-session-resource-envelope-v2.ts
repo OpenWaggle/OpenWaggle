@@ -1,8 +1,6 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import {
-  hasUniqueCollaborationStrings,
-  SESSION_COLLABORATION_COLLECTION_LIMIT,
-} from '@shared/session-collaboration-collections'
+import { hasUniqueCollaborationStrings } from '@shared/session-collaboration-collections'
+import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import {
   isNonBlankSessionTitle,
   SESSION_TITLE_MAX_LENGTH,
@@ -12,14 +10,14 @@ import { SESSION_QUERY_MAX_PATH_LENGTH } from '@shared/types/session-query'
 import { z } from 'zod'
 
 export const MCP_SESSION_INPUT_LIMITS_V2 = {
-  idLength: 512,
+  idLength: SESSION_INPUT_LIMITS.idLength,
   titleLength: SESSION_TITLE_MAX_LENGTH,
-  textLength: 131_072,
-  itemTextLength: 16_384,
-  arrayItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
-  evidenceItems: SESSION_COLLABORATION_COLLECTION_LIMIT,
-  resourceReferences: SESSION_COLLABORATION_COLLECTION_LIMIT,
-  jsonLength: 131_072,
+  textLength: SESSION_INPUT_LIMITS.mcpTextLength,
+  itemTextLength: SESSION_INPUT_LIMITS.itemTextLength,
+  arrayItems: SESSION_INPUT_LIMITS.arrayItems,
+  evidenceItems: SESSION_INPUT_LIMITS.arrayItems,
+  resourceReferences: SESSION_INPUT_LIMITS.arrayItems,
+  jsonLength: SESSION_INPUT_LIMITS.jsonLength,
 } as const
 
 export const mcpSessionIdSchemaV2 = z.string().min(1).max(MCP_SESSION_INPUT_LIMITS_V2.idLength)

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SessionSemanticInferenceGate } from '../session-semantic-inference-gate'
+import {
+  isSessionSemanticInferenceCapacityError,
+  SessionSemanticInferenceCapacityError,
+  SessionSemanticInferenceGate,
+} from '../session-semantic-inference-gate'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -55,12 +59,20 @@ describe('SessionSemanticInferenceGate', () => {
     const running = gate.run(() => first.promise)
     const queued = gate.run(() => second.promise)
 
-    await expect(gate.run(async () => undefined)).rejects.toThrow(
-      'Semantic inference capacity is temporarily exhausted',
+    await expect(gate.run(async () => undefined)).rejects.toBeInstanceOf(
+      SessionSemanticInferenceCapacityError,
     )
     first.resolve()
     await running
     second.resolve()
     await queued
+  })
+
+  it('recognizes capacity exhaustion through wrapped inference errors only', () => {
+    const capacity = new SessionSemanticInferenceCapacityError()
+    expect(
+      isSessionSemanticInferenceCapacityError(new Error('query failed', { cause: capacity })),
+    ).toBe(true)
+    expect(isSessionSemanticInferenceCapacityError(new Error(capacity.message))).toBe(false)
   })
 })

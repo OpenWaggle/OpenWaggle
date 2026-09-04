@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import { toWaggleConfig, waggleConfigSchema } from '@shared/schemas/waggle'
+import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { RunId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import {
@@ -45,6 +46,7 @@ interface ExplicitWaggleRunContext {
   readonly sessionId: SessionId
   readonly runId: RunId
   readonly payload: ReturnType<typeof toAgentSendPayload>
+  readonly hydratedAttachments: HydratedAgentSendPayload['attachments']
   readonly model: SupportedModelId
   readonly config: ReturnType<typeof toWaggleConfig>
   readonly abortController: AbortController
@@ -100,9 +102,9 @@ function runExplicitWaggleCommand(input: {
     const model = SupportedModelId(request.model)
     yield* Effect.try(() => reservePendingWaggleSessionRun(sessionId, abortController, runId))
     const attachmentIds = payload.attachments.map((attachment) => attachment.id)
-    yield* SessionControlAttachmentService.pipe(
+    const hydratedAttachments = yield* SessionControlAttachmentService.pipe(
       Effect.flatMap((service) =>
-        service.bind({
+        service.resolve({
           attachmentIds,
           sessionId,
           ownerCallerId: input.caller.callerId,
@@ -121,6 +123,7 @@ function runExplicitWaggleCommand(input: {
       sessionId,
       runId,
       payload,
+      hydratedAttachments,
       model,
       config,
       abortController,
@@ -295,10 +298,7 @@ export function cancelLocalExplicitWaggle(sessionId: SessionId) {
   const cancelledActive = activeWaggleRuns.cancel(sessionId)
   const cancelledPending = pendingWaggleRuns.cancel(sessionId)
   if (cancelledActive && active) {
-    cancelAgentLoopInteractionsForRun({
-      sessionId,
-      runId: active.metadata.runId,
-    })
+    cancelAgentLoopInteractionsForRun({ sessionId, runId: active.metadata.runId })
   }
   if (cancelledPending && pending) {
     cancelAgentLoopInteractionsForRun({ sessionId, runId: pending.metadata.runId })

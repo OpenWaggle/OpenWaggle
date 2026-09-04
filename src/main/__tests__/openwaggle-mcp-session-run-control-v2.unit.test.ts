@@ -1,5 +1,39 @@
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
-import { buildMcpSessionPayloadV2 } from '../openwaggle-mcp-session-tool-v2'
+import {
+  authorizationLayer,
+  controlPayload,
+  startPayload,
+} from '../application/__tests__/local-session-command-dispatcher.test-support'
+import { authorizeLocalSessionCommand } from '../application/local-session-command-authorization'
+import { buildMcpSessionPayloadV2, mcpTransientAuthority } from '../openwaggle-mcp-session-tool-v2'
+
+function mcpCaller(
+  authorizationCeiling: 'ask-for-approval' | 'yolo',
+  capabilities: readonly ('sessions:start' | 'sessions:steer' | 'sessions:queue')[],
+  payload: LocalSessionCommandPayload,
+): LocalSessionCallerIdentity {
+  const authority = mcpTransientAuthority(
+    {
+      transport: 'stdio',
+      grants: new Set(capabilities),
+      workspaceRoots: ['/allowed-project'],
+      sessionIds: new Set(['session-worker']),
+      profile: 'run-controller',
+      authorizationCeiling,
+      userDataRoot: '/tmp/openwaggle-test',
+      version: 'test',
+    },
+    payload,
+  )
+  return {
+    callerId: 'transient-mcp:run-controller',
+    profileAuthority: authority,
+    baseProfileScope: authority.scope,
+  }
+}
 
 describe('OpenWaggle MCP Session Run Control v2 adapter', () => {
   it('maps Worker spawn to exact parent Run and Workspace placement', () => {
@@ -94,4 +128,54 @@ describe('OpenWaggle MCP Session Run Control v2 adapter', () => {
       }),
     ).toThrow('Steer does not accept Run authorization')
   })
+
+  it.each([
+    {
+      label: 'YOLO start',
+      capabilities: ['sessions:start'] as const,
+      payload: startPayload('yolo'),
+    },
+    {
+      label: 'active-Run steering',
+      capabilities: ['sessions:steer'] as const,
+      payload: controlPayload({
+        operation: 'steer',
+        sessionId: 'session-worker',
+        expectedRunId: 'run-worker',
+        input: { text: 'Use the corrected schema.', attachmentIds: [] },
+      }),
+    },
+    {
+      label: 'queued Follow-up promotion',
+      capabilities: ['sessions:queue', 'sessions:steer'] as const,
+      payload: controlPayload({
+        operation: 'promote',
+        sessionId: 'session-worker',
+        expectedRunId: 'run-worker',
+        followUpId: 'follow-up-1',
+      }),
+    },
+  ])(
+    'admits MCP $label only under the reviewed YOLO ceiling',
+    async ({ capabilities, payload }) => {
+      const askError = await Effect.runPromise(
+        authorizeLocalSessionCommand({
+          caller: mcpCaller('ask-for-approval', capabilities, payload),
+          payload,
+        })
+          .pipe(Effect.flip)
+          .pipe(Effect.provide(authorizationLayer)),
+      )
+      expect(askError).toMatchObject({ code: 'authorization_ceiling_exceeded' })
+
+      await expect(
+        Effect.runPromise(
+          authorizeLocalSessionCommand({
+            caller: mcpCaller('yolo', capabilities, payload),
+            payload,
+          }).pipe(Effect.provide(authorizationLayer)),
+        ),
+      ).resolves.toBeUndefined()
+    },
+  )
 })

@@ -101,6 +101,32 @@ describe('SQLite Session catalog search', () => {
     )
   })
 
+  it('uses indexed case-insensitive exact Session identity lookup', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'exact-search-plan.sqlite'))
+    runtimes.push(runtime)
+    const plans = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const id = yield* sql<{ readonly detail: string }>`
+          EXPLAIN QUERY PLAN
+          SELECT id FROM sessions INDEXED BY idx_sessions_exact_id_nocase
+          WHERE id = ${'QUEEN'} COLLATE NOCASE
+        `
+        const title = yield* sql<{ readonly detail: string }>`
+          EXPLAIN QUERY PLAN
+          SELECT id FROM sessions INDEXED BY idx_sessions_exact_title_nocase
+          WHERE title = ${'ARCHITECTURE HIVE'} COLLATE NOCASE
+        `
+        return { id, title }
+      }),
+    )
+
+    expect(plans.id.map((row) => row.detail).join('\n')).toContain('idx_sessions_exact_id_nocase')
+    expect(plans.title.map((row) => row.detail).join('\n')).toContain(
+      'idx_sessions_exact_title_nocase',
+    )
+  })
+
   it('paginates exact unread terminal counts across the complete catalog', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'terminal-filter.sqlite'))
     runtimes.push(runtime)

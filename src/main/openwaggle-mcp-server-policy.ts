@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
@@ -28,6 +29,7 @@ export interface OpenWaggleMcpServeOptions {
   /** Immutable session identity bound by the server owner to this caller profile. */
   readonly originSessionId?: string
   readonly profile: string
+  readonly authorizationCeiling: AgentAuthorizationMode
   readonly userDataRoot: string
   readonly version: string
   readonly stderr?: Pick<NodeJS.WriteStream, 'write'>
