@@ -4,6 +4,10 @@ import {
   SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT,
 } from './database-schema'
 import { SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT } from './database-session-output-retry-schema'
+import {
+  runSessionResourceIdentityIsolationMigration,
+  SESSION_RESOURCE_IDENTITY_ISOLATION_MIGRATION_STATEMENTS,
+} from './database-session-resource-identity-migration'
 
 export const SESSION_RESOURCE_MIGRATIONS = [
   {
@@ -37,5 +41,11 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     name: 'session-output-retry-branch-provenance',
     skipIfColumn: { table: 'session_output_retries', column: 'branch_id' },
     statements: [`ALTER TABLE session_output_retries ADD COLUMN branch_id TEXT`],
+  },
+  {
+    id: 33,
+    name: 'session-resource-identity-isolation',
+    run: runSessionResourceIdentityIsolationMigration,
+    statements: SESSION_RESOURCE_IDENTITY_ISOLATION_MIGRATION_STATEMENTS,
   },
 ] as const

@@ -53,6 +53,7 @@ function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
           continue
         }
       }
+      if (migration.run) yield* migration.run(sql)
       for (const statement of migration.statements) yield* sql.unsafe(statement)
       yield* sql`
         INSERT INTO _migrations (id, name, applied_at)

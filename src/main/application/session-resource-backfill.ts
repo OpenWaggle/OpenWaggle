@@ -5,6 +5,7 @@ import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
+import * as AttachmentRepairs from './session-resource-backfill-attachment-repairs'
 import {
   advanceAttachmentBackfillBudget,
   type BackfillAttachmentBudget,
@@ -58,10 +59,7 @@ interface BackfillAttachmentState {
   readonly completedOccurrences: Set<string>
   readonly knownResources: ReadonlyMap<string, SessionResource>
   readonly retryUnavailableResourceId: string | null
-  readonly deferred: Array<{
-    readonly input: CaptureAttachmentInput
-    readonly resource: SessionResource
-  }>
+  readonly deferred: AttachmentRepairs.DeferredAttachmentRepair[]
   projectionBlocked: boolean
   progressed: boolean
 }
@@ -70,7 +68,7 @@ function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
 }
 
-function attemptBackfilledAttachment(
+function attemptAttachment(
   input: CaptureAttachmentInput,
   state: BackfillAttachmentState,
   repairResource?: SessionResource,
@@ -81,24 +79,25 @@ function attemptBackfilledAttachment(
     if (!nextBudget) {
       if (repairResource) {
         state.projectionBlocked = true
-        return
+        return false
       }
       if (!isBackfillableAttachmentSize(input.attachment.sizeBytes)) {
         yield* captureAttachment(input)
         state.completedOccurrences.add(id)
         state.progressed = true
-        return
+        return false
       }
       state.projectionBlocked = true
-      return
+      return false
     }
     state.budget = nextBudget
-    yield* captureAttachment({
+    const repaired = yield* captureAttachment({
       ...input,
       ...(repairResource ? { repairResource } : {}),
     })
     state.completedOccurrences.add(id)
     state.progressed = true
+    return repaired
   })
 }
 
@@ -161,7 +160,7 @@ function captureBackfilledUserResources(
         attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
         continue
       }
-      yield* attemptBackfilledAttachment(attachmentInput, attachmentState)
+      yield* attemptAttachment(attachmentInput, attachmentState)
     }
     yield* captureBackfilledLinks({
       sessionId,
@@ -282,8 +281,18 @@ export function captureProjectedSessionResources(input: {
           linkState,
         )
       }
-      for (const deferred of attachmentState.deferred) {
-        yield* attemptBackfilledAttachment(deferred.input, attachmentState, deferred.resource)
+      const repairedAttachmentResourceIds = new Set<string>()
+      for (const deferred of AttachmentRepairs.orderDeferredAttachmentRepairs(
+        attachmentState.deferred,
+      )) {
+        if (attachmentState.projectionBlocked) break
+        if (repairedAttachmentResourceIds.has(deferred.resource.id)) continue
+        const repaired = yield* attemptAttachment(
+          deferred.input,
+          attachmentState,
+          deferred.resource,
+        )
+        if (repaired) repairedAttachmentResourceIds.add(deferred.resource.id)
       }
       for (const deferred of imageState.deferred) {
         yield* attemptBackfilledImage(deferred, imageState)
@@ -298,8 +307,3 @@ export function captureProjectedSessionResources(input: {
     }),
   )
 }
-
-export {
-  ATTACHMENT_BACKFILL_LIMITS,
-  advanceAttachmentBackfillBudget,
-} from './session-resource-backfill-budget'

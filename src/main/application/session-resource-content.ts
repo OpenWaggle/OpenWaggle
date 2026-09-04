@@ -27,8 +27,10 @@ function contentFromBytes(
 
 function remoteImageUrl(resource: SessionResource) {
   if (resource.locator?.startsWith('https://')) return resource.locator
-  if (resource.canonicalKey.startsWith('url:https://')) {
-    return resource.canonicalKey.slice('url:'.length)
+  for (const prefix of ['image-url:', 'url:']) {
+    if (resource.canonicalKey.startsWith(`${prefix}https://`)) {
+      return resource.canonicalKey.slice(prefix.length)
+    }
   }
   return null
 }

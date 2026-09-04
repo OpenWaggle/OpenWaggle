@@ -68,24 +68,39 @@ function findExistingResource(
   sessionId: SessionId,
   normalizedCanonicalKey: string,
   legacyCanonicalKey: string,
+  kind: ExtensionSessionResourcePublishPayload['kind'],
 ) {
   return Effect.gen(function* () {
     const normalized = yield* repository.findByCanonicalKey(sessionId, normalizedCanonicalKey)
-    if (normalized) return { resource: normalized, legacy: false }
+    const compatible = (resource: SessionResource) =>
+      kind === 'image' ? resource.kind === 'image' : resource.kind !== 'image'
+    if (normalized && compatible(normalized)) {
+      return { _tag: 'Existing' as const, resource: normalized, legacy: false }
+    }
+    let blocked = normalized !== null
     if (legacyCanonicalKey !== normalizedCanonicalKey) {
       const legacy = yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
-      if (legacy) return { resource: legacy, legacy: true }
+      if (legacy && compatible(legacy)) {
+        return { _tag: 'Existing' as const, resource: legacy, legacy: true }
+      }
+      blocked ||= legacy !== null
     }
-    const normalizedLocator = normalizedCanonicalKey.slice('url:'.length)
+    const canonicalPrefix = kind === 'image' ? 'image-url:' : 'url:'
+    const normalizedLocator = normalizedCanonicalKey.slice(canonicalPrefix.length)
     const legacy = (yield* repository.list(sessionId)).find((candidate) => {
-      if (!candidate.canonicalKey.startsWith('url:')) return false
+      if (!compatible(candidate)) return false
+      const currentPrefix = candidate.canonicalKey.startsWith(canonicalPrefix)
+      if (!currentPrefix) return false
       try {
-        return new URL(candidate.canonicalKey.slice('url:'.length)).href === normalizedLocator
+        return (
+          new URL(candidate.canonicalKey.slice(canonicalPrefix.length)).href === normalizedLocator
+        )
       } catch {
         return false
       }
     })
-    return { resource: legacy ?? null, legacy: legacy !== undefined }
+    if (legacy) return { _tag: 'Existing' as const, resource: legacy, legacy: true }
+    return blocked ? { _tag: 'Blocked' as const } : { _tag: 'Missing' as const }
   })
 }
 
@@ -142,16 +157,27 @@ function publishResource(
     const sessions = yield* SessionRepository
     const workspace = yield* sessions.getWorkspace(sessionId)
     const normalizedLocator = new URL(payload.locator).href
-    const normalizedCanonicalKey = `url:${normalizedLocator}`
-    const legacyCanonicalKey = `url:${payload.locator}`
+    const canonicalPrefix = payload.kind === 'image' ? 'image-url:' : 'url:'
+    const normalizedCanonicalKey = `${canonicalPrefix}${normalizedLocator}`
+    const legacyCanonicalKey = `${canonicalPrefix}${payload.locator}`
     const existing = yield* findExistingResource(
       repository,
       sessionId,
       normalizedCanonicalKey,
       legacyCanonicalKey,
+      payload.kind,
     )
-    const existingResource = existing.resource
-    const identityLocator = existing.legacy ? payload.locator : normalizedLocator
+    if (existing._tag === 'Blocked') {
+      return yield* auditedFailure({
+        invocation: input.invocation,
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
+        message: 'The resource URL is occupied by an incompatible legacy resource.',
+        timestamp: input.timestamp,
+      })
+    }
+    const existingResource = existing._tag === 'Existing' ? existing.resource : null
+    const identityLocator =
+      existing._tag === 'Existing' && existing.legacy ? payload.locator : normalizedLocator
     const occurrenceId = `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${identityLocator}`
     const replayResource = yield* findReplayResource(
       repository,

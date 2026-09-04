@@ -62,7 +62,7 @@ export function repairManagedAttachment(
         createdAt: resource.createdAt,
         updatedAt: input.createdAt,
       })
-      return
+      return false
     }
 
     const existingCopy = yield* inspectManagedCopy(repository, store, input.sessionId, resource.id)
@@ -98,5 +98,6 @@ export function repairManagedAttachment(
       )
     if (repaired.id !== resource.id) yield* store.remove(stored.value.path)
     else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.value.path)
+    return true
   })
 }

@@ -31,6 +31,7 @@ export function sessionResourceTestLayer(
     readonly inspectedManagedPaths?: string[]
     readonly readManagedPaths?: string[]
     readonly storeFileFails?: boolean
+    readonly storeFileFailsFor?: readonly string[]
     readonly listedResources?: readonly SessionResource[]
     readonly hasOccurrence?: boolean
     readonly rekeyedCanonicalKeys?: string[]
@@ -129,7 +130,7 @@ export function sessionResourceTestLayer(
       SessionResourceStore,
       SessionResourceStore.of({
         storeFile: (input) =>
-          options.storeFileFails
+          options.storeFileFails || options.storeFileFailsFor?.includes(input.sourcePath)
             ? Effect.fail(
                 new SessionResourceStoreError({
                   operation: 'storeFile',

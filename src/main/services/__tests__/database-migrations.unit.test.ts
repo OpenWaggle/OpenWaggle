@@ -74,6 +74,7 @@ function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
         }
       }
 
+      if (migration.run) yield* migration.run(sql)
       for (const statement of migration.statements) {
         yield* sql.unsafe(statement)
       }

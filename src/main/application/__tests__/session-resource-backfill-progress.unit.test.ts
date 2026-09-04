@@ -4,10 +4,8 @@ import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
-import {
-  ATTACHMENT_BACKFILL_LIMITS,
-  captureProjectedSessionResources,
-} from '../session-resource-backfill'
+import { captureProjectedSessionResources } from '../session-resource-backfill'
+import { ATTACHMENT_BACKFILL_LIMITS } from '../session-resource-backfill-budget'
 import { GENERATED_IMAGE_CAPTURE_LIMITS } from '../session-resource-capture'
 import { PNG_BASE64, sessionResourceTestLayer } from './session-resource-capture.fixtures'
 

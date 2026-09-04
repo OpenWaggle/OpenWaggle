@@ -19,6 +19,7 @@ import {
   type StoredSessionResourceFile,
 } from '../ports/session-resource-store'
 import { repairManagedAttachment } from './session-resource-capture-attachment-repair'
+import { findUnavailableAttachment } from './session-resource-capture-attachment-unavailable'
 import {
   inspectManagedCopy,
   occurrence,
@@ -258,22 +259,24 @@ function captureStoredAttachment(
 export function captureAttachment(input: CaptureAttachmentInput) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
-    const fallbackCanonicalKey = `file:${input.attachment.path}`
     const id = attachmentOccurrenceId(input)
-    const fallbackResource = yield* repository.findByCanonicalKey(
-      input.sessionId,
+    const fallbackCanonicalKey = `unavailable-attachment:${id}`
+    const unavailableResource = yield* findUnavailableAttachment(
+      repository,
+      {
+        sessionId: input.sessionId,
+        sourcePath: input.attachment.path,
+        repairResource: input.repairResource,
+      },
+      id,
       fallbackCanonicalKey,
     )
-    const unavailableResource =
-      input.repairResource ??
-      (fallbackResource?.occurrences.some((item) => item.id === id) ? fallbackResource : null)
     if (input.repairResource?.available) {
       const store = yield* SessionResourceStore
-      yield* repairManagedAttachment(input, id, input.repairResource, repository, store)
-      return
+      return yield* repairManagedAttachment(input, id, input.repairResource, repository, store)
     }
     const occurrenceExists = yield* repository.hasOccurrence(input.sessionId, id)
-    if (occurrenceExists && unavailableResource?.available !== false) return
+    if (occurrenceExists && unavailableResource?.available !== false) return false
     const store = yield* SessionResourceStore
     const resourceId =
       unavailableResource?.available === false ? unavailableResource.id : randomUUID()
@@ -281,11 +284,13 @@ export function captureAttachment(input: CaptureAttachmentInput) {
       input,
       id,
       resourceId,
-      fallbackCanonicalKey,
+      unavailableResource?.available === false
+        ? unavailableResource.canonicalKey
+        : fallbackCanonicalKey,
       repository,
       store,
     )
-    if (storedResult._tag === 'Unavailable') return
+    if (storedResult._tag === 'Unavailable') return false
     const { stored } = storedResult
     const kind = yield* classifyStoredAttachment(input, stored, store)
     if (unavailableResource?.available === false) {
@@ -298,8 +303,9 @@ export function captureAttachment(input: CaptureAttachmentInput) {
         repository,
         store,
       )
-      return
+      return true
     }
     yield* captureStoredAttachment(input, id, resourceId, stored, kind, repository, store)
+    return true
   })
 }

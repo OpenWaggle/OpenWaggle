@@ -188,44 +188,6 @@ describe('extension session resource capability', () => {
     ).toHaveLength(1)
   })
 
-  it('adopts normalized legacy URL identity while preserving existing resource semantics', async () => {
-    const existing: SessionResource = {
-      ...privateResource(SESSION_ID, 'existing-link'),
-      canonicalKey: 'url:HTTPS://EXAMPLE.COM/shared',
-      kind: 'change-request',
-      title: 'Existing source',
-      locator: 'HTTPS://EXAMPLE.COM/shared',
-      managed: false,
-      available: false,
-    }
-    const extensionPackage = resourcesPackage()
-    const test = makeBrokerHarness({
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-      sessionDetail: makeSessionDetail(PROJECT_PATH),
-      resources: [existing],
-    })
-
-    await test.run(
-      invocation({
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
-        payload: {
-          key: 'shared',
-          title: 'Shared source',
-          kind: 'image',
-          role: 'source',
-          locator: 'https://example.com/shared',
-        },
-      }),
-    )
-
-    expect(test.resourceUpserts()[0]?.id).not.toBe('existing-link')
-    expect(test.resourceUpserts()[0]?.kind).toBe('change-request')
-    expect(test.resourceUpserts()[0]?.canonicalKey).toBe('url:HTTPS://EXAMPLE.COM/shared')
-    expect(test.resourceUpserts()[0]?.title).toBe('Existing source')
-    expect(test.resourceUpserts()[0]?.available).toBe(false)
-  })
-
   it('rejects unbound trusted-main resource access', async () => {
     const basePackage = resourcesPackage()
     const trustedPackage = {

@@ -7,6 +7,47 @@ import { captureLink } from '../session-resource-capture'
 import { sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
 describe('session resource link identity', () => {
+  it('does not let a generic link adopt a legacy image row', async () => {
+    const legacyImage: SessionResource = {
+      id: 'legacy-extension-image',
+      sessionId: SessionId('session-1'),
+      canonicalKey: 'url:https://images.example.com/architecture.png',
+      kind: 'image',
+      title: 'Extension image',
+      mimeType: null,
+      locator: 'https://images.example.com/architecture.png',
+      managed: false,
+      available: true,
+      isSource: false,
+      isOutput: true,
+      occurrences: [],
+      createdAt: 1000,
+      updatedAt: 1000,
+    }
+    const upserts: UpsertSessionResourceInput[] = []
+
+    await Effect.runPromise(
+      captureLink({
+        sessionId: SessionId('session-1'),
+        runId: 'run-generic-reference',
+        link: {
+          url: 'https://images.example.com/architecture.png',
+          title: 'Documentation',
+          image: false,
+        },
+        index: 0,
+        nodeId: 'assistant-message',
+        actor: 'agent',
+        activity: 'read',
+        createdAt: 2000,
+      }).pipe(
+        Effect.provide(sessionResourceTestLayer(upserts, { existingResources: [legacyImage] })),
+      ),
+    )
+
+    expect(upserts).toEqual([])
+  })
+
   it('keeps a Markdown image separate from an existing change-request URL', async () => {
     const changeRequest: SessionResource = {
       id: 'change-request-resource',
