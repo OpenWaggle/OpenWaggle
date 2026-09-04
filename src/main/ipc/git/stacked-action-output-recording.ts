@@ -7,6 +7,7 @@ import {
   putPendingSessionOutput,
   removePendingSessionOutput,
 } from '../../application/session-change-request-output-retry'
+import { withSessionResourceLock } from '../../application/session-resource-lock'
 import {
   recordSessionChangeRequest,
   recordSessionCommit,
@@ -27,7 +28,8 @@ function recordCommitOutput(
     const pending = pendingCommitOutput(sessionId, result.commit, occurrenceContext)
     const queued = yield* putPendingSessionOutput(pending).pipe(Effect.either)
     const winningPending = queued._tag === 'Right' ? queued.right : pending
-    const recording = yield* recordSessionCommit(sessionId, result.commit, winningPending).pipe(
+    const winningCommit = winningPending.kind === 'commit' ? winningPending : pending
+    const recording = yield* recordSessionCommit(sessionId, winningCommit, winningCommit).pipe(
       Effect.either,
     )
     if (recording._tag === 'Left') {
@@ -76,10 +78,11 @@ function recordChangeRequestOutput(
     const pending = pendingChangeRequestOutput(sessionId, createdRequest, occurrenceContext)
     const queued = yield* putPendingSessionOutput(pending).pipe(Effect.either)
     const winningPending = queued._tag === 'Right' ? queued.right : pending
+    const winningRequest = winningPending.kind === 'change-request' ? winningPending : pending
     const recording = yield* recordSessionChangeRequest(
       sessionId,
-      createdRequest,
-      winningPending,
+      winningRequest,
+      winningRequest,
     ).pipe(Effect.either)
     if (recording._tag === 'Left') {
       logger.warn('Could not record created change request output', {
@@ -113,8 +116,11 @@ export function recordStackedActionOutputs(
   sessionId: SessionId,
   occurrenceContext: SessionOutputOccurrenceContext,
 ) {
-  return Effect.gen(function* () {
-    const withCommit = yield* recordCommitOutput(result, sessionId, occurrenceContext)
-    return yield* recordChangeRequestOutput(withCommit, sessionId, occurrenceContext)
-  })
+  return withSessionResourceLock(
+    sessionId,
+    Effect.gen(function* () {
+      const withCommit = yield* recordCommitOutput(result, sessionId, occurrenceContext)
+      return yield* recordChangeRequestOutput(withCommit, sessionId, occurrenceContext)
+    }),
+  )
 }

@@ -112,4 +112,48 @@ describe('Output retry provenance migrations', () => {
       expect.arrayContaining(['node_id', 'branch_id']),
     )
   })
+
+  it('backfills the metadata revision for existing retries', async () => {
+    const result = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 33)
+        yield* sql.unsafe(`ALTER TABLE session_output_retries DROP COLUMN updated_at`)
+        yield* sql`
+          INSERT INTO sessions (id, pi_session_id, title, archived, created_at, updated_at)
+          VALUES ('session-1', 'pi-session-1', 'Session', 0, 1000, 1000)
+        `
+        yield* sql`
+          INSERT INTO session_output_retries (
+            id, session_id, kind, title, url, node_id, branch_id, created_at
+          ) VALUES (
+            'pending-request', 'session-1', 'change-request', 'Title',
+            'https://example.invalid/pull/1', 'node-1', 'branch-1', 1234
+          )
+        `
+        yield* applyMigrations(sql, 34)
+        const beforeBackfill = yield* sql<{ readonly updated_at: number }>`
+          SELECT updated_at FROM session_output_retries WHERE id = 'pending-request'
+        `
+        yield* applyMigrations(sql, 35)
+        const rows = yield* sql<{ readonly updated_at: number }>`
+          SELECT updated_at FROM session_output_retries WHERE id = 'pending-request'
+        `
+        return {
+          columns: yield* outputRetryColumns(sql),
+          beforeBackfill: beforeBackfill[0]?.updated_at,
+          updatedAt: rows[0]?.updated_at,
+        }
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 34)?.name).toBe(
+      'session-output-retry-metadata-revision',
+    )
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 35)?.name).toBe(
+      'session-output-retry-metadata-revision-backfill',
+    )
+    expect(result.columns.map((column) => column.name)).toContain('updated_at')
+    expect(result.beforeBackfill).toBe(0)
+    expect(result.updatedAt).toBe(1234)
+  })
 })

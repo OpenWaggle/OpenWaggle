@@ -86,7 +86,7 @@ describe('stacked action Output recording', () => {
     expect(pendingOutputs).toEqual([])
   })
 
-  it('uses the winning queued provenance when the same request is repeated on another branch', async () => {
+  it('uses the winning queued payload and provenance when a request is repeated', async () => {
     const upserts: Parameters<typeof sessionResourceTestLayer>[0] = []
     const removedIds: string[] = []
     const sessionId = SessionId('originating-session')
@@ -98,6 +98,7 @@ describe('stacked action Output recording', () => {
           put: (output) =>
             Effect.succeed({
               ...output,
+              title: 'Latest queued title',
               nodeId: 'original-node',
               branchId: 'original-branch',
               createdAt: 1000,
@@ -147,6 +148,8 @@ describe('stacked action Output recording', () => {
       branchId: 'original-branch',
       createdAt: 1000,
     })
+    expect(upserts[0]?.title).toBe('Latest queued title')
+    expect(upserts[0]?.updatedAt).toBe(2000)
     expect(removedIds).toHaveLength(1)
   })
 

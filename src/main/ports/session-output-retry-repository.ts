@@ -8,6 +8,7 @@ interface PendingSessionOutputBase {
   readonly nodeId: string | null
   readonly branchId: string | null
   readonly createdAt: number
+  readonly updatedAt: number
 }
 
 export interface PendingCommitSessionOutput extends PendingSessionOutputBase {

@@ -11,16 +11,21 @@ export interface SessionOutputOccurrenceContext {
   readonly nodeId: string | null
   readonly branchId: string | null
   readonly createdAt: number
+  readonly updatedAt?: number
 }
 
 export function resolveSessionOutputOccurrenceContext(sessionId: SessionId) {
   return SessionRepository.pipe(
     Effect.flatMap((sessions) => sessions.getWorkspace(sessionId)),
-    Effect.map((workspace) => ({
-      nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
-      branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
-      createdAt: Date.now(),
-    })),
+    Effect.map((workspace): SessionOutputOccurrenceContext => {
+      const createdAt = Date.now()
+      return {
+        nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,
+        branchId: workspace?.activeBranchId ? String(workspace.activeBranchId) : null,
+        createdAt,
+        updatedAt: createdAt,
+      }
+    }),
   )
 }
 
@@ -38,6 +43,7 @@ export function recordSessionChangeRequest(
     const repository = yield* SessionResourceRepository
     const context = occurrenceContext ?? (yield* resolveSessionOutputOccurrenceContext(sessionId))
     const createdAt = context.createdAt
+    const updatedAt = context.updatedAt ?? createdAt
     const resourceId = randomUUID()
     return yield* repository.upsert({
       id: resourceId,
@@ -59,7 +65,7 @@ export function recordSessionChangeRequest(
         createdAt,
       },
       createdAt,
-      updatedAt: createdAt,
+      updatedAt,
     })
   })
 }
@@ -73,6 +79,7 @@ export function recordSessionCommit(
     const repository = yield* SessionResourceRepository
     const context = occurrenceContext ?? (yield* resolveSessionOutputOccurrenceContext(sessionId))
     const createdAt = context.createdAt
+    const updatedAt = context.updatedAt ?? createdAt
     const resourceId = randomUUID()
     return yield* repository.upsert({
       id: resourceId,
@@ -95,7 +102,7 @@ export function recordSessionCommit(
         createdAt,
       },
       createdAt,
-      updatedAt: createdAt,
+      updatedAt,
     })
   })
 }

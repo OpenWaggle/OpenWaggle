@@ -37,6 +37,7 @@ export function pendingChangeRequestOutput(
     kind: 'change-request',
     ...input,
     ...occurrenceContext,
+    updatedAt: occurrenceContext.createdAt,
   }
 }
 
@@ -51,6 +52,7 @@ export function pendingCommitOutput(
     kind: 'commit',
     ...input,
     ...occurrenceContext,
+    updatedAt: occurrenceContext.createdAt,
   }
 }
 

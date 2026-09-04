@@ -20,6 +20,7 @@ interface PendingOutputRow {
   readonly node_id: string | null
   readonly branch_id: string | null
   readonly created_at: number
+  readonly updated_at: number
 }
 
 function repositoryError(operation: string, cause: unknown) {
@@ -33,6 +34,7 @@ function decodeRow(row: PendingOutputRow): PendingSessionOutput {
     nodeId: row.node_id,
     branchId: row.branch_id,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
   if (row.kind === 'commit' && row.commit_hash !== null && row.summary !== null) {
     return { ...base, kind: 'commit', commitHash: row.commit_hash, summary: row.summary }
@@ -52,7 +54,7 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
         sql<PendingOutputRow>`
           INSERT INTO session_output_retries (
             id, session_id, kind, commit_hash, summary, title, url,
-            node_id, branch_id, created_at
+            node_id, branch_id, created_at, updated_at
           ) VALUES (
             ${output.id},
             ${output.sessionId},
@@ -63,17 +65,35 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             ${output.kind === 'change-request' ? output.url : null},
             ${output.nodeId},
             ${output.branchId},
-            ${output.createdAt}
+            ${output.createdAt},
+            ${output.updatedAt}
           )
           ON CONFLICT(id) DO UPDATE SET
-            commit_hash = excluded.commit_hash,
-            summary = excluded.summary,
-            title = excluded.title,
-            url = excluded.url
+            commit_hash = CASE
+              WHEN excluded.updated_at >= session_output_retries.updated_at
+                THEN excluded.commit_hash
+              ELSE session_output_retries.commit_hash
+            END,
+            summary = CASE
+              WHEN excluded.updated_at >= session_output_retries.updated_at
+                THEN excluded.summary
+              ELSE session_output_retries.summary
+            END,
+            title = CASE
+              WHEN excluded.updated_at >= session_output_retries.updated_at
+                THEN excluded.title
+              ELSE session_output_retries.title
+            END,
+            url = CASE
+              WHEN excluded.updated_at >= session_output_retries.updated_at
+                THEN excluded.url
+              ELSE session_output_retries.url
+            END,
+            updated_at = MAX(session_output_retries.updated_at, excluded.updated_at)
           WHERE session_output_retries.session_id = excluded.session_id
             AND session_output_retries.kind = excluded.kind
           RETURNING id, session_id, kind, commit_hash, summary, title, url,
-                    node_id, branch_id, created_at
+                    node_id, branch_id, created_at, updated_at
         `.pipe(
           Effect.mapError((cause) => repositoryError('put', cause)),
           Effect.flatMap((rows) => {
@@ -94,7 +114,7 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
       list: (sessionId) =>
         sql<PendingOutputRow>`
           SELECT id, session_id, kind, commit_hash, summary, title, url,
-                 node_id, branch_id, created_at
+                 node_id, branch_id, created_at, updated_at
           FROM session_output_retries
           WHERE session_id = ${sessionId}
           ORDER BY created_at ASC, id ASC
@@ -115,6 +135,7 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             AND node_id IS ${output.nodeId}
             AND branch_id IS ${output.branchId}
             AND created_at = ${output.createdAt}
+            AND updated_at = ${output.updatedAt}
         `.pipe(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('remove', cause)),

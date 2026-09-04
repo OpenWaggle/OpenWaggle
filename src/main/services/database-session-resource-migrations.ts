@@ -48,4 +48,17 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     run: runSessionResourceIdentityIsolationMigration,
     statements: SESSION_RESOURCE_IDENTITY_ISOLATION_MIGRATION_STATEMENTS,
   },
+  {
+    id: 34,
+    name: 'session-output-retry-metadata-revision',
+    skipIfColumn: { table: 'session_output_retries', column: 'updated_at' },
+    statements: [
+      `ALTER TABLE session_output_retries ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    id: 35,
+    name: 'session-output-retry-metadata-revision-backfill',
+    statements: [`UPDATE session_output_retries SET updated_at = created_at WHERE updated_at = 0`],
+  },
 ] as const

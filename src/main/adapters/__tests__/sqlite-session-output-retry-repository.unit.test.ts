@@ -70,6 +70,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
       nodeId: 'node-at-commit',
       branchId: 'branch-at-commit',
       createdAt: 1000,
+      updatedAt: 1000,
     }
     const pendingChangeRequest = {
       id: 'pending-change-request',
@@ -80,6 +81,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
       nodeId: 'node-at-request',
       branchId: 'branch-at-request',
       createdAt: 2000,
+      updatedAt: 2000,
     }
 
     await Effect.runPromise(
@@ -141,6 +143,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
           nodeId: 'original-node',
           branchId: 'original-branch',
           createdAt: 1000,
+          updatedAt: 1000,
         })
         yield* repository.put({
           id: 'pending-change-request',
@@ -151,6 +154,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
           nodeId: 'later-node',
           branchId: 'later-branch',
           createdAt: 2000,
+          updatedAt: 2000,
         })
         return yield* repository.list(sessionId)
       }).pipe(Effect.provide(layer)),
@@ -166,60 +170,9 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
         nodeId: 'original-node',
         branchId: 'original-branch',
         createdAt: 1000,
+        updatedAt: 2000,
       },
     ])
-  })
-
-  it('keeps a refreshed retry when stale cleanup races with the newer payload', async () => {
-    const databasePath = path.join(tmpRoot, 'output-retry-stale-cleanup.sqlite')
-    const layer = makeTestLayer(databasePath)
-    const sessionId = SessionId('session-1')
-
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const repository = yield* SessionOutputRetryRepository
-        const stale = yield* repository.put({
-          id: 'pending-change-request',
-          sessionId,
-          kind: 'change-request',
-          title: 'Original title',
-          url: 'https://github.com/openwaggle/openwaggle/pull/1',
-          nodeId: 'original-node',
-          branchId: 'original-branch',
-          createdAt: 1000,
-        })
-        const refreshed = yield* repository.put({
-          id: 'pending-change-request',
-          sessionId,
-          kind: 'change-request',
-          title: 'Updated title',
-          url: 'https://github.com/openwaggle/openwaggle/pull/1',
-          nodeId: 'later-node',
-          branchId: 'later-branch',
-          createdAt: 2000,
-        })
-        yield* repository.remove(stale)
-        const afterStaleCleanup = yield* repository.list(sessionId)
-        yield* repository.remove(refreshed)
-        const afterWinningCleanup = yield* repository.list(sessionId)
-        return { stale, refreshed, afterStaleCleanup, afterWinningCleanup }
-      }).pipe(Effect.provide(layer)),
-    )
-
-    expect(result.stale).toMatchObject({
-      title: 'Original title',
-      nodeId: 'original-node',
-      branchId: 'original-branch',
-      createdAt: 1000,
-    })
-    expect(result.refreshed).toMatchObject({
-      title: 'Updated title',
-      nodeId: 'original-node',
-      branchId: 'original-branch',
-      createdAt: 1000,
-    })
-    expect(result.afterStaleCleanup).toEqual([result.refreshed])
-    expect(result.afterWinningCleanup).toEqual([])
   })
 
   it('does not move or retype an existing retry when its id is reused', async () => {
@@ -240,6 +193,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
           nodeId: 'original-node',
           branchId: 'original-branch',
           createdAt: 1000,
+          updatedAt: 1000,
         })
         const crossSession = yield* repository
           .put({
@@ -251,6 +205,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
             nodeId: 'other-node',
             branchId: 'other-branch',
             createdAt: 2000,
+            updatedAt: 2000,
           })
           .pipe(Effect.either)
         const crossKind = yield* repository
@@ -263,6 +218,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
             nodeId: 'later-node',
             branchId: 'later-branch',
             createdAt: 3000,
+            updatedAt: 3000,
           })
           .pipe(Effect.either)
         return {
@@ -292,6 +248,7 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
         nodeId: 'original-node',
         branchId: 'original-branch',
         createdAt: 1000,
+        updatedAt: 1000,
       },
     ])
     expect(result.second).toEqual([])

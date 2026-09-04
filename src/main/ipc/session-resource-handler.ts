@@ -16,6 +16,7 @@ import {
   readSessionResourceContent,
   readSessionResourceThumbnail,
 } from '../application/session-resource-content'
+import { withSessionResourceLock } from '../application/session-resource-lock'
 import {
   recordSessionChangeRequest,
   recordSessionCommit,
@@ -30,21 +31,24 @@ import { typedHandle } from './typed-ipc'
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
 
 function retryPendingOutputs(sessionId: SessionId) {
-  return listPendingSessionOutputs(sessionId).pipe(
-    Effect.flatMap((outputs) =>
-      Effect.forEach(outputs, (output) => {
-        const recording =
-          output.kind === 'commit'
-            ? recordSessionCommit(sessionId, output, output)
-            : recordSessionChangeRequest(sessionId, output, output)
-        return recording.pipe(
-          Effect.flatMap(() => removePendingSessionOutput(output)),
-          Effect.catchAll(() => Effect.void),
-        )
-      }),
+  return withSessionResourceLock(
+    sessionId,
+    listPendingSessionOutputs(sessionId).pipe(
+      Effect.flatMap((outputs) =>
+        Effect.forEach(outputs, (output) => {
+          const recording =
+            output.kind === 'commit'
+              ? recordSessionCommit(sessionId, output, output)
+              : recordSessionChangeRequest(sessionId, output, output)
+          return recording.pipe(
+            Effect.flatMap(() => removePendingSessionOutput(output)),
+            Effect.catchAll(() => Effect.void),
+          )
+        }),
+      ),
+      Effect.catchAll(() => Effect.void),
+      Effect.asVoid,
     ),
-    Effect.catchAll(() => Effect.void),
-    Effect.asVoid,
   )
 }
 
@@ -189,25 +193,30 @@ export function registerSessionResourceHandlers(): void {
           decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
         )
         const input = decodeUnknownOrThrow(recordSessionChangeRequestInputSchema, rawInput)
-        const pending = (yield* listPendingSessionOutputs(sessionId)).find(
-          (output) =>
-            output.kind === 'change-request' &&
-            output.title === input.title &&
-            output.url === input.url,
+        return yield* withSessionResourceLock(
+          sessionId,
+          Effect.gen(function* () {
+            const pending = (yield* listPendingSessionOutputs(sessionId)).find(
+              (output) =>
+                output.kind === 'change-request' &&
+                output.title === input.title &&
+                output.url === input.url,
+            )
+            if (!pending) {
+              const repository = yield* SessionResourceRepository
+              const existing = (yield* repository.list(sessionId)).find(
+                (resource) => resource.kind === 'change-request' && resource.locator === input.url,
+              )
+              if (existing) return existing
+              return yield* Effect.fail(
+                new Error('No matching created change request is pending Output recording.'),
+              )
+            }
+            const recorded = yield* recordSessionChangeRequest(sessionId, input, pending)
+            yield* removePendingSessionOutput(pending)
+            return recorded
+          }),
         )
-        if (!pending) {
-          const repository = yield* SessionResourceRepository
-          const existing = (yield* repository.list(sessionId)).find(
-            (resource) => resource.kind === 'change-request' && resource.locator === input.url,
-          )
-          if (existing) return existing
-          return yield* Effect.fail(
-            new Error('No matching created change request is pending Output recording.'),
-          )
-        }
-        const recorded = yield* recordSessionChangeRequest(sessionId, input, pending)
-        yield* removePendingSessionOutput(pending)
-        return recorded
       }),
   )
 }

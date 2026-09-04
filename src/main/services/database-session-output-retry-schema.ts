@@ -9,6 +9,7 @@ export const SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT = `
     url TEXT,
     node_id TEXT,
     branch_id TEXT,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT 0
   )
   `
