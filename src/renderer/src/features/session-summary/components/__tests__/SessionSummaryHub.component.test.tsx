@@ -95,6 +95,7 @@ function resource(overrides: Partial<SessionResource>): SessionResource {
     createdAt: 1000,
     updatedAt: 1000,
     ...overrides,
+    managed: overrides.managed ?? true,
   }
 }
 

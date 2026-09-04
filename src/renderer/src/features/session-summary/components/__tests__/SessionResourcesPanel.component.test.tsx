@@ -38,6 +38,7 @@ function resource(
     sessionId: SessionId('session-one'),
     canonicalKey: `resource:${id}`,
     mimeType: input.kind === 'image' ? 'image/png' : null,
+    managed: input.locator?.startsWith('session-resource://') === true,
     available: input.available ?? true,
     occurrences: [],
     createdAt: 1,

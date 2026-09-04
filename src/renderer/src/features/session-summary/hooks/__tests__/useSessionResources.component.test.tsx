@@ -33,6 +33,7 @@ const RESOURCE: SessionResource = {
   title: 'output.png',
   mimeType: 'image/png',
   locator: 'session-resource://resource-one',
+  managed: true,
   available: true,
   isSource: false,
   isOutput: true,

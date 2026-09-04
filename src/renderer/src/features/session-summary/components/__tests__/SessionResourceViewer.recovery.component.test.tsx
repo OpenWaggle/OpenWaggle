@@ -39,6 +39,7 @@ function image(
     title,
     mimeType: 'image/png',
     locator,
+    managed: locator.startsWith('session-resource://'),
     available: true,
     isSource: true,
     isOutput: false,

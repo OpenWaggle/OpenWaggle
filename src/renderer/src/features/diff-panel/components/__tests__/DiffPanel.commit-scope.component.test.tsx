@@ -105,7 +105,6 @@ describe('commit scope', () => {
       ok: true,
       action: 'commit',
       branch: { status: 'unchanged', name: 'main' },
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
       changeRequest: null,
       commit: { commitHash: 'abc123', summary: 'Test commit' },
     })
