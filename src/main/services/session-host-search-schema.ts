@@ -122,6 +122,7 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE VIRTUAL TABLE session_node_discovery_search USING fts5(
     session_id UNINDEXED,
+    archived UNINDEXED,
     initial_objective,
     current_preview,
     tokenize = 'unicode61 remove_diacritics 2'
@@ -137,14 +138,23 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     INSERT INTO session_catalog_search (session_id, title, project_path)
     VALUES (new.id, new.title, COALESCE(new.project_path, ''));
     INSERT INTO session_node_discovery_search (
-      session_id, initial_objective, current_preview
-    ) VALUES (new.id, '', '');
+      session_id, archived, initial_objective, current_preview
+    ) VALUES (new.id, new.archived, '', '');
     INSERT INTO session_discovery_search_rows (
       session_id, search_rowid, initial_objective, current_preview
     ) VALUES (new.id, last_insert_rowid(), '', '');
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
+  END
+  `,
+  `
+  CREATE TRIGGER session_node_discovery_archive_update
+  AFTER UPDATE OF archived ON sessions BEGIN
+    UPDATE session_node_discovery_search SET archived = new.archived
+    WHERE rowid = (
+      SELECT search_rowid FROM session_discovery_search_rows WHERE session_id = new.id
+    );
   END
   `,
   `

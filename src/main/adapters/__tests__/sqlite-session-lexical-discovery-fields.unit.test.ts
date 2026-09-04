@@ -85,5 +85,30 @@ describe('SQLite Session lexical discovery fields', () => {
         },
       ],
     })
+
+    await runtime.runPromise(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql`UPDATE sessions SET archived = ${1} WHERE id = ${'field-boundary'}`,
+      ),
+    )
+    const hidden = await executeQuery(runtime, {
+      operation: 'search',
+      query: 'sharedmarker',
+      mode: 'lexical',
+      limit: 10,
+    })
+    const included = await executeQuery(runtime, {
+      operation: 'search',
+      query: 'sharedmarker',
+      mode: 'lexical',
+      includeArchived: true,
+      limit: 10,
+    })
+    expect(hidden.outcome).toMatchObject({ operation: 'search', sessions: [] })
+    expect(included.outcome).toMatchObject({
+      operation: 'search',
+      sessions: [{ sessionId: 'field-boundary' }],
+    })
   })
 })

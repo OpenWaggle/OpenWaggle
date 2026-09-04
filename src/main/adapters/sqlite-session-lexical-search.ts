@@ -140,15 +140,20 @@ function lexicalCandidateRows(
 function lexicalDiscoveryRankingCte(
   sql: SqlClient.SqlClient,
   parameters: ReturnType<typeof lexicalSearchParameters>,
+  requiresEligibleSessionJoin: boolean,
 ) {
+  const eligibleSessionJoin = requiresEligibleSessionJoin
+    ? sql`JOIN eligible_sessions
+        ON eligible_sessions.session_id = session_node_discovery_search.session_id`
+    : sql``
   return sql`
     discovery_ranked_sessions AS MATERIALIZED (
       SELECT session_node_discovery_search.session_id,
-        bm25(session_node_discovery_search, 0.0, 3.0, 3.0) AS score
+        bm25(session_node_discovery_search, 0.0, 0.0, 3.0, 3.0) AS score
       FROM session_node_discovery_search
-      JOIN eligible_sessions
-        ON eligible_sessions.session_id = session_node_discovery_search.session_id
+      ${eligibleSessionJoin}
       WHERE ${parameters.fullTranscript} = 0
+        AND (${parameters.includeArchived} = 1 OR session_node_discovery_search.archived = ${0})
         AND session_node_discovery_search MATCH ${parameters.discoveryFtsQuery}
       ORDER BY score, session_node_discovery_search.session_id
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
@@ -186,7 +191,11 @@ export function loadLexicalDiscoveryRows(
       seedTranscriptTerm,
       allowed.all === 1,
     )
-    const discoveryRankingCte = lexicalDiscoveryRankingCte(sql, parameters)
+    const discoveryRankingCte = lexicalDiscoveryRankingCte(
+      sql,
+      parameters,
+      allowed.all !== 1 || Boolean(request.query.projectPath || request.query.workingPath),
+    )
     const rows = yield* sql<LexicalDiscoverySearchRow>`
       WITH authorized_sessions AS (
       SELECT sessions.id AS session_id

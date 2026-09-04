@@ -24,9 +24,9 @@ export function refreshSessionLexicalDiscoverySql(sessionIdSql: string) {
   return `
     DELETE FROM session_discovery_search_rows WHERE session_id = ${sessionIdSql};
     INSERT INTO session_node_discovery_search (
-      session_id, initial_objective, current_preview
+      session_id, archived, initial_objective, current_preview
     )
-    SELECT sessions.id,
+    SELECT sessions.id, sessions.archived,
       COALESCE((
         SELECT ${INITIAL_DISCOVERY_CONTENT}
         FROM session_nodes AS initial_node

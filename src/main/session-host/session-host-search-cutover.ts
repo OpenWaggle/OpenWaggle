@@ -17,9 +17,9 @@ export function populateSessionSearchCatalog(database: DatabaseSync) {
     INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
     SELECT node_id, session_id, rowid FROM session_node_search;
     INSERT INTO session_node_discovery_search (
-      session_id, initial_objective, current_preview
+      session_id, archived, initial_objective, current_preview
     )
-    SELECT sessions.id,
+    SELECT sessions.id, sessions.archived,
       COALESCE((
         SELECT ${CUTOVER_INITIAL_DISCOVERY_CONTENT}
         FROM session_nodes AS initial_node
