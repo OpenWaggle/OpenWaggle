@@ -147,6 +147,25 @@ describe('useSteerWorkflow', () => {
     expect(setup.preview.setDurableContent).toHaveBeenCalledWith('Expanded review skill')
   })
 
+  it('clears a command preview when Pi handles it before the steering queue', async () => {
+    const commandPayload = { ...PAYLOAD, text: '/registered-command' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued command')
+    const setup = createDeps(false)
+    setup.deps.steer.mockResolvedValueOnce({ delivery: 'handled' })
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.preview.clear).toHaveBeenCalledOnce()
+    expect(setup.preview.setDurableContent).not.toHaveBeenCalled()
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
+    expect(setup.deps.showToast).not.toHaveBeenCalled()
+  })
+
   it.each(['/compact focus on decisions', '/fork', '/clone'])(
     'keeps renderer-owned command %s queued instead of steering it as model text',
     async (text) => {

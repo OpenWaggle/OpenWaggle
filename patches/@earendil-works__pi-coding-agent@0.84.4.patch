@@ -12,7 +12,7 @@ index 2f53b55e0a9979403af4288f6d89c4e53ca1f749..cc3b45b94f8ff61464a2a4103c1d1887
          await this.finishSessionReplacement(options?.withSession);
          return { cancelled: false };
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..557f9df3b0a95a0ede19ea240c6fa4d9fa8c481d 100644
+index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..332c15bea36c3a1cfcf91340287021503b1d8f3c 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -108,6 +108,10 @@ export type AgentSessionEvent = Exclude<AgentEvent, {
@@ -53,7 +53,7 @@ index 8c7cfec6fc0ec004f17c08c52a58c354b28b3978..557f9df3b0a95a0ede19ea240c6fa4d9
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index fd82b71cf332715f185d07459429f04ed7491ce9..a7efeb1653aee03bb264b26cd7c36a4d10f9124c 100644
+index fd82b71cf332715f185d07459429f04ed7491ce9..87d5aa7a52a08f971c71c6daddffbde268d60b64 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -22,16 +22,17 @@ import { sleep } from "../utils/sleep.js";
@@ -323,15 +323,6 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..a7efeb1653aee03bb264b26cd7c36a4d
      }
      /**
       * Send a prompt to the agent.
-@@ -843,7 +969,7 @@ export class AgentSession {
-                 const inputResult = await this._extensionRunner.emitInput(currentText, currentImages, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
-                 if (inputResult.action === "handled") {
-                     preflightResult?.(true);
--                    return;
-+                    return currentText;
-                 }
-                 if (inputResult.action === "transform") {
-                     currentText = inputResult.text;
 @@ -868,7 +994,7 @@ export class AgentSession {
                      await this._queueSteer(expandedText, currentImages);
                  }

@@ -78,10 +78,14 @@ export interface AgentSendPayload {
   readonly visualizationContext?: InlineVisualizationContext
 }
 
-export interface AgentSteerDeliveryResult {
-  readonly delivery: 'queued'
-  readonly durableText: string
-}
+export type AgentSteerDeliveryResult =
+  | {
+      readonly delivery: 'queued'
+      readonly durableText: string
+    }
+  | {
+      readonly delivery: 'handled'
+    }
 
 export interface InlineVisualizationContext {
   readonly title: string

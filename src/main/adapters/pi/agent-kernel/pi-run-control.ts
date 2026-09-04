@@ -62,7 +62,9 @@ export function createPiRunControl(
           ...(images ? { images } : {}),
           streamingBehavior: 'steer',
         })
-        return { delivery: 'queued', durableText: durableText ?? text }
+        return durableText === undefined
+          ? { delivery: 'handled' }
+          : { delivery: 'queued', durableText }
       }
       const durableText = await session.steer(text, images)
       return { delivery: 'queued', durableText }

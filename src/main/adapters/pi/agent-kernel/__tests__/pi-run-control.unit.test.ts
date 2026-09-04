@@ -48,6 +48,27 @@ describe('Pi native run control', () => {
     })
   })
 
+  it('preserves a Waggle command handled before it reaches the steering queue', async () => {
+    const session = {
+      isCompacting: false,
+      isStreaming: true,
+      model: modelFromReference('openai/gpt-5.5'),
+      ...nativeSteering(),
+      prompt: vi.fn(async () => undefined),
+    }
+    const control = createPiRunControl(session, new AbortController().signal, {
+      routeThroughInputHook: true,
+    })
+
+    const result = await control.steer(payload('/registered-command'))
+
+    expect(session.prompt).toHaveBeenCalledWith('/registered-command', {
+      streamingBehavior: 'steer',
+    })
+    expect(session.steer).not.toHaveBeenCalled()
+    expect(result).toEqual({ delivery: 'handled' })
+  })
+
   it('expands queued slash commands before delivering steering', async () => {
     const session = {
       isCompacting: false,

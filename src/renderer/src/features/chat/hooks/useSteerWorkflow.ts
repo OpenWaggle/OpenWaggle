@@ -63,6 +63,10 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
     setInFlightSteerCount((count) => count + 1)
     try {
       const delivery = await withDeferredSnapshotRefresh(() => steer(item.payload))
+      if (delivery.delivery === 'handled') {
+        preview.clear()
+        return
+      }
       preview.setDurableContent(delivery.durableText)
       preview.setDeliveryState('sending')
     } catch (error) {
