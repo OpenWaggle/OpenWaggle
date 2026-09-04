@@ -43,6 +43,14 @@ describe('background run render state', () => {
         summaryCountAtStart: 0,
         timeline: [
           {
+            id: '5:0',
+            phase: 'completed',
+            reason: 'threshold',
+            summaryCountAtStart: 0,
+            expectedSummaryCount: 1,
+            messageCountAtStart: 0,
+          },
+          {
             id: '10:0',
             phase: 'completed',
             reason: 'threshold',
@@ -57,7 +65,10 @@ describe('background run render state', () => {
 
     expect(next.renderSnapshotsBySessionId.get(SESSION_ID)?.compactionStatus).toMatchObject({
       type: 'completed',
-      timeline: [{ phase: 'completed', messageCountAtStart: SNAPSHOT.messages.length }],
+      timeline: [
+        { phase: 'completed', messageCountAtStart: SNAPSHOT.messages.length },
+        { phase: 'completed', messageCountAtStart: SNAPSHOT.messages.length },
+      ],
     })
   })
 })

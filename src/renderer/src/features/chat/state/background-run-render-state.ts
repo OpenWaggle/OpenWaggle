@@ -21,14 +21,13 @@ function rebaseRestoredCompaction(
 ): AgentCompactionStatus | null {
   if (!status || messageCount === 0) return status
   const timelineStatus = getTimelineCompactionStatus(status)
-  const latest = timelineStatus?.timeline.at(-1)
-  if (!timelineStatus || latest?.messageCountAtStart !== 0) return status
+  if (!timelineStatus?.timeline.some((item) => item.messageCountAtStart === 0)) {
+    return status
+  }
   const rebasedTimelineStatus = {
     ...timelineStatus,
-    timeline: timelineStatus.timeline.map((item, index) =>
-      index === timelineStatus.timeline.length - 1
-        ? { ...item, messageCountAtStart: messageCount }
-        : item,
+    timeline: timelineStatus.timeline.map((item) =>
+      item.messageCountAtStart === 0 ? { ...item, messageCountAtStart: messageCount } : item,
     ),
   }
   return status.type === 'retrying'
