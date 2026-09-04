@@ -221,10 +221,10 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +            headers = requestAuth.headers;
 +            env = requestAuth.env;
 +        }
-+        if (selectCompactionMechanism(requestModel) === "native" &&
-+            this._extensionRunner.hasHandlers("before_provider_headers")) {
++        if (selectCompactionMechanism(requestModel) === "native") {
 +            let requestHeaders = mergeProviderAttributionHeaders(requestModel, this.settingsManager, this.sessionManager.getSessionId(), headers);
-+            requestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(requestHeaders ?? {});
++            if (this._extensionRunner.hasHandlers("before_provider_headers"))
++                requestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(requestHeaders ?? {});
 +            requestModel = withNativeCredentialFingerprint(requestModel, apiKey, requestHeaders);
 +            if (this._usesModelRuntimeStream) {
 +                requestModel = withPreparedProviderHeaders(requestModel, requestHeaders);

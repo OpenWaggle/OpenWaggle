@@ -119,6 +119,50 @@ describe('Pi native compaction custom turns', () => {
     expect(providerContexts[0]).not.toContain('cmp_1')
   })
 
+  it('reuses prepared auth when the next prompt first compacts without a header hook', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-auto-auth-snapshot-')
+    const events: SessionCompactEvent[] = []
+    let phase: 'first' | 'second' = 'first'
+    let secondTurnAuthResolutions = 0
+    const compactionUrls: string[] = []
+    const providerBaseUrls: string[] = []
+    const thresholdResponse = fauxAssistantMessage('Threshold reached')
+    thresholdResponse.usage.input = 80
+    thresholdResponse.usage.totalTokens = 80
+    const compact = nativeCompactionFetch()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        compactionUrls.push(String(input))
+        return compact(input, init)
+      }),
+    )
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      authBaseUrlResolver: () => {
+        if (phase === 'first') return 'https://endpoint-a.example.test/v1'
+        secondTurnAuthResolutions += 1
+        return `https://endpoint-${secondTurnAuthResolutions === 1 ? 'b' : secondTurnAuthResolutions === 2 ? 'c' : 'd'}.example.test/v1`
+      },
+      responses: [
+        thresholdResponse,
+        (_context, _options, _state, model) => {
+          providerBaseUrls.push(model.baseUrl)
+          return fauxAssistantMessage('Second turn complete')
+        },
+      ],
+    })
+
+    await session.prompt('first turn')
+    phase = 'second'
+    await session.prompt('second turn')
+
+    expect(secondTurnAuthResolutions).toBe(2)
+    expect(compactionUrls).toEqual(['https://endpoint-b.example.test/v1/responses/compact'])
+    expect(providerBaseUrls).toEqual(['https://endpoint-c.example.test/v1'])
+  })
+
   it('reconstructs raw history when the credential changes without changing endpoints', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-credential-change-')
     const events: SessionCompactEvent[] = []

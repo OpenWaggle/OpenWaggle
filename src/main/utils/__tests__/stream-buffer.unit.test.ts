@@ -120,6 +120,36 @@ describe('stream-buffer', () => {
     })
   })
 
+  it('keeps earlier completed compactions when another compaction starts', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    const firstStart = {
+      type: 'compaction_start' as const,
+      reason: 'threshold' as const,
+      timestamp: 10,
+    }
+    const firstEnd = {
+      type: 'compaction_end' as const,
+      reason: 'threshold' as const,
+      result: { entryId: 'compaction-entry-1' },
+      aborted: false,
+      willRetry: false,
+      timestamp: 11,
+    }
+    const secondStart = {
+      type: 'compaction_start' as const,
+      reason: 'threshold' as const,
+      timestamp: 20,
+    }
+
+    applyEventToStreamBuffer(SESSION_ID, firstStart)
+    applyEventToStreamBuffer(SESSION_ID, firstEnd)
+    applyEventToStreamBuffer(SESSION_ID, secondStart)
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      activityEvents: [firstStart, firstEnd, secondStart],
+    })
+  })
+
   it('keeps the retry phase linked to the automatic compaction that triggered it', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
     const compactionStart = {

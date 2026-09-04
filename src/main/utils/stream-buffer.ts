@@ -221,7 +221,12 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
     })
     .with('tool_execution_end', (value) => applyToolExecutionEndToStreamBuffer(sessionId, value))
     .with('compaction_start', (value) => {
-      updateBufferedActivityEvents(sessionId, () => [value])
+      updateBufferedActivityEvents(sessionId, (events) => [
+        ...events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+        value,
+      ])
     })
     .with('compaction_end', (value) => {
       updateBufferedActivityEvents(sessionId, (events) => [...events, value])
