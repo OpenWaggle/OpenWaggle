@@ -10,7 +10,12 @@ interface PiSteeringSession {
   readonly model:
     | { readonly input: readonly NonNullable<AgentSession['model']>['input'][number][] }
     | undefined
+  readonly prompt?: AgentSession['prompt']
   readonly steer: AgentSession['steer']
+}
+
+interface PiRunControlOptions {
+  readonly routeThroughInputHook?: boolean
 }
 
 function abortError() {
@@ -37,6 +42,7 @@ async function waitForCompaction(session: PiSteeringSession, signal: AbortSignal
 export function createPiRunControl(
   session: PiSteeringSession,
   signal: AbortSignal,
+  options: PiRunControlOptions = {},
 ): AgentKernelRunControl {
   return {
     steer: async (payload) => {
@@ -49,10 +55,16 @@ export function createPiRunControl(
       const text = promptInput.visualizationContext
         ? buildAtomicVisualizationPrompt(promptInput.visualizationContext, promptInput.text)
         : promptInput.text
-      const durableText = await session.steer(
-        text,
-        promptInput.images.length > 0 ? [...promptInput.images] : undefined,
-      )
+      const images = promptInput.images.length > 0 ? [...promptInput.images] : undefined
+      if (options.routeThroughInputHook) {
+        if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
+        await session.prompt(text, {
+          ...(images ? { images } : {}),
+          streamingBehavior: 'steer',
+        })
+        return { delivery: 'queued', durableText: text }
+      }
+      const durableText = await session.steer(text, images)
       return { delivery: 'queued', durableText }
     },
   }

@@ -24,6 +24,30 @@ describe('Pi native run control', () => {
     expect(session.steer).toHaveBeenCalledWith('Take the safer path', undefined)
   })
 
+  it('routes Waggle steering through the input hook before queueing', async () => {
+    const session = {
+      isCompacting: false,
+      isStreaming: true,
+      model: modelFromReference('openai/gpt-5.5'),
+      ...nativeSteering(),
+      prompt: vi.fn(async () => undefined),
+    }
+    const control = createPiRunControl(session, new AbortController().signal, {
+      routeThroughInputHook: true,
+    })
+
+    const result = await control.steer(payload('Stop Waggle and take the safer path'))
+
+    expect(session.prompt).toHaveBeenCalledWith('Stop Waggle and take the safer path', {
+      streamingBehavior: 'steer',
+    })
+    expect(session.steer).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      delivery: 'queued',
+      durableText: 'Stop Waggle and take the safer path',
+    })
+  })
+
   it('expands queued slash commands before delivering steering', async () => {
     const session = {
       isCompacting: false,

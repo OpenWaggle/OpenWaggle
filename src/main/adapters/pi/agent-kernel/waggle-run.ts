@@ -224,6 +224,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    steeringInputHook: true,
     extensionFactories: [
       ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
       waggleExtension.factory,

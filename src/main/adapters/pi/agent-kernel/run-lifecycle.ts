@@ -57,6 +57,7 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly visualizationDirectory?: string
+  readonly steeringInputHook?: boolean
 }
 
 function exposePiRunControl(
@@ -64,7 +65,11 @@ function exposePiRunControl(
   model: PiModel,
   session: AgentSession,
 ) {
-  input.onControlAvailable?.(createPiRunControl(session, input.signal))
+  input.onControlAvailable?.(
+    createPiRunControl(session, input.signal, {
+      routeThroughInputHook: input.steeringInputHook === true,
+    }),
+  )
   return { model, session }
 }
 
