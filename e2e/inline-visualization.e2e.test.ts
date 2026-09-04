@@ -126,13 +126,19 @@ function visualizationSource() {
   document.querySelector('#synthetic-host-message').addEventListener('click', () => {
     const property = '--synthetic-host-message-probe';
     document.documentElement.style.removeProperty(property);
-    dispatchEvent(new MessageEvent('message', {
-      source: parent,
-      data: {
-        type: 'openwaggle:inline-visualization:theme',
-        theme: { colorScheme: 'dark', variables: { [property]: 'accepted' } },
-      },
-    }));
+    try {
+      dispatchEvent(new MessageEvent('message', {
+        source: parent,
+        data: {
+          type: 'openwaggle:inline-visualization:theme',
+          theme: { colorScheme: 'dark', variables: { [property]: 'accepted' } },
+        },
+      }));
+    } catch (error) {
+      status.dataset.syntheticHostMessage = 'probe-error';
+      status.dataset.syntheticHostMessageError = error instanceof Error ? error.name : typeof error;
+      return;
+    }
     status.dataset.syntheticHostMessage = document.documentElement.style.getPropertyValue(property)
       ? 'accepted'
       : 'blocked';
@@ -171,7 +177,13 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   await expect(status).toHaveAttribute('data-state-report', 'accepted')
   await expect(status).toHaveAttribute('data-reduced-motion', 'reduced')
   await expect(iframe).not.toHaveCSS('height', '9999px')
-  await frame.getByRole('button', { name: 'Forge host message' }).click()
+  // This security probe does not require trusted activation. A DOM click avoids the hidden-window
+  // pointer delivery differences exercised by the Linux and Windows merge-queue jobs.
+  await frame
+    .getByRole('button', { name: 'Forge host message' })
+    .evaluate((element: HTMLButtonElement) => {
+      element.click()
+    })
   await expect(status).toHaveAttribute('data-synthetic-host-message', 'blocked')
   const summaryTab = frame.getByRole('tab', { name: 'Summary' })
   const detailsTab = frame.getByRole('tab', { name: 'Details' })
