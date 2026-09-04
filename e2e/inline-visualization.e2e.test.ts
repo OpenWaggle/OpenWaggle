@@ -19,12 +19,28 @@ function visualizationSource() {
 <main class="card">
   <h2>Visualization security probe</h2>
   <i data-lucide="activity" aria-hidden="true"></i>
+  <div class="nav nav-pills" role="tablist" aria-label="Probe views">
+    <button class="nav-link active" id="summary-tab" role="tab" aria-controls="summary-panel" aria-selected="true" type="button">Summary</button>
+    <button class="nav-link" id="details-tab" role="tab" aria-controls="details-panel" aria-selected="false" type="button">Details</button>
+  </div>
+  <div id="summary-panel" role="tabpanel" aria-labelledby="summary-tab">Summary panel</div>
+  <div id="details-panel" role="tabpanel" aria-labelledby="details-tab" hidden>Details panel</div>
   <button id="counter" class="btn btn-primary" type="button">Count 0</button>
-  <button id="navigate" class="btn" type="button" data-tooltip="Sandbox navigation probe">Attempt navigation</button>
+  <button id="follow-up" class="btn" type="button">Ask agent about count 0</button>
+  <button id="synthetic-host-message" class="btn" type="button">Forge host message</button>
+  <span id="navigation-description" hidden>Navigation remains inside the sandbox.</span>
+  <button id="navigate" class="btn" type="button" aria-describedby="navigation-description" data-tooltip="Sandbox navigation probe">Attempt navigation</button>
+  <button id="touch-tooltip" class="btn" type="button" data-tooltip="Touch tooltip probe">Touch tooltip</button>
+  <button id="touch-redraw" class="btn" type="button" data-tooltip="Removed tooltip probe">Redraw touch target</button>
   <output id="status" aria-live="polite"></output>
 </main>
 <script>
   const status = document.querySelector('#status');
+  const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  status.dataset.reducedMotion = reducedMotionQuery.matches ? 'reduced' : 'full';
+  reducedMotionQuery.addEventListener('change', (event) => {
+    status.dataset.reducedMotion = event.matches ? 'reduced' : 'full';
+  });
   const probe = (read) => { try { return read(); } catch { return 'blocked'; } };
   status.dataset.node = typeof process;
   status.dataset.require = typeof require;
@@ -86,6 +102,7 @@ function visualizationSource() {
   document.querySelector('#counter').addEventListener('click', (event) => {
     count += 1;
     event.currentTarget.textContent = 'Count ' + count;
+    document.querySelector('#follow-up').textContent = 'Ask agent about count ' + count;
     const existing = document.querySelector('#expansion');
     if (existing) {
       existing.remove();
@@ -99,14 +116,46 @@ function visualizationSource() {
     document.querySelector('main').appendChild(expansion);
     window.openai.setVisualizationState({ count, expanded: true });
   });
+  document.querySelector('#follow-up').addEventListener('click', async () => {
+    status.dataset.followUp = 'pending';
+    const accepted = await window.openai.sendFollowUpMessage({
+      prompt: 'Explain visualization count ' + count,
+      title: 'Inspect selected count',
+    });
+    status.dataset.followUp = accepted ? 'accepted' : 'rejected';
+  });
+  document.querySelector('#synthetic-host-message').addEventListener('click', () => {
+    const property = '--synthetic-host-message-probe';
+    document.documentElement.style.removeProperty(property);
+    try {
+      dispatchEvent(new MessageEvent('message', {
+        source: parent,
+        data: {
+          type: 'openwaggle:inline-visualization:theme',
+          theme: { colorScheme: 'dark', variables: { [property]: 'accepted' } },
+        },
+      }));
+    } catch (error) {
+      status.dataset.syntheticHostMessage = 'probe-error';
+      status.dataset.syntheticHostMessageError = error instanceof Error ? error.name : typeof error;
+      return;
+    }
+    status.dataset.syntheticHostMessage = document.documentElement.style.getPropertyValue(property)
+      ? 'accepted'
+      : 'blocked';
+  });
   document.querySelector('#navigate').addEventListener('click', () => {
     location.assign('https://example.com/escape-attempt');
+  });
+  document.querySelector('#touch-redraw').addEventListener('click', (event) => {
+    event.currentTarget.remove();
   });
 </script>`
 }
 
 async function expectSecureInteractiveVisualization(
   app: OpenWaggleApp,
+  sessionId: string,
   options: { verifyAgentPayload?: boolean } = {},
 ) {
   const page = app.window()
@@ -131,13 +180,76 @@ async function expectSecureInteractiveVisualization(
   await expect(status).toHaveAttribute('data-capability-attack', 'sent')
   await expect(status).toHaveAttribute('data-early-capability-attack', 'sent')
   await expect(status).toHaveAttribute('data-state-report', 'accepted')
+  await expect(status).toHaveAttribute('data-reduced-motion', 'reduced')
   await expect(iframe).not.toHaveCSS('height', '9999px')
+  // This security probe does not require trusted activation. A DOM click avoids the hidden-window
+  // pointer delivery differences exercised by the Linux and Windows merge-queue jobs.
+  await frame
+    .getByRole('button', { name: 'Forge host message' })
+    .evaluate((element: HTMLButtonElement) => {
+      element.click()
+    })
+  await expect(status).toHaveAttribute('data-synthetic-host-message', 'blocked')
+  const summaryTab = frame.getByRole('tab', { name: 'Summary' })
+  const detailsTab = frame.getByRole('tab', { name: 'Details' })
+  await expect(frame.getByRole('tabpanel', { name: 'Summary' })).toBeVisible()
+  await expect(frame.getByRole('tabpanel', { name: 'Details' })).toBeHidden()
+  if (process.platform === 'darwin') await detailsTab.click()
+  else {
+    // Hidden Linux and Windows Electron windows do not deliver iframe pointer input consistently.
+    // A DOM click still exercises the visualization runtime's delegated tab interaction there.
+    await detailsTab.evaluate((element: HTMLButtonElement) => {
+      element.click()
+    })
+  }
+  await expect(detailsTab).toHaveAttribute('aria-selected', 'true')
+  await expect(frame.getByRole('tabpanel', { name: 'Details' })).toBeVisible()
+  await detailsTab.press('ArrowLeft')
+  await expect(summaryTab).toHaveAttribute('aria-selected', 'true')
+  await expect(summaryTab).toBeFocused()
+  const followUpButton = frame.getByRole('button', { name: 'Ask agent about count 0' })
+  if (process.platform === 'darwin') await followUpButton.click()
+  else await followUpButton.press('Enter')
+  await expect(status).toHaveAttribute('data-follow-up', 'accepted')
+  await expect
+    .poll(() => app.readAgentSendProbe(), { timeout: CROSS_PROCESS_UI_TIMEOUT_MS })
+    .toMatchObject({
+      sessionId,
+      payload: {
+        text: 'Explain visualization count 0',
+        visualizationContext: {
+          sourcePath: expect.stringContaining(SOURCE_NAME),
+          title: FRAME_TITLE,
+          state: { count: 0, expanded: false },
+        },
+      },
+    })
+  await expect(iframe).toBeVisible()
   const navigationButton = frame.getByRole('button', { name: 'Attempt navigation' })
   // The hidden Electron window cannot acquire OS focus, so exercise the same
   // bubbling focus event that keyboard navigation delivers in a focused app.
   await navigationButton.dispatchEvent('focusin')
   await expect(frame.getByRole('tooltip')).toHaveText('Sandbox navigation probe')
-  await expect(navigationButton).toHaveAttribute('aria-describedby', /^openwaggle-tooltip-/u)
+  await expect(navigationButton).toHaveAttribute(
+    'aria-describedby',
+    /^navigation-description openwaggle-tooltip-/u,
+  )
+  await navigationButton.dispatchEvent('focusout')
+  await expect(navigationButton).toHaveAttribute('aria-describedby', 'navigation-description')
+
+  const touchTooltipButton = frame.getByRole('button', { name: 'Touch tooltip' })
+  await touchTooltipButton.dispatchEvent('pointerdown', { pointerType: 'touch' })
+  await touchTooltipButton.dispatchEvent('click', { detail: 1 })
+  await expect(frame.getByRole('tooltip')).toHaveText('Touch tooltip probe')
+  await touchTooltipButton.dispatchEvent('pointerdown', { pointerType: 'touch' })
+  await touchTooltipButton.dispatchEvent('click', { detail: 1 })
+  await expect(frame.getByRole('tooltip')).toHaveCount(0)
+
+  const redrawTooltipButton = frame.getByRole('button', { name: 'Redraw touch target' })
+  await redrawTooltipButton.dispatchEvent('pointerdown', { pointerType: 'touch' })
+  await redrawTooltipButton.dispatchEvent('click', { detail: 1 })
+  await expect(redrawTooltipButton).toHaveCount(0)
+  await expect(frame.getByRole('tooltip')).toHaveCount(0)
 
   await app.resizeMainWindow(1440, 900)
   await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_400)
@@ -200,10 +312,12 @@ async function expectSecureInteractiveVisualization(
 
   await app.resizeMainWindow(760, 620)
   const heightBefore = await iframe.evaluate((element) => element.getBoundingClientRect().height)
-  await frame.getByRole('button', { name: 'Count 0' }).evaluate((element: HTMLElement) => {
-    element.click()
-  })
-  await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
+  await frame
+    .getByRole('button', { name: 'Count 0', exact: true })
+    .evaluate((element: HTMLElement) => {
+      element.click()
+    })
+  await expect(frame.getByRole('button', { name: 'Count 1', exact: true })).toBeVisible()
   await expect(frame.getByText('Local state retained')).toBeVisible()
   await expect(async () => {
     const heightAfter = await iframe.evaluate((element) => element.getBoundingClientRect().height)
@@ -218,7 +332,7 @@ async function expectSecureInteractiveVisualization(
   await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished))
   })
-  await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
+  await expect(frame.getByRole('button', { name: 'Count 1', exact: true })).toBeVisible()
   const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
   const dialogBounds = await dialog.boundingBox()
   expect(dialogBounds?.x).toBeLessThanOrEqual(24)
@@ -239,9 +353,34 @@ async function expectSecureInteractiveVisualization(
   })
   await expect(focusLayer).toHaveCount(0)
   await expect(page.getByRole('region', { name: FRAME_TITLE })).toBeVisible()
-  await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
+  await expect(frame.getByRole('button', { name: 'Count 1', exact: true })).toBeVisible()
   if (options.verifyAgentPayload !== false) {
     const feedback = 'The selected visualization state should keep the expanded section.'
+    await app.installSessionDetailSnapshotProbe({
+      sessionId,
+      detail: {
+        id: sessionId,
+        title: THREAD_TITLE,
+        projectPath: app.userDataDir,
+        piSessionId: 'replacement-pi-session',
+        messages: [
+          {
+            id: 'replacement-user-message',
+            role: 'user',
+            createdAt: Date.now(),
+            parts: [{ type: 'text', text: feedback }],
+          },
+          {
+            id: 'replacement-assistant-message',
+            role: 'assistant',
+            createdAt: Date.now() + 1,
+            parts: [{ type: 'text', text: 'The selected stage is sandbox.' }],
+          },
+        ],
+        createdAt: Date.now() - 1_000,
+        updatedAt: Date.now() + 2,
+      },
+    })
     await app.mainWindow().messageInput().fill(feedback)
     await app.mainWindow().submitComposer()
     await expect
@@ -256,12 +395,30 @@ async function expectSecureInteractiveVisualization(
           },
         },
       })
+    await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+    // The assistant row proves the replacement snapshot hydrated; re-check the user row afterwards.
+    await expect(page.getByText('The selected stage is sandbox.', { exact: true })).toBeVisible()
+    await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+    await expect(async () => {
+      const earlierFollowUpBounds = await page
+        .getByText('Explain visualization count 0', { exact: true })
+        .boundingBox()
+      const feedbackBounds = await page.getByText(feedback, { exact: true }).boundingBox()
+      const assistantBounds = await page
+        .getByText('The selected stage is sandbox.', { exact: true })
+        .boundingBox()
+      expect(earlierFollowUpBounds?.y).toBeLessThan(feedbackBounds?.y ?? 0)
+      expect(feedbackBounds?.y).toBeLessThan(assistantBounds?.y ?? 0)
+    }).toPass()
+    await app.captureEvidence('openwaggle-inline-visualization-follow-up-retained')
   }
   const heightExpanded = await iframe.evaluate((element) => element.getBoundingClientRect().height)
-  await frame.getByRole('button', { name: 'Count 1' }).evaluate((element: HTMLElement) => {
-    element.click()
-  })
-  await expect(frame.getByRole('button', { name: 'Count 2' })).toBeVisible()
+  await frame
+    .getByRole('button', { name: 'Count 1', exact: true })
+    .evaluate((element: HTMLElement) => {
+      element.click()
+    })
+  await expect(frame.getByRole('button', { name: 'Count 2', exact: true })).toBeVisible()
   await expect(frame.getByText('Local state retained')).toHaveCount(0)
   await expect(async () => {
     const heightCollapsed = await iframe.evaluate((element) => element.getBoundingClientRect().height)
@@ -302,10 +459,21 @@ test('renders a persistent interactive visualization inside the isolated Electro
   const app = await OpenWaggleApp.launch('openwaggle-inline-visualization-e2e-')
 
   try {
+    const page = app.window()
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Appearance' }).click()
+    await page.getByRole('switch', { name: 'Reduce motion' }).click()
+    await expect
+      .poll(async () => {
+        const settings = await page.evaluate(() => window.api.getSettings())
+        return settings.appearancePreferences.motion
+      })
+      .toBe('reduced')
+
     const sourcePath = path.join(app.userDataDir, SOURCE_NAME)
     await fs.writeFile(sourcePath, visualizationSource(), 'utf8')
     const reference = `visualize${JSON.stringify({ path: sourcePath, title: FRAME_TITLE, mode: 'wide' })}`
-    await seedSingleSession(app.userDataDir, {
+    const sessionId = await seedSingleSession(app.userDataDir, {
       title: THREAD_TITLE,
       projectPath: app.userDataDir,
       updatedAt: Date.now(),
@@ -321,14 +489,16 @@ test('renders a persistent interactive visualization inside the isolated Electro
 
     await app.restart()
     await app.installAgentSendProbe()
+    await app.confirmNativeDialogs()
     await openVisualizationThread(app)
     await expectVisualizeSlashCommand(app)
-    await expectSecureInteractiveVisualization(app)
+    await expectSecureInteractiveVisualization(app, sessionId)
 
     await app.restart()
     await app.installAgentSendProbe()
+    await app.confirmNativeDialogs()
     await openVisualizationThread(app)
-    await expectSecureInteractiveVisualization(app, { verifyAgentPayload: false })
+    await expectSecureInteractiveVisualization(app, sessionId, { verifyAgentPayload: false })
   } finally {
     await app.cleanup()
   }

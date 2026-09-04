@@ -73,19 +73,27 @@ function useFrameControls(input: {
     if (!telemetry.blocked) {
       telemetry.blocked = true
       input.setErrorReason('resource-limit')
+      clearPendingState()
       input.onUnavailable('resource-limit')
     }
     return false
-  }, [input.onUnavailable, input.setErrorReason])
+  }, [clearPendingState, input.onUnavailable, input.setErrorReason])
   const armHealthCheckTimeout = useCallback(() => {
     clearHealthCheckTimeout()
     if (!input.registrationId) return
     healthCheckTimeoutRef.current = window.setTimeout(() => {
       healthCheckTimeoutRef.current = null
       input.setErrorReason('unresponsive')
+      clearPendingState()
       input.onUnavailable('unresponsive')
     }, FRAME_HEALTH_CHECK_TIMEOUT_MS)
-  }, [clearHealthCheckTimeout, input.onUnavailable, input.registrationId, input.setErrorReason])
+  }, [
+    clearHealthCheckTimeout,
+    clearPendingState,
+    input.onUnavailable,
+    input.registrationId,
+    input.setErrorReason,
+  ])
   return useMemo(
     () => ({
       acceptMessage,
@@ -159,6 +167,7 @@ export function useInlineVisualizationFrame(input: {
     const frameWindow = frame.contentWindow
     if (!frameWindow) {
       setErrorReason('unresponsive')
+      controls.clearPendingState()
       input.onUnavailable('unresponsive')
       return controls.clearHealthCheckTimeout
     }
@@ -174,6 +183,7 @@ export function useInlineVisualizationFrame(input: {
         sendTheme,
         postToFrame,
         setErrorReason: (reason) => {
+          controls.clearPendingState()
           setErrorReason(reason)
           input.onUnavailable(reason)
         },
@@ -192,7 +202,7 @@ export function useInlineVisualizationFrame(input: {
       unsubscribeTheme()
       controls.clearHealthCheckTimeout()
       controls.clearHealthCheckInterval()
-      controls.clearPendingState()
+      controls.flushStateChange()
       capabilityRef.current = null
       brokerPendingRef.current = false
     }

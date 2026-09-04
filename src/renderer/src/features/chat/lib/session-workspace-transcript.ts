@@ -5,6 +5,7 @@ import { messagePartToUIParts } from '@/features/chat/lib/useAgentChat.utils'
 
 interface ResolveTranscriptMessagesInput {
   readonly activeSessionId: SessionId | null
+  readonly activeSessionUpdatedAt?: number
   readonly activeWorkspace: SessionWorkspace | null
   readonly messages: UIMessage[]
   readonly draftBranchSourceNodeId?: SessionNodeId | null
@@ -72,6 +73,22 @@ function isViewingActiveBranchHead(workspace: SessionWorkspace) {
   )
 }
 
+function isViewingSessionHead(workspace: SessionWorkspace) {
+  if (!isViewingActiveBranchHead(workspace)) {
+    return false
+  }
+
+  const sessionBranchId =
+    workspace.tree.session.lastActiveBranchId ??
+    workspace.tree.branches.find((branch) => branch.isMain)?.id
+
+  return (
+    workspace.activeBranchId !== null &&
+    sessionBranchId !== undefined &&
+    String(workspace.activeBranchId) === String(sessionBranchId)
+  )
+}
+
 function findLastWorkspaceMessageIndex(messages: UIMessage[], workspaceMessages: UIMessage[]) {
   const workspaceMessageIds = new Set(workspaceMessages.map((message) => message.id))
 
@@ -115,6 +132,7 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
   workspace: SessionWorkspace,
   workspaceMessages: UIMessage[],
   messages: UIMessage[],
+  activeSessionUpdatedAt?: number,
   draftBranchSourceNodeId?: SessionNodeId | null,
 ) {
   const viewingHead = isViewingActiveBranchHead(workspace)
@@ -124,7 +142,23 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
   }
 
   const lastWorkspaceMessageIndex = findLastWorkspaceMessageIndex(messages, workspaceMessages)
-  if (lastWorkspaceMessageIndex < 0 || lastWorkspaceMessageIndex === messages.length - 1) {
+  if (lastWorkspaceMessageIndex < 0) {
+    // Session detail can refresh before the workspace after completion. Only treat the disjoint
+    // detail as a replacement tail when freshness proves this is the session head, not the head
+    // of another selected branch.
+    const workspaceIsStale =
+      activeSessionUpdatedAt !== undefined &&
+      activeSessionUpdatedAt > workspace.tree.session.updatedAt
+    if (!isViewingSessionHead(workspace) || !workspaceIsStale) {
+      return workspaceMessages
+    }
+
+    const replacementTail = unsavedLiveTail(workspace, messages, lastWorkspaceMessageIndex)
+    return replacementTail.length > 0
+      ? [...workspaceMessages, ...replacementTail]
+      : workspaceMessages
+  }
+  if (lastWorkspaceMessageIndex === messages.length - 1) {
     return workspaceMessages
   }
 
@@ -134,6 +168,7 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
 
 export function resolveTranscriptMessages({
   activeSessionId,
+  activeSessionUpdatedAt,
   activeWorkspace,
   messages,
   draftBranchSourceNodeId,
@@ -155,6 +190,7 @@ export function resolveTranscriptMessages({
     activeWorkspace,
     workspaceMessages,
     messages,
+    activeSessionUpdatedAt,
     draftBranchSourceNodeId,
   )
 }

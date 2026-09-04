@@ -1,6 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import { COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND, type LexicalEditor } from 'lexical'
-import { type RefObject, useEffect, useEffectEvent } from 'react'
+import { type RefObject, useEffectEvent, useLayoutEffect } from 'react'
 import type { CommandPaletteItem } from '../model'
 
 interface UseCommandPaletteKeyboardInput {
@@ -63,7 +63,7 @@ export function useCommandPaletteKeyboard({
     return event.defaultPrevented
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editor) return
     return editor.registerCommand<KeyboardEvent>(
       KEY_DOWN_COMMAND,
