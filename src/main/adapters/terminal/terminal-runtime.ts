@@ -48,6 +48,46 @@ export interface TerminalRuntimeDeps {
   readonly onLivePidsChanged: () => void
 }
 
+/** Streams of one live shell: input release, scrollback capture, exit handling. */
+function wireShellStreams(
+  record: TerminalRecord,
+  pty: IPty,
+  generation: number,
+  sinks: {
+    readonly history: TerminalHistoryStore
+    readonly markDirty: (key: TerminalKey) => void
+    readonly onLivePidsChanged: () => void
+    readonly emitEvent: (record: TerminalRecord, event: TerminalRuntimeEvent) => void
+    readonly scheduleFlush: () => void
+  },
+) {
+  pty.onData((data: string) => {
+    if (record.closed) return
+    // First shell output = the shell is reading input now; release anything
+    // the user typed during startup, in order, before further handling.
+    if (record.pendingInput.length > 0) {
+      pty.write(record.pendingInput)
+      record.pendingInput = ''
+    }
+    const sanitized = record.sanitizer.feed(data)
+    record.scrollback.append(sanitized)
+    sinks.history.append(record.key, sanitized)
+    if (record.pendingOutput.length === 0) record.pendingStartOffset = record.outputBytes
+    record.pendingOutput += data
+    record.outputBytes += data.length
+    sinks.markDirty(record.key)
+    sinks.scheduleFlush()
+  })
+
+  pty.onExit(({ exitCode }: { exitCode: number }) => {
+    if (generation !== record.spawnGeneration) return
+    record.live = null
+    record.exitCode = exitCode
+    sinks.onLivePidsChanged()
+    sinks.emitEvent(record, { type: 'exited', exitCode })
+  })
+}
+
 export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime {
   const { history, runner } = deps
   const records = new Map<string, TerminalRecord>()
@@ -138,31 +178,12 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
     deps.onLivePidsChanged()
     // Title the tab after the user's shell immediately, before the first poll.
     emitEvent(record, { type: 'activity', processName: shell })
-
-    pty.onData((data: string) => {
-      if (record.closed) return
-      // First shell output = the shell is reading input now; release anything
-      // the user typed during startup, in order, before further handling.
-      if (record.pendingInput.length > 0) {
-        pty.write(record.pendingInput)
-        record.pendingInput = ''
-      }
-      const sanitized = record.sanitizer.feed(data)
-      record.scrollback.append(sanitized)
-      history.append(record.key, sanitized)
-      if (record.pendingOutput.length === 0) record.pendingStartOffset = record.outputBytes
-      record.pendingOutput += data
-      record.outputBytes += data.length
-      dirty.add(record.key)
-      scheduleFlush()
-    })
-
-    pty.onExit(({ exitCode }: { exitCode: number }) => {
-      if (generation !== record.spawnGeneration) return
-      record.live = null
-      record.exitCode = exitCode
-      deps.onLivePidsChanged()
-      emitEvent(record, { type: 'exited', exitCode })
+    wireShellStreams(record, pty, generation, {
+      history,
+      markDirty: (key) => dirty.add(key),
+      onLivePidsChanged: deps.onLivePidsChanged,
+      emitEvent,
+      scheduleFlush,
     })
   }
 

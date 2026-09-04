@@ -138,18 +138,22 @@ export function makeTerminalHistoryStore(logsDir: string): TerminalHistoryStore 
   }
 
   const flush = async (): Promise<void> => {
-    if (pending.size === 0) return
-    const batches = [...pending.entries()]
-    pending.clear()
-    try {
-      await ensureDirectory()
-      await Promise.all(batches.map(([key, chunk]) => appendBatch(key, chunk)))
-    } catch (error) {
-      logger.warn('Failed to persist terminal scrollback', {
-        error: error instanceof Error ? error.message : String(error),
-        terminals: batches.length,
-      })
+    if (pending.size > 0) {
+      const batches = [...pending.entries()]
+      pending.clear()
+      try {
+        await ensureDirectory()
+        await Promise.all(batches.map(([key, chunk]) => appendBatch(key, chunk)))
+      } catch (error) {
+        logger.warn('Failed to persist terminal scrollback', {
+          error: error instanceof Error ? error.message : String(error),
+          terminals: batches.length,
+        })
+      }
     }
+    // Barrier: callers (shutdown, truncate visibility) must be able to rely on
+    // every already-enqueued mutation having completed, not just the appends.
+    await Promise.all([...writeChains.values()])
   }
 
   // Runs inside the key's write chain, so the compaction is serialized with

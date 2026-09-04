@@ -2,11 +2,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import type {
-  TerminalEventPayload,
-  TerminalOpenInput,
-  TerminalRuntimeEvent,
-} from '@shared/types/terminal'
+import type { TerminalEventPayload, TerminalOpenInput } from '@shared/types/terminal'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { IPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,6 +54,8 @@ function makeFakePty(pid: number): FakePty {
   return { pty, dataListeners, exitListeners, write, kill, resize }
 }
 
+type EmitMock = ReturnType<typeof vi.fn<(payload: TerminalEventPayload) => void>>
+
 describe('makeTerminalRuntime', () => {
   let logsDir: string
   let store: ReturnType<typeof makeTerminalHistoryStore>
@@ -81,11 +79,9 @@ describe('makeTerminalRuntime', () => {
     return { runtime, spawn, emit, onLivePidsChanged }
   }
 
-
   /** The spawn-time activity event is always first; grab later events by index. */
-  function eventAt(emit: ReturnType<typeof vi.fn>, index: number) {
-    const call = emit.mock.calls[index]?.[0] as { event: TerminalRuntimeEvent } | undefined
-    return call?.event
+  function eventAt(emit: EmitMock, index: number) {
+    return emit.mock.calls[index]?.[0]?.event
   }
 
   function addRecord(runtime: TerminalRuntime) {

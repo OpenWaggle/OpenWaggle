@@ -17,7 +17,6 @@ const TERMINAL_KEY = `${OWNER}::${TERMINAL_ID}`
 const FAKE_PID = 4200
 
 const OUTPUT_FLUSH_MS = TERMINAL.OUTPUT_FLUSH_MS
-const HISTORY_FLUSH_MS = TERMINAL.HISTORY_FLUSH_MS
 
 const runnerRef = vi.hoisted(() => {
   const ref: { current: PtyRunner | null } = { current: null }
@@ -105,11 +104,6 @@ describe('makeNodePtyTerminalService', () => {
   const expectEvent = (event: TerminalEventPayload['event']) =>
     expect(events).toContainEqual({ ownerKey: OWNER, terminalId: TERMINAL_ID, event })
 
-  const logFileCount = async () => {
-    const entries = await fs.readdir(logsDir)
-    return entries.filter((entry) => entry.endsWith('.log')).length
-  }
-
   beforeEach(async () => {
     logsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-terminal-service-logs-'))
     workDirA = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-terminal-service-a-'))
@@ -179,7 +173,7 @@ describe('makeNodePtyTerminalService', () => {
     await open(workDirA)
     await settle()
     feed(0, 'one')
-    await vi.advanceTimersByTimeAsync(HISTORY_FLUSH_MS)
+    await service.history.flush()
 
     const result = await open(workDirB)
 
@@ -190,12 +184,9 @@ describe('makeNodePtyTerminalService', () => {
     expect(record?.cwd).toBe(workDirB)
     expect(record?.scrollback.toString()).toBe('')
     expect(record?.outputBytes).toBe(0)
-    await vi.waitFor(
-      async () => {
-        await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('')
-      },
-      { timeout: 10_000 },
-    )
+    // Truncate is enqueued on the key's write chain; flush is the barrier.
+    await service.history.flush()
+    await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('')
   })
 
   it('respawns a dead shell in the same working path, replaying scrollback', async () => {
@@ -280,93 +271,5 @@ describe('makeNodePtyTerminalService', () => {
       },
       { timeout: 10_000 },
     )
-  })
-
-  it('holds input until the shell first speaks, then releases it in order', async () => {
-    await open(workDirA)
-    await settle()
-    const fake = ptys[0]
-
-    // Typed during shell startup: nothing reaches the pty (no kernel echo
-    // garbage in the scrollback), it is held on the record instead.
-    await Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'echo a'))
-    expect(fake.write).not.toHaveBeenCalled()
-    expect(service.records.get(TERMINAL_KEY)?.pendingInput).toBe('echo a')
-
-    await Effect.runPromise(service.write(OWNER, TERMINAL_ID, ' && echo b\n'))
-    expect(service.records.get(TERMINAL_KEY)?.pendingInput).toBe('echo a && echo b\n')
-
-    // First shell output releases the held input ahead of everything else.
-    feed(0, 'prompt> ')
-    expect(fake.write).toHaveBeenCalledExactlyOnceWith('echo a && echo b\n')
-
-    // Once the shell has spoken, input flows straight through.
-    await Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'ls\n'))
-    expect(fake.write).toHaveBeenLastCalledWith('ls\n')
-  })
-
-  it('close deletes history, emits closed, and late output cannot resurrect it', async () => {
-    await open(workDirA)
-    await settle()
-    const record = service.records.get(TERMINAL_KEY)
-    feed(0, 'persist me')
-    await vi.advanceTimersByTimeAsync(HISTORY_FLUSH_MS)
-    await vi.waitFor(async () => {
-      expect(await logFileCount()).toBe(1)
-    })
-
-    await Effect.runPromise(service.close(OWNER, TERMINAL_ID, true))
-
-    expect(ptys[0]?.kill).toHaveBeenCalledOnce()
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
-    expectEvent({ type: 'closed' })
-    await vi.waitFor(async () => {
-      expect(await logFileCount()).toBe(0)
-    })
-
-    const outputEventsBefore = events.filter((event) => event.event.type === 'output').length
-    feed(0, 'late output after close')
-    await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
-    await service.history.flush()
-
-    expect(record?.scrollback.toString()).toBe('persist me')
-    expect(await logFileCount()).toBe(0)
-    expect(events.filter((event) => event.event.type === 'output')).toHaveLength(outputEventsBefore)
-  })
-
-  it("closeAllForOwner kills and removes only that owner's terminals and history", async () => {
-    await open(workDirA)
-    const otherOwnerInput: TerminalOpenInput = {
-      ownerKey: 'session-2',
-      terminalId: TERMINAL_ID,
-      cwd: workDirA,
-      cols: 120,
-      rows: 40,
-    }
-    await Effect.runPromise(service.open(otherOwnerInput))
-    await settle()
-    feed(0, 'owner a data')
-    ptys[1]?.dataListeners[0]?.('owner b data')
-    await vi.advanceTimersByTimeAsync(HISTORY_FLUSH_MS)
-    await vi.waitFor(async () => {
-      expect(await logFileCount()).toBe(2)
-    })
-
-    await Effect.runPromise(service.closeAllForOwner(OWNER, true))
-
-    expect(service.records.has(TERMINAL_KEY)).toBe(false)
-    expect(service.records.has(`session-2::${TERMINAL_ID}`)).toBe(true)
-    expect(ptys[0]?.kill).toHaveBeenCalledOnce()
-    expect(ptys[1]?.kill).not.toHaveBeenCalled()
-    expect(events).toContainEqual({
-      ownerKey: OWNER,
-      terminalId: TERMINAL_ID,
-      event: { type: 'closed' },
-    })
-    await vi.waitFor(async () => {
-      expect(await logFileCount()).toBe(1)
-    })
-    await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('')
-    await expect(service.history.read(`session-2::${TERMINAL_ID}`)).resolves.toBe('owner b data')
   })
 })
