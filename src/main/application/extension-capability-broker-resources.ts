@@ -108,6 +108,20 @@ function publishPayload(input: BrokerRouteInput) {
     : { ok: false as const, issues: decoded.issues }
 }
 
+function joinedResourceMetadata(
+  existingResource: SessionResource | null,
+  payload: ExtensionSessionResourcePublishPayload,
+) {
+  if (existingResource) {
+    return {
+      kind: existingResource.kind,
+      title: existingResource.title,
+      available: existingResource.available,
+    }
+  }
+  return { kind: payload.kind, title: payload.title, available: true }
+}
+
 function publishResource(
   input: BrokerRouteInput,
   sessionId: SessionId,
@@ -136,18 +150,19 @@ function publishResource(
       existingResource,
     )
     if (replayResource) return yield* publishedResourceResult(input, sessionId, replayResource)
+    const metadata = joinedResourceMetadata(existingResource, payload)
     const createdAt = input.timestamp
     const resourceId = randomUUID()
     const resource = yield* repository.upsert({
       id: resourceId,
       sessionId,
       canonicalKey: existingResource?.canonicalKey ?? normalizedCanonicalKey,
-      kind: existingResource?.kind ?? payload.kind,
-      title: payload.title,
+      kind: metadata.kind,
+      title: metadata.title,
       mimeType: null,
       locator: normalizedLocator,
       managedPath: null,
-      available: true,
+      available: metadata.available,
       occurrence: {
         id: occurrenceId,
         nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,

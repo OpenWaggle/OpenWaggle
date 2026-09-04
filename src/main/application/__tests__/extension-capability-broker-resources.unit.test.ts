@@ -196,6 +196,7 @@ describe('extension session resource capability', () => {
       title: 'Existing source',
       locator: 'HTTPS://EXAMPLE.COM/shared',
       managed: false,
+      available: false,
     }
     const extensionPackage = resourcesPackage()
     const test = makeBrokerHarness({
@@ -221,6 +222,8 @@ describe('extension session resource capability', () => {
     expect(test.resourceUpserts()[0]?.id).not.toBe('existing-link')
     expect(test.resourceUpserts()[0]?.kind).toBe('change-request')
     expect(test.resourceUpserts()[0]?.canonicalKey).toBe('url:HTTPS://EXAMPLE.COM/shared')
+    expect(test.resourceUpserts()[0]?.title).toBe('Existing source')
+    expect(test.resourceUpserts()[0]?.available).toBe(false)
   })
 
   it('rejects unbound trusted-main resource access', async () => {
