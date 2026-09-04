@@ -8,6 +8,15 @@ import { ensurePiVisualizeSkill, getPiVisualizeSkillDiagnostic } from '../pi-vis
 
 const execFileAsync = promisify(execFile)
 const temporaryRoots: string[] = []
+const DOCUMENTED_CDN_ORIGINS = [
+  'https://cdnjs.cloudflare.com',
+  'https://cdn.jsdelivr.net',
+  'https://esm.sh',
+  'https://fonts.bunny.net',
+  'https://fonts.googleapis.com',
+  'https://fonts.gstatic.com',
+  'https://unpkg.com',
+] as const
 
 async function temporaryRoot() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-visualize-'))
@@ -43,6 +52,15 @@ describe('Pi Visualize skill', () => {
     ).resolves.toMatchObject({ mode: expect.any(Number) })
     await expect(
       fs.stat(path.join(path.dirname(skillPath), 'assets', 'visualize.html')),
+    ).resolves.toMatchObject({ mode: expect.any(Number) })
+    await expect(
+      fs.stat(path.join(path.dirname(skillPath), 'assets', 'lucide.js')),
+    ).resolves.toMatchObject({ mode: expect.any(Number) })
+    await expect(
+      fs.stat(path.join(path.dirname(skillPath), 'assets', 'floating-ui-core.js')),
+    ).resolves.toMatchObject({ mode: expect.any(Number) })
+    await expect(
+      fs.stat(path.join(path.dirname(skillPath), 'assets', 'floating-ui-dom.js')),
     ).resolves.toMatchObject({ mode: expect.any(Number) })
   })
 
@@ -104,6 +122,14 @@ describe('Pi Visualize skill', () => {
     expect(output).toContain("default-src 'none'")
     expect(output).toContain('worker-src blob:')
     expect(output).toContain('codex-visualization-tabs')
+    expect(output).toContain('@license lucide v')
+    expect(output).toContain('Lucide Icons and Contributors')
+    expect(output).toContain('FloatingUICore')
+    expect(output).toContain('FloatingUIDOM')
+    expect(output).toContain('Floating UI contributors')
+    expect(output).not.toContain('https://unpkg.com/lucide@')
+    expect(output).not.toContain('https://unpkg.com/@floating-ui/')
+    for (const origin of DOCUMENTED_CDN_ORIGINS) expect(output).toContain(origin)
     expect(output).not.toContain('allow-same-origin')
   })
 })

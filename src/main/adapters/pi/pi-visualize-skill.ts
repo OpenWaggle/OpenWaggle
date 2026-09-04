@@ -3,6 +3,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
+import lucideLicense from 'lucide/LICENSE?raw'
+// Floating UI's export map hides its UMD files. These build-time raw imports use the pinned
+// direct dependencies and embed their browser runtimes into the packaged main bundle.
+import floatingUiCoreRuntime from '../../../../node_modules/@floating-ui/core/dist/floating-ui.core.umd.min.js?raw'
+import floatingUiLicense from '../../../../node_modules/@floating-ui/core/LICENSE?raw'
+import floatingUiDomRuntime from '../../../../node_modules/@floating-ui/dom/dist/floating-ui.dom.umd.min.js?raw'
 import baseStyles from '../../inline-visualization-assets/base.css.raw?raw'
 import renderScriptSource from './visualize-skill/render.py.raw?raw'
 import visualizeSkillSource from './visualize-skill/SKILL.md.raw?raw'
@@ -11,6 +18,13 @@ import visualizeHtmlSource from './visualize-skill/visualize.html.raw?raw'
 const BUILT_IN_SKILLS_DIRECTORY = 'openwaggle-built-in-skills'
 const PRIVATE_FILE_MODE = 0o600
 const pendingSkillPreparation = new Map<string, Promise<string>>()
+
+function withLicenseNotice(license: string, runtime: string) {
+  return `/*\n${license.replaceAll('*/', '*\\/')}\n*/\n${runtime}`
+}
+
+const licensedFloatingUiCoreRuntime = withLicenseNotice(floatingUiLicense, floatingUiCoreRuntime)
+const licensedLucideRuntime = withLicenseNotice(lucideLicense, lucideRuntime)
 
 async function ensureOwnedDirectory(directory: string) {
   try {
@@ -70,6 +84,12 @@ async function preparePiVisualizeSkill(agentDir: string) {
     writeResourceIfChanged(path.join(scriptsDirectory, 'render.py'), renderScriptSource),
     writeResourceIfChanged(path.join(assetsDirectory, 'visualize.css'), baseStyles),
     writeResourceIfChanged(path.join(assetsDirectory, 'visualize.html'), visualizeHtmlSource),
+    writeResourceIfChanged(path.join(assetsDirectory, 'lucide.js'), licensedLucideRuntime),
+    writeResourceIfChanged(
+      path.join(assetsDirectory, 'floating-ui-core.js'),
+      licensedFloatingUiCoreRuntime,
+    ),
+    writeResourceIfChanged(path.join(assetsDirectory, 'floating-ui-dom.js'), floatingUiDomRuntime),
   ])
 
   return skillPath

@@ -9,9 +9,23 @@ from pathlib import Path
 
 _SKILL_DIRECTORY = Path(__file__).resolve().parents[1]
 _FRAGMENT_PLACEHOLDER = "<!--__INLINE_VISUALIZATION_FRAGMENT__-->"
+_REMOTE_FLOATING_UI_CORE_SCRIPT = (
+    '<script src="https://unpkg.com/@floating-ui/core@1.7.3/'
+    'dist/floating-ui.core.umd.min.js"></script>'
+)
+_REMOTE_FLOATING_UI_DOM_SCRIPT = (
+    '<script src="https://unpkg.com/@floating-ui/dom@1.7.4/'
+    'dist/floating-ui.dom.umd.min.js"></script>'
+)
+_REMOTE_LUCIDE_SCRIPT = (
+    '<script id="codex-visualization-lucide" async '
+    'src="https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js"></script>'
+)
 _MAX_FRAGMENT_BYTES = 1_000_000
 _DOCUMENT_MARKUP = re.compile(r"<!doctype\s|<\s*(?:html|head|body)(?:\s|>)", re.IGNORECASE)
 _HOST_API_REFERENCE = re.compile(r"\b(?:window|globalThis)\.openai\b")
+# Host-provided runtimes are embedded below. Keep these origins for explicitly authored
+# visualization dependencies: the documented CDN allowlist is part of the Visualize contract.
 _RESOURCE_SOURCES = " ".join(
     (
         "blob:",
@@ -62,12 +76,57 @@ def _default_title(source: Path) -> str:
     return " ".join(word.capitalize() for word in words) or "Visualization"
 
 
+def _embed_runtime(
+    template: str,
+    remote_script: str,
+    embedded_opening_tag: str,
+    runtime: str,
+) -> str:
+    if remote_script not in template:
+        raise ValueError("visualization template is missing a bundled runtime marker")
+    script_safe_runtime = re.sub(
+        r"</script",
+        lambda _match: r"<\/script",
+        runtime,
+        flags=re.IGNORECASE,
+    )
+    embedded = f"{embedded_opening_tag}\n{script_safe_runtime}\n</script>"
+    return template.replace(remote_script, embedded, 1)
+
+
 def _render_document(fragment: str, title: str) -> str:
     stylesheet = (_SKILL_DIRECTORY / "assets" / "visualize.css").read_text(
         encoding="utf-8",
     )
     inner_kit = (_SKILL_DIRECTORY / "assets" / "visualize.html").read_text(
         encoding="utf-8",
+    )
+    lucide_runtime = (_SKILL_DIRECTORY / "assets" / "lucide.js").read_text(
+        encoding="utf-8",
+    )
+    floating_ui_core_runtime = (
+        _SKILL_DIRECTORY / "assets" / "floating-ui-core.js"
+    ).read_text(encoding="utf-8")
+    floating_ui_dom_runtime = (
+        _SKILL_DIRECTORY / "assets" / "floating-ui-dom.js"
+    ).read_text(encoding="utf-8")
+    inner_kit = _embed_runtime(
+        inner_kit,
+        _REMOTE_FLOATING_UI_CORE_SCRIPT,
+        '<script id="codex-visualization-floating-ui-core">',
+        floating_ui_core_runtime,
+    )
+    inner_kit = _embed_runtime(
+        inner_kit,
+        _REMOTE_FLOATING_UI_DOM_SCRIPT,
+        '<script id="codex-visualization-floating-ui-dom">',
+        floating_ui_dom_runtime,
+    )
+    inner_kit = _embed_runtime(
+        inner_kit,
+        _REMOTE_LUCIDE_SCRIPT,
+        '<script id="codex-visualization-lucide">',
+        lucide_runtime,
     )
     inner_html = inner_kit.replace(_FRAGMENT_PLACEHOLDER, fragment)
     document_title = escape(title)
