@@ -1,6 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
+import {
+  type AgentCompactionStatus,
+  getTimelineCompactionStatus,
+} from '@/features/chat/lib/compaction-lifecycle'
 
 interface RenderSnapshot {
   readonly messages: readonly UIMessage[]
@@ -12,19 +15,25 @@ interface RenderSnapshotState {
   readonly renderSnapshotsBySessionId: Map<SessionId, RenderSnapshot>
 }
 
-function rebaseRestoredRunningCompaction(
+function rebaseRestoredCompaction(
   status: AgentCompactionStatus | null,
   messageCount: number,
 ): AgentCompactionStatus | null {
-  if (status?.type !== 'compacting' || messageCount === 0) return status
-  const latest = status.timeline.at(-1)
-  if (latest?.phase !== 'running' || latest.messageCountAtStart !== 0) return status
-  return {
-    ...status,
-    timeline: status.timeline.map((item, index) =>
-      index === status.timeline.length - 1 ? { ...item, messageCountAtStart: messageCount } : item,
+  if (!status || messageCount === 0) return status
+  const timelineStatus = getTimelineCompactionStatus(status)
+  const latest = timelineStatus?.timeline.at(-1)
+  if (!timelineStatus || latest?.messageCountAtStart !== 0) return status
+  const rebasedTimelineStatus = {
+    ...timelineStatus,
+    timeline: timelineStatus.timeline.map((item, index) =>
+      index === timelineStatus.timeline.length - 1
+        ? { ...item, messageCountAtStart: messageCount }
+        : item,
     ),
   }
+  return status.type === 'retrying'
+    ? { ...status, previousCompactionStatus: rebasedTimelineStatus }
+    : rebasedTimelineStatus
 }
 
 export function withRunCompactionStatus(
@@ -42,7 +51,7 @@ export function withRunCompactionStatus(
   }
   next.set(id, {
     ...existing,
-    compactionStatus: rebaseRestoredRunningCompaction(status, existing.messages.length),
+    compactionStatus: rebaseRestoredCompaction(status, existing.messages.length),
     updatedAt: Date.now(),
   })
   return { renderSnapshotsBySessionId: next }

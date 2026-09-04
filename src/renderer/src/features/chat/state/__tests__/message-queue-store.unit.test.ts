@@ -95,6 +95,26 @@ describe('message-queue-store', () => {
   })
 
   describe('take and restore', () => {
+    it('restores a failed promoted steer at the front of the queue', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
+      const original = useMessageQueueStore.getState().queues.get(CONV_A)
+      const second = original?.[1]
+      if (!second) throw new Error('Expected second queued message')
+
+      useMessageQueueStore.getState().promoteToFront(CONV_A, second.id)
+      const promoted = useMessageQueueStore.getState().take(CONV_A, second.id)
+      if (!promoted) throw new Error('Expected promoted queue removal')
+      useMessageQueueStore.getState().restore(CONV_A, promoted)
+
+      expect(
+        useMessageQueueStore
+          .getState()
+          .queues.get(CONV_A)
+          ?.map((item) => item.payload.text),
+      ).toEqual(['second', 'first'])
+    })
+
     it('restores the exact queue item at its original position', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))

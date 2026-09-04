@@ -134,8 +134,12 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       const index = queue.findIndex((item) => item.id === messageId)
       if (index <= 0) return state
       const item = queue[index]
+      const promoted = {
+        ...item,
+        queueOrder: Math.min(...queue.map((candidate) => candidate.queueOrder)) - 1,
+      }
       const next = new Map(state.queues)
-      next.set(sessionId, [item, ...queue.slice(0, index), ...queue.slice(index + 1)])
+      next.set(sessionId, [promoted, ...queue.slice(0, index), ...queue.slice(index + 1)])
       return { queues: next }
     })
   },

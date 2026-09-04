@@ -32,4 +32,32 @@ describe('background run render state', () => {
 
     expect(next.renderSnapshotsBySessionId.get(SESSION_ID)?.messages).toEqual(SNAPSHOT.messages)
   })
+
+  it('rebases a restored completed compaction after the transcript hydrates', () => {
+    const next = withRunCompactionStatus(
+      state(),
+      SESSION_ID,
+      {
+        type: 'completed',
+        reason: 'threshold',
+        summaryCountAtStart: 0,
+        timeline: [
+          {
+            id: '10:0',
+            phase: 'completed',
+            reason: 'threshold',
+            summaryCountAtStart: 0,
+            expectedSummaryCount: 1,
+            messageCountAtStart: 0,
+          },
+        ],
+      },
+      true,
+    )
+
+    expect(next.renderSnapshotsBySessionId.get(SESSION_ID)?.compactionStatus).toMatchObject({
+      type: 'completed',
+      timeline: [{ phase: 'completed', messageCountAtStart: SNAPSHOT.messages.length }],
+    })
+  })
 })
