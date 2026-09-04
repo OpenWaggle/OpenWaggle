@@ -224,9 +224,7 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       updateBufferedActivityEvents(sessionId, () => [value])
     })
     .with('compaction_end', (value) => {
-      updateBufferedActivityEvents(sessionId, (events) =>
-        value.willRetry ? [...events, value] : [],
-      )
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
     })
     .with('auto_retry_start', (value) => {
       updateBufferedActivityEvents(sessionId, (events) => [...events, value])

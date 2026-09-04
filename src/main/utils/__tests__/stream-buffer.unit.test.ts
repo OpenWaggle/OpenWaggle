@@ -93,6 +93,33 @@ describe('stream-buffer', () => {
     expect(getStreamBuffer(SESSION_ID)).toMatchObject({ activityEvents: [compactionStart] })
   })
 
+  it('keeps a completed threshold compaction reconnectable while the run continues', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    const compactionStart = {
+      type: 'compaction_start' as const,
+      reason: 'threshold' as const,
+      timestamp: 10,
+    }
+    const compactionEnd = {
+      type: 'compaction_end' as const,
+      reason: 'threshold' as const,
+      result: {},
+      aborted: false,
+      willRetry: false,
+      timestamp: 11,
+    }
+
+    applyEventToStreamBuffer(SESSION_ID, compactionStart)
+    applyEventToStreamBuffer(SESSION_ID, compactionEnd)
+
+    expect(listStreamBuffers()[0]).toMatchObject({
+      activityEvents: [compactionStart, compactionEnd],
+    })
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      activityEvents: [compactionStart, compactionEnd],
+    })
+  })
+
   it('keeps the retry phase linked to the automatic compaction that triggered it', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
     const compactionStart = {
