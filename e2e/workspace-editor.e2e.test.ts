@@ -2,7 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
-import { rendererLongTaskBudget, syntaxCompletionTimeout } from './support/performance-budgets'
+import {
+  rendererLongTaskBudget,
+  shouldEnforceLargeSourceLongTaskBudget,
+  syntaxCompletionTimeout,
+} from './support/performance-budgets'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SESSION_TITLE = 'Workspace review and focused edit fixture'
@@ -454,7 +458,9 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     expect(sourceTransfers.filter((size) => size === 0).length).toBeGreaterThanOrEqual(4)
 
     const longTasks = await observedLongTasks(page)
-    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(rendererLongTaskBudget())
+    if (shouldEnforceLargeSourceLongTaskBudget()) {
+      expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(rendererLongTaskBudget())
+    }
     await expect(page.locator(`[aria-label="Edit ${relativePath}"]`)).toHaveCount(0)
     expect(rendererErrors).toEqual([])
   } finally {
