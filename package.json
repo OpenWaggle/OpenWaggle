@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "0.3.0-alpha.64",
+  "version": "0.3.0-alpha.65",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {
@@ -89,8 +89,8 @@
   },
   "dependencies": {
     "@diegogbrisa/ts-match": "1.6.2",
-    "@earendil-works/pi-ai": "0.84.3",
-    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
     "@headless-tree/core": "1.7.0",
     "@headless-tree/react": "1.7.0",
     "@huggingface/transformers": "4.2.0",
