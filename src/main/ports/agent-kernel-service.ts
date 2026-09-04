@@ -1,4 +1,8 @@
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type {
+  AgentSteerDeliveryResult,
+  HydratedAgentSendPayload,
+  Message,
+} from '@shared/types/agent'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -30,7 +34,7 @@ export interface AgentKernelSessionSnapshot {
 }
 
 export interface AgentKernelRunControl {
-  readonly steer: (payload: HydratedAgentSendPayload) => Promise<void>
+  readonly steer: (payload: HydratedAgentSendPayload) => Promise<AgentSteerDeliveryResult>
 }
 
 export interface AgentKernelRunInput {

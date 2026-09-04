@@ -1,4 +1,4 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
@@ -33,7 +33,7 @@ export interface AgentChatReturn {
   isLoading: boolean
   status: AgentChatStatus
   stop: () => void
-  steer: (payload: AgentSendPayload) => Promise<void>
+  steer: (payload: AgentSendPayload) => Promise<AgentSteerDeliveryResult>
   error: Error | undefined
   withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
   previewSteeredUserTurn: (

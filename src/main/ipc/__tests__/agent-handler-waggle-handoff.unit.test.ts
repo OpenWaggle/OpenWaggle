@@ -1,5 +1,5 @@
 import { BUILT_IN_WAGGLE_PRESETS } from '@openwaggle/waggle-core'
-import type { Message } from '@shared/types/agent'
+import type { AgentSteerDeliveryResult, Message } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,6 +55,8 @@ import { registerAgentHandlers } from '../agent-handler'
 const SESSION_ID = SessionId('agent-handoff-session')
 const MODEL = SupportedModelId('openai/gpt-5.4')
 const PAYLOAD = { text: 'Review this', thinkingLevel: 'medium', attachments: [] } as const
+const STEER_DELIVERY = { delivery: 'queued', durableText: PAYLOAD.text } as const
+const STEER_RESULT = { preserved: true, delivery: STEER_DELIVERY } as const
 
 function handoffMessage(): Message {
   const preset = BUILT_IN_WAGGLE_PRESETS[0]
@@ -102,7 +104,7 @@ function registerHandlers() {
   }
 }
 
-function installPendingAgentRun(nativeSteer: () => Promise<void>) {
+function installPendingAgentRun(nativeSteer: () => Promise<AgentSteerDeliveryResult>) {
   mocks.executeAgentRun.mockImplementation((input) =>
     Effect.async((resume) => {
       input.onControlAvailable?.({ steer: nativeSteer })
@@ -244,15 +246,13 @@ describe('agent handler Waggle handoff lifecycle', () => {
   })
 
   it('delivers steering through the active run control without cancelling the run', async () => {
-    const nativeSteer = vi.fn(async () => undefined)
+    const nativeSteer = vi.fn(async () => STEER_DELIVERY)
     installPendingAgentRun(nativeSteer)
     const { cancel, send, steer } = registerHandlers()
     const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
     await vi.waitFor(() => expect(mocks.executeAgentRun).toHaveBeenCalledOnce())
 
-    const result = await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))
-
-    expect(result).toEqual({ preserved: true })
+    expect(await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))).toEqual(STEER_RESULT)
     expect(nativeSteer).toHaveBeenCalledWith(PAYLOAD)
     expect(activeRuns.has(SESSION_ID)).toBe(true)
     expect(mocks.emitRunCompleted).not.toHaveBeenCalled()
@@ -262,8 +262,8 @@ describe('agent handler Waggle handoff lifecycle', () => {
   })
 
   it('routes steering to the Waggle control after a classic handoff', async () => {
-    const classicSteer = vi.fn(async () => undefined)
-    const waggleSteer = vi.fn(async () => undefined)
+    const classicSteer = vi.fn(async () => STEER_DELIVERY)
+    const waggleSteer = vi.fn(async () => STEER_DELIVERY)
     mocks.executeAgentRun.mockImplementation((input) =>
       Effect.sync(() => {
         input.onControlAvailable?.({ steer: classicSteer })
@@ -293,7 +293,7 @@ describe('agent handler Waggle handoff lifecycle', () => {
   })
 
   it('does not deliver through a stale control when the run ends during hydration', async () => {
-    const nativeSteer = vi.fn(async () => undefined)
+    const nativeSteer = vi.fn(async () => STEER_DELIVERY)
     let releaseHydration!: () => void
     const hydrationGate = new Promise<void>((resolve) => {
       releaseHydration = resolve
@@ -320,7 +320,7 @@ describe('agent handler Waggle handoff lifecycle', () => {
   })
 
   it('delivers through a directly registered Waggle run control', async () => {
-    const nativeSteer = vi.fn(async () => undefined)
+    const nativeSteer = vi.fn(async () => STEER_DELIVERY)
     const abortController = new AbortController()
     activeWaggleRuns.register(SESSION_ID, abortController, {
       controlRef: { current: { steer: nativeSteer } },
@@ -328,9 +328,7 @@ describe('agent handler Waggle handoff lifecycle', () => {
     })
     const { steer } = registerHandlers()
 
-    const result = await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))
-
-    expect(result).toEqual({ preserved: true })
+    expect(await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))).toEqual(STEER_RESULT)
     expect(nativeSteer).toHaveBeenCalledWith(PAYLOAD)
     activeWaggleRuns.cancel(SESSION_ID)
   })

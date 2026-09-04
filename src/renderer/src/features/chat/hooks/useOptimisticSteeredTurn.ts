@@ -13,6 +13,7 @@ export type SteerDeliveryState = NonNullable<UIMessageMetadata['steerDelivery']>
 
 export interface OptimisticSteerPreviewController {
   readonly clear: () => void
+  readonly setDurableContent: (content: string) => void
   readonly setDeliveryState: (state: SteerDeliveryState) => void
 }
 
@@ -70,7 +71,13 @@ export function useOptimisticSteeredTurn(
     previewSteeredUserTurn: (payload: AgentSendPayload, deliveryState: SteerDeliveryState) => {
       const content = buildClientUserMessage(payload)
       const optimisticTurnId = createOptimisticTurnId()
-      if (!sessionId) return { clear: () => undefined, setDeliveryState: () => undefined }
+      if (!sessionId) {
+        return {
+          clear: () => undefined,
+          setDurableContent: () => undefined,
+          setDeliveryState: () => undefined,
+        }
+      }
       useOptimisticSteerStore.getState().add(sessionId, {
         id: optimisticTurnId,
         content,
@@ -81,6 +88,12 @@ export function useOptimisticSteeredTurn(
       return {
         clear: () => {
           useOptimisticSteerStore.getState().remove(sessionId, optimisticTurnId)
+        },
+        setDurableContent: (durableContent: string) => {
+          useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
+            ...turn,
+            durableContent,
+          }))
         },
         setDeliveryState: (state: SteerDeliveryState) => {
           useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({

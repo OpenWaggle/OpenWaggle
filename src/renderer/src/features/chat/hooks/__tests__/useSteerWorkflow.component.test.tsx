@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,7 @@ const PAYLOAD: AgentSendPayload = {
 function createDeps(isCompacting: boolean) {
   const preview = {
     clear: vi.fn(),
+    setDurableContent: vi.fn(),
     setDeliveryState: vi.fn(),
   }
   async function withDeferredSnapshotRefresh<T>(operation: () => Promise<T>): Promise<T> {
@@ -26,7 +27,9 @@ function createDeps(isCompacting: boolean) {
     deps: {
       activeSessionId: SESSION_ID,
       isCompacting,
-      steer: vi.fn().mockResolvedValue(undefined),
+      steer: vi
+        .fn()
+        .mockResolvedValue({ delivery: 'queued', durableText: 'Continue with the implementation' }),
       previewSteeredUserTurn: vi.fn().mockReturnValue(preview),
       withDeferredSnapshotRefresh,
       showToast: vi.fn(),
@@ -37,8 +40,8 @@ function createDeps(isCompacting: boolean) {
 
 function deferredPromise() {
   let resolve!: () => void
-  const promise = new Promise<void>((settle) => {
-    resolve = settle
+  const promise = new Promise<AgentSteerDeliveryResult>((settle) => {
+    resolve = () => settle({ delivery: 'queued', durableText: 'Continue with the implementation' })
   })
   return { promise, resolve }
 }
@@ -123,6 +126,25 @@ describe('useSteerWorkflow', () => {
 
     expect(setup.deps.previewSteeredUserTurn).toHaveBeenCalledWith(PAYLOAD, 'sending')
     expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
+  })
+
+  it('reconciles an expanded slash command with Pi canonical queued text', async () => {
+    const slashPayload = { ...PAYLOAD, text: '/skill:review-pr' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, slashPayload)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(false)
+    setup.deps.steer.mockResolvedValueOnce({
+      delivery: 'queued',
+      durableText: 'Expanded review skill',
+    })
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.preview.setDurableContent).toHaveBeenCalledWith('Expanded review skill')
   })
 
   it('restores the exact queued message at its original position when native steer fails', async () => {

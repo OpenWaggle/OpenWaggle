@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPiRunControl } from '../pi-run-control'
 import { modelFromReference, payload } from './run-orchestration.test-utils'
 
+function nativeSteering() {
+  const messages: string[] = []
+  return {
+    getSteeringMessages: () => messages,
+    steer: vi.fn(async (text: string) => {
+      messages.push(text)
+    }),
+  }
+}
+
 describe('Pi native run control', () => {
   it('delivers steering through the live Pi session', async () => {
     const abortController = new AbortController()
@@ -9,34 +19,32 @@ describe('Pi native run control', () => {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sendCustomMessage: vi.fn(async () => undefined),
-      sendUserMessage: vi.fn(async () => undefined),
+      ...nativeSteering(),
     }
     const control = createPiRunControl(session, abortController.signal)
 
     await control.steer(payload('Take the safer path'))
 
-    expect(session.sendUserMessage).toHaveBeenCalledWith('Take the safer path', {
-      deliverAs: 'steer',
-      expandPromptTemplates: true,
-    })
+    expect(session.steer).toHaveBeenCalledWith('Take the safer path', undefined)
   })
 
   it('expands queued slash commands before delivering steering', async () => {
+    const steeringMessages: string[] = []
     const session = {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sendUserMessage: vi.fn(async () => undefined),
+      getSteeringMessages: () => steeringMessages,
+      steer: vi.fn(async () => {
+        steeringMessages.push('Expanded review skill')
+      }),
     }
     const control = createPiRunControl(session, new AbortController().signal)
 
-    await control.steer(payload('/skill:review-pr'))
+    const result = await control.steer(payload('/skill:review-pr'))
 
-    expect(session.sendUserMessage).toHaveBeenCalledWith('/skill:review-pr', {
-      deliverAs: 'steer',
-      expandPromptTemplates: true,
-    })
+    expect(session.steer).toHaveBeenCalledWith('/skill:review-pr', undefined)
+    expect(result).toEqual({ delivery: 'queued', durableText: 'Expanded review skill' })
   })
 
   it('waits for compaction and fails closed if the run is cancelled', async () => {
@@ -48,14 +56,13 @@ describe('Pi native run control', () => {
       },
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sendCustomMessage: vi.fn(async () => undefined),
-      sendUserMessage: vi.fn(async () => undefined),
+      ...nativeSteering(),
     }
     const control = createPiRunControl(session, abortController.signal)
     const pending = control.steer(payload('Wait for the checkpoint'))
 
     await new Promise((resolve) => setTimeout(resolve, 25))
-    expect(session.sendUserMessage).not.toHaveBeenCalled()
+    expect(session.steer).not.toHaveBeenCalled()
     abortController.abort()
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
@@ -70,22 +77,18 @@ describe('Pi native run control', () => {
       },
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sendCustomMessage: vi.fn(async () => undefined),
-      sendUserMessage: vi.fn(async () => undefined),
+      ...nativeSteering(),
     }
     const control = createPiRunControl(session, new AbortController().signal)
     const pending = control.steer(payload('Continue after the checkpoint'))
 
     await new Promise((resolve) => setTimeout(resolve, 25))
-    expect(session.sendUserMessage).not.toHaveBeenCalled()
+    expect(session.steer).not.toHaveBeenCalled()
     isCompacting = false
     await pending
 
-    expect(session.sendUserMessage).toHaveBeenCalledOnce()
-    expect(session.sendUserMessage).toHaveBeenCalledWith('Continue after the checkpoint', {
-      deliverAs: 'steer',
-      expandPromptTemplates: true,
-    })
+    expect(session.steer).toHaveBeenCalledOnce()
+    expect(session.steer).toHaveBeenCalledWith('Continue after the checkpoint', undefined)
   })
 
   it('queues visualization context and the user request as one steering message', async () => {
@@ -94,8 +97,7 @@ describe('Pi native run control', () => {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      sendCustomMessage: vi.fn(async () => undefined),
-      sendUserMessage: vi.fn(async () => undefined),
+      ...nativeSteering(),
     }
     const control = createPiRunControl(session, abortController.signal)
 
@@ -109,13 +111,12 @@ describe('Pi native run control', () => {
       }),
     )
 
-    expect(session.sendCustomMessage).not.toHaveBeenCalled()
-    expect(session.sendUserMessage).toHaveBeenCalledOnce()
-    expect(session.sendUserMessage).toHaveBeenCalledWith(
+    expect(session.steer).toHaveBeenCalledOnce()
+    expect(session.steer).toHaveBeenCalledWith(
       expect.stringMatching(
         /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Explain the selected service/,
       ),
-      { deliverAs: 'steer', expandPromptTemplates: true },
+      undefined,
     )
   })
 
@@ -129,8 +130,7 @@ describe('Pi native run control', () => {
       get model() {
         return supportsImages ? imageModel : textModel
       },
-      sendCustomMessage: vi.fn(async () => undefined),
-      sendUserMessage: vi.fn(async () => undefined),
+      ...nativeSteering(),
     }
     const control = createPiRunControl(session, new AbortController().signal)
     supportsImages = true
@@ -152,9 +152,9 @@ describe('Pi native run control', () => {
       }),
     )
 
-    expect(session.sendUserMessage).toHaveBeenCalledWith(
+    expect(session.steer).toHaveBeenCalledWith(
+      expect.stringMatching(/Inspect this[\s\S]*\[Attachment: diagram\.png\][\s\S]*Diagram/),
       expect.arrayContaining([expect.objectContaining({ type: 'image', data: 'base64-image' })]),
-      { deliverAs: 'steer', expandPromptTemplates: true },
     )
   })
 })

@@ -96,7 +96,10 @@ const {
       sendMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       sendWaggleMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       cancelAgent: vi.fn(async (): Promise<void> => undefined),
-      steerAgent: vi.fn(async () => ({ preserved: true })),
+      steerAgent: vi.fn(async () => ({
+        preserved: true,
+        delivery: { delivery: 'queued' as const, durableText: 'Steered message' },
+      })),
       respondAgentInteraction: vi.fn(async () => ({
         ok: true,
         interactionId: 'interaction-1',

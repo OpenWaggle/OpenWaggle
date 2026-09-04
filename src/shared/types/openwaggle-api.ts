@@ -1,4 +1,9 @@
-import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
+import type {
+  AgentSendPayload,
+  AgentSendReport,
+  AgentSteerDeliveryResult,
+  PreparedAttachment,
+} from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
@@ -104,7 +109,10 @@ export interface OpenWaggleApi
     model: SupportedModelId,
   ): Promise<AgentSendReport>
   cancelAgent(sessionId?: SessionId): Promise<void>
-  steerAgent(sessionId: SessionId, payload: AgentSendPayload): Promise<{ preserved: boolean }>
+  steerAgent(
+    sessionId: SessionId,
+    payload: AgentSendPayload,
+  ): Promise<{ preserved: boolean; delivery: AgentSteerDeliveryResult }>
   respondAgentInteraction(
     input: AgentLoopInteractionResponseInput,
   ): Promise<AgentLoopInteractionSubmitResult>

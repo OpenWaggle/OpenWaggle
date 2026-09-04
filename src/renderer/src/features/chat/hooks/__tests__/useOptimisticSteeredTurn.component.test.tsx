@@ -161,4 +161,34 @@ describe('useOptimisticSteeredTurn', () => {
 
     expect(result.current.visibleMessages).toEqual(durableMessages)
   })
+
+  it('reconciles a slash-command preview with the canonical expanded Pi message', () => {
+    const initialMessages = [userMessage('initial', 'start')]
+    const messagesRef = { current: initialMessages }
+    const slashPayload = { ...FIRST_PAYLOAD, text: '/skill:review-pr' }
+    const { result, rerender } = renderHook(
+      ({ hydratedMessages }) =>
+        useOptimisticSteeredTurn(
+          hydratedMessages,
+          SESSION_ID,
+          (payload) => payload.text,
+          messagesRef,
+        ),
+      { initialProps: { hydratedMessages: initialMessages } },
+    )
+
+    act(() => {
+      const preview = result.current.previewSteeredUserTurn(slashPayload, 'sending')
+      preview.setDurableContent('Expanded review skill')
+    })
+
+    const durableMessages = [
+      ...initialMessages,
+      userMessage('durable-expanded-skill', 'Expanded review skill'),
+    ]
+    messagesRef.current = durableMessages
+    rerender({ hydratedMessages: durableMessages })
+
+    expect(result.current.visibleMessages).toEqual(durableMessages)
+  })
 })

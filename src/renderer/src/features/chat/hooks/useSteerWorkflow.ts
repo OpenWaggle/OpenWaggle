@@ -1,4 +1,4 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import { useState } from 'react'
 import { useMessageQueueStore } from '@/features/chat/state'
@@ -14,7 +14,7 @@ const logger = createRendererLogger('chat-panel')
 interface SteerWorkflowDeps {
   readonly activeSessionId: SessionId | null
   readonly isCompacting: boolean
-  readonly steer: (payload: AgentSendPayload) => Promise<void>
+  readonly steer: (payload: AgentSendPayload) => Promise<AgentSteerDeliveryResult>
   readonly previewSteeredUserTurn: (
     payload: AgentSendPayload,
     deliveryState: SteerDeliveryState,
@@ -48,7 +48,8 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
     const preview = previewSteeredUserTurn(item.payload, deliveryState)
     setInFlightSteerCount((count) => count + 1)
     try {
-      await withDeferredSnapshotRefresh(() => steer(item.payload))
+      const delivery = await withDeferredSnapshotRefresh(() => steer(item.payload))
+      preview.setDurableContent(delivery.durableText)
       preview.setDeliveryState('sending')
     } catch (error) {
       preview.clear()

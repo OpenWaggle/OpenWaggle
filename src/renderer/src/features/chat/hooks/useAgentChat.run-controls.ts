@@ -264,9 +264,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
   }
 
   async function steer(payload: AgentSendPayload) {
-    if (sessionId) {
-      await api.steerAgent(sessionId, payload)
-    }
+    if (!sessionId) throw new Error('No active session is available for steering.')
+    const result = await api.steerAgent(sessionId, payload)
+    return result.delivery
   }
 
   return {
