@@ -117,6 +117,27 @@ describe('Pi visualization context filtering', () => {
     expect(JSON.stringify(filtered)).toContain('retry selection')
   })
 
+  it('strips old visualization context when a retry hook removes the active prompt', async () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'stale retry selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+    const olderPrompt = user(buildAtomicVisualizationPrompt(context, 'older prompt'), 1)
+    const olderAnswer = assistant('older answer', 2)
+    const activePrompt = user('active prompt removed by the context hook', 3)
+    const overflowResponse = assistant('overflow', 4, 'length')
+
+    const filtered = await filterConsumedVisualizationContext(
+      [olderPrompt, olderAnswer, overflowResponse],
+      [olderPrompt, olderAnswer, activePrompt, overflowResponse],
+      { willRetry: true },
+    )
+
+    expect(filtered[0]).toEqual(user('older prompt', 1))
+    expect(JSON.stringify(filtered)).not.toContain('stale retry selection')
+  })
+
   it('does not correlate different same-millisecond prompts', async () => {
     const context = [
       '[OpenWaggle inline visualization context]',

@@ -104,6 +104,30 @@ describe('Pi native compaction provider-hook identity', () => {
     expect(providerContexts[0]).toContain('cmp_1')
   })
 
+  it('resets a one-turn system prompt before deferred compaction', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-deferred-system-prompt-')
+    const requestBodies: string[] = []
+    const oneTurnSystemPrompt = 'ONE-TURN-SECRET-SYSTEM-PROMPT '.repeat(20)
+    const thresholdResponse = fauxAssistantMessage('Reached threshold')
+    thresholdResponse.timestamp = Date.now() + 60_000
+    vi.stubGlobal('fetch', nativeCompactionFetch(requestBodies))
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: [],
+      systemPrompt: 'BASE-SYSTEM-PROMPT',
+      beforeAgentStartSystemPrompt: (prompt) =>
+        prompt === 'first turn' ? oneTurnSystemPrompt : undefined,
+      responses: [thresholdResponse, fauxAssistantMessage('Second turn complete')],
+    })
+
+    await session.prompt('first turn')
+    await session.prompt('second turn')
+
+    expect(requestBodies).toHaveLength(1)
+    expect(requestBodies[0]).toContain('BASE-SYSTEM-PROMPT')
+    expect(requestBodies[0]).not.toContain('ONE-TURN-SECRET-SYSTEM-PROMPT')
+  })
+
   it('reuses a rotating resolver credential when the next prompt first compacts', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-resolver-auth-')
     const events: SessionCompactEvent[] = []

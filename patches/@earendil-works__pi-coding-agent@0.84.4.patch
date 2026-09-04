@@ -333,11 +333,13 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
              await this.agent.prompt(messages);
              while (await this._handlePostAgentRun()) {
                  await this.agent.continue();
-@@ -784,6 +912,16 @@ export class AgentSession {
+@@ -784,6 +912,18 @@ export class AgentSession {
              await this._emitAgentSettled();
          }
      }
 +    async _prepareNewTurn() {
++        this._systemPromptOverride = undefined;
++        this.agent.state.systemPrompt = this._baseSystemPrompt;
 +        let preparedCompactionAuth;
 +        await this._refreshRequestModelContext((prepared) => {
 +            preparedCompactionAuth = prepared;

@@ -89,6 +89,19 @@ function promptFingerprint(message: PiContextMessage | undefined) {
     : null
 }
 
+function assistantFingerprint(message: PiContextMessage | undefined) {
+  return message?.role === 'assistant'
+    ? JSON.stringify([
+        message.timestamp,
+        message.api,
+        message.provider,
+        message.model,
+        message.stopReason,
+        message.content,
+      ])
+    : null
+}
+
 /**
  * Keeps visualization state visible to the provider only for the turn that supplied it.
  * Pi persists input messages for replay, so consumed asides and older Waggle snapshots must be
@@ -118,12 +131,22 @@ export async function filterConsumedVisualizationContext(
   const referenceLatestPromptCompleted =
     !options.willRetry &&
     referenceMessages.slice(referenceLatestPromptIndex + 1).some(completesPromptTurn)
+  const retryResponseFingerprint = options.willRetry
+    ? assistantFingerprint(referenceMessages.findLast((message) => message.role === 'assistant'))
+    : null
+  const transformedLatestPromptCompleted = messages
+    .slice(latestPromptIndex + 1)
+    .some(
+      (message) =>
+        assistantFingerprint(message) !== retryResponseFingerprint && completesPromptTurn(message),
+    )
   const latestPromptConsumed =
     latestPromptIndex < 0 ||
     (!options.willRetry &&
       promptFingerprint(messages[latestPromptIndex]) !==
         promptFingerprint(referenceMessages[referenceLatestPromptIndex])) ||
-    referenceLatestPromptCompleted
+    referenceLatestPromptCompleted ||
+    transformedLatestPromptCompleted
 
   return messages.flatMap((message, index) => {
     if (message.role === 'custom' && message.customType === PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE) {

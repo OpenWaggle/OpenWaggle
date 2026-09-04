@@ -137,4 +137,65 @@ describe('Pi compaction visualization context', () => {
       }
     },
   )
+
+  it.each([
+    { label: 'Native checkpoint', fallback: false },
+    { label: '404 Portable fallback', fallback: true },
+  ])(
+    'drops old visualization context when an overflow hook removes the active prompt via $label',
+    async ({ fallback }) => {
+      const directory = createNativeTempDirectory('openwaggle-overflow-removed-prompt-context-')
+      const nativeRequests: string[] = []
+      const portableRequests: string[] = []
+      const staleVisualizationContext = [
+        '[OpenWaggle inline visualization context]',
+        'stale selection from an older turn',
+        '[/OpenWaggle inline visualization context]',
+      ].join('\n')
+      const overflowResponse = fauxAssistantMessage('')
+      overflowResponse.stopReason = 'error'
+      overflowResponse.errorMessage = 'maximum context length exceeded'
+      overflowResponse.timestamp = Date.now() + 60_000
+      vi.stubGlobal(
+        'fetch',
+        fallback
+          ? vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+              if (typeof init?.body === 'string') nativeRequests.push(init.body)
+              return new Response(null, { status: 404 })
+            })
+          : nativeCompactionFetch(nativeRequests),
+      )
+      const responses: FauxResponseStep[] = [overflowResponse]
+      if (fallback) {
+        responses.push((context) => {
+          portableRequests.push(JSON.stringify(context))
+          return fauxAssistantMessage('Portable checkpoint')
+        })
+      }
+      responses.push(fauxAssistantMessage('Recovered after overflow'))
+      const { session, sessionManager } = await createNativeSession({
+        directory,
+        compactionEvents: [],
+        initialContext: buildAtomicVisualizationPrompt(staleVisualizationContext, 'older prompt'),
+        responses,
+        contextTransform: (messages) =>
+          messages.filter(
+            (message) =>
+              message.role !== 'user' ||
+              !JSON.stringify(message.content).includes('ACTIVE-PROMPT-REMOVED'),
+          ),
+      })
+      sessionManager.appendMessage(fauxAssistantMessage('Older turn complete', { timestamp: 2 }))
+      bindVisualizationContextFilter(session)
+
+      await session.prompt('ACTIVE-PROMPT-REMOVED')
+
+      expect(nativeRequests).toHaveLength(1)
+      expect(nativeRequests[0]).not.toContain('stale selection from an older turn')
+      if (fallback) {
+        expect(portableRequests).toHaveLength(1)
+        expect(portableRequests[0]).not.toContain('stale selection from an older turn')
+      }
+    },
+  )
 })

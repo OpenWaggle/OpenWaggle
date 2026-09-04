@@ -60,6 +60,7 @@ export async function createNativeSession(options: {
     accountId?: string
   }
   providerAuthHeaderResolver?: () => string
+  beforeAgentStartSystemPrompt?: (prompt: string) => string | undefined
   blockImages?: boolean
   contextTransform?: (messages: ContextEvent['messages']) => ContextEvent['messages']
   enableDefaultTools?: boolean
@@ -113,6 +114,12 @@ export async function createNativeSession(options: {
     },
   })
   const extension: ExtensionFactory = (pi) => {
+    if (options.beforeAgentStartSystemPrompt) {
+      pi.on('before_agent_start', (event) => {
+        const systemPrompt = options.beforeAgentStartSystemPrompt?.(event.prompt)
+        return systemPrompt === undefined ? undefined : { systemPrompt }
+      })
+    }
     if (options.providerAuthHeaderState || options.providerAuthHeaderResolver) {
       pi.on('before_provider_headers', (event) => {
         const authorization =
