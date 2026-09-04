@@ -49,6 +49,21 @@ function StepperButton({
   )
 }
 
+function useNumberStepperDraft(value: number, disabled: boolean) {
+  const [state, setState] = useState({ sourceValue: value, text: String(value) })
+  const resetOnEnableRef = useRef(false)
+  useEffect(() => {
+    if (disabled) resetOnEnableRef.current = true
+  }, [disabled])
+  const isCurrent = state.sourceValue === value && !(resetOnEnableRef.current && !disabled)
+  const draft = isCurrent ? state.text : String(value)
+  const setDraft = (text: string) => {
+    resetOnEnableRef.current = false
+    setState({ sourceValue: value, text })
+  }
+  return [draft, setDraft] as const
+}
+
 export function NumberStepper({
   id,
   label,
@@ -60,11 +75,8 @@ export function NumberStepper({
   disabled = false,
   onValueChange,
 }: NumberStepperProps) {
-  const [draft, setDraft] = useState(String(value))
+  const [draft, setDraft] = useNumberStepperDraft(value, disabled)
   const suppressNextBlurRef = useRef(false)
-  useEffect(() => {
-    if (!disabled) setDraft(String(value))
-  }, [value, disabled])
   const parsedDraft = draft.trim() ? Number(draft) : Number.NaN
   const draftValue = Number.isFinite(parsedDraft) ? parsedDraft : value
 

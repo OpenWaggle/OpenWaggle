@@ -174,6 +174,32 @@ describe('Pi native compaction custom turns', () => {
     expect(providerContexts[0]).not.toContain('cmp_1')
   })
 
+  it('replays a checkpoint when a provider hook keeps the effective authorization stable', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-stable-hook-auth-')
+    const events: SessionCompactEvent[] = []
+    const providerContexts: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch())
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      apiKeyState: { value: 'credential-a' },
+      providerAuthHeaderState: { authorization: 'Bearer account-b-token' },
+      contextWindow: 10_000,
+      responses: [
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Response with stable provider hook credentials')
+        },
+      ],
+    })
+
+    await session.compact()
+    await session.prompt('Continue with the same provider hook credentials')
+
+    expect(providerContexts[0]).toContain('cmp_1')
+    expect(providerContexts[0]).not.toContain('Initial context')
+  })
+
   it('survives an OAuth refresh but reconstructs when the ChatGPT account changes', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-account-change-')
     const events: SessionCompactEvent[] = []

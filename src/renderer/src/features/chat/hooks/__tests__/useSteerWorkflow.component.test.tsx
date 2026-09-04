@@ -147,6 +147,30 @@ describe('useSteerWorkflow', () => {
     expect(setup.preview.setDurableContent).toHaveBeenCalledWith('Expanded review skill')
   })
 
+  it.each(['/compact focus on decisions', '/fork', '/clone'])(
+    'keeps renderer-owned command %s queued instead of steering it as model text',
+    async (text) => {
+      const commandPayload = { ...PAYLOAD, text }
+      useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
+      const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
+      const queued = original?.[0]
+      if (!queued) throw new Error('Expected queued command')
+      const setup = createDeps(false)
+      const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+      await act(async () => {
+        await result.current.handleSteer(queued.id)
+      })
+
+      expect(setup.deps.steer).not.toHaveBeenCalled()
+      expect(setup.deps.previewSteeredUserTurn).not.toHaveBeenCalled()
+      expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
+      expect(setup.deps.showToast).toHaveBeenCalledWith(
+        'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
+      )
+    },
+  )
+
   it('restores the exact queued message at its original position when native steer fails', async () => {
     const before = { ...PAYLOAD, text: 'before' }
     const after = { ...PAYLOAD, text: 'after' }

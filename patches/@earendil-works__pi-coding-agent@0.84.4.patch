@@ -63,7 +63,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
  import { expandPromptTemplate } from "./prompt-templates.js";
  import { exportSessionToJsonl } from "./session-export.js";
 -import { getLatestCompactionEntry } from "./session-manager.js";
-+import { estimateReconstructionMessageTokens, getLatestCompactionEntry, getNativeCredentialFingerprint, withNativeCredentialFingerprint, } from "./session-manager.js";
++import { estimateReconstructionMessageTokens, getLatestCompactionEntry, getNativeCredentialFingerprint, withNativeCredentialFingerprint, withPreparedProviderHeaders, } from "./session-manager.js";
  import { createSyntheticSourceInfo } from "./source-info.js";
  import { buildSystemPrompt } from "./system-prompt.js";
  import { createLocalBashOperations } from "./tools/bash.js";
@@ -155,7 +155,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
                  env: result.env,
              };
          }
-@@ -197,21 +244,49 @@ export class AgentSession {
+@@ -197,21 +244,65 @@ export class AgentSession {
              return this._getRequiredRequestAuth(model);
          }
          try {
@@ -186,12 +186,28 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
 +            return false;
 +        const selectedModel = this._selectedModel ?? currentModel;
 +        let requestModel;
++        let apiKey;
++        let headers;
 +        if (this._usesModelRuntimeStream) {
 +            const prepared = await this._modelRuntime.prepareModelRequest(selectedModel);
-+            requestModel = withNativeCredentialFingerprint(prepared.model, prepared.resolution.auth.apiKey, withoutDeletedHeaders(prepared.resolution.auth.headers));
++            apiKey = prepared.resolution.auth.apiKey;
++            headers = withoutDeletedHeaders(prepared.resolution.auth.headers);
++            requestModel = withNativeCredentialFingerprint(prepared.model, apiKey, headers);
 +        }
 +        else {
-+            requestModel = (await this._getSummarizationRequestAuth(selectedModel)).model;
++            const requestAuth = await this._getSummarizationRequestAuth(selectedModel);
++            requestModel = requestAuth.model;
++            apiKey = requestAuth.apiKey;
++            headers = requestAuth.headers;
++        }
++        if (selectCompactionMechanism(requestModel) === "native" &&
++            this._extensionRunner.hasHandlers("before_provider_headers")) {
++            let requestHeaders = mergeProviderAttributionHeaders(requestModel, this.settingsManager, this.sessionManager.getSessionId(), headers);
++            requestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(requestHeaders ?? {});
++            requestModel = withNativeCredentialFingerprint(requestModel, apiKey, requestHeaders);
++            if (this._usesModelRuntimeStream) {
++                requestModel = withPreparedProviderHeaders(requestModel, requestHeaders);
++            }
 +        }
 +        const identityChanged = currentModel.api !== requestModel.api ||
 +            currentModel.provider !== requestModel.provider ||
@@ -396,7 +412,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1447,8 +1550,37 @@ export class AgentSession {
+@@ -1447,8 +1566,38 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -426,6 +442,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
 +            if (this._extensionRunner.hasHandlers("before_provider_headers")) {
 +                requestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(requestHeaders ?? {});
 +            }
++            withNativeCredentialFingerprint(requestModel, apiKey, requestHeaders);
 +            nativeRequestOptions = {
 +                headers: requestHeaders,
 +                onPayload: this.agent.onPayload,
@@ -1409,7 +1426,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..fe6653ee2788e250996fdbcecc2b62af
  import { mergeProviderAttributionHeaders } from "./provider-attribution.js";
  import { DefaultResourceLoader } from "./resource-loader.js";
 -import { getDefaultSessionDir, SessionManager } from "./session-manager.js";
-+import { buildSessionContext, getDefaultSessionDir, SessionManager, withNativeCredentialFingerprint, } from "./session-manager.js";
++import { buildSessionContext, getDefaultSessionDir, SessionManager, takePreparedProviderHeaders, withNativeCredentialFingerprint, } from "./session-manager.js";
  import { SettingsManager } from "./settings-manager.js";
  import { time } from "./timings.js";
  import { createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, withFileMutationQueue, } from "./tools/index.js";
@@ -1464,7 +1481,17 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..fe6653ee2788e250996fdbcecc2b62af
      const defaultActiveToolNames = ["read", "bash", "edit", "write"];
      const configuredDefaultToolNames = settingsManager.getDefaultTools();
      const allowedToolNames = options.tools ?? (options.noTools === "all" ? [] : undefined);
-@@ -238,7 +273,7 @@ export async function createAgentSession(options = {}) {
+@@ -199,6 +234,9 @@ export async function createAgentSession(options = {}) {
+                 maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
+                 maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
+                 transformHeaders: async (requestHeaders) => {
++                    const preparedHeaders = takePreparedProviderHeaders(model);
++                    if (preparedHeaders)
++                        return preparedHeaders;
+                     const headers = mergeProviderAttributionHeaders(model, settingsManager, options?.sessionId, requestHeaders);
+                     return headerRunner?.hasHandlers("before_provider_headers")
+                         ? headerRunner.emitBeforeProviderHeaders(headers ?? {})
+@@ -238,7 +276,7 @@ export async function createAgentSession(options = {}) {
      });
      // Restore messages if session has existing data
      if (hasExistingSession) {
@@ -1473,7 +1500,7 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..fe6653ee2788e250996fdbcecc2b62af
          if (!hasThinkingEntry) {
              sessionManager.appendThinkingLevelChange(thinkingLevel);
          }
-@@ -252,6 +287,8 @@ export async function createAgentSession(options = {}) {
+@@ -252,6 +290,8 @@ export async function createAgentSession(options = {}) {
      }
      const session = new AgentSession({
          agent,
@@ -1502,7 +1529,7 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..30dc23ebeca3cf16a8e3b0c7f5dc3f37
  }
  export interface BranchSummaryEntry<T = unknown> extends SessionEntryBase {
      type: "branch_summary";
-@@ -121,7 +123,28 @@ export interface SessionContext {
+@@ -121,7 +123,30 @@ export interface SessionContext {
          provider: string;
          modelId: string;
      } | null;
@@ -1528,6 +1555,8 @@ index 8cdfbdec42f696b8cd6b762a92180a81ec142433..30dc23ebeca3cf16a8e3b0c7f5dc3f37
 +export declare function nativeCredentialFingerprint(apiKey?: string, headers?: Record<string, string>): string | undefined;
 +export declare function withNativeCredentialFingerprint<T extends Model<any>>(model: T, apiKey?: string, headers?: Record<string, string>): T;
 +export declare function getNativeCredentialFingerprint(model?: Model<any>): string | undefined;
++export declare function withPreparedProviderHeaders<T extends Model<any>>(model: T, headers: Record<string, string>): T;
++export declare function takePreparedProviderHeaders(model: Model<any>): Record<string, string> | undefined;
  export interface SessionInfo {
      path: string;
      id: string;
@@ -1584,11 +1613,12 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..08718a90dfe796471372a680c6a4f4c3
  import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
  import { readdir, stat } from "fs/promises";
  import { join, resolve } from "path";
-@@ -9,6 +9,61 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
+@@ -9,6 +9,71 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
  import { normalizePath, resolvePath } from "../utils/paths.js";
  import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
  export const CURRENT_SESSION_VERSION = 3;
 +const NATIVE_CREDENTIAL_FINGERPRINT = Symbol.for("pi.nativeCredentialFingerprint");
++const PREPARED_PROVIDER_HEADERS = new WeakMap();
 +function codexAccountId(apiKey) {
 +    try {
 +        const parts = apiKey.split(".");
@@ -1642,6 +1672,15 @@ index f887c04976596f8956bc04c16ca59c4030e09f92..08718a90dfe796471372a680c6a4f4c3
 +}
 +export function getNativeCredentialFingerprint(model) {
 +    return model?.[NATIVE_CREDENTIAL_FINGERPRINT];
++}
++export function withPreparedProviderHeaders(model, headers) {
++    PREPARED_PROVIDER_HEADERS.set(model, headers);
++    return model;
++}
++export function takePreparedProviderHeaders(model) {
++    const headers = PREPARED_PROVIDER_HEADERS.get(model);
++    PREPARED_PROVIDER_HEADERS.delete(model);
++    return headers;
 +}
  function createSessionId() {
      return uuidv7();

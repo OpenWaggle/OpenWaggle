@@ -2,6 +2,7 @@ import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/a
 import type { SessionId } from '@shared/types/brand'
 import { useState } from 'react'
 import { useMessageQueueStore } from '@/features/chat/state'
+import { parseCompactCommand, parseSessionCopyCommand } from '@/features/composer/commands'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportQueuedSteerFailure } from '../lib/queue-failure-feedback'
 import type {
@@ -41,6 +42,19 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
 
   async function handleSteer(messageId: string) {
     if (!activeSessionId) return
+    const queued = useMessageQueueStore
+      .getState()
+      .queues.get(activeSessionId)
+      ?.find((item) => item.id === messageId)
+    if (
+      queued &&
+      (parseCompactCommand(queued.payload.text) || parseSessionCopyCommand(queued.payload.text))
+    ) {
+      showToast(
+        'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
+      )
+      return
+    }
     const taken = useMessageQueueStore.getState().take(activeSessionId, messageId)
     if (!taken) return
     const { item } = taken
