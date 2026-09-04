@@ -13,6 +13,10 @@ vi.mock('node-pty', () => ({
   spawn: spawnMock,
 }))
 
+vi.mock('../terminal-shell', () => ({
+  existingShells: () => ['/bin/zsh', '/bin/bash'],
+}))
+
 function fakePty() {
   return fromPartial<NodePtyModule.IPty>({
     pid: 4321,
