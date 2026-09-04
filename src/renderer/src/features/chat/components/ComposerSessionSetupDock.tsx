@@ -32,27 +32,19 @@ export function ComposerSessionSetupDock({ section, strip }: ComposerSessionSetu
             className="grid min-w-0 grid-cols-[auto_auto_auto_auto_minmax(0,1fr)] items-center gap-1"
             data-testid="session-setup-dock-row"
           >
-            {section.projectPath ? (
-              <div className="min-w-0">
-                <ComposerProjectMenu
-                  onOpenProject={section.onOpenProject}
-                  onSelectProjectPath={section.onSelectProjectPath}
-                  projectPath={section.projectPath}
-                  recentProjects={section.recentProjects}
-                />
-              </div>
-            ) : null}
-            {section.projectPath && strip.visible ? (
-              <span aria-hidden="true" className="h-4 w-px bg-border-light" />
-            ) : null}
-            {strip.visible ? (
-              <div className="min-w-0">
-                <SessionContextRow strip={strip} />
-              </div>
-            ) : null}
-            {strip.visible ? (
-              <span aria-hidden="true" className="h-4 w-px bg-border-light" />
-            ) : null}
+            <div className="min-w-0">
+              <ComposerProjectMenu
+                onOpenProject={section.onOpenProject}
+                onSelectProjectPath={section.onSelectProjectPath}
+                projectPath={section.projectPath ?? null}
+                recentProjects={section.recentProjects}
+              />
+            </div>
+            <span aria-hidden="true" className="h-4 w-px bg-border-light" />
+            <div className="min-w-0">
+              <SessionContextRow strip={strip} />
+            </div>
+            <span aria-hidden="true" className="h-4 w-px bg-border-light" />
             <div className="min-w-0" data-testid="session-setup-branch">
               <ComposerBranchRow strip={strip} onToast={section.onToast} />
             </div>

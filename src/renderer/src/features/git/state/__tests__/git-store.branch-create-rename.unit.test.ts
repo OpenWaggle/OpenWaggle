@@ -36,6 +36,7 @@ describe('useGitStore create and rename branch behavior', () => {
       })
       apiMock.getGitStatus.mockResolvedValue(makeGitStatus())
       apiMock.listGitBranches.mockResolvedValue(makeBranchList())
+      useGitStore.setState({ branchesRepositoryPath: REPOSITORY_PATH })
 
       const result = await useGitStore.getState().createBranch(WORKING_PATH, REPOSITORY_PATH, {
         name: 'feature/new',

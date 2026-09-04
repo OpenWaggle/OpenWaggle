@@ -15,7 +15,7 @@ export interface UseSessionContextRowInput {
   readonly defaultEnvironmentMode: SessionEnvironmentMode
 }
 
-export interface SessionContextRowState {
+export interface SessionContextRowCoreState {
   readonly visible: boolean
   readonly editable: boolean
   readonly envMode: SessionEnvironmentMode

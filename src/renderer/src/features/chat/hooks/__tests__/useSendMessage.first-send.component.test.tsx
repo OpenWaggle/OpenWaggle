@@ -1,13 +1,13 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
-import type { SessionWorktreePlan } from '@shared/types/session'
 import { describe, expect, it, vi } from 'vitest'
 
-const { consumeDraftWorktreePlanMock, flushDraftAuthorizationModeMock } = vi.hoisted(() => ({
-  consumeDraftWorktreePlanMock: vi.fn<(projectPath: string) => SessionWorktreePlan | undefined>(
-    () => undefined,
-  ),
+const { flushDraftAuthorizationModeMock, snapshotDraftWorktreePlanMock } = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
+  snapshotDraftWorktreePlanMock: vi.fn(() => ({
+    projectPath: '/repo',
+    plan: { envMode: 'worktree' as const, baseRef: 'main' },
+  })),
 }))
 
 vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
@@ -15,7 +15,7 @@ vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
 }))
 
 vi.mock('@/features/git', () => ({
-  consumeDraftWorktreePlan: consumeDraftWorktreePlanMock,
+  snapshotDraftWorktreePlan: snapshotDraftWorktreePlanMock,
 }))
 
 const { createSendHandlers } = await import('../useSendMessage')
@@ -24,12 +24,6 @@ const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', a
 
 describe("a session's first send", () => {
   it('persists an explicit draft authorization override before dispatching the turn', async () => {
-    const worktreePlan = {
-      environmentMode: 'worktree' as const,
-      baseRef: 'main',
-      startFromOrigin: true,
-    }
-    consumeDraftWorktreePlanMock.mockReturnValueOnce(worktreePlan)
     const createSession = vi.fn(async () => SessionId('session-a'))
     const sendMessageToSession = vi.fn(async () => {})
     const handlers = createSendHandlers({
@@ -45,7 +39,14 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
-    expect(createSession).toHaveBeenCalledWith('/repo', worktreePlan)
+    expect(createSession).toHaveBeenCalledWith('/repo', {
+      environmentMode: 'worktree',
+      baseRef: 'main',
+      startFromOrigin: false,
+    })
+    expect(snapshotDraftWorktreePlanMock.mock.invocationCallOrder[0]).toBeLessThan(
+      createSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
     expect(flushDraftAuthorizationModeMock).toHaveBeenCalledWith('/repo', SessionId('session-a'))
     expect(flushDraftAuthorizationModeMock.mock.invocationCallOrder[0]).toBeLessThan(
       sendMessageToSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,

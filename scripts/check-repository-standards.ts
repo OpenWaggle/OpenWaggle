@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import fg from 'fast-glob'
+import {
+  collectForbiddenReferenceViolations as collectBaseForbiddenReferenceViolations,
+} from './standards/forbidden-references'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import {
   collectScriptedElectronLaunchViolations,
@@ -24,31 +27,11 @@ import { collectSyntaxRenderingViolations } from './standards/syntax-rendering'
 
 export { collectSessionSummaryColumnViolations } from './standards/session-summary-columns'
 
-interface Violation {
+export interface Violation {
   readonly detail?: string
   readonly file: string
   readonly message: string
 }
-
-const legacyAgentFile = [['CLA', 'UDE'].join(''), 'md'].join('.')
-const legacyAgentDirectory = ['.', 'claude'].join('')
-const legacyLearningsName = ['learn', 'ings'].join('')
-const legacyLessonsName = ['less', 'ons'].join('')
-const legacyLearningsFile = ['docs', [legacyLearningsName, 'md'].join('.')].join('/')
-const legacyLessonsFile = ['docs', [legacyLessonsName, 'md'].join('.')].join('/')
-const legacyLearningsAlias = [legacyLearningsName.toUpperCase(), 'md'].join('.')
-const legacyLessonsAlias = [legacyLessonsName.toUpperCase(), 'md'].join('.')
-const legacyVendorRuntime = ['Claude', 'Code'].join(' ')
-
-const forbiddenReferences: string[] = [
-  legacyAgentFile,
-  legacyAgentDirectory,
-  legacyLearningsFile,
-  legacyLessonsFile,
-  legacyLearningsAlias,
-  legacyLessonsAlias,
-  legacyVendorRuntime,
-]
 
 /**
  * Cross-tool Agent-definition importers must identify the foreign format they read. Keep the
@@ -95,39 +78,9 @@ function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
 }
 
-/**
- * The legacy agent directory is a dotted name, so a bare substring search also
- * matches inside unrelated dotted identifiers -- notably every Bedrock Anthropic
- * model id (`eu.anthropic.claude-...`), which we legitimately reference when
- * documenting review tooling. Require the match not to be preceded by an
- * identifier character, so a real path reference still trips the guard while a
- * dotted identifier does not.
- */
-function containsForbiddenReference(contents: string, reference: string) {
-  if (!reference.startsWith('.')) {
-    return contents.includes(reference)
-  }
-  const escaped = reference.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
-  return new RegExp(String.raw`(?<![0-9A-Za-z])` + escaped).test(contents)
-}
-
 function collectForbiddenReferenceViolations(file: string, contents: string) {
   if (foreignAgentImportFiles.has(normalizePath(file))) return []
-  const violations: Violation[] = []
-
-  for (const reference of forbiddenReferences) {
-    if (!containsForbiddenReference(contents, reference)) {
-      continue
-    }
-
-    violations.push({
-      detail: reference,
-      file,
-      message: 'Remove stale legacy-agent instruction reference.',
-    })
-  }
-
-  return violations
+  return collectBaseForbiddenReferenceViolations(file, contents)
 }
 
 function collectTsconfigViolations(file: string, contents: string) {

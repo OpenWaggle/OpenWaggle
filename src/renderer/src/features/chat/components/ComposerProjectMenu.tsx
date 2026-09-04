@@ -11,7 +11,7 @@ import { Popover } from '@/shared/ui/Popover'
 import { TextInput } from '@/shared/ui/TextInput'
 
 interface ComposerProjectMenuProps {
-  readonly projectPath: string
+  readonly projectPath: string | null
   readonly recentProjects: readonly string[]
   readonly onOpenProject: () => Promise<void>
   readonly onSelectProjectPath: (path: string) => void
@@ -26,7 +26,10 @@ export function ComposerProjectMenu({
 }: ComposerProjectMenuProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const projects = [projectPath, ...recentProjects.filter((path) => path !== projectPath)]
+  const selectedProjectName = projectPath ? projectName(projectPath) : 'Select project'
+  const projects = projectPath
+    ? [projectPath, ...recentProjects.filter((path) => path !== projectPath)]
+    : recentProjects
   const normalizedQuery = query.trim().toLowerCase()
   const filteredProjects = normalizedQuery
     ? projects.filter((path) => projectName(path).toLowerCase().includes(normalizedQuery))
@@ -51,15 +54,15 @@ export function ComposerProjectMenu({
       trigger={({ toggle }) => (
         <Button
           aria-expanded={open}
-          aria-label={`Project: ${projectName(projectPath)}`}
+          aria-label={`Project: ${selectedProjectName}`}
           className={CONTEXT_MENU_TRIGGER_CLASS}
           onClick={toggle}
-          title={projectName(projectPath)}
+          title={selectedProjectName}
           variant="unstyled"
         >
           <FolderGit2 aria-hidden="true" className="size-4 shrink-0 text-accent" />
           <span className="max-w-36 truncate font-medium @max-xl/session-dock:max-w-24">
-            {projectName(projectPath)}
+            {selectedProjectName}
           </span>
           <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-text-muted" />
         </Button>

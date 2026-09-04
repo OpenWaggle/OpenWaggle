@@ -31,6 +31,8 @@ describe('useGitStore integration', () => {
     useGitStore.setState({
       statusByWorkingPath: {},
       branches: null,
+      branchesRepositoryPath: null,
+      isLoadingBranches: false,
       branchesError: null,
       isCommitting: false,
       isBranchActionRunning: false,
@@ -96,6 +98,7 @@ describe('useGitStore integration', () => {
         },
       ],
     })
+    useGitStore.setState({ branchesRepositoryPath: REPOSITORY_PATH })
 
     const result = await useGitStore.getState().checkoutBranch(WORKING_PATH, REPOSITORY_PATH, {
       name: 'feature',

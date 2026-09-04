@@ -3,26 +3,36 @@ import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git
 import type { ChangeRequestAdoption } from '@shared/types/ipc-invoke-git'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { sessionWorktreeBranch } from '@shared/utils/worktree'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { resolveWorktreeSendPlan } from '@/features/git/lib/worktree-send-plan'
 import {
   draftWorktreePlanKey,
+  PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
   useWorktreePlanStore,
+  type WorktreePlanOverride,
 } from '@/features/git/state/worktree-plan-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { type ProjectBranchStatus, useProjectBranchState } from './useProjectBranchState'
 
 const logger = createRendererLogger('composer-context-strip')
 
 import {
-  type BranchListState,
-  EMPTY_BRANCHES,
   resolveEffectivePlan,
-  type SessionContextRowState,
+  type SessionContextRowCoreState,
   type UseSessionContextRowInput,
 } from './session-context-row-model'
 
-export type { SessionContextRowState } from './session-context-row-model'
+export interface SessionContextRowState extends SessionContextRowCoreState {
+  readonly branchStatus: ProjectBranchStatus
+}
+
+function mergePlanOverrides(
+  projectless: WorktreePlanOverride | undefined,
+  scoped: WorktreePlanOverride | undefined,
+): WorktreePlanOverride | undefined {
+  return projectless ? { ...scoped, ...projectless } : scoped
+}
 
 /**
  * Controller for the composer context strip (WS1b). Effective plan values are
@@ -40,12 +50,27 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     ? String(sessionId)
     : projectPath
       ? draftWorktreePlanKey(projectPath)
-      : ''
+      : isFirstMessage
+        ? PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY
+        : ''
 
-  const override = useWorktreePlanStore((s) => (sessionKey ? s.bySessionId[sessionKey] : undefined))
+  const scopedOverride = useWorktreePlanStore((state) =>
+    sessionKey ? state.bySessionId[sessionKey] : undefined,
+  )
+  const projectlessOverride = useWorktreePlanStore((state) =>
+    !sessionId && projectPath ? state.bySessionId[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY] : undefined,
+  )
+  const override = mergePlanOverrides(projectlessOverride, scopedOverride)
   const setOverride = useWorktreePlanStore((s) => s.setOverride)
+  const writeOverride = (patch: WorktreePlanOverride) => {
+    if (!sessionKey) return
+    setOverride(sessionKey, patch)
+    if (!sessionId && projectPath && projectlessOverride) {
+      setOverride(PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY, patch)
+    }
+  }
 
-  const [branches, setBranches] = useState<BranchListState>(EMPTY_BRANCHES)
+  const branches = useProjectBranchState(projectPath)
   const [changeRequests, setChangeRequests] = useState<readonly VcsChangeRequest[]>([])
   // undefined = not yet checked, so a send is never blocked on an unknown.
   const [worktreeExists, setWorktreeExists] = useState<boolean | undefined>(undefined)
@@ -80,29 +105,6 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     }
   }, [recordedWorktreePath])
 
-  useEffect(() => {
-    if (!projectPath) {
-      setBranches(EMPTY_BRANCHES)
-      return
-    }
-    let cancelled = false
-    void (async () => {
-      try {
-        const result = await api.listGitBranches(RepositoryPath(projectPath))
-        if (cancelled) return
-        setBranches({
-          currentBranch: result.currentBranch,
-          names: result.branches.flatMap((b) => (b.isRemote ? [] : [b.name])),
-        })
-      } catch (error) {
-        logger.warn('Failed to list branches for context strip', { error: String(error) })
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [projectPath])
-
   const { envMode, baseRef, startFromOrigin } = resolveEffectivePlan(
     override,
     session,
@@ -110,73 +112,61 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     branches.currentBranch,
   )
 
-  const persist = useCallback(
-    (next: {
-      envMode: SessionEnvironmentMode
-      baseRef: string | null
-      startFromOrigin: boolean
-    }) => {
-      if (!sessionId) return
-      const requestId = crypto.randomUUID()
-      void api
-        .mutateSessionControl({
-          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-          requestId,
-          idempotencyKey: requestId,
-          command: {
-            operation: 'handoff',
-            sessionId,
-            workspace:
-              next.envMode === 'local'
-                ? { mode: 'local' }
-                : {
-                    mode: 'new-worktree',
-                    ...(next.baseRef ? { baseRef: next.baseRef } : {}),
-                    ...(next.startFromOrigin ? { startFromOrigin: true } : {}),
-                  },
-          },
-        })
-        .then((response) => {
-          if (response.outcome.effect === 'rejected') {
-            throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
-          }
-        })
-        .catch((error) =>
-          logger.warn('Failed to hand off Session Workspace', { error: String(error) }),
-        )
-    },
-    [sessionId],
-  )
+  const persist = (next: {
+    envMode: SessionEnvironmentMode
+    baseRef: string | null
+    startFromOrigin: boolean
+  }) => {
+    if (!sessionId) return
+    const requestId = crypto.randomUUID()
+    void api
+      .mutateSessionControl({
+        contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+        requestId,
+        idempotencyKey: requestId,
+        command: {
+          operation: 'handoff',
+          sessionId,
+          workspace:
+            next.envMode === 'local'
+              ? { mode: 'local' }
+              : {
+                  mode: 'new-worktree',
+                  ...(next.baseRef ? { baseRef: next.baseRef } : {}),
+                  ...(next.startFromOrigin ? { startFromOrigin: true } : {}),
+                },
+        },
+      })
+      .then((response) => {
+        if (response.outcome.effect === 'rejected') {
+          throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
+        }
+      })
+      .catch((error) =>
+        logger.warn('Failed to hand off Session Workspace', { error: String(error) }),
+      )
+  }
 
-  const setEnvMode = useCallback(
-    (mode: SessionEnvironmentMode) => {
-      if (!sessionKey) return
-      setOverride(sessionKey, { envMode: mode })
-      persist({ envMode: mode, baseRef, startFromOrigin })
-    },
-    [sessionKey, setOverride, persist, baseRef, startFromOrigin],
-  )
+  const setEnvMode = (mode: SessionEnvironmentMode) => {
+    if (!sessionKey) return
+    writeOverride({ envMode: mode })
+    persist({ envMode: mode, baseRef, startFromOrigin })
+  }
 
-  const setBaseRef = useCallback(
-    (nextBaseRef: string) => {
-      if (!sessionKey) return
-      const normalized = nextBaseRef.trim() || null
-      setOverride(sessionKey, { baseRef: normalized })
-      persist({ envMode, baseRef: normalized, startFromOrigin })
-    },
-    [sessionKey, setOverride, persist, envMode, startFromOrigin],
-  )
+  const setBaseRef = (nextBaseRef: string) => {
+    if (!sessionKey) return
+    const normalized = nextBaseRef.trim() || null
+    writeOverride({ baseRef: normalized })
+    persist({ envMode, baseRef: normalized, startFromOrigin })
+  }
 
-  const setStartFromOrigin = useCallback(
-    (next: boolean) => {
-      if (!sessionKey) return
-      setOverride(sessionKey, { startFromOrigin: next })
-      persist({ envMode, baseRef, startFromOrigin: next })
-    },
-    [sessionKey, setOverride, persist, envMode, baseRef],
-  )
+  const setStartFromOrigin = (next: boolean) => {
+    if (!sessionKey) return
+    writeOverride({ startFromOrigin: next })
+    persist({ envMode, baseRef, startFromOrigin: next })
+  }
 
-  const loadChangeRequests = useCallback(async () => {
+  const loadChangeRequests = async () => {
     if (!projectPath) return
     try {
       const result = await api.listChangeRequests(RepositoryPath(projectPath))
@@ -185,53 +175,52 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     } catch (error) {
       logger.warn('Failed to list change requests', { error: String(error) })
     }
-  }, [projectPath])
+  }
 
-  const checkoutChangeRequest = useCallback(
-    async (headRef: string) => {
-      if (!projectPath) return false
-      /*
-       * Worktree mode fetches by change-request URL, not by head branch name: the branch only exists
-       * on `origin` for a same-repository change request, so a fork-based one either failed or
-       * silently resolved to an unrelated origin branch of the same name.
-       */
-      const selected = changeRequests.find((request) => request.headRef === headRef)
-      /*
-       * A worktree-mode session only needs the ref as a base for its own tree, so fetch it and
-       * record it. Checking it out would switch the user's opened checkout to the change-request
-       * branch - a tree this session never runs in - and would fail or leave partial state when
-       * that checkout is dirty.
-       */
-      const adoption: ChangeRequestAdoption = envMode === 'worktree' ? 'fetch' : 'checkout'
-      const reference = adoption === 'fetch' ? (selected?.url ?? headRef) : headRef
-      try {
-        const result = await api.checkoutChangeRequest(
-          RepositoryPath(projectPath),
-          reference,
-          adoption,
-        )
-        if (result.ok) {
-          // Main reports the ref it actually made available, which for a fetch is a local ref.
-          setBaseRef(result.reference)
-          return true
-        }
-        logger.warn('Change request adoption failed', { code: result.code, adoption })
-        return false
-      } catch (error) {
-        logger.warn('Change request adoption failed', { error: String(error), adoption })
-        return false
+  const checkoutChangeRequest = async (headRef: string) => {
+    if (!projectPath) return false
+    /*
+     * Worktree mode fetches by change-request URL, not by head branch name: the branch only exists
+     * on `origin` for a same-repository change request, so a fork-based one either failed or
+     * silently resolved to an unrelated origin branch of the same name.
+     */
+    const selected = changeRequests.find((request) => request.headRef === headRef)
+    /*
+     * A worktree-mode session only needs the ref as a base for its own tree, so fetch it and
+     * record it. Checking it out would switch the user's opened checkout to the change-request
+     * branch - a tree this session never runs in - and would fail or leave partial state when
+     * that checkout is dirty.
+     */
+    const adoption: ChangeRequestAdoption = envMode === 'worktree' ? 'fetch' : 'checkout'
+    const reference = adoption === 'fetch' ? (selected?.url ?? headRef) : headRef
+    try {
+      const result = await api.checkoutChangeRequest(
+        RepositoryPath(projectPath),
+        reference,
+        adoption,
+      )
+      if (result.ok) {
+        // Main reports the ref it actually made available, which for a fetch is a local ref.
+        setBaseRef(result.reference)
+        return true
       }
-    },
-    [projectPath, setBaseRef, envMode, changeRequests],
-  )
+      logger.warn('Change request adoption failed', { code: result.code, adoption })
+      return false
+    } catch (error) {
+      logger.warn('Change request adoption failed', { error: String(error), adoption })
+      return false
+    }
+  }
 
-  const sendPlan = useMemo(
-    () =>
-      resolveWorktreeSendPlan({ isFirstMessage, envMode, hasWorktree, baseRef, worktreeExists }),
-    [isFirstMessage, envMode, hasWorktree, baseRef, worktreeExists],
-  )
+  const sendPlan = resolveWorktreeSendPlan({
+    isFirstMessage,
+    envMode,
+    hasWorktree,
+    baseRef,
+    worktreeExists,
+  })
 
-  const recreateWorktree = useCallback(async () => {
+  const recreateWorktree = async () => {
     if (!projectPath || recordedWorktreePath === null) return false
     const forkPoint = baseRef?.trim()
     if (sessionId === null || !forkPoint) return false
@@ -253,15 +242,15 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
       logger.warn('Failed to recreate Session worktree', { error: String(error) })
       return false
     }
-  }, [projectPath, recordedWorktreePath, baseRef, sessionId])
+  }
 
-  const switchToLocalMode = useCallback(() => {
+  const switchToLocalMode = () => {
     // Running in the opened checkout is a real change of isolation, so it is recorded
     // on the session rather than only reflected in this row.
     const next = { envMode: 'local' as const, baseRef, startFromOrigin }
-    if (sessionKey) setOverride(sessionKey, next)
+    writeOverride(next)
     persist(next)
-  }, [baseRef, startFromOrigin, sessionKey, setOverride, persist])
+  }
 
   return {
     /*
@@ -276,6 +265,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     worktreePath: recordedWorktreePath,
     startFromOrigin,
     branchNames: branches.names,
+    branchStatus: branches.status,
     changeRequests,
     sendPlan,
     setEnvMode,

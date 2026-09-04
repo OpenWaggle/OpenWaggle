@@ -18,9 +18,10 @@ import {
   syntaxSourceFingerprint,
 } from '../../src/shared/syntax-highlighting-performance'
 
-// Twenty samples are the minimum useful population for a p95: smaller sets make p95 equal the
-// single slowest sample and turn ordinary scheduler noise into a false regression.
-const WARM_SAMPLE_COUNT = 20
+// Nearest-rank p95 is the second-slowest value at twenty samples and the third-slowest at forty.
+// Forty samples therefore tolerate up to two scheduler-descheduled samples. The hosted profile
+// also caps the median so this noise allowance cannot hide a sustained source-window regression.
+const WARM_SAMPLE_COUNT = 40
 const COLD_SAMPLE_COUNT = 20
 const LARGE_TOKEN_SAMPLE_COUNT = 20
 const KIBIBYTE = 1024

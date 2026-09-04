@@ -10,7 +10,7 @@ import { useBackgroundRunStore } from '@/features/chat/state/background-run-stor
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
-import { consumeDraftWorktreePlan } from '@/features/git'
+import { snapshotDraftWorktreePlan } from '@/features/git'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -41,6 +41,18 @@ interface SendMessageHandlers {
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
 
+function sessionWorktreePlan(
+  snapshot: ReturnType<typeof snapshotDraftWorktreePlan>,
+): SessionWorktreePlan | undefined {
+  const environmentMode = snapshot?.plan.envMode
+  if (!snapshot || !environmentMode) return undefined
+  return {
+    environmentMode,
+    baseRef: snapshot.plan.baseRef ?? null,
+    startFromOrigin: snapshot.plan.startFromOrigin ?? false,
+  }
+}
+
 /** Pure factory — testable without React. */
 export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   const {
@@ -59,7 +71,8 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      const sessionId = await createSession(projectPath, consumeDraftWorktreePlan(projectPath))
+      const worktreePlan = snapshotDraftWorktreePlan(projectPath)
+      const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
@@ -81,7 +94,8 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      const sessionId = await createSession(projectPath, consumeDraftWorktreePlan(projectPath))
+      const worktreePlan = snapshotDraftWorktreePlan(projectPath)
+      const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       startWaggleCollaboration(sessionId, config)
       /*

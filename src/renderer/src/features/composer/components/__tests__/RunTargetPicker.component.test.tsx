@@ -1,9 +1,11 @@
+import { RepositoryPath } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerActionStore } from '@/features/composer/state/composer-action-store'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import type { SessionContextRowState } from '@/features/git'
+import { useSessionContextRow } from '@/features/git'
 import { useGitStore } from '@/features/git/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { RunTargetPicker } from '../RunTargetPicker'
@@ -29,6 +31,7 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     switchToLocalMode: vi.fn(),
     startFromOrigin: false,
     branchNames: ['main', 'develop'],
+    branchStatus: 'ready',
     changeRequests: [],
     sendPlan: { kind: 'create-worktree', baseRef: 'main' },
     setEnvMode: vi.fn(),
@@ -38,6 +41,17 @@ function stripState(overrides: Partial<SessionContextRowState> = {}): SessionCon
     checkoutChangeRequest: vi.fn(async () => true),
     ...overrides,
   }
+}
+
+function ProjectAwareRunTargetPicker() {
+  const strip = useSessionContextRow({
+    sessionId: null,
+    projectPath: '/test/project',
+    isFirstMessage: true,
+    session: null,
+    defaultEnvironmentMode: 'local',
+  })
+  return <RunTargetPicker strip={strip} />
 }
 
 describe('RunTargetPicker', () => {
@@ -67,6 +81,7 @@ describe('RunTargetPicker', () => {
           error: null,
         },
       },
+      branchesRepositoryPath: RepositoryPath('/test/project'),
       branches: {
         currentBranch: 'main',
         branches: [
@@ -113,6 +128,14 @@ describe('RunTargetPicker', () => {
     expect(screen.getByRole('button', { name: 'Run target: main' })).toBeInTheDocument()
   })
 
+  it('uses the matching branch snapshot while working-tree status is unavailable', () => {
+    useGitStore.setState({ statusByWorkingPath: {} })
+
+    render(<RunTargetPicker strip={stripState({ envMode: 'local' })} />)
+
+    expect(screen.getByRole('button', { name: 'Run target: main' })).toBeInTheDocument()
+  })
+
   it('shows the base ref as the run target in worktree mode', () => {
     render(<RunTargetPicker strip={stripState({ baseRef: 'develop' })} />)
     expect(screen.getByRole('button', { name: 'Run target: develop' })).toBeInTheDocument()
@@ -138,6 +161,28 @@ describe('RunTargetPicker', () => {
     expect(screen.getByText('Remote')).toBeInTheDocument()
     expect(screen.getByText('develop')).toBeInTheDocument()
     expect(screen.getByText('origin/main')).toBeInTheDocument()
+  })
+
+  it('does not show branches loaded for another project', () => {
+    useGitStore.setState({ branchesRepositoryPath: RepositoryPath('/another/project') })
+    useComposerStore.setState({ branchMenuOpen: true })
+
+    render(<RunTargetPicker strip={stripState()} />)
+
+    expect(screen.getByText('No branches found.')).toBeInTheDocument()
+    expect(screen.queryByText('develop')).not.toBeInTheDocument()
+  })
+
+  it('keeps an open picker mounted during same-project branch revalidation', () => {
+    render(<ProjectAwareRunTargetPicker />)
+    fireEvent.click(screen.getByRole('button', { name: /Run target/ }))
+    const search = screen.getByPlaceholderText('Search branches')
+    search.focus()
+
+    act(() => useGitStore.setState({ isLoadingBranches: true }))
+
+    expect(screen.getByRole('dialog', { name: 'Choose a run target' })).toBeInTheDocument()
+    expect(search).toHaveFocus()
   })
 
   it('filters refs by search query', () => {

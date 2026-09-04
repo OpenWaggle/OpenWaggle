@@ -17,5 +17,6 @@ export {
 export { selectWorkingTreeStatus, useGitStore } from './state'
 export {
   consumeDraftWorktreePlan,
+  snapshotDraftWorktreePlan,
   stashDraftWorktreePlan,
 } from './state/worktree-plan-draft'

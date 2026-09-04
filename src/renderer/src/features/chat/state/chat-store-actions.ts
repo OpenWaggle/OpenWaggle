@@ -3,6 +3,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
 import { useDiffScopeStore } from '@/features/diff-panel'
+import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import {
@@ -260,8 +261,13 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     loadSessions: () => loadSessions(set, get),
     createSession: (projectPath, worktreePlan) =>
       createSession(projectPath, set, get, worktreePlan),
-    startDraftSession: (projectPath = null) =>
-      set({ activeSessionId: null, activeSession: null, draftSession: { projectPath } }),
+    startDraftSession: (projectPath = null) => {
+      const state = get()
+      const previousProjectPath =
+        state.draftSession?.projectPath ?? state.activeSession?.projectPath ?? null
+      prepareDraftWorktreePlan(previousProjectPath, projectPath)
+      set({ activeSessionId: null, activeSession: null, draftSession: { projectPath } })
+    },
     setActiveSessionId: (id) => get().setActiveSession(id),
     setActiveSession: (id) => setActiveSession(id, set, get),
     refreshSession: (id) => refreshSession(id, set, get),
