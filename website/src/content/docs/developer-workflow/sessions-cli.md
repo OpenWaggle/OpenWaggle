@@ -79,7 +79,7 @@ Pending agent-loop questions survive GUI disconnects and have no automatic expir
 
 A durable Follow-up queue accepts at most 256 entries and 32 MiB of serialized intent. Appends beyond either boundary fail with `queue_capacity_reached` or `queue_byte_capacity_reached`; withdraw or deliver entries before retrying. This keeps queue mutation, GUI synchronization, and recovery memory bounded without changing one-by-one delivery.
 
-`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream. JSONL output emits a versioned envelope for every line. Inspect `line.record`; cursor checkpoints have `line.record.kind === "cursor"` and carry the initial subscription boundary or the latest progress past a filtered event.
+`sessions wait` blocks until an idle, queue-empty, or state-revision condition is reached. `sessions watch` subscribes to the ordered Host event stream. Supplying Session ids applies the filter inside the Host before events consume the subscription buffer; an unfiltered watch continues to receive every authorized event. JSONL output emits a versioned envelope for every line. Inspect `line.record`; cursor checkpoints have `line.record.kind === "cursor"` and carry the initial subscription boundary or the latest progress past a filtered event.
 
 ```js
 const line = JSON.parse(rawLine)

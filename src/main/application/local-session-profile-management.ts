@@ -29,12 +29,14 @@ import { withLocalSessionProfileMutationLock } from './local-session-profile-mut
 
 export { canManageLocalSessionProfiles } from './local-session-profile-management-policy'
 
+const PROFILE_REVOCATION_INTERRUPTION_CONCURRENCY = 8
+
 function interruptRevokedRuns(outcome: LocalSessionProfileManagementOutcome, replayed: boolean) {
   if (replayed || outcome.effect !== 'profile-revoked') return Effect.void
   return Effect.gen(function* () {
     const interruption = yield* AgentRunInterruptionService
     yield* Effect.forEach(outcome.interruptedRuns, (run) => interruption.interrupt(run), {
-      concurrency: 'unbounded',
+      concurrency: PROFILE_REVOCATION_INTERRUPTION_CONCURRENCY,
       discard: true,
     })
   })

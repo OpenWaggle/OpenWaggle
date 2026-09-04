@@ -98,6 +98,14 @@ function validPreflight() {
         transcript_created_order: 0,
       },
     ],
+    phraseFullTranscriptLexical: [
+      {
+        session_id: 'session-000100',
+        matched_fields: 'transcript',
+        transcript_node_id: 'node-00000100',
+        transcript_created_order: 1,
+      },
+    ],
     transcriptHead: transcriptHead(),
     transcriptTerminal: transcriptTerminal(),
     sparseWorkingPath: SPARSE_PATH,

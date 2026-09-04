@@ -2,9 +2,9 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5-session-embedding-model'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY } from '../src/main/domain/session-transcript-semantic-storage-policy'
 import { runSessionHostCutover } from '../src/main/session-host/session-host-cutover'
+import { benchmarkSessionDiscoveryModel } from './benchmark-session-discovery-model'
 import {
   benchmarkSessionDiscoveryBackfills,
   benchmarkSessionDiscoveryQueries,
@@ -13,36 +13,22 @@ import {
   sessionDiscoveryBenchmarkCounts,
 } from './benchmark-session-discovery-support'
 import { sessionDiscoveryBenchmarkMode } from './benchmark-session-discovery-mode'
+import { reportSessionDiscoveryBenchmarkResult } from './benchmark-session-discovery-result'
 
 const UPDATED_AT_BUCKET_COUNT = 100
 const PROJECT_ID_WIDTH = 4
 const WARM_P95_LIMIT_MS = 100
+const HYBRID_P95_LIMIT_MS = 250
+const PHRASE_P95_LIMIT_MS = 250
 const COLD_LIMIT_MS = 500
-const JSON_INDENT_SPACES = 2
 const BYTES_PER_MEBIBYTE = 1_048_576
-const BENCHMARK_MODEL_DIMENSIONS = 3
 const BENCHMARK_NOW = 1_000
-
-const benchmarkModel: SessionEmbeddingModel = {
-  metadata: {
-    id: 'benchmark/embedding',
-    revision: 'benchmark-1',
-    dimensions: BENCHMARK_MODEL_DIMENSIONS,
-    dtype: 'f32',
-  },
-  embedQueries: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
-  embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0, 0])),
-}
 
 interface BenchmarkInput {
   readonly sessionCount: number
   readonly messageCount: number
   readonly skewedSessionMessageCount: number
   readonly projectCount: number
-}
-
-function projectPath(projectIndex: number) {
-  return `/benchmark/project-${String(projectIndex).padStart(PROJECT_ID_WIDTH, '0')}`
 }
 
 function populateSkewedMessages(
@@ -216,21 +202,31 @@ async function main() {
     const cutover = await runSessionHostCutover(
       { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
       BENCHMARK_NOW,
-      benchmarkModel,
+      benchmarkSessionDiscoveryModel,
     )
     const cutoverMs = performance.now() - cutoverStartedAt
     reportSessionDiscoveryBenchmarkPhase('cutover', cutoverMs)
     if (cutover.status !== 'migrated') throw new Error('Benchmark cutover did not migrate the source.')
 
-    const backfills = await benchmarkSessionDiscoveryBackfills(targetDatabasePath, benchmarkModel)
+    const backfills = await benchmarkSessionDiscoveryBackfills(
+      targetDatabasePath,
+      benchmarkSessionDiscoveryModel,
+    )
     reportSessionDiscoveryBenchmarkPhase('discovery backfill', backfills.discovery.elapsedMs)
     reportSessionDiscoveryBenchmarkPhase('transcript backfill', backfills.transcript.elapsedMs)
     const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
     const corpus = sessionDiscoveryBenchmarkCounts(target)
     target.close()
-    const sparseWorkingPath = projectPath(mode.projectCount - 1)
+    const sparseWorkingPath = `/benchmark/project-${String(mode.projectCount - 1).padStart(
+      PROJECT_ID_WIDTH,
+      '0',
+    )}`
     const queriesStartedAt = performance.now()
-    const queries = await benchmarkSessionDiscoveryQueries(targetDatabasePath, sparseWorkingPath)
+    const queries = await benchmarkSessionDiscoveryQueries(
+      targetDatabasePath,
+      sparseWorkingPath,
+      benchmarkSessionDiscoveryModel,
+    )
     reportSessionDiscoveryBenchmarkPhase('queries', performance.now() - queriesStartedAt)
     const databaseSizeMb = (await stat(targetDatabasePath)).size / BYTES_PER_MEBIBYTE
     const expectedTranscriptEmbeddings = Math.min(
@@ -259,45 +255,47 @@ async function main() {
       queries.commonLexical.p95Ms < WARM_P95_LIMIT_MS,
       queries.fullTranscriptLexical.p95Ms < WARM_P95_LIMIT_MS,
       queries.commonFullTranscriptLexical.p95Ms < WARM_P95_LIMIT_MS,
+      queries.phraseFullTranscriptLexical.p95Ms < PHRASE_P95_LIMIT_MS,
+      queries.hybrid.p95Ms < HYBRID_P95_LIMIT_MS,
       queries.transcript.p95Ms < WARM_P95_LIMIT_MS,
     ].every(Boolean)
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          mode: mode.name,
-          corpus,
-          projectCount: mode.projectCount,
-          tiedUpdatedAtBuckets: UPDATED_AT_BUCKET_COUNT,
-          skewedSessionMessageCount: mode.skewedSessionMessageCount,
-          seedMs,
-          cutoverMs,
-          backfills,
-          databaseSizeMb,
-          queries: {
-            coldWorkingPathListMs: queries.coldWorkingPathListMs,
-            listP95Ms: queries.list.p95Ms,
-            sparseWorkingPathListP95Ms: queries.sparseWorkingPathList.p95Ms,
-            missingWorkingPathListP95Ms: queries.missingWorkingPathList.p95Ms,
-            lexicalP95Ms: queries.lexical.p95Ms,
-            commonLexicalP95Ms: queries.commonLexical.p95Ms,
-            fullTranscriptLexicalP95Ms: queries.fullTranscriptLexical.p95Ms,
-            commonFullTranscriptLexicalP95Ms: queries.commonFullTranscriptLexical.p95Ms,
-            transcriptP95Ms: queries.transcript.p95Ms,
-          },
-          limits: {
-            cutoverMs: mode.cutoverLimitMs,
-            discoveryBackfillMs: mode.discoveryBackfillLimitMs,
-            transcriptBackfillMs: mode.transcriptBackfillLimitMs,
-            warmP95Ms: WARM_P95_LIMIT_MS,
-            coldMs: COLD_LIMIT_MS,
-          },
-          passed,
+    reportSessionDiscoveryBenchmarkResult(
+      {
+        mode: mode.name,
+        corpus,
+        projectCount: mode.projectCount,
+        tiedUpdatedAtBuckets: UPDATED_AT_BUCKET_COUNT,
+        skewedSessionMessageCount: mode.skewedSessionMessageCount,
+        seedMs,
+        cutoverMs,
+        backfills,
+        databaseSizeMb,
+        queries: {
+          coldWorkingPathListMs: queries.coldWorkingPathListMs,
+          listP95Ms: queries.list.p95Ms,
+          sparseWorkingPathListP95Ms: queries.sparseWorkingPathList.p95Ms,
+          missingWorkingPathListP95Ms: queries.missingWorkingPathList.p95Ms,
+          lexicalP95Ms: queries.lexical.p95Ms,
+          commonLexicalP95Ms: queries.commonLexical.p95Ms,
+          fullTranscriptLexicalP95Ms: queries.fullTranscriptLexical.p95Ms,
+          commonFullTranscriptLexicalP95Ms: queries.commonFullTranscriptLexical.p95Ms,
+          phraseFullTranscriptLexicalP95Ms: queries.phraseFullTranscriptLexical.p95Ms,
+          hybridP95Ms: queries.hybrid.p95Ms,
+          transcriptP95Ms: queries.transcript.p95Ms,
         },
-        null,
-        JSON_INDENT_SPACES,
-      )}\n`,
+        limits: {
+          cutoverMs: mode.cutoverLimitMs,
+          discoveryBackfillMs: mode.discoveryBackfillLimitMs,
+          transcriptBackfillMs: mode.transcriptBackfillLimitMs,
+          warmP95Ms: WARM_P95_LIMIT_MS,
+          hybridP95Ms: HYBRID_P95_LIMIT_MS,
+          phraseP95Ms: PHRASE_P95_LIMIT_MS,
+          coldMs: COLD_LIMIT_MS,
+        },
+        passed,
+      },
+      passed,
     )
-    if (!passed) process.exitCode = 1
   } finally {
     await rm(root, { recursive: true, force: true })
   }

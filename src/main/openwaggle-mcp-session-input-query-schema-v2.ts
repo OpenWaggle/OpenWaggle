@@ -32,6 +32,50 @@ import {
   mcpSessionTitleSchemaV2,
 } from './openwaggle-mcp-session-resource-envelope-v2'
 
+const sessionExportManifestSchemaV2 = z
+  .object({
+    schemaVersion: z.literal(1),
+    sessionId: mcpSessionIdSchemaV2,
+    title: mcpSessionTitleSchemaV2,
+    branchScope: z.enum(['active-branch', 'tree']),
+    activeBranchId: mcpSessionIdSchemaV2.nullable(),
+    selectedBranchId: mcpSessionIdSchemaV2.nullable(),
+    snapshot: z
+      .object({
+        nodeHighWaterMark: revision,
+        stateRevision: revision,
+        queueRevision: revision,
+        capturedAt: revision,
+        selectedHeadNodeId: mcpSessionIdSchemaV2.optional(),
+      })
+      .strict(),
+    activeRunId: mcpSessionIdSchemaV2.nullable(),
+    activeTurnIncomplete: z.boolean(),
+    queue: z
+      .object({
+        state: z.enum(['running', 'paused']),
+        pendingCount: revision,
+        bodyScope: z.enum(['included', 'omitted-by-choice']),
+        omittedBodyCount: revision,
+        items: z.array(
+          z
+            .object({
+              followUpId: mcpSessionIdSchemaV2,
+              position: revision,
+              createdAt: revision,
+              deliveryState: z.enum(['pending', 'needs_attention']),
+              attentionReason: z
+                .enum(['authorization_ceiling_changed', 'profile_revoked', 'authority_changed'])
+                .optional(),
+              intent: z.unknown().optional(),
+            })
+            .strict(),
+        ),
+      })
+      .strict(),
+  })
+  .strict()
+
 export const mcpSessionQueryLifecycleOperationSchemasV2 = [
   operationSchema('list', {
     projectPath: mcpSessionPathSchemaV2.optional(),
@@ -76,6 +120,8 @@ export const mcpSessionQueryLifecycleOperationSchemasV2 = [
     branchId: mcpSessionIdSchemaV2.optional(),
     includeQueueBodies: booleanFlag.optional(),
     limit: transcriptLimit.optional(),
+    afterCreatedOrder: revision.optional(),
+    snapshotManifest: sessionExportManifestSchemaV2.optional(),
   }),
   operationSchema('export-create', {
     sessionId: mcpSessionIdSchemaV2.optional(),

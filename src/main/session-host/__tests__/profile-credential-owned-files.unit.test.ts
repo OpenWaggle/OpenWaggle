@@ -74,16 +74,18 @@ describe('profile credential owned files', () => {
     await fs.writeFile(credentialPath, 'protected')
     const original = await readOwnedFile(directory, name)
     if (!original.fileIdentity) throw new Error('Expected a test file identity.')
+    let replacementReady: () => void = () => undefined
+    const replacementReadyPromise = new Promise<void>((resolve) => {
+      replacementReady = resolve
+    })
+    const cleanup = unlinkOwnedFile(directory, name, original.fileIdentity, async () => {
+      await fs.unlink(credentialPath)
+      await execFileAsync('mkfifo', [credentialPath])
+      replacementReady()
+    })
 
-    await expect(
-      settleWithin(
-        unlinkOwnedFile(directory, name, original.fileIdentity, async () => {
-          await fs.unlink(credentialPath)
-          await execFileAsync('mkfifo', [credentialPath])
-        }),
-        1_000,
-      ),
-    ).rejects.toThrow('recoverable')
+    await replacementReadyPromise
+    await expect(settleWithin(cleanup, 1_000)).rejects.toThrow('recoverable')
     expect((await fs.lstat(credentialPath)).isFIFO()).toBe(true)
   })
 

@@ -5,7 +5,7 @@ import { withRunAttachmentCleanup } from '../session-control-run-executor'
 describe('Session Control Run attachment cleanup', () => {
   it.each([
     ['successful', Effect.succeed('completed')],
-    ['failed', Effect.fail(new Error('run failed'))],
+    ['failed during preflight', Effect.fail(new Error('authority preflight failed'))],
   ])('releases consumed attachments after a %s terminal Run', async (_label, effect) => {
     const release = vi.fn(() => Effect.void)
 

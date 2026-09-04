@@ -118,6 +118,82 @@ describe('SQLite Session transcript search', () => {
     expect(phrase.outcome.sessions[0]?.sessionId).toBe('rank-599')
   })
 
+  it('bounds quoted transcript search after verifying the phrase', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'phrase-before-limit.sqlite'))
+    runtimes.push(runtime)
+    const decoySessionIds = Array.from(
+      { length: 513 },
+      (_, index) => `phrase-decoy-${String(index).padStart(3, '0')}`,
+    )
+    const targetSessionId = 'phrase-target'
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql.unsafe(`
+          WITH RECURSIVE sequence(value) AS (
+            SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value < 512
+          )
+          INSERT INTO sessions (
+            id, pi_session_id, project_path, title, archived, created_at, updated_at
+          )
+          SELECT printf('phrase-decoy-%03d', value), printf('pi-phrase-decoy-%03d', value),
+            '/project-a', printf('Phrase decoy %03d', value), 0, value, value FROM sequence
+        `)
+        yield* sql.unsafe(`
+          WITH RECURSIVE sequence(value) AS (
+            SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value < 512
+          )
+          INSERT INTO session_nodes (
+            id, session_id, kind, role, timestamp_ms, content_json,
+            metadata_json, branch_hint_id, created_order
+          )
+          SELECT printf('phrase-decoy-node-%03d', value), printf('phrase-decoy-%03d', value),
+            'message', 'assistant', value,
+            json_object('text', 'xrarephraseb xrarephrasea'),
+            '{}', printf('phrase-decoy-%03d:main', value), 0 FROM sequence
+        `)
+        yield* sql`
+          INSERT INTO sessions (
+            id, pi_session_id, project_path, title, archived, created_at, updated_at
+          ) VALUES (
+            ${targetSessionId}, ${'pi-phrase-target'}, ${'/project-a'},
+            ${'Phrase target'}, ${0}, ${1_000}, ${1_000}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_nodes (
+            id, session_id, kind, role, timestamp_ms, content_json,
+            metadata_json, branch_hint_id, created_order
+          ) VALUES (
+            ${'phrase-target-node'}, ${targetSessionId}, ${'message'}, ${'assistant'}, ${1_000},
+            ${'{"text":"xrarephrasea xrarephraseb"}'}, ${'{}'},
+            ${'phrase-target:main'}, ${0}
+          )
+        `
+        yield* refreshSessionTranscriptTerms(sql, [...decoySessionIds, targetSessionId])
+      }),
+    )
+
+    const result = await executeQuery(runtime, {
+      operation: 'search',
+      query: '"xrarephrasea xrarephraseb"',
+      searchScope: 'full-transcript',
+      limit: 10,
+    })
+    expect(result.outcome).toMatchObject({
+      operation: 'search',
+      sessions: [
+        {
+          sessionId: targetSessionId,
+          discoveryEvidence: {
+            transcriptMatch: { nodeId: 'phrase-target-node', createdOrder: 0 },
+          },
+        },
+      ],
+      discoveryWindow: { truncated: false },
+    })
+  })
+
   it('keeps quoted transcript phrases within one attributable node', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'phrase-node-boundary.sqlite'))
     runtimes.push(runtime)

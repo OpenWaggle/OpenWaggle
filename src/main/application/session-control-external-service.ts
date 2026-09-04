@@ -22,6 +22,8 @@ import { SessionControlOperationJournal } from '../ports/session-control-operati
 import { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
 import { authorizeDescendantInterruptionSnapshot } from './session-control-descendant-authorization'
 
+const DESCENDANT_INTERRUPTION_CONCURRENCY = 8
+
 export interface SteerSessionRunInput {
   readonly callerId: string
   readonly request: SessionControlSteerMutationRequest
@@ -102,7 +104,7 @@ export function interruptSessionDescendants(input: {
             },
           },
         }),
-      { concurrency: 'unbounded' },
+      { concurrency: DESCENDANT_INTERRUPTION_CONCURRENCY },
     )
     const interrupted = children.flatMap((child) =>
       child.outcome.effect === 'interruption-requested'

@@ -1,3 +1,4 @@
+import type { SessionExportManifest } from '@shared/types/session-export'
 import type {
   SESSION_EXPORT_FORMATS,
   SESSION_EXPORT_OPERATION_STATUSES,
@@ -52,6 +53,7 @@ export type SessionToolInputV2 = {
   readonly afterCreatedOrder?: number
   readonly throughCreatedOrder?: number
   readonly snapshotHeadNodeId?: string
+  readonly snapshotManifest?: SessionExportManifest
   readonly condition?:
     | 'idle'
     | 'queue-empty'

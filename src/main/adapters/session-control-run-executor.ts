@@ -104,7 +104,7 @@ function registerInteractionDeadline(input: {
       })
 }
 
-function executeRun(input: SessionControlRunExecutionInput) {
+function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInput) {
   return Effect.gen(function* () {
     const settingsService = yield* SettingsService
     const sql = yield* SqlClient.SqlClient
@@ -118,7 +118,6 @@ function executeRun(input: SessionControlRunExecutionInput) {
     }
     const execution = yield* loadRunExecutionProfile(sql, input)
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)
-    const attachments = yield* SessionControlAttachmentService
     const allowModelMultiAgent = yield* modelMultiAgentEnabled(
       yield* settingsService.get(),
       execution,
@@ -160,28 +159,35 @@ function executeRun(input: SessionControlRunExecutionInput) {
         )
       },
     })
-    const registered = yield* withRunAttachmentCleanup({
-      effect: executeRegisteredRun({
-        request: input,
-        execution,
-        controller: input.controller,
-        allowModelMultiAgent,
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            releaseInteractionDeadline()
-            if (authorityDriftTimer) clearInterval(authorityDriftTimer)
-          }),
-        ),
+    const registered = yield* executeRegisteredRun({
+      request: input,
+      execution,
+      controller: input.controller,
+      allowModelMultiAgent,
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          releaseInteractionDeadline()
+          if (authorityDriftTimer) clearInterval(authorityDriftTimer)
+        }),
       ),
+    )
+    return registered.mode === 'waggle'
+      ? registered.result
+      : terminalRunResult(registered.result, interactionTimedOut)
+  })
+}
+
+function executeRun(input: SessionControlRunExecutionInput) {
+  return Effect.gen(function* () {
+    const attachments = yield* SessionControlAttachmentService
+    return yield* withRunAttachmentCleanup({
+      effect: executeRunAfterAttachmentAdmission(input),
       attachments,
       attachmentIds: input.intent.attachmentIds,
       sessionId: input.sessionId,
       ownerCallerId: input.intent.callerId,
     })
-    return registered.mode === 'waggle'
-      ? registered.result
-      : terminalRunResult(registered.result, interactionTimedOut)
   })
 }
 

@@ -1,3 +1,4 @@
+import { LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT } from '@shared/types/local-session-protocol'
 import {
   type CommandCliArgumentContract,
   validateCommandCliArguments,
@@ -29,7 +30,7 @@ const DIRECT: Readonly<Record<string, CommandCliArgumentContract>> = {
   turns: { minimum: 1, maximum: 1 },
   items: { minimum: 1, maximum: 1 },
   status: { minimum: 1, maximum: 1 },
-  watch: { minimum: 0 },
+  watch: { minimum: 0, maximum: LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT },
   wait: { minimum: 1 },
 }
 

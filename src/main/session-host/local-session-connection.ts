@@ -200,7 +200,7 @@ export class LocalSessionConnection {
   private async handleClientFrame(frame: LocalSessionClientFrame): Promise<void> {
     if (frame.kind === 'command') return this.handleCommand(frame)
     if (frame.kind === 'subscribe')
-      return this.subscriptions.subscribe(frame.requestId, frame.after)
+      return this.subscriptions.subscribe(frame.requestId, frame.after, frame.sessionIds)
     return this.subscriptions.unsubscribe(frame.requestId, frame.subscriptionId)
   }
 

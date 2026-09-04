@@ -17,6 +17,7 @@ import {
   LOCAL_SESSION_MAX_SUPPORTED_REVISIONS,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
+  LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT,
   LOCAL_SESSION_WAGGLE_REVISION,
   type LocalSessionClientFrame,
   type LocalSessionClientHello,
@@ -77,6 +78,11 @@ export const localSessionClientFrameSchema: Schema.Schema<LocalSessionClientFram
     kind: Schema.Literal('subscribe'),
     requestId: sessionInputIdSchema,
     after: Schema.optional(sessionHostEventCursorSchema),
+    sessionIds: Schema.optional(
+      Schema.Array(sessionInputIdSchema).pipe(
+        Schema.maxItems(LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT),
+      ),
+    ),
   }),
   Schema.Struct({
     kind: Schema.Literal('unsubscribe'),

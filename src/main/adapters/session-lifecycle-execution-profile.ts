@@ -112,7 +112,9 @@ function definitionForCommand(
 ) {
   const requestedName =
     command.operation === 'fork' ? undefined : command.specialization?.agentDefinitionName
-  if (!requestedName) return Effect.succeed(parent?.resolvedAgentSnapshot)
+  if (!requestedName) {
+    return Effect.succeed(command.operation === 'fork' ? parent?.resolvedAgentSnapshot : undefined)
+  }
   return Effect.tryPromise({
     try: () => resolveAgentDefinition({ projectPath, name: requestedName }),
     catch: (cause) => preparationError('resolve-agent-definition', cause),

@@ -29,15 +29,23 @@ export class LocalSessionConnectionSubscriptions {
 
   constructor(private readonly input: LocalSessionConnectionSubscriptionsInput) {}
 
-  async subscribe(requestId: string, cursor?: SessionHostEventCursor) {
+  async subscribe(
+    requestId: string,
+    cursor?: SessionHostEventCursor,
+    sessionIds?: readonly string[],
+  ) {
     if (await this.connectionLimitReached(requestId)) return
     while (!this.input.closed()) {
       await this.input.admission.waitUntilReady()
-      if (await this.subscribeWhenReady(requestId, cursor)) return
+      if (await this.subscribeWhenReady(requestId, cursor, sessionIds)) return
     }
   }
 
-  private async subscribeWhenReady(requestId: string, cursor?: SessionHostEventCursor) {
+  private async subscribeWhenReady(
+    requestId: string,
+    cursor?: SessionHostEventCursor,
+    sessionIds?: readonly string[],
+  ) {
     const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
     if (!releaseAdmissionReader) return false
     let releaseBudget: (() => void) | undefined
@@ -53,8 +61,9 @@ export class LocalSessionConnectionSubscriptions {
       }
       const result = this.input.dependencies.eventHub.subscribeAfter(
         snapshotCursor,
-        createLocalSessionEventAdmissionFilter(() =>
-          this.input.admission.isFenced() ? null : this.input.caller(),
+        createLocalSessionEventAdmissionFilter(
+          () => (this.input.admission.isFenced() ? null : this.input.caller()),
+          sessionIds,
         ),
         { advanceFilteredCursor: true },
       )
@@ -67,7 +76,7 @@ export class LocalSessionConnectionSubscriptions {
         })
         return true
       }
-      const activeRuns = await this.authorizedActiveRuns(caller, cursor)
+      const activeRuns = await this.authorizedActiveRuns(caller, cursor, sessionIds)
       if (
         this.input.admission.isFenced() ||
         admissionEpoch !== this.input.admission.currentEpoch()
@@ -101,9 +110,13 @@ export class LocalSessionConnectionSubscriptions {
   private async authorizedActiveRuns(
     caller: AuthenticatedLocalSessionCaller,
     cursor?: SessionHostEventCursor,
+    sessionIds?: readonly string[],
   ) {
     if (cursor) return
-    const snapshots = this.input.dependencies.snapshotActiveRuns?.() ?? []
+    const requested = sessionIds && sessionIds.length > 0 ? new Set(sessionIds) : undefined
+    const snapshots = (this.input.dependencies.snapshotActiveRuns?.() ?? []).filter(
+      (snapshot) => !requested || requested.has(snapshot.sessionId),
+    )
     const authorization = await Promise.all(
       snapshots.map(async (snapshot) => ({
         snapshot,

@@ -3,6 +3,7 @@ import { SessionFlatVectorIndex } from '../src/main/adapters/session-flat-vector
 
 const TOP_MATCH_COUNT = 3
 const JSON_INDENT_SPACES = 2
+const QUERY_LATENCY_LIMIT_MS = 250
 
 const documents = [
   ['migration', 'Implement atomic database cutover and recovery backup'],
@@ -42,7 +43,9 @@ async function main() {
       passed: matches[0]?.sessionId === expected,
     })
   }
-  const passed = results.every((result) => result.passed)
+  const passed = results.every(
+    (result) => result.passed && result.queryMs < QUERY_LATENCY_LIMIT_MS,
+  )
   process.stdout.write(
     `${JSON.stringify(
       {
@@ -50,6 +53,7 @@ async function main() {
         passageCount: documents.length,
         passageBatchMs,
         results,
+        limits: { queryMs: QUERY_LATENCY_LIMIT_MS },
         passed,
       },
       null,

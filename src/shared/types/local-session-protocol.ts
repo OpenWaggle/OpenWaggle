@@ -10,6 +10,7 @@ import type {
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
 export const LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH = 128
 export const LOCAL_SESSION_MAX_SUPPORTED_REVISIONS = 16
+export const LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT = 128
 export * from './local-session-protocol-revisions'
 export { SESSION_WAGGLE_CONTRACT_VERSION } from './local-session-waggle'
 
@@ -173,6 +174,7 @@ export type LocalSessionClientFrame =
       readonly kind: 'subscribe'
       readonly requestId: string
       readonly after?: SessionHostEventCursor
+      readonly sessionIds?: readonly string[]
     }
   | {
       readonly kind: 'unsubscribe'

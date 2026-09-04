@@ -27,6 +27,7 @@ export type LocalSessionWatchResult =
 
 export type LocalSessionWatchInput = LocalSessionClientConnectionInput & {
   readonly after?: SessionHostEventCursor
+  readonly sessionIds?: readonly string[]
   readonly signal?: AbortSignal
   readonly onEvent: (event: SessionHostEventEnvelope) => void | Promise<void>
   readonly onCursor?: (cursor: SessionHostEventCursor) => void | Promise<void>
@@ -129,6 +130,9 @@ async function establishSubscription(
     kind: 'subscribe',
     requestId,
     ...(input.after ? { after: input.after } : {}),
+    ...(input.sessionIds && input.sessionIds.length > 0
+      ? { sessionIds: [...new Set(input.sessionIds)] }
+      : {}),
   })
   const first = await reader.next(timeoutMs)
   if (!isRecord(first) || typeof first.kind !== 'string') {

@@ -5,6 +5,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SESSION_QUERY_MAX_RESPONSE_BYTES } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mcpExportQuery } from './sqlite-session-export-query-test-support'
 import {
   executeSessionQuery as executeQuery,
   makeSessionQueryRuntime as makeRuntime,
@@ -26,12 +27,15 @@ describe('SQLite Session export query', () => {
   it('fixes a paginated snapshot and declares omitted queue bodies', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'export.sqlite'))
     runtimes.push(runtime)
-    const first = await executeQuery(runtime, {
-      operation: 'export',
-      sessionId: 'worker',
-      limit: 1,
-      branchScope: 'active-branch',
-    })
+    const first = await executeQuery(
+      runtime,
+      mcpExportQuery({
+        operation: 'export',
+        sessionId: 'worker',
+        limit: 1,
+        branchScope: 'active-branch',
+      }),
+    )
     if (first.outcome.operation !== 'export' || !('manifest' in first.outcome)) {
       throw new Error('Expected export outcome.')
     }
@@ -39,7 +43,17 @@ describe('SQLite Session export query', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql`
-          UPDATE session_branches SET head_node_id = ${'node-worker-1'}
+          INSERT INTO session_nodes (
+            id, session_id, parent_id, kind, role, timestamp_ms,
+            content_json, metadata_json, branch_hint_id, created_order
+          ) VALUES (
+            ${'node-worker-after-snapshot'}, ${'worker'}, ${'node-worker-2'}, ${'message'},
+            ${'assistant'}, ${3}, ${'{"text":"after snapshot"}'}, ${'{}'},
+            ${'worker:branch:main'}, ${2}
+          )
+        `
+        yield* sql`
+          UPDATE session_branches SET head_node_id = ${'node-worker-after-snapshot'}
           WHERE id = ${'worker:branch:main'}
         `
         yield* sql`
@@ -56,18 +70,16 @@ describe('SQLite Session export query', () => {
         yield* sql`DROP TABLE session_follow_ups`
       }),
     )
-    const second = await executeQuery(runtime, {
-      operation: 'export',
-      sessionId: 'worker',
-      limit: 1,
-      branchScope: 'active-branch',
-      afterCreatedOrder: first.outcome.nextCreatedOrder,
-      throughCreatedOrder: first.outcome.manifest.snapshot.nodeHighWaterMark,
-      snapshotStateRevision: first.outcome.manifest.snapshot.stateRevision,
-      snapshotHeadNodeId: first.outcome.manifest.snapshot.selectedHeadNodeId,
-      capturedAt: first.outcome.manifest.snapshot.capturedAt,
-      snapshotManifest: first.outcome.manifest,
-    })
+    const second = await executeQuery(
+      runtime,
+      mcpExportQuery({
+        operation: 'export',
+        sessionId: 'worker',
+        limit: 1,
+        afterCreatedOrder: first.outcome.nextCreatedOrder,
+        snapshotManifest: first.outcome.manifest,
+      }),
+    )
 
     expect(first.outcome).toMatchObject({
       manifest: {
@@ -83,6 +95,7 @@ describe('SQLite Session export query', () => {
       manifest: first.outcome.manifest,
       records: [{ nodeId: 'node-worker-2', parentNodeId: 'node-worker-1' }],
     })
+    expect(JSON.stringify(second.outcome)).not.toContain('node-worker-after-snapshot')
     expect(JSON.stringify(first.outcome)).not.toContain('"text":"next"')
   })
 

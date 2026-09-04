@@ -174,8 +174,13 @@ describe('Local Session protocol negotiation', () => {
         kind: 'subscribe',
         requestId: 'request-subscribe',
         after: { hostInstanceId: 'host-current', sequence: 12 },
+        sessionIds: ['session-worker'],
       }),
-    ).toMatchObject({ kind: 'subscribe', requestId: 'request-subscribe' })
+    ).toMatchObject({
+      kind: 'subscribe',
+      requestId: 'request-subscribe',
+      sessionIds: ['session-worker'],
+    })
     expect(() =>
       decodeLocalSessionClientFrame({
         kind: 'command',

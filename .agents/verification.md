@@ -15,6 +15,7 @@ pnpm verify
 CI is tiered (ADR 0029). Per-push runs execute the Fast gate; the merge queue's merge result runs the Full gate:
 
 - **Fast gate (per push):** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Electron E2E (macOS, includes the Darwin visual baselines and the syntax performance benchmark).
+- **Session Performance workflow (merge queue/manual):** `pnpm benchmark:session-performance` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/1,000,000-message migration corpus. `pnpm benchmark:session-release` runs the 100,000-Session/10,000,000-message reference corpus for release evidence.
 - **Full gate (merge queue result):** everything above plus Electron E2E (Linux), Electron E2E (Windows), and the package rehearsals when the merged diff touches package or website/docs surfaces.
 
 Red jobs on a PR branch are the Fast gate; a red Windows or Linux E2E job on a queue run is the Full gate. Pushes to `main` run the static checks only.

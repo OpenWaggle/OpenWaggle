@@ -3,6 +3,31 @@ import { parseMcpCliArguments } from '../mcp-cli-arguments'
 import { buildMcpSessionPayloadV2, sessionInputSchemaV2 } from '../openwaggle-mcp-session-input-v2'
 import { buildSessionsCliPayload } from '../sessions-cli'
 
+const SNAPSHOT_MANIFEST = {
+  schemaVersion: 1 as const,
+  sessionId: 'worker',
+  title: 'Worker export',
+  branchScope: 'active-branch' as const,
+  activeBranchId: 'worker:main',
+  selectedBranchId: 'worker:main',
+  snapshot: {
+    nodeHighWaterMark: 42,
+    stateRevision: 7,
+    queueRevision: 3,
+    capturedAt: 1234,
+    selectedHeadNodeId: 'node-42',
+  },
+  activeRunId: null,
+  activeTurnIncomplete: false,
+  queue: {
+    state: 'running' as const,
+    pendingCount: 0,
+    bodyScope: 'omitted-by-choice' as const,
+    omittedBodyCount: 0,
+    items: [],
+  },
+}
+
 describe('Session export adapters', () => {
   it('maps the CLI export flags into one bounded Host snapshot request', () => {
     const parsed = parseMcpCliArguments([
@@ -52,6 +77,49 @@ describe('Session export adapters', () => {
         },
       },
     })
+  })
+
+  it('maps strict MCP export continuation from the immutable first-page manifest', () => {
+    const input = sessionInputSchemaV2.parse({
+      operation: 'export',
+      sessionId: 'worker',
+      limit: 100,
+      afterCreatedOrder: 20,
+      snapshotManifest: SNAPSHOT_MANIFEST,
+    })
+
+    expect(buildMcpSessionPayloadV2(input)).toMatchObject({
+      request: {
+        query: {
+          operation: 'export',
+          sessionId: 'worker',
+          limit: 100,
+          branchScope: 'active-branch',
+          branchId: 'worker:main',
+          afterCreatedOrder: 20,
+          throughCreatedOrder: 42,
+          snapshotStateRevision: 7,
+          snapshotHeadNodeId: 'node-42',
+          capturedAt: 1234,
+          snapshotManifest: SNAPSHOT_MANIFEST,
+        },
+      },
+    })
+    expect(() =>
+      buildMcpSessionPayloadV2({
+        operation: 'export',
+        sessionId: 'another-session',
+        afterCreatedOrder: 20,
+        snapshotManifest: SNAPSHOT_MANIFEST,
+      }),
+    ).toThrow('different Session')
+    expect(() =>
+      buildMcpSessionPayloadV2({
+        operation: 'export',
+        sessionId: 'worker',
+        afterCreatedOrder: 20,
+      }),
+    ).toThrow('snapshotManifest')
   })
 
   it('maps durable file creation, progress reads, and cancellation through the CLI', () => {

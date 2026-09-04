@@ -4,6 +4,7 @@ export const BENCHMARK_QUERY_PAGE_SIZE = 50
 export const BENCHMARK_SESSION_ID = 'session-000000'
 export const RARE_LEXICAL_TERM = 'benchmarktoken'
 export const COMMON_LEXICAL_TERM = 'commonterm'
+export const RARE_LEXICAL_PHRASE = '"rare benchmarktoken final result"'
 const BENCHMARK_TRANSCRIPT_FIRST_NODE_ID = 'node-00000000'
 const TERMINAL_TRANSCRIPT_MARKER = 'skewed long session terminal marker'
 
@@ -51,6 +52,7 @@ interface BenchmarkPreflightInput {
   readonly commonLexical: unknown
   readonly rareFullTranscriptLexical: unknown
   readonly commonFullTranscriptLexical: unknown
+  readonly phraseFullTranscriptLexical: unknown
   readonly transcriptHead: unknown
   readonly transcriptTerminal: unknown
   readonly sparseWorkingPath: string
@@ -155,6 +157,10 @@ export function validateSessionDiscoveryBenchmarkPreflight(input: BenchmarkPrefl
   requireFullTranscriptLexicalResult(
     input.commonFullTranscriptLexical,
     'common full-transcript lexical query',
+  )
+  requireFullTranscriptLexicalResult(
+    input.phraseFullTranscriptLexical,
+    'phrase full-transcript lexical query',
   )
 
   const terminalCursor = benchmarkTranscriptTerminalCursor(input.transcriptHead)

@@ -1,42 +1,19 @@
 import { DatabaseSync } from 'node:sqlite'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SqliteClient } from '@effect/sql-sqlite-node'
-import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
-import * as ManagedRuntime from 'effect/ManagedRuntime'
 import type { SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5-session-embedding-model'
-import { loadLexicalDiscoveryRows } from '../src/main/adapters/sqlite-session-lexical-search'
-import { listSessions } from '../src/main/adapters/sqlite-session-query-catalog'
-import { readItems } from '../src/main/adapters/sqlite-session-query-items'
 import { SqliteSessionSemanticProjection } from '../src/main/adapters/sqlite-session-semantic-projection'
 import { SqliteSessionTranscriptSemanticProjection } from '../src/main/adapters/sqlite-session-transcript-semantic-projection'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
-import { SQLITE_PREPARE_CACHE_SIZE } from '../src/main/services/database-constants'
-import {
-  BENCHMARK_QUERY_PAGE_SIZE,
-  BENCHMARK_SESSION_ID,
-  benchmarkTranscriptTerminalCursor,
-  COMMON_LEXICAL_TERM,
-  RARE_LEXICAL_TERM,
-  validateSessionDiscoveryBenchmarkPreflight,
-} from './benchmark-session-discovery-preflight'
+import { sessionDiscoveryBenchmarkQueryExecutor } from './benchmark-session-discovery-runtime'
 
-const MEASURED_RUNS = 20
-const WARMUP_RUNS = 3
-const PAGE_SIZE = BENCHMARK_QUERY_PAGE_SIZE
-const P95 = 0.95
+export { benchmarkSessionDiscoveryQueries } from './benchmark-session-discovery-queries'
 const TIMING_DECIMAL_PLACES = 2
 
 export function reportSessionDiscoveryBenchmarkPhase(phase: string, elapsedMs: number) {
   process.stderr.write(
     `[session-database-benchmark] ${phase}: ${elapsedMs.toFixed(TIMING_DECIMAL_PLACES)}ms\n`,
   )
-}
-
-export function benchmarkPercentile(values: readonly number[], fraction: number) {
-  const sorted = values.toSorted((left, right) => left - right)
-  const index = Math.max(0, Math.ceil(sorted.length * fraction) - 1)
-  return sorted[index] ?? 0
 }
 
 export function initializeSessionDiscoveryBenchmarkSource(database: DatabaseSync) {
@@ -88,16 +65,6 @@ export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {
         WHERE nodes.parent_id IS NOT NULL
       ) SELECT COUNT(*) AS count FROM selected_path`,
     ),
-  }
-}
-
-export function sessionDiscoveryBenchmarkQueryExecutor(databasePath: string) {
-  const runtime = ManagedRuntime.make(
-    SqliteClient.layer({ filename: databasePath, prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE }),
-  )
-  return {
-    run: <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) => runtime.runPromise(effect),
-    dispose: () => runtime.dispose(),
   }
 }
 
@@ -153,120 +120,6 @@ export async function benchmarkSessionDiscoveryBackfills(
     return {
       discovery: { elapsedMs: discoveryElapsedMs, ...discovery },
       transcript: { elapsedMs: performance.now() - transcriptStartedAt, ...transcript },
-    }
-  } finally {
-    await runtime.dispose()
-  }
-}
-
-async function measure(run: () => Promise<unknown>) {
-  const timings: number[] = []
-  for (let iteration = 0; iteration < WARMUP_RUNS + MEASURED_RUNS; iteration += 1) {
-    const startedAt = performance.now()
-    await run()
-    const elapsed = performance.now() - startedAt
-    if (iteration >= WARMUP_RUNS) timings.push(elapsed)
-  }
-  return { p95Ms: benchmarkPercentile(timings, P95), timings }
-}
-
-export async function benchmarkSessionDiscoveryQueries(
-  databasePath: string,
-  sparseWorkingPath: string,
-) {
-  const runtime = sessionDiscoveryBenchmarkQueryExecutor(databasePath)
-  const list = (workingPath?: string) =>
-    runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        listSessions(sql, undefined, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-list',
-          query: {
-            operation: 'list',
-            limit: PAGE_SIZE,
-            ...(workingPath ? { workingPath } : {}),
-          },
-        }),
-      ),
-    )
-  const lexical = (
-    query: string,
-    requestId: string,
-    searchScope: 'discovery' | 'full-transcript' = 'discovery',
-  ) =>
-    runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        loadLexicalDiscoveryRows(sql, undefined, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId,
-          query: {
-            operation: 'search',
-            query,
-            limit: PAGE_SIZE,
-            mode: 'lexical',
-            searchScope,
-          },
-        }),
-      ),
-    )
-  const transcript = (afterCreatedOrder?: number) =>
-    runtime.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        readItems(sql, {
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: 'benchmark-transcript',
-          query: {
-            operation: 'items',
-            sessionId: BENCHMARK_SESSION_ID,
-            limit: PAGE_SIZE,
-            ...(afterCreatedOrder === undefined ? {} : { afterCreatedOrder }),
-          },
-        }),
-      ),
-    )
-  try {
-    const coldStartedAt = performance.now()
-    const coldSparseWorkingPathList = await list(sparseWorkingPath)
-    const coldWorkingPathListMs = performance.now() - coldStartedAt
-    const preflight = {
-      list: await list(),
-      sparseWorkingPathList: coldSparseWorkingPathList,
-      missingWorkingPathList: await list('/benchmark/missing'),
-      rareLexical: await lexical(RARE_LEXICAL_TERM, 'benchmark-preflight-rare-lexical'),
-      commonLexical: await lexical(COMMON_LEXICAL_TERM, 'benchmark-preflight-common-lexical'),
-      rareFullTranscriptLexical: await lexical(
-        RARE_LEXICAL_TERM,
-        'benchmark-preflight-rare-full-transcript',
-        'full-transcript',
-      ),
-      commonFullTranscriptLexical: await lexical(
-        COMMON_LEXICAL_TERM,
-        'benchmark-preflight-common-full-transcript',
-        'full-transcript',
-      ),
-      transcriptHead: await transcript(),
-    }
-    const terminalCursor = benchmarkTranscriptTerminalCursor(preflight.transcriptHead)
-    validateSessionDiscoveryBenchmarkPreflight({
-      ...preflight,
-      transcriptTerminal: await transcript(terminalCursor.afterCreatedOrder),
-      sparseWorkingPath,
-    })
-
-    return {
-      coldWorkingPathListMs,
-      list: await measure(() => list()),
-      sparseWorkingPathList: await measure(() => list(sparseWorkingPath)),
-      missingWorkingPathList: await measure(() => list('/benchmark/missing')),
-      lexical: await measure(() => lexical('benchmarktoken', 'benchmark-lexical')),
-      commonLexical: await measure(() => lexical('commonterm', 'benchmark-common-lexical')),
-      fullTranscriptLexical: await measure(() =>
-        lexical('benchmarktoken', 'benchmark-full-transcript-lexical', 'full-transcript'),
-      ),
-      commonFullTranscriptLexical: await measure(() =>
-        lexical('commonterm', 'benchmark-common-full-transcript-lexical', 'full-transcript'),
-      ),
-      transcript: await measure(transcript),
     }
   } finally {
     await runtime.dispose()

@@ -57,44 +57,19 @@ export function transcriptSessionCtes(
   seedTranscriptTerm: string,
   allSessionsAuthorized: boolean,
 ) {
-  const transcriptTermsJson = JSON.stringify(parameters.transcriptTerms)
-  const matchingOrder = matchingSessionOrder(sql, parameters)
   const retainSingleTermEvidence =
     parameters.phraseTranscriptSearch === 0 && parameters.transcriptTerms.length === 1
   const nodeEvidenceSearch =
     parameters.phraseTranscriptSearch === 1 || parameters.transcriptTerms.length > 1
   return sql`
-    query_transcript_terms AS MATERIALIZED (
-      SELECT DISTINCT CAST(value AS TEXT) AS term FROM json_each(${transcriptTermsJson})
-    ), matching_term_session_ids AS MATERIALIZED (
-      SELECT seed_terms.session_id
-      FROM session_transcript_terms AS seed_terms
-      JOIN sessions ON sessions.id = seed_terms.session_id
-      WHERE ${parameters.termTranscriptSearch} = 1
-        AND seed_terms.term = ${seedTranscriptTerm}
-        AND (${allSessionsAuthorized ? 1 : 0} = 1
-          OR seed_terms.session_id IN (SELECT session_id FROM authorized_sessions))
-        AND (${parameters.includeArchived} = 1 OR sessions.archived = 0)
-        AND (${request.query.projectPath ?? null} IS NULL
-          OR sessions.project_path = ${request.query.projectPath ?? null})
-        AND (${request.query.workingPath ?? null} IS NULL OR EXISTS (
-          SELECT 1 FROM session_workspace_bindings AS catalog_binding
-          JOIN workspace_resources AS catalog_workspace
-            ON catalog_workspace.id = catalog_binding.workspace_id
-          WHERE catalog_binding.session_id = sessions.id
-            AND catalog_workspace.working_path = ${request.query.workingPath ?? null}
-        ))
-        AND (${parameters.transcriptTerms.length > 1 ? 1 : 0} = 0 OR NOT EXISTS (
-          SELECT 1 FROM query_transcript_terms AS required_term
-          WHERE NOT EXISTS (
-            SELECT 1 FROM session_transcript_terms AS candidate_term
-            WHERE candidate_term.term = required_term.term
-              AND candidate_term.session_id = seed_terms.session_id
-          )
-        ))
-      ORDER BY ${matchingOrder}
-      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
-    ), term_transcript_sessions_unbounded AS MATERIALIZED (
+    ${matchingTranscriptSessionCtes(
+      sql,
+      request,
+      parameters,
+      seedTranscriptTerm,
+      allSessionsAuthorized,
+    )}
+    term_transcript_sessions_unbounded AS MATERIALIZED (
       SELECT matching_ids.session_id,
         -SUM(matching_terms.term_frequency) AS score,
         NULL AS snippet,
@@ -156,5 +131,85 @@ export function transcriptSessionCtes(
       UNION ALL
       SELECT * FROM phrase_transcript_sessions
     )
+  `
+}
+
+function matchingTranscriptSessionCtes(
+  sql: SqlClient.SqlClient,
+  request: DiscoverySearchRequest,
+  parameters: TranscriptSearchParameters,
+  seedTranscriptTerm: string,
+  allSessionsAuthorized: boolean,
+) {
+  const transcriptTermsJson = JSON.stringify(parameters.transcriptTerms)
+  const matchingOrder = matchingSessionOrder(sql, parameters)
+  const projectPath = request.query.projectPath ?? null
+  const workingPath = request.query.workingPath ?? null
+  const authorizationBypass = allSessionsAuthorized ? 1 : 0
+  const multipleTerms = parameters.transcriptTerms.length > 1 ? 1 : 0
+  return sql`
+    query_transcript_terms AS MATERIALIZED (
+      SELECT DISTINCT CAST(value AS TEXT) AS term FROM json_each(${transcriptTermsJson})
+    ), matching_non_phrase_session_ids AS MATERIALIZED (
+      SELECT seed_terms.session_id
+      FROM session_transcript_terms AS seed_terms
+      JOIN sessions ON sessions.id = seed_terms.session_id
+      WHERE ${parameters.termTranscriptSearch} = 1
+        AND ${parameters.phraseTranscriptSearch} = 0
+        AND seed_terms.term = ${seedTranscriptTerm}
+        AND (${authorizationBypass} = 1
+          OR seed_terms.session_id IN (SELECT session_id FROM authorized_sessions))
+        AND (${parameters.includeArchived} = 1 OR sessions.archived = 0)
+        AND (${projectPath} IS NULL OR sessions.project_path = ${projectPath})
+        AND (${workingPath} IS NULL OR EXISTS (
+          SELECT 1 FROM session_workspace_bindings AS catalog_binding
+          JOIN workspace_resources AS catalog_workspace
+            ON catalog_workspace.id = catalog_binding.workspace_id
+          WHERE catalog_binding.session_id = sessions.id
+            AND catalog_workspace.working_path = ${workingPath}
+        ))
+        AND (${multipleTerms} = 0 OR NOT EXISTS (
+          SELECT 1 FROM query_transcript_terms AS required_term
+          WHERE NOT EXISTS (
+            SELECT 1 FROM session_transcript_terms AS candidate_term
+            WHERE candidate_term.term = required_term.term
+              AND candidate_term.session_id = seed_terms.session_id
+          )
+        ))
+      ORDER BY ${matchingOrder}
+      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
+    ), matching_phrase_session_ids AS MATERIALIZED (
+      SELECT phrase_matches.session_id
+      FROM (
+        SELECT DISTINCT search_rows.session_id
+        FROM session_node_search
+        JOIN session_node_search_rows AS search_rows
+          ON search_rows.search_rowid = session_node_search.rowid
+        JOIN sessions ON sessions.id = search_rows.session_id
+        WHERE ${parameters.phraseTranscriptSearch} = 1
+          AND session_node_search MATCH ${parameters.ftsQuery}
+          AND (${authorizationBypass} = 1
+            OR search_rows.session_id IN (SELECT session_id FROM authorized_sessions))
+          AND (${parameters.includeArchived} = 1 OR sessions.archived = 0)
+          AND (${projectPath} IS NULL OR sessions.project_path = ${projectPath})
+          AND (${workingPath} IS NULL OR EXISTS (
+            SELECT 1 FROM session_workspace_bindings AS catalog_binding
+            JOIN workspace_resources AS catalog_workspace
+              ON catalog_workspace.id = catalog_binding.workspace_id
+            WHERE catalog_binding.session_id = sessions.id
+              AND catalog_workspace.working_path = ${workingPath}
+          ))
+      ) AS phrase_matches
+      JOIN session_transcript_terms AS ranked_terms
+        ON ranked_terms.session_id = phrase_matches.session_id
+        AND ranked_terms.term IN (SELECT term FROM query_transcript_terms)
+      GROUP BY phrase_matches.session_id
+      ORDER BY SUM(ranked_terms.term_frequency) DESC, phrase_matches.session_id
+      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
+    ), matching_term_session_ids AS MATERIALIZED (
+      SELECT session_id FROM matching_non_phrase_session_ids
+      UNION ALL
+      SELECT session_id FROM matching_phrase_session_ids
+    ),
   `
 }

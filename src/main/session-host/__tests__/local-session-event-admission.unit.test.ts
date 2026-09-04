@@ -13,6 +13,38 @@ const TRANSPORT_EVENT: SessionHostEventEnvelope = {
 }
 
 describe('Local Session event admission', () => {
+  it('intersects a requested Session filter before buffering authorized events', () => {
+    const admit = createLocalSessionEventAdmissionFilter(
+      () => ({
+        callerId: 'local-user:test',
+        eventAdmissionSessionIds: [],
+      }),
+      ['requested-session'],
+    )
+
+    expect(admit(TRANSPORT_EVENT)).toBe(false)
+    expect(
+      admit({
+        ...TRANSPORT_EVENT,
+        payload: {
+          kind: 'session-transport',
+          sessionId: 'requested-session',
+          event: { type: 'agent_start', runId: 'run-requested', timestamp: 1 },
+        },
+      }),
+    ).toBe(true)
+    expect(
+      admit({
+        cursor: { hostInstanceId: 'host', sequence: 2 },
+        timestamp: 2,
+        payload: {
+          kind: 'semantic-discovery-readiness-changed',
+          readiness: { status: 'ready' },
+        },
+      }),
+    ).toBe(false)
+  })
+
   it('admits a Worker event when its derived authority grants the required capability', () => {
     const admit = createLocalSessionEventAdmissionFilter(() => ({
       callerId: 'profile:queen',

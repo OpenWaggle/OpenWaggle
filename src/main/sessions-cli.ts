@@ -48,6 +48,7 @@ async function runWatchCommand(
     const result = await watchLocalSessionEvents({
       ...clientInput,
       ...(after ? { after } : {}),
+      ...(sessionIds.size > 0 ? { sessionIds: [...sessionIds] } : {}),
       signal: abortController.signal,
       onCursor: writeCursor,
       onEvent: async (event) => {

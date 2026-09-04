@@ -13,6 +13,8 @@
     "benchmark:session-embedding": "tsx scripts/benchmark-session-embedding.ts",
     "benchmark:session-vector-index": "tsx scripts/benchmark-session-vector-index.ts",
     "benchmark:session-database": "tsx scripts/benchmark-session-discovery-database.ts",
+    "benchmark:session-performance": "pnpm benchmark:session-embedding && pnpm benchmark:session-vector-index && pnpm benchmark:session-database --migration-scale",
+    "benchmark:session-release": "pnpm benchmark:session-embedding && pnpm benchmark:session-vector-index && pnpm benchmark:session-database",
     "dev": "pnpm docs:generate && pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev",
     "dev:debug": "pnpm docs:generate && pnpm prepare:native:electron && tsx scripts/start-electron-qa.ts",
     "dev:debug:headed": "pnpm docs:generate && pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
