@@ -40,7 +40,7 @@ export function subscribeInlineVisualizationTheme(subscriber: () => void) {
     })
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class', 'style', 'data-theme'],
+      attributeFilter: ['class', 'style', 'data-theme', 'data-motion'],
     })
   }
   themeSubscribers.add(subscriber)

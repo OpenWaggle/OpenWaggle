@@ -351,6 +351,18 @@ export class OpenWaggleApp {
     })
   }
 
+  async installSessionDetailSnapshotProbe(input: {
+    readonly sessionId: string
+    readonly detail: unknown
+  }): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, probeInput) => {
+      ipcMain.removeHandler('sessions:get-detail')
+      ipcMain.handle('sessions:get-detail', (_event, sessionId) =>
+        String(sessionId) === probeInput.sessionId ? probeInput.detail : null,
+      )
+    }, input)
+  }
+
   mainWindow(): MainWindowPage {
     return new MainWindowPage(this.currentWindow)
   }

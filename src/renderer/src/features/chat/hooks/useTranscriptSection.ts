@@ -119,6 +119,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const transcriptLoading = isLoading || isSteering
   const transcriptMessages = resolveTranscriptMessages({
     activeSessionId,
+    activeSessionUpdatedAt: activeSession?.updatedAt,
     activeWorkspace,
     messages,
     draftBranchSourceNodeId,

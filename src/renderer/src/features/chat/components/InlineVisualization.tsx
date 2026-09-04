@@ -218,8 +218,8 @@ export function InlineVisualization({
   }, [stateInstanceId, stateScope])
 
   useEffect(() => {
-    if (!registration) clearInlineVisualizationState(stateInstanceId)
-  }, [registration, stateInstanceId])
+    if (registrationError) clearInlineVisualizationState(stateInstanceId)
+  }, [registrationError, stateInstanceId])
 
   useInlineVisualizationModal({ expanded, sectionRef, closeButtonRef, onDismiss: dismiss })
 

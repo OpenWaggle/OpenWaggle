@@ -16,61 +16,17 @@ const apiMock = vi.hoisted(() => ({
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 
 import { InlineVisualization } from '../InlineVisualization'
+import {
+  activateFrame,
+  dispatchFrameMessage,
+  frameOrigin,
+  visualizationFrame,
+  visualizationFrameWindow,
+} from './inline-visualization-test-helpers'
 
 const TEST_BACKGROUND = 'test-background-token'
 const TEST_FOREGROUND = 'test-foreground-token'
-
-async function visualizationFrame(title: string) {
-  const element = await screen.findByTitle(title)
-  if (!(element instanceof HTMLIFrameElement)) {
-    throw new Error(`Expected ${title} to be an iframe.`)
-  }
-  return element
-}
-
-function frameOrigin(frame: HTMLIFrameElement) {
-  const url = new URL(frame.src)
-  return `${url.protocol}//${url.host}`
-}
-
-function dispatchFrameMessage(
-  frame: HTMLIFrameElement,
-  data: Record<string, unknown>,
-  capability = 'test-capability-1234567890',
-) {
-  window.dispatchEvent(
-    new MessageEvent('message', {
-      source: visualizationFrameWindow(frame),
-      origin: frameOrigin(frame),
-      data: { capability, ...data },
-    }),
-  )
-}
-
-async function activateFrame(frame: HTMLIFrameElement, capability = 'test-capability-1234567890') {
-  await act(async () => undefined)
-  const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
-  fireEvent.load(frame)
-  act(() => {
-    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:bootstrap' }, capability)
-    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' }, capability)
-  })
-  await waitFor(() => {
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'openwaggle:inline-visualization:theme' }),
-      frameOrigin(frame),
-    )
-  })
-  const calls = postMessage.mock.calls.map((call) => [...call])
-  postMessage.mockRestore()
-  return calls
-}
-
-function visualizationFrameWindow(frame: HTMLIFrameElement) {
-  const frameWindow = frame.contentWindow
-  if (!frameWindow) throw new Error('Expected visualization iframe window.')
-  return frameWindow
-}
+const TEST_FONT_SIZE = '1.25rem'
 
 describe('InlineVisualization', () => {
   beforeEach(() => {
@@ -93,6 +49,9 @@ describe('InlineVisualization', () => {
     vi.unstubAllGlobals()
     document.documentElement.style.removeProperty('--color-bg')
     document.documentElement.style.removeProperty('--color-text-primary')
+    document.documentElement.style.removeProperty('--text-sm')
+    document.documentElement.style.removeProperty('font-size')
+    delete document.documentElement.dataset.motion
     apiMock.showConfirm.mockReset()
     apiMock.openExternal.mockReset()
     apiMock.registerInlineVisualizationFrame.mockReset()
@@ -130,7 +89,7 @@ describe('InlineVisualization', () => {
     expect(frame).toBeInTheDocument()
   })
 
-  it('accepts intrinsic height only from its own frame and caps pathological content', async () => {
+  it('accepts compact intrinsic height only from its own frame and caps pathological content', async () => {
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
@@ -158,6 +117,15 @@ describe('InlineVisualization', () => {
     })
 
     expect(frame).toHaveStyle({ height: '10000px' })
+
+    act(() => {
+      dispatchFrameMessage(frame, {
+        type: 'openwaggle:inline-visualization:resize',
+        height: 48,
+      })
+    })
+
+    expect(frame).toHaveStyle({ height: '48px' })
   })
 
   it('rejects messages with a forged origin or frame capability', async () => {
@@ -213,9 +181,12 @@ describe('InlineVisualization', () => {
     expect(firstHost).not.toBe(secondHost)
   })
 
-  it('maps the active OpenWaggle theme to the public visualization token contract', async () => {
+  it('maps the active OpenWaggle appearance to the public visualization token contract', async () => {
     document.documentElement.style.setProperty('--color-bg', TEST_BACKGROUND)
     document.documentElement.style.setProperty('--color-text-primary', TEST_FOREGROUND)
+    document.documentElement.style.setProperty('--text-sm', TEST_FONT_SIZE)
+    document.documentElement.style.setProperty('font-size', '20px')
+    document.documentElement.dataset.motion = 'reduced'
     render(
       <InlineVisualization
         sessionId={SessionId('session-visualization-1')}
@@ -224,20 +195,38 @@ describe('InlineVisualization', () => {
       />,
     )
     const frame = await visualizationFrame('Theme map')
+    expect(apiMock.registerInlineVisualizationFrame).toHaveBeenCalledWith(
+      expect.objectContaining({ reducedMotion: true }),
+    )
     const postMessageCalls = await activateFrame(frame)
 
     expect(postMessageCalls).toContainEqual([
       expect.objectContaining({
         type: 'openwaggle:inline-visualization:theme',
         theme: expect.objectContaining({
+          reducedMotion: true,
           variables: expect.objectContaining({
             '--background': TEST_BACKGROUND,
+            '--font-size-base': '25px',
             '--foreground': TEST_FOREGROUND,
           }),
         }),
       }),
       frameOrigin(frame),
     ])
+
+    const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
+    delete document.documentElement.dataset.motion
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'openwaggle:inline-visualization:theme',
+          theme: expect.objectContaining({ reducedMotion: false }),
+        }),
+        frameOrigin(frame),
+      )
+    })
+    postMessage.mockRestore()
   })
 
   it('shows a stable retry fallback when the live source is missing', async () => {
