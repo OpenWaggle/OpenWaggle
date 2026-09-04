@@ -1,6 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  type DiffParserWorkerResponse,
+  parseCodeViewItems,
+} from '@/features/diff-panel/lib/code-view-items'
 import { DiffCodeView } from '../DiffCodeView'
 import { fileDiff } from './diff-panel.test-harness'
 
@@ -80,6 +84,10 @@ describe('diff loading edges', () => {
       'data-diff-code-ready',
       'true',
     )
+    expect(container.querySelector('[data-diff-preparation-complete]')).toHaveAttribute(
+      'data-diff-preparation-complete',
+      'true',
+    )
   })
 
   it('surfaces an oversized parser failure instead of spinning forever', async () => {
@@ -105,19 +113,43 @@ describe('diff loading edges', () => {
 
   it('publishes ordinary files before offloading one oversized patch', async () => {
     const posted: unknown[] = []
+    let finishParsing = () => {
+      throw new Error('Parser worker did not receive a request.')
+    }
     class PendingParserWorker {
       onmessage: ((event: MessageEvent<unknown>) => void) | null = null
       onerror: ((event: ErrorEvent) => void) | null = null
       postMessage(message: unknown) {
         posted.push(message)
+        finishParsing = () => {
+          this.onmessage?.(
+            new MessageEvent('message', {
+              data: {
+                ok: true,
+                items: parseCodeViewItems([fileDiff('src/large.ts')]),
+              } satisfies DiffParserWorkerResponse,
+            }),
+          )
+        }
       }
       terminate() {}
     }
     vi.stubGlobal('Worker', PendingParserWorker)
-    renderDiff([fileDiff('src/first.ts'), oversizedDiff('src/large.ts')])
+    const { container } = renderDiff([fileDiff('src/first.ts'), oversizedDiff('src/large.ts')])
 
     expect(await screen.findByRole('button', { name: 'select src/app.ts' })).toBeVisible()
     await waitFor(() => expect(posted).toHaveLength(1))
     expect(posted[0]).toEqual({ files: [expect.objectContaining({ path: 'src/large.ts' })] })
+    expect(container.querySelector('[data-diff-preparation-complete]')).toHaveAttribute(
+      'data-diff-preparation-complete',
+      'false',
+    )
+    finishParsing()
+    await waitFor(() =>
+      expect(container.querySelector('[data-diff-preparation-complete]')).toHaveAttribute(
+        'data-diff-preparation-complete',
+        'true',
+      ),
+    )
   })
 })
