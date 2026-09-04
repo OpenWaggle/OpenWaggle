@@ -183,9 +183,7 @@ describe('Pi native run control', () => {
     )
     expect(result).toEqual({
       delivery: 'queued',
-      durableText: expect.stringMatching(
-        /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Explain the selected service/,
-      ),
+      durableText: 'Explain the selected service',
     })
   })
 
@@ -222,9 +220,7 @@ describe('Pi native run control', () => {
     })
     expect(result).toEqual({
       delivery: 'queued',
-      durableText: expect.stringMatching(
-        /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Expanded review skill/,
-      ),
+      durableText: 'Expanded review skill',
     })
   })
 

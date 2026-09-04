@@ -62,4 +62,34 @@ describe('Pi native compaction provider-hook identity', () => {
     expect(requestBodies).toHaveLength(2)
     expect(requestBodies[1]).toContain('cmp_1')
   })
+
+  it('reuses prepared hook headers when the next prompt first compacts', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-deferred-hook-auth-')
+    const events: SessionCompactEvent[] = []
+    const providerLifecycleCounter = { headerCalls: 0, payloadCalls: 0, responseCalls: 0 }
+    const thresholdResponse = fauxAssistantMessage('Reached threshold')
+    thresholdResponse.usage.totalTokens = 80
+    thresholdResponse.usage.input = 80
+    thresholdResponse.timestamp = Date.now() + 60_000
+    vi.stubGlobal('fetch', nativeCompactionFetch())
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      providerLifecycleCounter,
+      responses: [thresholdResponse, fauxAssistantMessage('Second turn complete')],
+    })
+
+    await session.prompt('first turn')
+    providerLifecycleCounter.headerCalls = 0
+    providerLifecycleCounter.payloadCalls = 0
+    providerLifecycleCounter.responseCalls = 0
+
+    await session.prompt('second turn')
+
+    expect(providerLifecycleCounter).toEqual({
+      headerCalls: 2,
+      payloadCalls: 1,
+      responseCalls: 2,
+    })
+  })
 })

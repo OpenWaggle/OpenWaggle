@@ -1,6 +1,10 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunControl } from '../../../ports/agent-kernel-service'
-import { buildAtomicVisualizationPrompt, buildPiPromptInput } from '../pi-runtime-input'
+import {
+  buildAtomicVisualizationPrompt,
+  buildPiPromptInput,
+  stripAtomicVisualizationContext,
+} from '../pi-runtime-input'
 
 const PI_STEER_READY_POLL_MS = 20
 
@@ -68,12 +72,12 @@ export function createPiRunControl(
         })
         return durableText === undefined
           ? { delivery: 'handled' }
-          : { delivery: 'queued', durableText }
+          : { delivery: 'queued', durableText: stripAtomicVisualizationContext(durableText) }
       }
       const durableText = transformExpandedText
         ? await session.steer(text, images, transformExpandedText)
         : await session.steer(text, images)
-      return { delivery: 'queued', durableText }
+      return { delivery: 'queued', durableText: stripAtomicVisualizationContext(durableText) }
     },
   }
 }
