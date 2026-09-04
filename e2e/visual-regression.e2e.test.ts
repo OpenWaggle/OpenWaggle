@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
-import { seedSessions } from './support/session-fixtures'
+import { seedSessionResources, seedSessions } from './support/session-fixtures'
 
 const VIEWPORT = { width: 1200, height: 800 }
 const FIXED_NOW = Date.UTC(2026, 6, 14, 12)
@@ -26,6 +27,12 @@ function initializeRepository(projectPath: string) {
     cwd: projectPath,
     stdio: 'ignore',
   })
+}
+
+function svgData(color: string) {
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" rx="24" fill="${color}"/><circle cx="160" cy="100" r="52" fill="white" fill-opacity="0.82"/></svg>`,
+  ).toString('base64')
 }
 
 async function createChangedRepository(projectPath: string) {
@@ -56,6 +63,19 @@ async function createChangedRepository(projectPath: string) {
     ],
     { cwd: projectPath, stdio: 'ignore' },
   )
+  execFileSync(
+    'git',
+    ['remote', 'add', 'origin', 'http://github.localhost:1/openwaggle/visual-regression.git'],
+    { cwd: projectPath, stdio: 'ignore' },
+  )
+  execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], {
+    cwd: projectPath,
+    stdio: 'ignore',
+  })
+  execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], {
+    cwd: projectPath,
+    stdio: 'ignore',
+  })
 
   await fs.writeFile(
     path.join(projectPath, CHANGED_FILE_PATH),
@@ -64,10 +84,32 @@ async function createChangedRepository(projectPath: string) {
       "  return 'baseline stable'",
       '}',
       '',
-      "export const reviewNote = 'Composer, sidebar, transcript, diff, and settings are covered.'",
+      "export const reviewNote = 'Summary, resources, images, review requests, diff, and settings are covered.'",
       '',
     ].join('\n'),
   )
+}
+
+async function installVisualGhClient() {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-visual-gh-'))
+  const executablePath = path.join(directory, 'gh')
+  await fs.writeFile(
+    executablePath,
+    `#!/bin/sh
+if [ "$1" = "auth" ]; then
+  if [ "$2" != "status" ] || [ "$3" != "--active" ] || [ "$4" != "--hostname" ] || [ "$5" != "github.localhost" ] || [ -n "$6" ]; then
+    echo "unexpected gh auth arguments: $*" >&2
+    exit 64
+  fi
+  echo "github.localhost"
+  echo "  Logged in to github.localhost account visual-bot"
+  exit 0
+fi
+exit 1
+`,
+  )
+  await fs.chmod(executablePath, 0o755)
+  return directory
 }
 
 async function waitForVisualReadiness(page: Page) {
@@ -79,13 +121,17 @@ async function waitForVisualReadiness(page: Page) {
   })
 }
 
-test('six primary surfaces match their visual baselines', { tag: '@visual' }, async () => {
-  const app = await OpenWaggleApp.launch('openwaggle-visual-regression-e2e-')
-  const projectPath = path.join(app.userDataDir, PROJECT_LABEL)
+test('Session Summary and primary surfaces match their visual baselines', { tag: '@visual' }, async () => {
+  const fakeGhPath = await installVisualGhClient()
+  const originalPath = process.env.PATH
+  process.env.PATH = `${fakeGhPath}${path.delimiter}${originalPath ?? ''}`
+  let app: OpenWaggleApp | null = null
 
   try {
+    app = await OpenWaggleApp.launch('openwaggle-visual-regression-e2e-')
+    const projectPath = path.join(app.userDataDir, PROJECT_LABEL)
     await createChangedRepository(projectPath)
-    await seedSessions(app.userDataDir, [
+    const [primarySessionId] = await seedSessions(app.userDataDir, [
       {
         title: PRIMARY_TITLE,
         projectPath,
@@ -98,7 +144,7 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
             parts: [
               {
                 type: 'text',
-                text: 'Review the five permanent visual baselines and keep the fixture deterministic.',
+                text: 'Review every permanent visual baseline and keep the fixture deterministic.',
               },
             ],
           },
@@ -126,7 +172,7 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
             parts: [
               {
                 type: 'text',
-                text: 'All five surfaces now use stable semantic locators and fixed rendering inputs.',
+                text: 'All covered surfaces now use stable semantic locators and fixed rendering inputs.',
               },
             ],
           },
@@ -150,6 +196,30 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
             parts: [{ type: 'text', text: 'The second deterministic session is ready.' }],
           },
         ],
+      },
+    ])
+    if (!primarySessionId) throw new Error('Primary visual-regression session was not seeded')
+    await seedSessionResources(app.userDataDir, primarySessionId, [
+      {
+        id: 'visual-agent-output',
+        kind: 'image',
+        title: 'session-summary-output.svg',
+        mimeType: 'image/svg+xml',
+        dataBase64: svgData('#3778d4'),
+        nodeId: 'visual-primary-assistant-2',
+        actor: 'agent',
+        activity: 'created',
+        updatedAt: PRIMARY_UPDATED_AT,
+      },
+      {
+        id: 'visual-source-link',
+        kind: 'link',
+        title: 'OpenWaggle session resources',
+        url: 'https://openwaggle.dev/docs/using-openwaggle/session-summary',
+        nodeId: 'visual-primary-assistant-2',
+        actor: 'agent',
+        activity: 'read',
+        updatedAt: PRIMARY_UPDATED_AT,
       },
     ])
     await app.restart()
@@ -182,7 +252,9 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await expect(composer.getByRole('textbox', { name: 'Message input' })).toBeVisible()
     await expect(transcript).toHaveAttribute('aria-busy', 'false')
     await expect(
-      transcript.getByText('All five surfaces now use stable semantic locators and fixed rendering inputs.'),
+      transcript.getByText(
+        'All covered surfaces now use stable semantic locators and fixed rendering inputs.',
+      ),
     ).toBeVisible()
     await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2)
     await page.evaluate(() => {
@@ -196,6 +268,49 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await expect(composer).toHaveScreenshot('composer.png', SCREENSHOT_OPTIONS)
     await expect(sidebar).toHaveScreenshot('sidebar.png', SCREENSHOT_OPTIONS)
     await expect(transcript).toHaveScreenshot('transcript.png', SCREENSHOT_OPTIONS)
+
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await expect(summary).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'Create PR' })).toBeVisible({
+      timeout: 30_000,
+    })
+    await summary.getByRole('button', { name: 'Outputs 1' }).click()
+    await expect(summary.getByRole('button', { name: 'session-summary-output.svg' })).toBeVisible()
+    await page.mouse.move(10, 10)
+    await waitForVisualReadiness(page)
+    await expect(summary).toHaveScreenshot('session-summary.png', SCREENSHOT_OPTIONS)
+
+    await summary.getByRole('button', { name: 'session-summary-output.svg' }).click()
+    const imageViewer = page.getByRole('dialog', {
+      name: 'Image viewer: session-summary-output.svg',
+    })
+    await expect(imageViewer).toBeVisible()
+    await waitForVisualReadiness(page)
+    await expect(imageViewer).toHaveScreenshot('session-image-viewer.png', SCREENSHOT_OPTIONS)
+    await imageViewer.getByRole('button', { name: 'Close image viewer' }).click()
+
+    await summary.getByRole('button', { name: 'Sources 1' }).click()
+    await summary.getByRole('button', { name: 'Show all' }).click()
+    const resourcesPanel = page.getByRole('region', { name: 'Session resources' })
+    await expect(resourcesPanel.getByText('OpenWaggle session resources')).toBeVisible()
+    await page.mouse.move(10, 10)
+    await waitForVisualReadiness(page)
+    await expect(resourcesPanel).toHaveScreenshot('session-resources-panel.png', SCREENSHOT_OPTIONS)
+    await resourcesPanel.getByRole('button', { name: 'Close resources' }).click()
+
+    await expect(summary).toBeVisible()
+    await summary.getByRole('button', { name: 'Create PR' }).click()
+    const changeRequestComposer = page.getByRole('dialog', { name: 'Create pull request' })
+    await expect(changeRequestComposer.getByText('GitHub CLI ready as visual-bot.')).toBeVisible({
+      timeout: 30_000,
+    })
+    await page.mouse.move(10, 10)
+    await waitForVisualReadiness(page)
+    await expect(changeRequestComposer).toHaveScreenshot(
+      'change-request-composer.png',
+      SCREENSHOT_OPTIONS,
+    )
+    await changeRequestComposer.getByRole('button', { name: 'Close change request composer' }).click()
 
     const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
     await diffToggle.click()
@@ -225,6 +340,8 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await waitForVisualReadiness(page)
     await expect(settingsRoot).toHaveScreenshot('settings.png', SCREENSHOT_OPTIONS)
   } finally {
-    await app.cleanup()
+    await app?.cleanup()
+    process.env.PATH = originalPath
+    await fs.rm(fakeGhPath, { recursive: true, force: true })
   }
 })

@@ -5,14 +5,18 @@ import {
   ExtensionSidePanelSurface,
   useExtensionSidePanelContributions,
 } from '@/features/extensions'
-import { SessionResourcesPanel } from '@/features/session-summary'
+import {
+  DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
+  type SessionResourceBrowserTarget,
+  SessionResourcesPanel,
+} from '@/features/session-summary'
 import { loadSessionTreePanel } from '@/features/session-tree/components'
 import { WorkspaceFilePanel } from '@/features/workspace-files/components'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN, useUIStore } from '@/shell'
 import { useChatRouteEffects } from './-chat-route-effects'
-import { isExtensionRightSidebarPanel, resolveRightSidebarPanel } from './-right-sidebar-panel'
+import { isExtensionRightSidebarPanel, resolveChatRightSidebarPanel } from './-right-sidebar-panel'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
 
 const DIFF_PANEL_DEFAULT_WIDTH = 600
@@ -32,7 +36,7 @@ interface ChatRouteWorkspaceState {
 interface ChatRightSidebarRouteState {
   readonly diffOpen: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
-  readonly resourcesOpen: boolean
+  readonly resourcesTarget: SessionResourceBrowserTarget | null
   readonly sessionTreeOpen: boolean
   readonly workspaceFile: { readonly path: string; readonly line: number | null } | null
 }
@@ -43,7 +47,7 @@ interface ChatRightSidebarRouteActions {
     open: boolean,
     target: ChatExtensionSidePanelTarget,
   ) => void
-  readonly onResourcesOpenChange: (open: boolean) => void
+  readonly onResourcesTargetChange: (target: SessionResourceBrowserTarget | null) => void
   readonly onSessionTreeOpenChange: (open: boolean) => void
   readonly onWorkspaceFileOpenChange: (
     open: boolean,
@@ -61,7 +65,7 @@ interface ChatRouteSurfaceProps {
 function isChatRightSidebarOpen(state: ChatRightSidebarRouteState) {
   return (
     state.diffOpen ||
-    state.resourcesOpen ||
+    state.resourcesTarget !== null ||
     state.sessionTreeOpen ||
     state.extensionSidePanel !== null ||
     state.workspaceFile !== null
@@ -135,9 +139,9 @@ function useChatRouteSurfaceActions(
     rightSidebarActions.onSessionTreeOpenChange(open)
   }
 
-  function handleResourcesOpenChange(open: boolean) {
-    setLastRightSidebarPanel('resources')
-    rightSidebarActions.onResourcesOpenChange(open)
+  function handleResourcesTargetChange(target: SessionResourceBrowserTarget | null) {
+    if (target) setLastRightSidebarPanel('resources')
+    rightSidebarActions.onResourcesTargetChange(target)
   }
 
   function handleExtensionSidePanelOpenChange(open: boolean, target: ChatExtensionSidePanelTarget) {
@@ -162,7 +166,7 @@ function useChatRouteSurfaceActions(
   return {
     handleDiffOpenChange,
     handleExtensionSidePanelOpenChange,
-    handleResourcesOpenChange,
+    handleResourcesTargetChange,
     handleSessionTreeOpenChange,
     handleWorkspaceFileOpenChange,
   }
@@ -179,18 +183,14 @@ export function ChatRouteSurface({
   const {
     handleDiffOpenChange,
     handleExtensionSidePanelOpenChange,
-    handleResourcesOpenChange,
+    handleResourcesTargetChange,
     handleSessionTreeOpenChange,
     handleWorkspaceFileOpenChange,
   } = useChatRouteSurfaceActions(sections, rightSidebarActions)
-  const renderedRightSidebarPanel = resolveRightSidebarPanel({
-    diffOpen: rightSidebar.diffOpen,
-    fileOpen: rightSidebar.workspaceFile != null,
-    resourcesOpen: rightSidebar.resourcesOpen,
-    extensionSidePanel: rightSidebar.extensionSidePanel,
-    lastPanel: lastRightSidebarPanel,
-    sessionTreeOpen: rightSidebar.sessionTreeOpen,
-  })
+  const renderedRightSidebarPanel = resolveChatRightSidebarPanel(
+    rightSidebar,
+    lastRightSidebarPanel,
+  )
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
     projectPath: sections.diff.workingPath,
@@ -228,7 +228,7 @@ export function ChatRouteSurface({
               return
             }
             if (renderedRightSidebarPanel === 'resources') {
-              handleResourcesOpenChange(open)
+              handleResourcesTargetChange(open ? DEFAULT_SESSION_RESOURCE_BROWSER_TARGET : null)
               return
             }
             if (isExtensionRightSidebarPanel(renderedRightSidebarPanel)) {
@@ -245,8 +245,9 @@ export function ChatRouteSurface({
               ) : renderedRightSidebarPanel === 'resources' ? (
                 <SessionResourcesPanel
                   sessionId={workspace.sessionId}
-                  refreshToken={sections.transcript.messages.length}
-                  onClose={() => handleResourcesOpenChange(false)}
+                  target={rightSidebar.resourcesTarget ?? DEFAULT_SESSION_RESOURCE_BROWSER_TARGET}
+                  onClose={() => handleResourcesTargetChange(null)}
+                  onTargetChange={handleResourcesTargetChange}
                 />
               ) : renderedRightSidebarPanel === 'file' && rightSidebar.workspaceFile ? (
                 <WorkspaceFilePanel
@@ -281,9 +282,12 @@ export function ChatRouteSurface({
             sections={sections}
             rightSidebarOpen={rightSidebarOpen}
             onOpenDiff={() => handleDiffOpenChange(true)}
-            onOpenResources={() => handleResourcesOpenChange(true)}
+            onOpenResources={(target = DEFAULT_SESSION_RESOURCE_BROWSER_TARGET) =>
+              handleResourcesTargetChange(target)
+            }
             onOpenSessionTree={() => handleSessionTreeOpenChange(true)}
             onNavigateSession={onNavigateSession}
+            onOpenExtensionSidePanel={(target) => handleExtensionSidePanelOpenChange(true, target)}
           />
         </RightSidebarLayout>
       </PanelErrorBoundary>

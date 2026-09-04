@@ -1,9 +1,5 @@
 import { createContext, type ReactNode, useContext } from 'react'
-import {
-  formatDisplayPath,
-  formatDisplayPathsInMarkdown,
-  formatDisplayPathsInText,
-} from '@/shared/lib/display-path'
+import { formatDisplayPathsInMarkdown, formatDisplayPathsInText } from '@/shared/lib/display-path'
 
 const ChatProjectPathContext = createContext<string | null>(null)
 const ChatWorktreePathContext = createContext<string | null>(null)
@@ -28,10 +24,6 @@ export function ChatDisplayPathProvider({
       <ChatWorktreePathContext value={worktreePath}>{children}</ChatWorktreePathContext>
     </ChatProjectPathContext>
   )
-}
-
-export function useChatDisplayPath(path: string) {
-  return formatDisplayPath(path, useChatDisplayRoots())
 }
 
 export function useChatDisplayText(text: string) {

@@ -11,6 +11,7 @@ import {
   routeStateCapability,
 } from './extension-capability-broker-openwaggle'
 import { routeRuntimeContributionCapability } from './extension-capability-broker-runtime'
+import { routeSessionResourceCapability } from './extension-capability-broker-session-resources'
 import { routeStorageCapability } from './extension-capability-broker-storage-dispatch'
 import {
   EXTENSION_PACKAGE_MUTATION_CAPABILITY_REJECTION,
@@ -55,6 +56,10 @@ export function routeAuthorizedInvocation(input: {
 
   if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME) {
     return routeRuntimeContributionCapability(input)
+  }
+
+  if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SESSION_RESOURCES) {
+    return routeSessionResourceCapability(input)
   }
 
   if (input.invocation.capability !== OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT) {

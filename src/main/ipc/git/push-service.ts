@@ -1,4 +1,5 @@
 import { networkGitOptions } from '../../adapters/git/run-git'
+import { resolvePrimaryRemote } from './primary-remote'
 import { isGitRepository, runGit } from './shared'
 
 /**
@@ -39,8 +40,11 @@ async function upstreamRef(
   return { remote: value.slice(0, separator), branch: value.slice(separator + 1) }
 }
 
-/** Push the current branch, setting upstream to origin/<branch> on first push. */
-export async function pushCurrentBranch(projectPath: string): Promise<GitPushResult> {
+/** Push the current branch, setting upstream to the selected remote on first push. */
+export async function pushCurrentBranch(
+  projectPath: string,
+  firstPushRemote?: string,
+): Promise<GitPushResult> {
   if (!(await isGitRepository(projectPath))) {
     return { ok: false, code: 'not-git-repo', message: 'Selected folder is not a Git repository.' }
   }
@@ -69,14 +73,19 @@ export async function pushCurrentBranch(projectPath: string): Promise<GitPushRes
   if (!branch) {
     return { ok: false, code: 'no-upstream', message: 'Cannot push a detached HEAD.' }
   }
-  // ponytail: hardcoded 'origin'; add remote selection only if multi-remote push is requested.
+  const destinationRemote =
+    firstPushRemote ?? (await resolvePrimaryRemote(projectPath))?.name ?? 'origin'
   const result = await runGit(
     projectPath,
-    ['push', '-u', 'origin', branch],
+    ['push', '-u', destinationRemote, branch],
     networkGitOptions(PUSH_TIMEOUT_MS),
   )
   return result.code === 0
-    ? { ok: true, code: 'ok', message: `Pushed and set upstream to origin/${branch}.` }
+    ? {
+        ok: true,
+        code: 'ok',
+        message: `Pushed and set upstream to ${destinationRemote}/${branch}.`,
+      }
     : { ok: false, code: 'push-failed', message: result.stderr.trim() || 'Failed to push.' }
 }
 

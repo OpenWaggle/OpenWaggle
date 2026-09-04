@@ -1,9 +1,17 @@
-import { decodeUnknownOrThrow } from '@shared/schema'
-import type { ChangeRequestCheckoutResult } from '@shared/types/git'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import type {
+  ChangeRequestCheckoutResult,
+  ChangeRequestPreflightResult,
+  OpenChangeRequestPayload,
+} from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { networkGitOptions } from '../../adapters/git/run-git'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { typedHandle } from '../typed-ipc'
+import {
+  buildChangeRequestFallbackUrl,
+  resolveSourceControlProvider,
+} from './change-request-provider'
 import { planChangeRequestFetch } from './change-request-refs'
 import { adoptionSchema, referenceSchema } from './change-request-schemas'
 import { projectPathSchema, runGit } from './shared'
@@ -25,6 +33,14 @@ const NO_PROVIDER = {
 const CHANGE_REQUEST_REMOTE = 'origin'
 /** Longer than a ref advertisement, because this transfers objects. */
 const CHANGE_REQUEST_FETCH_TIMEOUT_MS = 30_000
+
+const openChangeRequestPayloadSchema = Schema.Struct({
+  headRef: Schema.String,
+  baseRef: Schema.optional(Schema.String),
+  title: Schema.String,
+  body: Schema.optional(Schema.String),
+  draft: Schema.optional(Schema.Boolean),
+})
 
 /**
  * Make a change request's head commit available locally without touching any working tree.
@@ -71,6 +87,42 @@ async function fetchChangeRequestRef(
 }
 
 export function registerGitChangeRequestHandlers(): void {
+  typedHandle('git:change-request:preflight', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(
+        openChangeRequestPayloadSchema,
+        rawPayload,
+      ) satisfies OpenChangeRequestPayload
+      const sourceControl = yield* Effect.promise(() => resolveSourceControlProvider(projectPath))
+      if (!sourceControl) {
+        const browserUrl = yield* Effect.promise(() =>
+          buildChangeRequestFallbackUrl(projectPath, payload, false),
+        )
+        return {
+          provider: null,
+          readiness: {
+            ok: false,
+            code: 'unknown',
+            message: 'No supported source control provider.',
+          },
+          browserUrl,
+        } satisfies ChangeRequestPreflightResult
+      }
+      const [readiness, browserUrl] = yield* Effect.promise(() =>
+        Promise.all([
+          sourceControl.provider.authStatus(projectPath, sourceControl.info.host),
+          buildChangeRequestFallbackUrl(projectPath, payload, false, sourceControl.remoteUrl),
+        ]),
+      )
+      return {
+        provider: sourceControl.info,
+        readiness,
+        browserUrl,
+      } satisfies ChangeRequestPreflightResult
+    }),
+  )
+
   typedHandle('git:change-request:list', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)

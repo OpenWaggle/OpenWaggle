@@ -47,8 +47,9 @@ async function viewMergeRequest(projectPath: string, ref: string): Promise<Chang
 
 export const gitlabProvider: SourceControlProvider = {
   id: 'gitlab',
-  authStatus: async (projectPath: string): Promise<SourceControlAuthResult> => {
-    const result = await runCli('glab', ['auth', 'status'], projectPath)
+  authStatus: async (projectPath: string, host?: string): Promise<SourceControlAuthResult> => {
+    const args = host ? ['auth', 'status', '--hostname', host] : ['auth', 'status']
+    const result = await runCli('glab', args, projectPath)
     if (result.missing) return cliMissingFailure()
     return { ok: true, status: parseGlabAuthStatus(result.stdout, result.stderr) }
   },
@@ -58,13 +59,12 @@ export const gitlabProvider: SourceControlProvider = {
       'create',
       '--source-branch',
       payload.headRef,
-      '--target-branch',
-      payload.baseRef,
       '--title',
       payload.title,
       '--description',
       payload.body ?? '',
     ]
+    if (payload.baseRef) args.push('--target-branch', payload.baseRef)
     if (payload.draft) args.push('--draft')
     const result = await runCli('glab', args, projectPath)
     if (result.code !== 0) return classifyFailure(result)

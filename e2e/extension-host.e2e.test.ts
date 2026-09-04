@@ -119,6 +119,19 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
     ).toBeVisible()
 
+    await app.mainWindow().openThread(SEEDED_SESSION_TITLE)
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await expect(summary).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'GitHub Issues 1' })).toBeVisible()
+    await expect(summary.getByRole('status')).toContainText('Extension data is available')
+    await summary.getByRole('button', { name: 'Open issues overview' }).click()
+    const extensionSidePanel = page.getByRole('region', { name: 'Extension side panel' })
+    await expect(extensionSidePanel).toBeVisible()
+    await expect(extensionSidePanel.getByText('GitHub Issues Overview')).toBeVisible()
+    await extensionSidePanel.getByRole('button', { name: 'Close extension side panel' }).click()
+
+    await openExtensionsSettings(page)
+
     const settingsFrame = page.frameLocator(`iframe[title="${EXTENSION_FRAME_TITLE}"]`)
     await expect(settingsFrame.getByText('Extension configuration')).toBeVisible()
     await expect(settingsFrame.getByRole('heading', { name: 'GitHub Issues' })).toBeVisible()

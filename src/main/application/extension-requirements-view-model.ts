@@ -93,8 +93,7 @@ function hasVisualContributions(manifest: ExtensionManifest) {
     hasEntries(contributions.toolRenderers) ||
     hasEntries(contributions.customMessageRenderers) ||
     hasEntries(contributions.interactionRenderers) ||
-    hasEntries(contributions.statusWidgets) ||
-    hasEntries(contributions.sessionSummarySections)
+    hasEntries(contributions.statusWidgets)
   )
 }
 

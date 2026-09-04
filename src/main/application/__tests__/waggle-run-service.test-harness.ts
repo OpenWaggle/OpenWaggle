@@ -15,6 +15,7 @@ import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
 
 export const runMock: Mock = vi.fn()
 export const persistSnapshotMock: Mock = vi.fn()
+export const getTreeMock: Mock = vi.fn()
 export const recordActiveRunMock: Mock = vi.fn()
 export const clearActiveRunMock: Mock = vi.fn()
 export const clearInterruptedRunsMock: Mock = vi.fn()
@@ -99,7 +100,10 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 const TestSessionLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(null),
+  getTree: (requestedSessionId) => Effect.sync(() => getTreeMock(requestedSessionId)),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input: PersistSessionSnapshotInput) =>
     Effect.sync(() => {
@@ -246,6 +250,8 @@ export const TestLayer = Layer.mergeAll(
 export function resetWaggleRunServiceMocks() {
   runMock.mockReset()
   persistSnapshotMock.mockReset()
+  getTreeMock.mockReset()
+  getTreeMock.mockReturnValue(null)
   recordActiveRunMock.mockReset()
   clearActiveRunMock.mockReset()
   clearInterruptedRunsMock.mockReset()

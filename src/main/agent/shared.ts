@@ -40,6 +40,7 @@ export function buildPersistedUserMessageParts(
       path: attachment.path,
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
+      ...(attachment.contentSha256 ? { contentSha256: attachment.contentSha256 } : {}),
       extractedText: attachment.extractedText,
     }
     parts.push({ type: 'attachment', attachment: persisted })

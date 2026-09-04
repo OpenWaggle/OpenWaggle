@@ -41,11 +41,21 @@ const validManifest = {
       {
         id: 'schema-smoke.session-summary',
         title: 'Schema smoke session summary',
-        runtime: 'federated-module',
-        execution: 'host-renderer',
-        entry: 'dist/settings.js',
-        capability: 'openwaggle.storage',
-        methods: ['get'],
+        placement: 'details',
+        disclosure: {
+          defaultExpanded: true,
+          collapsible: true,
+          autoCollapseAfterMs: 30_000,
+        },
+        state: { status: 'live', message: 'Watching the current Session' },
+        rows: [
+          {
+            id: 'status',
+            label: 'Status',
+            value: 'Ready',
+            action: { family: 'commands', contributionId: 'schema-smoke.command' },
+          },
+        ],
       },
     ],
   },

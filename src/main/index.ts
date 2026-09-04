@@ -153,6 +153,12 @@ async function bootstrapServicesAndWindow() {
   await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   startupMark('interrupted-runs-reconciled')
 
+  const sessionResourceCleanupModule = await import('./application/session-resource-cleanup')
+  await runtimeModule.runAppEffect(
+    sessionResourceCleanupModule.cleanupPendingSessionResourcesSafely(),
+  )
+  startupMark('session-resource-cleanup-reconciled')
+
   const trustedMainActivationModule = await import(
     './application/extension-trusted-main-activation-service'
   )

@@ -20,6 +20,7 @@ import { SessionRepository } from '../../ports/session-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
 import { SettingsService } from '../../services/settings-service'
+import { EmptySessionResourceRepositoryTestLayer } from './empty-session-resource-repository-test-layer'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
@@ -183,6 +184,9 @@ function makeSessionLayers() {
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),
+      listResourceProjectionPage: () =>
+        Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+      getResourceProjectionNodes: () => Effect.succeed([]),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,
@@ -239,6 +243,7 @@ export function makeTrustedMainActivationHarness(input: {
     makeExtensionStorageRepositoryLayer([]),
     makeSettingsLayer({ projectPath: settingsProjectPath, failure: input.settingsGetFailure }),
     makeSessionLayers(),
+    EmptySessionResourceRepositoryTestLayer,
     Layer.succeed(ExtensionManagerService, {
       listPackages: () => Effect.succeed(input.packages),
     }),

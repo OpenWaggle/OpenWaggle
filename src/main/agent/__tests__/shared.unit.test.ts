@@ -60,6 +60,7 @@ describe('shared agent helpers', () => {
             path: '/tmp/photo.png',
             mimeType: 'image/png',
             sizeBytes: 1024,
+            contentSha256: 'a'.repeat(64),
             extractedText: '',
             source: { type: 'data', value: 'base64data', mimeType: 'image/png' },
           },
@@ -76,6 +77,7 @@ describe('shared agent helpers', () => {
           path: '/tmp/photo.png',
           mimeType: 'image/png',
           sizeBytes: 1024,
+          contentSha256: 'a'.repeat(64),
           extractedText: '',
         },
       })

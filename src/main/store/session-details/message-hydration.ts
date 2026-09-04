@@ -49,6 +49,7 @@ const messagePartSchema = Schema.Union(
       path: Schema.String,
       mimeType: Schema.String,
       sizeBytes: Schema.Number,
+      contentSha256: Schema.optional(Schema.String),
       extractedText: Schema.String,
     }),
   }),

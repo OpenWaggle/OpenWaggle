@@ -16,7 +16,15 @@ const { describeSendOutcomeForTests } = await import('../agent-handler')
  */
 describe('send outcome reporting', () => {
   it('reports delivery only for a run that produced a turn', () => {
-    expect(describeSendOutcomeForTests({ outcome: 'success', newMessages: [] })).toEqual({
+    expect(
+      describeSendOutcomeForTests({
+        outcome: 'success',
+        newMessages: [],
+        resourceMessages: [],
+        resourceNodeIds: {},
+        resourceBranchIds: {},
+      }),
+    ).toEqual({
       outcome: 'delivered',
     })
   })

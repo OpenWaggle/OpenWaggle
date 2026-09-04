@@ -88,7 +88,9 @@ test('the composer access control names the mode in force, in the documented voc
     const page = mainWindow.page
     const trigger = page.getByRole('button', { name: 'Session access mode: YOLO' })
 
-    const header = page.locator('header')
+    const header = page.locator('header').filter({
+      has: page.locator('[data-qa="header-identity"]'),
+    })
     const headerIdentity = header.locator('[data-qa="header-identity"]')
     const headerActions = header.locator('[data-qa="header-actions"]')
     const headerTitle = header.locator('[data-qa="header-session-title"]')

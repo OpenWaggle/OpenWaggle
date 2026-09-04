@@ -3,12 +3,14 @@ import type {
   GitActionPhase,
   GitActionProgressEvent,
   GitCommitResult,
+  GitRunStackedActionFailure,
   GitRunStackedActionOptions,
   GitRunStackedActionResult,
   GitStackedActionBranchOutcome,
   GitStackedActionErrorCode,
   GitStackedActionProbeFailure,
   OpenChangeRequestPayload,
+  SourceControlAuthResult,
   VcsChangeRequest,
 } from '@shared/types/git'
 import {
@@ -54,6 +56,13 @@ export interface StackedActionDeps {
   readonly resolveCurrentRef: (projectPath: string) => Promise<string | null>
   /** Default branch (base ref for a change request when the caller did not specify one). */
   readonly resolveDefaultBaseRef: (projectPath: string) => Promise<string | null>
+  /** Read-only provider availability/authentication check. Must run before a PR/MR workflow mutates git. */
+  readonly preflightChangeRequest: (projectPath: string) => Promise<SourceControlAuthResult>
+  readonly buildChangeRequestFallbackUrl: (
+    projectPath: string,
+    payload: OpenChangeRequestPayload,
+    headRefAvailableRemotely: boolean,
+  ) => Promise<string | null>
 }
 
 export type ProgressReporter = (event: GitActionProgressEvent) => void
@@ -62,19 +71,27 @@ function failure(
   phase: GitActionPhase,
   code: GitStackedActionErrorCode,
   message: string,
-): GitRunStackedActionResult {
-  return { ok: false, phase, code, message }
+  details: {
+    readonly branch?: GitStackedActionBranchOutcome
+    readonly fallbackUrl?: string
+  } = {},
+): GitRunStackedActionFailure {
+  return { ok: false, phase, code, message, ...details }
 }
 
 function unchangedBranch(): GitStackedActionBranchOutcome {
   return { status: 'unchanged', name: null }
 }
 
-/**
- * Orchestrate a stacked git action server-side. Steps run in order and stop at
- * the first failure (centralized partial-failure handling); progress events are
- * emitted per stage in the phases branch -> commit -> push -> pr.
- */
+function withOutcomes(
+  result: GitRunStackedActionFailure,
+  branch: GitStackedActionBranchOutcome,
+  commitHash: string | null = null,
+) {
+  return { ...result, ...(branch.name ? { branch } : {}), ...(commitHash ? { commitHash } : {}) }
+}
+
+/** Runs branch -> commit -> push -> PR and stops at the first failure. */
 export async function runStackedGitAction(
   deps: StackedActionDeps,
   projectPath: string,
@@ -92,6 +109,7 @@ export async function runStackedGitAction(
   }
   const hasChanges = probe.hasChanges
   const report = createReporter(options, hasChanges, onProgress)
+  const phases = planStackedActionPhases(options.action)
 
   if (options.action === 'pull') {
     report('push', 'Pulling...')
@@ -101,23 +119,74 @@ export async function runStackedGitAction(
       : failure('push', 'pull-failed', pull.message)
   }
 
+  const preflightFailure = await preflightChangeRequest(deps, projectPath, options, phases)
+  if (preflightFailure) return preflightFailure
+
   const branch = options.createFeatureBranch
     ? await createFeatureBranch(deps, projectPath, options, report)
     : unchangedBranch()
   if (branch === null) return failure('branch', 'branch-failed', 'Failed to create feature ref.')
 
-  const phases = planStackedActionPhases(options.action)
-
-  const commitFailure = await maybeCommit(deps, projectPath, options, phases, hasChanges, report)
-  if (commitFailure) return commitFailure
+  const commit = await maybeCommit(deps, projectPath, options, phases, hasChanges, report)
+  if (commit.failure) return withOutcomes(commit.failure, branch)
 
   const pushFailure = await maybePush(deps, projectPath, phases, report)
-  if (pushFailure) return pushFailure
+  if (pushFailure) return withOutcomes(pushFailure, branch, commit.commitHash)
 
   const prOutcome = await maybeOpenChangeRequest(deps, projectPath, options, phases, branch, report)
-  if (!prOutcome.ok) return prOutcome.failure
+  if (!prOutcome.ok) {
+    return withOutcomes(prOutcome.failure, branch, commit.commitHash)
+  }
 
-  return { ok: true, action: options.action, branch, changeRequest: prOutcome.changeRequest }
+  return {
+    ok: true,
+    action: options.action,
+    branch,
+    ...(commit.commitHash ? { commitHash: commit.commitHash } : {}),
+    changeRequest: prOutcome.changeRequest,
+  }
+}
+
+async function preflightChangeRequest(
+  deps: StackedActionDeps,
+  projectPath: string,
+  options: GitRunStackedActionOptions,
+  phases: readonly GitActionPhase[],
+): Promise<GitRunStackedActionFailure | null> {
+  if (!phases.includes('pr')) return null
+  const readiness = await deps.preflightChangeRequest(projectPath)
+  if (readiness.ok && readiness.status.authenticated) return null
+
+  const fallbackUrl = await preflightFallbackUrl(deps, projectPath, options)
+  return failure('pr', 'change-request-failed', preflightFailureMessage(readiness), {
+    ...(fallbackUrl ? { fallbackUrl } : {}),
+  })
+}
+
+function preflightFailureMessage(readiness: SourceControlAuthResult) {
+  if (!readiness.ok) return readiness.message
+  return 'Authenticate the source-control CLI before creating this change request.'
+}
+
+async function preflightFallbackUrl(
+  deps: StackedActionDeps,
+  projectPath: string,
+  options: GitRunStackedActionOptions,
+) {
+  const headRef = options.createFeatureBranch
+    ? options.featureBranchName?.trim()
+    : (await deps.resolveCurrentRef(projectPath))?.trim()
+  if (!headRef) return null
+  const baseRef =
+    (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || undefined
+  const payload: OpenChangeRequestPayload = {
+    headRef,
+    ...(baseRef ? { baseRef } : {}),
+    title: options.changeRequestTitle?.trim() || 'Update',
+    body: options.changeRequestBody,
+    draft: options.draft,
+  }
+  return deps.buildChangeRequestFallbackUrl(projectPath, payload, false)
 }
 
 function createReporter(
@@ -146,22 +215,27 @@ async function maybeCommit(
   hasChanges: boolean,
   report: (phase: GitActionPhase, label: string) => void,
 ) {
-  if (!phases.includes('commit') || (options.action !== 'commit' && !hasChanges)) return null
+  if (!phases.includes('commit') || (options.action !== 'commit' && !hasChanges)) {
+    return { failure: null, commitHash: null }
+  }
   // Never invent a commit message: an unreviewed blanket "Update" commit is not an
   // acceptable default for a one-click action (review B2).
   const message = options.commitMessage?.trim()
   if (!message) {
-    return failure(
-      'commit',
-      'commit-message-required',
-      'A commit message is required for this action.',
-    )
+    return {
+      failure: failure(
+        'commit',
+        'commit-message-required',
+        'A commit message is required for this action.',
+      ),
+      commitHash: null,
+    }
   }
   report('commit', 'Committing...')
   const commit = await deps.commit(projectPath, message, options.paths)
-  if (commit.ok) return null
+  if (commit.ok) return { failure: null, commitHash: commit.commitHash }
   const code = commit.code === 'nothing-to-commit' ? 'nothing-to-commit' : 'unknown'
-  return failure('commit', code, commit.message)
+  return { failure: failure('commit', code, commit.message), commitHash: null }
 }
 
 async function maybePush(
@@ -186,12 +260,13 @@ async function maybeOpenChangeRequest(
   report: (phase: GitActionPhase, label: string) => void,
 ): Promise<
   | { ok: true; changeRequest: VcsChangeRequest | null }
-  | { ok: false; failure: GitRunStackedActionResult }
+  | { ok: false; failure: GitRunStackedActionFailure }
 > {
   if (!phases.includes('pr')) return { ok: true, changeRequest: null }
   report('pr', 'Creating change request...')
   const headRef = (branch.name ?? (await deps.resolveCurrentRef(projectPath)))?.trim() || ''
-  const baseRef = (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || ''
+  const baseRef =
+    (options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath)))?.trim() || undefined
   if (!headRef) {
     return {
       ok: false,
@@ -204,15 +279,23 @@ async function maybeOpenChangeRequest(
   }
   const payload: OpenChangeRequestPayload = {
     headRef,
-    baseRef,
+    ...(baseRef ? { baseRef } : {}),
     title: options.changeRequestTitle?.trim() || 'Update',
     body: options.changeRequestBody,
     draft: options.draft,
   }
   const result = await deps.openChangeRequest(projectPath, payload)
+  const fallbackUrl = result.ok
+    ? null
+    : await deps.buildChangeRequestFallbackUrl(projectPath, payload, true)
   return result.ok
     ? { ok: true, changeRequest: result.changeRequest }
-    : { ok: false, failure: failure('pr', 'change-request-failed', result.message) }
+    : {
+        ok: false,
+        failure: failure('pr', 'change-request-failed', result.message, {
+          ...(fallbackUrl ? { fallbackUrl } : {}),
+        }),
+      }
 }
 
 async function createFeatureBranch(
@@ -222,9 +305,16 @@ async function createFeatureBranch(
   report: (phase: GitActionPhase, label: string) => void,
 ) {
   report('branch', 'Preparing feature ref...')
+  const preferred = resolveAutoFeatureBranchName([], options.featureBranchName)
+  const currentRef = await deps.resolveCurrentRef(projectPath)
+  if (currentRef === preferred) {
+    return { status: 'unchanged', name: currentRef } satisfies GitStackedActionBranchOutcome
+  }
+  const baseRef = options.baseRef ?? (await deps.resolveDefaultBaseRef(projectPath))
+  if (!baseRef) return null
   const existing = await deps.listBranchNames(projectPath)
   const name = resolveAutoFeatureBranchName(existing, options.featureBranchName)
-  const created = await deps.createBranch(projectPath, name, options.baseRef)
+  const created = await deps.createBranch(projectPath, name, baseRef)
   if (!created.ok) return null
   return { status: 'created', name } satisfies GitStackedActionBranchOutcome
 }

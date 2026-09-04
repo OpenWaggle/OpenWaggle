@@ -624,8 +624,24 @@
     }
   }
 
+  @keyframes session-summary-panel-enter {
+    from {
+      opacity: 0;
+      transform: translateX(8px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
   .session-tree-row-enter {
     animation: session-tree-row-enter 140ms ease-out both;
+  }
+
+  .session-summary-panel-enter {
+    transform-origin: top right;
+    animation: session-summary-panel-enter 180ms ease-out both;
   }
 
   .session-tree-active-dot {
@@ -642,6 +658,10 @@
 
   @media (prefers-reduced-motion: reduce) {
     .session-tree-row-enter {
+      animation: none;
+    }
+
+    .session-summary-panel-enter {
       animation: none;
     }
   }

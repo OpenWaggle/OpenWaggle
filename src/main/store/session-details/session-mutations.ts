@@ -127,7 +127,16 @@ export async function deleteSession(id: SessionId): Promise<void> {
     await runStoreEffect(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* sql`DELETE FROM sessions WHERE id = ${id}`
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* sql`
+              INSERT INTO session_resource_cleanup_queue (session_id, queued_at)
+              VALUES (${id}, ${Date.now()})
+              ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at
+            `
+            yield* sql`DELETE FROM sessions WHERE id = ${id}`
+          }),
+        )
       }),
     )
     await stagedFile.cleanup()

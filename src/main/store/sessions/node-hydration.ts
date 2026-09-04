@@ -119,6 +119,7 @@ function hydrateSessionNode(
 }
 
 function hydrateNodeMessage(row: SessionNodeRow) {
+  if (row.kind === 'tool_result') return hydrateSessionMessage(row)
   if (
     row.role !== null &&
     (row.pi_entry_type === MESSAGE_ENTRY_TYPE ||

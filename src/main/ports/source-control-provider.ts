@@ -14,7 +14,7 @@ import type {
  */
 export interface SourceControlProvider {
   readonly id: SourceControlProviderId
-  readonly authStatus: (projectPath: string) => Promise<SourceControlAuthResult>
+  readonly authStatus: (projectPath: string, host?: string) => Promise<SourceControlAuthResult>
   readonly openChangeRequest: (
     projectPath: string,
     payload: OpenChangeRequestPayload,

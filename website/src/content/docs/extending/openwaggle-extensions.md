@@ -47,7 +47,7 @@ Create the manifest first:
     "openwaggle": ">=0.1.0 <0.2.0"
   },
   "sourceFiles": ["package.json", "src/settings.js", "src/side-panel.js"],
-  "builtArtifacts": ["package.json", "modules/settings.js", "modules/side-panel.js", "modules/session-summary.js"],
+  "builtArtifacts": ["package.json", "modules/settings.js", "modules/side-panel.js"],
   "install": {
     "source": "prebuilt"
   },
@@ -85,11 +85,15 @@ Create the manifest first:
       {
         "id": "example.session-summary",
         "title": "Example Session Status",
-        "runtime": "federated-module",
-        "execution": "host-renderer",
-        "entry": "modules/session-summary.js",
-        "capability": "openwaggle.storage",
-        "methods": ["get", "list"]
+        "placement": "details",
+        "rows": [
+          { "id": "status", "label": "Status", "value": "Ready" },
+          {
+            "id": "open-details",
+            "label": "Open details",
+            "action": { "family": "sidePanels", "contributionId": "example.panel" }
+          }
+        ]
       }
     ]
   }
@@ -174,9 +178,91 @@ Choose the surface by the job the extension is doing, not by the framework used 
 - `customMessageRenderers` render Pi custom message records while preserving the Pi-native custom message type as the binding identity.
 - `interactionRenderers` collect feedback for pending Pi interactions such as `confirm`, `select`, `input`, `editor`, `notify`, or typed custom interactions, then return the typed response through the SDK.
 - `statusWidgets` are compact status surfaces for live progress, connection state, or extension-owned indicators.
-- `sessionSummarySections` augment the opened session's floating Summary. They mount only after that session has transcript content, receive that session id in `context.surface`, and disappear with the Summary while the right sidebar is open. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
+- `sessionSummarySections` augment the opened session's floating Summary with host-rendered declarative rows. They appear only after that session has transcript content and disappear with the Summary while the right sidebar is open. Rows can display a value, badge, count, or session resource, and can reference a separately declared command, dialog, or side panel from the same extension package. They must not display authorization controls, infer another session, or replace host-owned Environment, Hive, Outputs, or Sources sections.
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
+
+## Session Summary Sections And Resources
+
+`sessionSummarySections` are declarative. OpenWaggle renders their title, state, disclosure, rows, resource links, and actions so the floating layout, keyboard behavior, and failure isolation stay consistent with core sections.
+
+A section can declare:
+
+- `placement`: `context`, `coordination`, or `details`;
+- `state`: `ready`, `loading`, `live`, or `failure`, with an optional status message;
+- `disclosure`: the initial expanded state, whether the section is collapsible, and an optional auto-collapse delay;
+- rows with a value, badge, count, resource id, or action targeting a command, dialog, or side panel from the same package.
+
+The host hides an empty `ready` section. Expansion is remembered per session, transient dialogs and actions are reset when the opened session changes, and one extension failure does not affect the rest of the Summary.
+
+An executable contribution can also publish durable Sources or Outputs through `context.sdk.openWaggle.sessionResources`. Declare the capability on the package and on that executable contribution:
+
+```json
+{
+  "capabilities": [
+    {
+      "id": "openwaggle.session-resources",
+      "methods": ["publish-session-resource", "list-session-resources"],
+      "scopes": ["session"]
+    }
+  ],
+  "contributions": {
+    "sidePanels": [
+      {
+        "id": "example.results",
+        "title": "Example Results",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/results.js",
+        "capability": "openwaggle.session-resources",
+        "methods": ["publish-session-resource", "list-session-resources"]
+      }
+    ],
+    "sessionSummarySections": [
+      {
+        "id": "example.session-summary",
+        "title": "Example Results",
+        "placement": "details",
+        "disclosure": { "defaultExpanded": true },
+        "state": { "status": "live", "message": "Watching checks" },
+        "rows": [
+          {
+            "id": "open-results",
+            "label": "Open results",
+            "action": { "family": "sidePanels", "contributionId": "example.results" }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Publish with the exact session scope supplied by the host surface or returned by an approved current-session state read:
+
+```ts
+const scope = {
+  kind: 'session',
+  projectPath,
+  sessionId,
+} as const
+
+const published = await context.sdk.openWaggle.sessionResources.publish(scope, {
+  key: 'coverage-report',
+  kind: 'file',
+  title: 'Coverage report',
+  activity: 'created',
+  mimeType: 'text/html',
+  reference: { kind: 'project-file', path: 'coverage/index.html' },
+})
+
+const outputs = await context.sdk.openWaggle.sessionResources.list(scope, {
+  category: 'outputs',
+  limit: 25,
+})
+```
+
+The publication `key` is stable within the extension contribution and deduplicates repeated observations. An `external-url` reference must be credential-free HTTPS; a `project-file` reference must be a portable path inside the scoped project. The broker validates that the session belongs to the declared project and active scope. Extensions cannot publish into a different session by supplying an arbitrary id.
 
 ## Visual Runtimes, SDK Context, And Theme
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
+import type { SessionDelegationState } from '@shared/types/session'
 import { withProcessFileLock } from './adapters/mcp/process-file-lock'
 import { isRecord } from './openwaggle-mcp-server-policy'
 
@@ -21,6 +22,7 @@ export interface ServerTaskLease {
 export interface ServerTaskRecord {
   readonly id: string
   readonly callerProfile: string
+  readonly parentSessionId?: string
   readonly sessionId?: string
   readonly projectPath: string
   readonly model: string
@@ -34,6 +36,7 @@ export interface ServerTaskRecord {
   readonly action?: string
   readonly lease?: ServerTaskLease | null
   readonly cancellationRequestedAt?: number
+  readonly projectedDelegationState?: SessionDelegationState
 }
 
 interface ServerTaskFile {
@@ -73,6 +76,9 @@ function optionalLease(value: unknown) {
 function optionalTaskFields(value: Record<string, unknown>) {
   return {
     ...optionalDelegationDepth(value.delegationDepth),
+    ...(typeof value.parentSessionId === 'string'
+      ? { parentSessionId: value.parentSessionId }
+      : {}),
     ...(typeof value.sessionId === 'string' ? { sessionId: value.sessionId } : {}),
     ...(value.result === undefined ? {} : { result: value.result }),
     ...(typeof value.error === 'string' ? { error: value.error } : {}),
@@ -82,7 +88,22 @@ function optionalTaskFields(value: Record<string, unknown>) {
     Number.isFinite(value.cancellationRequestedAt)
       ? { cancellationRequestedAt: value.cancellationRequestedAt }
       : {}),
+    ...(isDelegationState(value.projectedDelegationState)
+      ? { projectedDelegationState: value.projectedDelegationState }
+      : {}),
   }
+}
+
+function isDelegationState(value: unknown): value is SessionDelegationState {
+  return (
+    value === 'working' ||
+    value === 'waiting' ||
+    value === 'needs_attention' ||
+    value === 'ready_for_review' ||
+    value === 'revision_requested' ||
+    value === 'accepted' ||
+    value === 'cancelled'
+  )
 }
 
 function parseTask(value: unknown): ServerTaskRecord | null {
@@ -151,7 +172,7 @@ async function writeTaskFile(filePath: string, tasks: readonly ServerTaskRecord[
   await rename(temporaryPath, filePath)
 }
 
-function isTerminalTaskStatus(status: ServerTaskStatus) {
+export function isTerminalTaskStatus(status: ServerTaskStatus) {
   return (
     status === 'completed' ||
     status === 'failed' ||
@@ -167,6 +188,12 @@ export class OpenWaggleMcpTaskStore {
 
   readTasks() {
     return this.queue.then(async () => (await readTaskFile(this.filePath)).tasks)
+  }
+
+  withProjectionLock<T>(operation: () => Promise<T>) {
+    return withProcessFileLock(`${this.filePath}.projection`, operation, {
+      waitUntilAvailable: true,
+    })
   }
 
   async update<T>(

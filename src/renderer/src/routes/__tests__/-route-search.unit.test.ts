@@ -3,6 +3,7 @@ import {
   extensionSidePanelTargetFromSearch,
   isSettingsTab,
   parseChatRouteSearch,
+  resourceBrowserTargetFromSearch,
 } from '../-route-search'
 
 describe('parseChatRouteSearch', () => {
@@ -28,6 +29,27 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'session-tree' })).toEqual({ panel: 'session-tree' })
     expect(parseChatRouteSearch({ panel: 'diff' })).toEqual({ panel: 'diff' })
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
+  })
+
+  it('preserves the selected resource view and item only for the resources panel', () => {
+    const search = parseChatRouteSearch({
+      panel: 'resources',
+      resourceView: 'outputs',
+      resourceId: 'created-pr',
+    })
+
+    expect(search).toEqual({
+      panel: 'resources',
+      resourceView: 'outputs',
+      resourceId: 'created-pr',
+    })
+    expect(resourceBrowserTargetFromSearch(search)).toEqual({
+      view: 'outputs',
+      resourceId: 'created-pr',
+    })
+    expect(
+      parseChatRouteSearch({ panel: 'diff', resourceView: 'outputs', resourceId: 'created-pr' }),
+    ).toEqual({ panel: 'diff' })
   })
 
   it('drops every throwaway design-exploration search key', () => {

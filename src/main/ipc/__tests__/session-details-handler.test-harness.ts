@@ -3,11 +3,12 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
-import { SessionProjectionRepositoryError } from '../../errors'
+import { SessionProjectionRepositoryError, SessionResourceStoreError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { SessionResourceCleanupRepository } from '../../ports/session-resource-cleanup-repository'
 import { SessionResourceStore } from '../../ports/session-resource-store'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
@@ -41,6 +42,8 @@ const mocks = vi.hoisted(() => ({
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
   removeSessionResourcesMock: vi.fn(),
+  completeSessionResourceCleanupMock: vi.fn(),
+  listPendingSessionResourceCleanupMock: vi.fn(),
 }))
 
 export const typedHandleMock: TestMock = mocks.typedHandleMock
@@ -66,6 +69,7 @@ export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
 export const removeSessionResourcesMock: TestMock = mocks.removeSessionResourcesMock
+export const completeSessionResourceCleanupMock: TestMock = mocks.completeSessionResourceCleanupMock
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -156,6 +160,8 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) =>
           new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
       }),
+    establishLineage: () => Effect.void,
+    setDelegationState: () => Effect.void,
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
@@ -194,8 +200,7 @@ const TestAgentKernelLayer = Layer.succeed(
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
     run: () => Effect.fail(new Error('agent run not used by session detail handler tests')),
-    getContextUsage: () =>
-      Effect.fail(new Error('context usage not used by session detail handler tests')),
+    getContextUsage: () => Effect.fail(new Error('context usage is not used')),
     compact: () => Effect.fail(new Error('compaction not used by session detail handler tests')),
     navigateTree: () =>
       Effect.fail(new Error('tree navigation not used by session detail handler tests')),
@@ -213,6 +218,9 @@ const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(null),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -247,11 +255,23 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 const TestSessionResourceStoreLayer = Layer.succeed(SessionResourceStore, {
   storeBytes: () => Effect.dieMessage('storeBytes is not used'),
   storeFile: () => Effect.dieMessage('storeFile is not used'),
+  inspect: () => Effect.dieMessage('inspect is not used'),
   read: () => Effect.dieMessage('read is not used'),
   remove: () => Effect.dieMessage('remove is not used'),
   removeSession: (sessionId) =>
+    Effect.tryPromise({
+      try: async () => {
+        await removeSessionResourcesMock(sessionId)
+      },
+      catch: (cause) => new SessionResourceStoreError({ operation: 'removeSession', cause }),
+    }),
+})
+
+const TestSessionResourceCleanupLayer = Layer.succeed(SessionResourceCleanupRepository, {
+  listPending: (limit) => Effect.sync(() => mocks.listPendingSessionResourceCleanupMock(limit)),
+  complete: (sessionId) =>
     Effect.sync(() => {
-      removeSessionResourcesMock(sessionId)
+      completeSessionResourceCleanupMock(sessionId)
     }),
 })
 
@@ -262,6 +282,7 @@ const TestRuntimeLayer = Layer.mergeAll(
   TestProviderLayer,
   TestSettingsLayer,
   TestSessionResourceStoreLayer,
+  TestSessionResourceCleanupLayer,
   EmptyExtensionRuntimeLayer,
 )
 
@@ -290,6 +311,7 @@ export function resetSessionDetailsHandlerMocks() {
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
   removeSessionResourcesMock.mockReturnValue(undefined)
+  mocks.listPendingSessionResourceCleanupMock.mockReturnValue([])
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

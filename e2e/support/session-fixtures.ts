@@ -59,6 +59,21 @@ export interface SeedSessionResourceInput {
   readonly updatedAt: number
 }
 
+export interface SeedSessionLineageInput {
+  readonly sessionId: string
+  readonly parentSessionId: string
+  readonly agentDefinitionName?: string | null
+  readonly delegationState:
+    | 'working'
+    | 'waiting'
+    | 'needs_attention'
+    | 'ready_for_review'
+    | 'revision_requested'
+    | 'accepted'
+    | 'cancelled'
+  readonly updatedAt: number
+}
+
 function getDatabasePath(userDataDir: string): string {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }
@@ -385,16 +400,19 @@ export async function seedSingleSession(
 export async function seedSessions(
   userDataDir: string,
   sessionInputs: readonly SeedSessionInput[],
-): Promise<void> {
+): Promise<readonly string[]> {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
+  const sessionIds: string[] = []
 
   try {
     for (const sessionInput of sessionInputs) {
       const row = insertSessionRow(database)
+      sessionIds.push(row.id)
       seedSessionRow(database, row, sessionInput, userDataDir)
       if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
     }
+    return sessionIds
   } finally {
     database.close()
   }
@@ -457,6 +475,42 @@ export async function seedSessionResources(
           resource.activity,
           null,
           resource.updatedAt,
+        )
+    }
+  } finally {
+    database.close()
+  }
+}
+
+/** Seeds real persisted Hive parentage so Electron exercises the production Session projection. */
+export async function seedSessionLineage(
+  userDataDir: string,
+  relations: readonly SeedSessionLineageInput[],
+): Promise<void> {
+  await waitForDatabase(userDataDir)
+  const database = openDatabase(userDataDir)
+  try {
+    for (const relation of relations) {
+      database
+        .prepare(
+          `
+            INSERT INTO session_lineage (
+              session_id,
+              parent_session_id,
+              agent_definition_name,
+              delegation_state,
+              created_at,
+              updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          relation.sessionId,
+          relation.parentSessionId,
+          relation.agentDefinitionName ?? null,
+          relation.delegationState,
+          relation.updatedAt,
+          relation.updatedAt,
         )
     }
   } finally {

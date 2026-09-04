@@ -1,5 +1,10 @@
-import type { RepositoryPath } from './brand'
-import type { ChangeRequestCheckoutResult, ChangeRequestListResult } from './git'
+import type { RepositoryPath, WorkingPath } from './brand'
+import type {
+  ChangeRequestCheckoutResult,
+  ChangeRequestListResult,
+  ChangeRequestPreflightResult,
+  OpenChangeRequestPayload,
+} from './git'
 
 /**
  * How a selected change request should be adopted.
@@ -21,6 +26,10 @@ export type ChangeRequestAdoption = 'checkout' | 'fetch'
  * worktree, so these channels take a `RepositoryPath` rather than a session's `WorkingPath`.
  */
 export interface IpcGitInvokeChannelMap {
+  'git:change-request:preflight': {
+    args: [workingPath: WorkingPath, payload: OpenChangeRequestPayload]
+    return: ChangeRequestPreflightResult
+  }
   'git:change-request:list': {
     args: [repositoryPath: RepositoryPath]
     return: ChangeRequestListResult

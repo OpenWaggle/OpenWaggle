@@ -1,3 +1,4 @@
+export { CommitMessageDialog } from './components/CommitMessageDialog'
 export { GitQuickActionButton } from './components/GitQuickActionButton'
 export { SessionContextRow } from './components/SessionContextRow'
 export { useCombinedVcsStatus } from './hooks/useCombinedVcsStatus'

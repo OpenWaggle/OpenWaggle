@@ -1,8 +1,13 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { extractAttachmentText } from '../ipc/attachment-text-extraction'
 import { resolvePreparedAttachmentCapability } from './attachment-registry'
+
+function contentSha256(bytes: Uint8Array) {
+  return createHash('sha256').update(bytes).digest('hex')
+}
 
 async function hydrateAttachmentSource(
   attachment: PreparedAttachment,
@@ -27,6 +32,10 @@ async function hydrateAttachmentSource(
   }
 
   const buffer = await fs.readFile(preparedAttachment.path)
+  const hydratedSha256 = contentSha256(buffer)
+  if (preparedAttachment.contentSha256 && hydratedSha256 !== preparedAttachment.contentSha256) {
+    throw new Error(`Attachment changed after it was prepared: ${preparedAttachment.name}`)
+  }
   const extractedText = preparedAttachment.extractedText
     ? preparedAttachment.extractedText
     : await extractAttachmentText({
@@ -37,11 +46,12 @@ async function hydrateAttachmentSource(
       })
 
   if (!needsBinarySource) {
-    return { ...preparedAttachment, extractedText, source: null }
+    return { ...preparedAttachment, contentSha256: hydratedSha256, extractedText, source: null }
   }
 
   return {
     ...preparedAttachment,
+    contentSha256: hydratedSha256,
     extractedText,
     source: {
       type: 'data',

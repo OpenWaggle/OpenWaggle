@@ -2,62 +2,33 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '@/shared/ui/Button'
 import { ChatRouteSurface } from '../-chat-route-surface'
-import { SettingsRouteSurface } from '../-settings-route-surface'
-import { SkillsRouteSurface } from '../-skills-route-surface'
 
-type SettingsTab =
-  | 'general'
-  | 'configuration'
-  | 'waggle'
-  | 'extensions'
-  | 'mcp'
-  | 'personalization'
-  | 'git'
-  | 'environments'
-  | 'worktrees'
-  | 'archived'
-  | 'connections'
 interface ExtensionRightSidebarPanel {
   readonly kind: 'extension-side-panel'
   readonly extensionId: string
   readonly sidePanelId: string
 }
 type RightSidebarPanel = 'diff' | 'resources' | 'session-tree' | ExtensionRightSidebarPanel
-interface RouterState {
-  readonly location: {
-    readonly pathname: string
-  }
-}
 interface ShellState {
   readonly lastRightSidebarPanel: RightSidebarPanel
   readonly setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
 }
 
 const routeSurfaceMocks = vi.hoisted(() => {
-  let pathname = '/settings/general'
   let lastRightSidebarPanel: RightSidebarPanel = 'diff'
   const setLastRightSidebarPanel = vi.fn((panel: RightSidebarPanel) => {
     lastRightSidebarPanel = panel
   })
   return {
-    setPathname: (nextPathname: string) => {
-      pathname = nextPathname
-    },
     setLastPanel: (panel: RightSidebarPanel) => {
       lastRightSidebarPanel = panel
     },
-    routerState: (): RouterState => ({ location: { pathname } }),
     shellState: (): ShellState => ({ lastRightSidebarPanel, setLastRightSidebarPanel }),
     setLastRightSidebarPanel,
     chatRouteEffects: vi.fn(),
     sidePanelRefetch: vi.fn(),
   }
 })
-
-vi.mock('@tanstack/react-router', () => ({
-  useRouterState: <T,>(input: { readonly select: (state: RouterState) => T }) =>
-    input.select(routeSurfaceMocks.routerState()),
-}))
 
 vi.mock('@/features/chat/hooks', () => ({
   useChatPanelSections: () => ({
@@ -103,9 +74,20 @@ vi.mock('@/features/session-tree/components', () => ({
 }))
 
 vi.mock('@/features/session-summary', () => ({
-  SessionResourcesPanel: ({ onClose }: { readonly onClose: () => void }) => (
+  SessionResourcesPanel: ({
+    target,
+    onClose,
+    onTargetChange,
+  }: {
+    readonly target: { readonly view: 'sources' | 'outputs'; readonly resourceId?: string }
+    readonly onClose: () => void
+    readonly onTargetChange: (target: { readonly view: 'sources' | 'outputs' }) => void
+  }) => (
     <aside>
-      Session resources panel
+      Session resources panel: {target.view}/{target.resourceId ?? 'all'}
+      <Button variant="unstyled" type="button" onClick={() => onTargetChange({ view: 'sources' })}>
+        Show sources
+      </Button>
       <Button variant="unstyled" type="button" onClick={onClose}>
         Close resources
       </Button>
@@ -135,16 +117,6 @@ vi.mock('@/features/extensions', () => ({
     refetch: routeSurfaceMocks.sidePanelRefetch,
     registry: null,
   }),
-}))
-
-vi.mock('@/features/settings/components', () => ({
-  AppSettingsView: ({ activeTab }: { readonly activeTab: SettingsTab }) => (
-    <section>Settings tab: {activeTab}</section>
-  ),
-}))
-
-vi.mock('@/features/skills/components', () => ({
-  SkillsPanel: () => <section>Skills panel</section>,
 }))
 
 vi.mock('@/shared/ui/PanelErrorBoundary', () => ({
@@ -183,60 +155,59 @@ vi.mock('../-chat-route-effects', () => ({
   useChatRouteEffects: routeSurfaceMocks.chatRouteEffects,
 }))
 
+type ChatRouteProps = Parameters<typeof ChatRouteSurface>[0]
+
+function renderChatRoute({
+  workspace = { branchId: null, nodeId: null, sessionId: 'session-1' },
+  rightSidebar,
+  actions = {},
+}: {
+  readonly workspace?: ChatRouteProps['workspace']
+  readonly rightSidebar: Partial<ChatRouteProps['rightSidebar']>
+  readonly actions?: Partial<ChatRouteProps['rightSidebarActions']>
+}) {
+  const rightSidebarActions = {
+    onDiffOpenChange: vi.fn(),
+    onExtensionSidePanelOpenChange: vi.fn(),
+    onResourcesTargetChange: vi.fn(),
+    onSessionTreeOpenChange: vi.fn(),
+    onWorkspaceFileOpenChange: vi.fn(),
+    ...actions,
+  }
+  render(
+    <ChatRouteSurface
+      workspace={workspace}
+      rightSidebar={{
+        diffOpen: false,
+        extensionSidePanel: null,
+        resourcesTarget: null,
+        sessionTreeOpen: false,
+        workspaceFile: null,
+        ...rightSidebar,
+      }}
+      rightSidebarActions={rightSidebarActions}
+    />,
+  )
+  return rightSidebarActions
+}
+
 describe('route surfaces', () => {
   beforeEach(() => {
-    routeSurfaceMocks.setPathname('/settings/general')
     routeSurfaceMocks.setLastPanel('diff')
     routeSurfaceMocks.setLastRightSidebarPanel.mockClear()
     routeSurfaceMocks.chatRouteEffects.mockClear()
     routeSurfaceMocks.sidePanelRefetch.mockClear()
   })
 
-  it('derives the settings tab from the current route when the route contains a tab segment', () => {
-    routeSurfaceMocks.setPathname('/settings/extensions')
-
-    render(<SettingsRouteSurface tab="general" />)
-
-    expect(screen.getByText('Settings tab: extensions')).toBeInTheDocument()
-  })
-
-  it('falls back to the route-provided settings tab for non-tab paths', () => {
-    routeSurfaceMocks.setPathname('/settings/unknown')
-
-    render(<SettingsRouteSurface tab="waggle" />)
-
-    expect(screen.getByText('Settings tab: waggle')).toBeInTheDocument()
-  })
-
-  it('wraps the skills panel in its route surface', () => {
-    render(<SkillsRouteSurface />)
-
-    expect(screen.getByText('Skills panel')).toBeInTheDocument()
-  })
-
   it('renders chat content with the active diff sidebar and closes it through route state', async () => {
     const onDiffOpenChange = vi.fn()
     const onSessionTreeOpenChange = vi.fn()
 
-    render(
-      <ChatRouteSurface
-        workspace={{ branchId: 'branch-1', nodeId: 'node-1', sessionId: 'session-1' }}
-        rightSidebar={{
-          diffOpen: true,
-          extensionSidePanel: null,
-          resourcesOpen: false,
-          sessionTreeOpen: false,
-          workspaceFile: null,
-        }}
-        rightSidebarActions={{
-          onDiffOpenChange,
-          onExtensionSidePanelOpenChange: vi.fn(),
-          onResourcesOpenChange: vi.fn(),
-          onSessionTreeOpenChange,
-          onWorkspaceFileOpenChange: vi.fn(),
-        }}
-      />,
-    )
+    renderChatRoute({
+      workspace: { branchId: 'branch-1', nodeId: 'node-1', sessionId: 'session-1' },
+      rightSidebar: { diffOpen: true },
+      actions: { onDiffOpenChange, onSessionTreeOpenChange },
+    })
 
     expect(screen.getByText('Chat content')).toBeInTheDocument()
     expect(await screen.findByText('Diff pane')).toBeInTheDocument()
@@ -257,25 +228,10 @@ describe('route surfaces', () => {
     const onDiffOpenChange = vi.fn()
     const onSessionTreeOpenChange = vi.fn()
 
-    render(
-      <ChatRouteSurface
-        workspace={{ branchId: null, nodeId: null, sessionId: 'session-1' }}
-        rightSidebar={{
-          diffOpen: false,
-          extensionSidePanel: null,
-          resourcesOpen: false,
-          sessionTreeOpen: true,
-          workspaceFile: null,
-        }}
-        rightSidebarActions={{
-          onDiffOpenChange,
-          onExtensionSidePanelOpenChange: vi.fn(),
-          onResourcesOpenChange: vi.fn(),
-          onSessionTreeOpenChange,
-          onWorkspaceFileOpenChange: vi.fn(),
-        }}
-      />,
-    )
+    renderChatRoute({
+      rightSidebar: { sessionTreeOpen: true },
+      actions: { onDiffOpenChange, onSessionTreeOpenChange },
+    })
 
     expect(await screen.findByText('Session Tree panel')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
@@ -290,28 +246,15 @@ describe('route surfaces', () => {
     const onSessionTreeOpenChange = vi.fn()
     const onExtensionSidePanelOpenChange = vi.fn()
 
-    render(
-      <ChatRouteSurface
-        workspace={{ branchId: null, nodeId: null, sessionId: 'session-1' }}
-        rightSidebar={{
-          diffOpen: false,
-          extensionSidePanel: {
-            extensionId: 'sample-extension',
-            sidePanelId: 'sample.side-panel',
-          },
-          resourcesOpen: false,
-          sessionTreeOpen: false,
-          workspaceFile: null,
-        }}
-        rightSidebarActions={{
-          onDiffOpenChange,
-          onExtensionSidePanelOpenChange,
-          onResourcesOpenChange: vi.fn(),
-          onSessionTreeOpenChange,
-          onWorkspaceFileOpenChange: vi.fn(),
-        }}
-      />,
-    )
+    renderChatRoute({
+      rightSidebar: {
+        extensionSidePanel: {
+          extensionId: 'sample-extension',
+          sidePanelId: 'sample.side-panel',
+        },
+      },
+      actions: { onDiffOpenChange, onExtensionSidePanelOpenChange, onSessionTreeOpenChange },
+    })
 
     expect(
       await screen.findByText('Extension side panel sample-extension/sample.side-panel'),
@@ -329,5 +272,21 @@ describe('route surfaces', () => {
     })
     expect(onDiffOpenChange).not.toHaveBeenCalled()
     expect(onSessionTreeOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('binds the resource sidebar to its explicit view and resource target', () => {
+    const onResourcesTargetChange = vi.fn()
+
+    renderChatRoute({
+      rightSidebar: { resourcesTarget: { view: 'outputs', resourceId: 'created-pr' } },
+      actions: { onResourcesTargetChange },
+    })
+
+    expect(screen.getByText('Session resources panel: outputs/created-pr')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show sources' }))
+    expect(onResourcesTargetChange).toHaveBeenCalledWith({ view: 'sources' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close resources' }))
+    expect(onResourcesTargetChange).toHaveBeenCalledWith(null)
   })
 })

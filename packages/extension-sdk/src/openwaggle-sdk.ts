@@ -21,6 +21,7 @@ import type {
   ExtensionOpenWaggleStateSdk,
   ExtensionSdkInvoke,
 } from './sdk-types.js'
+import { createOpenWaggleSessionResourcesSdk } from './session-resource-sdk.js'
 
 const ACTION_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle action result.'
 const DOCS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle docs result.'
@@ -225,5 +226,6 @@ export function createOpenWaggleSdk(
           DOCS_RESULT_ERROR,
         ),
     },
+    sessionResources: createOpenWaggleSessionResourcesSdk(invoke),
   }
 }

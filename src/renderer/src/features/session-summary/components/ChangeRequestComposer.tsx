@@ -1,19 +1,25 @@
 import type { WorkingPath } from '@shared/types/brand'
-import type { GitStatusSummary, VcsStatus } from '@shared/types/git'
+import type { GitRunStackedActionResult, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
-import type { GitRunStackedActionOptions } from '@shared/types/vcs'
+import type { RecordSessionCommitInput } from '@shared/types/session-resource'
 import { sanitizeFeatureBranchName } from '@shared/utils/git-stacked-action'
 import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
-import { ExternalLink, GitPullRequest, X } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { X } from 'lucide-react'
+import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
-import { Checkbox } from '@/shared/ui/Checkbox'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
-import { Textarea } from '@/shared/ui/Textarea'
 import { useUIStore } from '@/shell/ui-store'
-
-const DESCRIPTION_ROWS = 6
+import { sessionResourcesQueryKey, useRecordSessionCommit } from '../hooks/useSessionResources'
+import { ChangeRequestComposerActions } from './ChangeRequestComposerActions'
+import { ChangeRequestFields } from './ChangeRequestFields'
+import {
+  changeRequestActionInput,
+  changeRequestPreflightPayload,
+  emptyFeatureBranchValidationMessage,
+} from './change-request-composer-model'
+import { useChangeRequestPreflight } from './use-change-request-preflight'
 
 interface ChangeRequestComposerProps {
   readonly session: SessionDetail
@@ -24,176 +30,68 @@ interface ChangeRequestComposerProps {
   readonly onCompleted: () => void
 }
 
-interface ChangeRequestFieldsModel {
-  readonly createFeatureBranch: boolean
-  readonly branchName: string
-  readonly title: string
-  readonly description: string
-  readonly commitAndPush: boolean
-  readonly gitStatus: GitStatusSummary | null
-  readonly error: string | null
-  readonly onBranchNameChange: (value: string) => void
-  readonly onTitleChange: (value: string) => void
-  readonly onDescriptionChange: (value: string) => void
-  readonly onCommitAndPushChange: (value: boolean) => void
+async function recordCreatedCommit(
+  result: GitRunStackedActionResult,
+  title: string,
+  record: (input: RecordSessionCommitInput) => Promise<void>,
+) {
+  if (result.commitHash) await record({ commitHash: result.commitHash, title: title.trim() })
 }
 
-function generatedDescription(session: SessionDetail, status: GitStatusSummary | null) {
-  const lines = ['## Summary', '', `- ${session.title}`]
-  if (status && status.filesChanged > 0) {
-    lines.push('', '## Changes', '', `- ${String(status.filesChanged)} changed files`)
-    lines.push(`- +${String(status.additions)} / -${String(status.deletions)}`)
-  }
-  return lines.join('\n')
+function creationFailureMessage(cause: unknown, shortLabel: string) {
+  return cause instanceof Error ? cause.message : `Could not create ${shortLabel}.`
 }
 
-function actionInput(input: {
-  readonly session: SessionDetail
-  readonly gitStatus: GitStatusSummary | null
-  readonly vcsStatus: VcsStatus | null
-  readonly title: string
-  readonly description: string
-  readonly branchName: string
-  readonly commitAndPush: boolean
-  readonly createFeatureBranch: boolean
-  readonly draft: boolean
-}): GitRunStackedActionOptions {
-  const title = input.title.trim() || input.session.title
-  return {
-    action: input.commitAndPush ? 'commit_push_pr' : 'create_pr',
-    commitMessage: input.commitAndPush ? title : undefined,
-    paths: input.commitAndPush
-      ? (input.gitStatus?.changedFiles.map((file) => file.path) ?? [])
-      : undefined,
-    changeRequestTitle: title,
-    changeRequestBody:
-      input.description.trim() || generatedDescription(input.session, input.gitStatus),
-    draft: input.draft,
-    createFeatureBranch: input.createFeatureBranch,
-    featureBranchName: input.createFeatureBranch ? input.branchName : undefined,
-    baseRef: input.vcsStatus?.defaultRef ?? undefined,
-  }
-}
-
-function ChangeRequestFields({ model }: { readonly model: ChangeRequestFieldsModel }) {
-  const descriptionId = useId()
-  return (
-    <div className="space-y-4 p-4">
-      {model.createFeatureBranch ? (
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-text-secondary">Branch</span>
-          <input
-            aria-label="New branch name"
-            className="h-9 w-full rounded-md border border-border bg-bg px-3 font-mono text-sm outline-none"
-            value={model.branchName}
-            onChange={(event) => model.onBranchNameChange(event.target.value)}
-          />
-        </label>
-      ) : null}
-      <label className="block">
-        <span className="mb-1.5 block text-sm font-semibold text-text-secondary">Title</span>
-        <input
-          className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm outline-none"
-          value={model.title}
-          onChange={(event) => model.onTitleChange(event.target.value)}
-        />
-      </label>
-      <div>
-        <label htmlFor={descriptionId} className="mb-1.5 block text-sm text-text-tertiary">
-          Description (leave empty to generate)
-        </label>
-        <Textarea
-          id={descriptionId}
-          rows={DESCRIPTION_ROWS}
-          resize="none"
-          value={model.description}
-          onChange={(event) => model.onDescriptionChange(event.target.value)}
-        />
-      </div>
-      {model.gitStatus && model.gitStatus.filesChanged > 0 ? (
-        <Checkbox
-          checked={model.commitAndPush}
-          onChange={(event) => model.onCommitAndPushChange(event.target.checked)}
-          label={
-            <span className="flex w-full items-center justify-between gap-3">
-              <span>Commit and push local changes</span>
-              <span className="text-xs">
-                <span className="text-success">+{model.gitStatus.additions}</span>{' '}
-                <span className="text-error">-{model.gitStatus.deletions}</span>
-              </span>
-            </span>
-          }
-        />
-      ) : null}
-      {model.error ? (
-        <p role="alert" className="text-sm text-error">
-          {model.error}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-function ChangeRequestActions({
-  terminology,
-  running,
-  branchMissing,
-  onCreate,
-}: {
-  readonly terminology: ReturnType<typeof getChangeRequestTerminology>
-  readonly running: boolean
-  readonly branchMissing: boolean
-  readonly onCreate: (draft: boolean) => void
-}) {
-  return (
-    <footer className="space-y-1 border-t border-border p-2">
-      <Button
-        variant="ghost"
-        className="w-full justify-start"
-        disabled={running || branchMissing}
-        onClick={() => onCreate(true)}
-      >
-        <GitPullRequest className="size-4" />
-        Create draft {terminology.shortLabel}
-      </Button>
-      <Button
-        variant="subtle"
-        className="w-full justify-start"
-        disabled={running || branchMissing}
-        onClick={() => onCreate(false)}
-      >
-        <GitPullRequest className="size-4" />
-        Create {terminology.shortLabel}
-      </Button>
-      <Button variant="ghost" className="w-full justify-start" disabled>
-        <ExternalLink className="size-4" />
-        Open {terminology.shortLabel} in browser
-      </Button>
-    </footer>
-  )
-}
-
-export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
-  const terminology = getChangeRequestTerminology(props.vcsStatus?.sourceControlProvider?.id)
+function useChangeRequestComposer(
+  props: ChangeRequestComposerProps,
+  terminology: ReturnType<typeof getChangeRequestTerminology>,
+) {
   const [title, setTitle] = useState(props.session.title)
   const [description, setDescription] = useState('')
   const [commitAndPush, setCommitAndPush] = useState((props.gitStatus?.filesChanged ?? 0) > 0)
-  const [createFeatureBranch] = useState(props.vcsStatus?.isDefaultRef === true)
+  const [createFeatureBranch] = useState(
+    props.vcsStatus?.defaultRef != null && props.vcsStatus.refName === props.vcsStatus.defaultRef,
+  )
   const [branchName, setBranchName] = useState(() =>
     sanitizeFeatureBranchName(`codex/${props.session.title}`),
   )
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
   const showToast = useUIStore((state) => state.showToast)
-
+  const queryClient = useQueryClient()
+  const recordSessionCommit = useRecordSessionCommit(props.session.id, queryClient)
+  const validationError = emptyFeatureBranchValidationMessage(
+    { commitAndPush, createFeatureBranch, gitStatus: props.gitStatus, vcsStatus: props.vcsStatus },
+    terminology.singular,
+  )
+  const preflight = useChangeRequestPreflight(
+    String(props.session.id),
+    props.workingPath,
+    props.vcsStatus?.sourceControlProvider?.id,
+    changeRequestPreflightPayload({
+      ...props,
+      title,
+      description,
+      branchName,
+      commitAndPush,
+      createFeatureBranch,
+      draft: false,
+    }),
+  )
+  const creationBlocked =
+    validationError !== null ||
+    preflight.nativeCreationBlocked ||
+    (createFeatureBranch && branchName.trim().length === 0)
   async function create(draft: boolean) {
-    if (running || (createFeatureBranch && branchName.trim().length === 0)) return
+    if (running || creationBlocked) return
     setRunning(true)
     setError(null)
+    setFallbackUrl(null)
     try {
       const result = await api.runStackedGitAction(
         props.workingPath,
-        actionInput({
+        changeRequestActionInput({
           ...props,
           title,
           description,
@@ -203,7 +101,10 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
           draft,
         }),
       )
+      await recordCreatedCommit(result, title, recordSessionCommit)
       if (!result.ok) {
+        if (result.branch?.name) setBranchName(result.branch.name)
+        setFallbackUrl(result.fallbackUrl ?? null)
         setError(result.message)
         return
       }
@@ -214,64 +115,153 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
             title: result.changeRequest.title,
             url: result.changeRequest.url,
           })
+          .then(() =>
+            queryClient.invalidateQueries({
+              queryKey: sessionResourcesQueryKey(String(props.session.id)),
+            }),
+          )
           .catch(() => undefined)
-        void api.openExternal(result.changeRequest.url)
+        void api.openExternal(result.changeRequest.url).catch(() => undefined)
       }
       props.onCompleted()
       props.onClose()
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : `Could not create ${terminology.shortLabel}.`,
-      )
+      setError(creationFailureMessage(cause, terminology.shortLabel))
     } finally {
       setRunning(false)
     }
   }
 
+  return {
+    title,
+    setTitle: (value: string) => {
+      setFallbackUrl(null)
+      setTitle(value)
+    },
+    description,
+    setDescription: (value: string) => {
+      setFallbackUrl(null)
+      setDescription(value)
+    },
+    commitAndPush,
+    setCommitAndPush: (value: boolean) => {
+      setFallbackUrl(null)
+      setCommitAndPush(value)
+    },
+    createFeatureBranch,
+    branchName,
+    setBranchName: (value: string) => {
+      setFallbackUrl(null)
+      setBranchName(value)
+    },
+    running,
+    error: validationError ?? error,
+    creationBlocked,
+    fallbackUrl,
+    preflight,
+    create,
+  }
+}
+
+function resolveBrowserUrl(
+  fallbackUrl: string | null,
+  preflightUrl: string | null,
+  vcsStatus: VcsStatus | null,
+) {
+  return fallbackUrl ?? vcsStatus?.changeRequest?.url ?? preflightUrl ?? null
+}
+
+export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
+  const terminology = getChangeRequestTerminology(props.vcsStatus?.sourceControlProvider?.id)
+  const composer = useChangeRequestComposer(props, terminology)
+  const browserUrl = resolveBrowserUrl(
+    composer.fallbackUrl,
+    composer.preflight.browserUrl,
+    props.vcsStatus,
+  )
+
   return (
-    <ModalDialog label={`Create ${terminology.singular}`} onClose={props.onClose}>
-      <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm text-text-tertiary">
-            {createFeatureBranch ? 'New branch' : (props.vcsStatus?.refName ?? 'Current ref')} →{' '}
-            {props.vcsStatus?.changeRequest?.baseRef ??
-              props.vcsStatus?.defaultRef ??
-              'default branch'}
-          </p>
-          <h2 className="truncate text-sm font-semibold text-text-primary">
-            Create {terminology.singular}
-          </h2>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close change request composer"
-          onClick={props.onClose}
-        >
-          <X className="size-4" />
-        </Button>
-      </header>
-      <ChangeRequestFields
-        model={{
-          createFeatureBranch,
-          branchName,
-          title,
-          description,
-          commitAndPush,
-          gitStatus: props.gitStatus,
-          error,
-          onBranchNameChange: setBranchName,
-          onTitleChange: setTitle,
-          onDescriptionChange: setDescription,
-          onCommitAndPushChange: setCommitAndPush,
+    <ModalDialog
+      label={`Create ${terminology.singular}`}
+      dismissible={!composer.running}
+      onClose={() => {
+        if (!composer.running) props.onClose()
+      }}
+    >
+      <form
+        onSubmit={(event) => event.preventDefault()}
+        onKeyDown={(event) => {
+          if (
+            event.key !== 'Enter' ||
+            (!event.metaKey && !event.ctrlKey) ||
+            event.nativeEvent.isComposing ||
+            composer.running ||
+            composer.creationBlocked ||
+            (composer.createFeatureBranch && composer.branchName.trim().length === 0)
+          ) {
+            return
+          }
+          event.preventDefault()
+          void composer.create(false)
         }}
-      />
-      <ChangeRequestActions
-        terminology={terminology}
-        running={running}
-        branchMissing={createFeatureBranch && branchName.trim().length === 0}
-        onCreate={(draft) => void create(draft)}
-      />
+      >
+        <header className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm text-text-tertiary">
+              {composer.createFeatureBranch
+                ? 'New branch'
+                : (props.vcsStatus?.refName ?? 'Current ref')}{' '}
+              →{' '}
+              {props.vcsStatus?.changeRequest?.baseRef ??
+                props.vcsStatus?.defaultRef ??
+                'default branch'}
+            </p>
+            <h2 className="truncate text-sm font-semibold text-text-primary">
+              Create {terminology.singular}
+            </h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close change request composer"
+            disabled={composer.running}
+            onClick={props.onClose}
+          >
+            <X className="size-4" />
+          </Button>
+        </header>
+        <ChangeRequestFields
+          model={{
+            createFeatureBranch: composer.createFeatureBranch,
+            branchName: composer.branchName,
+            title: composer.title,
+            description: composer.description,
+            commitAndPush: composer.commitAndPush,
+            gitStatus: props.gitStatus,
+            error: composer.error,
+            disabled: composer.running,
+            onBranchNameChange: composer.setBranchName,
+            onTitleChange: composer.setTitle,
+            onDescriptionChange: composer.setDescription,
+            onCommitAndPushChange: composer.setCommitAndPush,
+          }}
+        />
+        <ChangeRequestComposerActions
+          terminology={terminology}
+          running={composer.running}
+          runningLabel={`Checking prerequisites and creating ${terminology.shortLabel}…`}
+          preflight={composer.preflight}
+          branchMissing={
+            composer.creationBlocked ||
+            (composer.createFeatureBranch && composer.branchName.trim().length === 0)
+          }
+          onCreate={(draft) => void composer.create(draft)}
+          browserUrl={browserUrl}
+          onOpenBrowser={() => {
+            if (browserUrl) void api.openExternal(browserUrl).catch(() => undefined)
+          }}
+        />
+      </form>
     </ModalDialog>
   )
 }

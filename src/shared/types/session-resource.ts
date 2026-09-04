@@ -40,6 +40,15 @@ export interface SessionResource {
   readonly updatedAt: number
 }
 
+export interface SessionResourceList {
+  readonly resources: SessionResource[]
+  readonly backfillComplete: boolean
+}
+
+export interface SessionResourceBackfillStatus {
+  readonly backfillComplete: boolean
+}
+
 export interface SessionResourceContent {
   readonly resourceId: string
   readonly fileName: string
@@ -50,4 +59,9 @@ export interface SessionResourceContent {
 export interface RecordSessionChangeRequestInput {
   readonly title: string
   readonly url: string
+}
+
+export interface RecordSessionCommitInput {
+  readonly commitHash: string
+  readonly title: string
 }

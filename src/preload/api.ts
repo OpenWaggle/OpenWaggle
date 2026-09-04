@@ -138,8 +138,12 @@ export const api: OpenWaggleApi = {
   listSessionDetails: invoke('sessions:list-details'),
   getSessionDetail: invoke('sessions:get-detail'),
   listSessionResources: invoke('sessions:resources:list'),
+  advanceSessionResourceBackfill: invoke('sessions:resources:backfill'),
   readSessionResource: invoke('sessions:resources:read'),
+  readSessionResourceThumbnail: invoke('sessions:resources:thumbnail'),
+  retrySessionResource: invoke('sessions:resources:retry'),
   recordSessionChangeRequest: invoke('sessions:resources:record-change-request'),
+  recordSessionCommit: invoke('sessions:resources:record-commit'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
   getTurnDiff: invoke('sessions:turn-diff:get'),
   listPinnedSessions: invoke('sessions:pins:list'),
@@ -166,6 +170,8 @@ export const api: OpenWaggleApi = {
   restoreSessionBranch: invoke('sessions:restore-branch'),
   updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
   onSessionTitleUpdated: on('sessions:title-updated'),
+  onSessionListInvalidated: on('sessions:list-invalidated'),
+  onSessionResourcesInvalidated: on('sessions:resources-invalidated'),
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
 
   // Terminal
@@ -195,6 +201,7 @@ export const api: OpenWaggleApi = {
   getLocalVcsStatus: invoke('git:vcs-status:local'),
   getRemoteVcsStatus: invoke('git:vcs-status:remote'),
   runStackedGitAction: invoke('git:stacked-action:run'),
+  preflightChangeRequest: invoke('git:change-request:preflight'),
   listChangeRequests: invoke('git:change-request:list'),
   checkoutChangeRequest: invoke('git:change-request:checkout'),
 
@@ -218,6 +225,7 @@ export const api: OpenWaggleApi = {
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
   openPath: invoke('shell:open-path'),
+  revealPath: invoke('shell:reveal-path'),
 
   // Dialog
   showConfirm: invoke('dialog:confirm'),

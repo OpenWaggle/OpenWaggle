@@ -119,8 +119,8 @@ export default {
   name: 'Example Extension',
   version: '0.1.0',
   sdk: { openwaggle: '>=0.2.0 <0.3.0' },
-  sourceFiles: ['package.json', 'src/settings.ts', 'src/session-summary.ts'],
-  builtArtifacts: ['dist/settings.js', 'dist/session-summary.js'],
+  sourceFiles: ['package.json', 'src/settings.ts'],
+  builtArtifacts: ['dist/settings.js'],
   install: { source: 'prebuilt' },
   capabilities: [
     {
@@ -130,6 +130,14 @@ export default {
     },
   ],
   contributions: {
+    commands: [
+      {
+        id: 'example.refresh',
+        title: 'Refresh extension status',
+        capability: 'openwaggle.storage',
+        method: 'get',
+      },
+    ],
     settingsSections: [
       {
         id: 'example.settings',
@@ -145,16 +153,45 @@ export default {
       {
         id: 'example.session-summary',
         title: 'Example Session Status',
-        runtime: 'federated-module',
-        execution: 'host-renderer',
-        entry: 'dist/session-summary.js',
-        capability: 'openwaggle.storage',
-        methods: ['get'],
+        placement: 'details',
+        rows: [
+          { id: 'status', label: 'Status', value: 'Ready' },
+          {
+            id: 'open-settings',
+            label: 'Open settings',
+            action: { family: 'commands', contributionId: 'example.refresh' },
+          },
+        ],
       },
     ],
   },
 } satisfies OpenWaggleExtensionManifest
 ```
+
+## Session Resources
+
+Extensions can publish explicit session Sources and Outputs through the brokered SDK. The calling contribution and package manifest must declare `openwaggle.session-resources`, the requested methods, and `session` scope.
+
+```ts
+const scope = { kind: 'session', projectPath, sessionId } as const
+
+await context.sdk.openWaggle.sessionResources.publish(scope, {
+  key: 'preview-site',
+  kind: 'site',
+  title: 'Preview site',
+  activity: 'created',
+  reference: { kind: 'external-url', url: 'https://preview.example.com' },
+})
+
+const result = await context.sdk.openWaggle.sessionResources.list(scope, {
+  category: 'outputs',
+  limit: 25,
+})
+```
+
+`publish` accepts `image`, `file`, `link`, `tool`, `web-search`, `site`, `commit`, and `change-request` kinds with `provided`, `read`, `created`, or `updated` activity. Use a stable `key` to deduplicate repeated publication by the same extension contribution. References are limited to credential-free HTTPS URLs or portable project-relative paths. The broker verifies the exact session and project scope; callers cannot nominate another open or archived session.
+
+`list` accepts `all`, `sources`, or `outputs` and a limit from 1 to 200. Its result includes the host resource id, Source/Output classification, availability, timestamps, and occurrence provenance. A declarative Session Summary row may use a returned resource id to open the same Resource Browser or image gallery as first-party resources.
 
 ## Theme Contract
 

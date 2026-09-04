@@ -1,10 +1,6 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
-  ExtensionContributionEligibilityView,
-  ExtensionContributionFamily,
   ExtensionContributionRegistryEntry,
   ExtensionDiagnosticView,
-  ExtensionPackageScopeView,
 } from '@shared/types/extensions'
 import {
   isExtensionCurrentTrustPin,
@@ -15,62 +11,20 @@ import type {
   DiscoveredExtensionPackage,
   ExtensionDiagnostic,
   ExtensionLifecycleState,
-  ExtensionPackageScope,
 } from '../extensions/types'
-import {
-  findManifestCapabilityDeclaration,
-  getDeclaredScopes,
-} from './extension-contribution-authorization-model'
-import {
-  isEntryContribution,
-  type ManifestCommandContribution,
-  type ManifestEntryContribution,
-} from './extension-contribution-family-model'
 import {
   type ContributionRegistrationEntry,
   type ContributionRegistrationResult,
   packageContributionRegistrations,
 } from './extension-contribution-registration-model'
-import { resolveContributionTarget } from './extension-contribution-target-model'
+import { contributionToEntry } from './extension-contribution-registry-entry-model'
+import type {
+  ContributionPackageEligibility,
+  ContributionRegistryBuildResult,
+  ExtensionContributionProjectOverrideLookup,
+} from './extension-contribution-registry-types'
 
-export interface ExtensionContributionProjectOverrideLookup {
-  readonly projectPath: string
-  readonly projectOverride: { readonly disabled: boolean } | null
-  readonly diagnostics: readonly ExtensionDiagnostic[]
-}
-
-interface ContributionPackageEligibility {
-  readonly contentHash: string
-  readonly projectPaths: readonly string[]
-  readonly eligibility: ExtensionContributionEligibilityView
-  readonly diagnostics: readonly ExtensionDiagnosticView[]
-}
-
-interface ContributionEntryInput {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly eligibility: ContributionPackageEligibility
-  readonly requestedProjectPaths: readonly string[]
-  readonly requestedSessionId: string | undefined
-  readonly family: ExtensionContributionFamily
-  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
-}
-
-interface ContributionRegistryBuildResult {
-  readonly entries: readonly ExtensionContributionRegistryEntry[]
-  readonly diagnostics: readonly ExtensionDiagnostic[]
-}
-
-function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
-  if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' }
-  }
-
-  return {
-    kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
-    label: 'Project',
-    projectPath: scope.projectPath,
-  }
-}
+export type { ExtensionContributionProjectOverrideLookup } from './extension-contribution-registry-types'
 
 function diagnosticsToView(
   diagnostics: readonly ExtensionDiagnostic[],
@@ -155,98 +109,6 @@ function buildPackageEligibility(input: {
       }),
       disabledProjectPaths,
     },
-  }
-}
-
-function entryContributionMetadata(contribution: ManifestEntryContribution) {
-  return {
-    runtime: contribution.runtime,
-    execution: contribution.execution,
-    entryPath: contribution.entry,
-    ...(contribution.matches !== undefined ? { matches: contribution.matches } : {}),
-  }
-}
-
-function declaredScopesForContribution(input: {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
-}) {
-  if (input.contribution.capability === undefined) {
-    return undefined
-  }
-
-  const declaration = findManifestCapabilityDeclaration({
-    manifest: input.extensionPackage.manifest,
-    capability: input.contribution.capability,
-  })
-
-  return declaration ? [...getDeclaredScopes(declaration)] : undefined
-}
-
-function brokerBindingsForContribution(input: ContributionEntryInput) {
-  const { contribution } = input
-  const declaredScopes = declaredScopesForContribution(input)
-  return {
-    ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
-    ...(contribution.method !== undefined ? { method: contribution.method } : {}),
-    ...(contribution.methods !== undefined ? { methods: contribution.methods } : {}),
-    ...(declaredScopes !== undefined ? { declaredScopes } : {}),
-  }
-}
-
-function contributionToEntry(
-  input: ContributionEntryInput,
-): ExtensionContributionRegistryEntry | null {
-  const { contribution, eligibility, extensionPackage } = input
-  const targetResolution = resolveContributionTarget({
-    target: contribution.target,
-    eligibilityProjectPaths: eligibility.projectPaths,
-    requestedProjectPaths: input.requestedProjectPaths,
-    requestedSessionId: input.requestedSessionId,
-  })
-  if (targetResolution === null) {
-    return null
-  }
-
-  const manifest = extensionPackage.manifest
-  const baseEntry = {
-    extensionId: extensionPackage.id,
-    extensionName: manifest?.name ?? extensionPackage.id,
-    extensionVersion: manifest?.version ?? '',
-    scope: scopeToView(extensionPackage.scope),
-    packagePath: extensionPackage.packagePath,
-    manifestPath: extensionPackage.manifestPath,
-    contentHash: eligibility.contentHash,
-    projectPaths: targetResolution.projectPaths,
-    ...(targetResolution.sessionId !== undefined ? { sessionId: targetResolution.sessionId } : {}),
-    appliesToAllRequestedProjects:
-      targetResolution.projectPaths.length === input.requestedProjectPaths.length,
-    family: input.family,
-    contributionId: contribution.id,
-    title: contribution.title,
-    label: contribution.title,
-    ...(targetResolution.target !== undefined ? { target: targetResolution.target } : {}),
-    ...(manifest?.network?.origins !== undefined
-      ? { networkOrigins: manifest.network.origins }
-      : {}),
-    eligibility: eligibility.eligibility,
-    diagnostics: eligibility.diagnostics,
-  }
-
-  const brokerBindings = brokerBindingsForContribution(input)
-
-  if (isEntryContribution(contribution)) {
-    return {
-      ...baseEntry,
-      ...brokerBindings,
-      ...entryContributionMetadata(contribution),
-    }
-  }
-
-  return {
-    ...baseEntry,
-    ...brokerBindings,
-    ...(contribution.category !== undefined ? { category: contribution.category } : {}),
   }
 }
 

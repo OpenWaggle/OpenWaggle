@@ -47,6 +47,7 @@ describe('registerAttachmentHandlers extraction', () => {
     expect(result[0]).toMatchObject({
       kind: 'text',
       origin: 'user-file',
+      contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       extractedText: 'Hello from notes',
     })
     expect(result[0]).not.toHaveProperty('source')

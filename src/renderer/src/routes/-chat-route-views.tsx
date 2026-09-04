@@ -1,10 +1,12 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { lazy, Suspense } from 'react'
+import { type ComponentProps, lazy, Suspense } from 'react'
+import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
 import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
   extensionSidePanelTargetFromSearch,
+  resourceBrowserTargetFromSearch,
 } from './-route-search'
 
 const LazyChatRouteSurface = lazy(() =>
@@ -24,12 +26,46 @@ function ChatRouteSurfaceFallback() {
   )
 }
 
+type LazyChatRouteSurfaceInput = ComponentProps<typeof LazyChatRouteSurface>
+
+function ChatRouteSurfaceView({ input }: { readonly input: LazyChatRouteSurfaceInput }) {
+  return (
+    <Suspense fallback={<ChatRouteSurfaceFallback />}>
+      <LazyChatRouteSurface {...input} />
+    </Suspense>
+  )
+}
+
+function useSessionWorkspaceFileOpen(sessionId: string) {
+  const navigate = useNavigate()
+  return (open: boolean, target?: { path: string; line?: number | null }) => {
+    const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => ({
+        ...previous,
+        diff: undefined,
+        panel,
+        filePath: open ? target?.path : undefined,
+        fileLine: open ? (target?.line ?? undefined) : undefined,
+        resourceId: undefined,
+        resourceView: undefined,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      }),
+    })
+  }
+}
+
 export function ChatIndexRouteView() {
   const navigate = useNavigate()
   const search = useSearch({ from: '/_chat/' })
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
-  const resourcesOpen = search.panel === 'resources'
+  const resourcesTarget = resourceBrowserTargetFromSearch(search)
   const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
   const workspaceFile =
     search.panel === 'file' && search.filePath
@@ -43,6 +79,8 @@ export function ChatIndexRouteView() {
       search: {
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -58,6 +96,8 @@ export function ChatIndexRouteView() {
       search: {
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -66,13 +106,15 @@ export function ChatIndexRouteView() {
     })
   }
 
-  function setResourcesOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'resources' : undefined
+  function setResourcesTarget(target: SessionResourceBrowserTarget | null) {
+    const panel: ChatRouteSearch['panel'] = target ? 'resources' : undefined
     void navigate({
       to: '/',
       search: {
         diff: undefined,
         panel,
+        resourceId: target?.resourceId,
+        resourceView: target?.view,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -87,6 +129,8 @@ export function ChatIndexRouteView() {
       search: {
         diff: undefined,
         panel: open ? EXTENSION_SIDE_PANEL_ROUTE_PANEL : undefined,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: open ? target.extensionId : undefined,
         sidePanelId: open ? target.sidePanelId : undefined,
         sidePanelPackagePath: open ? target.packagePath : undefined,
@@ -104,6 +148,8 @@ export function ChatIndexRouteView() {
         panel,
         filePath: open ? target?.path : undefined,
         fileLine: open ? (target?.line ?? undefined) : undefined,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -119,14 +165,14 @@ export function ChatIndexRouteView() {
         rightSidebar={{
           diffOpen,
           extensionSidePanel,
-          resourcesOpen,
+          resourcesTarget,
           sessionTreeOpen,
           workspaceFile,
         }}
         rightSidebarActions={{
           onDiffOpenChange: setDiffOpen,
           onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
-          onResourcesOpenChange: setResourcesOpen,
+          onResourcesTargetChange: setResourcesTarget,
           onSessionTreeOpenChange: setSessionTreeOpen,
           onWorkspaceFileOpenChange: setWorkspaceFileOpen,
         }}
@@ -144,12 +190,13 @@ export function ChatSessionRouteView() {
   const search = useSearch({ from: '/sessions/$sessionId' })
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
-  const resourcesOpen = search.panel === 'resources'
+  const resourcesTarget = resourceBrowserTargetFromSearch(search)
   const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
   const workspaceFile =
     search.panel === 'file' && search.filePath
       ? { path: search.filePath, line: search.fileLine ?? null }
       : null
+  const setWorkspaceFileOpen = useSessionWorkspaceFileOpen(sessionId)
 
   function setDiffOpen(open: boolean) {
     const panel: ChatRouteSearch['panel'] = open ? 'diff' : undefined
@@ -160,6 +207,8 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -177,6 +226,8 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -185,8 +236,8 @@ export function ChatSessionRouteView() {
     })
   }
 
-  function setResourcesOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'resources' : undefined
+  function setResourcesTarget(target: SessionResourceBrowserTarget | null) {
+    const panel: ChatRouteSearch['panel'] = target ? 'resources' : undefined
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId },
@@ -194,6 +245,8 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: target?.resourceId,
+        resourceView: target?.view,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -212,6 +265,8 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: open ? target.extensionId : undefined,
         sidePanelId: open ? target.sidePanelId : undefined,
         sidePanelPackagePath: open ? target.packagePath : undefined,
@@ -220,47 +275,31 @@ export function ChatSessionRouteView() {
     })
   }
 
-  function setWorkspaceFileOpen(open: boolean, target?: { path: string; line?: number | null }) {
-    const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
-    void navigate({
-      to: '/sessions/$sessionId',
-      params: { sessionId },
-      search: (previous: ChatRouteSearch) => ({
-        ...previous,
-        diff: undefined,
-        panel,
-        filePath: open ? target?.path : undefined,
-        fileLine: open ? (target?.line ?? undefined) : undefined,
-        sidePanelExtensionId: undefined,
-        sidePanelId: undefined,
-        sidePanelPackagePath: undefined,
-        sidePanelContentHash: undefined,
-      }),
-    })
-  }
+  const rightSidebar = {
+    diffOpen,
+    extensionSidePanel,
+    resourcesTarget,
+    sessionTreeOpen,
+    workspaceFile,
+  } satisfies LazyChatRouteSurfaceInput['rightSidebar']
+  const rightSidebarActions = {
+    onDiffOpenChange: setDiffOpen,
+    onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
+    onResourcesTargetChange: setResourcesTarget,
+    onSessionTreeOpenChange: setSessionTreeOpen,
+    onWorkspaceFileOpenChange: setWorkspaceFileOpen,
+  } satisfies LazyChatRouteSurfaceInput['rightSidebarActions']
 
   return (
-    <Suspense fallback={<ChatRouteSurfaceFallback />}>
-      <LazyChatRouteSurface
-        workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
-        rightSidebar={{
-          diffOpen,
-          extensionSidePanel,
-          resourcesOpen,
-          sessionTreeOpen,
-          workspaceFile,
-        }}
-        rightSidebarActions={{
-          onDiffOpenChange: setDiffOpen,
-          onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
-          onResourcesOpenChange: setResourcesOpen,
-          onSessionTreeOpenChange: setSessionTreeOpen,
-          onWorkspaceFileOpenChange: setWorkspaceFileOpen,
-        }}
-        onNavigateSession={(targetSessionId) => {
+    <ChatRouteSurfaceView
+      input={{
+        workspace: { branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId },
+        rightSidebar,
+        rightSidebarActions,
+        onNavigateSession: (targetSessionId) => {
           void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
-        }}
-      />
-    </Suspense>
+        },
+      }}
+    />
   )
 }

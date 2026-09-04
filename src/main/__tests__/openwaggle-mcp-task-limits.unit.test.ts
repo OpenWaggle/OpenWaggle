@@ -14,6 +14,7 @@ import {
   type OpenWaggleServerTaskServices,
 } from '../openwaggle-mcp-task-manager'
 import { SESSION_ID, serveOptions } from './openwaggle-mcp-session-control.test-support'
+import { waitForTaskStatus } from './openwaggle-mcp-task-leases.test-support'
 
 vi.mock('electron', () => ({ app: { getPath: () => tmpdir() } }))
 
@@ -37,6 +38,8 @@ function services(): OpenWaggleServerTaskServices {
       sessionId: SessionId(task.sessionId ?? `created-${task.id}`),
       created: !task.sessionId,
     })),
+    establishLineage: vi.fn(async () => undefined),
+    setDelegationState: vi.fn(async () => undefined),
     execute: vi.fn(async ({ signal }) => {
       if (signal.aborted) return { outcome: 'aborted' as const }
       return new Promise<{ readonly outcome: 'aborted' }>((resolve) => {
@@ -47,6 +50,77 @@ function services(): OpenWaggleServerTaskServices {
 }
 
 describe('hosted MCP session task limits', () => {
+  it('projects a newly hosted task as a worker of its origin session', async () => {
+    const options = serveOptions(temporaryRoot, { originSessionId: 'origin' })
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(options.taskStorePath),
+    )
+    const taskServices = services()
+    const manager = new OpenWaggleServerTaskManager(options, metadata, taskServices)
+
+    const task = await Effect.runPromise(
+      manager.start({ projectPath: temporaryRoot, objective: 'Inspect the project.' }),
+    )
+    await waitForTaskStatus(manager, task.id, 'working')
+
+    expect(task).toMatchObject({ parentSessionId: 'origin' })
+    expect(taskServices.establishLineage).toHaveBeenCalledWith({
+      sessionId: SessionId(`created-${task.id}`),
+      parentSessionId: SessionId('origin'),
+      agentDefinitionName: options.profile,
+      delegationState: 'working',
+    })
+
+    await Effect.runPromise(manager.cancelAll())
+    expect(taskServices.setDelegationState).toHaveBeenCalledWith(
+      SessionId(`created-${task.id}`),
+      'cancelled',
+    )
+  })
+
+  it('projects successful and failed task outcomes into worker state', async () => {
+    const cases = [
+      {
+        expectedStatus: 'completed',
+        expectedState: 'accepted',
+        result: {
+          outcome: 'success' as const,
+          newMessages: [],
+          resourceMessages: [],
+          resourceNodeIds: {},
+          resourceBranchIds: {},
+        },
+      },
+      {
+        expectedStatus: 'failed',
+        expectedState: 'needs_attention',
+        result: { outcome: 'error' as const, message: 'failed', code: 'TEST_FAILURE' },
+      },
+    ] as const
+
+    for (const testCase of cases) {
+      const options = serveOptions(temporaryRoot, { originSessionId: 'origin' })
+      const metadata = new OpenWaggleMcpSessionMetadataStore(
+        sessionMetadataStorePath(options.taskStorePath),
+      )
+      const taskServices: OpenWaggleServerTaskServices = {
+        ...services(),
+        execute: vi.fn(async () => testCase.result),
+      }
+      const manager = new OpenWaggleServerTaskManager(options, metadata, taskServices)
+      const task = await Effect.runPromise(
+        manager.start({ projectPath: temporaryRoot, objective: 'Finish the task.' }),
+      )
+
+      await waitForTaskStatus(manager, task.id, testCase.expectedStatus)
+      expect(taskServices.setDelegationState).toHaveBeenCalledWith(
+        SessionId(`created-${task.id}`),
+        testCase.expectedState,
+      )
+      await Effect.runPromise(manager.cancelAll())
+    }
+  })
+
   it('uses the target-owned execution profile and rejects self-targeting', async () => {
     const options = serveOptions(temporaryRoot, { originSessionId: 'origin' })
     const metadata = new OpenWaggleMcpSessionMetadataStore(

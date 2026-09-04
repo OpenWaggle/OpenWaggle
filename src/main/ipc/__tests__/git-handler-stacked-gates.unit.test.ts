@@ -34,6 +34,65 @@ describe('stacked action safety gates', () => {
     ;({ registerGitHandlers } = await loadGitHandlers())
   })
 
+  it('preflights the exact GitHub host and returns a browser fallback without changing git', async () => {
+    const mutations: string[] = []
+    execFileMock.mockImplementation(
+      (command: string, args: string[], _options: unknown, callback: GitCallback) => {
+        const joined = args.join(' ')
+        if (/\b(switch|checkout|add|commit|push)\b/.test(joined)) mutations.push(joined)
+        if (command === 'gh') {
+          callback(
+            Object.assign(new Error('status reported on stderr'), {
+              code: 1,
+              stdout:
+                'github.example.com\n  ✓ Logged in to github.example.com account octocat (keyring)\n',
+              stderr: '',
+            }),
+            '',
+            '',
+          )
+          return
+        }
+        if (joined === 'remote get-url origin') {
+          callback(null, 'git@github.example.com:openwaggle/openwaggle.git\n', '')
+          return
+        }
+        callback(new Error(`Unexpected Git arguments: ${joined}`), '', '')
+      },
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:change-request:preflight')
+
+    const result = await handler?.({}, '/tmp/repo', {
+      headRef: 'codex/session-summary',
+      baseRef: 'main',
+      title: 'Session summary',
+      body: 'Ready for review.',
+      draft: false,
+    })
+
+    expect(result).toEqual({
+      provider: { id: 'github', host: 'github.example.com' },
+      readiness: {
+        ok: true,
+        status: {
+          authenticated: true,
+          account: 'octocat',
+          host: 'github.example.com',
+        },
+      },
+      browserUrl:
+        'https://github.example.com/openwaggle/openwaggle/compare?expand=1&title=Session+summary&body=Ready+for+review.',
+    })
+    expect(execFileMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'status', '--active', '--hostname', 'github.example.com'],
+      expect.objectContaining({ cwd: '/tmp/repo' }),
+      expect.any(Function),
+    )
+    expect(mutations).toEqual([])
+  })
+
   it('asks for confirmation when the current ref cannot be read, instead of proceeding', async () => {
     /*
      * The gate runs in main so the renderer cannot bypass it. It used to treat any failure of
@@ -71,19 +130,83 @@ describe('stacked action safety gates', () => {
     registerGitHandlers()
     const handler = registeredHandler('git:stacked-action:run')
 
-    await expect(
-      handler?.({ sender: {} }, '/tmp/repo', {
-        action: 'create_pr',
-        createFeatureBranch: true,
-        featureBranchName: 'codex/session-summary',
-        changeRequestTitle: 'Session Summary',
-        changeRequestBody: 'Summary body',
-        baseRef: 'main',
-        draft: false,
-      }),
-    ).rejects.toThrow('Git command failed')
+    const result = await handler?.({ sender: {} }, '/tmp/repo', {
+      action: 'create_pr',
+      createFeatureBranch: true,
+      featureBranchName: 'codex/session-summary',
+      changeRequestTitle: 'Session Summary',
+      changeRequestBody: 'Summary body',
+      baseRef: 'main',
+      draft: false,
+    })
 
     expect(showMessageBoxMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ ok: false, phase: 'pr' })
+  })
+
+  it('checks GitHub CLI authentication before mutating git for a change request', async () => {
+    const mutations: string[] = []
+    execFileMock.mockImplementation(
+      (command: string, args: string[], _options: unknown, callback: GitCallback) => {
+        const joined = args.join(' ')
+        if (command === 'gh') {
+          callback(
+            Object.assign(new Error('not logged in'), {
+              code: 1,
+              stdout: '',
+              stderr: 'You are not logged into any GitHub hosts.',
+            }),
+            '',
+            '',
+          )
+          return
+        }
+        if (/\b(switch|checkout|add|commit|push)\b/.test(joined)) mutations.push(joined)
+        if (joined === 'rev-parse --is-inside-work-tree') {
+          callback(null, 'true\n', '')
+          return
+        }
+        if (joined === 'symbolic-ref --quiet --short HEAD') {
+          callback(null, 'main\n', '')
+          return
+        }
+        if (joined.includes('remote get-url')) {
+          callback(null, 'https://github.com/example/repo.git\n', '')
+          return
+        }
+        if (joined === 'rev-parse --abbrev-ref origin/HEAD') {
+          callback(null, 'origin/main\n', '')
+          return
+        }
+        callback(null, '', '')
+      },
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    const result = await handler?.({ sender: {} }, '/tmp/repo', {
+      action: 'commit_push_pr',
+      commitMessage: 'Ship it',
+      createFeatureBranch: true,
+      featureBranchName: 'codex/provider-preflight',
+      changeRequestTitle: 'Provider preflight',
+      paths: ['src/a.ts'],
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: 'pr',
+      message: expect.stringMatching(/GitHub CLI.*github\.com/i),
+      fallbackUrl: expect.stringContaining('https://github.com/example/repo/compare?'),
+    })
+    expect(result).not.toMatchObject({ fallbackUrl: expect.stringContaining('provider-preflight') })
+    expect(mutations).toEqual([])
+    expect(execFileMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'status', '--active', '--hostname', 'github.com'],
+      expect.objectContaining({ cwd: '/tmp/repo' }),
+      expect.any(Function),
+    )
   })
 
   it('refuses to commit when no paths were selected, rather than staging the repository', async () => {

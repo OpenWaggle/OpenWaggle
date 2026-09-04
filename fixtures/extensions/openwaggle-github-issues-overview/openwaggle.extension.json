@@ -130,6 +130,32 @@
         "capability": "openwaggle.storage",
         "methods": ["get", "list"]
       }
+    ],
+    "sessionSummarySections": [
+      {
+        "id": "github.session-summary",
+        "title": "GitHub Issues",
+        "placement": "details",
+        "disclosure": {
+          "defaultExpanded": true,
+          "collapsible": true
+        },
+        "state": {
+          "status": "live",
+          "message": "Extension data is available"
+        },
+        "rows": [
+          {
+            "id": "github.open-overview",
+            "label": "Open issues overview",
+            "badge": "Extension",
+            "action": {
+              "family": "sidePanels",
+              "contributionId": "github.overview"
+            }
+          }
+        ]
+      }
     ]
   }
 }

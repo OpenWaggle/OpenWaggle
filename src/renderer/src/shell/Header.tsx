@@ -4,12 +4,18 @@ import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { CommitDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
+import {
+  isSessionSummaryPanelVisible,
+  useRecordSessionCommit,
+  useSessionSummaryUIStore,
+} from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { useUIStore } from '@/shell/ui-store'
 import {
   CommitButton,
   DiffToggleButton,
   HeaderLeft,
+  SessionSummaryButton,
   SessionTreeButton,
   TerminalButton,
 } from './HeaderControls'
@@ -44,17 +50,21 @@ export function Header() {
   const [commitOpen, setCommitOpen] = useState(false)
   const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
     useDiffRouteNavigation()
+  const activeSessionId = activeSession ? activeSession.id : null
+  const recordSessionCommit = useRecordSessionCommit(activeSessionId)
+  const sessionSummaryPanel = useSessionSummaryUIStore((state) =>
+    activeSessionId ? state.panels[activeSessionId] : undefined,
+  )
+  const toggleSessionSummary = useSessionSummaryUIStore((state) => state.togglePanel)
 
   function handleRefreshGit() {
-    // Status follows the session's working tree; the branch list is repository-level.
     void refreshGitStatus(workingPath)
     void refreshGitBranches(repositoryPath)
     bumpDiffRefreshKey()
   }
 
   async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
-    // Commit into the tree the user is looking at. Committing the primary checkout
-    // while a worktree session is active would write to a tree they never reviewed.
+    // Commit into the tree being reviewed, never the primary checkout behind a worktree Session.
     if (!workingPath) {
       return {
         ok: false as const,
@@ -64,7 +74,8 @@ export function Header() {
     }
     return match
       .promise(commitGit(workingPath, { message, amend, paths }))
-      .with({ ok: true }, (result) => {
+      .with({ ok: true }, async (result) => {
+        await recordSessionCommit({ commitHash: result.commitHash, title: message.trim() })
         bumpDiffRefreshKey()
         showToast(`Commit created: ${result.summary}`)
         return result
@@ -95,6 +106,17 @@ export function Header() {
             onOpen={() => setCommitOpen(true)}
           />
           <FeedbackButton onOpen={openFeedbackModal} />
+          {activeSessionId && isChatRoute && sessionSummaryPanel?.available ? (
+            <SessionSummaryButton
+              open={
+                sessionSummaryPanel.rightSidebarOpen
+                  ? sessionSummaryPanel.expanded
+                  : isSessionSummaryPanelVisible(sessionSummaryPanel)
+              }
+              panelId={`session-summary-${activeSessionId}`}
+              onToggle={() => toggleSessionSummary(activeSessionId)}
+            />
+          ) : null}
           <div className="w-px h-5 bg-border" />
           <SessionTreeButton
             hasSessionTree={Boolean(activeSessionTree)}

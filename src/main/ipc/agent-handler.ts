@@ -121,7 +121,9 @@ function registerAgentRunHandlers() {
               sessionId,
               runId,
               payload: validatedPayload,
-              messages: result.newMessages,
+              messages: result.resourceMessages ?? result.newMessages,
+              nodeIdByMessageId: result.resourceNodeIds ?? {},
+              branchIdByMessageId: result.resourceBranchIds ?? {},
             }).pipe(Effect.catchAll(() => Effect.void))
           }
 

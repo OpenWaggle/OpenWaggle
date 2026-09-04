@@ -10,19 +10,23 @@ import {
 } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
-import { getSourceControlProvider } from '../../adapters/source-control'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
 import { createGitBranch } from './branch-mutations'
+import {
+  buildChangeRequestFallbackUrl,
+  resolveSourceControlProvider,
+} from './change-request-provider'
 import { commitGit } from './commit-handler'
+import { resolveDefaultRef } from './default-ref'
+import { resolvePrimaryRemote } from './primary-remote'
 import { pullCurrentBranch, pushCurrentBranch } from './push-service'
 import { projectPathSchema, runGit } from './shared'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
 import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
-import { detectSourceControlProvider } from './vcs-status-parse'
 import { resolveRepositoryRoot } from './working-tree-service'
 
 const stackedActionOptionsSchema = Schema.Struct({
@@ -36,11 +40,6 @@ const stackedActionOptionsSchema = Schema.Struct({
   draft: Schema.optional(Schema.Boolean),
   paths: Schema.optional(Schema.Array(Schema.String)),
 })
-
-async function resolveProviderRemoteUrl(projectPath: string): Promise<string | null> {
-  const result = await runGit(projectPath, ['remote', 'get-url', 'origin'])
-  return result.code === 0 ? result.stdout.trim() || null : null
-}
 
 function createStackedActionDeps(): StackedActionDeps {
   return {
@@ -57,7 +56,7 @@ function createStackedActionDeps(): StackedActionDeps {
       const list = await listGitBranches(projectPath)
       const names: string[] = []
       for (const branch of list.branches) {
-        if (!branch.isRemote) names.push(branch.name)
+        names.push(branch.isRemote ? branch.name.split('/').slice(1).join('/') : branch.name)
       }
       return names
     },
@@ -104,27 +103,45 @@ function createStackedActionDeps(): StackedActionDeps {
        */
       return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
     },
-    push: (projectPath) => pushCurrentBranch(projectPath),
+    push: async (projectPath) => {
+      const primaryRemote = await resolvePrimaryRemote(projectPath)
+      return pushCurrentBranch(projectPath, primaryRemote?.name ?? 'origin')
+    },
     pull: (projectPath) => pullCurrentBranch(projectPath),
     openChangeRequest: async (projectPath, payload) => {
-      const provider = getSourceControlProvider(
-        detectSourceControlProvider(await resolveProviderRemoteUrl(projectPath))?.id,
-      )
-      if (!provider) {
+      const sourceControl = await resolveSourceControlProvider(projectPath)
+      if (!sourceControl) {
         return { ok: false, code: 'unknown', message: 'No supported source control provider.' }
       }
-      return provider.openChangeRequest(projectPath, payload)
+      return sourceControl.provider.openChangeRequest(projectPath, payload)
+    },
+    preflightChangeRequest: async (projectPath) => {
+      const sourceControl = await resolveSourceControlProvider(projectPath)
+      if (!sourceControl) {
+        return { ok: false, code: 'unknown', message: 'No supported source control provider.' }
+      }
+      const readiness = await sourceControl.provider.authStatus(
+        projectPath,
+        sourceControl.info.host,
+      )
+      if (!readiness.ok || readiness.status.authenticated) return readiness
+      const cli = sourceControl.provider.id === 'github' ? 'gh' : 'glab'
+      const label = sourceControl.provider.id === 'github' ? 'GitHub' : 'GitLab'
+      return {
+        ok: false,
+        code: 'not-authenticated',
+        message: `${label} CLI is not authenticated for ${sourceControl.info.host}. Run \`${cli} auth login --hostname ${sourceControl.info.host}\`.`,
+      }
     },
     resolveCurrentRef: async (projectPath) => {
       const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
       return result.code === 0 ? result.stdout.trim() || null : null
     },
     resolveDefaultBaseRef: async (projectPath) => {
-      const result = await runGit(projectPath, ['rev-parse', '--abbrev-ref', 'origin/HEAD'])
-      if (result.code !== 0) return null
-      const ref = result.stdout.trim()
-      return ref ? ref.replace(/^origin\//, '') : null
+      const primaryRemote = await resolvePrimaryRemote(projectPath)
+      return resolveDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
     },
+    buildChangeRequestFallbackUrl,
   }
 }
 

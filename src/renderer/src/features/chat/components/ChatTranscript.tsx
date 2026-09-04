@@ -12,7 +12,6 @@ import { WelcomeScreen } from './WelcomeScreen'
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
-  readonly reserveSessionSummarySpace?: boolean
 }
 
 function TranscriptExtensionCards({
@@ -90,10 +89,7 @@ function buildRowContext({
   }
 }
 
-export function ChatTranscript({
-  section,
-  reserveSessionSummarySpace = false,
-}: ChatTranscriptProps) {
+export function ChatTranscript({ section }: ChatTranscriptProps) {
   const {
     messages,
     isLoading,
@@ -159,7 +155,6 @@ export function ChatTranscript({
     'aria-busy': isLoading,
     className: cn(
       'flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]',
-      reserveSessionSummarySpace && 'pr-84',
       showScrollbar && 'is-scrolling',
     ),
     onScroll: handleScroll,

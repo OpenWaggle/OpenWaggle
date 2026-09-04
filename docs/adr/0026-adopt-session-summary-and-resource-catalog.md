@@ -4,6 +4,28 @@ Status: accepted
 
 OpenWaggle will add a Codex-style Session Summary backed by a durable, session-owned resource catalog. Pi remains the runtime/session authority; SQLite and managed files provide the product read model needed to render Sources, Outputs, and images after restart.
 
+## Parity baseline
+
+The observable reference is Codex GUI `26.831.21537`, build `7579`, audited on 2026-09-04. This pin makes the parity claim testable. A later Codex release changes the reference only after another behavior audit and an explicit update to this decision.
+
+Parity means matching the reference interaction for capabilities OpenWaggle truthfully owns, not rendering placeholders for unavailable product domains. The mapping for this baseline is:
+
+| Codex behavior | OpenWaggle behavior |
+| --- | --- |
+| Summary appears after a task has content | Summary appears after the first sent message |
+| Top-right floating panel, responsive suppression, header toggle | Same overlay behavior; it never reserves transcript or composer width |
+| Environment sections for discovered repositories | One Environment section for the session's single bound project/working tree; OpenWaggle has no multi-root Session model |
+| Changes, environment, branch, Commit or push, change request | Same separate controls through guarded Git services |
+| GitHub pull-request workflow | Same composer interaction, native `gh` path, exact-host readiness, and browser fallback |
+| GitLab link discovery | Native GitLab merge-request composition through `glab`, an explicit OpenWaggle superset |
+| Conditional Scheduled, Plan, Side chats, task, computer-use, browser, and process sections | Rendered only when an equivalent OpenWaggle capability and session-owned state exist; no empty or invented sections |
+| Subagents and created tasks | Hive, using immutable parent/direct-Worker lineage and delegation state |
+| Outputs and Sources | Durable session-owned catalog with exact-item navigation and provenance |
+| Shared image enlargement and gallery navigation | One active-session gallery from transcript, Summary, and Resource Browser |
+| Host-defined sections | Host-owned descriptors plus declarative, isolated extension contributions |
+
+Authorization remains in the composer by product decision. OpenWaggle does not add generic Activity or Usage sections because it owns neither a useful Activity bucket nor a truthful account-quota source.
+
 ## Context
 
 OpenWaggle currently sends image attachments to Pi but projects Pi image blocks back into transcript text such as `[Image input: image/png]`. Attachment capabilities keep an original path only long enough to hydrate a send. The renderer therefore cannot reopen a shared image after reprojection, restart, or deletion of the original file.
@@ -19,33 +41,37 @@ The app also spreads persistent session context across the composer, header, dif
 - Store resource identity, type, title, MIME type, availability, original locator, managed locator, and timestamps in `session_resources`.
 - Store every provided, read, created, and updated occurrence with node, branch, actor, and time provenance in `session_resource_occurrences`.
 - Derive Source, Output, or both from occurrences. Do not keep competing boolean classifications.
-- Use migration 27 for these tables. Migration 26 belongs to the incoming single local Session Host and Hive work.
+- Use migration 27 for these tables. Migration 26 persists the Session Host's immutable parent/Worker relationship and delegation state in `session_lineage`.
 - Archive retains resources. Permanent Session deletion cascades catalog rows and removes that Session's managed files.
 
 ### Image bytes live in managed session storage
 
 - Persist image bytes under an OpenWaggle-owned user-data directory partitioned by Session id and content hash. Transcript JSON and renderer state contain typed resource references, never base64 payloads.
 - Validate MIME type and decoded bytes before accepting an image. Local and embedded images use bounded reads and atomic temp-file replacement.
-- Remote Markdown images use HTTPS only, no ambient credentials, bounded redirects and response size, SSRF-safe address checks, and MIME/byte validation. Unsafe unsanitized formats remain ordinary file resources unless OpenWaggle sanitizes or rasterizes them.
+- Bind each prepared local attachment to a SHA-256 content identity carried through hydration and managed-file capture. Size and path checks alone do not authorize a mutable source file.
+- Remote Markdown images are cataloged without network access during run settlement, with a per-run cap on agent-authored image references. OpenWaggle materializes and caches one only after the user explicitly opens its preview, using HTTPS only, no ambient credentials, bounded redirects and response size, SSRF-safe address checks, and MIME/byte validation. Unsafe unsanitized formats remain ordinary file resources unless OpenWaggle sanitizes or rasterizes them.
 - Failed capture leaves an unavailable catalog entry with Retry and Open original actions. A failed capture must not break transcript projection.
-- Existing Sessions are backfilled lazily and idempotently from recoverable Pi image blocks, explicit links/tool resources, and resolvable local outputs.
+- Existing Sessions are backfilled lazily and idempotently from recoverable Pi image blocks, user attachments, explicit links/tool resources, and resolvable local outputs. Each pass has bounded attachment, image, and shared user/agent link work and resumes by skipping deterministic occurrences already in the catalog.
 
 ### Projection emits references and candidates
 
 - Pi projection emits renderer-safe image resource references plus main-process-only capture candidates. The application persists the Pi snapshot and projects its candidates through the resource repository.
 - User attachment metadata supplements Pi image blocks so names and original provenance survive. Content identity deduplicates the two observations.
 - Explicit signals only become resources: user attachments, Pi image blocks, image-producing tool results, Markdown image syntax, explicit links/tool reads, and declared Outputs. URL-like prose and arbitrary modified workspace files are not inferred.
+- Transcript, Summary, and browser thumbnails never prefetch uncached remote images. Opening the image viewer is the user action that authorizes one bounded materialization; the resulting managed copy serves later previews without another network request. Preview IPC returns only a main-process-rasterized WebP bounded to 256 pixels; full payloads are read only for the explicit viewer or download path.
 - Commits and created change requests are explicit Outputs. The Environment section owns the complete working-tree change list.
 
 ### The Session Summary is host-owned
 
 - Show the Summary only after the first message. Before first send, the existing setup dock owns project, environment, and run target.
-- Support the same content in persisted pinned and header-popover modes. Pin it at the top-right, fall back to the popover on narrow layouts, and hide it whenever the right sidebar is open.
+- Render the same content in one top-right floating overlay after the first message. It never reserves transcript or composer width. Hide it automatically when the chat container is too narrow or the right sidebar opens, but keep a Layout list toggle in the header available so the user can explicitly reopen or hide the overlay at any width.
 - Initial first-party order is Environment, Hive, Outputs, Sources. Add future capabilities as explicitly named conditional sections. Do not add generic Activity or Usage buckets.
+- The order may include truthful named conditional capabilities around that spine. For this baseline, active event subscriptions appear as Subscriptions and declarative extension placements remain deterministic; absent product domains do not render empty sections.
 - Authorization mode and model context usage remain in the composer before and after first send.
 - Environment exposes Changes, Local/worktree, Branch, adaptive commit/push, and provider-specific GitHub PR or GitLab MR actions through existing guarded Git services.
 - The change-request composer shows source and target refs, editable branch/title/description, optional commit-and-push, draft and normal creation, and browser fallback. Native creation requires an installed authenticated `gh` or `glab` CLI.
 - Hive shows only the opened Session's immediate parent and direct Workers, groups Workers as Active, Done, and Archived, and keeps the agreed per-session expansion behavior.
+- The hosted-task admission path records a new child Session's origin Session and caller profile once, then advances its delegation state through working, accepted, needs-attention, or cancelled. Session-list projection derives Queen/Worker roles and direct/active counts from those rows, including archived Workers; it never infers Hive data from renderer fixtures or task JSON alone.
 
 ### Sources, Outputs, and images share navigation
 
@@ -65,7 +91,7 @@ The app also spreads persistent session context across the composer, header, dif
 
 ## Consequences
 
-The change adds a persistence port/adapter, migration, managed-file service, typed IPC, renderer resource feature, Summary shell, Resource Browser, image viewer, extension contract additions, and provider-aware change-request workflow UI. Tests must cover session isolation, branch provenance, idempotent backfill, archive/delete lifecycle, capture limits and SSRF protection, Session switching, pinned/popover behavior, sidebar yielding, extension isolation, image keyboard/zoom behavior, and GitHub/GitLab workflows. Real hidden Electron QA and end-to-end interaction tests are required because layout ownership, route state, and image rendering cannot be proven through unit tests alone.
+The change adds a persistence port/adapter, migration, managed-file service, typed IPC, renderer resource feature, Summary shell, Resource Browser, image viewer, extension contract additions, and provider-aware change-request workflow UI. Tests must cover session isolation, branch provenance, idempotent backfill, archive/delete lifecycle, capture limits and SSRF protection, Session switching, floating-overlay responsiveness, sidebar yielding, extension isolation, image keyboard/zoom behavior, and GitHub/GitLab workflows. Real hidden Electron QA and end-to-end interaction tests are required because layout ownership, route state, and image rendering cannot be proven through unit tests alone.
 
 ## Alternatives considered
 

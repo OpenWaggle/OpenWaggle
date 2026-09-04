@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -25,6 +26,7 @@ async function makeFixture() {
     path: filePath,
     mimeType: 'text/plain',
     sizeBytes: Buffer.byteLength('Durable attachment contents'),
+    contentSha256: createHash('sha256').update('Durable attachment contents').digest('hex'),
     extractedText: 'Durable attachment contents',
   }
   return { userDataPath, filePath, attachment }
@@ -64,5 +66,23 @@ describe('prepared attachment registry', () => {
     expect(registryFile).toBeDefined()
     const persisted = await fs.readFile(path.join(userDataPath, registryFile ?? ''), 'utf8')
     expect(persisted).not.toContain('Durable attachment contents')
+  })
+
+  it('rejects a same-size binary replacement after preparation', async () => {
+    const { userDataPath, filePath, attachment } = await makeFixture()
+    const binaryAttachment: PreparedAttachment = {
+      ...attachment,
+      kind: 'image',
+      mimeType: 'image/png',
+      extractedText: '',
+    }
+    configurePreparedAttachmentRegistry(userDataPath)
+    await rememberPreparedAttachment(binaryAttachment, filePath)
+    await fs.writeFile(filePath, 'Changed attachment contents')
+    expect(Buffer.byteLength('Changed attachment contents')).toBe(binaryAttachment.sizeBytes)
+
+    await expect(hydrateAttachmentSources([binaryAttachment])).rejects.toThrow(
+      'Attachment changed after it was prepared',
+    )
   })
 })

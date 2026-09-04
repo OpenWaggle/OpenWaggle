@@ -1,105 +1,91 @@
-import type { GitStatusSummary, VcsStatus } from '@shared/types/git'
+import type { GitBranchInfo, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionResource } from '@shared/types/session-resource'
 import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
 import {
-  ChevronDown,
   ChevronRight,
   ExternalLink,
   FileOutput,
   FolderOpen,
-  GitBranch,
+  GitCommit,
   GitPullRequest,
   Images,
-  Laptop,
+  Plus,
 } from 'lucide-react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import type { SessionResourceBrowserTarget } from '../model/session-resource-browser'
+import { isViewableSessionImage } from '../model/session-resource-viewability'
+import type { SessionSummaryGitAction } from '../model/session-summary-git-action'
+import {
+  SessionBranchRow,
+  SessionEnvironmentActions,
+  SessionEnvironmentRow,
+} from './SessionSummaryEnvironmentRows'
+import {
+  SessionSummaryPaginatedList,
+  SessionSummaryRow,
+  SessionSummarySection,
+} from './SessionSummaryPrimitives'
 
 const SUMMARY_RESOURCE_LIMIT = 3
 
-export function SummarySection({
-  title,
-  count,
-  expanded,
-  onExpandedChange,
-  children,
-}: {
-  readonly title: string
-  readonly count?: number
-  readonly expanded: boolean
-  readonly onExpandedChange: (expanded: boolean) => void
-  readonly children: React.ReactNode
-}) {
-  return (
-    <section className="border-t border-border first:border-t-0">
-      <Button
-        variant="unstyled"
-        className="flex h-10 w-full items-center gap-2 px-3 text-left hover:bg-bg-hover"
-        aria-expanded={expanded}
-        onClick={() => onExpandedChange(!expanded)}
-      >
-        {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-        <span className="flex-1 text-sm font-medium text-text-primary">{title}</span>
-        {count === undefined ? null : <span className="text-xs text-text-tertiary">{count}</span>}
-      </Button>
-      {expanded ? <div className="space-y-1 px-2 pb-2">{children}</div> : null}
-    </section>
-  )
-}
-
-export function SummaryRow({
-  icon,
-  label,
-  value,
-  onClick,
-}: {
-  readonly icon: React.ReactNode
-  readonly label: string
-  readonly value?: React.ReactNode
-  readonly onClick?: () => void
-}) {
-  const content = (
-    <>
-      <span className="text-text-tertiary">{icon}</span>
-      <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">{label}</span>
-      {value === undefined ? null : <span className="shrink-0 text-sm">{value}</span>}
-    </>
-  )
-  return onClick ? (
-    <Button
-      variant="unstyled"
-      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-bg-hover"
-      onClick={onClick}
-    >
-      {content}
-    </Button>
-  ) : (
-    <div className="flex h-8 items-center gap-2 px-2">{content}</div>
-  )
-}
-
-export function EnvironmentSummarySection({
-  expanded,
-  environmentMode,
-  gitStatus,
-  vcsStatus,
-  onExpandedChange,
-  onOpenDiff,
-  onCreateChangeRequest,
-}: {
+interface EnvironmentSummarySectionInput {
   readonly expanded: boolean
   readonly environmentMode: 'local' | 'worktree'
+  readonly workingPath: string | null
   readonly gitStatus: GitStatusSummary | null
   readonly vcsStatus: VcsStatus | null
+  readonly branches: readonly GitBranchInfo[]
+  readonly branchBusy: boolean
+  readonly branchError: string | null
   readonly onExpandedChange: (expanded: boolean) => void
   readonly onOpenDiff: () => void
   readonly onCreateChangeRequest: () => void
+  readonly onToggleTerminal: () => void
+  readonly onRefreshBranches: () => void
+  readonly onSelectBranch: (branch: string) => Promise<boolean>
+  readonly onCreateBranch: (branch: string) => Promise<boolean>
+  readonly quickAction: SessionSummaryGitAction
+  readonly onQuickAction: () => void
+}
+
+export function EnvironmentSummarySection({
+  input,
+}: {
+  readonly input: EnvironmentSummarySectionInput
 }) {
+  const {
+    expanded,
+    environmentMode,
+    workingPath,
+    gitStatus,
+    vcsStatus,
+    branches,
+    branchBusy,
+    branchError,
+    onExpandedChange,
+    onOpenDiff,
+    onCreateChangeRequest,
+    onToggleTerminal,
+    onRefreshBranches,
+    onSelectBranch,
+    onCreateBranch,
+    quickAction,
+    onQuickAction,
+  } = input
   const terminology = getChangeRequestTerminology(vcsStatus?.sourceControlProvider?.id)
   const existing = vcsStatus?.changeRequest
   return (
-    <SummarySection title="Environment" expanded={expanded} onExpandedChange={onExpandedChange}>
-      <SummaryRow
+    <SessionSummarySection
+      id="environment"
+      title="Environment"
+      expanded={expanded}
+      onExpandedChange={onExpandedChange}
+      actions={
+        <SessionEnvironmentActions workingPath={workingPath} onToggleTerminal={onToggleTerminal} />
+      }
+    >
+      <SessionSummaryRow
         icon={<FolderOpen className="size-4" />}
         label="Changes"
         value={
@@ -114,28 +100,36 @@ export function EnvironmentSummarySection({
         }
         onClick={onOpenDiff}
       />
-      <SummaryRow
-        icon={<Laptop className="size-4" />}
-        label={environmentMode === 'worktree' ? 'Worktree' : 'Local'}
+      <SessionEnvironmentRow environmentMode={environmentMode} workingPath={workingPath} />
+      <SessionBranchRow
+        branch={gitStatus?.branch ?? vcsStatus?.refName ?? null}
+        branches={branches}
+        busy={branchBusy}
+        error={branchError}
+        onRefresh={onRefreshBranches}
+        onSelect={onSelectBranch}
+        onCreate={onCreateBranch}
       />
-      <SummaryRow
-        icon={<GitBranch className="size-4" />}
-        label={gitStatus?.branch ?? vcsStatus?.refName ?? 'No ref'}
+      <SessionSummaryRow
+        icon={<GitCommit className="size-4" />}
+        label={quickAction.label}
+        disabledReason={quickAction.disabled ? quickAction.hint : undefined}
+        onClick={onQuickAction}
       />
       {existing ? (
-        <SummaryRow
+        <SessionSummaryRow
           icon={<ExternalLink className="size-4" />}
           label={`Open ${terminology.shortLabel}`}
           onClick={() => void api.openExternal(existing.url)}
         />
       ) : vcsStatus?.sourceControlProvider ? (
-        <SummaryRow
+        <SessionSummaryRow
           icon={<GitPullRequest className="size-4" />}
           label={`Create ${terminology.shortLabel}`}
           onClick={onCreateChangeRequest}
         />
       ) : null}
-    </SummarySection>
+    </SessionSummarySection>
   )
 }
 
@@ -145,44 +139,92 @@ export function ResourceSummarySection({
   expanded,
   onExpandedChange,
   onOpenResources,
+  onOpenImage,
+  onAddSource,
 }: {
   readonly title: 'Outputs' | 'Sources'
   readonly resources: readonly SessionResource[]
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
-  readonly onOpenResources: () => void
+  readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
+  readonly onOpenImage: (resourceId: string) => void
+  readonly onAddSource?: () => void
 }) {
   if (resources.length === 0) return null
+  const view = title === 'Outputs' ? 'outputs' : 'sources'
+  const openResource = (resource: SessionResource) => {
+    if (isViewableSessionImage(resource)) {
+      onOpenImage(resource.id)
+      return
+    }
+    onOpenResources({ view, resourceId: resource.id })
+  }
   return (
-    <SummarySection
+    <SessionSummarySection
+      id={title.toLowerCase()}
       title={title}
       count={resources.length}
       expanded={expanded}
       onExpandedChange={onExpandedChange}
+      actions={
+        title === 'Sources' && onAddSource ? (
+          <Button
+            variant="unstyled"
+            type="button"
+            aria-label="Add a source"
+            className="grid size-7 place-items-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            onClick={onAddSource}
+          >
+            <Plus aria-hidden="true" className="size-4" />
+          </Button>
+        ) : undefined
+      }
     >
-      {resources.slice(0, SUMMARY_RESOURCE_LIMIT).map((resource) => (
-        <SummaryRow
-          key={resource.id}
-          icon={
-            resource.kind === 'image' ? (
-              <Images className="size-4" />
-            ) : title === 'Outputs' ? (
-              <FileOutput className="size-4" />
-            ) : (
-              <FolderOpen className="size-4" />
-            )
-          }
-          label={resource.title}
-          onClick={onOpenResources}
-        />
-      ))}
-      {resources.length > SUMMARY_RESOURCE_LIMIT ? (
-        <SummaryRow
+      {title === 'Outputs' ? (
+        <section aria-label="Outputs list" className="max-h-80 overflow-y-auto overscroll-contain">
+          <SessionSummaryPaginatedList
+            items={resources}
+            getKey={(resource) => resource.id}
+            renderItem={(resource) => (
+              <SessionSummaryRow
+                icon={
+                  resource.kind === 'image' ? (
+                    <Images className="size-4" />
+                  ) : (
+                    <FileOutput className="size-4" />
+                  )
+                }
+                label={resource.title}
+                onClick={() => openResource(resource)}
+              />
+            )}
+          />
+        </section>
+      ) : (
+        resources
+          .slice(0, SUMMARY_RESOURCE_LIMIT)
+          .map((resource) => (
+            <SessionSummaryRow
+              key={resource.id}
+              icon={
+                resource.kind === 'image' ? (
+                  <Images className="size-4" />
+                ) : (
+                  <FolderOpen className="size-4" />
+                )
+              }
+              label={resource.title}
+              onClick={() => openResource(resource)}
+            />
+          ))
+      )}
+      {title === 'Sources' ? (
+        <SessionSummaryRow
           icon={<ChevronRight className="size-4" />}
           label="Show all"
-          onClick={onOpenResources}
+          onClick={() => onOpenResources({ view })}
         />
       ) : null}
-    </SummarySection>
+    </SessionSummarySection>
   )
 }

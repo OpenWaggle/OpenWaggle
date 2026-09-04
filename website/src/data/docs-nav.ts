@@ -21,6 +21,8 @@ export const docsNav: NavSection[] = [
     title: 'Using OpenWaggle',
     items: [
       { title: 'Chat & Tools', slug: 'using-openwaggle/chat-and-tools' },
+      { title: 'Session Summary & Resources', slug: 'using-openwaggle/session-summary' },
+      { title: 'Session Tree & Branches', slug: 'using-openwaggle/session-tree' },
       { title: 'Waggle Mode', slug: 'using-openwaggle/waggle-mode' },
       { title: 'Attachments & Voice', slug: 'using-openwaggle/attachments-voice' },
       { title: 'Context Management', slug: 'using-openwaggle/context-management' },

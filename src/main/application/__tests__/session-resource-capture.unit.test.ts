@@ -1,16 +1,19 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
-import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
-import { captureProjectedSessionResources } from '../session-resource-backfill'
-import { captureSuccessfulRunResources } from '../session-resource-capture'
+import { captureAttachment, captureSuccessfulRunResources } from '../session-resource-capture'
 import { resourceMessages, sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
+const REMOTE_IMAGE_REFERENCE_LIMIT = 32
+const EXCESS_REMOTE_IMAGE_COUNT = REMOTE_IMAGE_REFERENCE_LIMIT + 8
+
 describe('captureSuccessfulRunResources', () => {
-  it('links user attachments and agent images to the message that displayed them', async () => {
+  it('links user attachments and tool-created images to the message that displayed them', async () => {
     const upserts: UpsertSessionResourceInput[] = []
+    const storedAttachmentSha256: Array<string | undefined> = []
     const payload: AgentSendPayload = {
       text: 'Review [reference](https://user.example/reference)',
       thinkingLevel: 'medium',
@@ -22,6 +25,7 @@ describe('captureSuccessfulRunResources', () => {
           path: '/input/reference.png',
           mimeType: 'image/png',
           sizeBytes: 42,
+          contentSha256: 'a'.repeat(64),
           extractedText: '',
         },
       ],
@@ -33,7 +37,15 @@ describe('captureSuccessfulRunResources', () => {
         runId: 'run-1',
         payload,
         messages: resourceMessages(),
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+        nodeIdByMessageId: {
+          'user-message': 'persisted-user-node',
+          'assistant-message': 'persisted-assistant-node',
+        },
+        branchIdByMessageId: {
+          'user-message': 'branch-user',
+          'assistant-message': 'branch-assistant',
+        },
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storedAttachmentSha256 }))),
     )
 
     expect(upserts).toEqual(
@@ -42,7 +54,8 @@ describe('captureSuccessfulRunResources', () => {
           kind: 'image',
           title: 'reference.png',
           occurrence: expect.objectContaining({
-            nodeId: 'user-message',
+            nodeId: 'persisted-user-node',
+            branchId: 'branch-user',
             actor: 'user',
             activity: 'provided',
           }),
@@ -50,13 +63,112 @@ describe('captureSuccessfulRunResources', () => {
         expect.objectContaining({
           kind: 'image',
           occurrence: expect.objectContaining({
-            nodeId: 'assistant-message',
-            actor: 'agent',
+            nodeId: 'persisted-assistant-node',
+            branchId: 'branch-assistant',
+            actor: 'tool',
             activity: 'created',
           }),
         }),
       ]),
     )
+    expect(storedAttachmentSha256).toEqual(['a'.repeat(64)])
+  })
+
+  it('retains unavailable attachment metadata when the managed copy cannot be created', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-missing-attachment',
+        payload: {
+          text: 'Review the attachment.',
+          thinkingLevel: 'medium',
+          attachments: [
+            {
+              id: 'attachment-missing',
+              kind: 'image',
+              name: 'missing.png',
+              path: '/input/missing.png',
+              mimeType: 'image/png',
+              sizeBytes: 42,
+              extractedText: '',
+            },
+          ],
+        },
+        messages: resourceMessages(),
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { storeFileFails: true }))),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        canonicalKey: 'file:/input/missing.png',
+        kind: 'image',
+        title: 'missing.png',
+        mimeType: 'image/png',
+        locator: '/input/missing.png',
+        managedPath: null,
+        available: false,
+        occurrence: expect.objectContaining({ actor: 'user', activity: 'provided' }),
+      }),
+    )
+  })
+
+  it('retries an unavailable attachment occurrence into the same resource', async () => {
+    const unavailable: SessionResource = {
+      id: 'missing-resource',
+      sessionId: SessionId('session-1'),
+      canonicalKey: 'file:/input/missing.png',
+      kind: 'image',
+      title: 'missing.png',
+      mimeType: 'image/png',
+      locator: '/input/missing.png',
+      available: false,
+      isSource: true,
+      isOutput: false,
+      occurrences: [],
+      createdAt: 1000,
+      updatedAt: 1000,
+    }
+    const upserts: UpsertSessionResourceInput[] = []
+    const rekeyedCanonicalKeys: string[] = []
+
+    await Effect.runPromise(
+      captureAttachment({
+        sessionId: SessionId('session-1'),
+        runId: 'backfill:user-message',
+        attachment: {
+          id: 'attachment-missing',
+          kind: 'image',
+          name: 'missing.png',
+          path: '/input/missing.png',
+          mimeType: 'image/png',
+          sizeBytes: 42,
+          extractedText: '',
+        },
+        index: 0,
+        nodeId: 'user-message',
+        createdAt: 1000,
+      }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer(upserts, {
+            existingResource: unavailable,
+            hasOccurrence: true,
+            rekeyedCanonicalKeys,
+          }),
+        ),
+      ),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        id: 'missing-resource',
+        canonicalKey: 'sha256:attachment-digest',
+        locator: 'session-resource://missing-resource',
+        managedPath: '/managed/missing-resource-missing.png',
+        available: true,
+      }),
+    )
+    expect(rekeyedCanonicalKeys).toEqual(['sha256:attachment-digest'])
   })
 
   it('records user links as sources on the user message and agent citations as read sources', async () => {
@@ -88,152 +200,97 @@ describe('captureSuccessfulRunResources', () => {
     )
   })
 
-  it('ignores malformed and oversized generated image payloads', async () => {
+  it('catalogs agent Markdown images without fetching them during run settlement', async () => {
     const upserts: UpsertSessionResourceInput[] = []
-    const huge = Buffer.alloc(25 * 1024 * 1024 + 1).toString('base64')
-    const invalidMessages: Message[] = [
-      {
-        id: MessageId('assistant-message'),
-        role: 'assistant',
-        parts: [
+    const fetchedUrls: string[] = []
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-remote-image',
+        payload: {
+          text: 'Show the image.',
+          thinkingLevel: 'medium',
+          attachments: [],
+        },
+        messages: [
           {
-            type: 'tool-result',
-            toolResult: {
-              id: ToolCallId('image-tool'),
-              name: 'imagegen',
-              args: {},
-              result: {
-                content: [
-                  { type: 'image', data: '', mimeType: 'image/png' },
-                  { type: 'image', data: huge, mimeType: 'image/png' },
-                ],
+            id: MessageId('persisted-assistant-node'),
+            role: 'assistant',
+            parts: [
+              {
+                type: 'text',
+                text: '![Architecture](https://images.example/architecture.png)',
               },
-              isError: false,
-              duration: 10,
-            },
+            ],
+            createdAt: 1000,
           },
         ],
-        createdAt: 2000,
-      },
-    ]
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { fetchedUrls }))),
+    )
+
+    expect(fetchedUrls).toEqual([])
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        canonicalKey: 'url:https://images.example/architecture.png',
+        kind: 'image',
+        mimeType: null,
+        locator: 'https://images.example/architecture.png',
+        managedPath: null,
+      }),
+    )
+  })
+
+  it('bounds agent remote-image references per run without downloading any of them', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    const fetchedUrls: string[] = []
+    const markdown = Array.from(
+      { length: EXCESS_REMOTE_IMAGE_COUNT },
+      (_, index) => `![Image ${String(index)}](https://images.example/${String(index)}.png)`,
+    ).join('\n')
 
     await Effect.runPromise(
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
-        runId: 'run-1',
+        runId: 'run-many-remote-images',
         payload: { text: '', thinkingLevel: 'medium', attachments: [] },
-        messages: invalidMessages,
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+        messages: [
+          {
+            id: MessageId('assistant-many-images'),
+            role: 'assistant',
+            parts: [{ type: 'text', text: markdown }],
+            createdAt: 1000,
+          },
+        ],
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { fetchedUrls }))),
     )
 
-    expect(upserts).toEqual([])
+    expect(fetchedUrls).toEqual([])
+    expect(upserts.filter((resource) => resource.kind === 'image')).toHaveLength(
+      REMOTE_IMAGE_REFERENCE_LIMIT,
+    )
   })
 
-  it('removes a newly copied duplicate when the catalog preserves an existing managed image', async () => {
+  it('keeps separate occurrences when two assistant messages share a resource', async () => {
     const upserts: UpsertSessionResourceInput[] = []
-    const removedPaths: string[] = []
+    const first = resourceMessages()[1]
+    if (!first) throw new Error('Expected the assistant fixture message.')
+    const second: Message = { ...first, id: MessageId('assistant-message-2'), createdAt: 3000 }
+
     await Effect.runPromise(
       captureSuccessfulRunResources({
         sessionId: SessionId('session-1'),
-        runId: 'run-duplicate',
-        payload: {
-          text: '',
-          thinkingLevel: 'medium',
-          attachments: [
-            {
-              id: 'duplicate',
-              kind: 'image',
-              name: 'duplicate.png',
-              path: '/input/duplicate.png',
-              mimeType: 'image/png',
-              sizeBytes: 42,
-              extractedText: '',
-            },
-          ],
-        },
-        messages: resourceMessages(),
-      }).pipe(
-        Effect.provide(
-          sessionResourceTestLayer(upserts, {
-            duplicateLocator: 'session-resource://existing-resource',
-            removedPaths,
-          }),
-        ),
-      ),
-    )
-
-    expect(removedPaths).toHaveLength(2)
-    expect(removedPaths.every((managedPath) => managedPath.startsWith('/managed/'))).toBe(true)
-  })
-
-  it('backfills explicit resources from persisted messages with deterministic occurrences', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const persisted = resourceMessages()
-    await Effect.runPromise(
-      captureProjectedSessionResources({
-        sessionId: SessionId('session-1'),
-        messages: persisted,
+        runId: 'run-shared',
+        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        messages: [first, second],
       }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
     )
 
-    expect(upserts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          canonicalKey: 'url:https://user.example/reference',
-          occurrence: expect.objectContaining({
-            id: expect.stringContaining('backfill:user-message'),
-            nodeId: 'user-message',
-          }),
-        }),
-        expect.objectContaining({
-          kind: 'image',
-          occurrence: expect.objectContaining({
-            id: expect.stringContaining('backfill:assistant-message'),
-            nodeId: 'assistant-message',
-          }),
-        }),
-      ]),
-    )
-  })
-
-  it('does not rewrite managed image bytes when backfill finds the canonical resource', async () => {
-    const upserts: UpsertSessionResourceInput[] = []
-    const storedByteFiles: string[] = []
-    const existingResource: SessionResource = {
-      id: 'existing-image',
-      sessionId: SessionId('session-1'),
-      canonicalKey: `sha256:${'unused'}`,
-      kind: 'image',
-      title: 'Generated image.png',
-      mimeType: 'image/png',
-      locator: 'session-resource://existing-image',
-      available: true,
-      isSource: false,
-      isOutput: true,
-      occurrences: [],
-      createdAt: 1000,
-      updatedAt: 1000,
-    }
-    const assistantMessage = resourceMessages()[1]
-    if (!assistantMessage) throw new Error('Expected the assistant fixture message.')
-
-    await Effect.runPromise(
-      captureProjectedSessionResources({
-        sessionId: SessionId('session-1'),
-        messages: [assistantMessage],
-      }).pipe(
-        Effect.provide(sessionResourceTestLayer(upserts, { existingResource, storedByteFiles })),
-      ),
-    )
-
-    expect(storedByteFiles).toEqual([])
-    expect(upserts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'existing-image',
-          locator: 'session-resource://existing-image',
-        }),
-      ]),
-    )
+    const generated = upserts.filter((input) => input.kind === 'image')
+    expect(generated).toHaveLength(2)
+    expect(new Set(generated.map((input) => input.occurrence.id)).size).toBe(2)
+    expect(generated.map((input) => input.occurrence.nodeId)).toEqual([
+      'assistant-message',
+      'assistant-message-2',
+    ])
   })
 })

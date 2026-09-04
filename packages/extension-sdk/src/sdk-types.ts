@@ -1,5 +1,11 @@
 import type { JsonValue } from './json.js'
 import type {
+  ExtensionSessionResourceListPayload,
+  ExtensionSessionResourceListResult,
+  ExtensionSessionResourcePublishPayload,
+  ExtensionSessionResourcePublishResult,
+} from './session-resource-types.js'
+import type {
   ExtensionActionSelectProjectResult,
   ExtensionDocsDiscoverPayload,
   ExtensionDocsDiscoverResult,
@@ -207,6 +213,23 @@ export interface ExtensionOpenWaggleSdk {
       input: ExtensionDocsResolveTopicPayload,
     ) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>
   }
+  readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk
+}
+
+export type ExtensionSessionInvokeScope = Extract<
+  ExtensionInvokeScope,
+  { readonly kind: 'session' }
+>
+
+export interface ExtensionOpenWaggleSessionResourcesSdk {
+  readonly publish: (
+    scope: ExtensionSessionInvokeScope,
+    resource: ExtensionSessionResourcePublishPayload,
+  ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>
+  readonly list: (
+    scope: ExtensionSessionInvokeScope,
+    input?: ExtensionSessionResourceListPayload,
+  ) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>
 }
 
 export interface ExtensionRuntimeContributionSdk {

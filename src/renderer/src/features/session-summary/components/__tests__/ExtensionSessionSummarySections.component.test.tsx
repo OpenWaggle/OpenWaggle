@@ -1,130 +1,218 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type {
-  ExtensionContributionRegistryEntry,
-  ExtensionContributionRegistryView,
-} from '@shared/types/extensions'
-import { render, screen } from '@testing-library/react'
+import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useUIStore } from '@/shell/ui-store'
 import { ExtensionSessionSummarySections } from '../ExtensionSessionSummarySections'
-
-const extensionMocks = vi.hoisted(() => ({
-  host: vi.fn(),
-  resolve: vi.fn(),
-}))
-
-vi.mock('@/features/extensions', () => ({
-  ExtensionContributionRuntimeHost: (props: unknown) => extensionMocks.host(props),
-  resolveExtensionAgentLoopContributionEntries: (input: unknown) => extensionMocks.resolve(input),
-}))
-
-const PROJECT_PATH = '/project'
-
-function entry(id: string): ExtensionContributionRegistryEntry {
-  return {
-    extensionId: 'summary-extension',
-    extensionName: 'Summary Extension',
-    extensionVersion: '1.0.0',
-    scope: {
-      kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
-      label: 'Project',
-      projectPath: PROJECT_PATH,
-    },
-    packagePath: `${PROJECT_PATH}/.openwaggle/extensions/summary-extension`,
-    manifestPath: `${PROJECT_PATH}/.openwaggle/extensions/summary-extension/openwaggle.extension.json`,
-    contentHash: 'abcdef',
-    projectPaths: [PROJECT_PATH],
-    appliesToAllRequestedProjects: true,
-    family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
-    contributionId: id,
-    title: id === 'broken' ? 'Broken section' : 'Healthy section',
-    label: id,
-    runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
-    execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
-    entryPath: 'dist/summary.html',
-    eligibility: {
-      runtimeEnabled: true,
-      enabled: true,
-      trusted: true,
-      sdkCompatible: true,
-      updateAvailable: false,
-      disabledProjectPaths: [],
-    },
-    diagnostics: [],
-  }
-}
-
-const REGISTRY: ExtensionContributionRegistryView = {
-  projectPaths: [PROJECT_PATH],
-  entries: [entry('healthy')],
-}
+import {
+  baseEntry,
+  PROJECT_PATH,
+  registry,
+  sessionResource,
+  summaryEntry,
+} from './extension-session-summary-test-fixtures'
 
 describe('ExtensionSessionSummarySections', () => {
   beforeEach(() => {
-    extensionMocks.host
-      .mockReset()
-      .mockImplementation((props: { readonly surfacePayload: unknown }) => (
-        <output>{JSON.stringify(props.surfacePayload)}</output>
-      ))
-    extensionMocks.resolve.mockReset().mockReturnValue([{ entry: entry('healthy') }])
+    localStorage.clear()
+    useUIStore.setState({ resourceViewer: null })
   })
 
-  it('passes only the opened session scope to eligible extension sections', () => {
-    const view = render(
+  it('renders declarative rows only in their declared placement', () => {
+    const view = registry([summaryEntry()])
+    const rendered = render(
       <ExtensionSessionSummarySections
-        registry={REGISTRY}
+        registry={view}
         projectPaths={[PROJECT_PATH]}
         sessionId="session-one"
         messageCount={3}
+        placement="context"
+        resources={[]}
+        onOpenResources={vi.fn()}
       />,
     )
+    expect(screen.queryByText('Build status')).toBeNull()
 
-    expect(screen.getByText(/"sessionId":"session-one"/)).toBeInTheDocument()
-    expect(screen.queryByText(/session-two/)).toBeNull()
-    expect(extensionMocks.resolve).toHaveBeenCalledWith({
-      registry: REGISTRY,
-      target: { surface: 'transcript' },
-      requestedProjectPaths: [PROJECT_PATH],
-      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
-    })
-
-    view.rerender(
+    rendered.rerender(
       <ExtensionSessionSummarySections
-        registry={REGISTRY}
+        registry={view}
         projectPaths={[PROJECT_PATH]}
-        sessionId="session-two"
-        messageCount={1}
+        sessionId="session-one"
+        messageCount={3}
+        placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
       />,
     )
-    expect(screen.getByText(/"sessionId":"session-two"/)).toBeInTheDocument()
-    expect(screen.queryByText(/session-one/)).toBeNull()
+    expect(screen.getByText('Build status')).toBeInTheDocument()
+    expect(screen.getByText('Ready')).toBeInTheDocument()
+    expect(screen.getByText('Workers').parentElement).toHaveTextContent('4')
   })
 
-  it('contains a failed extension without hiding healthy sections', () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    extensionMocks.resolve.mockReturnValue([
-      { entry: entry('broken') },
-      { entry: entry('healthy') },
-    ])
-    extensionMocks.host.mockImplementation(
-      (props: { readonly entry: ExtensionContributionRegistryEntry }) => {
-        if (props.entry.contributionId === 'broken') throw new Error('Extension failed')
-        return <output>Healthy extension content</output>
-      },
-    )
-
-    render(
+  it('renders a Session-targeted contribution only for its owning Session', () => {
+    const targetedEntry = {
+      ...summaryEntry(),
+      sessionId: 'session-two',
+      target: { sessionIds: ['session-two'] },
+    } satisfies ExtensionContributionRegistryEntry
+    const view = registry([targetedEntry])
+    const rendered = render(
       <ExtensionSessionSummarySections
-        registry={REGISTRY}
+        registry={view}
         projectPaths={[PROJECT_PATH]}
         sessionId="session-one"
         messageCount={1}
+        placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('Build status')).toBeNull()
+
+    rendered.rerender(
+      <ExtensionSessionSummarySections
+        registry={view}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-two"
+        messageCount={1}
+        placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('Build status')).toBeInTheDocument()
+  })
+
+  it('keeps resource and side-panel actions scoped to the opened session and package', () => {
+    const openSidePanel = vi.fn()
+    const panel = {
+      ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS, 'details-panel'),
+      runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+      execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+      entryPath: 'dist/panel.js',
+    } satisfies ExtensionContributionRegistryEntry
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry(), panel])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[sessionResource('image')]}
+        onOpenResources={vi.fn()}
+        onOpenSidePanel={openSidePanel}
       />,
     )
 
-    expect(screen.getByText('Healthy extension content')).toBeInTheDocument()
-    expect(
-      screen.getByText(/Session Summary extension: Broken section panel error/),
-    ).toBeInTheDocument()
-    consoleError.mockRestore()
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-one',
+      resourceId: 'resource-one',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Open details' }))
+    expect(openSidePanel).toHaveBeenCalledWith({
+      extensionId: 'summary-extension',
+      sidePanelId: 'details-panel',
+      packagePath: panel.packagePath,
+      contentHash: panel.contentHash,
+    })
+  })
+
+  it('opens non-image extension resources in the Session Resource Browser', () => {
+    const onOpenResources = vi.fn()
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry()])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[sessionResource('file')]}
+        onOpenResources={onOpenResources}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(onOpenResources).toHaveBeenCalledWith({
+      view: 'outputs',
+      resourceId: 'resource-one',
+    })
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
+  it('opens unavailable extension images in resources instead of an empty viewer', () => {
+    const onOpenResources = vi.fn()
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry()])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[{ ...sessionResource('image'), available: false }]}
+        onOpenResources={onOpenResources}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(onOpenResources).toHaveBeenCalledWith({
+      view: 'outputs',
+      resourceId: 'resource-one',
+    })
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
+  it('never activates a resource that belongs to another Session', () => {
+    const onOpenResources = vi.fn()
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry()])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[sessionResource('image', 'session-two')]}
+        onOpenResources={onOpenResources}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull()
+    fireEvent.click(screen.getByText('Preview'))
+    expect(onOpenResources).not.toHaveBeenCalled()
+    expect(useUIStore.getState().resourceViewer).toBeNull()
+  })
+
+  it('rejects actions from another package or Session', () => {
+    const openSidePanel = vi.fn()
+    const foreignPanel = {
+      ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS, 'details-panel'),
+      extensionId: 'foreign-extension',
+      runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+      execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+      entryPath: 'dist/panel.js',
+    } satisfies ExtensionContributionRegistryEntry
+    const otherSessionPanel = {
+      ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS, 'details-panel'),
+      sessionId: 'session-two',
+      target: { sessionIds: ['session-two'] },
+      runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+      execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+      entryPath: 'dist/panel.js',
+    } satisfies ExtensionContributionRegistryEntry
+    render(
+      <ExtensionSessionSummarySections
+        registry={registry([summaryEntry(), foreignPanel, otherSessionPanel])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
+        onOpenSidePanel={openSidePanel}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Open details' })).toBeNull()
+    expect(openSidePanel).not.toHaveBeenCalled()
   })
 })

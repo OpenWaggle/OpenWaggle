@@ -94,6 +94,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ## Product And UX Memory
 
+- The Session Summary is a floating overlay, never a layout column. It must not add transcript or composer padding. The host auto-hides it when the chat container has less than 840px or the right sidebar opens, while the Summary toggle remains available so an explicit open can overlay the chat at any width.
 - Pi-native sidebar navigation is Projects-only. Do not add a global projectless Chats section.
 - Waggle mode must run inside Pi as extension/runtime behavior, not as an OpenWaggle application loop that calls Pi once per agent turn.
 - Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.
@@ -356,6 +357,28 @@ IPC read includes the opened `SessionId` to prevent resources leaking across ses
 Managed bytes live below Electron user data in `session-resources/<session-id>/`, not in the project.
 Archiving retains them; permanent session deletion removes them after the database cascade. Successful
 runs capture new explicit resources, while opening the resource catalog backfills reconstructable
-resources from older projected transcripts with deterministic occurrence ids. A transcript occurrence's
-`nodeId` is what connects an inline thumbnail to the exact user or assistant message and lets the viewer
-prioritise images on the visible branch before images from other branches in the same session.
+resources from older projected transcripts with deterministic occurrence ids. Attachment backfill is
+bounded per lazy pass and resumes by skipping cataloged occurrence ids; do not turn catalog opening into
+an unbounded sweep over historical files. Explicit links from both actors share one per-run or per-pass
+budget, and backfill resumes by skipping cataloged link occurrence ids. Prepared local attachments carry a SHA-256 content identity
+through hydration and managed-file capture, so a same-size replacement at the original path is rejected.
+A transcript occurrence's `nodeId` is what connects an inline thumbnail to the exact user or assistant
+message and lets the viewer prioritise images on the visible branch before images from other branches in
+the same session.
+
+Remote Markdown images are metadata-only during run settlement and thumbnail rendering. The main
+process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,
+then stores the validated bytes as the resource's managed copy. Do not reintroduce automatic remote
+thumbnail prefetching: it leaks network timing and can turn one agent response into unbounded download
+work before run completion. Managed previews use the thumbnail IPC path, which rasterizes at most a
+256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
+transcript thumbnails. Full bytes are reserved for an explicit viewer or download action.
+
+### Hive state comes from the session projection
+
+`session_lineage` records immutable parentage for Sessions created by a hosted task plus the caller
+profile and current delegation state. The detail-side session summary query derives Queen/Worker roles
+and direct/active Worker counts from that table for both live and archived lists. The hosted task manager
+is the production writer: a new task-created Session establishes lineage once, while success, failure,
+and cancellation update only an existing lineage row. Do not reconstruct Hive state from task JSON in
+the renderer or reparent an existing Session when a task merely targets it.

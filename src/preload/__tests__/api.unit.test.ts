@@ -1,5 +1,5 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import { SessionId } from '@shared/types/brand'
+import { SessionId, WorkingPath } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -37,6 +37,94 @@ describe('preload api surface contract', () => {
     )
   })
 
+  it('records a commit only in the explicitly requested session', async () => {
+    const input = {
+      commitHash: '0123456789abcdef0123456789abcdef01234567',
+      title: 'Record commit output',
+    }
+
+    await api.recordSessionCommit(SessionId('session-1'), input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:record-commit',
+      SessionId('session-1'),
+      input,
+    )
+  })
+
+  it('advances historical resource backfill without requesting the catalog', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({ backfillComplete: false })
+
+    await api.advanceSessionResourceBackfill(SessionId('session-1'))
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:backfill',
+      SessionId('session-1'),
+    )
+  })
+
+  it('preflights change-request readiness through typed IPC', async () => {
+    const payload = {
+      headRef: 'codex/session-summary',
+      baseRef: 'main',
+      title: 'Session summary',
+      body: 'Ready for review.',
+      draft: false,
+    }
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      provider: { id: 'github', host: 'github.com' },
+      readiness: {
+        ok: true,
+        status: { authenticated: true, account: 'octocat', host: 'github.com' },
+      },
+      browserUrl: 'https://github.com/openwaggle/openwaggle/compare?expand=1',
+    })
+
+    await api.preflightChangeRequest(WorkingPath('/tmp/repo'), payload)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'git:change-request:preflight',
+      WorkingPath('/tmp/repo'),
+      payload,
+    )
+  })
+
+  it('requests a bounded session resource thumbnail through its own IPC channel', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      resourceId: 'resource-1',
+      fileName: 'resource-1-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'dGh1bWJuYWls',
+    })
+
+    await api.readSessionResourceThumbnail(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:thumbnail',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
+  it('retries only the requested resource through typed IPC', async () => {
+    await api.retrySessionResource(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:retry',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
+  it('subscribes to exact-session resource invalidations', () => {
+    api.onSessionResourcesInvalidated(() => undefined)
+
+    expect(ipcRenderer.on).toHaveBeenCalledWith(
+      'sessions:resources-invalidated',
+      expect.any(Function),
+    )
+  })
+
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {
     const file = new File(['screenshot'], 'screenshot.png')
     vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])
@@ -48,6 +136,12 @@ describe('preload api surface contract', () => {
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('attachments:prepare', '/tmp/repo', [
       '/tmp/Desktop/screenshot.png',
     ])
+  })
+
+  it('reveals the requested local path through typed IPC', async () => {
+    await api.revealPath('/tmp/image.png')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('shell:reveal-path', '/tmp/image.png')
   })
 
   it('lists extension contributions through the typed IPC channel', async () => {
@@ -175,6 +269,8 @@ describe('preload api surface contract', () => {
       'onWaggleTurnEvent',
       'onOAuthStatus',
       'onSessionTitleUpdated',
+      'onSessionListInvalidated',
+      'onSessionResourcesInvalidated',
       'onUpdateStatus',
     ] as const
 

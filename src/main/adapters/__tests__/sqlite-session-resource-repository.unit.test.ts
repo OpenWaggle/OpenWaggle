@@ -110,10 +110,38 @@ describe('SqliteSessionResourceRepositoryLive', () => {
           createdAt: 2000,
           updatedAt: 2000,
         })
+        yield* repository.upsert({
+          id: 'older-observation',
+          sessionId,
+          canonicalKey: 'file:/project/report.png',
+          kind: 'link',
+          title: 'stale-title',
+          mimeType: null,
+          locator: 'https://example.invalid/stale',
+          managedPath: null,
+          available: true,
+          occurrence: {
+            id: 'occurrence-older',
+            nodeId: 'node-old-branch',
+            branchId: 'branch-old',
+            actor: 'agent',
+            activity: 'read',
+            label: null,
+            createdAt: 500,
+          },
+          createdAt: 500,
+          updatedAt: 500,
+        })
 
         const resources = yield* repository.list(sessionId)
         const found = yield* repository.findByCanonicalKey(sessionId, 'file:/project/report.png')
-        return { resources, found }
+        const location = yield* repository.getContentLocation(sessionId, 'resource-1')
+        const providedExists = yield* repository.hasOccurrence(sessionId, 'occurrence-provided')
+        const otherSessionExists = yield* repository.hasOccurrence(
+          SessionId('session-2'),
+          'occurrence-provided',
+        )
+        return { resources, found, location, providedExists, otherSessionExists }
       }).pipe(Effect.provide(layer)),
     )
 
@@ -121,15 +149,25 @@ describe('SqliteSessionResourceRepositoryLive', () => {
     expect(resources).toHaveLength(1)
     expect(resources[0]).toMatchObject({
       id: 'resource-1',
-      locator: 'session-resource://resource-1',
+      locator: 'session-resource://replacement-id',
+      kind: 'image',
+      title: 'report.png',
+      updatedAt: 2000,
       isSource: true,
       isOutput: true,
     })
     expect(resources[0]?.occurrences.map((occurrence) => occurrence.activity)).toEqual([
+      'read',
       'provided',
       'created',
     ])
     expect(result.found).toMatchObject({ id: 'resource-1' })
+    expect(result.location).toMatchObject({
+      resourceId: 'resource-1',
+      managedPath: '/managed/replacement.png',
+    })
+    expect(result.providedExists).toBe(true)
+    expect(result.otherSessionExists).toBe(false)
   })
 
   it('scopes identical resources to their session and cascades them on session deletion', async () => {
@@ -176,5 +214,82 @@ describe('SqliteSessionResourceRepositoryLive', () => {
     expect(result.beforeDelete[0]?.sessionId).toBe('session-2')
     expect(result.deleted).toEqual([])
     expect(result.preserved).toHaveLength(1)
+  })
+
+  it('re-keys recovered resources by digest and merges duplicate occurrences', async () => {
+    const layer = makeTestLayer(path.join(tmpRoot, 'rekey.sqlite'))
+    const sessionId = SessionId('session-1')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        yield* repository.upsert({
+          id: 'digest-resource',
+          sessionId,
+          canonicalKey: 'sha256:attachment-digest',
+          kind: 'image',
+          title: 'existing.png',
+          mimeType: 'image/png',
+          locator: 'session-resource://digest-resource',
+          managedPath: '/managed/existing.png',
+          available: true,
+          occurrence: {
+            id: 'occurrence-existing',
+            nodeId: 'node-existing',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            createdAt: 500,
+          },
+          createdAt: 500,
+          updatedAt: 500,
+        })
+        yield* repository.upsert({
+          id: 'missing-resource',
+          sessionId,
+          canonicalKey: 'file:/input/missing.png',
+          kind: 'image',
+          title: 'missing.png',
+          mimeType: 'image/png',
+          locator: '/input/missing.png',
+          managedPath: null,
+          available: false,
+          occurrence: {
+            id: 'occurrence-recovered',
+            nodeId: 'node-recovered',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            createdAt: 1000,
+          },
+          createdAt: 1000,
+          updatedAt: 1000,
+        })
+
+        const rekeyed = yield* repository.rekey({
+          sessionId,
+          resourceId: 'missing-resource',
+          canonicalKey: 'sha256:attachment-digest',
+          updatedAt: 2000,
+        })
+        const resources = yield* repository.list(sessionId)
+        const oldKey = yield* repository.findByCanonicalKey(sessionId, 'file:/input/missing.png')
+        return { rekeyed, resources, oldKey }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.rekeyed).toMatchObject({
+      id: 'digest-resource',
+      canonicalKey: 'sha256:attachment-digest',
+      updatedAt: 2000,
+    })
+    expect(result.rekeyed.occurrences.map((occurrence) => occurrence.id)).toEqual([
+      'occurrence-existing',
+      'occurrence-recovered',
+    ])
+    expect(result.resources).toHaveLength(1)
+    expect(result.oldKey).toBeNull()
   })
 })

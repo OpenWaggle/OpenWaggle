@@ -33,6 +33,21 @@ describe('github adapter typed failures (never throws)', () => {
     })
   })
 
+  it('checks authentication for the repository host instead of another configured host', async () => {
+    runCliMock.mockResolvedValue(
+      cli({ stderr: 'github.example.com\n  ✓ Logged in to github.example.com account octocat' }),
+    )
+    const provider = getSourceControlProvider('github')
+
+    await provider?.authStatus('/repo', 'github.example.com')
+
+    expect(runCliMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'status', '--active', '--hostname', 'github.example.com'],
+      '/repo',
+    )
+  })
+
   it('returns not-authenticated when a PR command fails with auth error', async () => {
     runCliMock.mockResolvedValue(cli({ code: 1, stderr: 'authentication required' }))
     const provider = getSourceControlProvider('github')
@@ -115,5 +130,80 @@ describe('github adapter typed failures (never throws)', () => {
     await expect(provider?.checkoutChangeRequest('/repo', '999')).resolves.toMatchObject({
       ok: false,
     })
+  })
+
+  it('omits --base when the repository default could not be resolved locally', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ stdout: 'https://github.com/o/r/pull/1\n' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            url: 'https://github.com/o/r/pull/1',
+            baseRefName: 'main',
+            headRefName: 'feature/current',
+            state: 'OPEN',
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await getSourceControlProvider('github')?.openChangeRequest('/repo', {
+      headRef: 'feature/current',
+      title: 'T',
+    })
+
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'gh',
+      expect.not.arrayContaining(['--base']),
+      '/repo',
+    )
+  })
+})
+
+describe('gitlab adapter defaults', () => {
+  beforeEach(() => runCliMock.mockReset())
+
+  it('checks authentication for the repository GitLab host', async () => {
+    runCliMock.mockResolvedValue(
+      cli({ stderr: 'gitlab.example.com\n  ✓ Logged in to gitlab.example.com as octocat' }),
+    )
+    const provider = getSourceControlProvider('gitlab')
+
+    await provider?.authStatus('/repo', 'gitlab.example.com')
+
+    expect(runCliMock).toHaveBeenCalledWith(
+      'glab',
+      ['auth', 'status', '--hostname', 'gitlab.example.com'],
+      '/repo',
+    )
+  })
+
+  it('omits --target-branch when the repository default could not be resolved locally', async () => {
+    runCliMock.mockResolvedValueOnce(cli({ stdout: '' })).mockResolvedValueOnce(
+      cli({
+        stdout: JSON.stringify({
+          title: 'T',
+          web_url: 'https://gitlab.com/o/r/-/merge_requests/1',
+          target_branch: 'main',
+          source_branch: 'feature/current',
+          state: 'opened',
+          draft: false,
+        }),
+      }),
+    )
+
+    await getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+      headRef: 'feature/current',
+      title: 'T',
+    })
+
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'glab',
+      expect.not.arrayContaining(['--target-branch']),
+      '/repo',
+    )
   })
 })

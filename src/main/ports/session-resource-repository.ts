@@ -30,6 +30,13 @@ export interface SessionResourceContentLocation {
   readonly managedPath: string
 }
 
+export interface RekeySessionResourceInput {
+  readonly sessionId: SessionId
+  readonly resourceId: string
+  readonly canonicalKey: string
+  readonly updatedAt: number
+}
+
 export interface SessionResourceRepositoryShape {
   readonly upsert: (
     input: UpsertSessionResourceInput,
@@ -41,10 +48,25 @@ export interface SessionResourceRepositoryShape {
     sessionId: SessionId,
     canonicalKey: string,
   ) => Effect.Effect<SessionResource | null, SessionResourceRepositoryError>
+  /** Re-key an unavailable placeholder; matching digest rows absorb its occurrences. */
+  readonly rekey: (
+    input: RekeySessionResourceInput,
+  ) => Effect.Effect<SessionResource, SessionResourceRepositoryError>
+  readonly hasOccurrence: (
+    sessionId: SessionId,
+    occurrenceId: string,
+  ) => Effect.Effect<boolean, SessionResourceRepositoryError>
   readonly getContentLocation: (
     sessionId: SessionId,
     resourceId: string,
   ) => Effect.Effect<SessionResourceContentLocation | null, SessionResourceRepositoryError>
+  readonly getBackfillCursor: (
+    sessionId: SessionId,
+  ) => Effect.Effect<number, SessionResourceRepositoryError>
+  readonly advanceBackfillCursor: (
+    sessionId: SessionId,
+    throughCreatedOrder: number,
+  ) => Effect.Effect<void, SessionResourceRepositoryError>
 }
 
 export class SessionResourceRepository extends Context.Tag('@openwaggle/SessionResourceRepository')<

@@ -19,6 +19,7 @@ export * from './docs.js';
 export { type JsonArray, type JsonObject, type JsonPrimitive, type JsonValue, jsonPrimitiveSchema, jsonValueSchema, } from './json.js';
 export * from './manifest.js';
 export { createRuntimeContributionSdk, extensionRuntimeRegisterContributionResultSchema, extensionRuntimeUnregisterContributionResultSchema, } from './runtime.js';
+export * from './session-resources.js';
 export type * from './theme.js';
 export { createOpenWaggleExtensionTheme, extensionThemeCssVariableEntries, isOpenWaggleExtensionTheme, OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES, } from './theme.js';
 export type * from './types.js';
@@ -375,6 +376,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
+import type { ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult } from './session-resource-types.js';
 import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
@@ -449,6 +451,14 @@ export interface ExtensionOpenWaggleSdk {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
     };
+    readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk;
+}
+export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
+    readonly kind: 'session';
+}>;
+export interface ExtensionOpenWaggleSessionResourcesSdk {
+    readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourceListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>;
 }
 export interface ExtensionRuntimeContributionSdk {
     readonly registerContribution: (scope: ExtensionInvokeScope, registration: ExtensionRuntimeRegisterContributionPayload) => Promise<ExtensionInvokeResult<ExtensionRuntimeRegisterContributionResult>>;
@@ -468,6 +478,143 @@ export interface CreateOpenWaggleSdkOptions {
 }
 ```
 
+### Declarations from `dist/session-resource-types.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceActivitySchema: Schema.Literal<["provided", "read", "created", "updated"]>;
+export declare const extensionSessionResourceCategorySchema: Schema.Literal<["all", "sources", "outputs"]>;
+export declare const extensionSessionResourceReferenceSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["external-url"]>;
+    url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project-file"]>;
+    path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    mimeType: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    reference: Schema.optional<Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["external-url"]>;
+        url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project-file"]>;
+        path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    label: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionSessionResourceListPayloadSchema: Schema.Struct<{
+    category: Schema.optional<Schema.Literal<["all", "sources", "outputs"]>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceOccurrenceViewSchema: Schema.Struct<{
+    actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    label: Schema.NullOr<typeof Schema.String>;
+    createdAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: typeof Schema.String;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    source: typeof Schema.Boolean;
+    output: typeof Schema.Boolean;
+    occurrences: Schema.Array$<Schema.Struct<{
+        actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+        activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+        label: Schema.NullOr<typeof Schema.String>;
+        createdAt: typeof Schema.Number;
+    }>>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-session-resource"]>;
+    resource: Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>;
+}>;
+export declare const extensionSessionResourceListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-session-resources"]>;
+    category: Schema.Literal<["all", "sources", "outputs"]>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    resources: Schema.Array$<Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>>;
+}>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceActivity = SchemaType<typeof extensionSessionResourceActivitySchema>;
+export type ExtensionSessionResourceCategory = SchemaType<typeof extensionSessionResourceCategorySchema>;
+export type ExtensionSessionResourceReference = SchemaType<typeof extensionSessionResourceReferenceSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourceListPayload = SchemaType<typeof extensionSessionResourceListPayloadSchema>;
+export type ExtensionSessionResourceOccurrenceView = SchemaType<typeof extensionSessionResourceOccurrenceViewSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSessionResourceListResult = SchemaType<typeof extensionSessionResourceListResultSchema>;
+```
+
+### Declarations from `dist/schema.d.ts`
+
+```ts
+import type * as Schema from 'effect/Schema';
+type AnySchema = Schema.Schema.AnyNoContext;
+export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
+export interface ExtensionSchemaDecodeSuccess<TValue> {
+    readonly success: true;
+    readonly data: TValue;
+}
+export interface ExtensionSchemaDecodeFailure {
+    readonly success: false;
+    readonly issues: readonly string[];
+}
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export {};
+```
+
 ### Declarations from `dist/types.d.ts`
 
 ```ts
@@ -476,6 +623,7 @@ export type * from './core-types.js';
 export type * from './openwaggle-types.js';
 export type * from './registry-types.js';
 export type * from './runtime-types.js';
+export type * from './session-resource-types.js';
 export type * from './storage-types.js';
 ```
 
@@ -517,8 +665,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -540,6 +689,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -558,8 +710,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -673,8 +827,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -971,25 +1125,41 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
-        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
-            matches: Schema.optional<Schema.Struct<{
-                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
             }>>;
-        }>>>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1019,24 +1189,6 @@ export type ExtensionManifestValidationResult = {
 };
 export declare function defineExtensionManifest<const TManifest extends OpenWaggleExtensionManifest>(manifest: TManifest): TManifest;
 export declare function validateExtensionManifest(value: unknown): ExtensionManifestValidationResult;
-```
-
-### Declarations from `dist/schema.d.ts`
-
-```ts
-import type * as Schema from 'effect/Schema';
-type AnySchema = Schema.Schema.AnyNoContext;
-export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
-export interface ExtensionSchemaDecodeSuccess<TValue> {
-    readonly success: true;
-    readonly data: TValue;
-}
-export interface ExtensionSchemaDecodeFailure {
-    readonly success: false;
-    readonly issues: readonly string[];
-}
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
-export {};
 ```
 
 ### Declarations from `dist/manifest-contributions.d.ts`
@@ -1099,6 +1251,71 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1295,25 +1512,41 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
-    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
-        matches: Schema.optional<Schema.Struct<{
-            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
         }>>;
-    }>>>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -1353,7 +1586,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1373,6 +1606,44 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -1410,7 +1681,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -1430,6 +1701,43 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
@@ -1441,6 +1749,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -1465,7 +1774,7 @@ export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"fed
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -1919,6 +2228,35 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly disclosure?: {
+            readonly defaultExpanded?: boolean;
+            readonly collapsible?: boolean;
+            readonly autoCollapseAfterMs?: number;
+        };
+        readonly state?: {
+            readonly status: 'ready';
+        } | {
+            readonly status: 'loading' | 'live';
+            readonly message?: string;
+        } | {
+            readonly status: 'failure';
+            readonly message: string;
+        };
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -2518,6 +2856,21 @@ import type { ExtensionRuntimeContributionSdk, ExtensionSdkInvoke } from './sdk-
 export declare function createRuntimeContributionSdk(invoke: ExtensionSdkInvoke): ExtensionRuntimeContributionSdk;
 ```
 
+### Declarations from `dist/session-resources.d.ts`
+
+```ts
+export { createOpenWaggleSessionResourcesSdk } from './session-resource-sdk.js';
+export type { ExtensionSessionResourceActivity, ExtensionSessionResourceCategory, ExtensionSessionResourceKind, ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourceOccurrenceView, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourceReference, ExtensionSessionResourceView, } from './session-resource-types.js';
+export { extensionSessionResourceActivitySchema, extensionSessionResourceCategorySchema, extensionSessionResourceKindSchema, extensionSessionResourceListPayloadSchema, extensionSessionResourceListResultSchema, extensionSessionResourceOccurrenceViewSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceReferenceSchema, extensionSessionResourceViewSchema, } from './session-resource-types.js';
+```
+
+### Declarations from `dist/session-resource-sdk.d.ts`
+
+```ts
+import type { ExtensionOpenWaggleSessionResourcesSdk, ExtensionSdkInvoke } from './sdk-types.js';
+export declare function createOpenWaggleSessionResourcesSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleSessionResourcesSdk;
+```
+
 ## Export `./agent-loop`
 
 Types: `dist/agent-loop.d.ts`
@@ -2875,6 +3228,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
+import type { ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult } from './session-resource-types.js';
 import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
@@ -2949,6 +3303,14 @@ export interface ExtensionOpenWaggleSdk {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
     };
+    readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk;
+}
+export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
+    readonly kind: 'session';
+}>;
+export interface ExtensionOpenWaggleSessionResourcesSdk {
+    readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourceListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>;
 }
 export interface ExtensionRuntimeContributionSdk {
     readonly registerContribution: (scope: ExtensionInvokeScope, registration: ExtensionRuntimeRegisterContributionPayload) => Promise<ExtensionInvokeResult<ExtensionRuntimeRegisterContributionResult>>;
@@ -2982,6 +3344,143 @@ export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, ty
 export declare const jsonValueSchema: Schema.Schema<JsonValue>;
 ```
 
+### Declarations from `dist/session-resource-types.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceActivitySchema: Schema.Literal<["provided", "read", "created", "updated"]>;
+export declare const extensionSessionResourceCategorySchema: Schema.Literal<["all", "sources", "outputs"]>;
+export declare const extensionSessionResourceReferenceSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["external-url"]>;
+    url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project-file"]>;
+    path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    mimeType: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    reference: Schema.optional<Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["external-url"]>;
+        url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project-file"]>;
+        path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    label: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionSessionResourceListPayloadSchema: Schema.Struct<{
+    category: Schema.optional<Schema.Literal<["all", "sources", "outputs"]>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceOccurrenceViewSchema: Schema.Struct<{
+    actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    label: Schema.NullOr<typeof Schema.String>;
+    createdAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: typeof Schema.String;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    source: typeof Schema.Boolean;
+    output: typeof Schema.Boolean;
+    occurrences: Schema.Array$<Schema.Struct<{
+        actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+        activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+        label: Schema.NullOr<typeof Schema.String>;
+        createdAt: typeof Schema.Number;
+    }>>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-session-resource"]>;
+    resource: Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>;
+}>;
+export declare const extensionSessionResourceListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-session-resources"]>;
+    category: Schema.Literal<["all", "sources", "outputs"]>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    resources: Schema.Array$<Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>>;
+}>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceActivity = SchemaType<typeof extensionSessionResourceActivitySchema>;
+export type ExtensionSessionResourceCategory = SchemaType<typeof extensionSessionResourceCategorySchema>;
+export type ExtensionSessionResourceReference = SchemaType<typeof extensionSessionResourceReferenceSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourceListPayload = SchemaType<typeof extensionSessionResourceListPayloadSchema>;
+export type ExtensionSessionResourceOccurrenceView = SchemaType<typeof extensionSessionResourceOccurrenceViewSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSessionResourceListResult = SchemaType<typeof extensionSessionResourceListResultSchema>;
+```
+
+### Declarations from `dist/schema.d.ts`
+
+```ts
+import type * as Schema from 'effect/Schema';
+type AnySchema = Schema.Schema.AnyNoContext;
+export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
+export interface ExtensionSchemaDecodeSuccess<TValue> {
+    readonly success: true;
+    readonly data: TValue;
+}
+export interface ExtensionSchemaDecodeFailure {
+    readonly success: false;
+    readonly issues: readonly string[];
+}
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export {};
+```
+
 ### Declarations from `dist/types.d.ts`
 
 ```ts
@@ -2990,6 +3489,7 @@ export type * from './core-types.js';
 export type * from './openwaggle-types.js';
 export type * from './registry-types.js';
 export type * from './runtime-types.js';
+export type * from './session-resource-types.js';
 export type * from './storage-types.js';
 ```
 
@@ -3031,8 +3531,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -3054,6 +3555,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -3072,8 +3576,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -3187,8 +3693,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -3485,25 +3991,41 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
-        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
-            matches: Schema.optional<Schema.Struct<{
-                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
             }>>;
-        }>>>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3533,24 +4055,6 @@ export type ExtensionManifestValidationResult = {
 };
 export declare function defineExtensionManifest<const TManifest extends OpenWaggleExtensionManifest>(manifest: TManifest): TManifest;
 export declare function validateExtensionManifest(value: unknown): ExtensionManifestValidationResult;
-```
-
-### Declarations from `dist/schema.d.ts`
-
-```ts
-import type * as Schema from 'effect/Schema';
-type AnySchema = Schema.Schema.AnyNoContext;
-export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
-export interface ExtensionSchemaDecodeSuccess<TValue> {
-    readonly success: true;
-    readonly data: TValue;
-}
-export interface ExtensionSchemaDecodeFailure {
-    readonly success: false;
-    readonly issues: readonly string[];
-}
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
-export {};
 ```
 
 ### Declarations from `dist/manifest-contributions.d.ts`
@@ -3613,6 +4117,71 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3809,25 +4378,41 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
-    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
-        matches: Schema.optional<Schema.Struct<{
-            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
         }>>;
-    }>>>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -3867,7 +4452,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3887,6 +4472,44 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -3924,7 +4547,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -3944,6 +4567,43 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
@@ -3955,6 +4615,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -3979,7 +4640,7 @@ export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"fed
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -4433,6 +5094,35 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly disclosure?: {
+            readonly defaultExpanded?: boolean;
+            readonly collapsible?: boolean;
+            readonly autoCollapseAfterMs?: number;
+        };
+        readonly state?: {
+            readonly status: 'ready';
+        } | {
+            readonly status: 'loading' | 'live';
+            readonly message?: string;
+        } | {
+            readonly status: 'failure';
+            readonly message: string;
+        };
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -4521,8 +5211,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -4544,6 +5235,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -4562,8 +5256,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -4677,8 +5373,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -4975,6 +5671,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
+import type { ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult } from './session-resource-types.js';
 import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
@@ -5049,6 +5746,14 @@ export interface ExtensionOpenWaggleSdk {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
     };
+    readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk;
+}
+export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
+    readonly kind: 'session';
+}>;
+export interface ExtensionOpenWaggleSessionResourcesSdk {
+    readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourceListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>;
 }
 export interface ExtensionRuntimeContributionSdk {
     readonly registerContribution: (scope: ExtensionInvokeScope, registration: ExtensionRuntimeRegisterContributionPayload) => Promise<ExtensionInvokeResult<ExtensionRuntimeRegisterContributionResult>>;
@@ -5082,6 +5787,143 @@ export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, ty
 export declare const jsonValueSchema: Schema.Schema<JsonValue>;
 ```
 
+### Declarations from `dist/session-resource-types.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceActivitySchema: Schema.Literal<["provided", "read", "created", "updated"]>;
+export declare const extensionSessionResourceCategorySchema: Schema.Literal<["all", "sources", "outputs"]>;
+export declare const extensionSessionResourceReferenceSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["external-url"]>;
+    url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project-file"]>;
+    path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    mimeType: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    reference: Schema.optional<Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["external-url"]>;
+        url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project-file"]>;
+        path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    label: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionSessionResourceListPayloadSchema: Schema.Struct<{
+    category: Schema.optional<Schema.Literal<["all", "sources", "outputs"]>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceOccurrenceViewSchema: Schema.Struct<{
+    actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    label: Schema.NullOr<typeof Schema.String>;
+    createdAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: typeof Schema.String;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    source: typeof Schema.Boolean;
+    output: typeof Schema.Boolean;
+    occurrences: Schema.Array$<Schema.Struct<{
+        actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+        activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+        label: Schema.NullOr<typeof Schema.String>;
+        createdAt: typeof Schema.Number;
+    }>>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-session-resource"]>;
+    resource: Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>;
+}>;
+export declare const extensionSessionResourceListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-session-resources"]>;
+    category: Schema.Literal<["all", "sources", "outputs"]>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    resources: Schema.Array$<Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>>;
+}>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceActivity = SchemaType<typeof extensionSessionResourceActivitySchema>;
+export type ExtensionSessionResourceCategory = SchemaType<typeof extensionSessionResourceCategorySchema>;
+export type ExtensionSessionResourceReference = SchemaType<typeof extensionSessionResourceReferenceSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourceListPayload = SchemaType<typeof extensionSessionResourceListPayloadSchema>;
+export type ExtensionSessionResourceOccurrenceView = SchemaType<typeof extensionSessionResourceOccurrenceViewSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSessionResourceListResult = SchemaType<typeof extensionSessionResourceListResultSchema>;
+```
+
+### Declarations from `dist/schema.d.ts`
+
+```ts
+import type * as Schema from 'effect/Schema';
+type AnySchema = Schema.Schema.AnyNoContext;
+export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
+export interface ExtensionSchemaDecodeSuccess<TValue> {
+    readonly success: true;
+    readonly data: TValue;
+}
+export interface ExtensionSchemaDecodeFailure {
+    readonly success: false;
+    readonly issues: readonly string[];
+}
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export {};
+```
+
 ### Declarations from `dist/types.d.ts`
 
 ```ts
@@ -5090,6 +5932,7 @@ export type * from './core-types.js';
 export type * from './openwaggle-types.js';
 export type * from './registry-types.js';
 export type * from './runtime-types.js';
+export type * from './session-resource-types.js';
 export type * from './storage-types.js';
 ```
 
@@ -5131,8 +5974,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -5154,6 +5998,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -5172,8 +6019,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -5287,8 +6136,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -5585,25 +6434,41 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
-        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
-            matches: Schema.optional<Schema.Struct<{
-                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
             }>>;
-        }>>>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -5633,24 +6498,6 @@ export type ExtensionManifestValidationResult = {
 };
 export declare function defineExtensionManifest<const TManifest extends OpenWaggleExtensionManifest>(manifest: TManifest): TManifest;
 export declare function validateExtensionManifest(value: unknown): ExtensionManifestValidationResult;
-```
-
-### Declarations from `dist/schema.d.ts`
-
-```ts
-import type * as Schema from 'effect/Schema';
-type AnySchema = Schema.Schema.AnyNoContext;
-export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
-export interface ExtensionSchemaDecodeSuccess<TValue> {
-    readonly success: true;
-    readonly data: TValue;
-}
-export interface ExtensionSchemaDecodeFailure {
-    readonly success: false;
-    readonly issues: readonly string[];
-}
-export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
-export {};
 ```
 
 ### Declarations from `dist/manifest-contributions.d.ts`
@@ -5713,6 +6560,71 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5909,25 +6821,41 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
-    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
-        matches: Schema.optional<Schema.Struct<{
-            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
         }>>;
-    }>>>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -5967,7 +6895,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -5987,6 +6915,44 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -6024,7 +6990,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -6044,6 +7010,43 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
@@ -6055,6 +7058,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -6079,7 +7083,7 @@ export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"fed
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -6533,6 +7537,35 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly disclosure?: {
+            readonly defaultExpanded?: boolean;
+            readonly collapsible?: boolean;
+            readonly autoCollapseAfterMs?: number;
+        };
+        readonly state?: {
+            readonly status: 'ready';
+        } | {
+            readonly status: 'loading' | 'live';
+            readonly message?: string;
+        } | {
+            readonly status: 'failure';
+            readonly message: string;
+        };
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -7584,25 +8617,41 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
-        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
-            matches: Schema.optional<Schema.Struct<{
-                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
             }>>;
-        }>>>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -7646,8 +8695,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -7669,6 +8719,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -7687,8 +8740,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -7802,8 +8857,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -7901,6 +8956,71 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8097,25 +9217,41 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
-    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
-        matches: Schema.optional<Schema.Struct<{
-            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
         }>>;
-    }>>>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -8155,7 +9291,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8175,6 +9311,44 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -8212,7 +9386,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -8232,6 +9406,43 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
@@ -8243,6 +9454,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -8267,7 +9479,7 @@ export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"fed
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
 
 ## Export `./runtime`
@@ -8578,25 +9790,41 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
-        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
-            matches: Schema.optional<Schema.Struct<{
-                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
             }>>;
-        }>>>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8640,8 +9868,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -8663,6 +9892,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -8681,8 +9913,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -8796,8 +10030,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -8895,6 +10129,71 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9091,25 +10390,41 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
-    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
-        matches: Schema.optional<Schema.Struct<{
-            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
         }>>;
-    }>>>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -9149,7 +10464,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9169,6 +10484,44 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -9206,7 +10559,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -9226,6 +10579,43 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
@@ -9237,6 +10627,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -9261,7 +10652,7 @@ export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"fed
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
 
 ### Declarations from `dist/runtime-sdk.d.ts`
@@ -9275,6 +10666,7 @@ export declare function createRuntimeContributionSdk(invoke: ExtensionSdkInvoke)
 
 ```ts
 import type { JsonValue } from './json.js';
+import type { ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult } from './session-resource-types.js';
 import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
@@ -9349,6 +10741,14 @@ export interface ExtensionOpenWaggleSdk {
         readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
         readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
     };
+    readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk;
+}
+export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
+    readonly kind: 'session';
+}>;
+export interface ExtensionOpenWaggleSessionResourcesSdk {
+    readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourceListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>;
 }
 export interface ExtensionRuntimeContributionSdk {
     readonly registerContribution: (scope: ExtensionInvokeScope, registration: ExtensionRuntimeRegisterContributionPayload) => Promise<ExtensionInvokeResult<ExtensionRuntimeRegisterContributionResult>>;
@@ -9382,6 +10782,125 @@ export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, ty
 export declare const jsonValueSchema: Schema.Schema<JsonValue>;
 ```
 
+### Declarations from `dist/session-resource-types.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceActivitySchema: Schema.Literal<["provided", "read", "created", "updated"]>;
+export declare const extensionSessionResourceCategorySchema: Schema.Literal<["all", "sources", "outputs"]>;
+export declare const extensionSessionResourceReferenceSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["external-url"]>;
+    url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project-file"]>;
+    path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    mimeType: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    reference: Schema.optional<Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["external-url"]>;
+        url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project-file"]>;
+        path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    label: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionSessionResourceListPayloadSchema: Schema.Struct<{
+    category: Schema.optional<Schema.Literal<["all", "sources", "outputs"]>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceOccurrenceViewSchema: Schema.Struct<{
+    actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    label: Schema.NullOr<typeof Schema.String>;
+    createdAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: typeof Schema.String;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    source: typeof Schema.Boolean;
+    output: typeof Schema.Boolean;
+    occurrences: Schema.Array$<Schema.Struct<{
+        actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+        activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+        label: Schema.NullOr<typeof Schema.String>;
+        createdAt: typeof Schema.Number;
+    }>>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-session-resource"]>;
+    resource: Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>;
+}>;
+export declare const extensionSessionResourceListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-session-resources"]>;
+    category: Schema.Literal<["all", "sources", "outputs"]>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    resources: Schema.Array$<Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>>;
+}>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceActivity = SchemaType<typeof extensionSessionResourceActivitySchema>;
+export type ExtensionSessionResourceCategory = SchemaType<typeof extensionSessionResourceCategorySchema>;
+export type ExtensionSessionResourceReference = SchemaType<typeof extensionSessionResourceReferenceSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourceListPayload = SchemaType<typeof extensionSessionResourceListPayloadSchema>;
+export type ExtensionSessionResourceOccurrenceView = SchemaType<typeof extensionSessionResourceOccurrenceViewSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSessionResourceListResult = SchemaType<typeof extensionSessionResourceListResultSchema>;
+```
+
 ### Declarations from `dist/types.d.ts`
 
 ```ts
@@ -9390,6 +10909,7 @@ export type * from './core-types.js';
 export type * from './openwaggle-types.js';
 export type * from './registry-types.js';
 export type * from './runtime-types.js';
+export type * from './session-resource-types.js';
 export type * from './storage-types.js';
 ```
 
@@ -9870,6 +11390,2025 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly disclosure?: {
+            readonly defaultExpanded?: boolean;
+            readonly collapsible?: boolean;
+            readonly autoCollapseAfterMs?: number;
+        };
+        readonly state?: {
+            readonly status: 'ready';
+        } | {
+            readonly status: 'loading' | 'live';
+            readonly message?: string;
+        } | {
+            readonly status: 'failure';
+            readonly message: string;
+        };
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
+}
+```
+
+### Declarations from `dist/runtime-types.d.ts`
+
+```ts
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionContributionFamily } from './contribution-types.js';
+export interface ExtensionRuntimeRegisterContributionResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.REGISTER_CONTRIBUTION;
+    readonly family: ExtensionContributionFamily;
+    readonly registeredContributionId: string;
+}
+export interface ExtensionRuntimeUnregisterContributionResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RUNTIME;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UNREGISTER_CONTRIBUTION;
+    readonly family: ExtensionContributionFamily;
+    readonly unregisteredContributionId: string;
+    readonly unregistered: boolean;
+}
+```
+
+### Declarations from `dist/storage-types.d.ts`
+
+```ts
+import type { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { JsonValue } from './json.js';
+type ConstantValue<TObject> = TObject[keyof TObject];
+export type ExtensionStorageKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.STORAGE.KIND>;
+export type ExtensionStorageScopeSelector = (typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE_KINDS)[number];
+export type ExtensionStorageScope = {
+    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND;
+} | {
+    readonly kind: typeof OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND;
+    readonly projectPath: string;
+};
+export interface ExtensionStorageResultBase {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE;
+    readonly storageKind: ExtensionStorageKind;
+    readonly storageScope: ExtensionStorageScope;
+}
+export interface ExtensionStorageGetResult extends ExtensionStorageResultBase {
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET;
+    readonly key: string;
+    readonly value: JsonValue | null;
+}
+export interface ExtensionStorageSetResult extends ExtensionStorageResultBase {
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SET;
+    readonly key: string;
+    readonly value: JsonValue;
+    readonly createdAt: number;
+    readonly updatedAt: number;
+}
+export interface ExtensionStorageDeleteResult extends ExtensionStorageResultBase {
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE;
+    readonly key: string;
+    readonly deleted: true;
+}
+export interface ExtensionStorageListResult extends ExtensionStorageResultBase {
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST;
+    readonly keys: readonly string[];
+}
+export {};
+```
+
+## Export `./session-resources`
+
+Types: `dist/session-resources.d.ts`
+
+### Declarations from `dist/session-resources.d.ts`
+
+```ts
+export { createOpenWaggleSessionResourcesSdk } from './session-resource-sdk.js';
+export type { ExtensionSessionResourceActivity, ExtensionSessionResourceCategory, ExtensionSessionResourceKind, ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourceOccurrenceView, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourceReference, ExtensionSessionResourceView, } from './session-resource-types.js';
+export { extensionSessionResourceActivitySchema, extensionSessionResourceCategorySchema, extensionSessionResourceKindSchema, extensionSessionResourceListPayloadSchema, extensionSessionResourceListResultSchema, extensionSessionResourceOccurrenceViewSchema, extensionSessionResourcePublishPayloadSchema, extensionSessionResourcePublishResultSchema, extensionSessionResourceReferenceSchema, extensionSessionResourceViewSchema, } from './session-resource-types.js';
+```
+
+### Declarations from `dist/session-resource-sdk.d.ts`
+
+```ts
+import type { ExtensionOpenWaggleSessionResourcesSdk, ExtensionSdkInvoke } from './sdk-types.js';
+export declare function createOpenWaggleSessionResourcesSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleSessionResourcesSdk;
+```
+
+### Declarations from `dist/sdk-types.d.ts`
+
+```ts
+import type { JsonValue } from './json.js';
+import type { ExtensionSessionResourceListPayload, ExtensionSessionResourceListResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult } from './session-resource-types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
+export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
+export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
+export type ExtensionStorageDeleteOperationResult = ExtensionOperationSuccess<ExtensionStorageDeleteResult> | ExtensionInvokeFailure;
+export type ExtensionStorageListOperationResult = ExtensionOperationSuccess<ExtensionStorageListResult> | ExtensionInvokeFailure;
+export type ExtensionRuntimeRegisterContributionOperationResult = ExtensionOperationSuccess<ExtensionRuntimeRegisterContributionResult> | ExtensionInvokeFailure;
+export type ExtensionRuntimeUnregisterContributionOperationResult = ExtensionOperationSuccess<ExtensionRuntimeUnregisterContributionResult> | ExtensionInvokeFailure;
+export type ExtensionStateReadOperationResult = ExtensionOperationSuccess<ExtensionStateReadResult> | ExtensionInvokeFailure;
+export type ExtensionStateCurrentProjectReadOperationResult = ExtensionOperationSuccess<ExtensionStateCurrentProjectReadResult> | ExtensionInvokeFailure;
+export type ExtensionStateCurrentSessionReadOperationResult = ExtensionOperationSuccess<ExtensionStateCurrentSessionReadResult> | ExtensionInvokeFailure;
+export type ExtensionStateCurrentBranchReadOperationResult = ExtensionOperationSuccess<ExtensionStateCurrentBranchReadResult> | ExtensionInvokeFailure;
+export type ExtensionStateRecentProjectsReadOperationResult = ExtensionOperationSuccess<ExtensionStateRecentProjectsReadResult> | ExtensionInvokeFailure;
+export type ExtensionStateModelPreferencesReadOperationResult = ExtensionOperationSuccess<ExtensionStateModelPreferencesReadResult> | ExtensionInvokeFailure;
+export type ExtensionSelectProjectOperationResult = ExtensionOperationSuccess<ExtensionActionSelectProjectResult> | ExtensionInvokeFailure;
+export type ExtensionDocsDiscoverOperationResult = ExtensionOperationSuccess<ExtensionDocsDiscoverResult> | ExtensionInvokeFailure;
+export type ExtensionDocsResolveTopicOperationResult = ExtensionOperationSuccess<ExtensionDocsResolveTopicResult> | ExtensionInvokeFailure;
+export type ExtensionSettingsGetOperationResult = ExtensionOperationSuccess<ExtensionSettingsGetResult> | ExtensionInvokeFailure;
+export type ExtensionSettingsGetSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsGetSettingResult> | ExtensionInvokeFailure;
+export type ExtensionSettingsUpdateOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateResult> | ExtensionInvokeFailure;
+export type ExtensionSettingsUpdateSettingOperationResult = ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult> | ExtensionInvokeFailure;
+export interface ExtensionSdkIdentity {
+    readonly extensionId: string;
+    readonly contributionId: string;
+}
+export interface ExtensionSdkInvokeRequest {
+    readonly capability: string;
+    readonly method: string;
+    readonly scope: ExtensionInvokeScope;
+    readonly payload?: unknown;
+}
+export type ExtensionBrokerTransport = (input: ExtensionInvokeInput) => Promise<ExtensionInvokeResult>;
+export type ExtensionSdkInvoke = (request: ExtensionSdkInvokeRequest) => Promise<ExtensionInvokeResult>;
+export interface ExtensionStorageScopeSdk {
+    readonly get: (scope: ExtensionInvokeScope, key: string) => Promise<ExtensionInvokeResult<ExtensionStorageGetResult>>;
+    readonly set: (scope: ExtensionInvokeScope, key: string, value: JsonValue) => Promise<ExtensionInvokeResult<ExtensionStorageSetResult>>;
+    readonly delete: (scope: ExtensionInvokeScope, key: string) => Promise<ExtensionInvokeResult<ExtensionStorageDeleteResult>>;
+    readonly list: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStorageListResult>>;
+}
+export interface ExtensionPackageStorageKindSdk {
+    readonly global: ExtensionStorageScopeSdk;
+    readonly project: ExtensionStorageScopeSdk;
+}
+export interface ExtensionPackageStorageSdk {
+    readonly packageState: ExtensionPackageStorageKindSdk;
+    readonly packageConfig: ExtensionPackageStorageKindSdk;
+}
+export interface ExtensionOpenWaggleStateSdk {
+    readonly get: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStateReadResult>>;
+    readonly readCurrentProject: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStateCurrentProjectReadResult>>;
+    readonly readCurrentSession: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStateCurrentSessionReadResult>>;
+    readonly readCurrentBranch: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStateCurrentBranchReadResult>>;
+    readonly readRecentProjects: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStateRecentProjectsReadResult>>;
+    readonly readModelPreferences: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionStateModelPreferencesReadResult>>;
+}
+export interface ExtensionOpenWaggleSettingsSdk {
+    readonly get: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSettingsGetResult>>;
+    readonly getModelPreferences: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSettingsGetSettingResult>>;
+    readonly updateModelPreferences: (scope: ExtensionInvokeScope, value: ExtensionModelPreferencesSettingsPatch) => Promise<ExtensionInvokeResult<ExtensionSettingsUpdateSettingResult>>;
+    readonly getProjectDisplayName: (scope: ExtensionInvokeScope, projectPath: string) => Promise<ExtensionInvokeResult<ExtensionSettingsGetSettingResult>>;
+    readonly setProjectDisplayName: (scope: ExtensionInvokeScope, projectPath: string, value: string | null) => Promise<ExtensionInvokeResult<ExtensionSettingsUpdateSettingResult>>;
+    readonly update: (scope: ExtensionInvokeScope, settings: ExtensionSettingsUpdatePayload) => Promise<ExtensionInvokeResult<ExtensionSettingsUpdateResult>>;
+}
+export interface ExtensionOpenWaggleSdk {
+    readonly state: ExtensionOpenWaggleStateSdk;
+    readonly actions: {
+        readonly selectProject: (scope: ExtensionInvokeScope, projectPath: string) => Promise<ExtensionInvokeResult<ExtensionActionSelectProjectResult>>;
+        readonly openExternal: (url: string) => Promise<void>;
+    };
+    readonly settings: ExtensionOpenWaggleSettingsSdk;
+    readonly docs: {
+        readonly discover: (scope: ExtensionInvokeScope, input?: ExtensionDocsDiscoverPayload) => Promise<ExtensionInvokeResult<ExtensionDocsDiscoverResult>>;
+        readonly resolveTopic: (scope: ExtensionInvokeScope, input: ExtensionDocsResolveTopicPayload) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>;
+    };
+    readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk;
+}
+export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
+    readonly kind: 'session';
+}>;
+export interface ExtensionOpenWaggleSessionResourcesSdk {
+    readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourceListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>;
+}
+export interface ExtensionRuntimeContributionSdk {
+    readonly registerContribution: (scope: ExtensionInvokeScope, registration: ExtensionRuntimeRegisterContributionPayload) => Promise<ExtensionInvokeResult<ExtensionRuntimeRegisterContributionResult>>;
+    readonly unregisterContribution: (scope: ExtensionInvokeScope, unregistration: ExtensionRuntimeUnregisterContributionPayload) => Promise<ExtensionInvokeResult<ExtensionRuntimeUnregisterContributionResult>>;
+}
+export interface ExtensionBrokerSdk {
+    readonly invoke: ExtensionSdkInvoke;
+    readonly hostContext: {
+        readonly getScope: (scope: ExtensionInvokeScope) => Promise<ExtensionInvokeResult>;
+    };
+    readonly storage: ExtensionPackageStorageSdk;
+    readonly openWaggle: ExtensionOpenWaggleSdk;
+    readonly runtime: ExtensionRuntimeContributionSdk;
+}
+export interface CreateOpenWaggleSdkOptions {
+    readonly openExternal?: (url: string) => Promise<void>;
+}
+```
+
+### Declarations from `dist/json.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+export interface JsonObject {
+    [key: string]: JsonValue;
+}
+export type JsonArray = JsonValue[];
+export declare const jsonPrimitiveSchema: Schema.Union<[typeof Schema.String, typeof Schema.Number, typeof Schema.Boolean, typeof Schema.Null]>;
+export declare const jsonValueSchema: Schema.Schema<JsonValue>;
+```
+
+### Declarations from `dist/session-resource-types.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceActivitySchema: Schema.Literal<["provided", "read", "created", "updated"]>;
+export declare const extensionSessionResourceCategorySchema: Schema.Literal<["all", "sources", "outputs"]>;
+export declare const extensionSessionResourceReferenceSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["external-url"]>;
+    url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project-file"]>;
+    path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    mimeType: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    reference: Schema.optional<Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["external-url"]>;
+        url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project-file"]>;
+        path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    label: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionSessionResourceListPayloadSchema: Schema.Struct<{
+    category: Schema.optional<Schema.Literal<["all", "sources", "outputs"]>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceOccurrenceViewSchema: Schema.Struct<{
+    actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    label: Schema.NullOr<typeof Schema.String>;
+    createdAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: typeof Schema.String;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    source: typeof Schema.Boolean;
+    output: typeof Schema.Boolean;
+    occurrences: Schema.Array$<Schema.Struct<{
+        actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+        activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+        label: Schema.NullOr<typeof Schema.String>;
+        createdAt: typeof Schema.Number;
+    }>>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-session-resource"]>;
+    resource: Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>;
+}>;
+export declare const extensionSessionResourceListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-session-resources"]>;
+    category: Schema.Literal<["all", "sources", "outputs"]>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    resources: Schema.Array$<Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>>;
+}>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceActivity = SchemaType<typeof extensionSessionResourceActivitySchema>;
+export type ExtensionSessionResourceCategory = SchemaType<typeof extensionSessionResourceCategorySchema>;
+export type ExtensionSessionResourceReference = SchemaType<typeof extensionSessionResourceReferenceSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourceListPayload = SchemaType<typeof extensionSessionResourceListPayloadSchema>;
+export type ExtensionSessionResourceOccurrenceView = SchemaType<typeof extensionSessionResourceOccurrenceViewSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSessionResourceListResult = SchemaType<typeof extensionSessionResourceListResultSchema>;
+```
+
+### Declarations from `dist/schema.d.ts`
+
+```ts
+import type * as Schema from 'effect/Schema';
+type AnySchema = Schema.Schema.AnyNoContext;
+export type SchemaType<TSchema extends AnySchema> = Schema.Schema.Type<TSchema>;
+export interface ExtensionSchemaDecodeSuccess<TValue> {
+    readonly success: true;
+    readonly data: TValue;
+}
+export interface ExtensionSchemaDecodeFailure {
+    readonly success: false;
+    readonly issues: readonly string[];
+}
+export declare function safeDecodeExtensionSchema<TValue, TEncoded>(schema: Schema.Schema<TValue, TEncoded, never>, value: unknown): ExtensionSchemaDecodeSuccess<TValue> | ExtensionSchemaDecodeFailure;
+export {};
+```
+
+### Declarations from `dist/types.d.ts`
+
+```ts
+export type * from './contribution-types.js';
+export type * from './core-types.js';
+export type * from './openwaggle-types.js';
+export type * from './registry-types.js';
+export type * from './runtime-types.js';
+export type * from './session-resource-types.js';
+export type * from './storage-types.js';
+```
+
+### Declarations from `dist/contribution-types.d.ts`
+
+```ts
+import type { OPENWAGGLE_EXTENSION } from './constants.js';
+import type { ExtensionContributionRegistration as ManifestContributionRegistration, ExtensionContributionUnregistration as ManifestContributionUnregistration } from './manifest.js';
+type ConstantValue<TObject> = TObject[keyof TObject];
+export type ExtensionCapabilityScope = (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number];
+export type ExtensionContributionFamily = ConstantValue<typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY>;
+export type ExtensionContributionRuntime = ConstantValue<typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME>;
+export type ExtensionExecutionPlacement = ConstantValue<typeof OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT>;
+export type ExtensionInstallSource = ConstantValue<typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCE>;
+export type ExtensionNetworkAccessMode = ConstantValue<typeof OPENWAGGLE_EXTENSION.NETWORK_ACCESS_MODE>;
+export interface ExtensionContributionTargetView {
+    readonly projectPaths?: readonly string[];
+    readonly sessionIds?: readonly string[];
+}
+export interface ExtensionContributionMatchView {
+    readonly toolNames?: readonly string[];
+    readonly customMessageNames?: readonly string[];
+    readonly interactionKinds?: readonly string[];
+}
+export type ExtensionRuntimeRegisterContributionPayload = ManifestContributionRegistration;
+export type ExtensionRuntimeUnregisterContributionPayload = ManifestContributionUnregistration;
+export {};
+```
+
+### Declarations from `dist/constants.d.ts`
+
+```ts
+export declare const OPENWAGGLE_EXTENSION_BROKER: {
+    readonly CAPABILITY: {
+        readonly HOST_CONTEXT: 'openwaggle.host.context';
+        readonly STORAGE: 'openwaggle.storage';
+        readonly STATE: 'openwaggle.state';
+        readonly ACTIONS: 'openwaggle.actions';
+        readonly SETTINGS: 'openwaggle.settings';
+        readonly DOCS: 'openwaggle.docs';
+        readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
+    };
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITY_METHODS: readonly [{
+        readonly capability: "openwaggle.host.context";
+        readonly methods: readonly ["get-scope"];
+    }, {
+        readonly capability: "openwaggle.storage";
+        readonly methods: readonly ["get", "set", "delete", "list"];
+    }, {
+        readonly capability: "openwaggle.state";
+        readonly methods: readonly ["get-state", "read-state"];
+    }, {
+        readonly capability: "openwaggle.actions";
+        readonly methods: readonly ["select-project"];
+    }, {
+        readonly capability: "openwaggle.settings";
+        readonly methods: readonly ["get-settings", "update-settings", "get-setting", "update-setting"];
+    }, {
+        readonly capability: "openwaggle.docs";
+        readonly methods: readonly ["discover-docs", "resolve-docs-topic"];
+    }, {
+        readonly capability: "openwaggle.runtime";
+        readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
+    }];
+    readonly METHOD: {
+        readonly GET_SCOPE: 'get-scope';
+        readonly GET: 'get';
+        readonly SET: 'set';
+        readonly DELETE: 'delete';
+        readonly LIST: 'list';
+        readonly GET_STATE: 'get-state';
+        readonly READ_STATE: 'read-state';
+        readonly SELECT_PROJECT: 'select-project';
+        readonly GET_SETTINGS: 'get-settings';
+        readonly UPDATE_SETTINGS: 'update-settings';
+        readonly GET_SETTING: 'get-setting';
+        readonly UPDATE_SETTING: 'update-setting';
+        readonly DISCOVER_DOCS: 'discover-docs';
+        readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
+        readonly REGISTER_CONTRIBUTION: 'register-contribution';
+        readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
+    };
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly FAILURE_CODE: {
+        readonly INVALID_INPUT: 'invalid-input';
+        readonly INVALID_PAYLOAD: 'invalid-payload';
+        readonly UNKNOWN_EXTENSION: 'unknown-extension';
+        readonly DISABLED_EXTENSION: 'disabled-extension';
+        readonly UNKNOWN_CONTRIBUTION: 'unknown-contribution';
+        readonly UNDECLARED_CAPABILITY: 'undeclared-capability';
+        readonly UNDECLARED_METHOD: 'undeclared-method';
+        readonly UNDECLARED_SCOPE: 'undeclared-scope';
+        readonly OUT_OF_SCOPE: 'out-of-scope';
+        readonly UNSUPPORTED_CAPABILITY: 'unsupported-capability';
+        readonly UNSUPPORTED_METHOD: 'unsupported-method';
+        readonly TRANSPORT_FAILED: 'transport-failed';
+    };
+    readonly FAILURE_CODES: readonly ("disabled-extension" | "invalid-input" | "invalid-payload" | "out-of-scope" | "transport-failed" | "undeclared-capability" | "undeclared-method" | "undeclared-scope" | "unknown-contribution" | "unknown-extension" | "unsupported-capability" | "unsupported-method")[];
+    readonly OUTCOME: {
+        readonly SUCCEEDED: 'succeeded';
+        readonly REJECTED: 'rejected';
+    };
+    readonly OUTCOMES: readonly ("rejected" | "succeeded")[];
+    readonly STATE_SELECTOR: {
+        readonly CURRENT_PROJECT: 'current-project';
+        readonly CURRENT_SESSION: 'current-session';
+        readonly CURRENT_BRANCH: 'current-branch';
+        readonly RECENT_PROJECTS: 'recent-projects';
+        readonly MODEL_PREFERENCES: 'model-preferences';
+    };
+    readonly STATE_SELECTORS: readonly ("current-branch" | "current-project" | "current-session" | "model-preferences" | "recent-projects")[];
+    readonly SETTING_KEY: {
+        readonly MODEL_PREFERENCES: 'model-preferences';
+        readonly PROJECT_DISPLAY_NAME: 'project-display-name';
+    };
+    readonly SETTING_KEYS: readonly ("model-preferences" | "project-display-name")[];
+};
+export declare const OPENWAGGLE_EXTENSION: {
+    readonly MANIFEST_FILE: 'openwaggle.extension.json';
+    readonly SDK_VERSION: '0.1.0';
+    readonly PROJECT_ROOT_SEGMENTS: readonly ['.openwaggle', 'extensions'];
+    readonly GLOBAL_EXTENSIONS_DIR: 'extensions';
+    readonly SCOPE: {
+        readonly GLOBAL_KIND: 'global';
+        readonly PROJECT_KIND: 'project';
+        readonly GLOBAL_ID: 'global';
+    };
+    readonly LIMITS: {
+        readonly ID_MAX_LENGTH: 96;
+        readonly CONTRIBUTION_ID_MAX_LENGTH: 128;
+        readonly NAME_MAX_LENGTH: 120;
+        readonly DESCRIPTION_MAX_LENGTH: 2000;
+        readonly RELATIVE_PATH_MAX_LENGTH: 260;
+        readonly NETWORK_ORIGIN_MAX_LENGTH: 300;
+        readonly RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH: 120;
+        readonly BUILD_COMMAND_MAX_LENGTH: 500;
+        readonly BUILD_LOG_MAX_LENGTH: 4000;
+        readonly BUILD_COMMAND_TIMEOUT_MS: number;
+    };
+    readonly PATTERNS: {
+        readonly WINDOWS_ABSOLUTE_PATH: RegExp;
+        readonly ID: RegExp;
+        readonly CONTRIBUTION_ID: RegExp;
+        readonly SEMVER_VERSION: RegExp;
+    };
+    readonly PATH: {
+        readonly NUL_CHARACTER: '\0';
+        readonly POSIX_SEPARATOR: '/';
+        readonly WINDOWS_SEPARATOR: '\\';
+        readonly RELATIVE_PARENT_SEGMENT: '..';
+        readonly CURRENT_DIRECTORY_SEGMENT: '.';
+    };
+    readonly RUNTIME_MODULE_PROTOCOL: {
+        readonly MODULE_CONTEXT_SEGMENT: '__context__';
+    };
+    readonly CAPABILITY_SCOPES: readonly ['app', 'project', 'session', 'branch'];
+    readonly CONTRIBUTION_FAMILY: {
+        readonly COMMANDS: 'commands';
+        readonly SLASH_COMMANDS: 'slashCommands';
+        readonly ROUTES: 'routes';
+        readonly SETTINGS_SECTIONS: 'settingsSections';
+        readonly SIDE_PANELS: 'sidePanels';
+        readonly DIALOGS: 'dialogs';
+        readonly TRANSCRIPT_RENDERERS: 'transcriptRenderers';
+        readonly TOOL_RENDERERS: 'toolRenderers';
+        readonly CUSTOM_MESSAGE_RENDERERS: 'customMessageRenderers';
+        readonly INTERACTION_RENDERERS: 'interactionRenderers';
+        readonly STATUS_WIDGETS: 'statusWidgets';
+        readonly SESSION_SUMMARY_SECTIONS: 'sessionSummarySections';
+    };
+    readonly CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly COMMAND_CONTRIBUTION_FAMILIES: readonly ["commands", "slashCommands"];
+    readonly CONTRIBUTION_RUNTIME: {
+        readonly FEDERATED_MODULE: 'federated-module';
+        readonly TRUSTED_RENDERER: 'trusted-renderer';
+    };
+    readonly CONTRIBUTION_RUNTIMES: readonly ("federated-module" | "trusted-renderer")[];
+    readonly EXECUTION_PLACEMENT: {
+        readonly HOST_RENDERER: 'host-renderer';
+        readonly FRAME: 'frame';
+    };
+    readonly EXECUTION_PLACEMENTS: readonly ("frame" | "host-renderer")[];
+    readonly STORAGE: {
+        readonly KIND: {
+            readonly STATE: 'state';
+            readonly CONFIG: 'config';
+        };
+        readonly KINDS: readonly ("config" | "state")[];
+        readonly SCOPE: {
+            readonly GLOBAL_KIND: 'global';
+            readonly PROJECT_KIND: 'project';
+            readonly GLOBAL_ID: 'global';
+        };
+        readonly SCOPE_KINDS: readonly ("global" | "project")[];
+        readonly KEY_MAX_LENGTH: 160;
+    };
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly INSTALL_SOURCE: {
+        readonly PREBUILT: 'prebuilt';
+        readonly LOCAL_BUILD: 'local-build';
+    };
+    readonly INSTALL_SOURCES: readonly ("local-build" | "prebuilt")[];
+    readonly RUNTIME_REQUIREMENT_TYPE: {
+        readonly BINARY: 'binary';
+        readonly COMMAND: 'command';
+    };
+    readonly RUNTIME_REQUIREMENT_TYPES: readonly ("binary" | "command")[];
+    readonly NETWORK_ACCESS_MODE: {
+        readonly BROKERED: 'brokered';
+        readonly RESTRICTED: 'restricted';
+        readonly DIRECT: 'direct';
+    };
+    readonly NETWORK_ACCESS_MODES: readonly ("brokered" | "direct" | "restricted")[];
+};
+```
+
+### Declarations from `dist/manifest.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import { OPENWAGGLE_EXTENSION } from './constants.js';
+import { type SchemaType } from './schema.js';
+export * from './manifest-contributions.js';
+export { extensionCapabilityScopeSchema, extensionCommandContributionFamilySchema, extensionContributionFamilySchema, extensionContributionIdSchema, extensionContributionRuntimeSchema, extensionExecutionPlacementSchema, extensionIdSchema, extensionRelativePathSchema, extensionSemverVersionSchema, extensionSlotContributionFamilySchema, } from './manifest-primitives.js';
+export declare const extensionRuntimeRequirementTypeSchema: Schema.SchemaClass<"binary" | "command", "binary" | "command", never>;
+export declare const extensionRuntimeRequirementSchema: Schema.filter<Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    kind: Schema.optional<Schema.SchemaClass<"binary" | "command", "binary" | "command", never>>;
+    command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>>;
+export declare const extensionInstallSourceSchema: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
+export declare const extensionInstallSchema: Schema.Struct<{
+    source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
+}>;
+export declare const extensionBuildSchema: Schema.Struct<{
+    command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    outputs: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionNetworkSchema: Schema.Struct<{
+    origins: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionDocsTopicDeclarationSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    path: Schema.filter<Schema.filter<typeof Schema.String>>;
+    description: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    aliases: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    keywords: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionDocsSchema: Schema.Struct<{
+    topics: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        path: Schema.filter<Schema.filter<typeof Schema.String>>;
+        description: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        aliases: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        keywords: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>>;
+}>;
+export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Struct<{
+    manifestVersion: Schema.Literal<[1]>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    name: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    version: Schema.filter<Schema.filter<typeof Schema.String>>;
+    description: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sdk: Schema.Struct<{
+        openwaggle: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>;
+    sourceFiles: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    builtArtifacts: Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    install: Schema.optional<Schema.Struct<{
+        source: Schema.SchemaClass<"local-build" | "prebuilt", "local-build" | "prebuilt", never>;
+    }>>;
+    build: Schema.optional<Schema.Struct<{
+        command: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        outputs: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    docs: Schema.optional<Schema.Struct<{
+        topics: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            path: Schema.filter<Schema.filter<typeof Schema.String>>;
+            description: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            aliases: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            keywords: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>>;
+    }>>;
+    network: Schema.optional<Schema.Struct<{
+        origins: Schema.Array$<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    capabilities: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        scopes: Schema.optional<Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>>;
+    }>>>>;
+    contributions: Schema.optional<Schema.Struct<{
+        commands: Schema.optional<Schema.Array$<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>;
+        slashCommands: Schema.optional<Schema.Array$<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>;
+        routes: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        settingsSections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        sidePanels: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        transcriptRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        toolRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        customMessageRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        interactionRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        statusWidgets: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            matches: Schema.optional<Schema.Struct<{
+                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+        }>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+            target: Schema.optional<Schema.Struct<{
+                projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+            }>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
+    }>>;
+    pi: Schema.optional<Schema.Struct<{
+        resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    trusted: Schema.optional<Schema.Struct<{
+        main: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        renderer: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>>;
+    runtimeRequirements: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        kind: Schema.optional<Schema.SchemaClass<"binary" | "command", "binary" | "command", never>>;
+        command: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        binary: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>>>;
+}>>;
+export type ExtensionRuntimeRequirementDeclaration = SchemaType<typeof extensionRuntimeRequirementSchema>;
+export type ExtensionDocsTopicDeclaration = SchemaType<typeof extensionDocsTopicDeclarationSchema>;
+export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>;
+export type OpenWaggleExtensionManifestFile = typeof OPENWAGGLE_EXTENSION.MANIFEST_FILE;
+export type ExtensionManifestValidationResult = {
+    readonly success: true;
+    readonly manifest: OpenWaggleExtensionManifest;
+} | {
+    readonly success: false;
+    readonly issues: readonly string[];
+};
+export declare function defineExtensionManifest<const TManifest extends OpenWaggleExtensionManifest>(manifest: TManifest): TManifest;
+export declare function validateExtensionManifest(value: unknown): ExtensionManifestValidationResult;
+```
+
+### Declarations from `dist/manifest-contributions.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionCapabilityDeclarationSchema: Schema.filter<Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    scopes: Schema.optional<Schema.Array$<Schema.Literal<["app", "project", "session", "branch"]>>>;
+}>>;
+export declare const extensionCommandContributionSchema: Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+}>;
+export declare const extensionRouteContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+}>>;
+export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struct<{
+    capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+    execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+    entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    matches: Schema.optional<Schema.Struct<{
+        toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+}>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
+export declare const extensionContributionsSchema: Schema.Struct<{
+    commands: Schema.optional<Schema.Array$<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>;
+    slashCommands: Schema.optional<Schema.Array$<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>;
+    routes: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    settingsSections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    sidePanels: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    dialogs: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    transcriptRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    toolRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    customMessageRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    interactionRenderers: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    statusWidgets: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
+}>;
+export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>;
+export declare const extensionRouteContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>;
+export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>;
+export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands"]>;
+    contribution: Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        category: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["routes"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+    contribution: Schema.filter<Schema.Struct<{
+        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        matches: Schema.optional<Schema.Struct<{
+            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+    }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
+}>]>;
+export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>;
+export type ExtensionCommandContribution = SchemaType<typeof extensionCommandContributionSchema>;
+export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>;
+export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
+export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
+export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
+```
+
+### Declarations from `dist/manifest-primitives.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+export declare const extensionNonEmptyStringSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare function isBuildCommand(value: string): string | true;
+export declare function isRuntimeRequirementBinary(value: string): string | true;
+export declare function isNetworkOrigin(value: string): string | true;
+export declare function validateBrokerCapabilityDeclaration(declaration: {
+    readonly id: string;
+    readonly methods?: readonly string[];
+}): string | true;
+export declare const extensionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionContributionIdSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionSemverVersionSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionRelativePathSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionContributionEntryPathSchema: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+export declare const extensionCapabilityScopeSchema: Schema.Literal<["app", "project", "session", "branch"]>;
+export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
+export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
+export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
+```
+
+### Declarations from `dist/core-types.d.ts`
+
+```ts
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+type ConstantValue<TObject> = TObject[keyof TObject];
+export type ExtensionBrokerCapability = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY>;
+export type ExtensionBrokerMethod = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.METHOD>;
+export type ExtensionInvokeFailureCode = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE>;
+export type ExtensionInvokeOutcome = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.OUTCOME>;
+export type ExtensionStateSelector = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR>;
+export type ExtensionSettingsKey = ConstantValue<typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY>;
+export type ExtensionInvokeScope = {
+    readonly kind: 'app';
+} | {
+    readonly kind: 'project';
+    readonly projectPath: string;
+} | {
+    readonly kind: 'session';
+    readonly projectPath: string;
+    readonly sessionId: string;
+} | {
+    readonly kind: 'branch';
+    readonly projectPath: string;
+    readonly sessionId: string;
+    readonly branchId: string;
+};
+export interface ExtensionCapabilityAuditEntry {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: string;
+    readonly method: string;
+    readonly scope: ExtensionInvokeScope;
+    readonly outcome: ExtensionInvokeOutcome;
+    readonly timestamp: number;
+    readonly failureCode?: ExtensionInvokeFailureCode;
+}
+export interface ExtensionInvokeInput {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: string;
+    readonly method: string;
+    readonly scope: ExtensionInvokeScope;
+    readonly payload?: unknown;
+}
+export interface ExtensionInvokeError {
+    readonly code: ExtensionInvokeFailureCode;
+    readonly message: string;
+    readonly issues?: readonly string[];
+}
+export interface ExtensionInvokeSuccess<TValue = unknown> {
+    readonly ok: true;
+    readonly value: TValue;
+    readonly audit: ExtensionCapabilityAuditEntry;
+}
+export interface ExtensionInvokeFailure {
+    readonly ok: false;
+    readonly error: ExtensionInvokeError;
+    readonly audit?: ExtensionCapabilityAuditEntry;
+}
+export type ExtensionInvokeResult<TValue = unknown> = ExtensionInvokeSuccess<TValue> | ExtensionInvokeFailure;
+export {};
+```
+
+### Declarations from `dist/openwaggle-types.d.ts`
+
+```ts
+import type { OPENWAGGLE_EXTENSION_BROKER } from './constants.js';
+import type { ExtensionInvokeScope, ExtensionStateSelector } from './core-types.js';
+export type { ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, } from './docs.js';
+export interface ExtensionModelPrefs {
+    readonly selectedModel: string;
+    readonly favoriteModels: readonly string[];
+    readonly enabledModels: readonly string[];
+    readonly thinkingLevel: string;
+}
+export interface ExtensionProjectView {
+    readonly projectPath: string;
+    readonly displayName: string | null;
+    readonly active: boolean;
+}
+export interface ExtensionSessionView {
+    readonly sessionId: string;
+    readonly title: string;
+    readonly projectPath: string | null;
+}
+export interface ExtensionBranchView {
+    readonly branchId: string;
+    readonly sessionId: string;
+    readonly name: string;
+    readonly main: boolean;
+    readonly archived: boolean;
+}
+export interface ExtensionStateReadResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly activeProjectPath: string | null;
+    readonly currentProject: ExtensionProjectView | null;
+    readonly currentSession: ExtensionSessionView | null;
+    readonly currentBranch: ExtensionBranchView | null;
+    readonly recentProjects: readonly string[];
+    readonly modelPreferences: ExtensionModelPrefs;
+}
+export interface ExtensionSelectedStateReadResult<TValue> {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.READ_STATE;
+    readonly scope: ExtensionInvokeScope;
+    readonly selector: ExtensionStateSelector;
+    readonly value: TValue;
+}
+export type ExtensionStateCurrentProjectReadResult = ExtensionSelectedStateReadResult<ExtensionProjectView | null>;
+export type ExtensionStateCurrentSessionReadResult = ExtensionSelectedStateReadResult<ExtensionSessionView | null>;
+export type ExtensionStateCurrentBranchReadResult = ExtensionSelectedStateReadResult<ExtensionBranchView | null>;
+export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<readonly string[]>;
+export type ExtensionStateModelPreferencesReadResult = ExtensionSelectedStateReadResult<ExtensionModelPrefs>;
+export interface ExtensionActionSelectProjectResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT;
+    readonly previousProjectPath: string | null;
+    readonly projectPath: string;
+    readonly recentProjects: readonly string[];
+}
+export interface ExtensionSettingsView {
+    readonly modelPreferences: ExtensionModelPrefs;
+    readonly projectDisplayNames: Readonly<Record<string, string>>;
+}
+export interface ExtensionModelPreferencesSettingsPatch {
+    readonly selectedModel?: string;
+    readonly favoriteModels?: readonly string[];
+    readonly enabledModels?: readonly string[];
+    readonly thinkingLevel?: string;
+}
+export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
+    readonly projectDisplayNames?: Readonly<Record<string, string>>;
+};
+export interface ExtensionSettingsGetResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS;
+    readonly settings: ExtensionSettingsView;
+}
+export interface ExtensionSettingsUpdateResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS;
+    readonly settings: ExtensionSettingsView;
+}
+export type ExtensionSettingsSelectedValue = {
+    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES;
+    readonly value: ExtensionModelPrefs;
+} | {
+    readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME;
+    readonly projectPath: string;
+    readonly value: string | null;
+};
+export interface ExtensionSettingsGetSettingResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING;
+    readonly setting: ExtensionSettingsSelectedValue;
+}
+export interface ExtensionSettingsUpdateSettingResult {
+    readonly extensionId: string;
+    readonly contributionId: string;
+    readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS;
+    readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING;
+    readonly setting: ExtensionSettingsSelectedValue;
+}
+```
+
+### Declarations from `dist/docs.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const firstPartyDocTopicSchema: Schema.filter<Schema.filter<typeof Schema.String>>;
+export declare const extensionDocsDiscoverPayloadSchema: Schema.Struct<{
+    projectPaths: Schema.optional<Schema.Array$<Schema.filter<typeof Schema.String>>>;
+    includeExtensions: Schema.optional<typeof Schema.Boolean>;
+}>;
+export declare const extensionDocsResolveTopicPayloadSchema: Schema.Struct<{
+    topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const docsDiscoveryDiagnosticSchema: Schema.Struct<{
+    severity: Schema.Literal<["warning", "error"]>;
+    code: Schema.filter<typeof Schema.String>;
+    message: Schema.filter<typeof Schema.String>;
+    path: Schema.optional<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const firstPartyDocsTopicSummarySchema: Schema.Struct<{
+    topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+    source: Schema.Literal<["openwaggle", "pi"]>;
+    group: Schema.filter<typeof Schema.String>;
+    title: Schema.filter<typeof Schema.String>;
+    description: Schema.optional<Schema.filter<typeof Schema.String>>;
+    section: Schema.optional<Schema.filter<typeof Schema.String>>;
+    order: typeof Schema.Number;
+    path: Schema.filter<typeof Schema.String>;
+    bundlePath: Schema.filter<typeof Schema.String>;
+    sourcePath: Schema.filter<typeof Schema.String>;
+    aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    contentHash: Schema.filter<typeof Schema.String>;
+}>;
+export declare const extensionDocsPackageScopeViewSchema: Schema.Struct<{
+    kind: Schema.Literal<["global", "project"]>;
+    label: Schema.filter<typeof Schema.String>;
+    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionDocsProvenanceSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    scope: Schema.Struct<{
+        kind: Schema.Literal<["global", "project"]>;
+        label: Schema.filter<typeof Schema.String>;
+        projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+    }>;
+    packagePath: Schema.filter<typeof Schema.String>;
+    manifestPath: Schema.filter<typeof Schema.String>;
+    path: Schema.filter<typeof Schema.String>;
+    packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+    lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+}>;
+export declare const extensionDocsTopicSummarySchema: Schema.Struct<{
+    topic: Schema.filter<typeof Schema.String>;
+    localTopic: Schema.filter<typeof Schema.String>;
+    title: Schema.filter<typeof Schema.String>;
+    description: Schema.optional<Schema.filter<typeof Schema.String>>;
+    path: Schema.filter<typeof Schema.String>;
+    aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+    contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+    provenance: Schema.Struct<{
+        extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        scope: Schema.Struct<{
+            kind: Schema.Literal<["global", "project"]>;
+            label: Schema.filter<typeof Schema.String>;
+            projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>;
+        packagePath: Schema.filter<typeof Schema.String>;
+        manifestPath: Schema.filter<typeof Schema.String>;
+        path: Schema.filter<typeof Schema.String>;
+        packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+        lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+    }>;
+    diagnostics: Schema.Array$<Schema.Struct<{
+        severity: Schema.Literal<["warning", "error"]>;
+        code: Schema.filter<typeof Schema.String>;
+        message: Schema.filter<typeof Schema.String>;
+        path: Schema.optional<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const docsDiscoveryViewSchema: Schema.Struct<{
+    generatedAt: Schema.filter<typeof Schema.String>;
+    bundlePath: Schema.filter<typeof Schema.String>;
+    firstPartyTopics: Schema.Array$<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+    extensionTopics: Schema.Array$<Schema.Struct<{
+        topic: Schema.filter<typeof Schema.String>;
+        localTopic: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        path: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+        provenance: Schema.Struct<{
+            extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            scope: Schema.Struct<{
+                kind: Schema.Literal<["global", "project"]>;
+                label: Schema.filter<typeof Schema.String>;
+                projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>;
+            packagePath: Schema.filter<typeof Schema.String>;
+            manifestPath: Schema.filter<typeof Schema.String>;
+            path: Schema.filter<typeof Schema.String>;
+            packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+            lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+        }>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+    diagnostics: Schema.Array$<Schema.Struct<{
+        severity: Schema.Literal<["warning", "error"]>;
+        code: Schema.filter<typeof Schema.String>;
+        message: Schema.filter<typeof Schema.String>;
+        path: Schema.optional<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionDocsDiscoverResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["discover-docs"]>;
+    docs: Schema.Struct<{
+        generatedAt: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        firstPartyTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+            source: Schema.Literal<["openwaggle", "pi"]>;
+            group: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            section: Schema.optional<Schema.filter<typeof Schema.String>>;
+            order: typeof Schema.Number;
+            path: Schema.filter<typeof Schema.String>;
+            bundlePath: Schema.filter<typeof Schema.String>;
+            sourcePath: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.filter<typeof Schema.String>;
+        }>>;
+        extensionTopics: Schema.Array$<Schema.Struct<{
+            topic: Schema.filter<typeof Schema.String>;
+            localTopic: Schema.filter<typeof Schema.String>;
+            title: Schema.filter<typeof Schema.String>;
+            description: Schema.optional<Schema.filter<typeof Schema.String>>;
+            path: Schema.filter<typeof Schema.String>;
+            aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+            contentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+            provenance: Schema.Struct<{
+                extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                extensionName: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                extensionVersion: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                scope: Schema.Struct<{
+                    kind: Schema.Literal<["global", "project"]>;
+                    label: Schema.filter<typeof Schema.String>;
+                    projectPath: Schema.optional<Schema.filter<typeof Schema.String>>;
+                }>;
+                packagePath: Schema.filter<typeof Schema.String>;
+                manifestPath: Schema.filter<typeof Schema.String>;
+                path: Schema.filter<typeof Schema.String>;
+                packageContentHash: Schema.NullOr<Schema.filter<typeof Schema.String>>;
+                trust: Schema.Literal<["trusted", "untrusted", "unknown"]>;
+                lifecycle: Schema.Literal<["enabled", "disabled", "unavailable"]>;
+            }>;
+            diagnostics: Schema.Array$<Schema.Struct<{
+                severity: Schema.Literal<["warning", "error"]>;
+                code: Schema.filter<typeof Schema.String>;
+                message: Schema.filter<typeof Schema.String>;
+                path: Schema.optional<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+        diagnostics: Schema.Array$<Schema.Struct<{
+            severity: Schema.Literal<["warning", "error"]>;
+            code: Schema.filter<typeof Schema.String>;
+            message: Schema.filter<typeof Schema.String>;
+            path: Schema.optional<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>;
+}>;
+export declare const extensionDocsResolveTopicResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.docs"]>;
+    method: Schema.Literal<["resolve-docs-topic"]>;
+    resolvedTopic: Schema.NullOr<Schema.Struct<{
+        topic: Schema.filter<Schema.filter<typeof Schema.String>>;
+        source: Schema.Literal<["openwaggle", "pi"]>;
+        group: Schema.filter<typeof Schema.String>;
+        title: Schema.filter<typeof Schema.String>;
+        description: Schema.optional<Schema.filter<typeof Schema.String>>;
+        section: Schema.optional<Schema.filter<typeof Schema.String>>;
+        order: typeof Schema.Number;
+        path: Schema.filter<typeof Schema.String>;
+        bundlePath: Schema.filter<typeof Schema.String>;
+        sourcePath: Schema.filter<typeof Schema.String>;
+        aliases: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        keywords: Schema.Array$<Schema.filter<typeof Schema.String>>;
+        contentHash: Schema.filter<typeof Schema.String>;
+    }>>;
+}>;
+export type ExtensionDocsDiscoverPayload = SchemaType<typeof extensionDocsDiscoverPayloadSchema>;
+export type ExtensionDocsResolveTopicPayload = SchemaType<typeof extensionDocsResolveTopicPayloadSchema>;
+export type ExtensionDocsDiscoverResult = SchemaType<typeof extensionDocsDiscoverResultSchema>;
+export type ExtensionDocsResolveTopicResult = SchemaType<typeof extensionDocsResolveTopicResultSchema>;
+export type ExtensionDocsDiscoveryView = SchemaType<typeof docsDiscoveryViewSchema>;
+export type FirstPartyDocsTopicSummary = SchemaType<typeof firstPartyDocsTopicSummarySchema>;
+```
+
+### Declarations from `dist/registry-types.d.ts`
+
+```ts
+import type { ExtensionCapabilityScope, ExtensionContributionFamily, ExtensionContributionMatchView, ExtensionContributionRuntime, ExtensionContributionTargetView, ExtensionExecutionPlacement } from './contribution-types.js';
+export type ExtensionPackageScopeKind = 'global' | 'project';
+export interface ExtensionPackageScopeView {
+    readonly kind: ExtensionPackageScopeKind;
+    readonly label: string;
+    readonly projectPath?: string;
+}
+export interface ExtensionContributionRegistryEntry {
+    readonly extensionId: string;
+    readonly extensionName: string;
+    readonly extensionVersion: string;
+    readonly scope: ExtensionPackageScopeView;
+    readonly packagePath: string;
+    readonly manifestPath: string;
+    readonly contentHash: string;
+    readonly projectPaths: readonly string[];
+    readonly sessionId?: string;
+    readonly appliesToAllRequestedProjects: boolean;
+    readonly family: ExtensionContributionFamily;
+    readonly contributionId: string;
+    readonly title: string;
+    readonly label: string;
+    readonly category?: string;
+    readonly capability?: string;
+    readonly method?: string;
+    readonly methods?: readonly string[];
+    readonly declaredScopes?: readonly ExtensionCapabilityScope[];
+    readonly networkOrigins?: readonly string[];
+    readonly target?: ExtensionContributionTargetView;
+    readonly matches?: ExtensionContributionMatchView;
+    readonly runtime?: ExtensionContributionRuntime;
+    readonly execution?: ExtensionExecutionPlacement;
+    readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly disclosure?: {
+            readonly defaultExpanded?: boolean;
+            readonly collapsible?: boolean;
+            readonly autoCollapseAfterMs?: number;
+        };
+        readonly state?: {
+            readonly status: 'ready';
+        } | {
+            readonly status: 'loading' | 'live';
+            readonly message?: string;
+        } | {
+            readonly status: 'failure';
+            readonly message: string;
+        };
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -10327,6 +13866,7 @@ export type * from './core-types.js';
 export type * from './openwaggle-types.js';
 export type * from './registry-types.js';
 export type * from './runtime-types.js';
+export type * from './session-resource-types.js';
 export type * from './storage-types.js';
 ```
 
@@ -10368,8 +13908,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly SETTINGS: 'openwaggle.settings';
         readonly DOCS: 'openwaggle.docs';
         readonly RUNTIME: 'openwaggle.runtime';
+        readonly SESSION_RESOURCES: 'openwaggle.session-resources';
     };
-    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
+    readonly CAPABILITIES: readonly ("openwaggle.actions" | "openwaggle.docs" | "openwaggle.host.context" | "openwaggle.runtime" | "openwaggle.session-resources" | "openwaggle.settings" | "openwaggle.state" | "openwaggle.storage")[];
     readonly CAPABILITY_METHODS: readonly [{
         readonly capability: "openwaggle.host.context";
         readonly methods: readonly ["get-scope"];
@@ -10391,6 +13932,9 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
     }, {
         readonly capability: "openwaggle.runtime";
         readonly methods: readonly ["register-contribution", "unregister-contribution"];
+    }, {
+        readonly capability: "openwaggle.session-resources";
+        readonly methods: readonly ["publish-session-resource", "list-session-resources"];
     }];
     readonly METHOD: {
         readonly GET_SCOPE: 'get-scope';
@@ -10409,8 +13953,10 @@ export declare const OPENWAGGLE_EXTENSION_BROKER: {
         readonly RESOLVE_DOCS_TOPIC: 'resolve-docs-topic';
         readonly REGISTER_CONTRIBUTION: 'register-contribution';
         readonly UNREGISTER_CONTRIBUTION: 'unregister-contribution';
+        readonly PUBLISH_SESSION_RESOURCE: 'publish-session-resource';
+        readonly LIST_SESSION_RESOURCES: 'list-session-resources';
     };
-    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
+    readonly METHODS: readonly ("delete" | "discover-docs" | "get" | "get-scope" | "get-setting" | "get-settings" | "get-state" | "list" | "list-session-resources" | "publish-session-resource" | "read-state" | "register-contribution" | "resolve-docs-topic" | "select-project" | "set" | "unregister-contribution" | "update-setting" | "update-settings")[];
     readonly FAILURE_CODE: {
         readonly INVALID_INPUT: 'invalid-input';
         readonly INVALID_PAYLOAD: 'invalid-payload';
@@ -10524,8 +14070,8 @@ export declare const OPENWAGGLE_EXTENSION: {
         readonly SCOPE_KINDS: readonly ("global" | "project")[];
         readonly KEY_MAX_LENGTH: 160;
     };
-    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
-    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"];
+    readonly ENTRY_CONTRIBUTION_FAMILIES: readonly ["routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
+    readonly SLOT_CONTRIBUTION_FAMILIES: readonly ["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"];
     readonly INSTALL_SOURCE: {
         readonly PREBUILT: 'prebuilt';
         readonly LOCAL_BUILD: 'local-build';
@@ -10822,25 +14368,41 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
         }>>>>;
-        sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-            capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-            runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-            execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-            entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
             target: Schema.optional<Schema.Struct<{
                 projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
                 sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             }>>;
-            matches: Schema.optional<Schema.Struct<{
-                toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-                interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            disclosure: Schema.optional<Schema.Struct<{
+                defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+                collapsible: Schema.optional<typeof Schema.Boolean>;
+                autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
             }>>;
-        }>>>>;
+            state: Schema.optional<Schema.Union<[Schema.Struct<{
+                status: Schema.Literal<["ready"]>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["loading", "live"]>;
+                message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            }>, Schema.Struct<{
+                status: Schema.Literal<["failure"]>;
+                message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            }>]>>;
+            rows: Schema.Array$<Schema.Struct<{
+                id: Schema.filter<Schema.filter<typeof Schema.String>>;
+                label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+                count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+                resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+                action: Schema.optional<Schema.Struct<{
+                    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+                }>>;
+            }>>;
+        }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
         resourceRoots: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10950,6 +14512,71 @@ export declare const extensionSlotContributionSchema: Schema.filter<Schema.Struc
         interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
     }>>;
 }>>;
+export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
+    family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+}>;
+export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+    resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    action: Schema.optional<Schema.Struct<{
+        family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+        contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    }>>;
+}>;
+export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
+    defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+    collapsible: Schema.optional<typeof Schema.Boolean>;
+    autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionSummaryStateSchema: Schema.Union<[Schema.Struct<{
+    status: Schema.Literal<["ready"]>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["loading", "live"]>;
+    message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>, Schema.Struct<{
+    status: Schema.Literal<["failure"]>;
+    message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
+    id: Schema.filter<Schema.filter<typeof Schema.String>>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+    target: Schema.optional<Schema.Struct<{
+        projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>>;
+    disclosure: Schema.optional<Schema.Struct<{
+        defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+        collapsible: Schema.optional<typeof Schema.Boolean>;
+        autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+    }>>;
+    state: Schema.optional<Schema.Union<[Schema.Struct<{
+        status: Schema.Literal<["ready"]>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["loading", "live"]>;
+        message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    }>, Schema.Struct<{
+        status: Schema.Literal<["failure"]>;
+        message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    rows: Schema.Array$<Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+        resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        action: Schema.optional<Schema.Struct<{
+            family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+            contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        }>>;
+    }>>;
+}>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -11146,25 +14773,41 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>>>;
-    sessionSummarySections: Schema.optional<Schema.Array$<Schema.filter<Schema.Struct<{
-        capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        methods: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    sessionSummarySections: Schema.optional<Schema.Array$<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
-        runtime: Schema.SchemaClass<"federated-module" | "trusted-renderer", "federated-module" | "trusted-renderer", never>;
-        execution: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
-        entry: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
         target: Schema.optional<Schema.Struct<{
             projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
             sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
-        matches: Schema.optional<Schema.Struct<{
-            toolNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            customMessageNames: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
-            interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
         }>>;
-    }>>>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -11204,7 +14847,7 @@ export declare const extensionRouteContributionRegistrationSchema: Schema.Struct
     }>>;
 }>;
 export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -11224,6 +14867,44 @@ export declare const extensionSlotContributionRegistrationSchema: Schema.Struct<
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>;
+export declare const extensionSessionSummaryContributionRegistrationSchema: Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands"]>;
@@ -11261,7 +14942,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
         }>>;
     }>>;
 }>, Schema.Struct<{
-    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+    family: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
     contribution: Schema.filter<Schema.Struct<{
         capability: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
         method: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
@@ -11281,6 +14962,43 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             interactionKinds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
         }>>;
     }>>;
+}>, Schema.Struct<{
+    family: Schema.Literal<["sessionSummarySections"]>;
+    contribution: Schema.Struct<{
+        id: Schema.filter<Schema.filter<typeof Schema.String>>;
+        title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        placement: Schema.optional<Schema.Literal<["context", "coordination", "details"]>>;
+        target: Schema.optional<Schema.Struct<{
+            projectPaths: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            sessionIds: Schema.optional<Schema.Array$<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>>;
+        disclosure: Schema.optional<Schema.Struct<{
+            defaultExpanded: Schema.optional<typeof Schema.Boolean>;
+            collapsible: Schema.optional<typeof Schema.Boolean>;
+            autoCollapseAfterMs: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+        }>>;
+        state: Schema.optional<Schema.Union<[Schema.Struct<{
+            status: Schema.Literal<["ready"]>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["loading", "live"]>;
+            message: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+        }>, Schema.Struct<{
+            status: Schema.Literal<["failure"]>;
+            message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+        }>]>>;
+        rows: Schema.Array$<Schema.Struct<{
+            id: Schema.filter<Schema.filter<typeof Schema.String>>;
+            label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            badge: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+            count: Schema.optional<Schema.filter<Schema.filter<typeof Schema.Number>>>;
+            resourceId: Schema.optional<Schema.filter<Schema.filter<typeof Schema.String>>>;
+            action: Schema.optional<Schema.Struct<{
+                family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
+                contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+            }>>;
+        }>>;
+    }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
@@ -11292,6 +15010,7 @@ export type ExtensionContributions = SchemaType<typeof extensionContributionsSch
 export type ExtensionContributionRegistration = SchemaType<typeof extensionContributionRegistrationSchema>;
 export type ExtensionContributionUnregistration = SchemaType<typeof extensionContributionUnregistrationSchema>;
 export type ExtensionEntryContribution = SchemaType<typeof extensionRouteContributionSchema> | SchemaType<typeof extensionSlotContributionSchema>;
+export type ExtensionSessionSummaryContribution = SchemaType<typeof extensionSessionSummaryContributionSchema>;
 ```
 
 ### Declarations from `dist/manifest-primitives.d.ts`
@@ -11316,7 +15035,7 @@ export declare const extensionContributionRuntimeSchema: Schema.SchemaClass<"fed
 export declare const extensionExecutionPlacementSchema: Schema.SchemaClass<"frame" | "host-renderer", "frame" | "host-renderer", never>;
 export declare const extensionContributionFamilySchema: Schema.Literal<["commands", "slashCommands", "routes", "settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
 export declare const extensionCommandContributionFamilySchema: Schema.Literal<["commands", "slashCommands"]>;
-export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets", "sessionSummarySections"]>;
+export declare const extensionSlotContributionFamilySchema: Schema.Literal<["settingsSections", "sidePanels", "dialogs", "transcriptRenderers", "toolRenderers", "customMessageRenderers", "interactionRenderers", "statusWidgets"]>;
 ```
 
 ### Declarations from `dist/core-types.d.ts`
@@ -11770,6 +15489,35 @@ export interface ExtensionContributionRegistryEntry {
     readonly runtime?: ExtensionContributionRuntime;
     readonly execution?: ExtensionExecutionPlacement;
     readonly entryPath?: string;
+    readonly sessionSummary?: {
+        readonly placement: 'context' | 'coordination' | 'details';
+        readonly disclosure?: {
+            readonly defaultExpanded?: boolean;
+            readonly collapsible?: boolean;
+            readonly autoCollapseAfterMs?: number;
+        };
+        readonly state?: {
+            readonly status: 'ready';
+        } | {
+            readonly status: 'loading' | 'live';
+            readonly message?: string;
+        } | {
+            readonly status: 'failure';
+            readonly message: string;
+        };
+        readonly rows: readonly {
+            readonly id: string;
+            readonly label: string;
+            readonly value?: string;
+            readonly badge?: string;
+            readonly count?: number;
+            readonly resourceId?: string;
+            readonly action?: {
+                readonly family: 'commands' | 'sidePanels' | 'dialogs';
+                readonly contributionId: string;
+            };
+        }[];
+    };
 }
 ```
 
@@ -11795,6 +15543,125 @@ export interface ExtensionRuntimeUnregisterContributionResult {
     readonly unregisteredContributionId: string;
     readonly unregistered: boolean;
 }
+```
+
+### Declarations from `dist/session-resource-types.d.ts`
+
+```ts
+import * as Schema from 'effect/Schema';
+import type { SchemaType } from './schema.js';
+export declare const extensionSessionResourceKindSchema: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+export declare const extensionSessionResourceActivitySchema: Schema.Literal<["provided", "read", "created", "updated"]>;
+export declare const extensionSessionResourceCategorySchema: Schema.Literal<["all", "sources", "outputs"]>;
+export declare const extensionSessionResourceReferenceSchema: Schema.Union<[Schema.Struct<{
+    kind: Schema.Literal<["external-url"]>;
+    url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>, Schema.Struct<{
+    kind: Schema.Literal<["project-file"]>;
+    path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+}>]>;
+export declare const extensionSessionResourcePublishPayloadSchema: Schema.Struct<{
+    key: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    mimeType: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+    reference: Schema.optional<Schema.Union<[Schema.Struct<{
+        kind: Schema.Literal<["external-url"]>;
+        url: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>, Schema.Struct<{
+        kind: Schema.Literal<["project-file"]>;
+        path: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
+    }>]>>;
+    label: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
+}>;
+export declare const extensionSessionResourceListPayloadSchema: Schema.Struct<{
+    category: Schema.optional<Schema.Literal<["all", "sources", "outputs"]>>;
+    limit: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.Number>>>>;
+}>;
+export declare const extensionSessionResourceOccurrenceViewSchema: Schema.Struct<{
+    actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+    activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+    label: Schema.NullOr<typeof Schema.String>;
+    createdAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourceViewSchema: Schema.Struct<{
+    resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+    title: typeof Schema.String;
+    mimeType: Schema.NullOr<typeof Schema.String>;
+    available: typeof Schema.Boolean;
+    source: typeof Schema.Boolean;
+    output: typeof Schema.Boolean;
+    occurrences: Schema.Array$<Schema.Struct<{
+        actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+        activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+        label: Schema.NullOr<typeof Schema.String>;
+        createdAt: typeof Schema.Number;
+    }>>;
+    createdAt: typeof Schema.Number;
+    updatedAt: typeof Schema.Number;
+}>;
+export declare const extensionSessionResourcePublishResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["publish-session-resource"]>;
+    resource: Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>;
+}>;
+export declare const extensionSessionResourceListResultSchema: Schema.Struct<{
+    extensionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    capability: Schema.Literal<["openwaggle.session-resources"]>;
+    sessionId: Schema.filter<Schema.filter<typeof Schema.String>>;
+    method: Schema.Literal<["list-session-resources"]>;
+    category: Schema.Literal<["all", "sources", "outputs"]>;
+    total: Schema.filter<Schema.filter<typeof Schema.Number>>;
+    resources: Schema.Array$<Schema.Struct<{
+        resourceId: Schema.filter<Schema.filter<typeof Schema.String>>;
+        kind: Schema.Literal<["image", "file", "link", "tool", "web-search", "site", "commit", "change-request"]>;
+        title: typeof Schema.String;
+        mimeType: Schema.NullOr<typeof Schema.String>;
+        available: typeof Schema.Boolean;
+        source: typeof Schema.Boolean;
+        output: typeof Schema.Boolean;
+        occurrences: Schema.Array$<Schema.Struct<{
+            actor: Schema.Literal<["user", "agent", "tool", "extension"]>;
+            activity: Schema.Literal<["provided", "read", "created", "updated"]>;
+            label: Schema.NullOr<typeof Schema.String>;
+            createdAt: typeof Schema.Number;
+        }>>;
+        createdAt: typeof Schema.Number;
+        updatedAt: typeof Schema.Number;
+    }>>;
+}>;
+export type ExtensionSessionResourceKind = SchemaType<typeof extensionSessionResourceKindSchema>;
+export type ExtensionSessionResourceActivity = SchemaType<typeof extensionSessionResourceActivitySchema>;
+export type ExtensionSessionResourceCategory = SchemaType<typeof extensionSessionResourceCategorySchema>;
+export type ExtensionSessionResourceReference = SchemaType<typeof extensionSessionResourceReferenceSchema>;
+export type ExtensionSessionResourcePublishPayload = SchemaType<typeof extensionSessionResourcePublishPayloadSchema>;
+export type ExtensionSessionResourceListPayload = SchemaType<typeof extensionSessionResourceListPayloadSchema>;
+export type ExtensionSessionResourceOccurrenceView = SchemaType<typeof extensionSessionResourceOccurrenceViewSchema>;
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>;
+export type ExtensionSessionResourcePublishResult = SchemaType<typeof extensionSessionResourcePublishResultSchema>;
+export type ExtensionSessionResourceListResult = SchemaType<typeof extensionSessionResourceListResultSchema>;
 ```
 
 ### Declarations from `dist/storage-types.d.ts`

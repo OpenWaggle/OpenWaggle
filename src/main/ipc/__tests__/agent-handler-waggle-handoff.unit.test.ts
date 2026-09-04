@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   clearAgentPhase: vi.fn(),
   clearStreamBuffer: vi.fn(),
   compactAgentSession: vi.fn(),
+  captureSuccessfulRunResources: vi.fn(),
   emitErrorAndFinish: vi.fn(),
   emitRunCompleted: vi.fn(),
   emitTransportEvent: vi.fn(),
@@ -27,6 +28,9 @@ vi.mock('../../application/agent-run-service', () => ({ executeAgentRun: mocks.e
 vi.mock('../../application/agent-session-service', () => ({
   compactAgentSession: mocks.compactAgentSession,
   getAgentContextUsage: mocks.getAgentContextUsage,
+}))
+vi.mock('../../application/session-resource-capture', () => ({
+  captureSuccessfulRunResources: mocks.captureSuccessfulRunResources,
 }))
 vi.mock('../../application/waggle-run-service', () => ({
   executeWaggleRun: mocks.executeWaggleRun,
@@ -102,6 +106,7 @@ describe('agent handler Waggle handoff lifecycle', () => {
     cancelAllSessionRuns()
     for (const mock of Object.values(mocks)) mock.mockReset()
     mocks.compactAgentSession.mockReturnValue(Effect.void)
+    mocks.captureSuccessfulRunResources.mockReturnValue(Effect.void)
     mocks.getAgentContextUsage.mockReturnValue(Effect.succeed(null))
   })
 

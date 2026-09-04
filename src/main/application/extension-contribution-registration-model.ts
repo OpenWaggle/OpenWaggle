@@ -9,11 +9,16 @@ import {
   ENTRY_FAMILY_DESCRIPTORS,
   type ManifestCommandContribution,
   type ManifestEntryContribution,
+  type ManifestSessionSummaryContribution,
+  SESSION_SUMMARY_FAMILY_DESCRIPTOR,
 } from './extension-contribution-family-model'
 
 export interface ContributionRegistrationEntry {
   readonly family: ExtensionContributionFamily
-  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
+  readonly contribution:
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution
 }
 
 export interface ContributionRegistrationResult {
@@ -77,7 +82,10 @@ function listDescriptorContributionsSafely<Contribution>(input: {
 }
 
 function registerContributionSafely<
-  Contribution extends ManifestCommandContribution | ManifestEntryContribution,
+  Contribution extends
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution,
 >(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
@@ -115,7 +123,10 @@ function registerContributionSafely<
 }
 
 function registerDescriptorContributions<
-  Contribution extends ManifestCommandContribution | ManifestEntryContribution,
+  Contribution extends
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution,
 >(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly descriptors: readonly ContributionFamilyDescriptor<Contribution>[]
@@ -167,6 +178,13 @@ export function packageContributionRegistrations(
   registerDescriptorContributions({
     extensionPackage,
     descriptors: ENTRY_FAMILY_DESCRIPTORS,
+    contributions,
+    registrations,
+    diagnostics,
+  })
+  registerDescriptorContributions({
+    extensionPackage,
+    descriptors: [SESSION_SUMMARY_FAMILY_DESCRIPTOR],
     contributions,
     registrations,
     diagnostics,

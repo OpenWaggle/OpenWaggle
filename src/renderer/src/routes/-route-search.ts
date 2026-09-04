@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
 export type ChatBuiltInRightPanel = 'diff' | 'file' | 'resources' | 'session-tree'
@@ -17,6 +18,8 @@ export interface ChatRouteSearch {
   readonly panel?: ChatRightPanel
   readonly filePath?: string
   readonly fileLine?: number
+  readonly resourceView?: 'sources' | 'outputs'
+  readonly resourceId?: string
   readonly sidePanelExtensionId?: string
   readonly sidePanelId?: string
   readonly sidePanelPackagePath?: string
@@ -68,6 +71,10 @@ function parseFileLine(value: unknown) {
     : undefined
 }
 
+function parseResourceView(value: unknown) {
+  return isMatching(P.union('sources', 'outputs'), value) ? value : undefined
+}
+
 function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
   const branch = parseSearchString(search.branch)
   const node = parseSearchString(search.node)
@@ -112,9 +119,30 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
     return filePath ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) } : base
   }
 
+  if (panel === 'resources') {
+    const resourceView = parseResourceView(search.resourceView)
+    const resourceId = parseSearchToken(search.resourceId)
+    return {
+      ...base,
+      panel,
+      ...(resourceView ? { resourceView } : {}),
+      ...(resourceId ? { resourceId } : {}),
+    }
+  }
+
   return {
     ...base,
     ...(panel ? { panel } : {}),
+  }
+}
+
+export function resourceBrowserTargetFromSearch(
+  search: ChatRouteSearch,
+): SessionResourceBrowserTarget | null {
+  if (search.panel !== 'resources') return null
+  return {
+    view: search.resourceView ?? 'sources',
+    ...(search.resourceId ? { resourceId: search.resourceId } : {}),
   }
 }
 

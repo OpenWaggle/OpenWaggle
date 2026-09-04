@@ -38,7 +38,7 @@ export interface LocalVcsStatus {
   readonly isRepo: boolean
   readonly sourceControlProvider: SourceControlProviderInfo | null
   readonly hasPrimaryRemote: boolean
-  /** Locally resolved default branch name, when origin/HEAD or repository config provides one. */
+  /** Locally resolved default branch name, when the primary remote's HEAD provides one. */
   readonly defaultRef?: string | null
   readonly isDefaultRef: boolean
   readonly refName: string | null
@@ -123,7 +123,8 @@ export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFa
 
 export interface OpenChangeRequestPayload {
   readonly headRef: string
-  readonly baseRef: string
+  /** Omitted when the provider should use the repository's configured default branch. */
+  readonly baseRef?: string
   readonly title: string
   readonly body?: string
   readonly draft?: boolean
@@ -150,6 +151,13 @@ export interface ChangeRequestCheckoutSuccess {
 
 /** Result of checking a change request out into a working tree / Session worktree. */
 export type ChangeRequestCheckoutResult = ChangeRequestCheckoutSuccess | SourceControlFailure
+
+/** Read-only provider and browser readiness for the change-request composer. */
+export interface ChangeRequestPreflightResult {
+  readonly provider: SourceControlProviderInfo | null
+  readonly readiness: SourceControlAuthResult
+  readonly browserUrl: string | null
+}
 
 // --- Stacked git actions (WS4, ADR 0012) ---
 
@@ -220,6 +228,8 @@ export interface GitRunStackedActionSuccess {
   readonly ok: true
   readonly action: GitStackedAction
   readonly branch: GitStackedActionBranchOutcome
+  /** Commit produced by this action, when it included a successful commit phase. */
+  readonly commitHash?: string
   readonly changeRequest: VcsChangeRequest | null
 }
 
@@ -228,6 +238,12 @@ export interface GitRunStackedActionFailure {
   readonly phase: GitActionPhase
   readonly code: GitStackedActionErrorCode
   readonly message: string
+  /** Commit retained when a later push or change-request phase failed. */
+  readonly commitHash?: string
+  /** Prepared branch retained after a later phase failed, so retry can resume it safely. */
+  readonly branch?: GitStackedActionBranchOutcome
+  /** Provider web composer used when the native CLI is unavailable or unauthenticated. */
+  readonly fallbackUrl?: string
 }
 
 export type GitRunStackedActionResult = GitRunStackedActionSuccess | GitRunStackedActionFailure

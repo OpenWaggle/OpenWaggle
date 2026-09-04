@@ -1,18 +1,31 @@
+import type { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Effect } from 'effect'
 import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
 import type { OpenWaggleMcpSessionMetadataStore } from './openwaggle-mcp-session-metadata-store'
 import { admitOpenWaggleTask, type OpenWaggleTaskStartInput } from './openwaggle-mcp-task-admission'
 import {
-  cancellationRequestedTaskRecord,
+  cancelOpenWaggleSessionTasks,
+  cancelOpenWaggleTask,
+} from './openwaggle-mcp-task-cancellation'
+import {
   cancelledTaskRecord,
   hasLiveLease,
   isActiveTaskStatus,
   type OpenWaggleServerTaskLeaseOptions,
   OpenWaggleTaskLeaseCoordinator,
-  recoverStaleTask,
   terminalTaskRecord,
 } from './openwaggle-mcp-task-leases'
+import {
+  establishTaskLineage,
+  type projectTaskDelegationState,
+  terminalDelegationState,
+} from './openwaggle-mcp-task-lineage'
+import {
+  projectTaskStateIfAuthoritative,
+  reconcileOpenWaggleProfileTasks,
+} from './openwaggle-mcp-task-reconciliation'
+import { type ActiveServerTask, taskResult } from './openwaggle-mcp-task-result'
 import {
   defaultTaskServices,
   type OpenWaggleServerTaskServices,
@@ -23,31 +36,6 @@ export type { OpenWaggleServerTaskLeaseOptions } from './openwaggle-mcp-task-lea
 export type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
 
 const TASK_WAIT_POLL_INTERVAL_MS = 100
-
-interface ActiveServerTask {
-  readonly controller: AbortController
-  sessionId?: string
-  completion?: Promise<void>
-}
-
-function taskResult(record: ServerTaskRecord) {
-  return {
-    id: record.id,
-    status: record.status,
-    projectPath: record.projectPath,
-    model: record.model,
-    delegationDepth: record.delegationDepth ?? 0,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    ...(record.sessionId ? { sessionId: record.sessionId } : {}),
-    ...(record.result === undefined ? {} : { result: record.result }),
-    ...(record.error ? { error: record.error } : {}),
-    ...(record.action ? { action: record.action } : {}),
-    ...(record.cancellationRequestedAt === undefined
-      ? {}
-      : { cancellationRequestedAt: record.cancellationRequestedAt }),
-  }
-}
 
 export class OpenWaggleServerTaskManager {
   private readonly active = new Map<string, ActiveServerTask>()
@@ -68,17 +56,6 @@ export class OpenWaggleServerTaskManager {
     return Effect.promise(() => this.reconcileProfileTasks()).pipe(Effect.asVoid)
   }
 
-  private async mutate(taskId: string, update: (current: ServerTaskRecord) => ServerTaskRecord) {
-    return this.store.update((tasks) => {
-      const current = tasks.find(
-        (task) => task.id === taskId && task.callerProfile === this.options.profile,
-      )
-      if (!current) throw new Error(`OpenWaggle task ${JSON.stringify(taskId)} was not found.`)
-      const next = update(current)
-      return { tasks: tasks.map((task) => (task.id === taskId ? next : task)), result: next }
-    })
-  }
-
   private async mutateOwned(
     taskId: string,
     update: (current: ServerTaskRecord) => ServerTaskRecord,
@@ -97,13 +74,25 @@ export class OpenWaggleServerTaskManager {
   }
 
   private reconcileProfileTasks() {
-    const now = this.leases.now()
-    return this.store.update((tasks) => {
-      const reconciled = tasks.map((task) =>
-        task.callerProfile === this.options.profile ? recoverStaleTask(task, now) : task,
-      )
-      return { tasks: reconciled, result: reconciled }
+    return reconcileOpenWaggleProfileTasks({
+      now: this.leases.now(),
+      profile: this.options.profile,
+      services: this.services,
+      store: this.store,
     })
+  }
+
+  private async projectTaskStateIfAuthoritative(
+    taskId: string,
+    sessionId: SessionId,
+    state: Parameters<typeof projectTaskDelegationState>[2],
+  ) {
+    await projectTaskStateIfAuthoritative(
+      { services: this.services, store: this.store },
+      taskId,
+      sessionId,
+      state,
+    )
   }
 
   list() {
@@ -176,8 +165,10 @@ export class OpenWaggleServerTaskManager {
   }
 
   private async run(task: ServerTaskRecord, thinkingLevel: ThinkingLevel, abort: AbortController) {
+    let linkedSessionId: SessionId | null = null
     try {
       const { sessionId, created } = await this.services.createOrReuseSession(task)
+      linkedSessionId = sessionId
       const activeTask = this.active.get(task.id)
       if (activeTask) activeTask.sessionId = sessionId
       if (created) {
@@ -191,21 +182,28 @@ export class OpenWaggleServerTaskManager {
           },
           updatedAt: this.leases.now(),
         }))
+        await establishTaskLineage(this.services, task, sessionId)
       }
       if (abort.signal.aborted) throw new Error('The hosted task was cancelled before execution.')
-      const working = await this.mutateOwned(task.id, (current) =>
-        current.cancellationRequestedAt === undefined
+      const working = await this.mutateOwned(task.id, (current) => {
+        const linkedCurrent = { ...current, sessionId }
+        return current.cancellationRequestedAt === undefined
           ? {
-              ...current,
-              sessionId,
+              ...linkedCurrent,
               status: 'working',
               updatedAt: this.leases.now(),
             }
-          : cancelledTaskRecord(current, this.leases.now()),
-      )
+          : cancelledTaskRecord(linkedCurrent, this.leases.now())
+      })
       if (working?.status !== 'working') {
         abort.abort()
+        if (working) {
+          await this.projectTaskStateIfAuthoritative(task.id, sessionId, 'cancelled')
+        }
         return
+      }
+      if (!created) {
+        await this.projectTaskStateIfAuthoritative(task.id, sessionId, 'working')
       }
       const result = await this.services.execute({
         sessionId,
@@ -215,70 +213,66 @@ export class OpenWaggleServerTaskManager {
         model: task.model,
         signal: abort.signal,
       })
-      await this.mutateOwned(task.id, (current) =>
-        abort.signal.aborted
-          ? cancelledTaskRecord(current, this.leases.now())
-          : terminalTaskRecord(current, result, this.leases.now()),
-      )
+      const terminal = await this.mutateOwned(task.id, (current) => {
+        const linkedCurrent = { ...current, sessionId }
+        return abort.signal.aborted
+          ? cancelledTaskRecord(linkedCurrent, this.leases.now())
+          : terminalTaskRecord(linkedCurrent, result, this.leases.now())
+      })
+      if (terminal) {
+        await this.projectTaskStateIfAuthoritative(
+          task.id,
+          sessionId,
+          terminalDelegationState(terminal.status),
+        )
+      }
     } catch (error) {
-      await this.mutateOwned(task.id, (current) =>
-        abort.signal.aborted
-          ? cancelledTaskRecord(current, this.leases.now())
+      const failed = await this.mutateOwned(task.id, (current) => {
+        const linkedCurrent = linkedSessionId ? { ...current, sessionId: linkedSessionId } : current
+        return abort.signal.aborted
+          ? cancelledTaskRecord(linkedCurrent, this.leases.now())
           : {
-              ...current,
+              ...linkedCurrent,
               status: 'failed',
               lease: null,
               error: error instanceof Error ? error.message : String(error),
               action:
                 'Inspect the linked session and OpenWaggle logs, correct the problem, then retry.',
               updatedAt: this.leases.now(),
-            },
-      ).catch(() => undefined)
+            }
+      }).catch(() => undefined)
+      if (linkedSessionId && failed) {
+        await this.projectTaskStateIfAuthoritative(
+          task.id,
+          linkedSessionId,
+          terminalDelegationState(failed.status),
+        )
+      }
     }
   }
 
   cancel(taskId: string) {
-    return Effect.gen(this, function* () {
-      const now = this.leases.now()
-      const next = yield* Effect.promise(() =>
-        this.mutate(taskId, (current) => {
-          if (!isActiveTaskStatus(current.status)) return current
-          return hasLiveLease(current, now)
-            ? cancellationRequestedTaskRecord(current, now)
-            : cancelledTaskRecord(current, now)
-        }),
-      )
-      this.active.get(taskId)?.controller.abort()
-      return taskResult(next)
-    })
+    return Effect.promise(() =>
+      cancelOpenWaggleTask({
+        abortTask: (id) => this.active.get(id)?.controller.abort(),
+        now: this.leases.now(),
+        profile: this.options.profile,
+        services: this.services,
+        store: this.store,
+        taskId,
+      }),
+    ).pipe(Effect.map(taskResult))
   }
 
   cancelSession(sessionId: string) {
-    const now = this.leases.now()
     return Effect.promise(() =>
-      this.store.update((tasks) => {
-        const matching = tasks.filter(
-          (task) =>
-            task.callerProfile === this.options.profile &&
-            task.sessionId === sessionId &&
-            isActiveTaskStatus(task.status),
-        )
-        const matchingIds = new Set(matching.map((task) => task.id))
-        return {
-          tasks: tasks.map((task) =>
-            matchingIds.has(task.id)
-              ? hasLiveLease(task, now)
-                ? cancellationRequestedTaskRecord(task, now)
-                : cancelledTaskRecord(task, now)
-              : task,
-          ),
-          result: [...matchingIds],
-        }
-      }),
-    ).pipe(
-      Effect.map((taskIds) => {
-        for (const taskId of taskIds) this.active.get(taskId)?.controller.abort()
-        return taskIds.length
+      cancelOpenWaggleSessionTasks({
+        abortTask: (taskId) => this.active.get(taskId)?.controller.abort(),
+        now: this.leases.now(),
+        profile: this.options.profile,
+        services: this.services,
+        sessionId,
+        store: this.store,
       }),
     )
   }

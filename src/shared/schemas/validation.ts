@@ -54,6 +54,7 @@ export const preparedAttachmentSchema = Schema.Struct({
   path: Schema.String,
   mimeType: Schema.String,
   sizeBytes: Schema.Number,
+  contentSha256: Schema.optional(Schema.String),
   extractedText: Schema.String,
 })
 

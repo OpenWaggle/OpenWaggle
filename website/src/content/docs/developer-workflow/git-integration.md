@@ -25,6 +25,8 @@ Stats refresh automatically when:
 
 Click the diff stats to toggle the diff panel.
 
+After the first message, the floating [Session Summary](/docs/using-openwaggle/session-summary) repeats the session-scoped Changes entry alongside its bound environment, branch, commit-or-push action, and provider-specific pull-request or merge-request action. Opening Changes still uses this same Diff sidebar and never narrows the transcript while the Summary is visible.
+
 > The diff panel's own **Refresh diff** button re-fetches the diff only; it does not recompute the header's `+N` / `-N`.
 
 ## Session-Aware Git State
@@ -150,6 +152,8 @@ The bottom bar's primary button adapts to the state of your working tree, upstre
 - Pushing a new branch names it automatically from your changes.
 - If the target is the repository's **default branch**, a confirmation dialog appears before anything is committed or pushed.
 - Progress is reported per stage (for example "Generating commit message…", "Pushing to `<target>`…", "Creating pull request…").
+
+The Session Summary keeps **Commit or push** separate from **Create PR** or **Create MR**, so a compact commit action cannot create a review request as an unstated side effect. The change-request composer supports GitHub through `gh` and GitLab through `glab`, checks authentication for the remote's exact host, and keeps a browser fallback available when native creation cannot run. See [Creating a pull or merge request](/docs/using-openwaggle/session-summary#creating-a-pull-or-merge-request).
 
 ### Stage All / Revert All
 

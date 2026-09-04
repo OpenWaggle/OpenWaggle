@@ -1,4 +1,11 @@
-import { SessionResourceViewer, SessionSummaryHub } from '@/features/session-summary'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type SessionResourceBrowserTarget,
+  SessionResourceViewer,
+  type SessionSummaryExtensionSidePanelTarget,
+  SessionSummaryHub,
+  useSessionResourceInvalidation,
+} from '@/features/session-summary'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
 import type { ChatPanelSections } from '../model'
@@ -7,13 +14,42 @@ import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
 
+const SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX = 840
+
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
   readonly onOpenSessionTree?: () => void
   readonly onOpenDiff?: () => void
-  readonly onOpenResources?: () => void
+  readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
   readonly onNavigateSession?: (sessionId: string) => void
+  readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
   readonly rightSidebarOpen?: boolean
+}
+
+function useSessionSummarySpace(rightSidebarOpen: boolean) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [hasSpace, setHasSpace] = useState(true)
+
+  useLayoutEffect(() => {
+    if (rightSidebarOpen) return
+    const element = panelRef.current
+    if (!element) return
+    const width = element.clientWidth
+    setHasSpace(width === 0 || width >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
+  }, [rightSidebarOpen])
+
+  useEffect(() => {
+    const element = panelRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      if (rightSidebarOpen) return
+      setHasSpace(element.clientWidth >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [rightSidebarOpen])
+
+  return { panelRef, hasSpace }
 }
 
 export function ChatPanelContent({
@@ -22,20 +58,24 @@ export function ChatPanelContent({
   onOpenDiff = () => {},
   onOpenResources = () => {},
   onNavigateSession = () => {},
+  onOpenExtensionSidePanel = () => {},
   rightSidebarOpen = false,
 }: ChatPanelContentProps) {
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
+  useSessionResourceInvalidation(activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
     sections.transcript.chatRows.length,
   )
+  const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const activeMessageIds = new Set(sections.transcript.messages.map((message) => message.id))
-  const sessionSummaryVisible = activeSessionId !== null && messageCount > 0 && !rightSidebarOpen
+  const summarySpace = useSessionSummarySpace(rightSidebarOpen)
   return (
     <div className="flex size-full overflow-hidden">
       <div
+        ref={summarySpace.panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
       >
@@ -47,13 +87,15 @@ export function ChatPanelContent({
             key={activeSessionId ?? 'no-session-summary'}
             input={{
               session: sections.composer.session,
-              messageCount,
-              hidden: rightSidebarOpen,
+              messageCount: summaryMessageCount,
+              autoHidden: !summarySpace.hasSpace,
+              rightSidebarOpen,
               extensionRegistry: sections.extensionRegistry,
               extensionProjectPaths: sections.extensionProjectPaths,
               onOpenDiff,
               onOpenResources,
               onNavigateSession,
+              onOpenExtensionSidePanel,
             }}
           />
           {/* Anchored here rather than inside the composer: the composer area is reserved for
@@ -74,10 +116,7 @@ export function ChatPanelContent({
             name="Chat transcript"
             className="flex flex-1 flex-col overflow-hidden"
           >
-            <ChatTranscript
-              section={sections.transcript}
-              reserveSessionSummarySpace={sessionSummaryVisible}
-            />
+            <ChatTranscript section={sections.transcript} />
           </PanelErrorBoundary>
 
           <PanelErrorBoundary name="Composer">

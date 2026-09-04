@@ -1,6 +1,17 @@
 import { isRecord } from '@shared/utils/validation'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 
-const MARKDOWN_LINK_PATTERN = /!?\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/giu
+const HTTP_URL_PATTERN = /^https?:\/\//iu
+const markdownParser = unified().use(remarkParse)
+
+export const SESSION_RESOURCE_EXTRACTION_LIMITS = {
+  maxImages: 128,
+  maxLinks: 128,
+  maxSites: 32,
+  maxTextCharacters: 256 * 1024,
+  maxVisitedNodes: 256,
+} as const
 
 export interface CapturedImage {
   readonly data: string
@@ -14,62 +25,187 @@ export interface CapturedLink {
   readonly image: boolean
 }
 
-function collectMarkdownLinks(text: string, links: CapturedLink[]) {
-  for (const match of text.matchAll(MARKDOWN_LINK_PATTERN)) {
-    const url = match[1]
-    if (url) links.push({ url, title: url, image: match[0].startsWith('!') })
+export interface CapturedSite {
+  readonly url: string
+  readonly title: string
+  readonly activity: 'created' | 'updated'
+}
+
+function enqueueMarkdownChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
+  const children = candidate.children
+  if (!Array.isArray(children)) return
+  for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
+}
+
+function markdownDefinitions(root: unknown) {
+  const definitions = new Map<string, string>()
+  const pending = [root]
+  while (pending.length > 0) {
+    const candidate = pending.pop()
+    if (!isRecord(candidate)) continue
+    if (
+      candidate.type === 'definition' &&
+      typeof candidate.identifier === 'string' &&
+      typeof candidate.url === 'string' &&
+      HTTP_URL_PATTERN.test(candidate.url)
+    ) {
+      definitions.set(candidate.identifier, candidate.url)
+    }
+    enqueueMarkdownChildren(candidate, pending)
   }
+  return definitions
+}
+
+function capturedMarkdownLink(
+  candidate: Readonly<Record<string, unknown>>,
+  definitions: ReadonlyMap<string, string>,
+): CapturedLink | null {
+  const direct = candidate.type === 'link' || candidate.type === 'image'
+  const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
+  const url = direct
+    ? candidate.url
+    : reference && typeof candidate.identifier === 'string'
+      ? definitions.get(candidate.identifier)
+      : null
+  if (typeof url !== 'string' || !HTTP_URL_PATTERN.test(url)) return null
+  return {
+    url,
+    title: url,
+    image: candidate.type === 'image' || candidate.type === 'imageReference',
+  }
+}
+
+function collectMarkdownLinks(text: string, links: CapturedLink[]) {
+  if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) return
+  const root = markdownParser.parse(text)
+  const definitions = markdownDefinitions(root)
+  const pending: unknown[] = [root]
+  while (pending.length > 0 && links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
+    const candidate = pending.pop()
+    if (!isRecord(candidate)) continue
+    const link = capturedMarkdownLink(candidate, definitions)
+    if (link) links.push(link)
+    enqueueMarkdownChildren(candidate, pending)
+  }
+}
+
+function collectImageRecord(candidate: Readonly<Record<string, unknown>>, images: CapturedImage[]) {
+  if (
+    candidate.type === 'image' &&
+    typeof candidate.data === 'string' &&
+    typeof candidate.mimeType === 'string'
+  ) {
+    if (images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
+      images.push({
+        data: candidate.data,
+        mimeType: candidate.mimeType,
+        title: typeof candidate.name === 'string' ? candidate.name : 'Generated image',
+      })
+    }
+    return true
+  }
+  return false
+}
+
+function collectSiteRecord(candidate: Readonly<Record<string, unknown>>, sites: CapturedSite[]) {
+  if (candidate.type !== 'site') return false
+  const url = typeof candidate.url === 'string' ? candidate.url : candidate.uri
+  if (
+    typeof url === 'string' &&
+    HTTP_URL_PATTERN.test(url) &&
+    sites.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxSites
+  ) {
+    sites.push({
+      url,
+      title: typeof candidate.title === 'string' ? candidate.title : url,
+      activity: candidate.activity === 'updated' ? 'updated' : 'created',
+    })
+  }
+  return true
+}
+
+function collectResourceLinkRecord(
+  candidate: Readonly<Record<string, unknown>>,
+  links: CapturedLink[],
+) {
+  if (candidate.type !== 'resource_link' || typeof candidate.uri !== 'string') return false
+  if (links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
+    links.push({
+      url: candidate.uri,
+      title: typeof candidate.title === 'string' ? candidate.title : candidate.uri,
+      image: typeof candidate.mimeType === 'string' && candidate.mimeType.startsWith('image/'),
+    })
+  }
+  return true
 }
 
 function collectRecord(
   candidate: Readonly<Record<string, unknown>>,
   images: CapturedImage[],
   links: CapturedLink[],
+  sites: CapturedSite[],
 ) {
-  if (
-    candidate.type === 'image' &&
-    typeof candidate.data === 'string' &&
-    typeof candidate.mimeType === 'string'
-  ) {
-    images.push({
-      data: candidate.data,
-      mimeType: candidate.mimeType,
-      title: typeof candidate.name === 'string' ? candidate.name : 'Generated image',
-    })
-    return true
+  return (
+    collectImageRecord(candidate, images) ||
+    collectSiteRecord(candidate, sites) ||
+    collectResourceLinkRecord(candidate, links)
+  )
+}
+
+function enqueueArray(candidate: readonly unknown[], pending: unknown[], scheduled: number) {
+  const available = SESSION_RESOURCE_EXTRACTION_LIMITS.maxVisitedNodes - scheduled
+  if (available <= 0) return scheduled
+  const count = Math.min(candidate.length, available)
+  for (let index = count - 1; index >= 0; index -= 1) pending.push(candidate[index])
+  return scheduled + count
+}
+
+function enqueueRecord(
+  candidate: Readonly<Record<string, unknown>>,
+  pending: unknown[],
+  scheduled: number,
+) {
+  const children: unknown[] = []
+  const available = SESSION_RESOURCE_EXTRACTION_LIMITS.maxVisitedNodes - scheduled
+  if (available <= 0) return scheduled
+  for (const key in candidate) {
+    if (!Object.hasOwn(candidate, key)) continue
+    children.push(candidate[key])
+    if (children.length >= available) break
   }
-  if (candidate.type !== 'resource_link' || typeof candidate.uri !== 'string') return false
-  links.push({
-    url: candidate.uri,
-    title: typeof candidate.title === 'string' ? candidate.title : candidate.uri,
-    image: typeof candidate.mimeType === 'string' && candidate.mimeType.startsWith('image/'),
-  })
-  return true
+  for (let index = children.length - 1; index >= 0; index -= 1) {
+    pending.push(children[index])
+  }
+  return scheduled + children.length
 }
 
 export function collectExplicitResources(value: unknown) {
   const images: CapturedImage[] = []
   const links: CapturedLink[] = []
+  const sites: CapturedSite[] = []
   const seen = new WeakSet<object>()
   const pending: unknown[] = [value]
+  let scheduled = 1
+  let remainingTextCharacters = SESSION_RESOURCE_EXTRACTION_LIMITS.maxTextCharacters
 
   while (pending.length > 0) {
     const candidate = pending.pop()
     if (typeof candidate === 'string') {
-      collectMarkdownLinks(candidate, links)
+      const consumed = Math.min(candidate.length, remainingTextCharacters)
+      if (consumed > 0) collectMarkdownLinks(candidate.slice(0, consumed), links)
+      remainingTextCharacters -= consumed
       continue
     }
     if (Array.isArray(candidate) && !seen.has(candidate)) {
       seen.add(candidate)
-      for (const item of candidate) {
-        const unknownItem: unknown = item
-        pending.push(unknownItem)
-      }
+      scheduled = enqueueArray(candidate, pending, scheduled)
       continue
     }
     if (!isRecord(candidate) || seen.has(candidate)) continue
     seen.add(candidate)
-    if (!collectRecord(candidate, images, links)) pending.push(...Object.values(candidate))
+    if (!collectRecord(candidate, images, links, sites)) {
+      scheduled = enqueueRecord(candidate, pending, scheduled)
+    }
   }
-  return { images, links }
+  return { images, links, sites }
 }

@@ -88,8 +88,12 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getSessionTree',
   'getSessionWorkspace',
   'listSessionResources',
+  'advanceSessionResourceBackfill',
   'readSessionResource',
+  'readSessionResourceThumbnail',
+  'retrySessionResource',
   'recordSessionChangeRequest',
+  'recordSessionCommit',
   'navigateSessionTree',
   'renameSessionBranch',
   'archiveSessionBranch',
@@ -97,6 +101,8 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'updateSessionTreeUiState',
   'onGitWorkingTreeChanged',
   'onSessionTitleUpdated',
+  'onSessionListInvalidated',
+  'onSessionResourcesInvalidated',
   // Terminal
   'createTerminal',
   'closeTerminal',
@@ -121,6 +127,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'getLocalVcsStatus',
   'getRemoteVcsStatus',
   'runStackedGitAction',
+  'preflightChangeRequest',
   'listChangeRequests',
   'checkoutChangeRequest',
   // Attachments
@@ -140,6 +147,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'openLogsDir',
   'getLogsPath',
   'openPath',
+  'revealPath',
   // Dialog
   'showConfirm',
   // Waggle

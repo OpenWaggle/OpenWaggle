@@ -54,6 +54,7 @@ import {
   createBrowserWindow,
   installAutomationDesktopUiBlockers,
   openExternal,
+  showItemInFolder,
   showMessageBox,
 } from '../desktop-ui'
 
@@ -86,6 +87,7 @@ describe('automation desktop UI policy', () => {
     expect(baseWindow.isVisible()).toBe(false)
     expect(() => baseWindow.show()).toThrow(AutomationDesktopUiError)
     expect(() => baseWindow.focus()).toThrow(AutomationDesktopUiError)
+    expect(() => showItemInFolder('/tmp/image.png')).toThrow(AutomationDesktopUiError)
   })
 
   it('allows a test to install one explicit deterministic dialog response', async () => {

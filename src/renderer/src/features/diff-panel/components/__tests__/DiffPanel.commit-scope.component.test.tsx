@@ -1,4 +1,4 @@
-import { RepositoryPath, WorkingPath } from '@shared/types/brand'
+import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
@@ -21,6 +21,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     stageAllGitChanges: vi.fn(),
     revertAllGitChanges: vi.fn(),
     runStackedGitAction: vi.fn(),
+    recordSessionCommit: vi.fn(),
     getLocalVcsStatus: vi.fn(),
     getRemoteVcsStatus: vi.fn(),
     showConfirm: vi.fn(),
@@ -102,7 +103,23 @@ describe('commit scope', () => {
       ok: true,
       action: 'commit',
       branch: { status: 'unchanged', name: 'main' },
+      commitHash: '0123456789abcdef0123456789abcdef01234567',
       changeRequest: null,
+    })
+    vi.mocked(api.recordSessionCommit).mockResolvedValue({
+      id: 'commit-resource',
+      sessionId: SessionId('session-owner'),
+      canonicalKey: 'git-commit:0123456789abcdef0123456789abcdef01234567',
+      kind: 'commit',
+      title: 'Ship it',
+      mimeType: null,
+      locator: null,
+      available: true,
+      isSource: false,
+      isOutput: true,
+      occurrences: [],
+      createdAt: 1,
+      updatedAt: 1,
     })
   })
 
@@ -177,5 +194,34 @@ describe('commit scope', () => {
     expect(
       await screen.findByText('1 changed file in the working tree will be committed.'),
     ).toBeInTheDocument()
+  })
+
+  it('records the created commit only against the Diff panel owning session', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [] })
+    render(
+      <DiffPanel
+        workingPath={WORKING_PATH}
+        repositoryPath={RepositoryPath('/repo')}
+        sessionId={SessionId('session-owner')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: /Commit/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Commit message' }), {
+      target: { value: 'Ship it' },
+    })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() =>
+      expect(api.recordSessionCommit).toHaveBeenCalledWith(SessionId('session-owner'), {
+        commitHash: '0123456789abcdef0123456789abcdef01234567',
+        title: 'Ship it',
+      }),
+    )
+    expect(api.recordSessionCommit).not.toHaveBeenCalledWith(
+      SessionId('session-other'),
+      expect.anything(),
+    )
   })
 })

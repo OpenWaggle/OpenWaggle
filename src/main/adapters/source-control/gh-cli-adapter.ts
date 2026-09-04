@@ -41,8 +41,9 @@ function classifyFailure(result: CliResult): SourceControlFailure {
 
 const PR_JSON_FIELDS = 'title,url,baseRefName,headRefName,state,isDraft'
 
-async function authStatus(projectPath: string): Promise<SourceControlAuthResult> {
-  const result = await runCli('gh', ['auth', 'status'], projectPath)
+async function authStatus(projectPath: string, host?: string): Promise<SourceControlAuthResult> {
+  const args = host ? ['auth', 'status', '--active', '--hostname', host] : ['auth', 'status']
+  const result = await runCli('gh', args, projectPath)
   if (result.missing) return cliMissingFailure()
   const status = parseGhAuthStatus(result.stdout, result.stderr)
   return { ok: true, status }
@@ -67,13 +68,12 @@ export const githubProvider: SourceControlProvider = {
       'create',
       '--head',
       payload.headRef,
-      '--base',
-      payload.baseRef,
       '--title',
       payload.title,
       '--body',
       payload.body ?? '',
     ]
+    if (payload.baseRef) args.push('--base', payload.baseRef)
     if (payload.draft) args.push('--draft')
     const result = await runCli('gh', args, projectPath)
     if (result.code !== 0) return classifyFailure(result)

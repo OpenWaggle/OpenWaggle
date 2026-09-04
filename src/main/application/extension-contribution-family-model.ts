@@ -1,6 +1,9 @@
 import { match } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionContributions } from '@shared/schemas/extensions'
+import type {
+  ExtensionContributions,
+  ExtensionSessionSummaryContribution,
+} from '@shared/schemas/extensions'
 import type {
   ExtensionContributionFamily,
   ExtensionContributionMatchView,
@@ -32,7 +35,11 @@ export interface ManifestEntryContribution {
   readonly methods?: readonly string[]
 }
 
-export type ManifestContribution = ManifestCommandContribution | ManifestEntryContribution
+export type ManifestSessionSummaryContribution = ExtensionSessionSummaryContribution
+export type ManifestContribution =
+  | ManifestCommandContribution
+  | ManifestEntryContribution
+  | ManifestSessionSummaryContribution
 
 interface CommandFamilyDescriptor {
   readonly family: (typeof OPENWAGGLE_EXTENSION.COMMAND_CONTRIBUTION_FAMILIES)[number]
@@ -46,6 +53,13 @@ interface EntryFamilyDescriptor {
   readonly contributions: (
     contributions: ExtensionContributions,
   ) => readonly ManifestEntryContribution[] | undefined
+}
+
+interface SessionSummaryFamilyDescriptor {
+  readonly family: typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS
+  readonly contributions: (
+    contributions: ExtensionContributions,
+  ) => readonly ManifestSessionSummaryContribution[] | undefined
 }
 
 const CONTRIBUTION_FAMILY = OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
@@ -92,16 +106,22 @@ export const ENTRY_FAMILY_DESCRIPTORS = [
     family: CONTRIBUTION_FAMILY.STATUS_WIDGETS,
     contributions: (contributions) => contributions.statusWidgets,
   },
-  {
-    family: CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
-    contributions: (contributions) => contributions.sessionSummarySections,
-  },
 ] satisfies readonly EntryFamilyDescriptor[]
+
+export const SESSION_SUMMARY_FAMILY_DESCRIPTOR = {
+  family: CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
+  contributions: (contributions: ExtensionContributions) => contributions.sessionSummarySections,
+} as const
 
 export const CONTRIBUTION_FAMILY_DESCRIPTORS = [
   ...COMMAND_FAMILY_DESCRIPTORS,
   ...ENTRY_FAMILY_DESCRIPTORS,
-] satisfies readonly (CommandFamilyDescriptor | EntryFamilyDescriptor)[]
+  SESSION_SUMMARY_FAMILY_DESCRIPTOR,
+] satisfies readonly (
+  | CommandFamilyDescriptor
+  | EntryFamilyDescriptor
+  | SessionSummaryFamilyDescriptor
+)[]
 
 export function getManifestFamilyContributions(
   contributions: ExtensionContributions,
@@ -127,4 +147,10 @@ export function isEntryContribution(
   contribution: ManifestContribution,
 ): contribution is ManifestEntryContribution {
   return 'entry' in contribution
+}
+
+export function isSessionSummaryContribution(
+  contribution: ManifestContribution,
+): contribution is ManifestSessionSummaryContribution {
+  return 'rows' in contribution
 }

@@ -123,9 +123,8 @@ describe('listExtensionContributionRegistryView contribution families', () => {
           {
             id: 'family.session-summary',
             title: 'Session Summary Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/session-summary.js',
+            placement: 'coordination',
+            rows: [{ id: 'workers', label: 'Workers', count: 3 }],
           },
         ],
       },
@@ -144,7 +143,8 @@ describe('listExtensionContributionRegistryView contribution families', () => {
     const commandEntry = registry.entries.find((entry) => entry.family === 'commands')
     const routeEntry = registry.entries.find((entry) => entry.family === 'routes')
     const toolEntry = registry.entries.find((entry) => entry.family === 'toolRenderers')
-    if (!commandEntry || !routeEntry || !toolEntry) {
+    const summaryEntry = registry.entries.find((entry) => entry.family === 'sessionSummarySections')
+    if (!commandEntry || !routeEntry || !toolEntry || !summaryEntry) {
       throw new Error('Expected command, route, and tool contributions in the registry.')
     }
 
@@ -171,6 +171,60 @@ describe('listExtensionContributionRegistryView contribution families', () => {
       matches: {
         toolNames: ['sample.tool'],
       },
+    })
+    expect(summaryEntry).toMatchObject({
+      contributionId: 'family.session-summary',
+      sessionSummary: {
+        placement: 'coordination',
+        rows: [{ id: 'workers', label: 'Workers', count: 3 }],
+      },
+    })
+  })
+
+  it('omits empty ready sections while retaining declarative loading and failure states', async () => {
+    const extensionPackage = makePackage({
+      id: 'summary-state-extension',
+      name: 'Summary State Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      contributions: {
+        sessionSummarySections: [
+          {
+            id: 'summary-state.empty',
+            title: 'Empty',
+            state: { status: 'ready' },
+            rows: [],
+          },
+          {
+            id: 'summary-state.loading',
+            title: 'Loading',
+            disclosure: { defaultExpanded: true, autoCollapseAfterMs: 30_000 },
+            state: { status: 'loading', message: 'Refreshing data' },
+            rows: [],
+          },
+          {
+            id: 'summary-state.failure',
+            title: 'Failure',
+            state: { status: 'failure', message: 'Refresh failed' },
+            rows: [],
+          },
+        ],
+      },
+    })
+
+    const registry = await loadRegistry({
+      packages: [extensionPackage],
+      lifecycles: [makeLifecycle(extensionPackage)],
+      projectPaths: [PROJECT_PATH],
+    })
+
+    expect(registry.entries.map((entry) => entry.contributionId)).toEqual([
+      'summary-state.loading',
+      'summary-state.failure',
+    ])
+    expect(registry.entries[0]?.sessionSummary).toMatchObject({
+      disclosure: { defaultExpanded: true, autoCollapseAfterMs: 30_000 },
+      state: { status: 'loading', message: 'Refreshing data' },
+      rows: [],
     })
   })
 })

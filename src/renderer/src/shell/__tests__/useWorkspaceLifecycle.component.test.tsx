@@ -10,6 +10,8 @@ import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
 
 type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
+type SessionListInvalidatedPayload = IpcEventChannelMap['sessions:list-invalidated']['payload']
+type SessionListInvalidatedHandler = (payload: SessionListInvalidatedPayload) => void
 interface HotkeyBinding {
   readonly hotkey: ShortcutBinding
   readonly callback: () => void
@@ -17,7 +19,9 @@ interface HotkeyBinding {
 
 const lifecycleMocks = vi.hoisted(() => {
   let titleUpdatedHandler: TitleUpdatedHandler | null = null
+  let sessionListInvalidatedHandler: SessionListInvalidatedHandler | null = null
   const titleUnsubscribe = vi.fn()
+  const sessionListUnsubscribe = vi.fn()
   const hotkeys: HotkeyBinding[] = []
   const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
   return {
@@ -38,12 +42,18 @@ const lifecycleMocks = vi.hoisted(() => {
     useGitRefresh: vi.fn(),
     useSessionStatusMonitor: vi.fn(),
     titleUnsubscribe,
+    sessionListUnsubscribe,
     hotkeys,
     singleHotkeys,
     getTitleUpdatedHandler: () => titleUpdatedHandler,
+    getSessionListInvalidatedHandler: () => sessionListInvalidatedHandler,
     onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
       titleUpdatedHandler = handler
       return titleUnsubscribe
+    }),
+    onSessionListInvalidated: vi.fn((handler: SessionListInvalidatedHandler) => {
+      sessionListInvalidatedHandler = handler
+      return sessionListUnsubscribe
     }),
   }
 })
@@ -113,6 +123,7 @@ vi.mock('@/features/sessions/hooks', () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
+    onSessionListInvalidated: lifecycleMocks.onSessionListInvalidated,
   },
 }))
 
@@ -145,7 +156,9 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.useGitRefresh.mockClear()
     lifecycleMocks.useSessionStatusMonitor.mockClear()
     lifecycleMocks.onSessionTitleUpdated.mockClear()
+    lifecycleMocks.onSessionListInvalidated.mockClear()
     lifecycleMocks.titleUnsubscribe.mockClear()
+    lifecycleMocks.sessionListUnsubscribe.mockClear()
     lifecycleMocks.hotkeys.length = 0
   })
 
@@ -176,6 +189,12 @@ describe('useWorkspaceLifecycle', () => {
       'New title',
     )
 
+    const invalidatedHandler = lifecycleMocks.getSessionListInvalidatedHandler()
+    if (!invalidatedHandler) throw new Error('Expected session-list invalidation subscription')
+    invalidatedHandler({ sessionIds: [SessionId('session-1')] })
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledTimes(2))
+    expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledTimes(2)
+
     act(() => runHotkey('Mod+J'))
     act(() => runHotkey('Mod+B'))
     act(() => runHotkey('Mod+D'))
@@ -196,5 +215,6 @@ describe('useWorkspaceLifecycle', () => {
 
     unmount()
     expect(lifecycleMocks.titleUnsubscribe).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.sessionListUnsubscribe).toHaveBeenCalledOnce()
   })
 })

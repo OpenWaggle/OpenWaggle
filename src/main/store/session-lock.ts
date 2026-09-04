@@ -7,7 +7,7 @@ import type { SessionId } from '@shared/types/brand'
  */
 const locks = new Map<SessionId, Promise<void>>()
 
-export async function withSessionLock<T>(id: SessionId, fn: () => Promise<T>): Promise<T> {
+export async function acquireSessionLock(id: SessionId): Promise<() => void> {
   const previous = locks.get(id) ?? Promise.resolve()
 
   let resolve: (() => void) | undefined
@@ -15,14 +15,20 @@ export async function withSessionLock<T>(id: SessionId, fn: () => Promise<T>): P
     resolve = r
   })
   locks.set(id, next)
-
-  try {
-    await previous
-    return await fn()
-  } finally {
+  await previous
+  return () => {
     resolve?.()
     if (locks.get(id) === next) {
       locks.delete(id)
     }
+  }
+}
+
+export async function withSessionLock<T>(id: SessionId, fn: () => Promise<T>): Promise<T> {
+  const release = await acquireSessionLock(id)
+  try {
+    return await fn()
+  } finally {
+    release()
   }
 }
