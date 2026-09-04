@@ -374,6 +374,8 @@ jobs:
   electron-e2e-windows:
     name: Electron E2E (Windows)
     runs-on: windows-latest
+    env:
+      PLAYWRIGHT_WORKERS: '1'
     # Windows builds and runs the functional Electron suite serially. The Session
     # Summary parity coverage takes this job beyond the previous 20-minute ceiling,
     # which cancelled Playwright before it could report failures or upload traces.

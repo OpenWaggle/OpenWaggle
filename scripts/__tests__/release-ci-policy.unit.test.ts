@@ -109,7 +109,7 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and approved controls only.',
     )
   })
 
@@ -120,7 +120,18 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and approved controls only.',
+    )
+  })
+
+  it('rejects parallel Windows Electron workers', () => {
+    const parallelWindowsWorkflow = compliantWorkflow.replace(
+      "      PLAYWRIGHT_WORKERS: '1'",
+      "      PLAYWRIGHT_WORKERS: '2'",
+    )
+
+    expect(validateReleaseCiPolicy(parallelWindowsWorkflow)).toContain(
+      'CI job Electron E2E (Windows) must keep the exact blocking job contract: name, windows-latest runner, and approved controls only.',
     )
   })
 
