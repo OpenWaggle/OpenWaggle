@@ -11,6 +11,7 @@ const BLOCKING_FRAME_TITLE = 'Blocking security probe'
 const BLOCKING_SOURCE_NAME = 'blocking-security-probe.html'
 const RESOURCE_FRAME_TITLE = 'Resource budget security probe'
 const RESOURCE_SOURCE_NAME = 'resource-budget-security-probe.html'
+const CROSS_PROCESS_UI_TIMEOUT_MS = 15_000
 
 function visualizationSource() {
   return `
@@ -216,7 +217,7 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await app.mainWindow().messageInput().fill(feedback)
   await app.mainWindow().submitComposer()
   await expect
-    .poll(() => app.readAgentSendProbe())
+    .poll(() => app.readAgentSendProbe(), { timeout: CROSS_PROCESS_UI_TIMEOUT_MS })
     .toMatchObject({
       payload: {
         text: feedback,
@@ -257,7 +258,9 @@ async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const visualize = menu.getByRole('menuitem', { name: /Visualize/u })
   await expect(visualize).toContainText('/visualize')
   await input.press('Enter')
-  await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
+  await expect(input.locator('[title="/visualize"]')).toContainText('Visualize', {
+    timeout: CROSS_PROCESS_UI_TIMEOUT_MS,
+  })
 }
 
 async function openVisualizationThread(app: OpenWaggleApp) {

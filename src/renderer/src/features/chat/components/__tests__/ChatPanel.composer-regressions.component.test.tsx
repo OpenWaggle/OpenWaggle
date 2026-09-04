@@ -2,7 +2,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/features/chat/state'
@@ -151,6 +151,31 @@ describe('ChatPanel composer regressions', () => {
     expect(durableLabel?.closest('div')).not.toHaveAttribute('aria-hidden')
   })
 
+  it('keeps the full project-first setup dock usable when no project is selected', () => {
+    usePreferencesStore.setState({
+      settings: { ...DEFAULT_SETTINGS, projectPath: null },
+      isLoaded: true,
+    })
+    renderSections(
+      createSections(
+        { activeSessionId: null, projectPath: null, recentProjects: ['/test/other-project'] },
+        { activeSessionId: null, isFirstMessage: true, projectPath: null },
+      ),
+    )
+
+    expect(screen.getByRole('button', { name: 'Project: Select project' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Session environment mode: Current checkout' }),
+    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Run target: Select project first' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project: Select project' }))
+
+    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'other-project' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select folder…' })).toBeInTheDocument()
+  })
+
   it('brings the setup dock back when an established session worktree is missing', async () => {
     const session = fromPartial<SessionDetail>({
       id: SessionId('session-1'),
@@ -175,7 +200,7 @@ describe('ChatPanel composer regressions', () => {
     const environmentTrigger = screen.getByRole('button', {
       name: 'Session environment mode: Current checkout',
     })
-    const branchTrigger = screen.getByRole('button', { name: 'Run target: branch' })
+    const branchTrigger = screen.getByRole('button', { name: /^Run target:/ })
 
     expect(projectTrigger.closest('.rounded-t-xl')).toHaveClass('@container/session-dock')
     expect(screen.getByTestId('session-setup-dock-row')).toHaveClass(

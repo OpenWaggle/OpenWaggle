@@ -1,8 +1,10 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { render, screen } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerActionStore } from '@/features/composer/state/composer-action-store'
 import { useComposerStore } from '@/features/composer/state/composer-store'
+import type { SessionContextRowState } from '@/features/git'
 import { useGitStore } from '@/features/git/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { ComposerBranchRow } from '../ComposerBranchRow'
@@ -55,13 +57,23 @@ describe('ComposerBranchRow', () => {
     expect(screen.getByRole('button', { name: 'Run target: main' })).toBeInTheDocument()
   })
 
-  it('renders no row when no project is selected', () => {
+  it('renders a disabled project-first placeholder when no project is selected', () => {
     usePreferencesStore.setState({
       settings: { ...DEFAULT_SETTINGS, projectPath: null },
     })
 
-    const { container } = render(<ComposerBranchRow strip={null} />)
+    render(<ComposerBranchRow strip={null} />)
 
-    expect(container.firstChild).toBeNull()
+    expect(screen.getByRole('button', { name: 'Run target: Select project first' })).toBeDisabled()
+  })
+
+  it('keeps the run target disabled while branches are loading', () => {
+    const loadingStrip = fromPartial<SessionContextRowState>({
+      branchStatus: 'loading',
+    })
+
+    render(<ComposerBranchRow strip={loadingStrip} />)
+
+    expect(screen.getByRole('button', { name: 'Run target: Loading branches…' })).toBeDisabled()
   })
 })
