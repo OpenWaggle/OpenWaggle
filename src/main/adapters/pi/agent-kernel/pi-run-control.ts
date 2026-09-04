@@ -52,21 +52,27 @@ export function createPiRunControl(
         throw new Error('The active Pi session is not ready for steering.')
       }
       const promptInput = buildPiPromptInput({ input: session.model?.input ?? ['text'] }, payload)
-      const text = promptInput.visualizationContext
-        ? buildAtomicVisualizationPrompt(promptInput.visualizationContext, promptInput.text)
-        : promptInput.text
+      const visualizationContext = promptInput.visualizationContext
+      const transformExpandedText = visualizationContext
+        ? (expandedText: string) =>
+            buildAtomicVisualizationPrompt(visualizationContext, expandedText)
+        : undefined
+      const text = promptInput.text
       const images = promptInput.images.length > 0 ? [...promptInput.images] : undefined
       if (options.routeThroughInputHook) {
         if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
         const durableText = await session.prompt(text, {
           ...(images ? { images } : {}),
+          ...(transformExpandedText ? { transformExpandedText } : {}),
           streamingBehavior: 'steer',
         })
         return durableText === undefined
           ? { delivery: 'handled' }
           : { delivery: 'queued', durableText }
       }
-      const durableText = await session.steer(text, images)
+      const durableText = transformExpandedText
+        ? await session.steer(text, images, transformExpandedText)
+        : await session.steer(text, images)
       return { delivery: 'queued', durableText }
     },
   }

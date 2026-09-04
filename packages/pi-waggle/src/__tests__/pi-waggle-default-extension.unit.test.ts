@@ -228,43 +228,49 @@ describe('pi-waggle default extension runtime flow', () => {
     })
   })
 
-  it('steers active Waggle turns instead of letting Pi reject concurrent user input', async () => {
-    const harness = createHarness()
-    const waggleCommand = harness.commands.get('waggle')
-    const input = harness.eventHandlers.get('input')
-    const turnEnd = harness.eventHandlers.get('turn_end')
-    if (!waggleCommand) throw new Error('Expected /waggle command to be registered')
-    if (!input) throw new Error('Expected input handler')
-    if (!turnEnd) throw new Error('Expected turn_end handler')
+  it.each(['stop waggle and give me a summary', '/skill:review-pr'])(
+    'stops an active Waggle run and returns %s to Pi for canonical steering',
+    async (steeringText) => {
+      const harness = createHarness()
+      const waggleCommand = harness.commands.get('waggle')
+      const input = harness.eventHandlers.get('input')
+      const turnEnd = harness.eventHandlers.get('turn_end')
+      if (!waggleCommand) throw new Error('Expected /waggle command to be registered')
+      if (!input) throw new Error('Expected input handler')
+      if (!turnEnd) throw new Error('Expected turn_end handler')
 
-    await waggleCommand.handler('code-review Review this migration', harness.ctx)
-    harness.sendUserMessage.mockClear()
+      await waggleCommand.handler('code-review Review this migration', harness.ctx)
+      harness.sendUserMessage.mockClear()
 
-    const result = await input(
-      { type: 'input', source: 'interactive', text: 'stop waggle and give me a summary' },
-      harness.ctx,
-    )
-
-    expect(result).toEqual({ action: 'handled' })
-    expect(harness.sendUserMessage).toHaveBeenCalledWith('stop waggle and give me a summary', {
-      deliverAs: 'steer',
-    })
-
-    harness.sendMessage.mockClear()
-    harness.sendUserMessage.mockClear()
-    vi.useFakeTimers()
-    try {
-      await turnEnd(
-        turnEndEvent({ message: assistantTextMessage('Stopped with summary.') }),
+      const result = await input(
+        { type: 'input', source: 'interactive', text: steeringText },
         harness.ctx,
       )
-      await vi.runOnlyPendingTimersAsync()
-      expect(harness.sendMessage).not.toHaveBeenCalled()
+
+      expect(result).toEqual({
+        action: 'transform',
+        text: steeringText,
+        images: undefined,
+      })
       expect(harness.sendUserMessage).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
+      expect(harness.ctx.ui.setStatus).toHaveBeenLastCalledWith('pi-waggle', undefined)
+
+      harness.sendMessage.mockClear()
+      harness.sendUserMessage.mockClear()
+      vi.useFakeTimers()
+      try {
+        await turnEnd(
+          turnEndEvent({ message: assistantTextMessage('Stopped with summary.') }),
+          harness.ctx,
+        )
+        await vi.runOnlyPendingTimersAsync()
+        expect(harness.sendMessage).not.toHaveBeenCalled()
+        expect(harness.sendUserMessage).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
 
   it('waits for tool-using Pi turns to finish before scheduling the next Waggle turn', async () => {
     const harness = createHarness()

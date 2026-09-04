@@ -4,7 +4,13 @@ import { modelFromReference, payload } from './run-orchestration.test-utils'
 
 function nativeSteering() {
   return {
-    steer: vi.fn(async (text: string) => text),
+    steer: vi.fn(
+      async (
+        text: string,
+        _images?: unknown[],
+        transformExpandedText?: (expandedText: string) => string,
+      ) => transformExpandedText?.(text) ?? text,
+    ),
   }
 }
 
@@ -159,7 +165,7 @@ describe('Pi native run control', () => {
     }
     const control = createPiRunControl(session, abortController.signal)
 
-    await control.steer(
+    const result = await control.steer(
       payload('Explain the selected service', {
         visualizationContext: {
           title: 'Service map',
@@ -171,11 +177,55 @@ describe('Pi native run control', () => {
 
     expect(session.steer).toHaveBeenCalledOnce()
     expect(session.steer).toHaveBeenCalledWith(
-      expect.stringMatching(
+      'Explain the selected service',
+      undefined,
+      expect.any(Function),
+    )
+    expect(result).toEqual({
+      delivery: 'queued',
+      durableText: expect.stringMatching(
         /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Explain the selected service/,
       ),
-      undefined,
+    })
+  })
+
+  it('expands a Waggle slash steer before wrapping its visualization context', async () => {
+    const session = {
+      isCompacting: false,
+      isStreaming: true,
+      model: modelFromReference('openai/gpt-5.5'),
+      ...nativeSteering(),
+      prompt: vi.fn(
+        async (
+          _text: string,
+          options: { readonly transformExpandedText?: (expandedText: string) => string },
+        ) => options.transformExpandedText?.('Expanded review skill'),
+      ),
+    }
+    const control = createPiRunControl(session, new AbortController().signal, {
+      routeThroughInputHook: true,
+    })
+
+    const result = await control.steer(
+      payload('/skill:review-pr', {
+        visualizationContext: {
+          title: 'Service map',
+          sourcePath: '/repo/service-map.html',
+          state: { selectedService: 'api' },
+        },
+      }),
     )
+
+    expect(session.prompt).toHaveBeenCalledWith('/skill:review-pr', {
+      streamingBehavior: 'steer',
+      transformExpandedText: expect.any(Function),
+    })
+    expect(result).toEqual({
+      delivery: 'queued',
+      durableText: expect.stringMatching(
+        /\[OpenWaggle inline visualization context\][\s\S]*"selectedService":"api"[\s\S]*Expanded review skill/,
+      ),
+    })
   })
 
   it('uses the live session model capabilities for steered attachments', async () => {
