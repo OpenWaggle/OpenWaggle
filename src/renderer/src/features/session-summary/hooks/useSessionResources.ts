@@ -22,7 +22,6 @@ const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
 const SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS = 2_000
 const SESSION_RESOURCE_BACKFILL_MAX_STALLED_ATTEMPTS = 5
 const SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER = 2
-const SESSION_RESOURCE_QUERY_RETRY_ATTEMPTS = 3
 const SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS = 1_000
 const SESSION_RESOURCE_THUMBNAIL_MAX_ATTEMPTS = 3
 
@@ -79,9 +78,6 @@ export function sessionResourcesQueryOptions(
       }
     },
     select: (result) => result.resources,
-    retry: (failureCount, error) =>
-      !(error instanceof SessionResourceBackfillStalledError) &&
-      failureCount < SESSION_RESOURCE_QUERY_RETRY_ATTEMPTS,
     refetchInterval: (query) => {
       if (query.state.status === 'error' || query.state.data?.backfillComplete !== false) {
         return false
