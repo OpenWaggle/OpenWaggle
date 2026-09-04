@@ -12,8 +12,27 @@ const LINES_PER_FILE = 200
 const FIRST_FEEDBACK_BUDGET_MS = 100
 const FIRST_DIFF_BUDGET_MS = 1_500
 const OVERSIZED_FILE_LINES = 2_000
-const HIGHLIGHT_TIMEOUT_MS = process.platform === 'win32' ? 60_000 : 30_000
+const LONG_TASK_CALIBRATION_MS = 75
+const HIGHLIGHT_TIMEOUT_MS =
+  process.platform === 'win32' || process.env.CI !== 'true' ? 60_000 : 30_000
 const ENFORCE_HIGHLIGHT_READY_BUDGET = process.platform === 'darwin' && process.env.CI === 'true'
+
+interface LongTaskMeasurement {
+  readonly startTime: number
+  readonly duration: number
+}
+
+function overlappingLongTaskDurations(
+  entries: readonly LongTaskMeasurement[],
+  startedAt: number,
+  endedAt: number,
+) {
+  return entries.flatMap((entry) =>
+    entry.startTime < endedAt && entry.startTime + entry.duration > startedAt
+      ? [entry.duration]
+      : [],
+  )
+}
 
 async function installDiffPerformanceObserver(page: Page) {
   await page.evaluate(() => {
@@ -43,6 +62,60 @@ async function installDiffPerformanceObserver(page: Page) {
   })
 }
 
+async function verifyClickTaskAttribution(page: Page) {
+  const calibration = await page.evaluate(async (blockDurationMs) => {
+    const button = document.createElement('button')
+    document.body.append(button)
+    let startedAt = 0
+    let endedAt = 0
+    button.addEventListener(
+      'click',
+      () => {
+        startedAt = performance.now()
+        const blockUntil = startedAt + blockDurationMs
+        while (performance.now() < blockUntil) {
+          // Deliberately keep this browser task busy so the observer contract is tested end to end.
+        }
+        endedAt = performance.now()
+      },
+      { capture: true, once: true },
+    )
+    button.click()
+    button.remove()
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+
+    const rawLongTasks = Reflect.get(window, '__openwaggleDiffLongTasks')
+    const performanceObserver = Reflect.get(window, '__openwaggleDiffPerformanceObserver')
+    if (!Array.isArray(rawLongTasks) || !(performanceObserver instanceof PerformanceObserver)) {
+      throw new Error('Diff long-task observer was not installed.')
+    }
+    for (const entry of performanceObserver.takeRecords()) {
+      rawLongTasks.push({ startTime: entry.startTime, duration: entry.duration })
+    }
+    const entries = rawLongTasks.flatMap((entry) => {
+      if (
+        typeof entry !== 'object' ||
+        entry === null ||
+        !('startTime' in entry) ||
+        !('duration' in entry)
+      ) {
+        return []
+      }
+      const startTime = Number(entry.startTime)
+      const duration = Number(entry.duration)
+      return Number.isFinite(startTime) && Number.isFinite(duration)
+        ? [{ startTime, duration }]
+        : []
+    })
+    rawLongTasks.length = 0
+    return { entries, startedAt, endedAt }
+  }, LONG_TASK_CALIBRATION_MS)
+
+  expect(
+    overlappingLongTaskDurations(calibration.entries, calibration.startedAt, calibration.endedAt),
+  ).not.toEqual([])
+}
+
 /** Start when the renderer receives the click so Playwright dispatch latency stays outside it. */
 async function armDiffRenderMeasurement(toggle: Locator) {
   await toggle.evaluate((button) => {
@@ -52,6 +125,7 @@ async function armDiffRenderMeasurement(toggle: Locator) {
         const startedAt = performance.now()
         Reflect.set(window, '__openwaggleDiffStartedAt', startedAt)
         Reflect.deleteProperty(window, '__openwaggleDiffReadyAt')
+        Reflect.deleteProperty(window, '__openwaggleDiffPreparationCompleteAt')
         Reflect.deleteProperty(window, '__openwaggleDiffFirstFeedbackAt')
         const observer = new MutationObserver(() => {
           if (
@@ -60,13 +134,28 @@ async function armDiffRenderMeasurement(toggle: Locator) {
           ) {
             Reflect.set(window, '__openwaggleDiffFirstFeedbackAt', performance.now())
           }
-          if (document.querySelector('[data-diff-code-ready="true"]') === null) return
-          Reflect.set(window, '__openwaggleDiffReadyAt', performance.now())
-          observer.disconnect()
+          if (
+            Reflect.get(window, '__openwaggleDiffReadyAt') === undefined &&
+            document.querySelector('[data-diff-code-ready="true"]') !== null
+          ) {
+            Reflect.set(window, '__openwaggleDiffReadyAt', performance.now())
+          }
+          if (
+            Reflect.get(window, '__openwaggleDiffPreparationCompleteAt') === undefined &&
+            document.querySelector('[data-diff-preparation-complete="true"]') !== null
+          ) {
+            Reflect.set(window, '__openwaggleDiffPreparationCompleteAt', performance.now())
+          }
+          if (
+            Reflect.get(window, '__openwaggleDiffReadyAt') !== undefined &&
+            Reflect.get(window, '__openwaggleDiffPreparationCompleteAt') !== undefined
+          ) {
+            observer.disconnect()
+          }
         })
         observer.observe(document.body, {
           attributes: true,
-          attributeFilter: ['data-diff-code-ready'],
+          attributeFilter: ['data-diff-code-ready', 'data-diff-preparation-complete'],
           childList: true,
           subtree: true,
         })
@@ -78,19 +167,23 @@ async function armDiffRenderMeasurement(toggle: Locator) {
 
 async function readDiffRenderMeasurements(page: Page) {
   // PerformanceObserver callbacks run asynchronously. Give the callback one renderer turn after
-  // the highlighted surface appears, then select only entries that began inside the render window.
+  // the highlighted surface and progressive parser finish, then drain pending entries.
   await page.evaluate(() => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
-  return page.evaluate(() => {
+  const measurements = await page.evaluate(() => {
     const rawLongTasks = Reflect.get(window, '__openwaggleDiffLongTasks')
     const performanceObserver = Reflect.get(window, '__openwaggleDiffPerformanceObserver')
     const rawWorkers = Reflect.get(window, '__openwaggleDiffWorkers')
     const startedAt = Number(Reflect.get(window, '__openwaggleDiffStartedAt'))
     const firstFeedbackAt = Number(Reflect.get(window, '__openwaggleDiffFirstFeedbackAt'))
     const recordedReadyAt = Number(Reflect.get(window, '__openwaggleDiffReadyAt'))
+    const preparationCompleteAt = Number(
+      Reflect.get(window, '__openwaggleDiffPreparationCompleteAt'),
+    )
     if (
       !Number.isFinite(startedAt) ||
       !Number.isFinite(firstFeedbackAt) ||
-      !Number.isFinite(recordedReadyAt)
+      !Number.isFinite(recordedReadyAt) ||
+      !Number.isFinite(preparationCompleteAt)
     ) {
       throw new Error('Diff performance measurement window was not recorded.')
     }
@@ -101,8 +194,7 @@ async function readDiffRenderMeasurements(page: Page) {
       rawLongTasks.push({ startTime: entry.startTime, duration: entry.duration })
     }
     performanceObserver.disconnect()
-    const readyAt = recordedReadyAt
-    const longTasks = rawLongTasks.flatMap((entry) => {
+    const longTaskEntries = rawLongTasks.flatMap((entry) => {
       if (
         typeof entry !== 'object' ||
         entry === null ||
@@ -113,11 +205,8 @@ async function readDiffRenderMeasurements(page: Page) {
       }
       const startTime = Number(entry.startTime)
       const duration = Number(entry.duration)
-      return Number.isFinite(startTime) &&
-        Number.isFinite(duration) &&
-        startTime >= startedAt &&
-        startTime < readyAt
-        ? [duration]
+      return Number.isFinite(startTime) && Number.isFinite(duration)
+        ? [{ startTime, duration }]
         : []
     })
     const workers = Array.isArray(rawWorkers)
@@ -125,11 +214,22 @@ async function readDiffRenderMeasurements(page: Page) {
       : []
     return {
       firstFeedbackMs: firstFeedbackAt - startedAt,
-      readyMs: readyAt - startedAt,
-      longTasks,
+      readyMs: recordedReadyAt - startedAt,
+      preparationMs: preparationCompleteAt - startedAt,
+      measurementEndedAt: Math.max(recordedReadyAt, preparationCompleteAt),
+      startedAt,
+      longTaskEntries,
       workers,
     }
   })
+  return {
+    ...measurements,
+    longTasks: overlappingLongTaskDurations(
+      measurements.longTaskEntries,
+      measurements.startedAt,
+      measurements.measurementEndedAt,
+    ),
+  }
 }
 
 function initializeRepository(projectPath: string) {
@@ -230,6 +330,7 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     page.on('pageerror', (error) => rendererErrors.push(error.message))
     await app.mainWindow().openThread(SESSION_TITLE)
     await installDiffPerformanceObserver(page)
+    await verifyClickTaskAttribution(page)
 
     const toggle = page.getByRole('button', { name: 'Toggle diff panel' })
     await armDiffRenderMeasurement(toggle)
@@ -244,6 +345,9 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
       ).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
     }
     await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({
+      timeout: HIGHLIGHT_TIMEOUT_MS,
+    })
+    await expect(diffPanel.locator('[data-diff-preparation-complete="true"]')).toBeAttached({
       timeout: HIGHLIGHT_TIMEOUT_MS,
     })
     const measurements = await readDiffRenderMeasurements(page)
@@ -302,6 +406,9 @@ test('a single oversized patch is parsed off the renderer thread', async () => {
       ).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
     }
     await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({
+      timeout: HIGHLIGHT_TIMEOUT_MS,
+    })
+    await expect(diffPanel.locator('[data-diff-preparation-complete="true"]')).toBeAttached({
       timeout: HIGHLIGHT_TIMEOUT_MS,
     })
     const measurements = await readDiffRenderMeasurements(page)
