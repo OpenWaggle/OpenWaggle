@@ -69,12 +69,18 @@ function isViewingActiveBranchHead(workspace: SessionWorkspace) {
 }
 
 function isViewingSessionHead(workspace: SessionWorkspace) {
-  const sessionHeadNodeId = workspace.tree.session.lastActiveNodeId
+  if (!isViewingActiveBranchHead(workspace)) {
+    return false
+  }
+
+  const sessionBranchId =
+    workspace.tree.session.lastActiveBranchId ??
+    workspace.tree.branches.find((branch) => branch.isMain)?.id
 
   return (
-    workspace.activeNodeId !== null &&
-    sessionHeadNodeId !== null &&
-    String(workspace.activeNodeId) === String(sessionHeadNodeId)
+    workspace.activeBranchId !== null &&
+    sessionBranchId !== undefined &&
+    String(workspace.activeBranchId) === String(sessionBranchId)
   )
 }
 

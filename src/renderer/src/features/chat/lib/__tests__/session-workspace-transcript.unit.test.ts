@@ -3,6 +3,10 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { resolveTranscriptMessages } from '../session-workspace-transcript'
+import {
+  INACTIVE_BRANCH_ID,
+  workspaceAtInactiveBranchHead,
+} from './session-workspace-transcript.fixtures'
 
 const SESSION_ID = SessionId('session-1')
 const SESSION_DETAIL_ID = SessionId('session-1')
@@ -23,6 +27,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
+  branchId = MAIN_BRANCH_ID,
 ): SessionNode {
   return {
     id: SessionNodeId(id),
@@ -34,7 +39,7 @@ function sessionNode(
     timestampMs: createdOrder + 1,
     createdOrder,
     pathDepth: createdOrder,
-    branchId: MAIN_BRANCH_ID,
+    branchId,
     message: {
       id: MessageId(id),
       role,
@@ -221,6 +226,38 @@ describe('resolveTranscriptMessages', () => {
     ])
   })
 
+  it('accepts a visible active-branch head when the raw session head is hidden', () => {
+    const visibleAssistant = sessionNode(
+      'visible-assistant',
+      null,
+      'assistant',
+      'Visible answer before hidden state',
+      0,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceWithPath(
+        [visibleAssistant],
+        visibleAssistant.id,
+        visibleAssistant.id,
+        4,
+        SessionNodeId('hidden-mode-state'),
+      ),
+      messages: [
+        uiMessage('replacement-user', 'user', 'What happened next?'),
+        uiMessage('replacement-assistant', 'assistant', 'The hidden state completed.'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual([
+      'visible-assistant',
+      'replacement-user',
+      'replacement-assistant',
+    ])
+  })
+
   it('does not merge a disjoint active transcript into a current selected workspace', () => {
     const selectedNode = sessionNode(
       'selected-branch-assistant',
@@ -262,20 +299,14 @@ describe('resolveTranscriptMessages', () => {
       'assistant',
       'Inactive branch',
       0,
+      INACTIVE_BRANCH_ID,
     )
     const sessionHead = sessionNode('session-head', null, 'assistant', 'Current session head', 1)
-    const workspace = workspaceWithPath(
-      [inactiveBranchHead, sessionHead],
-      inactiveBranchHead.id,
-      inactiveBranchHead.id,
-      4,
-      sessionHead.id,
-    )
 
     const resolved = resolveTranscriptMessages({
       activeSessionId: SESSION_DETAIL_ID,
       activeSessionUpdatedAt: 10,
-      activeWorkspace: workspace,
+      activeWorkspace: workspaceAtInactiveBranchHead(sessionHead, inactiveBranchHead),
       messages: [
         uiMessage('replacement-user', 'user', 'Current branch question'),
         uiMessage('replacement-assistant', 'assistant', 'Current branch answer'),
