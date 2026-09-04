@@ -1581,15 +1581,18 @@ index 8bb4595a64ca83f4ffd72d46dd65f1a75c283021..bf27f93162857f143b97747f10949528
  import { SettingsManager } from "./settings-manager.js";
  import { time } from "./timings.js";
  import { createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, withFileMutationQueue, } from "./tools/index.js";
-@@ -78,7 +78,8 @@ export async function createAgentSession(options = {}) {
+@@ -78,7 +78,9 @@ export async function createAgentSession(options = {}) {
          time("resourceLoader.reload");
      }
      // Check if session has existing data to restore
 -    const existingSession = sessionManager.buildSessionContext();
-+    const projectSession = (targetModel, forceNativeReconstruction = false) => buildSessionContext(sessionManager.getEntries(), sessionManager.getLeafId(), undefined, targetModel, { forceNativeReconstruction });
++    const branchEntries = sessionManager.getBranch();
++    const projectSession = (targetModel, forceNativeReconstruction = false) => buildSessionContext(branchEntries, sessionManager.getLeafId(), undefined, targetModel, { forceNativeReconstruction });
 +    const existingSession = projectSession(options.model);
-     const hasExistingSession = existingSession.messages.length > 0;
-     const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
+-    const hasExistingSession = existingSession.messages.length > 0;
+-    const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
++    const hasExistingSession = branchEntries.length > 0;
++    const hasThinkingEntry = branchEntries.some((entry) => entry.type === "thinking_level_change");
      let model = options.model;
 @@ -136,6 +137,40 @@ export async function createAgentSession(options = {}) {
      else {
