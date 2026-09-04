@@ -39,6 +39,8 @@ interface GitState {
    * duplicate identical data per session.
    */
   branches: GitBranchListResult | null
+  branchesRepositoryPath: RepositoryPath | null
+  isLoadingBranches: boolean
   branchesError: string | null
   isCommitting: boolean
   isBranchActionRunning: boolean
@@ -59,6 +61,7 @@ interface GitState {
 
 /** Per-path request ids, so a slow response for one tree cannot overwrite a newer one. */
 const latestStatusRequestIdByPath = new Map<string, number>()
+let latestBranchesRequestId = 0
 
 function nextStatusRequestId(workingPath: string) {
   const next = (latestStatusRequestIdByPath.get(workingPath) ?? 0) + 1
@@ -68,6 +71,15 @@ function nextStatusRequestId(workingPath: string) {
 
 function isStaleStatusRequest(workingPath: string, requestId: number) {
   return latestStatusRequestIdByPath.get(workingPath) !== requestId
+}
+
+function nextBranchesRequestId() {
+  latestBranchesRequestId += 1
+  return latestBranchesRequestId
+}
+
+function isStaleBranchesRequest(requestId: number) {
+  return latestBranchesRequestId !== requestId
 }
 
 /** Read one working tree's status slice, defaulting to empty rather than undefined. */
@@ -136,6 +148,8 @@ async function resolveGitBranchMutationResult(
 export const useGitStore = create<GitState>((set, get) => ({
   statusByWorkingPath: {},
   branches: null,
+  branchesRepositoryPath: null,
+  isLoadingBranches: false,
   branchesError: null,
   isCommitting: false,
   isBranchActionRunning: false,
@@ -160,17 +174,31 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   async refreshBranches(repositoryPath: RepositoryPath | null) {
+    const requestId = nextBranchesRequestId()
     if (repositoryPath === null) {
-      set({ branches: null, branchesError: null })
+      set({
+        branches: null,
+        branchesRepositoryPath: null,
+        isLoadingBranches: false,
+        branchesError: null,
+      })
       return
     }
 
+    set((state) => ({
+      branches: state.branchesRepositoryPath === repositoryPath ? state.branches : null,
+      branchesRepositoryPath: repositoryPath,
+      isLoadingBranches: true,
+      branchesError: null,
+    }))
     try {
       const branches = await api.listGitBranches(repositoryPath)
-      set({ branches, branchesError: null })
+      if (isStaleBranchesRequest(requestId)) return
+      set({ branches, isLoadingBranches: false, branchesError: null })
     } catch (err) {
+      if (isStaleBranchesRequest(requestId)) return
       set({
-        branches: null,
+        isLoadingBranches: false,
         branchesError: getErrorMessage(err, 'Failed to load Git branches.'),
       })
     }
@@ -242,7 +270,11 @@ async function refreshAfterBranchMutation(
   workingPath: WorkingPath,
   repositoryPath: RepositoryPath,
 ) {
-  await Promise.all([get().refreshStatus(workingPath), get().refreshBranches(repositoryPath)])
+  const refreshBranches =
+    get().branchesRepositoryPath === repositoryPath
+      ? get().refreshBranches(repositoryPath)
+      : Promise.resolve()
+  await Promise.all([get().refreshStatus(workingPath), refreshBranches])
 }
 
 async function runBranchMutation(

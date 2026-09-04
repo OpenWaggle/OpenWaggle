@@ -5,6 +5,8 @@ import { CONTEXT_MENU_TRIGGER_CLASS } from '@/shared/ui/menu-styles'
 
 interface RunTargetTriggerProps {
   readonly readOnly?: boolean
+  readonly disabled?: boolean
+  readonly placeholder?: string
   readonly selectedRef: string | null
   readonly isOpen: boolean
   readonly isMissing: boolean
@@ -21,12 +23,14 @@ interface RunTargetTriggerProps {
  */
 export function RunTargetTrigger({
   readOnly = false,
+  disabled = false,
+  placeholder,
   selectedRef,
   isOpen,
   isMissing,
   onToggle,
 }: RunTargetTriggerProps) {
-  const label = selectedRef ?? (isMissing ? 'Select a branch' : 'branch')
+  const label = selectedRef ?? placeholder ?? (isMissing ? 'Select a branch' : 'branch')
 
   if (readOnly) {
     return (
@@ -44,6 +48,7 @@ export function RunTargetTrigger({
     <Button
       variant="unstyled"
       type="button"
+      disabled={disabled}
       onClick={() => onToggle(!isOpen)}
       aria-expanded={isOpen}
       aria-label={`Run target: ${label}`}

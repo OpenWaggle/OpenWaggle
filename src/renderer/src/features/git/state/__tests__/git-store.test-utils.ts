@@ -9,6 +9,8 @@ export const REPOSITORY_PATH = RepositoryPath(PROJECT_PATH)
 export const GIT_STORE_RESET_STATE = {
   statusByWorkingPath: {},
   branches: null,
+  branchesRepositoryPath: null,
+  isLoadingBranches: false,
   branchesError: null,
   isCommitting: false,
   isBranchActionRunning: false,
