@@ -36,6 +36,7 @@ export async function createNativeSession(options: {
   authBaseUrlState?: { value: string | undefined }
   authBaseUrlResolver?: () => string | undefined
   apiKeyState?: { value: string }
+  apiKeyResolver?: () => string
   authFailureState?: { shouldFail: boolean }
   providerReloadState?: {
     baseUrl: string | undefined
@@ -89,7 +90,7 @@ export async function createNativeSession(options: {
           if (options.authFailureState?.shouldFail) throw new Error('Credentials unavailable')
           return {
             auth: {
-              apiKey: options.apiKeyState?.value ?? 'test-key',
+              apiKey: options.apiKeyResolver?.() ?? options.apiKeyState?.value ?? 'test-key',
               baseUrl: options.authBaseUrlResolver
                 ? options.authBaseUrlResolver()
                 : (options.authBaseUrlState?.value ?? options.authBaseUrl),

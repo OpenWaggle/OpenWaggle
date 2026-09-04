@@ -173,7 +173,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  env: result.env,
              };
          }
-@@ -197,21 +244,87 @@ export class AgentSession {
+@@ -197,21 +244,91 @@ export class AgentSession {
              return this._getRequiredRequestAuth(model);
          }
          try {
@@ -198,7 +198,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
              return { model };
          }
      }
-+    async _refreshRequestModelContext(onPreparedCompactionAuth) {
++    async _refreshRequestModelContext(onPreparedCompactionAuth, preserveCurrentNativeCredential = false) {
 +        const currentModel = this.model;
 +        if (!currentModel)
 +            return false;
@@ -221,6 +221,16 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +            headers = requestAuth.headers;
 +            env = requestAuth.env;
 +        }
++        const requestIdentityChanged = currentModel.api !== requestModel.api ||
++            currentModel.provider !== requestModel.provider ||
++            currentModel.id !== requestModel.id ||
++            currentModel.baseUrl !== requestModel.baseUrl ||
++            (currentModel.compat?.compactionBaseUrl ?? currentModel.baseUrl) !==
++                (requestModel.compat?.compactionBaseUrl ?? requestModel.baseUrl) ||
++            currentModel.compat?.supportsCompaction !== requestModel.compat?.supportsCompaction;
++        if (preserveCurrentNativeCredential && !requestIdentityChanged &&
++            selectCompactionMechanism(currentModel) === "native")
++            return false;
 +        if (selectCompactionMechanism(requestModel) === "native") {
 +            let requestHeaders = mergeProviderAttributionHeaders(requestModel, this.settingsManager, this.sessionManager.getSessionId(), headers);
 +            if (this._extensionRunner.hasHandlers("before_provider_headers"))
@@ -237,13 +247,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +                nativeRequestHeaders: requestHeaders,
 +            });
 +        }
-+        const identityChanged = currentModel.api !== requestModel.api ||
-+            currentModel.provider !== requestModel.provider ||
-+            currentModel.id !== requestModel.id ||
-+            currentModel.baseUrl !== requestModel.baseUrl ||
-+            (currentModel.compat?.compactionBaseUrl ?? currentModel.baseUrl) !==
-+                (requestModel.compat?.compactionBaseUrl ?? requestModel.baseUrl) ||
-+            currentModel.compat?.supportsCompaction !== requestModel.compat?.supportsCompaction ||
++        const identityChanged = requestIdentityChanged ||
 +            getNativeCredentialFingerprint(currentModel) !==
 +                getNativeCredentialFingerprint(requestModel);
 +        this.agent.state.model = requestModel;
@@ -676,7 +680,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          }
          return false;
      }
-@@ -1730,17 +1921,32 @@ export class AgentSession {
+@@ -1730,17 +1921,33 @@ export class AgentSession {
       * @param willRetry Whether to continue the interrupted turn after overflow compaction
       * @returns Whether the post-run loop should call `agent.continue()`
       */
@@ -687,6 +691,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          let fromExtension = false;
 +        let completedWillRetry = false;
 +        let preserveCompactionAuth = preservePreparedAuth;
++        let completedWithNativeCheckpoint = false;
          try {
              if (!this.model) {
                  return false;
@@ -721,13 +726,14 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
-@@ -1817,13 +2020,12 @@ export class AgentSession {
+@@ -1817,13 +2020,13 @@ export class AgentSession {
                  });
                  return false;
              }
 -            this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage);
 -            const newEntries = this.sessionManager.getEntries();
 -            const sessionContext = this.sessionManager.buildSessionContext();
++            completedWithNativeCheckpoint = details?.schemaVersion === 1 && details?.mechanism === "native";
 +            const savedCompactionEntryId = this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, fromExtension, usage, reason);
 +            const sessionContext = this.sessionManager.buildSessionContext(requestModel);
              this.agent.state.messages = sessionContext.messages;
@@ -768,7 +774,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          finally {
              this._autoCompactionAbortController = undefined;
 +            if (this.model && !preserveCompactionAuth) {
-+                await this._refreshRequestModelContext();
++                await this._refreshRequestModelContext(undefined, completedWithNativeCheckpoint);
 +            }
 +            if (completedWillRetry) {
 +                const messages = this.agent.state.messages;

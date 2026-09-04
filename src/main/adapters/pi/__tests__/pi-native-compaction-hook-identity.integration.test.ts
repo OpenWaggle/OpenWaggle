@@ -104,6 +104,36 @@ describe('Pi native compaction provider-hook identity', () => {
     expect(providerContexts[0]).toContain('cmp_1')
   })
 
+  it('reuses a rotating resolver credential when the next prompt first compacts', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-resolver-auth-')
+    const events: SessionCompactEvent[] = []
+    let authResolutions = 0
+    const providerContexts: string[] = []
+    const thresholdResponse = fauxAssistantMessage('Reached threshold')
+    thresholdResponse.usage.totalTokens = 80
+    thresholdResponse.usage.input = 80
+    vi.stubGlobal('fetch', nativeCompactionFetch())
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      apiKeyResolver: () => `rotating-resolver-${++authResolutions}`,
+      responses: [
+        thresholdResponse,
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Second turn complete')
+        },
+      ],
+    })
+
+    await session.prompt('first turn')
+    authResolutions = 0
+    await session.prompt('second turn')
+
+    expect(authResolutions).toBe(2)
+    expect(providerContexts[0]).toContain('cmp_1')
+  })
+
   it('reuses compaction hook headers for an already queued continuation', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-queued-hook-auth-')
     const events: SessionCompactEvent[] = []
