@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
   openPath: vi.fn(),
   revealPath: vi.fn(),
   read: vi.fn(),
+  retry: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -21,6 +22,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     openPath: apiMocks.openPath,
     revealPath: apiMocks.revealPath,
     readSessionResource: apiMocks.read,
+    retrySessionResource: apiMocks.retry,
   },
 }))
 
@@ -68,6 +70,7 @@ describe('SessionResourceViewer recovery and source actions', () => {
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
     apiMocks.openPath.mockReset().mockResolvedValue(undefined)
     apiMocks.revealPath.mockReset().mockResolvedValue(undefined)
+    apiMocks.retry.mockReset().mockResolvedValue(image())
   })
 
   it('does not steal arrow keys from controls inside the viewer', async () => {
@@ -97,9 +100,10 @@ describe('SessionResourceViewer recovery and source actions', () => {
     renderViewer()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load this image.')
-    fireEvent.click(screen.getByRole('button', { name: 'Retry loading image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry image' }))
 
     expect(await screen.findByRole('img', { name: 'first.png' })).toBeInTheDocument()
+    expect(apiMocks.retry).toHaveBeenCalledWith(SessionId('session-1'), 'image-1')
     expect(apiMocks.read).toHaveBeenCalledTimes(2)
   })
 
@@ -141,8 +145,8 @@ describe('SessionResourceViewer recovery and source actions', () => {
     renderViewer()
 
     expect(await screen.findByRole('img', { name: 'Local image' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Open original image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal original image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open original Local image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal original Local image' }))
 
     expect(apiMocks.openPath).toHaveBeenCalledWith('/tmp/local-image.png')
     expect(apiMocks.revealPath).toHaveBeenCalledWith('/tmp/local-image.png')

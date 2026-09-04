@@ -79,7 +79,10 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
  * mismatches with the target org's token policies.
  */
 export function getGhCliEnv(): Record<string, string | undefined> {
-  const env = { ...process.env }
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    PATH: getNpmCompatiblePath(),
+  }
   delete env.GITHUB_TOKEN
   delete env.GH_TOKEN
   return env

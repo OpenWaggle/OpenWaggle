@@ -11,20 +11,18 @@ import { subscribeToSessionResourceInvalidations } from '../session-resource-inv
 import { recordSessionChangeRequest, recordSessionCommit } from '../session-resource-recording'
 
 function recordingLayer(
-  record: (input: UpsertSessionResourceInput) => void,
-  workspace: Pick<SessionWorkspace, 'activeBranchId' | 'activeNodeId'> = {
-    activeBranchId: SessionBranchId('branch-main'),
-    activeNodeId: SessionNodeId('node-current'),
-  },
+  recorded: UpsertSessionResourceInput[],
+  workspaceFor: (sessionId: SessionId) => Pick<SessionWorkspace, 'activeBranchId' | 'activeNodeId'>,
 ) {
-  return Layer.mergeAll(
+  return Layer.merge(
     Layer.succeed(
       SessionResourceRepository,
       SessionResourceRepository.of({
         upsert: (input) => {
-          record(input)
+          recorded.push(input)
           return Effect.succeed({
             ...input,
+            managed: input.managedPath !== null,
             occurrences: [input.occurrence],
             isSource: false,
             isOutput: true,
@@ -48,10 +46,10 @@ function recordingLayer(
         listResourceProjectionPage: () =>
           Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
         getResourceProjectionNodes: () => Effect.succeed([]),
-        getWorkspace: () =>
+        getWorkspace: (sessionId) =>
           Effect.succeed(
             fromPartial<SessionWorkspace>({
-              ...workspace,
+              ...workspaceFor(sessionId),
               transcriptPath: [],
             }),
           ),
@@ -71,24 +69,29 @@ function recordingLayer(
   )
 }
 
-describe('recordSessionChangeRequest', () => {
-  it('records a created change request as an output of the opened session', async () => {
-    let recorded: UpsertSessionResourceInput | null = null
+describe('session Output recording', () => {
+  it('records an idempotent change request and invalidates its exact session', async () => {
+    const recorded: UpsertSessionResourceInput[] = []
     const invalidated = vi.fn()
     const unsubscribe = subscribeToSessionResourceInvalidations(invalidated)
-    const layer = recordingLayer((input) => {
-      recorded = input
-    })
+    const layer = recordingLayer(recorded, () => ({
+      activeBranchId: SessionBranchId('branch-main'),
+      activeNodeId: SessionNodeId('node-current'),
+    }))
+    const request = {
+      title: 'Add Session Summary',
+      url: 'https://github.com/openwaggle/openwaggle/pull/42',
+    }
 
     await Effect.runPromise(
-      recordSessionChangeRequest(SessionId('session-1'), {
-        title: 'Add Session Summary',
-        url: 'https://github.com/openwaggle/openwaggle/pull/42',
-      }).pipe(Effect.provide(layer)),
+      Effect.all([
+        recordSessionChangeRequest(SessionId('session-1'), request),
+        recordSessionChangeRequest(SessionId('session-1'), request),
+      ]).pipe(Effect.provide(layer)),
     )
     unsubscribe()
 
-    expect(recorded).toMatchObject({
+    expect(recorded[0]).toMatchObject({
       sessionId: SessionId('session-1'),
       canonicalKey: 'url:https://github.com/openwaggle/openwaggle/pull/42',
       kind: 'change-request',
@@ -101,44 +104,46 @@ describe('recordSessionChangeRequest', () => {
         branchId: 'branch-main',
       },
     })
-    expect(invalidated).toHaveBeenCalledOnce()
-    expect(invalidated).toHaveBeenCalledWith({ sessionId: SessionId('session-1') })
+    expect(recorded[0]?.occurrence.id).toBe(recorded[1]?.occurrence.id)
+    expect(invalidated).toHaveBeenCalledTimes(2)
+    expect(invalidated).toHaveBeenNthCalledWith(1, { sessionId: SessionId('session-1') })
   })
-})
 
-describe('recordSessionCommit', () => {
-  it('records a commit as an output on the owning session active branch and node', async () => {
-    let recorded: UpsertSessionResourceInput | null = null
+  it('records the same commit independently in each owning session', async () => {
+    const recorded: UpsertSessionResourceInput[] = []
     const invalidated = vi.fn()
     const unsubscribe = subscribeToSessionResourceInvalidations(invalidated)
-    const layer = recordingLayer((input) => {
-      recorded = input
-    })
+    const layer = recordingLayer(recorded, (sessionId) => ({
+      activeBranchId: SessionBranchId(`branch-${sessionId}`),
+      activeNodeId: SessionNodeId(`node-${sessionId}`),
+    }))
 
     await Effect.runPromise(
-      recordSessionCommit(SessionId('session-commit-owner'), {
-        commitHash: '0123456789abcdef0123456789abcdef01234567',
-        title: 'Keep commit output session-scoped',
-      }).pipe(Effect.provide(layer)),
+      Effect.all([
+        recordSessionCommit(SessionId('session-1'), {
+          commitHash: 'abc123',
+          summary: 'Add the session summary',
+        }),
+        recordSessionCommit(SessionId('session-2'), {
+          commitHash: 'abc123',
+          summary: 'Add the session summary',
+        }),
+      ]).pipe(Effect.provide(layer)),
     )
     unsubscribe()
 
-    expect(recorded).toMatchObject({
-      sessionId: SessionId('session-commit-owner'),
-      canonicalKey: 'git-commit:0123456789abcdef0123456789abcdef01234567',
-      kind: 'commit',
-      title: 'Keep commit output session-scoped',
-      locator: null,
-      occurrence: {
-        actor: 'user',
-        activity: 'created',
-        nodeId: 'node-current',
-        branchId: 'branch-main',
-      },
-    })
-    expect(invalidated).toHaveBeenCalledOnce()
-    expect(invalidated).toHaveBeenCalledWith({
-      sessionId: SessionId('session-commit-owner'),
-    })
+    expect(recorded.map((entry) => entry.sessionId)).toEqual([
+      SessionId('session-1'),
+      SessionId('session-2'),
+    ])
+    expect(recorded.every((entry) => entry.canonicalKey === 'commit:abc123')).toBe(true)
+    expect(recorded.map((entry) => entry.occurrence.id)).toEqual([
+      'created:commit:session-1:abc123',
+      'created:commit:session-2:abc123',
+    ])
+    expect(invalidated.mock.calls.map(([event]) => event)).toEqual([
+      { sessionId: SessionId('session-1') },
+      { sessionId: SessionId('session-2') },
+    ])
   })
 })

@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionOutputRetryRepository } from '../../ports/session-output-retry-repository'
 import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
 import {
   SessionResourceRepository,
@@ -29,7 +30,8 @@ const MANAGED_RESOURCE = {
   kind: 'file' as const,
   title: 'managed.txt',
   mimeType: 'text/plain',
-  locator: 'session-resource://managed-attachment',
+  locator: '/input/managed.txt',
+  managed: true,
   available: true,
   isSource: true,
   isOutput: false,
@@ -73,6 +75,14 @@ const MANAGED_NODE = {
 }
 
 const TestLayer = Layer.mergeAll(
+  Layer.succeed(
+    SessionOutputRetryRepository,
+    SessionOutputRetryRepository.of({
+      put: (output) => Effect.succeed(output),
+      list: () => Effect.succeed([]),
+      remove: () => Effect.void,
+    }),
+  ),
   Layer.succeed(
     SessionRepository,
     SessionRepository.of(
@@ -132,6 +142,7 @@ describe('completed session resource backfill', () => {
     await expect(invokeList()).resolves.toEqual({
       resources: [MANAGED_RESOURCE],
       backfillComplete: true,
+      progressed: false,
     })
 
     expect(mocks.inspect).toHaveBeenCalledWith('/managed/managed.txt')

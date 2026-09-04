@@ -1,6 +1,8 @@
 // VCS status, source control, and stacked git action types (WS2-WS4, ADR 0012).
 // Split out of git.ts to keep each module focused.
 
+import type { SessionId } from './brand'
+
 // --- VCS status: Local/Remote split (WS2, ADR 0012) ---
 
 export type SourceControlProviderId = 'github' | 'gitlab'
@@ -123,6 +125,18 @@ export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFa
 
 export interface OpenChangeRequestPayload {
   readonly headRef: string
+  /**
+   * Repository owner/namespace that received the pushed head. GitHub requires
+   * `owner:branch` when the head lives in a fork; a bare branch can otherwise
+   * resolve to an unrelated same-named ref in the base repository.
+   */
+  readonly headOwner?: string
+  /**
+   * Full source repository path when the pushed head lives in a fork. GitLab
+   * uses it for `--head`; GitHub needs it for the REST fallback that supports
+   * organization-owned and renamed forks.
+   */
+  readonly headRepository?: string
   /** Omitted when the provider should use the repository's configured default branch. */
   readonly baseRef?: string
   readonly title: string
@@ -182,6 +196,8 @@ export interface GitActionProgressEvent {
 
 export interface GitRunStackedActionOptions {
   readonly action: GitStackedAction
+  /** Session that initiated the action, used only to project created outputs. */
+  readonly sessionId?: SessionId
   readonly commitMessage?: string
   readonly createFeatureBranch?: boolean
   readonly featureBranchName?: string
@@ -228,9 +244,19 @@ export interface GitRunStackedActionSuccess {
   readonly ok: true
   readonly action: GitStackedAction
   readonly branch: GitStackedActionBranchOutcome
-  /** Commit produced by this action, when it included a successful commit phase. */
-  readonly commitHash?: string
+  readonly commit: {
+    readonly commitHash: string
+    readonly summary: string
+  } | null
+  /** Output projection outcome; failed projections say whether durable retry was authorized. */
+  readonly commitOutput?:
+    | { readonly ok: true }
+    | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
   readonly changeRequest: VcsChangeRequest | null
+  /** Main-process projection outcome for the created request, when a Session initiated it. */
+  readonly changeRequestOutput?:
+    | { readonly ok: true }
+    | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
 }
 
 export interface GitRunStackedActionFailure {
@@ -238,10 +264,12 @@ export interface GitRunStackedActionFailure {
   readonly phase: GitActionPhase
   readonly code: GitStackedActionErrorCode
   readonly message: string
-  /** Commit retained when a later push or change-request phase failed. */
-  readonly commitHash?: string
   /** Prepared branch retained after a later phase failed, so retry can resume it safely. */
   readonly branch?: GitStackedActionBranchOutcome
+  /** Commit retained when a later push or change-request phase failed. */
+  readonly commit?: GitRunStackedActionSuccess['commit']
+  /** Output projection outcome when the commit succeeded before a later phase failed. */
+  readonly commitOutput?: GitRunStackedActionSuccess['commitOutput']
   /** Provider web composer used when the native CLI is unavailable or unauthenticated. */
   readonly fallbackUrl?: string
 }

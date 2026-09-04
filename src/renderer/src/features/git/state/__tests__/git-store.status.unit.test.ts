@@ -1,4 +1,4 @@
-import { WorkingPath } from '@shared/types/brand'
+import { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -134,6 +134,8 @@ describe('useGitStore status and branch refresh behavior', () => {
       await useGitStore.getState().refreshBranches(null)
 
       expect(useGitStore.getState().branches).toBeNull()
+      expect(useGitStore.getState().branchesRepositoryPath).toBeNull()
+      expect(useGitStore.getState().isLoadingBranches).toBe(false)
       expect(useGitStore.getState().branchesError).toBeNull()
       expect(apiMock.listGitBranches).not.toHaveBeenCalled()
     })
@@ -163,6 +165,28 @@ describe('useGitStore status and branch refresh behavior', () => {
 
       expect(useGitStore.getState().branchesError).toBeNull()
       expect(useGitStore.getState().branches).toEqual(makeBranchList())
+      expect(useGitStore.getState().branchesRepositoryPath).toBe(REPOSITORY_PATH)
+      expect(useGitStore.getState().isLoadingBranches).toBe(false)
+    })
+
+    it('keeps the newest project branch result when requests resolve out of order', async () => {
+      let resolveFirst: ((branches: ReturnType<typeof makeBranchList>) => void) | undefined
+      apiMock.listGitBranches
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirst = resolve
+            }),
+        )
+        .mockResolvedValueOnce(makeBranchList({ currentBranch: 'project-b' }))
+
+      const firstRefresh = useGitStore.getState().refreshBranches(RepositoryPath('/repo-a'))
+      await useGitStore.getState().refreshBranches(RepositoryPath('/repo-b'))
+      resolveFirst?.(makeBranchList({ currentBranch: 'project-a' }))
+      await firstRefresh
+
+      expect(useGitStore.getState().branchesRepositoryPath).toBe('/repo-b')
+      expect(useGitStore.getState().branches?.currentBranch).toBe('project-b')
     })
   })
 })

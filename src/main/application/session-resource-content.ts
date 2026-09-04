@@ -9,6 +9,7 @@ import {
 import { SessionResourceStore } from '../ports/session-resource-store'
 import { SessionResourceThumbnailer } from '../ports/session-resource-thumbnailer'
 import { removeReplacedCopy } from './session-resource-capture-shared'
+import { withSessionResourceInvalidation } from './session-resource-invalidation'
 import { withSessionResourceLock } from './session-resource-lock'
 
 function contentFromBytes(
@@ -27,8 +28,10 @@ function contentFromBytes(
 
 function remoteImageUrl(resource: SessionResource) {
   if (resource.locator?.startsWith('https://')) return resource.locator
-  if (resource.canonicalKey.startsWith('url:https://')) {
-    return resource.canonicalKey.slice('url:'.length)
+  for (const prefix of ['image-url:', 'url:']) {
+    if (resource.canonicalKey.startsWith(`${prefix}https://`)) {
+      return resource.canonicalKey.slice(prefix.length)
+    }
   }
   return null
 }
@@ -80,7 +83,6 @@ function materializeRemoteImage(
       fileName: fetched.fileName,
       bytes: fetched.bytes,
     })
-    const locator = `session-resource://${resource.id}`
     yield* SessionResourceRepository.pipe(
       Effect.flatMap((repository) =>
         repository.upsert({
@@ -90,7 +92,7 @@ function materializeRemoteImage(
           kind: 'image',
           title: resource.title === url ? fetched.fileName : resource.title,
           mimeType: fetched.mimeType,
-          locator,
+          locator: url,
           managedPath: stored.path,
           available: true,
           occurrence,
@@ -108,19 +110,22 @@ function materializeRemoteImage(
 export function readSessionResourceContent(sessionId: SessionId, resourceId: string) {
   return withSessionResourceLock(
     sessionId,
-    Effect.gen(function* () {
-      const repository = yield* SessionResourceRepository
-      const location = yield* repository.getContentLocation(sessionId, resourceId)
-      if (location) {
-        const content = yield* readManagedContent(location)
-        if (content) return content
-      }
-      const resource = (yield* repository.list(sessionId)).find((item) => item.id === resourceId)
-      if (resource?.kind !== 'image') return null
-      const url = remoteImageUrl(resource)
-      if (!url) return null
-      return yield* materializeRemoteImage(sessionId, resource, location, url)
-    }),
+    withSessionResourceInvalidation(
+      sessionId,
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        const location = yield* repository.getContentLocation(sessionId, resourceId)
+        if (location) {
+          const content = yield* readManagedContent(location)
+          if (content) return content
+        }
+        const resource = (yield* repository.list(sessionId)).find((item) => item.id === resourceId)
+        if (resource?.kind !== 'image') return null
+        const url = remoteImageUrl(resource)
+        if (!url) return null
+        return yield* materializeRemoteImage(sessionId, resource, location, url)
+      }),
+    ),
   )
 }
 

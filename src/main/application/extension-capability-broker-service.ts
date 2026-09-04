@@ -47,10 +47,6 @@ function scopeFailure(message: string): ScopeResolution {
   return { _tag: 'failure', message }
 }
 
-function currentTimestamp(dependencies: InvokeExtensionCapabilityDependencies) {
-  return dependencies.now?.() ?? Date.now()
-}
-
 function resolveActiveProjectScope(scope: ExtensionInvokeScope) {
   return Effect.gen(function* () {
     const projectPath = getScopeProjectPath(scope)
@@ -212,7 +208,7 @@ export function invokeExtensionCapability(
 ) {
   return Effect.gen(function* () {
     const input = normalizeInput(rawInput)
-    const timestamp = currentTimestamp(dependencies)
+    const timestamp = dependencies.now?.() ?? Date.now()
     const scopeProjectPath = getScopeProjectPath(input.scope)
     const lookupProjectPath = yield* resolveInvocationLookupProjectPath(input.scope)
     const scopeResolution = yield* resolveScopeContext(input.scope)
@@ -265,6 +261,18 @@ export function invokeExtensionCapability(
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_CONTRIBUTION,
         message: `Contribution "${input.contributionId}" was not found for extension "${input.extensionId}".`,
+        timestamp,
+      })
+    }
+
+    if (
+      input.contributionId === TRUSTED_MAIN_CONTRIBUTION_ID &&
+      input.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES
+    ) {
+      return yield* auditedFailure({
+        invocation: input,
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Trusted main resource access requires a host-bound active Session surface.',
         timestamp,
       })
     }

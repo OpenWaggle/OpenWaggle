@@ -58,7 +58,58 @@ describe('session resource capture validation', () => {
     expect(upserts.filter((resource) => resource.kind === 'image')).toEqual([])
   })
 
-  it('removes a newly copied duplicate when the catalog preserves a managed image', async () => {
+  it.each([
+    {
+      label: 'a renamed non-image',
+      name: 'renamed.png',
+      mimeType: 'image/png',
+      bytes: Buffer.from('this is plain text'),
+    },
+    {
+      label: 'an active SVG payload',
+      name: 'active.svg',
+      mimeType: 'image/svg+xml',
+      bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'),
+    },
+  ])('catalogs $label as an ordinary file instead of viewable image content', async (fixture) => {
+    const upserts: UpsertSessionResourceInput[] = []
+
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: `run-${fixture.name}`,
+        payload: {
+          text: '',
+          thinkingLevel: 'medium',
+          attachments: [
+            {
+              id: fixture.name,
+              kind: 'image',
+              name: fixture.name,
+              path: `/input/${fixture.name}`,
+              mimeType: fixture.mimeType,
+              sizeBytes: fixture.bytes.byteLength,
+              extractedText: '',
+            },
+          ],
+        },
+        messages: resourceMessages(),
+      }).pipe(
+        Effect.provide(sessionResourceTestLayer(upserts, { storedAttachmentBytes: fixture.bytes })),
+      ),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        kind: 'file',
+        title: fixture.name,
+        locator: `/input/${fixture.name}`,
+        managedPath: expect.stringContaining(`/managed/`),
+      }),
+    )
+  })
+
+  it('keeps a replacement copy when canonical deduplication retains another resource id', async () => {
     const upserts: UpsertSessionResourceInput[] = []
     const removedPaths: string[] = []
     await Effect.runPromise(
@@ -91,7 +142,7 @@ describe('session resource capture validation', () => {
       ),
     )
 
-    expect(removedPaths).toHaveLength(2)
-    expect(removedPaths.every((managedPath) => managedPath.startsWith('/managed/'))).toBe(true)
+    expect(removedPaths).toHaveLength(1)
+    expect(removedPaths[0]).toMatch(/\/managed\/.*-Generated image\.png$/)
   })
 })

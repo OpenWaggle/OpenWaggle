@@ -1,8 +1,5 @@
 export * from './components'
-export {
-  useRecordSessionCommit,
-  useSessionResourceInvalidation,
-} from './hooks/useSessionResources'
+export { useSessionResourceInvalidation } from './hooks/useSessionResources'
 export type {
   SessionResourceBrowserTarget,
   SessionResourceBrowserView,

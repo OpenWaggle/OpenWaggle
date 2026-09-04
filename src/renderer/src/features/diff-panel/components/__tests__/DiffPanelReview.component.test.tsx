@@ -29,6 +29,9 @@ const REVIEW_KEY = reviewKeyFor('/repo', { kind: 'unstaged' })
 // cannot be referenced from an ordinary top-level import here.
 vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+  WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
+    .StubWorkerPoolContextProvider,
+  useWorkerPool: () => undefined,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -49,7 +52,7 @@ describe('Diff panel review flow', () => {
     vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
     useGitStore.setState({ statusByWorkingPath: {} })
     useReviewStore.setState({ byReviewKey: {} })
-    useUIStore.setState({ toastMessage: null, toastData: null })
+    useUIStore.setState({ toastMessage: null, toastData: null, workspaceTreeOpen: true })
   })
 
   it('loads project diffs and sends accumulated review comments', async () => {
@@ -160,6 +163,28 @@ describe('Diff panel review flow', () => {
     expect(screen.getAllByRole('img', { name: 'modified' }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('+1').length).toBeGreaterThan(0)
     expect(screen.getAllByText('-1').length).toBeGreaterThan(0)
+  })
+
+  it('collapses and restores the shared right-side workspace navigator', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
+
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    expect(
+      await screen.findByRole('complementary', { name: 'Workspace navigator' }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace navigator' }))
+    expect(screen.queryByRole('complementary', { name: 'Workspace navigator' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace navigator' }))
+    expect(screen.getByRole('complementary', { name: 'Workspace navigator' })).toBeInTheDocument()
   })
 })
 

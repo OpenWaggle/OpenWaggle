@@ -51,9 +51,13 @@ export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
     createdAt: new Date(msg.createdAt),
     ...(msg.metadata?.branchSummary ||
     msg.metadata?.compactionSummary ||
-    msg.metadata?.waggleInvocation
+    msg.metadata?.waggleInvocation ||
+    msg.metadata?.visualizationSessionId
       ? {
           metadata: {
+            ...(msg.metadata.visualizationSessionId
+              ? { visualizationSessionId: msg.metadata.visualizationSessionId }
+              : {}),
             ...(msg.metadata.branchSummary ? { branchSummary: msg.metadata.branchSummary } : {}),
             ...(msg.metadata.compactionSummary
               ? { compactionSummary: msg.metadata.compactionSummary }

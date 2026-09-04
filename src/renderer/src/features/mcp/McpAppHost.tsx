@@ -3,6 +3,7 @@ import { ShieldAlert, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { Button } from '@/shared/ui/Button'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { useMcpAppBridge } from './mcp-app-bridge'
 import { useMcpAppResource } from './use-mcp-app-resource'
 
@@ -101,19 +102,26 @@ export function McpAppHost({
         onLoad={() => setFrameReady(true)}
       />
       {stagedContext !== null && (
-        <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2">
-          <p className="text-xs text-text-muted">
-            This App staged attributed context; it is not in the model context.
-          </p>
-          <Button
-            onClick={() =>
-              setComposerTextValue(
-                `MCP App context from ${descriptor.serverLabel}\n\n${JSON.stringify(stagedContext, null, JSON_INDENT_SPACES)}`,
-              )
-            }
-          >
-            Add to editable draft
-          </Button>
+        <div className="space-y-2 border-t border-border px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-text-muted">
+              This App staged attributed context; it is not in the model context.
+            </p>
+            <Button
+              onClick={() =>
+                setComposerTextValue(
+                  `MCP App context from ${descriptor.serverLabel}\n\n${JSON.stringify(stagedContext, null, JSON_INDENT_SPACES)}`,
+                )
+              }
+            >
+              Add to editable draft
+            </Button>
+          </div>
+          <StructuredPayload
+            value={stagedContext}
+            ariaLabel={`Staged context from ${descriptor.serverLabel}`}
+            className="max-h-48"
+          />
         </div>
       )}
     </div>

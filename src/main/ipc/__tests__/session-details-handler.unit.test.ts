@@ -14,6 +14,7 @@ import {
   createRuntimeSessionMock,
   createSessionMock,
   deleteSessionMock,
+  deleteVisualizationSessionMock,
   emitRunCompletedMock,
   forkRuntimeSessionMock,
   getInvokeHandler,
@@ -22,6 +23,7 @@ import {
   loadSessionDetailsHandlers,
   removeSessionResourcesMock,
   resetSessionDetailsHandlerMocks,
+  rollbackVisualizationSessionDeletionMock,
   setAuthorizationModeMock,
   typedHandleMock,
 } from './session-details-handler.test-harness'
@@ -237,6 +239,7 @@ describe('registerSessionDetailsHandlers', () => {
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(completeSessionResourceCleanupMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(deleteVisualizationSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
       removeSessionResourcesMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
@@ -278,6 +281,20 @@ describe('registerSessionDetailsHandlers', () => {
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-archive'))
     expect(emitRunCompletedMock).not.toHaveBeenCalled()
     expect(archiveSessionMock).toHaveBeenCalledWith(SessionId('session-archive'))
+    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
+  })
+
+  it('restores staged visualization files when database deletion fails', async () => {
+    deleteSessionMock.mockRejectedValue(new Error('database unavailable'))
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:delete')
+
+    await expect(handler?.({}, SessionId('session-delete'))).rejects.toThrow()
+
+    expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith(
+      SessionId('session-delete'),
+    )
+    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
   })
 
   it('updates a session authorization mode through the projection repository', async () => {

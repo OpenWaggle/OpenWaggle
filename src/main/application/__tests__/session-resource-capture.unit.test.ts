@@ -101,8 +101,8 @@ describe('captureSuccessfulRunResources', () => {
 
     expect(upserts).toContainEqual(
       expect.objectContaining({
-        canonicalKey: 'file:/input/missing.png',
-        kind: 'image',
+        canonicalKey: expect.stringMatching(/^unavailable-attachment:.*:attachment-missing:0$/u),
+        kind: 'file',
         title: 'missing.png',
         mimeType: 'image/png',
         locator: '/input/missing.png',
@@ -122,10 +122,21 @@ describe('captureSuccessfulRunResources', () => {
       title: 'missing.png',
       mimeType: 'image/png',
       locator: '/input/missing.png',
+      managed: false,
       available: false,
       isSource: true,
       isOutput: false,
-      occurrences: [],
+      occurrences: [
+        {
+          id: 'session-1:user-message:provided:attachment:attachment-missing:0',
+          nodeId: 'user-message',
+          branchId: null,
+          actor: 'user',
+          activity: 'provided',
+          label: null,
+          createdAt: 1000,
+        },
+      ],
       createdAt: 1000,
       updatedAt: 1000,
     }
@@ -148,6 +159,7 @@ describe('captureSuccessfulRunResources', () => {
         index: 0,
         nodeId: 'user-message',
         createdAt: 1000,
+        repairResource: unavailable,
       }).pipe(
         Effect.provide(
           sessionResourceTestLayer(upserts, {
@@ -163,7 +175,7 @@ describe('captureSuccessfulRunResources', () => {
       expect.objectContaining({
         id: 'missing-resource',
         canonicalKey: 'sha256:attachment-digest',
-        locator: 'session-resource://missing-resource',
+        locator: '/input/missing.png',
         managedPath: '/managed/missing-resource-missing.png',
         available: true,
       }),
@@ -231,7 +243,7 @@ describe('captureSuccessfulRunResources', () => {
     expect(fetchedUrls).toEqual([])
     expect(upserts).toContainEqual(
       expect.objectContaining({
-        canonicalKey: 'url:https://images.example/architecture.png',
+        canonicalKey: 'image-url:https://images.example/architecture.png',
         kind: 'image',
         mimeType: null,
         locator: 'https://images.example/architecture.png',

@@ -34,6 +34,13 @@ export class SessionResourceRepositoryError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
+export class SessionOutputRetryRepositoryError extends Data.TaggedError(
+  'SessionOutputRetryRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
 export class SessionResourceStoreError extends Data.TaggedError('SessionResourceStoreError')<{
   readonly operation: string
   readonly cause?: unknown

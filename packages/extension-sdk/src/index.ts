@@ -34,7 +34,7 @@ export {
   extensionRuntimeRegisterContributionResultSchema,
   extensionRuntimeUnregisterContributionResultSchema,
 } from './runtime.js'
-export * from './session-resources.js'
+export * from './syntax.js'
 export type * from './theme.js'
 export {
   createOpenWaggleExtensionTheme,

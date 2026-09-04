@@ -1,84 +1,66 @@
 import { WorkingPath } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  runStackedGitAction: vi.fn(),
-  showToast: vi.fn(),
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { runStackedGitAction: mocks.runStackedGitAction },
-}))
-
-vi.mock('@/shell/ui-store', () => ({
-  useUIStore: (selector: (state: { readonly showToast: typeof mocks.showToast }) => unknown) =>
-    selector({ showToast: mocks.showToast }),
-}))
-
+import { useUIStore } from '@/shell/ui-store'
 import { useStackedGitActions } from '../useStackedGitActions'
 
-describe('useStackedGitActions commit output', () => {
+const runStackedGitAction = vi.hoisted(() => vi.fn())
+
+vi.mock('@/shared/lib/ipc', () => ({ api: { runStackedGitAction } }))
+
+describe('useStackedGitActions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    useUIStore.setState({ toastMessage: null, toastData: null })
+    runStackedGitAction.mockReset()
   })
 
-  it('reports the created commit hash and message to the owning caller', async () => {
-    mocks.runStackedGitAction.mockResolvedValue({
+  it('reports a successful commit whose Session Output projection failed as an error', async () => {
+    runStackedGitAction.mockResolvedValue({
       ok: true,
-      action: 'commit_push',
+      action: 'commit',
       branch: { status: 'unchanged', name: null },
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
+      commit: { commitHash: 'abc123', summary: 'Session summary' },
+      commitOutput: {
+        ok: false,
+        retryPersisted: false,
+        message: 'The commit succeeded, but its Output and durable retry could not be recorded.',
+      },
       changeRequest: null,
     })
-    const onCommitCreated = vi.fn()
     const { result } = renderHook(() =>
-      useStackedGitActions({
-        workingPath: WorkingPath('/repo'),
-        onCommitCreated,
-      }),
+      useStackedGitActions({ workingPath: WorkingPath('/project') }),
     )
 
-    await act(() =>
-      result.current.run('commit_push', {
-        commitMessage: 'Preserve the owning session',
-        paths: ['src/feature.ts'],
-      }),
-    )
+    await act(() => result.current.run('commit'))
 
-    expect(onCommitCreated).toHaveBeenCalledWith({
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
-      title: 'Preserve the owning session',
+    expect(useUIStore.getState().toastData).toEqual({
+      message: 'The commit succeeded, but its Output and durable retry could not be recorded.',
+      variant: 'error',
     })
   })
 
-  it('reports a commit retained by a later failed phase', async () => {
-    mocks.runStackedGitAction.mockResolvedValue({
+  it('reports both a later push failure and the earlier commit Output failure', async () => {
+    runStackedGitAction.mockResolvedValue({
       ok: false,
       phase: 'push',
       code: 'push-failed',
-      message: 'Push failed.',
-      commitHash: 'fedcba9876543210fedcba9876543210fedcba98',
+      message: 'The push was rejected.',
+      commit: { commitHash: 'abc123', summary: 'Session summary' },
+      commitOutput: {
+        ok: false,
+        retryPersisted: true,
+        message: 'The commit Output will be retried automatically.',
+      },
     })
-    const onCommitCreated = vi.fn()
     const { result } = renderHook(() =>
-      useStackedGitActions({
-        workingPath: WorkingPath('/repo'),
-        onCommitCreated,
-      }),
+      useStackedGitActions({ workingPath: WorkingPath('/project') }),
     )
 
-    await act(() =>
-      result.current.run('commit_push', {
-        commitMessage: 'Commit survived push failure',
-        paths: ['src/feature.ts'],
-      }),
-    )
+    await act(() => result.current.run('commit_push'))
 
-    expect(onCommitCreated).toHaveBeenCalledWith({
-      commitHash: 'fedcba9876543210fedcba9876543210fedcba98',
-      title: 'Commit survived push failure',
+    expect(useUIStore.getState().toastData).toEqual({
+      message: 'The push was rejected. The commit Output will be retried automatically.',
+      variant: 'error',
     })
-    expect(mocks.showToast).toHaveBeenCalledWith('Push failed.', 'error')
   })
 })

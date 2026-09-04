@@ -6,6 +6,7 @@ import type {
 import { ChevronDown, LockKeyhole } from 'lucide-react'
 import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { allowScopeChoices, ribbonTargetLine } from '../lib/agent-authorization-ribbon-model'
 import { restoreFocusBeforeRequest } from '../lib/pending-request-focus'
 import { useChatDisplayText } from './ChatDisplayPathContext'
@@ -161,9 +162,9 @@ function RibbonDetails({ message }: { readonly message: string }) {
           {/* The payload lives here, never in the label. Pre-wrapped because every consent body is
               built as several lines, and capped so a large one scrolls instead of pushing the
               composer off screen. */}
-          <pre className="max-h-40 max-w-full min-w-0 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-text-secondary [overflow-wrap:anywhere]">
+          <PlainTextBlock reason="prose" className="max-h-40 max-w-full min-w-0 bg-transparent p-0">
             {displayMessage}
-          </pre>
+          </PlainTextBlock>
         </div>
       ) : null}
     </>

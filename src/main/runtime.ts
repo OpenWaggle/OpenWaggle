@@ -8,6 +8,7 @@ import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
+import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
@@ -23,15 +24,18 @@ import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SecureSessionResourceImageFetcherLive } from './adapters/secure-session-resource-image-fetcher'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SharpSessionResourceImageValidatorLive } from './adapters/sharp-session-resource-image-validator'
 import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
+import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
 import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
@@ -53,6 +57,9 @@ const SessionResourceRepositoryLive = SqliteSessionResourceRepositoryLive.pipe(
 const SessionResourceCleanupRepositoryLive = SqliteSessionResourceCleanupRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
+const SessionOutputRetryRepositoryLive = SqliteSessionOutputRetryRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
 const ExtensionRuntimeSelectionLive = Layer.mergeAll(
   ExtensionLifecycleRepositoryLive,
   ExtensionProjectOverridesRepositoryLive,
@@ -72,7 +79,13 @@ const McpServicesLive = Layer.mergeAll(
   FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
 ).pipe(Layer.provide(McpTurnStateServiceLive))
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
-  Layer.provide(Layer.mergeAll(ExtensionRuntimeSelectionLive, McpServicesLive)),
+  Layer.provide(
+    Layer.mergeAll(
+      ExtensionRuntimeSelectionLive,
+      McpServicesLive,
+      FilesystemInlineVisualizationLive,
+    ),
+  ),
 )
 const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   AppLogger.Live,
@@ -83,6 +96,7 @@ const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   SessionResourceRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceImageValidatorLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
 )
@@ -103,8 +117,10 @@ const AppLayer = Layer.mergeAll(
   ExtensionStorageRepositoryLive,
   SessionResourceRepositoryLive,
   SessionResourceCleanupRepositoryLive,
+  SessionOutputRetryRepositoryLive,
   FilesystemSessionResourceStoreLive,
   SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceImageValidatorLive,
   SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
@@ -118,6 +134,8 @@ const AppLayer = Layer.mergeAll(
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
   FilesystemWorkspaceFileLive,
+  WorkspaceProjectAuthorizationLive,
+  FilesystemInlineVisualizationLive,
 )
 
 function makeAppRuntime() {

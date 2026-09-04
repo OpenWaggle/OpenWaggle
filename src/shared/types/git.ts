@@ -1,3 +1,5 @@
+import type { SessionId } from './brand'
+
 export type GitFileStatus =
   | 'modified'
   | 'added'
@@ -36,6 +38,8 @@ export interface GitStatusSummary {
 }
 
 export interface GitCommitPayload {
+  /** Originating Session, used by main to verify ownership and project the commit into Outputs. */
+  readonly sessionId?: SessionId
   readonly message: string
   readonly amend: boolean
   readonly paths: readonly string[]

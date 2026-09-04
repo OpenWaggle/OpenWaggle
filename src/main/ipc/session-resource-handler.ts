@@ -1,18 +1,22 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import {
   recordSessionChangeRequestInputSchema,
-  recordSessionCommitInputSchema,
   sessionResourceIdSchema,
   sessionResourceSessionIdSchema,
 } from '@shared/schemas/session-resource'
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
+import {
+  listPendingSessionOutputs,
+  removePendingSessionOutput,
+} from '../application/session-change-request-output-retry'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
 import {
   readSessionResourceContent,
   readSessionResourceThumbnail,
 } from '../application/session-resource-content'
+import { withSessionResourceLock } from '../application/session-resource-lock'
 import {
   recordSessionChangeRequest,
   recordSessionCommit,
@@ -26,10 +30,32 @@ import { typedHandle } from './typed-ipc'
 
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
 
+function retryPendingOutputs(sessionId: SessionId) {
+  return withSessionResourceLock(
+    sessionId,
+    listPendingSessionOutputs(sessionId).pipe(
+      Effect.flatMap((outputs) =>
+        Effect.forEach(outputs, (output) => {
+          const recording =
+            output.kind === 'commit'
+              ? recordSessionCommit(sessionId, output, output)
+              : recordSessionChangeRequest(sessionId, output, output)
+          return recording.pipe(
+            Effect.flatMap(() => removePendingSessionOutput(output)),
+            Effect.catchAll(() => Effect.void),
+          )
+        }),
+      ),
+      Effect.catchAll(() => Effect.void),
+      Effect.asVoid,
+    ),
+  )
+}
+
 function managedResourceNodeIds(resources: readonly SessionResource[]) {
   const nodeIds = new Set<string>()
   for (const resource of resources) {
-    if (!resource.available || !resource.locator?.startsWith('session-resource://')) continue
+    if (!resource.available || !resource.managed) continue
     for (const occurrence of resource.occurrences) {
       if (occurrence.nodeId) nodeIds.add(occurrence.nodeId)
     }
@@ -65,20 +91,23 @@ function advanceSessionResourceBackfillPage(sessionId: SessionId) {
     )
     if (page.throughCreatedOrder === null) {
       yield* recheckCompletedManagedResources(sessionId, repository, sessions)
-      return { backfillComplete: true }
+      return { backfillComplete: true, progressed: false }
     }
     let backfillComplete = false
+    let progressed = false
     const result = yield* captureProjectedSessionResources({
       sessionId,
       nodes: page.nodes,
     }).pipe(Effect.option)
     if (result._tag === 'Some') {
+      progressed = result.value.progressed
       if (result.value.fullyProjected) {
         yield* repository.advanceBackfillCursor(sessionId, page.throughCreatedOrder)
         backfillComplete = !page.hasMore
+        progressed = true
       }
     }
-    return { backfillComplete }
+    return { backfillComplete, progressed }
   })
 }
 
@@ -88,6 +117,7 @@ export function registerSessionResourceHandlers(): void {
       const sessionId = SessionId(
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
+      yield* retryPendingOutputs(sessionId)
       const repository = yield* SessionResourceRepository
       const status = yield* advanceSessionResourceBackfillPage(sessionId)
       return { resources: [...(yield* repository.list(sessionId))], ...status }
@@ -130,7 +160,16 @@ export function registerSessionResourceHandlers(): void {
       const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
       const repository = yield* SessionResourceRepository
       const resource = (yield* repository.list(sessionId)).find(({ id }) => id === resourceId)
-      if (!resource || resource.available) return undefined
+      if (!resource) return undefined
+      if (
+        !resource.available &&
+        resource.kind === 'image' &&
+        resource.locator?.startsWith('https://')
+      ) {
+        yield* readSessionResourceContent(sessionId, resourceId)
+        return undefined
+      }
+      if (resource.available && !resource.managed) return undefined
       const nodeIds = new Set(
         resource.occurrences.flatMap(({ nodeId }) => (nodeId ? [nodeId] : [])),
       )
@@ -149,16 +188,35 @@ export function registerSessionResourceHandlers(): void {
   typedHandle(
     'sessions:resources:record-change-request',
     (_event, rawSessionId: unknown, rawInput) =>
-      recordSessionChangeRequest(
-        SessionId(decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId)),
-        decodeUnknownOrThrow(recordSessionChangeRequestInputSchema, rawInput),
-      ),
-  )
-
-  typedHandle('sessions:resources:record-commit', (_event, rawSessionId: unknown, rawInput) =>
-    recordSessionCommit(
-      SessionId(decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId)),
-      decodeUnknownOrThrow(recordSessionCommitInputSchema, rawInput),
-    ),
+      Effect.gen(function* () {
+        const sessionId = SessionId(
+          decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
+        )
+        const input = decodeUnknownOrThrow(recordSessionChangeRequestInputSchema, rawInput)
+        return yield* withSessionResourceLock(
+          sessionId,
+          Effect.gen(function* () {
+            const pending = (yield* listPendingSessionOutputs(sessionId)).find(
+              (output) =>
+                output.kind === 'change-request' &&
+                output.title === input.title &&
+                output.url === input.url,
+            )
+            if (!pending) {
+              const repository = yield* SessionResourceRepository
+              const existing = (yield* repository.list(sessionId)).find(
+                (resource) => resource.kind === 'change-request' && resource.locator === input.url,
+              )
+              if (existing) return existing
+              return yield* Effect.fail(
+                new Error('No matching created change request is pending Output recording.'),
+              )
+            }
+            const recorded = yield* recordSessionChangeRequest(sessionId, input, pending)
+            yield* removePendingSessionOutput(pending)
+            return recorded
+          }),
+        )
+      }),
   )
 }

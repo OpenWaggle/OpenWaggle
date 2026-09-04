@@ -1,11 +1,5 @@
 import type { JsonValue } from './json.js'
 import type {
-  ExtensionSessionResourceListPayload,
-  ExtensionSessionResourceListResult,
-  ExtensionSessionResourcePublishPayload,
-  ExtensionSessionResourcePublishResult,
-} from './session-resource-types.js'
-import type {
   ExtensionActionSelectProjectResult,
   ExtensionDocsDiscoverPayload,
   ExtensionDocsDiscoverResult,
@@ -21,6 +15,9 @@ import type {
   ExtensionRuntimeRegisterContributionResult,
   ExtensionRuntimeUnregisterContributionPayload,
   ExtensionRuntimeUnregisterContributionResult,
+  ExtensionSessionResourcePublishPayload,
+  ExtensionSessionResourcePublishResult,
+  ExtensionSessionResourcesListResult,
   ExtensionSettingsGetResult,
   ExtensionSettingsGetSettingResult,
   ExtensionSettingsUpdatePayload,
@@ -95,6 +92,12 @@ export type ExtensionSettingsUpdateOperationResult =
   | ExtensionInvokeFailure
 export type ExtensionSettingsUpdateSettingOperationResult =
   | ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult>
+  | ExtensionInvokeFailure
+export type ExtensionSessionResourcesListOperationResult =
+  | ExtensionOperationSuccess<ExtensionSessionResourcesListResult>
+  | ExtensionInvokeFailure
+export type ExtensionSessionResourcePublishOperationResult =
+  | ExtensionOperationSuccess<ExtensionSessionResourcePublishResult>
   | ExtensionInvokeFailure
 
 export interface ExtensionSdkIdentity {
@@ -213,7 +216,7 @@ export interface ExtensionOpenWaggleSdk {
       input: ExtensionDocsResolveTopicPayload,
     ) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>
   }
-  readonly sessionResources: ExtensionOpenWaggleSessionResourcesSdk
+  readonly resources: ExtensionOpenWaggleResourcesSdk
 }
 
 export type ExtensionSessionInvokeScope = Extract<
@@ -221,16 +224,18 @@ export type ExtensionSessionInvokeScope = Extract<
   { readonly kind: 'session' }
 >
 
-export interface ExtensionOpenWaggleSessionResourcesSdk {
+export interface ExtensionOpenWaggleResourcesSdk {
+  readonly list: (
+    scope: ExtensionSessionInvokeScope,
+  ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>
   readonly publish: (
     scope: ExtensionSessionInvokeScope,
     resource: ExtensionSessionResourcePublishPayload,
   ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>
-  readonly list: (
-    scope: ExtensionSessionInvokeScope,
-    input?: ExtensionSessionResourceListPayload,
-  ) => Promise<ExtensionInvokeResult<ExtensionSessionResourceListResult>>
 }
+
+/** @deprecated Use {@link ExtensionOpenWaggleResourcesSdk}. */
+export type ExtensionOpenWaggleSessionResourcesSdk = ExtensionOpenWaggleResourcesSdk
 
 export interface ExtensionRuntimeContributionSdk {
   readonly registerContribution: (

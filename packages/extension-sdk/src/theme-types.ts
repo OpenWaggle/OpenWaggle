@@ -1,4 +1,8 @@
-export type OpenWaggleExtensionColorScheme = 'dark' | 'light'
+export type OpenWaggleExtensionColorScheme =
+  | 'dark'
+  | 'light'
+  | 'high-contrast-dark'
+  | 'high-contrast-light'
 
 export interface OpenWaggleExtensionTypeScaleEntry {
   readonly fontSize: string
@@ -87,5 +91,6 @@ export interface OpenWaggleExtensionThemeCssVariableEntry {
 export type ExtensionThemeCssVariableResolver = (cssVariable: string, fallback: string) => string
 
 export interface CreateOpenWaggleExtensionThemeOptions {
+  readonly colorScheme?: OpenWaggleExtensionColorScheme
   readonly resolveCssVariable?: ExtensionThemeCssVariableResolver
 }

@@ -24,6 +24,7 @@ export async function runPiSession(
   input: AgentKernelRunInput &
     PiRuntimeExtensionIsolationInput & {
       readonly workingPath: string
+      readonly visualizationDirectory?: string
       readonly mcpExtensionFactory?: ExtensionFactory
     },
 ) {
@@ -39,6 +40,9 @@ export async function runPiSession(
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     ...(input.mcpExtensionFactory ? { extensionFactories: [input.mcpExtensionFactory] } : {}),
   })

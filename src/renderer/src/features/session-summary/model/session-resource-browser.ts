@@ -1,4 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
+import type { SessionBranch } from '@shared/types/session'
 import type {
   SessionResource,
   SessionResourceActivity,
@@ -26,6 +27,8 @@ interface SessionResourceCategory {
 export interface SessionResourceGroup extends SessionResourceCategory {
   readonly resources: readonly SessionResource[]
 }
+
+export type SessionResourceBranchNames = ReadonlyMap<string, string>
 
 const IMAGES = { id: 'images', label: 'Images' }
 const FILES = { id: 'files', label: 'Files' }
@@ -147,7 +150,15 @@ export function resourceProvenanceLabel(
     .exhaustive()
 }
 
-export function resourceBranchLabel(branchId: string) {
-  const separator = branchId.lastIndexOf(':')
-  return separator >= 0 ? branchId.slice(separator + 1) : branchId
+export function buildSessionResourceBranchNames(branches: readonly SessionBranch[]) {
+  return new Map(branches.map((branch) => [String(branch.id), branch.name] as const))
+}
+
+export function resolveResourceBranchName(
+  branchId: string,
+  branchNames: SessionResourceBranchNames,
+) {
+  const name = branchNames.get(branchId)?.trim()
+  if (name) return name
+  return branchId === 'main' || branchId.endsWith(':main') ? 'main' : null
 }

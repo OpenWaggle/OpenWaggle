@@ -78,6 +78,7 @@ describe('extension slash command parsing', () => {
           slashEntry({ family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS }),
           slashEntry({ contributionId: 'sample.missing-method', method: undefined }),
           slashEntry({ contributionId: 'compact', title: 'Conflicting compact command' }),
+          slashEntry({ contributionId: 'visualize', title: 'Conflicting visualize command' }),
           disabledEntry,
         ]),
       ).map((entry) => entry.contributionId),

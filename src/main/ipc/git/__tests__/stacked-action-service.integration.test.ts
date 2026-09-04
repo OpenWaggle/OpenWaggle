@@ -77,9 +77,10 @@ describe('stacked change-request workflow integration', () => {
       openChangeRequest,
       resolveCurrentRef: () => git(repository, ['branch', '--show-current']),
       resolveDefaultBaseRef: async () => 'main',
+      resolvePrimaryRemoteUrl: async () => remote,
       preflightChangeRequest: async () => ({
         ok: true,
-        status: { authenticated: true, account: 'octocat', host: 'github.com' },
+        status: { authenticated: true, account: 'test', host: 'github.test' },
       }),
       buildChangeRequestFallbackUrl: async () => null,
     }
@@ -99,7 +100,6 @@ describe('stacked change-request workflow integration', () => {
     expect(result).toMatchObject({
       ok: true,
       branch: { status: 'created', name: 'codex/review-ready' },
-      commitHash: await git(repository, ['rev-parse', 'HEAD']),
       changeRequest: { state: 'draft' },
     })
     expect(openChangeRequest).toHaveBeenCalledWith(

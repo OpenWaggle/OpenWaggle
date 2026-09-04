@@ -2,6 +2,8 @@ import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { cleanupPendingSessionResourcesSafely } from './application/session-resource-cleanup'
 import { installDevToolsShortcut } from './application-menu'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import {
@@ -15,9 +17,12 @@ import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
 import { openExternalFromRenderer } from './external-navigation'
+import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
+import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import {
+  configureInlineVisualizationProcessIsolation,
   devRendererUrl,
   INDEX_HTML,
   isTrustedRendererRequest,
@@ -54,6 +59,7 @@ type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
 const appIconPath = is.dev
@@ -69,9 +75,7 @@ let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null 
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 
 function startupMark(label: string) {
-  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
-    return
-  }
+  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) return
 
   logger.info('Startup timing', {
     label,
@@ -120,9 +124,7 @@ async function persistActiveRunsBeforeQuit() {
   const persistAllActiveRuns =
     persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
 
-  if (!persistAllActiveRuns) {
-    return
-  }
+  if (!persistAllActiveRuns) return
 
   await runtimeModule.runAppEffect(persistAllActiveRuns())
 }
@@ -153,10 +155,7 @@ async function bootstrapServicesAndWindow() {
   await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   startupMark('interrupted-runs-reconciled')
 
-  const sessionResourceCleanupModule = await import('./application/session-resource-cleanup')
-  await runtimeModule.runAppEffect(
-    sessionResourceCleanupModule.cleanupPendingSessionResourcesSafely(),
-  )
+  await runtimeModule.runAppEffect(cleanupPendingSessionResourcesSafely())
   startupMark('session-resource-cleanup-reconciled')
 
   const trustedMainActivationModule = await import(
@@ -172,6 +171,9 @@ async function bootstrapServicesAndWindow() {
   registerRendererProtocolOnce()
   registerExtensionFrameProtocolOnce()
   registerExtensionRuntimeProtocolOnce()
+  registerInlineVisualizationProtocolOnce({
+    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  })
   startupMark('protocol-handlers-registered')
 
   createWindow()
@@ -233,6 +235,7 @@ function createWindow() {
       openExternalFromRenderer(url)
     }
   })
+  installInlineVisualizationNavigationGuard(mainWindow.webContents)
 
   const mediaPermissions = new Set(['media', 'microphone'])
   mainWindow.webContents.session.setPermissionCheckHandler(

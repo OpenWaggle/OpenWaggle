@@ -3,6 +3,8 @@ import { OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
 import { isDocsDiscoverResult, isDocsResolveTopicResult } from './docs-validation.js'
 import {
   isActionSelectProjectResult,
+  isSessionResourcePublishResult,
+  isSessionResourcesListResult,
   isSettingsGetResult,
   isSettingsGetSettingResult,
   isSettingsUpdateResult,
@@ -21,12 +23,19 @@ import type {
   ExtensionOpenWaggleStateSdk,
   ExtensionSdkInvoke,
 } from './sdk-types.js'
-import { createOpenWaggleSessionResourcesSdk } from './session-resource-sdk.js'
 
 const ACTION_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle action result.'
 const DOCS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle docs result.'
 const SETTINGS_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle settings result.'
 const STATE_RESULT_ERROR = 'Extension broker returned an invalid OpenWaggle state result.'
+const RESOURCE_RESULT_ERROR = 'Extension broker returned an invalid session resource result.'
+
+function sessionResultGuard<TValue extends { readonly sessionId: string }>(
+  guard: (value: unknown) => value is TValue,
+  sessionId: string,
+) {
+  return (value: unknown): value is TValue => guard(value) && value.sessionId === sessionId
+}
 
 const unsupportedOpenExternal = async () => {
   throw new Error('OpenWaggle external URL action is not available in this extension host context.')
@@ -226,6 +235,29 @@ export function createOpenWaggleSdk(
           DOCS_RESULT_ERROR,
         ),
     },
-    sessionResources: createOpenWaggleSessionResourcesSdk(invoke),
+    resources: {
+      list: async (scope) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
+            scope,
+            payload: {},
+          }),
+          sessionResultGuard(isSessionResourcesListResult, scope.sessionId),
+          RESOURCE_RESULT_ERROR,
+        ),
+      publish: async (scope, resource) =>
+        toDecodedOperationResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE,
+            scope,
+            payload: resource,
+          }),
+          sessionResultGuard(isSessionResourcePublishResult, scope.sessionId),
+          RESOURCE_RESULT_ERROR,
+        ),
+    },
   }
 }

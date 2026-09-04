@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   preflightChangeRequest: vi.fn<OpenWaggleApi['preflightChangeRequest']>(),
   openExternal: vi.fn<OpenWaggleApi['openExternal']>(),
   recordSessionChangeRequest: vi.fn<OpenWaggleApi['recordSessionChangeRequest']>(),
-  recordSessionCommit: vi.fn<OpenWaggleApi['recordSessionCommit']>(),
 }))
 
 export const runStackedGitAction: Mock<OpenWaggleApi['runStackedGitAction']> =
@@ -24,8 +23,6 @@ export const preflightChangeRequest: Mock<OpenWaggleApi['preflightChangeRequest'
 export const openExternal: Mock<OpenWaggleApi['openExternal']> = mocks.openExternal
 export const recordSessionChangeRequest: Mock<OpenWaggleApi['recordSessionChangeRequest']> =
   mocks.recordSessionChangeRequest
-export const recordSessionCommit: Mock<OpenWaggleApi['recordSessionCommit']> =
-  mocks.recordSessionCommit
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -33,7 +30,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     preflightChangeRequest: mocks.preflightChangeRequest,
     openExternal: mocks.openExternal,
     recordSessionChangeRequest: mocks.recordSessionChangeRequest,
-    recordSessionCommit: mocks.recordSessionCommit,
   },
 }))
 
@@ -123,7 +119,10 @@ export function setupChangeRequestComposerMocks() {
     ok: true,
     action: 'commit_push_pr',
     branch: { status: 'created', name: 'codex/explore-image-hub-parity' },
-    commitHash: '0123456789abcdef0123456789abcdef01234567',
+    commit: {
+      commitHash: '0123456789abcdef0123456789abcdef01234567',
+      summary: SESSION.title,
+    },
     changeRequest: {
       title: SESSION.title,
       url: 'https://github.com/openwaggle/openwaggle/pull/1',
@@ -145,11 +144,6 @@ export function setupChangeRequestComposerMocks() {
   recordSessionChangeRequest.mockReset().mockResolvedValue(
     fromPartial({
       id: 'change-request-resource',
-    }),
-  )
-  recordSessionCommit.mockReset().mockResolvedValue(
-    fromPartial({
-      id: 'commit-resource',
     }),
   )
 }

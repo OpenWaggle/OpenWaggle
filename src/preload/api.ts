@@ -68,6 +68,7 @@ export const api: OpenWaggleApi = {
   getContextUsage: invoke('agent:get-context-usage'),
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
+  onSessionResourcesInvalidated: on('sessions:resources-invalidated'),
   onAgentPhase: on('agent:phase'),
   onWorktreeLaunch: on('agent:worktree-launch'),
 
@@ -113,6 +114,9 @@ export const api: OpenWaggleApi = {
   invokeExtension: invoke('extensions:invoke'),
   registerExtensionFrame: invoke('extensions:register-frame'),
   unregisterExtensionFrame: invoke('extensions:unregister-frame'),
+  registerInlineVisualizationFrame: invoke('visualizations:register-frame'),
+  unregisterInlineVisualizationFrame: invoke('visualizations:unregister-frame'),
+  saveInlineVisualizationDownload: invoke('visualizations:save-download'),
   setExtensionTrusted: invoke('extensions:set-trusted'),
   setExtensionEnabled: invoke('extensions:set-enabled'),
   setExtensionProjectDisabled: invoke('extensions:set-project-disabled'),
@@ -143,7 +147,6 @@ export const api: OpenWaggleApi = {
   readSessionResourceThumbnail: invoke('sessions:resources:thumbnail'),
   retrySessionResource: invoke('sessions:resources:retry'),
   recordSessionChangeRequest: invoke('sessions:resources:record-change-request'),
-  recordSessionCommit: invoke('sessions:resources:record-commit'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
   getTurnDiff: invoke('sessions:turn-diff:get'),
   listPinnedSessions: invoke('sessions:pins:list'),
@@ -171,7 +174,6 @@ export const api: OpenWaggleApi = {
   updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
   onSessionTitleUpdated: on('sessions:title-updated'),
   onSessionListInvalidated: on('sessions:list-invalidated'),
-  onSessionResourcesInvalidated: on('sessions:resources-invalidated'),
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
 
   // Terminal
@@ -262,12 +264,28 @@ export const api: OpenWaggleApi = {
   suggestFiles: invoke('composer:file-suggest'),
 
   // Workspace files
+  listSyntaxThemes: invoke('syntax-themes:list'),
+  selectSyntaxThemeImport: invoke('syntax-themes:select-import'),
+  applySyntaxThemeImport: invoke('syntax-themes:apply-import'),
+  removeSyntaxTheme: invoke('syntax-themes:remove'),
   searchWorkspaceFiles: invoke('workspace-files:search'),
   searchWorkspaceContent: invoke('workspace-files:search-content'),
   cancelWorkspaceContentSearch: invoke('workspace-files:cancel-content-search'),
   readWorkspaceFile: invoke('workspace-files:read'),
+  readWorkspaceFileWithEncoding: invoke('workspace-files:read-with-encoding'),
   writeWorkspaceFile: invoke('workspace-files:write'),
+  applyWorkspaceDocumentEdits: invoke('workspace-files:apply-document-edits'),
+  listWorkspaceExternalEditors: invoke('workspace-files:list-external-editors'),
   openWorkspaceFileExternal: invoke('workspace-files:open-external'),
+  createWorkspaceEntry: invoke('workspace-files:create-entry'),
+  moveWorkspaceEntry: invoke('workspace-files:move-entry'),
+  duplicateWorkspaceEntry: invoke('workspace-files:duplicate-entry'),
+  trashWorkspaceEntry: invoke('workspace-files:trash-entry'),
+  revealWorkspaceEntry: invoke('workspace-files:reveal-entry'),
+  watchWorkspaceFiles: invoke('workspace-files:watch'),
+  unwatchWorkspaceFiles: invoke('workspace-files:unwatch'),
+  onWorkspaceFilesChanged: on('workspace-files:changed'),
+  readWorkspaceFilePage: invoke('workspace-files:read-page'),
 
   // Auto-updater
   checkForUpdates: invoke('updater:check'),

@@ -13,9 +13,11 @@ import { ExtensionProjectOverridesRepository } from '../../ports/extension-proje
 import type { ExtensionStorageItem } from '../../ports/extension-storage-repository'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
-import { SessionResourceRepository } from '../../ports/session-resource-repository'
+import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
+import type { CapturedLog } from './broker-log-test-utils'
+import { makeSessionResourceRepositoryTestLayer } from './extension-capability-broker-resource-test-utils'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
@@ -26,12 +28,6 @@ import {
 
 const DOCS_BUNDLE_PATH = '/tmp/openwaggle-docs'
 const DOCS_GENERATED_AT = '2026-01-01T00:00:00.000Z'
-
-export interface CapturedLog {
-  readonly namespace: string
-  readonly message: string
-  readonly data?: Readonly<Record<string, unknown>>
-}
 
 function scopesMatch(
   left: DiscoveredExtensionPackage['scope'],
@@ -80,7 +76,8 @@ export function makeBrokerLayer(input: {
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
   readonly sessionTree?: SessionTree
-  readonly sessionResources: SessionResource[]
+  readonly resources: SessionResource[]
+  readonly resourceUpserts: UpsertSessionResourceInput[]
   readonly storageItems: ExtensionStorageItem[]
   readonly capturedLogs: CapturedLog[]
   readonly currentProjectPath: string | null
@@ -186,68 +183,6 @@ export function makeBrokerLayer(input: {
       listActiveRunsForRecovery: () => Effect.succeed([]),
       markActiveRunInterrupted: () => Effect.void,
     }),
-    Layer.succeed(SessionResourceRepository, {
-      upsert: (resourceInput) =>
-        Effect.sync(() => {
-          const existingIndex = input.sessionResources.findIndex(
-            (resource) =>
-              resource.sessionId === resourceInput.sessionId &&
-              resource.canonicalKey === resourceInput.canonicalKey,
-          )
-          const existing = existingIndex === -1 ? undefined : input.sessionResources[existingIndex]
-          const occurrences = [
-            ...(existing?.occurrences.filter(
-              (occurrence) => occurrence.id !== resourceInput.occurrence.id,
-            ) ?? []),
-            resourceInput.occurrence,
-          ]
-          const resource: SessionResource = {
-            id: existing?.id ?? resourceInput.id,
-            sessionId: resourceInput.sessionId,
-            canonicalKey: resourceInput.canonicalKey,
-            kind: resourceInput.kind,
-            title: resourceInput.title,
-            mimeType: resourceInput.mimeType,
-            locator: resourceInput.locator,
-            available: resourceInput.available,
-            isSource: occurrences.some(
-              (occurrence) => occurrence.activity === 'provided' || occurrence.activity === 'read',
-            ),
-            isOutput: occurrences.some(
-              (occurrence) =>
-                occurrence.activity === 'created' || occurrence.activity === 'updated',
-            ),
-            occurrences,
-            createdAt: existing?.createdAt ?? resourceInput.createdAt,
-            updatedAt: resourceInput.updatedAt,
-          }
-          if (existingIndex === -1) input.sessionResources.push(resource)
-          else input.sessionResources.splice(existingIndex, 1, resource)
-          return resource
-        }),
-      list: (sessionId) =>
-        Effect.succeed(
-          input.sessionResources.filter((resource) => resource.sessionId === sessionId),
-        ),
-      findByCanonicalKey: (sessionId, canonicalKey) =>
-        Effect.succeed(
-          input.sessionResources.find(
-            (resource) =>
-              resource.sessionId === sessionId && resource.canonicalKey === canonicalKey,
-          ) ?? null,
-        ),
-      rekey: () => Effect.die(new Error('Session Resource re-key is unavailable in this harness.')),
-      hasOccurrence: (sessionId, occurrenceId) =>
-        Effect.succeed(
-          input.sessionResources.some(
-            (resource) =>
-              resource.sessionId === sessionId &&
-              resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
-          ),
-        ),
-      getContentLocation: () => Effect.succeed(null),
-      getBackfillCursor: () => Effect.succeed(0),
-      advanceBackfillCursor: () => Effect.void,
-    }),
+    makeSessionResourceRepositoryTestLayer(input.resources, input.resourceUpserts),
   )
 }

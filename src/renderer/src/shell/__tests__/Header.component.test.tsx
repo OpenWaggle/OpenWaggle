@@ -30,20 +30,11 @@ const headerMocks = vi.hoisted(() => {
     gitStatus,
     refreshStatus: vi.fn().mockResolvedValue(undefined),
     refreshBranches: vi.fn().mockResolvedValue(undefined),
-    commit: vi.fn().mockResolvedValue({
-      ok: true,
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
-      summary: 'abc123',
-    }),
-    recordSessionCommit: vi.fn().mockResolvedValue({}),
+    commit: vi.fn().mockResolvedValue({ ok: true, commitHash: 'abc123', summary: 'abc123' }),
     toggleDiff: vi.fn(),
     toggleSessionTree: vi.fn(),
   }
 })
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { recordSessionCommit: headerMocks.recordSessionCommit },
-}))
 
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({
@@ -151,7 +142,6 @@ describe('Header', () => {
     headerMocks.refreshStatus.mockClear()
     headerMocks.refreshBranches.mockClear()
     headerMocks.commit.mockClear()
-    headerMocks.recordSessionCommit.mockClear()
     headerMocks.toggleDiff.mockClear()
     headerMocks.toggleSessionTree.mockClear()
   })
@@ -186,15 +176,12 @@ describe('Header', () => {
     await waitFor(() =>
       // Commit writes to the tree being reviewed, not the opened checkout.
       expect(headerMocks.commit).toHaveBeenCalledWith('/wt/openwaggle/session-1', {
+        sessionId: SessionId('session-1'),
         message: 'Ship it',
         amend: false,
         paths: ['src/app.ts'],
       }),
     )
-    expect(headerMocks.recordSessionCommit).toHaveBeenCalledWith(SessionId('session-1'), {
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
-      title: 'Ship it',
-    })
     expect(useUIStore.getState().diffRefreshKey).toBe(2)
     expect(useUIStore.getState().toastData?.message).toBe('Commit created: abc123')
   })

@@ -1,14 +1,15 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { ExternalLink, File, Image, Link2 } from 'lucide-react'
+import { ExternalLink, File, FolderSearch, Image, Link2 } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
 import {
   latestResourceOccurrence,
-  resourceBranchLabel,
+  resolveResourceBranchName,
   resourceProvenanceLabel,
+  type SessionResourceBranchNames,
   type SessionResourceBrowserView,
 } from '../model/session-resource-browser'
 import { SessionResourcePreview } from './SessionResourcePreview'
@@ -20,9 +21,7 @@ const RESOURCE_DATE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
 })
 
 function originalResourcePath(resource: SessionResource) {
-  return !resource.available && resource.locator && LOCAL_RESOURCE_PATH.test(resource.locator)
-    ? resource.locator
-    : null
+  return resource.locator && LOCAL_RESOURCE_PATH.test(resource.locator) ? resource.locator : null
 }
 
 function ResourceIcon({ resource }: { readonly resource: SessionResource }) {
@@ -32,8 +31,9 @@ function ResourceIcon({ resource }: { readonly resource: SessionResource }) {
 }
 
 function resourceStatusLabel(resource: SessionResource, originalPath: string | null) {
-  if (originalPath) return 'Unavailable · Open original'
+  if (!resource.available && originalPath) return 'Unavailable · Open original'
   if (!resource.available) return 'Unavailable'
+  if (resource.managed && originalPath) return 'Managed copy · Original available'
   if (resource.isSource && resource.isOutput) return 'Source and output'
   return resource.isOutput ? 'Output' : 'Source'
 }
@@ -52,7 +52,7 @@ async function activateSessionResource(input: {
   readonly openViewer: (sessionId: string, resourceId: string) => void
 }) {
   const { resource, sessionId, originalPath, openViewer } = input
-  if (originalPath) return api.openPath(originalPath)
+  if (!resource.available && originalPath) return api.openPath(originalPath)
   if (resource.kind === 'image' && resource.locator?.startsWith('http://')) {
     return api.openExternal(resource.locator)
   }
@@ -70,23 +70,34 @@ async function activateSessionResource(input: {
   anchor.click()
 }
 
+function resourceCanRetry(resource: SessionResource) {
+  return !resource.available && !resource.canonicalKey.startsWith('unavailable-image:')
+}
+
 export function SessionResourceRow({
   resource,
   sessionId,
   onRetry,
+  retrying = false,
   selected,
   view,
+  branchNames,
 }: {
   readonly resource: SessionResource
   readonly sessionId: string
   readonly onRetry: () => void
+  readonly retrying?: boolean
   readonly selected: boolean
   readonly view: SessionResourceBrowserView
+  readonly branchNames: SessionResourceBranchNames
 }) {
   const openViewer = useUIStore((state) => state.openResourceViewer)
   const originalPath = originalResourcePath(resource)
   const statusLabel = resourceStatusLabel(resource, originalPath)
   const occurrence = latestResourceOccurrence(resource, view)
+  const branchName = occurrence?.branchId
+    ? resolveResourceBranchName(occurrence.branchId, branchNames)
+    : null
 
   const actionable = isResourceActionable(resource, originalPath)
 
@@ -124,12 +135,10 @@ export function SessionResourceRow({
               <span className="truncate">
                 {resourceProvenanceLabel(occurrence.activity, occurrence.actor, occurrence.label)}
               </span>
-              {occurrence.branchId ? (
+              {branchName ? (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="max-w-24 truncate font-mono">
-                    Branch {resourceBranchLabel(occurrence.branchId)}
-                  </span>
+                  <span className="max-w-24 truncate font-mono">Branch {branchName}</span>
                 </>
               ) : null}
               <span aria-hidden="true">·</span>
@@ -145,15 +154,39 @@ export function SessionResourceRow({
           <ExternalLink className="size-3.5 shrink-0 text-text-tertiary" />
         ) : null}
       </Button>
-      {!resource.available ? (
+      {originalPath ? (
+        <>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Open original ${resource.title}`}
+            title="Open original"
+            onClick={() => void api.openPath(originalPath)}
+          >
+            <ExternalLink className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Reveal original ${resource.title}`}
+            title="Reveal original"
+            onClick={() => void api.revealPath(originalPath)}
+          >
+            <FolderSearch className="size-3.5" />
+          </Button>
+        </>
+      ) : null}
+      {resourceCanRetry(resource) ? (
         <Button
           variant="ghost"
           size="xs"
           className="mr-2"
           aria-label={`Retry ${resource.title}`}
+          disabled={retrying}
+          aria-disabled={retrying}
           onClick={onRetry}
         >
-          Retry
+          {retrying ? 'Retrying…' : 'Retry'}
         </Button>
       ) : null}
     </div>

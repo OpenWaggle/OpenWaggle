@@ -81,6 +81,55 @@ export interface ExtensionActionSelectProjectResult {
   readonly recentProjects: readonly string[]
 }
 
+export type ExtensionSessionResourceKind =
+  | 'image'
+  | 'file'
+  | 'link'
+  | 'tool'
+  | 'web-search'
+  | 'site'
+  | 'commit'
+  | 'change-request'
+
+export type ExtensionSessionResourceRole = 'source' | 'output'
+
+export interface ExtensionSessionResourceView {
+  readonly id: string
+  readonly title: string
+  readonly kind: ExtensionSessionResourceKind
+  readonly mimeType: string | null
+  readonly available: boolean
+  readonly isSource: boolean
+  readonly isOutput: boolean
+}
+
+export interface ExtensionSessionResourcePublishPayload {
+  readonly key: string
+  readonly title: string
+  readonly kind: 'image' | 'link'
+  readonly role: ExtensionSessionResourceRole
+  /** A credential-free HTTPS locator is required and retained only by the host. */
+  readonly locator: string
+}
+
+export interface ExtensionSessionResourcesListResult {
+  readonly extensionId: string
+  readonly contributionId: string
+  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES
+  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES
+  readonly sessionId: string
+  readonly resources: readonly ExtensionSessionResourceView[]
+}
+
+export interface ExtensionSessionResourcePublishResult {
+  readonly extensionId: string
+  readonly contributionId: string
+  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES
+  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.PUBLISH_RESOURCE
+  readonly sessionId: string
+  readonly resource: ExtensionSessionResourceView
+}
+
 export interface ExtensionSettingsView {
   readonly modelPreferences: ExtensionModelPrefs
   readonly projectDisplayNames: Readonly<Record<string, string>>

@@ -1,3 +1,5 @@
+import type * as SqlClient from '@effect/sql/SqlClient'
+import type * as Effect from 'effect/Effect'
 import {
   CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
   CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
@@ -16,6 +18,7 @@ export interface AppMigration {
   readonly id: number
   readonly name: string
   readonly statements: readonly string[]
+  readonly run?: (sql: SqlClient.SqlClient) => Effect.Effect<void, unknown>
   /** Skip a column migration already applied under an earlier ledger id. */
   readonly skipIfColumn?: { readonly table: string; readonly column: string }
 }

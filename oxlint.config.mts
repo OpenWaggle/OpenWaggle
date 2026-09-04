@@ -3,8 +3,8 @@ import { defineConfig } from 'oxlint'
 const TEST_FILES = [
   'src/**/*.test.{ts,tsx}',
   'src/**/__tests__/**/*.{ts,tsx}',
-  'packages/**/*.test.ts',
-  'packages/**/__tests__/**/*.ts',
+  'packages/**/*.test.{ts,tsx}',
+  'packages/**/__tests__/**/*.{ts,tsx}',
   'scripts/**/*.test.ts',
   'website/**/*.test.{ts,tsx}',
   'website/**/__tests__/**/*.{ts,tsx}',

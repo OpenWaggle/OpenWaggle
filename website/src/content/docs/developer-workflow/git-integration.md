@@ -153,7 +153,7 @@ The bottom bar's primary button adapts to the state of your working tree, upstre
 - If the target is the repository's **default branch**, a confirmation dialog appears before anything is committed or pushed.
 - Progress is reported per stage (for example "Generating commit message…", "Pushing to `<target>`…", "Creating pull request…").
 
-The Session Summary keeps **Commit or push** separate from **Create PR** or **Create MR**, so a compact commit action cannot create a review request as an unstated side effect. The change-request composer supports GitHub through `gh` and GitLab through `glab`, checks authentication for the remote's exact host, and keeps a browser fallback available when native creation cannot run. See [Creating a pull or merge request](/docs/using-openwaggle/session-summary#creating-a-pull-or-merge-request).
+The Session Summary keeps **Commit or push** separate from **Create PR** or **Create MR**, so a compact commit action cannot create a review request as an unstated side effect. The change-request composer supports GitHub through `gh` and GitLab through `glab`. It checks authentication for the remote's exact host before creating a branch, committing, or pushing. If native creation cannot run, the composer disables its native actions and keeps a browser fallback available when the remote can provide one. See [Creating a pull or merge request](/docs/using-openwaggle/session-summary#creating-a-pull-or-merge-request).
 
 ### Stage All / Revert All
 

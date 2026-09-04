@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { type UseHotkeyDefinition, useHotkeys } from '@tanstack/react-hotkeys'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
@@ -7,12 +8,15 @@ import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
+import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
+import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
 export function useWorkspaceLifecycle(): void {
+  const queryClient = useQueryClient()
   const { projectPath } = useProject()
   const {
     activeSessionId,
@@ -36,6 +40,7 @@ export function useWorkspaceLifecycle(): void {
   const closeCommandSurface = useUIStore((s) => s.closeCommandSurface)
   const commandSurface = useUIStore((s) => s.commandSurface)
   const shortcutBindings = usePreferencesStore((s) => s.settings.shortcutBindings)
+  const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
 
   function startDraftSessionRoute() {
@@ -56,6 +61,10 @@ export function useWorkspaceLifecycle(): void {
     void refreshGitBranches(repositoryPath)
   }, [workingPath, repositoryPath, refreshGitStatus, refreshGitBranches])
 
+  useEffect(() => {
+    void loadSyntaxResources(workingPath)
+  }, [loadSyntaxResources, workingPath])
+
   // Subscribe to LLM-generated title updates from main process
   useEffect(() => {
     return api.onSessionTitleUpdated(({ sessionId, title }) => {
@@ -67,8 +76,12 @@ export function useWorkspaceLifecycle(): void {
     return api.onSessionListInvalidated(() => {
       void loadChatSessions()
       void loadSessionTrees()
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.archivedSessions,
+        exact: true,
+      })
     })
-  }, [loadChatSessions, loadSessionTrees])
+  }, [loadChatSessions, loadSessionTrees, queryClient])
 
   useGitRefresh({
     workingPath,

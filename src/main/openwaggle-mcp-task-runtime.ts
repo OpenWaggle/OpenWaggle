@@ -3,6 +3,7 @@ import type { EstablishSessionLineageInput, SessionDelegationState } from '@shar
 import type { ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { type AgentRunResult, executeAgentRun } from './application/agent-run-service'
+import { captureSuccessfulRunResources } from './application/session-resource-capture'
 import type { ServerTaskRecord } from './openwaggle-mcp-task-store'
 import { AgentKernelService } from './ports/agent-kernel-service'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
@@ -63,13 +64,36 @@ export const defaultTaskServices: OpenWaggleServerTaskServices = {
   },
   execute: (input) =>
     runAppEffect(
-      executeAgentRun({
-        sessionId: input.sessionId,
-        runId: input.runId,
-        payload: { text: input.objective, attachments: [], thinkingLevel: input.thinkingLevel },
-        model: SupportedModelId(input.model),
-        signal: input.signal,
-        onEvent: () => undefined,
+      Effect.gen(function* () {
+        const payload = {
+          text: input.objective,
+          attachments: [],
+          thinkingLevel: input.thinkingLevel,
+        }
+        const result = yield* executeAgentRun({
+          sessionId: input.sessionId,
+          runId: input.runId,
+          payload,
+          model: SupportedModelId(input.model),
+          signal: input.signal,
+          onEvent: () => undefined,
+        })
+        if (result.outcome === 'success') {
+          yield* captureSuccessfulRunResources({
+            sessionId: input.sessionId,
+            runId: input.runId,
+            payload,
+            messages: result.resourceMessages,
+            nodeIdByMessageId: result.resourceNodeIds,
+            branchIdByMessageId: result.resourceBranchIds,
+          }).pipe(Effect.catchAll(() => Effect.void))
+          yield* Effect.sync(() =>
+            broadcastToWindows('sessions:resources-invalidated', {
+              sessionId: input.sessionId,
+            }),
+          )
+        }
+        return result
       }),
     ),
 }

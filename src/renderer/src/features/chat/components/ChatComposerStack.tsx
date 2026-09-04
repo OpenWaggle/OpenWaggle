@@ -20,6 +20,7 @@ import { projectName } from '@/shared/lib/format'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatComposerSectionState } from '../model'
+import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
 import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
 import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
@@ -133,7 +134,12 @@ export function enqueueIfAllowed(input: {
     input.onToast(input.sendBlockedReason)
     return
   }
-  if (input.activeSessionId) input.enqueue(input.activeSessionId, input.payload)
+  if (input.activeSessionId) {
+    input.enqueue(
+      input.activeSessionId,
+      withInlineVisualizationContext(input.activeSessionId, input.payload),
+    )
+  }
 }
 
 export function ChatComposerStack({

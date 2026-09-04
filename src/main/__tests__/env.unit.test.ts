@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getNpmCompatiblePath, getSafeChildEnv } from '../env'
+import { getGhCliEnv, getNpmCompatiblePath, getSafeChildEnv } from '../env'
 
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
 
@@ -47,5 +47,20 @@ describe('main process environment helpers', () => {
     expect(entries.slice(0, existingEntries.length)).toEqual(existingEntries)
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
     expect(entries).toContain('/usr/local/bin')
+  })
+
+  it('makes user-installed gh and glab discoverable from a minimal GUI PATH', () => {
+    vi.stubEnv('PATH', MINIMAL_PATH)
+    vi.stubEnv('GH_TOKEN', 'must-not-leak')
+    vi.stubEnv('GITHUB_TOKEN', 'must-not-leak')
+
+    const cliEnv = getGhCliEnv()
+    const entries = pathEntries(cliEnv.PATH)
+
+    expect(entries).toContain(join(homedir(), '.local', 'bin'))
+    expect(entries).toContain('/usr/local/bin')
+    if (process.platform === 'darwin') expect(entries).toContain('/opt/homebrew/bin')
+    expect(cliEnv.GH_TOKEN).toBeUndefined()
+    expect(cliEnv.GITHUB_TOKEN).toBeUndefined()
   })
 })

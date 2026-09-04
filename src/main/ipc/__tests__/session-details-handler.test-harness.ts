@@ -3,15 +3,20 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
-import { SessionProjectionRepositoryError, SessionResourceStoreError } from '../../errors'
+import { SessionProjectionRepositoryError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
+import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
-import { SessionResourceCleanupRepository } from '../../ports/session-resource-cleanup-repository'
-import { SessionResourceStore } from '../../ports/session-resource-store'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
+import * as SessionResourceTest from './session-details-handler-resource-test-layer'
+import { SESSION_DETAILS_HANDLER_SOURCE_TREE } from './session-details-handler-tree-fixture'
+
+export const completeSessionResourceCleanupMock: TestMock =
+  SessionResourceTest.completeSessionResourceCleanupMock
+export const removeSessionResourcesMock: TestMock = SessionResourceTest.removeSessionResourcesMock
 
 type TestMock = Mock
 
@@ -41,9 +46,8 @@ const mocks = vi.hoisted(() => ({
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
-  removeSessionResourcesMock: vi.fn(),
-  completeSessionResourceCleanupMock: vi.fn(),
-  listPendingSessionResourceCleanupMock: vi.fn(),
+  deleteVisualizationSessionMock: vi.fn(),
+  rollbackVisualizationSessionDeletionMock: vi.fn(),
 }))
 
 export const typedHandleMock: TestMock = mocks.typedHandleMock
@@ -68,8 +72,9 @@ export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
 export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
-export const removeSessionResourcesMock: TestMock = mocks.removeSessionResourcesMock
-export const completeSessionResourceCleanupMock: TestMock = mocks.completeSessionResourceCleanupMock
+export const deleteVisualizationSessionMock: TestMock = mocks.deleteVisualizationSessionMock
+export const rollbackVisualizationSessionDeletionMock: TestMock =
+  mocks.rollbackVisualizationSessionDeletionMock
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -217,7 +222,7 @@ const TestAgentKernelLayer = Layer.succeed(
 const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(null),
+  getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),
@@ -252,28 +257,26 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
   flushForTests: () => Effect.void,
 })
 
-const TestSessionResourceStoreLayer = Layer.succeed(SessionResourceStore, {
-  storeBytes: () => Effect.dieMessage('storeBytes is not used'),
-  storeFile: () => Effect.dieMessage('storeFile is not used'),
-  inspect: () => Effect.dieMessage('inspect is not used'),
-  read: () => Effect.dieMessage('read is not used'),
-  remove: () => Effect.dieMessage('remove is not used'),
-  removeSession: (sessionId) =>
-    Effect.tryPromise({
-      try: async () => {
-        await removeSessionResourcesMock(sessionId)
-      },
-      catch: (cause) => new SessionResourceStoreError({ operation: 'removeSession', cause }),
-    }),
-})
-
-const TestSessionResourceCleanupLayer = Layer.succeed(SessionResourceCleanupRepository, {
-  listPending: (limit) => Effect.sync(() => mocks.listPendingSessionResourceCleanupMock(limit)),
-  complete: (sessionId) =>
-    Effect.sync(() => {
-      completeSessionResourceCleanupMock(sessionId)
-    }),
-})
+const TestInlineVisualizationLayer = Layer.succeed(
+  InlineVisualizationService,
+  InlineVisualizationService.of({
+    prepareSession: () => Effect.succeed('/visualizations/session'),
+    deleteSession: (sessionId) =>
+      Effect.sync(() => {
+        deleteVisualizationSessionMock(sessionId)
+      }),
+    stageSessionDeletion: (sessionId) =>
+      Effect.succeed({
+        commit: Effect.sync(() => {
+          deleteVisualizationSessionMock(sessionId)
+        }),
+        rollback: Effect.sync(() => {
+          rollbackVisualizationSessionDeletionMock(sessionId)
+        }),
+      }),
+    readSource: () => Effect.succeed({ status: 'unavailable', reason: 'missing' }),
+  }),
+)
 
 const TestRuntimeLayer = Layer.mergeAll(
   TestSessionProjectionRepoLayer,
@@ -281,8 +284,8 @@ const TestRuntimeLayer = Layer.mergeAll(
   TestSessionRepoLayer,
   TestProviderLayer,
   TestSettingsLayer,
-  TestSessionResourceStoreLayer,
-  TestSessionResourceCleanupLayer,
+  SessionResourceTest.TestSessionResourceLayer,
+  TestInlineVisualizationLayer,
   EmptyExtensionRuntimeLayer,
 )
 
@@ -291,9 +294,7 @@ export function getInvokeHandler(name: string) {
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
-  if (typeof handler !== 'function') {
-    return undefined
-  }
+  if (typeof handler !== 'function') return undefined
 
   return (...args: unknown[]) =>
     Effect.runPromise(Effect.provide(handler(...args), TestRuntimeLayer))
@@ -310,8 +311,7 @@ export function resetSessionDetailsHandlerMocks() {
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
-  removeSessionResourcesMock.mockReturnValue(undefined)
-  mocks.listPendingSessionResourceCleanupMock.mockReturnValue([])
+  SessionResourceTest.resetSessionResourceTestMocks()
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

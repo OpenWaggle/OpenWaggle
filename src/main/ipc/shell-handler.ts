@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { app, clipboard } from 'electron'
-import { openExternal, openPath, showItemInFolder } from '../desktop-ui'
+import { openExternal, openPath, revealPath } from '../desktop-ui'
 import { createLogger } from '../logger'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -34,12 +34,10 @@ export function registerShellHandlers(): void {
   )
 
   typedHandle('shell:reveal-path', (_event, targetPath) =>
-    Effect.gen(function* () {
+    Effect.sync(() => {
       const trimmedPath = targetPath.trim()
-      if (!trimmedPath) {
-        return yield* Effect.fail(new Error('Path is required.'))
-      }
-      yield* Effect.sync(() => showItemInFolder(trimmedPath))
+      if (!trimmedPath) throw new Error('Path is required.')
+      revealPath(trimmedPath)
     }),
   )
 

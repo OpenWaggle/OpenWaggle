@@ -66,6 +66,7 @@ const runMigrations = Effect.gen(function* () {
 
     yield* sql.withTransaction(
       Effect.gen(function* () {
+        if (migration.run) yield* migration.run(sql)
         for (const statement of migration.statements) {
           yield* sql.unsafe(statement)
         }

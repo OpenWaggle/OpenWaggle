@@ -29,6 +29,16 @@ const config: object[] = [
   },
   js.configs.recommended,
   {
+    files: ['fixtures/extensions/openwaggle-github-issues-overview/{modules,src}/**/*.js'],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
+  {
     files: [
       'src/**/*.{ts,tsx}',
       'packages/**/*.ts',

@@ -1,8 +1,14 @@
+import { lazy, Suspense } from 'react'
 import { useProject } from '@/features/sessions/hooks'
-import { TerminalPanel } from '@/features/terminal/components'
 import { cn } from '@/shared/lib/cn'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useUIStore } from '@/shell/ui-store'
+
+const LazyTerminalPanel = lazy(() =>
+  import('@/features/terminal/components').then((module) => ({
+    default: module.TerminalPanel,
+  })),
+)
 
 export function WorkspaceTerminal() {
   const terminalOpen = useUIStore((s) => s.terminalOpen)
@@ -18,7 +24,9 @@ export function WorkspaceTerminal() {
     >
       {terminalOpen && (
         <PanelErrorBoundary name="Terminal">
-          <TerminalPanel projectPath={projectPath} onClose={closeTerminal} />
+          <Suspense fallback={null}>
+            <LazyTerminalPanel projectPath={projectPath} onClose={closeTerminal} />
+          </Suspense>
         </PanelErrorBoundary>
       )}
     </div>

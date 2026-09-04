@@ -7,6 +7,7 @@ import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
 import {
+  attributeCopiedVisualizationSources,
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../agent-session-service'
@@ -56,7 +57,14 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
 const TestSessionLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(null),
+  getTree: () =>
+    Effect.succeed({
+      session,
+      nodes: [],
+      branches: [],
+      branchStates: [],
+      uiState: null,
+    }),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),
@@ -101,6 +109,48 @@ const TestLayer = Layer.mergeAll(
 )
 
 describe('agent session copy commands', () => {
+  it('preserves explicit visualization ownership across repeated copies', () => {
+    const sourcePath = '/app-data/visualizations/original-session/map.html'
+    const snapshot = {
+      activeNodeId: 'assistant-map',
+      nodes: [
+        {
+          id: 'assistant-map',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'assistant_message' as const,
+          role: 'assistant' as const,
+          timestampMs: 1,
+          contentJson: JSON.stringify({
+            parts: [
+              {
+                type: 'text',
+                text: `visualize${JSON.stringify({ path: sourcePath })}`,
+              },
+            ],
+          }),
+          metadataJson: JSON.stringify({ provider: 'openai' }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+      ],
+    }
+    const copied = attributeCopiedVisualizationSources(snapshot, {
+      id: session.id,
+      nodes: [
+        {
+          id: SessionNodeId('assistant-map'),
+          metadataJson: JSON.stringify({ visualizationSessionId: 'original-session' }),
+        },
+      ],
+    })
+
+    expect(JSON.parse(copied.nodes[0]?.metadataJson ?? '{}')).toEqual({
+      provider: 'openai',
+      visualizationSessionId: 'original-session',
+    })
+  })
+
   beforeEach(() => {
     persistSnapshotMock.mockReset()
     forkSessionMock.mockReset()

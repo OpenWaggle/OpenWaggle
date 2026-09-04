@@ -27,6 +27,7 @@ import { useComposerSection } from './useComposerSection'
 import { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 import { useSteerWorkflow } from './useSteerWorkflow'
 import { useTranscriptSection } from './useTranscriptSection'
+import { useVisualizationFollowUpDispatcher } from './useVisualizationFollowUpDispatcher'
 
 const logger = createRendererLogger('chat-panel')
 
@@ -91,6 +92,8 @@ export function useChatPanelSections(): ChatPanelSections {
     sendMessage,
     sendWaggleMessage,
   })
+
+  useVisualizationFollowUpDispatcher({ sessionId: activeSessionId, status, send: handleSend })
 
   useWaggleChat(activeSessionId)
   const phase = useStreamingPhase(activeSessionId)

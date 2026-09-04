@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { buildSafeElectronEnvironment } from '../scripts/safe-electron-environment'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
 
@@ -39,41 +40,24 @@ async function createGitProject(projectPath: string, provider?: 'github' | 'gitl
     cwd: projectPath,
     stdio: 'ignore',
   })
-  execFileSync('git', ['config', 'commit.gpgsign', 'false'], {
+  execFileSync('git', ['add', 'README.md'], { cwd: projectPath, stdio: 'ignore' })
+  execFileSync('git', ['commit', '--no-gpg-sign', '-m', 'Seed Session Summary fixture'], {
     cwd: projectPath,
     stdio: 'ignore',
   })
-  execFileSync('git', ['add', 'README.md'], { cwd: projectPath, stdio: 'ignore' })
-  execFileSync(
-    'git',
-    [
-      '-c',
-      'user.name=OpenWaggle E2E',
-      '-c',
-      'user.email=e2e@openwaggle.dev',
-      'commit',
-      '--no-gpg-sign',
-      '-m',
-      'Seed Session Summary fixture',
-    ],
-    { cwd: projectPath, stdio: 'ignore' },
-  )
   if (provider) {
-    const pushRepositoryPath = `${projectPath}-origin.git`
-    await fs.mkdir(pushRepositoryPath, { recursive: true })
-    execFileSync('git', ['init', '--bare'], { cwd: pushRepositoryPath, stdio: 'ignore' })
-    // `.localhost` resolves locally and port 1 refuses immediately, so remote-status refreshes
-    // cannot reach the network or stall the test. The hostname still exercises production provider
-    // detection. A separate local push URL exercises the complete commit/push/request workflow.
-    execFileSync(
-      'git',
-      ['remote', 'add', 'origin', `http://${provider}.localhost:1/openwaggle/e2e.git`],
-      { cwd: projectPath, stdio: 'ignore' },
-    )
-    execFileSync('git', ['remote', 'set-url', '--push', 'origin', pushRepositoryPath], {
+    const remotePath = `${projectPath}-remote.git`
+    await fs.mkdir(remotePath, { recursive: true })
+    execFileSync('git', ['init', '--bare'], { cwd: remotePath, stdio: 'ignore' })
+    execFileSync('git', ['symbolic-ref', 'HEAD', 'refs/heads/main'], {
+      cwd: remotePath,
+      stdio: 'ignore',
+    })
+    execFileSync('git', ['remote', 'add', 'origin', remotePath], {
       cwd: projectPath,
       stdio: 'ignore',
     })
+    execFileSync('git', ['push', '-u', 'origin', 'main'], { cwd: projectPath, stdio: 'ignore' })
     execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], {
       cwd: projectPath,
       stdio: 'ignore',
@@ -83,66 +67,183 @@ async function createGitProject(projectPath: string, provider?: 'github' | 'gitl
       ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'],
       { cwd: projectPath, stdio: 'ignore' },
     )
+    execFileSync(
+      'git',
+      ['remote', 'set-url', 'origin', `https://${provider}.com/openwaggle/e2e.git`],
+      { cwd: projectPath, stdio: 'ignore' },
+    )
+    // Provider detection sees the canonical hosted URL; pushes stay entirely local.
+    execFileSync('git', ['remote', 'set-url', '--push', 'origin', remotePath], {
+      cwd: projectPath,
+      stdio: 'ignore',
+    })
   }
   await fs.appendFile(path.join(projectPath, 'README.md'), '\nUncommitted change\n')
 }
 
-async function installFakeSourceControlClients() {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-source-control-clients-'))
-  const ghPath = path.join(directory, 'gh')
-  const glabPath = path.join(directory, 'glab')
-  await fs.writeFile(
-    ghPath,
-    `#!/bin/sh
+async function createFakeSourceControlCliBin() {
+  const binPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-source-control-cli-'))
+  const realGitPath = resolveRealGitExecutable()
+  if (process.platform === 'win32') {
+    await createWindowsSourceControlCliFixtures(binPath, realGitPath)
+    return binPath
+  }
+
+  const gh = `#!/bin/sh
 if [ "$1" = "auth" ]; then
-  if [ "$2" != "status" ] || [ "$3" != "--active" ] || [ "$4" != "--hostname" ] || [ "$5" != "github.localhost" ] || [ -n "$6" ]; then
-    echo "unexpected gh auth arguments: $*" >&2
-    exit 64
-  fi
   case "$(pwd -P)" in
     *browser-fallback*) echo "authentication required" >&2; exit 1 ;;
   esac
-  echo "github.localhost"
-  echo "  Logged in to github.localhost account e2e-bot"
+  echo "Logged in to github.com account openwaggle-e2e"
   exit 0
 fi
-if [ "$1" = "pr" ] && [ "$2" = "create" ]; then
-  echo "https://github.localhost/openwaggle/e2e/pull/42"
-  exit 0
-fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
-  echo '{"title":"${GITHUB_CHANGE_REQUEST_TITLE}","url":"https://github.localhost/openwaggle/e2e/pull/42","baseRefName":"main","headRefName":"codex/session-summary-github-change-request","state":"OPEN","isDraft":false}'
-  exit 0
-fi
+if [ "$1" = "pr" ] && [ "$2" = "create" ]; then echo "https://github.com/openwaggle/e2e/pull/42"; exit 0; fi
+if [ "$1" = "pr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
+echo "no pull requests found" >&2
 exit 1
-`,
-  )
-  await fs.writeFile(
-    glabPath,
-    `#!/bin/sh
-if [ "$1" = "auth" ]; then
-  if [ "$2" != "status" ] || [ "$3" != "--hostname" ] || [ "$4" != "gitlab.localhost" ] || [ -n "$5" ]; then
-    echo "unexpected glab auth arguments: $*" >&2
-    exit 64
-  fi
-  echo "gitlab.localhost"
-  echo "  Logged in to gitlab.localhost as e2e-bot"
-  exit 0
-fi
-if [ "$1" = "mr" ] && [ "$2" = "create" ]; then
-  echo "https://gitlab.localhost/openwaggle/e2e/-/merge_requests/42"
-  exit 0
-fi
-if [ "$1" = "mr" ] && [ "$2" = "view" ]; then
-  echo '{"title":"${GITLAB_CHANGE_REQUEST_TITLE}","web_url":"https://gitlab.localhost/openwaggle/e2e/-/merge_requests/42","target_branch":"main","source_branch":"codex/session-summary-gitlab-change-request","state":"opened","draft":true}'
-  exit 0
-fi
+`
+  const glab = `#!/bin/sh
+if [ "$1" = "auth" ]; then echo "Logged in to gitlab.com as openwaggle-e2e"; exit 0; fi
+if [ "$1" = "mr" ] && [ "$2" = "create" ]; then echo "https://gitlab.com/openwaggle/e2e/-/merge_requests/42"; exit 0; fi
+if [ "$1" = "mr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
+echo "no merge request found" >&2
 exit 1
-`,
+`
+  const git = `#!/bin/sh
+if [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "--push" ] && [ "$4" = "--all" ]; then
+  exec ${JSON.stringify(realGitPath)} config --get "remote.$5.url"
+fi
+exec ${JSON.stringify(realGitPath)} "$@"
+`
+  await Promise.all([
+    fs.writeFile(path.join(binPath, 'gh'), gh, { mode: 0o755 }),
+    fs.writeFile(path.join(binPath, 'glab'), glab, { mode: 0o755 }),
+    fs.writeFile(path.join(binPath, 'git'), git, { mode: 0o755 }),
+  ])
+  return binPath
+}
+
+function resolveRealGitExecutable() {
+  const finder = process.platform === 'win32' ? 'where.exe' : 'which'
+  const candidate = execFileSync(finder, ['git'], { encoding: 'utf8' })
+    .split(/\r?\n/u)
+    .find((value) => value.trim().length > 0)
+    ?.trim()
+  if (!candidate) throw new Error('The Session Summary E2E fixture requires git.')
+  return candidate
+}
+
+function csharpString(value: string) {
+  return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
+}
+
+async function createWindowsSourceControlCliFixtures(binPath: string, realGitPath: string) {
+  const sourcePath = path.join(binPath, 'source-control-fixture.cs')
+  const executablePath = path.join(binPath, 'source-control-fixture.exe')
+  const source = String.raw`
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+using System.Text;
+
+public static class Program {
+  public static int Main(string[] args) {
+    var command = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
+    if (command == "git") return RunGit(args);
+    if (args.Length > 0 && args[0] == "auth") {
+      if (command == "gh" && Directory.GetCurrentDirectory().Contains("browser-fallback")) {
+        Console.Error.WriteLine("authentication required");
+        return 1;
+      }
+      Console.WriteLine(command == "gh" ? "Logged in to github.com account openwaggle-e2e" : "Logged in to gitlab.com as openwaggle-e2e");
+      return 0;
+    }
+    if (command == "gh" && args.Length > 1 && args[0] == "pr" && args[1] == "create") {
+      Console.WriteLine("https://github.com/openwaggle/e2e/pull/42");
+      return 0;
+    }
+    if (command == "glab" && args.Length > 1 && args[0] == "mr" && args[1] == "create") {
+      Console.WriteLine("https://gitlab.com/openwaggle/e2e/-/merge_requests/42");
+      return 0;
+    }
+    if (args.Length > 1 && (args[1] == "list")) {
+      Console.WriteLine("[]");
+      return 0;
+    }
+    Console.Error.WriteLine(command == "gh" ? "no pull requests found" : "no merge request found");
+    return 1;
+  }
+
+  private static int RunGit(string[] args) {
+    var actualArgs = args;
+    if (args.Length >= 5 && args[0] == "remote" && args[1] == "get-url" && args[2] == "--push" && args[3] == "--all") {
+      actualArgs = new[] { "config", "--get", "remote." + args[4] + ".url" };
+    }
+    var startInfo = new ProcessStartInfo {
+      FileName = ${csharpString(realGitPath)},
+      Arguments = String.Join(" ", Array.ConvertAll(actualArgs, QuoteArgument)),
+      UseShellExecute = false,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+    };
+    using (var process = Process.Start(startInfo)) {
+      var stdout = process.StandardOutput.ReadToEnd();
+      var stderr = process.StandardError.ReadToEnd();
+      process.WaitForExit();
+      Console.Out.Write(stdout);
+      Console.Error.Write(stderr);
+      return process.ExitCode;
+    }
+  }
+
+  private static string QuoteArgument(string value) {
+    var needsQuotes = value.Length == 0;
+    foreach (var character in value) {
+      if (Char.IsWhiteSpace(character) || character == '"') needsQuotes = true;
+    }
+    if (!needsQuotes) return value;
+    var builder = new StringBuilder();
+    builder.Append((char)34);
+    var backslashes = 0;
+    foreach (var character in value) {
+      if (character == '\\') {
+        backslashes += 1;
+        continue;
+      }
+      if (character == '"') {
+        builder.Append('\\', backslashes * 2 + 1);
+        builder.Append((char)34);
+        backslashes = 0;
+        continue;
+      }
+      builder.Append('\\', backslashes);
+      backslashes = 0;
+      builder.Append(character);
+    }
+    builder.Append('\\', backslashes * 2);
+    builder.Append((char)34);
+    return builder.ToString();
+  }
+}
+`
+  await fs.writeFile(sourcePath, source)
+  const quotePowerShellPath = (value: string) => `'${value.replaceAll("'", "''")}'`
+  execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Add-Type -Path ${quotePowerShellPath(sourcePath)} -OutputAssembly ${quotePowerShellPath(executablePath)} -OutputType ConsoleApplication`,
+    ],
+    { stdio: 'ignore' },
   )
-  await fs.chmod(ghPath, 0o755)
-  await fs.chmod(glabPath, 0o755)
-  return directory
+  await Promise.all([
+    fs.copyFile(executablePath, path.join(binPath, 'gh.exe')),
+    fs.copyFile(executablePath, path.join(binPath, 'glab.exe')),
+    fs.copyFile(executablePath, path.join(binPath, 'git.exe')),
+  ])
 }
 
 test('Session Summary follows first-message, dock, and sidebar behavior', async () => {
@@ -490,18 +591,19 @@ test('session resources stay scoped while inline images and the gallery navigate
 })
 
 test('Session Summary exposes complete GitHub PR and GitLab MR composition', async () => {
-  const fakeClientsPath = await installFakeSourceControlClients()
-  const originalPath = process.env.PATH
-  process.env.PATH = `${fakeClientsPath}${path.delimiter}${originalPath ?? ''}`
-  let app: OpenWaggleApp | null = null
+  test.setTimeout(180_000)
+  const cliBinPath = await createFakeSourceControlCliBin()
+  const inheritedPath = buildSafeElectronEnvironment({}).PATH ?? ''
+  const app = await OpenWaggleApp.launch('openwaggle-session-summary-change-requests-', {
+    PATH: `${cliBinPath}${path.delimiter}${inheritedPath}`,
+  })
+  const githubProjectPath = path.join(app.userDataDir, 'github-change-request-project')
+  const gitlabProjectPath = path.join(app.userDataDir, 'gitlab-change-request-project')
+  const githubFallbackProjectPath = path.join(
+    app.userDataDir,
+    'github-browser-fallback-project',
+  )
   try {
-    app = await OpenWaggleApp.launch('openwaggle-session-summary-change-requests-')
-    const githubProjectPath = path.join(app.userDataDir, 'github-change-request-project')
-    const gitlabProjectPath = path.join(app.userDataDir, 'gitlab-change-request-project')
-    const githubFallbackProjectPath = path.join(
-      app.userDataDir,
-      'github-browser-fallback-project',
-    )
     const now = Date.now()
     await createGitProject(githubProjectPath, 'github')
     await createGitProject(gitlabProjectPath, 'gitlab')
@@ -522,7 +624,14 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
       title: GITHUB_FALLBACK_TITLE,
       projectPath: githubFallbackProjectPath,
       updatedAt: now - 2,
-      messages: [message('github-fallback-user', 'user', 'Prepare the browser PR.', now - 2)],
+      messages: [
+        message(
+          'github-browser-fallback-user',
+          'user',
+          'Prepare the PR in the browser.',
+          now - 2,
+        ),
+      ],
     })
     await app.restart()
     await app.resizeMainWindow(1_400, 850)
@@ -533,6 +642,9 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     const githubSummary = page.getByRole('complementary', { name: 'Session Summary' })
     const createPr = githubSummary.getByRole('button', { name: 'Create PR' })
     await expect(createPr).toBeVisible({ timeout: 30_000 })
+    await expect(githubSummary.getByRole('button', { name: /Changes/ })).toContainText('+2', {
+      timeout: 30_000,
+    })
     await createPr.click()
 
     const pullRequestComposer = page.getByRole('dialog', { name: 'Create pull request' })
@@ -548,10 +660,8 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     await expect(
       pullRequestComposer.getByRole('checkbox', { name: /Commit and push local changes/ }),
     ).toBeChecked()
-    await expect(pullRequestComposer.getByText('GitHub CLI ready as e2e-bot.')).toBeVisible({
-      timeout: 30_000,
-    })
     await expect(pullRequestComposer.getByRole('button', { name: 'Create draft PR' })).toBeEnabled()
+    await expect(pullRequestComposer.getByText('GitHub CLI ready as openwaggle-e2e.')).toBeVisible()
     await expect(pullRequestComposer.getByRole('button', { name: 'Create PR' })).toHaveAttribute(
       'aria-keyshortcuts',
       'Control+Enter Meta+Enter',
@@ -560,23 +670,33 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
       pullRequestComposer.getByRole('button', { name: 'Open PR in browser' }),
     ).toBeEnabled()
     await pullRequestComposer.getByRole('button', { name: 'Create PR' }).click()
-    await expect(pullRequestComposer).toHaveCount(0, { timeout: 30_000 })
-    await expect(page.getByText('PR created.')).toBeVisible()
-
+    await expect(pullRequestComposer).toHaveCount(0, { timeout: 60_000 })
+    await expect
+      .poll(() =>
+        execFileSync('git', ['branch', '--show-current'], {
+          cwd: githubProjectPath,
+          encoding: 'utf8',
+        }).trim(),
+      )
+      .toBe('codex/session-summary-github-change-request')
     const githubOutputs = page
       .getByRole('complementary', { name: 'Session Summary' })
       .getByRole('button', { name: /Outputs/ })
-    await githubOutputs.click()
+    if ((await githubOutputs.getAttribute('aria-expanded')) !== 'true') await githubOutputs.click()
+    await expect(githubOutputs).toContainText('2')
     await expect(
       page
         .getByRole('complementary', { name: 'Session Summary' })
-        .getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE }),
+        .getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
 
     await mainWindow.openThread(GITLAB_CHANGE_REQUEST_TITLE)
     const gitlabSummary = page.getByRole('complementary', { name: 'Session Summary' })
     const createMr = gitlabSummary.getByRole('button', { name: 'Create MR' })
     await expect(createMr).toBeVisible({ timeout: 30_000 })
+    await expect(gitlabSummary.getByRole('button', { name: /Changes/ })).toContainText('+2', {
+      timeout: 30_000,
+    })
     await createMr.click()
 
     const mergeRequestComposer = page.getByRole('dialog', { name: 'Create merge request' })
@@ -588,37 +708,47 @@ test('Session Summary exposes complete GitHub PR and GitLab MR composition', asy
     await expect(
       mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }),
     ).toBeEnabled()
-    await expect(mergeRequestComposer.getByText('GitLab CLI ready as e2e-bot.')).toBeVisible({
-      timeout: 30_000,
-    })
     await expect(mergeRequestComposer.getByRole('button', { name: 'Create MR' })).toBeEnabled()
+    await expect(mergeRequestComposer.getByText('GitLab CLI ready as openwaggle-e2e.')).toBeVisible()
     await expect(
       mergeRequestComposer.getByRole('button', { name: 'Open MR in browser' }),
     ).toBeEnabled()
     await mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }).click()
-    await expect(mergeRequestComposer).toHaveCount(0, { timeout: 30_000 })
-    await expect(page.getByText('MR created.')).toBeVisible()
-    const gitlabSummaryAfterCreate = page.getByRole('complementary', { name: 'Session Summary' })
-    await gitlabSummaryAfterCreate.getByRole('button', { name: /Outputs/ }).click()
+    await expect(mergeRequestComposer).toHaveCount(0, { timeout: 60_000 })
+    await expect
+      .poll(() =>
+        execFileSync('git', ['branch', '--show-current'], {
+          cwd: gitlabProjectPath,
+          encoding: 'utf8',
+        }).trim(),
+      )
+      .toBe('codex/session-summary-gitlab-change-request')
+    const gitlabOutputs = page
+      .getByRole('complementary', { name: 'Session Summary' })
+      .getByRole('button', { name: /Outputs/ })
+    if ((await gitlabOutputs.getAttribute('aria-expanded')) !== 'true') await gitlabOutputs.click()
+    await expect(gitlabOutputs).toContainText('2')
     await expect(
-      gitlabSummaryAfterCreate.getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE }),
+      page
+        .getByRole('complementary', { name: 'Session Summary' })
+        .getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
 
     await mainWindow.openThread(GITHUB_FALLBACK_TITLE)
     const fallbackSummary = page.getByRole('complementary', { name: 'Session Summary' })
     await fallbackSummary.getByRole('button', { name: 'Create PR' }).click()
     const fallbackComposer = page.getByRole('dialog', { name: 'Create pull request' })
+    await expect(fallbackComposer).toBeVisible()
     await expect(
-      fallbackComposer.getByText('GitHub CLI is not authenticated for github.localhost.'),
-    ).toBeVisible({ timeout: 30_000 })
+      fallbackComposer.getByText('GitHub CLI is not authenticated for github.com.'),
+    ).toBeVisible()
     await expect(fallbackComposer.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
     await expect(fallbackComposer.getByRole('button', { name: 'Create PR' })).toBeDisabled()
     await expect(
       fallbackComposer.getByRole('button', { name: 'Open PR in browser' }),
     ).toBeEnabled()
   } finally {
-    await app?.cleanup()
-    process.env.PATH = originalPath
-    await fs.rm(fakeClientsPath, { recursive: true, force: true })
+    await app.cleanup({ forceProcessTermination: true })
+    await fs.rm(cliBinPath, { recursive: true, force: true })
   }
 })

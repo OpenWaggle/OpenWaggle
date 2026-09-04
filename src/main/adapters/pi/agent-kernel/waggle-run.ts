@@ -37,6 +37,7 @@ type PiWaggleKernelRunInput = AgentKernelRunInput & {
    * create the same worktree again and fail.
    */
   readonly workingPath: string
+  readonly visualizationDirectory?: string
   readonly mcpExtensionFactory?: ExtensionFactory
 } & PiRuntimeExtensionIsolationInput
 
@@ -217,6 +218,9 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     extensionFactories: [
       ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),

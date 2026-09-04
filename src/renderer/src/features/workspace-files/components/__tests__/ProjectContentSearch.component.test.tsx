@@ -2,12 +2,26 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings/state'
+import { setWorkspaceLanguageAssociation } from '@/features/workspace-files/lib/workspace-language-associations'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
-const mocks = vi.hoisted(() => ({
-  cancelWorkspaceContentSearch: vi.fn(),
-  openWorkspaceFile: vi.fn(),
-  searchWorkspaceContent: vi.fn(),
+const mocks = vi.hoisted(() => {
+  const state: {
+    cancelWorkspaceContentSearch: ReturnType<typeof vi.fn>
+    openWorkspaceFile: ReturnType<typeof vi.fn>
+    searchWorkspaceContent: ReturnType<typeof vi.fn>
+    workingPath: string | null
+  } = {
+    cancelWorkspaceContentSearch: vi.fn(),
+    openWorkspaceFile: vi.fn(),
+    searchWorkspaceContent: vi.fn(),
+    workingPath: '/project',
+  }
+  return state
+})
+
+vi.mock('@/features/git/hooks', () => ({
+  useActiveWorkingPath: () => mocks.workingPath,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -35,6 +49,8 @@ describe('ProjectContentSearch query scheduling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
+    mocks.workingPath = '/project'
     usePreferencesStore.setState((state) => ({
       ...state,
       settings: { ...DEFAULT_SETTINGS, projectPath: '/project' },
@@ -43,6 +59,7 @@ describe('ProjectContentSearch query scheduling', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('queries only the settled burst and cannot open stale results before the next query settles', async () => {
@@ -65,6 +82,12 @@ describe('ProjectContentSearch query scheduling', () => {
     fireEvent.change(input, { target: { value: 'old' } })
     await act(() => vi.advanceTimersByTimeAsync(200))
     await vi.waitFor(() => expect(screen.getByText('old.ts')).toBeInTheDocument())
+    expect(screen.getByLabelText('Matching source from old.ts')).toHaveTextContent('old')
+    expect(
+      screen
+        .getByLabelText('Matching source from old.ts')
+        .querySelector('[data-syntax-language="typescript"]'),
+    ).toBeTruthy()
     expect(mocks.searchWorkspaceContent).toHaveBeenCalledTimes(1)
     expect(mocks.searchWorkspaceContent).toHaveBeenLastCalledWith('/project', 'old', 200)
 
@@ -94,5 +117,67 @@ describe('ProjectContentSearch query scheduling', () => {
     view.unmount()
 
     expect(mocks.cancelWorkspaceContentSearch).toHaveBeenCalledWith('/project')
+  })
+
+  it('keeps offscreen result snippets plain until they approach the viewport', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        disconnect() {}
+        observe() {}
+      },
+    )
+    mocks.searchWorkspaceContent.mockResolvedValue(
+      Array.from({ length: 200 }, (_, index) => ({
+        path: `src/result-${String(index)}.ts`,
+        basename: `result-${String(index)}.ts`,
+        lineNumber: index + 1,
+        lineText: `const result${String(index)} = true`,
+        matchStart: 6,
+        matchLength: 6,
+      })),
+    )
+    const { container } = renderWithQueryClient(<ProjectContentSearch />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search project contents' }), {
+      target: { value: 'result' },
+    })
+    await act(() => vi.advanceTimersByTimeAsync(200))
+    await vi.waitFor(() => expect(screen.getByText('src/result-199.ts')).toBeInTheDocument())
+
+    expect(container.querySelectorAll('[data-syntax-language]')).toHaveLength(0)
+    expect(screen.getAllByText(/const result\d+ = true/u)).toHaveLength(200)
+  })
+
+  it('resolves search highlighting from the active worktree association', async () => {
+    vi.useFakeTimers()
+    mocks.workingPath = '/worktree-a'
+    setWorkspaceLanguageAssociation(window.localStorage, '/worktree-a', 'src/example.ts', 'python')
+    setWorkspaceLanguageAssociation(window.localStorage, '/project', 'src/example.ts', 'typescript')
+    mocks.searchWorkspaceContent.mockResolvedValue([
+      {
+        path: 'src/example.ts',
+        basename: 'example.ts',
+        lineNumber: 1,
+        lineText: 'value = 42',
+        matchStart: 0,
+        matchLength: 5,
+      },
+    ])
+
+    renderWithQueryClient(<ProjectContentSearch />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search project contents' }), {
+      target: { value: 'value' },
+    })
+    await act(() => vi.advanceTimersByTimeAsync(200))
+
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getByLabelText('Matching source from src/example.ts')
+          .querySelector('[data-syntax-language="python"]'),
+      ).toBeTruthy(),
+    )
+    expect(mocks.searchWorkspaceContent).toHaveBeenCalledWith('/worktree-a', 'value', 200)
   })
 })

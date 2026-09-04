@@ -57,6 +57,7 @@ function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceIn
           )
           ON CONFLICT(session_id, canonical_key) DO UPDATE SET
             kind = CASE
+              WHEN excluded.id = session_resources.id THEN excluded.kind
               WHEN session_resources.kind = 'image' OR excluded.kind <> 'image'
                 THEN session_resources.kind
               ELSE excluded.kind
@@ -117,13 +118,7 @@ function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceIn
             ${input.occurrence.label},
             ${input.occurrence.createdAt}
           )
-          ON CONFLICT(id) DO UPDATE SET
-            node_id = excluded.node_id,
-            branch_id = excluded.branch_id,
-            actor = excluded.actor,
-            activity = excluded.activity,
-            label = excluded.label,
-            created_at = excluded.created_at
+          ON CONFLICT(id) DO NOTHING
         `
         const resource = yield* readResourceById(sql, input.sessionId, resourceId)
         if (!resource) {

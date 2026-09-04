@@ -1,7 +1,11 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  clearInlineVisualizationStatesForTests,
+  reportInlineVisualizationState,
+} from '../../state/inline-visualization-state'
 import { createSendHandlers } from '../useSendMessage'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -33,6 +37,7 @@ describe('createSendHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+  afterEach(clearInlineVisualizationStatesForTests)
 
   describe('handleSend', () => {
     it('with active session: calls sendMessage directly', async () => {
@@ -86,6 +91,31 @@ describe('createSendHandlers', () => {
         thinkingLevel: 'high',
         attachments: [],
       })
+    })
+
+    it('attaches mounted visualization context to non-composer text sends', async () => {
+      const sessionId = SessionId('session-visualization-feedback')
+      reportInlineVisualizationState({
+        instanceId: 'service-map-instance',
+        sessionId,
+        sourcePath: '/repo/service-map.html',
+        title: 'Service map',
+        state: { selectedService: 'api' },
+      })
+      const deps = makeDeps({ activeSessionId: sessionId, thinkingLevel: 'high' })
+
+      await createSendHandlers(deps).handleSendText('Retry with this selection')
+
+      expect(deps.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: 'Retry with this selection',
+          visualizationContext: {
+            title: 'Service map',
+            sourcePath: '/repo/service-map.html',
+            state: { selectedService: 'api' },
+          },
+        }),
+      )
     })
   })
 

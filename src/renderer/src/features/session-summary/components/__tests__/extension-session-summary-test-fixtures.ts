@@ -78,6 +78,7 @@ export function sessionResource(
     title: 'Resource one',
     mimeType: null,
     locator: 'session-resource://resource-one',
+    managed: true,
     available: true,
     isSource: false,
     isOutput: true,

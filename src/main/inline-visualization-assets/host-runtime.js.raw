@@ -1,0 +1,645 @@
+(() => {
+  'use strict';
+  const capability = crypto.randomUUID();
+  const parentPostMessage = parent.postMessage.bind(parent);
+  const pendingFollowUps = new Map();
+  const hasTrustedUserActivation = (() => {
+    const activation = navigator.userActivation;
+    const getPrototypeOf = Object.getPrototypeOf;
+    const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+    const apply = Reflect.apply;
+    let owner = activation;
+    while (owner) {
+      const getter = getOwnPropertyDescriptor(owner, 'isActive')?.get;
+      if (typeof getter === 'function') {
+        return () => {
+          try {
+            return apply(getter, activation, []) === true;
+          } catch {
+            return false;
+          }
+        };
+      }
+      owner = getPrototypeOf(owner);
+    }
+    return () => false;
+  })();
+  const hasCurrentTrustedFrameInput = (() => {
+    const getPrototypeOf = Object.getPrototypeOf;
+    const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+    const apply = Reflect.apply;
+    const findGetter = (value, property) => {
+      let owner = value;
+      while (owner) {
+        const getter = getOwnPropertyDescriptor(owner, property)?.get;
+        if (typeof getter === 'function') return getter;
+        owner = getPrototypeOf(owner);
+      }
+      return null;
+    };
+    const currentEventGetter = findGetter(window, 'event');
+    let trustedGetter = null;
+    let typeGetter = null;
+    if (typeof Event === 'function') {
+      try {
+        const probe = new Event('openwaggle-visualization-probe');
+        trustedGetter = findGetter(probe, 'isTrusted');
+        typeGetter = findGetter(probe, 'type');
+      } catch {
+        // Missing native event primitives fail closed below.
+      }
+    }
+    if (!currentEventGetter || !trustedGetter || !typeGetter) return () => false;
+    return () => {
+      try {
+        const event = apply(currentEventGetter, window, []);
+        if (!event || apply(trustedGetter, event, []) !== true) return false;
+        return apply(typeGetter, event, []) === 'click';
+      } catch {
+        return false;
+      }
+    };
+  })();
+  const enqueueMicrotask = queueMicrotask;
+  const post = (type, payload = {}) => {
+    parentPostMessage({ type, capability, ...payload }, '*');
+  };
+  post('openwaggle:inline-visualization:bootstrap');
+  let fragmentReady = false;
+  let lucideReady = false;
+  const initializeLucide = () => {
+    if (!fragmentReady || !lucideReady) return;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+  };
+  const lucideScript = document.createElement('script');
+  lucideScript.async = true;
+  lucideScript.src = '__OPENWAGGLE_LUCIDE_ASSET_URL__';
+  lucideScript.addEventListener('load', () => {
+    lucideReady = true;
+    initializeLucide();
+  }, { once: true });
+  document.head.append(lucideScript);
+  const RESOURCE_BUDGET_WINDOW_MS = 5000;
+  const MAX_LONG_TASK_BUDGET_MS = 1000;
+  const longTaskSamples = [];
+  const arrayPush = Array.prototype.push;
+  const arrayShift = Array.prototype.shift;
+  const numberIsFinite = Number.isFinite;
+  const applyIntrinsic = Reflect.apply;
+  const entryListGetEntries = typeof PerformanceObserverEntryList === 'function'
+    ? PerformanceObserverEntryList.prototype.getEntries
+    : null;
+  const performanceEntryDurationGetter = typeof PerformanceEntry === 'function'
+    ? Object.getOwnPropertyDescriptor(PerformanceEntry.prototype, 'duration')?.get
+    : null;
+  let resourceLimitReported = false;
+  const reportResourceLimit = () => {
+    if (resourceLimitReported) return;
+    resourceLimitReported = true;
+    post('openwaggle:inline-visualization:resource-limit');
+  };
+  if (
+    typeof PerformanceObserver !== 'function' ||
+    !PerformanceObserver.supportedEntryTypes?.includes('longtask') ||
+    typeof entryListGetEntries !== 'function' ||
+    typeof performanceEntryDurationGetter !== 'function' ||
+    typeof performance === 'undefined' ||
+    typeof performance.now !== 'function'
+  ) {
+    reportResourceLimit();
+  } else {
+    try {
+      const monotonicNow = performance.now.bind(performance);
+      const observer = new PerformanceObserver((list) => {
+        const now = monotonicNow();
+        const entries = applyIntrinsic(entryListGetEntries, list, []);
+        for (let index = 0; index < entries.length; index += 1) {
+          const duration = applyIntrinsic(performanceEntryDurationGetter, entries[index], []);
+          if (numberIsFinite(duration) && duration > 0) {
+            applyIntrinsic(arrayPush, longTaskSamples, [{ recordedAt: now, duration }]);
+          }
+        }
+        const cutoff = now - RESOURCE_BUDGET_WINDOW_MS;
+        while (longTaskSamples[0]?.recordedAt < cutoff) {
+          applyIntrinsic(arrayShift, longTaskSamples, []);
+        }
+        let blockedTime = 0;
+        for (let index = 0; index < longTaskSamples.length; index += 1) {
+          blockedTime += longTaskSamples[index].duration;
+        }
+        if (blockedTime > MAX_LONG_TASK_BUDGET_MS) reportResourceLimit();
+      });
+      observer.observe({ type: 'longtask', buffered: true });
+    } catch {
+      reportResourceLimit();
+    }
+  }
+  const reportSize = () => {
+    const body = document.body;
+    if (!body) return;
+    const bodyRect = body.getBoundingClientRect();
+    let bottom = bodyRect.bottom;
+    for (const child of body.children) {
+      bottom = Math.max(bottom, child.getBoundingClientRect().bottom);
+    }
+    const height = Math.min(10000, Math.max(0, bottom - bodyRect.top));
+    post('openwaggle:inline-visualization:resize', { height: Math.ceil(height) });
+  };
+  const requestFrame = requestAnimationFrame;
+  let sizeReportScheduled = false;
+  const scheduleSizeReport = () => {
+    if (sizeReportScheduled) return;
+    sizeReportScheduled = true;
+    requestFrame(() => {
+      sizeReportScheduled = false;
+      reportSize();
+    });
+  };
+
+  const nativeMatchMedia = window.matchMedia.bind(window);
+  const reducedMotionQuery = nativeMatchMedia('(prefers-reduced-motion: reduce)');
+  let hostReducedMotion = document.documentElement.dataset.motion === 'reduced';
+  let reducedMotionOnChange = null;
+  let lastReducedMotionMatch = hostReducedMotion || reducedMotionQuery.matches;
+  const reducedMotionMedia = reducedMotionQuery.media || '(prefers-reduced-motion: reduce)';
+  const createReducedMotionChangeEvent = (matches) => {
+    if (typeof MediaQueryListEvent === 'function') {
+      return new MediaQueryListEvent('change', { matches, media: reducedMotionMedia });
+    }
+    const event = new Event('change');
+    Object.defineProperties(event, {
+      matches: { configurable: false, enumerable: true, value: matches },
+      media: { configurable: false, enumerable: true, value: reducedMotionMedia },
+    });
+    return event;
+  };
+  const eventTargetAddEventListener = EventTarget.prototype.addEventListener;
+  const eventTargetRemoveEventListener = EventTarget.prototype.removeEventListener;
+  const eventTargetDispatchEvent = EventTarget.prototype.dispatchEvent;
+  const reducedMotionMediaQuery = new EventTarget();
+  Object.defineProperties(reducedMotionMediaQuery, {
+    matches: {
+      enumerable: true,
+      get: () => hostReducedMotion || reducedMotionQuery.matches,
+    },
+    media: { enumerable: true, get: () => reducedMotionMedia },
+    onchange: {
+      enumerable: true,
+      get: () => reducedMotionOnChange,
+      set: (listener) => {
+        reducedMotionOnChange = typeof listener === 'function' ? listener : null;
+      },
+    },
+    addEventListener: {
+      value: (type, listener, options) =>
+        applyIntrinsic(eventTargetAddEventListener, reducedMotionMediaQuery, [
+          type,
+          listener,
+          options,
+        ]),
+    },
+    removeEventListener: {
+      value: (type, listener, options) =>
+        applyIntrinsic(eventTargetRemoveEventListener, reducedMotionMediaQuery, [
+          type,
+          listener,
+          options,
+        ]),
+    },
+    addListener: {
+      value: (listener) =>
+        applyIntrinsic(eventTargetAddEventListener, reducedMotionMediaQuery, ['change', listener]),
+    },
+    removeListener: {
+      value: (listener) =>
+        applyIntrinsic(eventTargetRemoveEventListener, reducedMotionMediaQuery, [
+          'change',
+          listener,
+        ]),
+    },
+    dispatchEvent: {
+      value: (event) => {
+        const accepted = applyIntrinsic(eventTargetDispatchEvent, reducedMotionMediaQuery, [event]);
+        if (event?.type === 'change' && typeof reducedMotionOnChange === 'function') {
+          reducedMotionOnChange.call(reducedMotionMediaQuery, event);
+        }
+        return accepted;
+      },
+    },
+  });
+  const notifyReducedMotionListeners = () => {
+    const matches = hostReducedMotion || reducedMotionQuery.matches;
+    if (matches === lastReducedMotionMatch) return;
+    lastReducedMotionMatch = matches;
+    reducedMotionMediaQuery.dispatchEvent(createReducedMotionChangeEvent(matches));
+  };
+  reducedMotionQuery.addEventListener?.('change', notifyReducedMotionListeners);
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: (query) =>
+      String(query).replace(/\s+/g, ' ').trim().toLowerCase() ===
+      '(prefers-reduced-motion: reduce)'
+        ? reducedMotionMediaQuery
+        : nativeMatchMedia(query),
+  });
+  const setHostReducedMotion = (reduced) => {
+    hostReducedMotion = reduced;
+    notifyReducedMotionListeners();
+  };
+
+  const applyTheme = (theme) => {
+    if (!theme || typeof theme !== 'object') return;
+    const root = document.documentElement;
+    if (theme.colorScheme === 'dark' || theme.colorScheme === 'light') {
+      root.style.colorScheme = theme.colorScheme;
+      root.dataset.theme = theme.colorScheme;
+    }
+    const reducedMotion = theme.reducedMotion === true;
+    setHostReducedMotion(reducedMotion);
+    if (reducedMotion) root.dataset.motion = 'reduced';
+    else delete root.dataset.motion;
+    if (!theme.variables || typeof theme.variables !== 'object') return;
+    for (const [name, value] of Object.entries(theme.variables)) {
+      if (/^--[a-z0-9-]+$/.test(name) && typeof value === 'string') {
+        root.style.setProperty(name, value);
+      }
+    }
+  };
+
+  addEventListener('message', (event) => {
+    if (!event.isTrusted || event.source !== parent) return;
+    const data = event.data;
+    if (data && data.type === 'openwaggle:inline-visualization:health-check') {
+      post('openwaggle:inline-visualization:ready');
+      return;
+    }
+    if (data && data.type === 'openwaggle:inline-visualization:theme') {
+      applyTheme(data.theme);
+      return;
+    }
+    if (
+      data &&
+      data.type === 'openwaggle:inline-visualization:follow-up-result' &&
+      typeof data.requestId === 'string'
+    ) {
+      const resolve = pendingFollowUps.get(data.requestId);
+      if (resolve) {
+        pendingFollowUps.delete(data.requestId);
+        resolve(data.accepted === true);
+      }
+    }
+  });
+
+  let tooltip = null;
+  let tooltipTarget = null;
+  let lastPointerWasTouch = false;
+  let tooltipPinnedByTouch = false;
+  const setTooltipDescribedBy = (target, id, described) => {
+    const ids = new Set(
+      (target.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean),
+    );
+    if (described) ids.add(id);
+    else ids.delete(id);
+    if (ids.size === 0) target.removeAttribute('aria-describedby');
+    else target.setAttribute('aria-describedby', Array.from(ids).join(' '));
+  };
+  const hideTooltip = () => {
+    if (tooltipTarget && tooltip) setTooltipDescribedBy(tooltipTarget, tooltip.id, false);
+    tooltip?.remove();
+    tooltip = null;
+    tooltipTarget = null;
+    tooltipPinnedByTouch = false;
+  };
+  const showTooltip = (target) => {
+    const label = target.getAttribute('data-tooltip');
+    if (!target.isConnected || !label) return;
+    hideTooltip();
+    const id = 'openwaggle-tooltip-' + crypto.randomUUID();
+    tooltip = document.createElement('div');
+    tooltip.id = id;
+    tooltip.className = 'tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.textContent = label;
+    document.body.append(tooltip);
+    setTooltipDescribedBy(target, id, true);
+    tooltipTarget = target;
+    const targetRect = target.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const requested = target.getAttribute('data-tooltip-placement') || 'top';
+    let left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
+    let top = targetRect.top - tooltipRect.height - 6;
+    if (requested === 'bottom') top = targetRect.bottom + 6;
+    if (requested === 'left') {
+      left = targetRect.left - tooltipRect.width - 6;
+      top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
+    }
+    if (requested === 'right') {
+      left = targetRect.right + 6;
+      top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
+    }
+    tooltip.style.left = Math.max(5, Math.min(innerWidth - tooltipRect.width - 5, left)) + 'px';
+    tooltip.style.top = Math.max(5, Math.min(innerHeight - tooltipRect.height - 5, top)) + 'px';
+  };
+  document.addEventListener('pointerover', (event) => {
+    if (event.pointerType === 'touch') return;
+    const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
+    if (
+      target &&
+      (!(event.relatedTarget instanceof Node) || !target.contains(event.relatedTarget))
+    ) showTooltip(target);
+  });
+  document.addEventListener('pointerout', (event) => {
+    if (
+      !tooltipPinnedByTouch &&
+      tooltipTarget &&
+      (!(event.relatedTarget instanceof Node) || !tooltipTarget.contains(event.relatedTarget))
+    ) hideTooltip();
+  });
+  document.addEventListener('focusin', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
+    if (target) showTooltip(target);
+  });
+  document.addEventListener('focusout', hideTooltip);
+  document.addEventListener('pointerdown', (event) => {
+    lastPointerWasTouch = event.pointerType === 'touch';
+  });
+  document.addEventListener('pointercancel', () => {
+    lastPointerWasTouch = false;
+  });
+  document.addEventListener('click', (event) => {
+    const isTouch = event.pointerType === 'touch' || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) return;
+    const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
+    if (!target || (tooltipPinnedByTouch && tooltipTarget === target)) {
+      if (tooltipPinnedByTouch) hideTooltip();
+      return;
+    }
+    showTooltip(target);
+    tooltipPinnedByTouch = tooltipTarget === target;
+    setTimeout(() => {
+      if (tooltipTarget === target && !target.isConnected) hideTooltip();
+    }, 0);
+  });
+
+  const TAB_SELECTOR = '.nav[role="tablist"] [role="tab"]';
+  const DISABLED_TAB_SELECTOR = ':disabled,[aria-disabled="true"]';
+  const selectTab = (selected) => {
+    const tabList = selected.closest('[role="tablist"]');
+    if (!tabList) return;
+    const panelId = selected.getAttribute('aria-controls');
+    for (const tab of tabList.querySelectorAll('[role="tab"]')) {
+      const active = tab === selected;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      const controlledId = tab.getAttribute('aria-controls');
+      const panel = controlledId ? document.getElementById(controlledId) : null;
+      if (!panel) continue;
+      panel.hidden = controlledId !== panelId;
+      if (!panel.hidden && selected.id) panel.setAttribute('aria-labelledby', selected.id);
+    }
+    scheduleSizeReport();
+  };
+  const tabFromEvent = (event) =>
+    event.target instanceof Element ? event.target.closest(TAB_SELECTOR) : null;
+  const handleTabInteraction = (event) => {
+    const tab = tabFromEvent(event);
+    if (event.defaultPrevented || !tab || tab.matches(DISABLED_TAB_SELECTOR)) return;
+    if (event.type === 'click') {
+      selectTab(tab);
+      return;
+    }
+    const tabList = tab.closest('[role="tablist"]');
+    if (!tabList) return;
+    const tabs = Array.from(tabList.querySelectorAll('[role="tab"]')).filter(
+      (candidate) => !candidate.matches(DISABLED_TAB_SELECTOR),
+    );
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else if (event.key === 'End') {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next]?.focus();
+    if (tabs[next]) selectTab(tabs[next]);
+  };
+  const initializeTabs = () => {
+    for (const tabList of document.querySelectorAll('.nav[role="tablist"]')) {
+      const selected =
+        tabList.querySelector('[role="tab"][aria-selected="true"]') ||
+        tabList.querySelector('[role="tab"].active') ||
+        tabList.querySelector('[role="tab"]');
+      if (selected) selectTab(selected);
+    }
+  };
+  document.addEventListener('click', handleTabInteraction);
+  document.addEventListener('keydown', handleTabInteraction);
+
+  const downloadAnchor = async (anchor) => {
+    try {
+      const url = new URL(anchor.href);
+      if (url.protocol !== 'blob:' && url.protocol !== 'data:') return;
+      const response = await fetch(url);
+      const blob = await response.blob();
+      if (blob.size > 5 * 1024 * 1024) return;
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 32768) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+      }
+      post('openwaggle:inline-visualization:download', {
+        suggestedName: anchor.download || 'visualization-download',
+        mimeType: blob.type || 'application/octet-stream',
+        base64Data: btoa(binary),
+      });
+    } catch {
+      // Unsupported and invalid downloads fail closed.
+    }
+  };
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('a[href]') : null;
+    if (!(target instanceof HTMLAnchorElement)) return;
+    const rawHref = target.getAttribute('href');
+    if (!rawHref || rawHref.startsWith('#')) return;
+    event.preventDefault();
+    if (!event.isTrusted || !hasTrustedUserActivation()) return;
+    if (target.hasAttribute('download')) {
+      void downloadAnchor(target);
+      return;
+    }
+    post('openwaggle:inline-visualization:open-link', { url: target.href });
+  });
+
+  let flushVisualizationState = () => {};
+  const sendFollowUpMessage = (message) => {
+    const prompt = typeof message === 'string' ? message : message && message.prompt;
+    if (
+      typeof prompt !== 'string' ||
+      prompt.trim().length === 0 ||
+      !hasCurrentTrustedFrameInput()
+    ) {
+      return Promise.resolve(false);
+    }
+    if (pendingFollowUps.size > 0) return Promise.resolve(false);
+    flushVisualizationState();
+    const title = typeof message === 'object' && message && typeof message.title === 'string'
+      ? message.title
+      : undefined;
+    const requestId = crypto.randomUUID();
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        pendingFollowUps.delete(requestId);
+        resolve(false);
+      }, 120000);
+      pendingFollowUps.set(requestId, (accepted) => {
+        clearTimeout(timeout);
+        resolve(accepted);
+      });
+      post('openwaggle:inline-visualization:follow-up', {
+        requestId,
+        prompt,
+        ...(title ? { title } : {}),
+      });
+    });
+  };
+  const MAX_VISUALIZATION_STATE_BYTES = 16 * 1024;
+  const jsonStringify = JSON.stringify;
+  const jsonParse = JSON.parse;
+  const stringCharCodeAt = String.prototype.charCodeAt;
+  const arrayIsArray = Array.isArray;
+  const objectKeys = Object.keys;
+  const objectGetPrototypeOf = Object.getPrototypeOf;
+  const objectPrototype = Object.prototype;
+  const weakSetHas = WeakSet.prototype.has;
+  const weakSetAdd = WeakSet.prototype.add;
+  const weakSetDelete = WeakSet.prototype.delete;
+  let pendingVisualizationState;
+  let visualizationStateScheduled = false;
+  const utf8ByteLength = (value) => {
+    let bytes = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const code = applyIntrinsic(stringCharCodeAt, value, [index]);
+      if (code <= 0x7f) bytes += 1;
+      else if (code <= 0x7ff) bytes += 2;
+      else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length) {
+        const next = applyIntrinsic(stringCharCodeAt, value, [index + 1]);
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          bytes += 4;
+          index += 1;
+        } else bytes += 3;
+      } else bytes += 3;
+      if (bytes > MAX_VISUALIZATION_STATE_BYTES) return bytes;
+    }
+    return bytes;
+  };
+  const isJsonValue = (value, seen = new WeakSet(), depth = 0) => {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+    if (typeof value === 'number') return numberIsFinite(value);
+    if (typeof value !== 'object' || depth > 20) return false;
+    if (applyIntrinsic(weakSetHas, seen, [value])) return false;
+    applyIntrinsic(weakSetAdd, seen, [value]);
+    if (arrayIsArray(value)) {
+      for (let index = 0; index < value.length; index += 1) {
+        if (!isJsonValue(value[index], seen, depth + 1)) return false;
+      }
+      applyIntrinsic(weakSetDelete, seen, [value]);
+      return true;
+    }
+    const prototype = objectGetPrototypeOf(value);
+    if (prototype !== objectPrototype && prototype !== null) return false;
+    const keys = applyIntrinsic(objectKeys, Object, [value]);
+    for (let index = 0; index < keys.length; index += 1) {
+      if (!isJsonValue(value[keys[index]], seen, depth + 1)) return false;
+    }
+    applyIntrinsic(weakSetDelete, seen, [value]);
+    return true;
+  };
+  const setVisualizationState = (state) => {
+    let serialized;
+    let snapshot;
+    try {
+      if (!isJsonValue(state)) return false;
+      serialized = applyIntrinsic(jsonStringify, JSON, [state]);
+      if (
+        typeof serialized !== 'string' ||
+        utf8ByteLength(serialized) > MAX_VISUALIZATION_STATE_BYTES
+      ) return false;
+      snapshot = applyIntrinsic(jsonParse, JSON, [serialized]);
+    } catch {
+      return false;
+    }
+    pendingVisualizationState = snapshot;
+    if (visualizationStateScheduled) return true;
+    visualizationStateScheduled = true;
+    enqueueMicrotask(() => flushVisualizationState());
+    return true;
+  };
+  flushVisualizationState = () => {
+    if (!visualizationStateScheduled) return;
+    visualizationStateScheduled = false;
+    const latest = pendingVisualizationState;
+    pendingVisualizationState = undefined;
+    post('openwaggle:inline-visualization:state', { state: latest });
+  };
+  Object.defineProperty(window, 'openai', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: Object.freeze({ sendFollowUpMessage, setVisualizationState }),
+  });
+
+  addEventListener('keydown', (event) => {
+    if (!event.isTrusted || event.key !== 'Escape') return;
+    hideTooltip();
+    post('openwaggle:inline-visualization:dismiss');
+  });
+  addEventListener('error', (event) => {
+    post('openwaggle:inline-visualization:error', {
+      reason: 'crashed',
+      message: typeof event.message === 'string' ? event.message.slice(0, 500) : '',
+    });
+  });
+  addEventListener('unhandledrejection', () => {
+    post('openwaggle:inline-visualization:error', { reason: 'crashed' });
+  });
+  const sourceError = document.querySelector('meta[name="openwaggle-visualization-error"]');
+  if (sourceError && typeof sourceError.content === 'string') {
+    post('openwaggle:inline-visualization:error', {
+      reason: sourceError.content || 'read-failed',
+    });
+  }
+
+  addEventListener('DOMContentLoaded', () => {
+    fragmentReady = true;
+    initializeTabs();
+    post('openwaggle:inline-visualization:ready');
+    initializeLucide();
+    reportSize();
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(scheduleSizeReport).observe(document.body);
+    }
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(scheduleSizeReport).observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'hidden', 'open'],
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
+  }, { once: true });
+  addEventListener('load', scheduleSizeReport, { once: true });
+})();

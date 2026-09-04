@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useGit } from '@/features/git/hooks'
 import { useUIStore } from '@/shell/ui-store'
-import { useRecordSessionCommit, useSessionResources } from '../hooks/useSessionResources'
+import { useSessionResources } from '../hooks/useSessionResources'
 import {
   resolveSessionSummaryGitAction,
   type SessionSummaryGitAction,
@@ -36,10 +36,9 @@ function useSessionSummaryGitController(input: SessionSummaryHubInput) {
   const toggleTerminal = useUIStore((state) => state.toggleTerminal)
   const git = useGit()
   const combined = useCombinedVcsStatus(git.workingPath, input.messageCount)
-  const recordSessionCommit = useRecordSessionCommit(input.session?.id ?? null)
   const stackedActions = useStackedGitActions({
     workingPath: git.workingPath,
-    onCommitCreated: recordSessionCommit,
+    sessionId: input.session?.id,
     onCompleted: () => {
       void combined.refresh()
       if (git.workingPath) void git.refreshStatus(git.workingPath)
@@ -124,6 +123,8 @@ function useSessionSummaryResourceController(sessionId: string, hasSession: bool
 
   return {
     all,
+    failed: resources.isError,
+    retry: () => void resources.refetch(),
     outputs: all.filter((resource) => resource.isOutput),
     sources: all.filter((resource) => resource.isSource),
     openImage: (resourceId: string) => openResourceViewer(sessionId, resourceId),

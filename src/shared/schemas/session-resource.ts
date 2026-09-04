@@ -3,7 +3,6 @@ import { Schema } from '../schema'
 const MAX_ID_LENGTH = 256
 const MAX_TITLE_LENGTH = 512
 const MAX_URL_LENGTH = 4096
-const GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u
 
 function isTrimmedNonEmpty(value: string) {
   return value.trim() === value && value.length > 0
@@ -46,14 +45,5 @@ export const recordSessionChangeRequestInputSchema = Schema.Struct({
   url: Schema.String.pipe(
     Schema.maxLength(MAX_URL_LENGTH),
     Schema.filter(isSupportedChangeRequestUrl),
-  ),
-})
-
-export const recordSessionCommitInputSchema = Schema.Struct({
-  commitHash: Schema.String.pipe(Schema.filter((value) => GIT_OBJECT_ID.test(value))),
-  title: Schema.String.pipe(
-    Schema.minLength(1),
-    Schema.maxLength(MAX_TITLE_LENGTH),
-    Schema.filter(isTrimmedNonEmpty),
   ),
 })

@@ -16,6 +16,9 @@ export async function buildChangeRequestFallbackUrl(
   const webUrl = repositoryWebUrl(remoteUrl)
   if (!provider || !webUrl) return null
   if (provider.id === 'github') {
+    // Native creation can verify a fork relationship. A browser URL cannot safely
+    // assume that an owner-qualified head belongs to the target repository.
+    if (payload.headOwner) return null
     const comparison = payload.baseRef
       ? `${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(payload.headRef)}`
       : encodeURIComponent(payload.headRef)
@@ -27,6 +30,7 @@ export async function buildChangeRequestFallbackUrl(
     if (payload.body) url.searchParams.set('body', payload.body)
     return url.toString()
   }
+  if (payload.headRepository) return null
   const url = new URL(`${webUrl}/-/merge_requests/new`)
   if (headRefAvailableRemotely) {
     url.searchParams.set('merge_request[source_branch]', payload.headRef)

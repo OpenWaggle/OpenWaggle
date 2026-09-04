@@ -23,6 +23,14 @@ const DIFF_PANEL_DEFAULT_WIDTH = 600
 const DIFF_PANEL_STORAGE_KEY = 'openwaggle:diff-sidebar-width'
 const DIFF_PANEL_SHEET_BREAKPOINT_PX = 1180
 const OVERFLOW_TOLERANCE_PX = 0.5
+const RIGHT_SIDEBAR_SIZING = {
+  defaultWidth: DIFF_PANEL_DEFAULT_WIDTH,
+  mainMinWidth: CHAT_MIN_WIDTH,
+  maxWidth: DIFF_PANEL_MAX,
+  minWidth: DIFF_PANEL_MIN,
+  sheetBreakpointPx: DIFF_PANEL_SHEET_BREAKPOINT_PX,
+  storageKey: DIFF_PANEL_STORAGE_KEY,
+}
 
 const LazyChatDiffPane = lazy(loadChatDiffPane)
 const LazySessionTreePanel = lazy(loadSessionTreePanel)
@@ -75,6 +83,7 @@ function isChatRightSidebarOpen(state: ChatRightSidebarRouteState) {
 function DiffSidebarFallback() {
   return (
     <output
+      aria-label="Loading"
       className="flex size-full items-center justify-center bg-diff-bg text-sm text-text-tertiary"
       aria-live="polite"
     >
@@ -210,14 +219,7 @@ export function ChatRouteSurface({
       <PanelErrorBoundary name="Chat" className="flex min-w-0 flex-1 overflow-hidden">
         <RightSidebarLayout
           open={rightSidebarOpen}
-          sizing={{
-            defaultWidth: DIFF_PANEL_DEFAULT_WIDTH,
-            mainMinWidth: CHAT_MIN_WIDTH,
-            maxWidth: DIFF_PANEL_MAX,
-            minWidth: DIFF_PANEL_MIN,
-            sheetBreakpointPx: DIFF_PANEL_SHEET_BREAKPOINT_PX,
-            storageKey: DIFF_PANEL_STORAGE_KEY,
-          }}
+          sizing={RIGHT_SIDEBAR_SIZING}
           onOpenChange={(open) => {
             if (renderedRightSidebarPanel === 'diff') {
               handleDiffOpenChange(open)
@@ -251,6 +253,7 @@ export function ChatRouteSurface({
                 />
               ) : renderedRightSidebarPanel === 'file' && rightSidebar.workspaceFile ? (
                 <WorkspaceFilePanel
+                  key={sections.diff.workingPath ?? 'no-project'}
                   projectPath={sections.diff.workingPath}
                   relativePath={rightSidebar.workspaceFile.path}
                   line={rightSidebar.workspaceFile.line}

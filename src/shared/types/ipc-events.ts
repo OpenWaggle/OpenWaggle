@@ -5,6 +5,7 @@ import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
+import type { WorkspaceFilesChangedEvent } from './workspace-files'
 
 export interface IpcSendChannelMap {
   'agent:cancel-waggle': {
@@ -33,6 +34,9 @@ export interface IpcEventChannelMap {
     payload: AgentPhaseEventPayload
   }
   'agent:run-completed': {
+    payload: { sessionId: SessionId }
+  }
+  'sessions:resources-invalidated': {
     payload: { sessionId: SessionId }
   }
   'agent:worktree-launch': {
@@ -69,10 +73,6 @@ export interface IpcEventChannelMap {
   'sessions:list-invalidated': {
     payload: { sessionIds: readonly SessionId[] }
   }
-  /** A Session Resource catalog changed; consumers invalidate only this Session's query. */
-  'sessions:resources-invalidated': {
-    payload: { sessionId: SessionId }
-  }
   /**
    * A working tree's git state changed because OpenWaggle mutated it.
    *
@@ -84,6 +84,9 @@ export interface IpcEventChannelMap {
    */
   'git:working-tree-changed': {
     payload: { workingPath: string }
+  }
+  'workspace-files:changed': {
+    payload: WorkspaceFilesChangedEvent
   }
   'updater:status-changed': {
     payload: UpdateStatus

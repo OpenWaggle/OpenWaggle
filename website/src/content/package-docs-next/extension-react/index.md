@@ -5,7 +5,7 @@ order: 3
 section: "Packages"
 ---
 
-`@openwaggle/extension-react` provides small React primitives for extension surfaces that should match OpenWaggle without importing application renderer code.
+`@openwaggle/extension-react` provides small React primitives for extension surfaces that should match OpenWaggle without importing application renderer code, including host-themed source rendering.
 
 <package-install packages="@openwaggle/extension-react @openwaggle/extension-sdk react react-dom"></package-install>
 
@@ -60,7 +60,7 @@ Version 0.2 replaces the bespoke 0.1 spacing, radius, elevation, and fallback va
 
 ## Components
 
-The package exports `Alert`, `Badge`, `Button`, `Checkbox`, `Field`, `Input`, `Panel`, `Select`, `Stack`, and `Textarea`. See the [visual component catalogue](./components) and [complete API reference](./api-reference).
+The package exports `Alert`, `Badge`, `Button`, `Checkbox`, `Field`, `Input`, `Panel`, `Select`, `Stack`, `Textarea`, `SyntaxBlock`, and `SourceView`. Pass `context.sdk.surface.syntax` to the syntax primitives; the host supplies the active theme and worker-backed tokenization. See the [visual component catalogue](./components) and [complete API reference](./api-reference).
 
 ## Compatibility
 

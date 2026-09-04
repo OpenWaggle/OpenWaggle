@@ -170,7 +170,7 @@ export function createOpenWaggleExtensionTheme(
   const resolve = options.resolveCssVariable
 
   return {
-    colorScheme: 'dark',
+    colorScheme: options.colorScheme ?? 'dark',
     tokens: {
       color: colorTokens(resolve),
       typography: typographyTokens(resolve),

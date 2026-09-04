@@ -195,14 +195,14 @@ A section can declare:
 
 The host hides an empty `ready` section. Expansion is remembered per session, transient dialogs and actions are reset when the opened session changes, and one extension failure does not affect the rest of the Summary.
 
-An executable contribution can also publish durable Sources or Outputs through `context.sdk.openWaggle.sessionResources`. Declare the capability on the package and on that executable contribution:
+An executable contribution can also publish durable Sources or Outputs through `context.sdk.openWaggle.resources`. Declare the capability on the package and on that executable contribution:
 
 ```json
 {
   "capabilities": [
     {
-      "id": "openwaggle.session-resources",
-      "methods": ["publish-session-resource", "list-session-resources"],
+      "id": "openwaggle.resources",
+      "methods": ["publish-resource", "list-resources"],
       "scopes": ["session"]
     }
   ],
@@ -214,8 +214,8 @@ An executable contribution can also publish durable Sources or Outputs through `
         "runtime": "federated-module",
         "execution": "host-renderer",
         "entry": "modules/results.js",
-        "capability": "openwaggle.session-resources",
-        "methods": ["publish-session-resource", "list-session-resources"]
+        "capability": "openwaggle.resources",
+        "methods": ["publish-resource", "list-resources"]
       }
     ],
     "sessionSummarySections": [
@@ -238,31 +238,34 @@ An executable contribution can also publish durable Sources or Outputs through `
 }
 ```
 
-Publish with the exact session scope supplied by the host surface or returned by an approved current-session state read:
+Use the session id and project path supplied by the mounted host surface. Do not accept either value from extension-controlled input:
 
 ```ts
-const scope = {
-  kind: 'session',
-  projectPath,
-  sessionId,
-} as const
+import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
 
-const published = await context.sdk.openWaggle.sessionResources.publish(scope, {
-  key: 'coverage-report',
-  kind: 'file',
-  title: 'Coverage report',
-  activity: 'created',
-  mimeType: 'text/html',
-  reference: { kind: 'project-file', path: 'coverage/index.html' },
-})
+export async function publishCoverage(context: OpenWaggleExtensionMountContext) {
+  const projectPath = context.projectPaths[0]
+  if (!context.sessionId || !projectPath) return
 
-const outputs = await context.sdk.openWaggle.sessionResources.list(scope, {
-  category: 'outputs',
-  limit: 25,
-})
+  const scope = {
+    kind: 'session' as const,
+    projectPath,
+    sessionId: context.sessionId,
+  }
+  const published = await context.sdk.openWaggle.resources.publish(scope, {
+    key: 'coverage-report',
+    kind: 'link',
+    title: 'Coverage report',
+    role: 'output',
+    locator: 'https://reports.example.com/coverage',
+  })
+  if (!published.ok) return published
+
+  return context.sdk.openWaggle.resources.list(scope)
+}
 ```
 
-The publication `key` is stable within the extension contribution and deduplicates repeated observations. An `external-url` reference must be credential-free HTTPS; a `project-file` reference must be a portable path inside the scoped project. The broker validates that the session belongs to the declared project and active scope. Extensions cannot publish into a different session by supplying an arbitrary id.
+Reuse a stable `key` within the extension contribution. Publishing the same key, kind, role, and normalized locator is idempotent. Version one accepts only credential-free HTTPS `image` and `link` locators with a `source` or `output` role. `list` returns an operation result whose `value.resources` contains display metadata only: resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. The broker binds both methods to the mounted contribution's project and session, so changing the scope payload cannot expose another open or archived session.
 
 ## Visual Runtimes, SDK Context, And Theme
 
@@ -431,6 +434,7 @@ The trust review should make these privileges visible:
 - Build scripts: `install.source: "local-build"` plus `build.command` asks the user to run local code during build. Build approval is separate from runtime trust.
 - External runtime requirements: `runtimeRequirements` declares required binaries or commands. Missing requirements block trust or runtime eligibility until fixed.
 - Brokered capabilities: `capabilities` declares SDK capabilities, methods, and scopes such as `openwaggle.storage` with `get`, `set`, and `list` for `project` scope.
+- Session resources: `openwaggle.resources` grants `list-resources` and/or `publish-resource` for `session` scope. It accepts only credential-free HTTPS links and images, and never exposes managed bytes or private locators. See [Session Summary sections and resources](#session-summary-sections-and-resources).
 
 Trust pins the current package content hash. Editing manifest files, source files, built artifacts, or the build plan changes the hash and creates an explicit update path. Extension updates are user-approved; they are not silent runtime swaps.
 
@@ -467,6 +471,7 @@ The state model is:
 - OpenWaggle state is read-only through typed capabilities such as `openWaggle.state.get(scope)`.
 - OpenWaggle mutations use typed action capabilities such as `openWaggle.actions.selectProject(scope, projectPath)`.
 - Settings access uses typed settings capabilities such as `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`.
+- Session resource access uses `openWaggle.resources.list(scope)` and `openWaggle.resources.publish(scope, resource)` for the mounted Session only.
 - Extension package state is extension-owned and can be shared by every contribution from the same package.
 - `storage.packageState.global` and `storage.packageState.project` are for persistent package state.
 - `storage.packageConfig.global` and `storage.packageConfig.project` are for persistent package configuration.

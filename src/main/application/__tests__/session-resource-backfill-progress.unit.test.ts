@@ -65,6 +65,7 @@ function capturedResource(input: UpsertSessionResourceInput): SessionResource {
     title: input.title,
     mimeType: input.mimeType,
     locator: input.locator,
+    managed: input.managedPath !== null,
     available: input.available,
     isSource: input.occurrence.activity === 'provided' || input.occurrence.activity === 'read',
     isOutput: input.occurrence.activity === 'created' || input.occurrence.activity === 'updated',

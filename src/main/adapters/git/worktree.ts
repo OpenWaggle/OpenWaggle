@@ -7,6 +7,7 @@ import type {
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
 } from '@shared/types/git'
+import { runWithGitMutationLock } from '../../services/git/mutation-lock'
 import { isGitRepository, runGit } from './run-git'
 
 function runWorktreeGit(projectPath: string, args: string[], signal?: AbortSignal) {
@@ -142,7 +143,7 @@ async function branchWorktreeHolder(
   return null
 }
 
-export async function createGitWorktree(
+async function createGitWorktreeUnlocked(
   projectPath: string,
   payload: GitWorktreeCreatePayload,
   options: { readonly signal?: AbortSignal } = {},
@@ -230,7 +231,17 @@ export async function createGitWorktree(
   return { ok: true, message: `Created worktree on ${branch}.`, path: worktreePath }
 }
 
-export async function removeGitWorktree(
+export function createGitWorktree(
+  projectPath: string,
+  payload: GitWorktreeCreatePayload,
+  options: { readonly signal?: AbortSignal } = {},
+): Promise<GitWorktreeMutationResult> {
+  return runWithGitMutationLock(projectPath, () =>
+    createGitWorktreeUnlocked(projectPath, payload, options),
+  )
+}
+
+async function removeGitWorktreeUnlocked(
   projectPath: string,
   payload: GitWorktreeRemovePayload,
 ): Promise<GitWorktreeMutationResult> {
@@ -251,4 +262,11 @@ export async function removeGitWorktree(
   }
 
   return { ok: true, message: 'Worktree removed.', path: worktreePath }
+}
+
+export function removeGitWorktree(
+  projectPath: string,
+  payload: GitWorktreeRemovePayload,
+): Promise<GitWorktreeMutationResult> {
+  return runWithGitMutationLock(projectPath, () => removeGitWorktreeUnlocked(projectPath, payload))
 }

@@ -1,11 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import { useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, Image, LoaderCircle, X } from 'lucide-react'
-import { useState } from 'react'
-import { cn } from '@/shared/lib/cn'
+import { Image, X } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { useSessionResourceBranchNames } from '../hooks/useSessionResourceBranchNames'
 import { sessionResourceThumbnailQueryKey, useSessionResources } from '../hooks/useSessionResources'
 import {
   DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
@@ -13,7 +13,7 @@ import {
   type SessionResourceBrowserTarget,
   type SessionResourceBrowserView,
 } from '../model/session-resource-browser'
-import { SessionResourceRow } from './SessionResourceRow'
+import { SessionResourcesPanelBody } from './SessionResourcesPanelBody'
 
 const RESOURCE_PAGE_SIZE = 40
 
@@ -94,8 +94,12 @@ function BoundSessionResourcesPanel({
 }: BoundSessionResourcesPanelProps) {
   const [filter, setFilter] = useState<SessionResourceBrowserView>(target.view)
   const [visibleCount, setVisibleCount] = useState(RESOURCE_PAGE_SIZE)
+  const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const retryingRef = useRef(false)
   const queryClient = useQueryClient()
   const query = useSessionResources(sessionId)
+  const branchNames = useSessionResourceBranchNames(sessionId)
   const resources = filteredResources(query.data ?? [], filter)
   const targetIndex = target.resourceId
     ? resources.findIndex((resource) => resource.id === target.resourceId)
@@ -105,12 +109,22 @@ function BoundSessionResourcesPanel({
   const resourceGroups = groupSessionResources(visibleResources, filter)
 
   async function retryResource(resourceId: string) {
-    if (!sessionId) return
-    await api.retrySessionResource(SessionId(sessionId), resourceId)
-    await queryClient.invalidateQueries({
-      queryKey: sessionResourceThumbnailQueryKey(sessionId, resourceId),
-    })
-    await query.refetch()
+    if (!sessionId || retryingRef.current) return
+    retryingRef.current = true
+    setRetryingId(resourceId)
+    setRetryError(null)
+    try {
+      await api.retrySessionResource(SessionId(sessionId), resourceId)
+      await queryClient.invalidateQueries({
+        queryKey: sessionResourceThumbnailQueryKey(sessionId, resourceId),
+      })
+      await query.refetch()
+    } catch (cause) {
+      setRetryError(cause instanceof Error ? cause.message : 'Could not retry this resource.')
+    } finally {
+      retryingRef.current = false
+      setRetryingId(null)
+    }
   }
 
   function selectFilter(view: SessionResourceBrowserView) {
@@ -123,83 +137,25 @@ function BoundSessionResourcesPanel({
     <section className="flex size-full min-h-0 flex-col bg-diff-bg" aria-label="Session resources">
       <ResourcesPanelHeader onClose={onClose} />
       <ResourceFilters selected={filter} onSelect={selectFilter} />
-      <div
-        className={cn(
-          'min-h-0 flex-1 space-y-2 overflow-y-auto p-3',
-          query.isLoading && 'opacity-60',
-        )}
-      >
-        {query.isLoading ? (
-          <div
-            role="status"
-            className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-text-tertiary"
-          >
-            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            Loading this session’s sources and outputs…
-          </div>
-        ) : null}
-        {query.isError ? (
-          <div
-            role="alert"
-            className="mx-1 flex flex-col items-center rounded-lg border border-border bg-bg-secondary px-5 py-8 text-center"
-          >
-            <CircleAlert className="mb-3 size-5 text-warning" aria-hidden="true" />
-            <p className="text-sm font-medium text-text-primary">
-              Couldn’t load this session’s sources and outputs.
-            </p>
-            <p className="mt-1 text-xs text-text-tertiary">{query.error.message}</p>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-4"
-              aria-label="Retry loading resources"
-              onClick={() => void query.refetch()}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : null}
-        {!query.isError &&
-          resourceGroups.map((group) => (
-            <section key={group.id} aria-labelledby={`session-resource-group-${group.id}`}>
-              <h3
-                id={`session-resource-group-${group.id}`}
-                className="mb-1.5 flex items-center justify-between px-1 text-xs font-medium text-text-tertiary"
-              >
-                <span>{group.label}</span>
-                <span className="tabular-nums" aria-hidden="true">
-                  {group.resources.length}
-                </span>
-              </h3>
-              <div className="space-y-2">
-                {group.resources.map((resource) => (
-                  <SessionResourceRow
-                    key={resource.id}
-                    resource={resource}
-                    sessionId={sessionId ?? ''}
-                    onRetry={() => void retryResource(resource.id)}
-                    selected={resource.id === target.resourceId}
-                    view={filter}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        {!query.isError && visibleResources.length < resources.length ? (
-          <Button
-            variant="ghost"
-            className="w-full"
-            onClick={() => setVisibleCount((count) => count + RESOURCE_PAGE_SIZE)}
-          >
-            Show more ({resources.length - visibleResources.length})
-          </Button>
-        ) : null}
-        {!query.isLoading && !query.isError && resources.length === 0 ? (
-          <p className="px-3 py-8 text-center text-sm text-text-tertiary">
-            No resources in this view.
-          </p>
-        ) : null}
-      </div>
+      <SessionResourcesPanelBody
+        model={{
+          sessionId,
+          target,
+          filter,
+          loading: query.isLoading,
+          failed: query.isError,
+          errorMessage: query.error?.message ?? null,
+          retryError,
+          retryingId,
+          resources,
+          visibleResources,
+          resourceGroups,
+          branchNames,
+        }}
+        onRetryResource={(resourceId) => void retryResource(resourceId)}
+        onRetryCatalog={() => void query.refetch()}
+        onShowMore={() => setVisibleCount((count) => count + RESOURCE_PAGE_SIZE)}
+      />
     </section>
   )
 }

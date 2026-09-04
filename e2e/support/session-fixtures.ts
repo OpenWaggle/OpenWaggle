@@ -73,7 +73,6 @@ export interface SeedSessionLineageInput {
     | 'cancelled'
   readonly updatedAt: number
 }
-
 function getDatabasePath(userDataDir: string): string {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }

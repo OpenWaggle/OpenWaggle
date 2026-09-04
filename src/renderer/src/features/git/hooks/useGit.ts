@@ -13,6 +13,8 @@ export function useGit() {
   const repositoryPath = useRepositoryPath()
   const workingTree = useGitStore((s) => selectWorkingTreeStatus(s, workingPath))
   const branches = useGitStore((s) => s.branches)
+  const branchesRepositoryPath = useGitStore((s) => s.branchesRepositoryPath)
+  const isLoadingBranches = useGitStore((s) => s.isLoadingBranches)
   const isCommitting = useGitStore((s) => s.isCommitting)
   const isBranchActionRunning = useGitStore((s) => s.isBranchActionRunning)
   const branchesError = useGitStore((s) => s.branchesError)
@@ -29,6 +31,8 @@ export function useGit() {
     isLoading: workingTree.isLoading,
     error: workingTree.error ?? branchesError,
     branches,
+    branchesRepositoryPath,
+    isLoadingBranches,
     isCommitting,
     isBranchActionRunning,
     refreshStatus,

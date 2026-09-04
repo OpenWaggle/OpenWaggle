@@ -54,8 +54,33 @@ describe('session resource extraction limits', () => {
     expect(extracted.links).toEqual([
       {
         url: 'https://example.test/Function_(math)',
-        title: 'https://example.test/Function_(math)',
+        title: 'Function docs',
         image: false,
+      },
+    ])
+  })
+
+  it('normalizes accepted mixed-case HTTP schemes from Markdown and resource links', () => {
+    const extracted = collectExplicitResources([
+      '[Rendered](HTTPS://EXAMPLE.TEST/rendered)',
+      {
+        type: 'resource_link',
+        uri: 'HTTPS://EXAMPLE.TEST/image.png',
+        title: 'Generated image',
+        mimeType: 'image/png',
+      },
+    ])
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/rendered',
+        title: 'Rendered',
+        image: false,
+      },
+      {
+        url: 'https://example.test/image.png',
+        title: 'Generated image',
+        image: true,
       },
     ])
   })
@@ -83,12 +108,60 @@ describe('session resource extraction limits', () => {
     expect(extracted.links).toEqual([
       {
         url: 'https://example.test/rendered',
-        title: 'https://example.test/rendered',
+        title: 'Rendered docs',
         image: false,
       },
       {
         url: 'https://example.test/rendered-image',
-        title: 'https://example.test/rendered-image',
+        title: 'Rendered image',
+        image: false,
+      },
+    ])
+  })
+
+  it('uses bounded rendered link labels and falls back to the URL for an empty label', () => {
+    const longLabel = `Alpha **${'documentation'.repeat(80)}**`
+    const extracted = collectExplicitResources(
+      `[${longLabel}](https://example.test/labeled)\n[](https://example.test/unlabeled)`,
+    )
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/labeled',
+        title: `Alpha ${'documentation'.repeat(80)}`.slice(
+          0,
+          SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters,
+        ),
+        image: false,
+      },
+      {
+        url: 'https://example.test/unlabeled',
+        title: 'https://example.test/unlabeled',
+        image: false,
+      },
+    ])
+  })
+
+  it('bounds direct resource fields and rejects unsupported or credentialed URIs', () => {
+    const extracted = collectExplicitResources([
+      {
+        type: 'resource_link',
+        uri: `https://example.test/${'x'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters)}`,
+        title: 'Oversized URL',
+      },
+      { type: 'resource_link', uri: 'file:///private/secret', title: 'Local secret' },
+      { type: 'resource_link', uri: 'https://user:secret@example.test/private' },
+      {
+        type: 'resource_link',
+        uri: 'https://example.test/safe',
+        title: 'T'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters + 20),
+      },
+    ])
+
+    expect(extracted.links).toEqual([
+      {
+        url: 'https://example.test/safe',
+        title: 'T'.repeat(SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters),
         image: false,
       },
     ])

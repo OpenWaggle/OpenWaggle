@@ -17,7 +17,7 @@ async function acquireResourceLock(sessionId: SessionId) {
   }
 }
 
-/** Serializes resource capture, backfill, and permanent resource deletion per session. */
+/** Serializes resource projection, publication, Output recording, and deletion per session. */
 export function withSessionResourceLock<A, E, R>(
   sessionId: SessionId,
   effect: Effect.Effect<A, E, R>,

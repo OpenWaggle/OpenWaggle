@@ -1,10 +1,15 @@
 import { lstat } from 'node:fs/promises'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { SessionId } from '@shared/types/brand'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { resolveSessionOutputOccurrenceContext } from '../../application/session-resource-recording'
 import { typedHandle } from '../typed-ipc'
+import { withGitMutationLock } from './mutation-lock'
+import { verifySessionWorkingPath } from './session-working-path'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
+import { recordSessionCommitOutput } from './stacked-action-output-recording'
 import { GIT_LITERAL_PATHS, GIT_RAW_PATHS } from './status-constants'
 import { invalidateGitStatusCache } from './status-handler'
 import { parsePorcelain } from './status-parse'
@@ -248,6 +253,7 @@ async function stageCommitPaths(projectPath: string, paths: readonly string[]) {
 }
 
 const commitPayloadSchema = Schema.Struct({
+  sessionId: Schema.optional(Schema.String),
   message: Schema.String,
   amend: Schema.Boolean,
   paths: Schema.Array(Schema.String),
@@ -257,13 +263,42 @@ export function registerGitCommitHandlers(): void {
   typedHandle('git:commit', (_event, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const payload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
-      const result = yield* Effect.promise(() => commitGit(projectPath, payload))
-      if (result.ok) {
-        invalidateGitStatusCache(projectPath)
-        invalidateVcsStatus(projectPath)
-      }
-      return result
+      const decodedPayload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
+      const payload = {
+        ...decodedPayload,
+        sessionId:
+          decodedPayload.sessionId === undefined ? undefined : SessionId(decodedPayload.sessionId),
+      } satisfies GitCommitPayload
+      return yield* withGitMutationLock(
+        projectPath,
+        Effect.gen(function* () {
+          if (
+            payload.sessionId &&
+            !(yield* verifySessionWorkingPath(payload.sessionId, projectPath))
+          ) {
+            return commitFailure(
+              'unknown',
+              'The requested working tree does not belong to the originating session.',
+            )
+          }
+          const occurrenceContext = payload.sessionId
+            ? yield* resolveSessionOutputOccurrenceContext(payload.sessionId).pipe(
+                Effect.catchAll(() =>
+                  Effect.succeed({ nodeId: null, branchId: null, createdAt: Date.now() }),
+                ),
+              )
+            : null
+          const result = yield* Effect.promise(() => commitGit(projectPath, payload))
+          if (result.ok) {
+            invalidateGitStatusCache(projectPath)
+            invalidateVcsStatus(projectPath)
+            if (payload.sessionId && occurrenceContext) {
+              yield* recordSessionCommitOutput(result, payload.sessionId, occurrenceContext)
+            }
+          }
+          return result
+        }),
+      )
     }),
   )
 }

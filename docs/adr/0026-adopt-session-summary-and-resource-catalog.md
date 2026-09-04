@@ -25,7 +25,6 @@ Parity means matching the reference interaction for capabilities OpenWaggle trut
 | Host-defined sections | Host-owned descriptors plus declarative, isolated extension contributions |
 
 Authorization remains in the composer by product decision. OpenWaggle does not add generic Activity or Usage sections because it owns neither a useful Activity bucket nor a truthful account-quota source.
-
 ## Context
 
 OpenWaggle currently sends image attachments to Pi but projects Pi image blocks back into transcript text such as `[Image input: image/png]`. Attachment capabilities keep an original path only long enough to hydrate a send. The renderer therefore cannot reopen a shared image after reprojection, restart, or deletion of the original file.

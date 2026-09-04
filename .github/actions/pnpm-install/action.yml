@@ -1,0 +1,22 @@
+name: Install dependencies with pnpm
+description: Runs pnpm install --frozen-lockfile with bounded retries against transient registry and postinstall network failures.
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        attempt=1
+        while true; do
+          if pnpm install --frozen-lockfile; then
+            exit 0
+          fi
+          if [ "$attempt" -ge 3 ]; then
+            echo "pnpm install failed after $attempt attempts." >&2
+            exit 1
+          fi
+          echo "pnpm install failed (attempt $attempt); retrying in 15s." >&2
+          attempt=$((attempt + 1))
+          sleep 15
+        done

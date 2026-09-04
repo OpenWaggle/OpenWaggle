@@ -1,3 +1,4 @@
+export { ChangeRequestComposer } from './ChangeRequestComposer'
 export type { SessionSummaryExtensionSidePanelTarget } from './ExtensionSessionSummarySections'
 export { SessionMessageImages } from './SessionMessageImages'
 export { SessionResourcesPanel } from './SessionResourcesPanel'

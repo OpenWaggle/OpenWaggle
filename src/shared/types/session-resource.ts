@@ -32,6 +32,8 @@ export interface SessionResource {
   readonly title: string
   readonly mimeType: string | null
   readonly locator: string | null
+  /** Whether OpenWaggle has an immutable managed copy in addition to the original locator. */
+  readonly managed: boolean
   readonly available: boolean
   readonly isSource: boolean
   readonly isOutput: boolean
@@ -47,6 +49,8 @@ export interface SessionResourceList {
 
 export interface SessionResourceBackfillStatus {
   readonly backfillComplete: boolean
+  /** Whether this page durably advanced the historical projection cursor. */
+  readonly progressed: boolean
 }
 
 export interface SessionResourceContent {
@@ -59,9 +63,4 @@ export interface SessionResourceContent {
 export interface RecordSessionChangeRequestInput {
   readonly title: string
   readonly url: string
-}
-
-export interface RecordSessionCommitInput {
-  readonly commitHash: string
-  readonly title: string
 }

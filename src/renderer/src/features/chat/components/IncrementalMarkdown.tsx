@@ -5,12 +5,10 @@ import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Highlighter } from 'shiki'
 import { useIncrementalMarkdown } from '@/features/chat/hooks/useIncrementalMarkdown'
 import { SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
 import { type RehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
-import { isReactElementWithProps } from '@/shared/lib/react-element-guard'
-import type { ShikiCache } from '@/shared/lib/shiki/shiki-cache'
+import { fencedCodeLanguage } from '@/shared/lib/syntax/markdown-components'
 import { CodeBlock } from './CodeBlock'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -18,8 +16,6 @@ const REMARK_PLUGINS = [remarkGfm]
 interface IncrementalMarkdownProps {
   text: string
   isStreaming: boolean
-  highlighter: Highlighter | undefined
-  cache: ShikiCache
   rehypePlugins: RehypePlugins
   /** Lightweight plugins for the streaming tail (e.g. sanitize-only, no Shiki). */
   tailRehypePlugins?: RehypePlugins | undefined
@@ -28,22 +24,11 @@ interface IncrementalMarkdownProps {
 /**
  * Extract language from a <code className="language-xxx"> child inside a <pre>.
  */
-function extractLanguage(children: ReactNode) {
-  if (isReactElementWithProps<{ className?: string }>(children)) {
-    const className = children.props?.className
-    if (typeof className === 'string') {
-      const match = /language-(\w+)/.exec(className)
-      if (match) return match[1]
-    }
-  }
-  return undefined
-}
-
 /** Shared component overrides for both prefix and tail rendering. */
 const markdownComponents: Components = {
   a: SafeMarkdownLink,
   pre({ children }: { children?: ReactNode }) {
-    const language = extractLanguage(children)
+    const language = fencedCodeLanguage(children)
     return <CodeBlock language={language}>{children}</CodeBlock>
   },
   code({
@@ -58,6 +43,18 @@ const markdownComponents: Components = {
       <code className={className} {...props}>
         {children}
       </code>
+    )
+  },
+}
+
+const streamingTailMarkdownComponents: Components = {
+  ...markdownComponents,
+  pre({ children }: { children?: ReactNode }) {
+    const language = fencedCodeLanguage(children)
+    return (
+      <CodeBlock language={language} highlight={false}>
+        {children}
+      </CodeBlock>
     )
   },
 }
@@ -78,15 +75,10 @@ function PrefixView({ prefixHast }: { prefixHast: Root }) {
 export function IncrementalMarkdown({
   text,
   isStreaming,
-  highlighter,
-  cache,
   rehypePlugins,
   tailRehypePlugins,
 }: IncrementalMarkdownProps) {
-  const { prefixHast, tail } = useIncrementalMarkdown(text, isStreaming, {
-    highlighter,
-    cache,
-  })
+  const { prefixHast, tail } = useIncrementalMarkdown(text, isStreaming)
 
   if (prefixHast !== null && isStreaming) {
     return (
@@ -96,7 +88,7 @@ export function IncrementalMarkdown({
           remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={tailRehypePlugins ?? rehypePlugins}
           urlTransform={safeMarkdownUrlTransform}
-          components={markdownComponents}
+          components={streamingTailMarkdownComponents}
         >
           {tail}
         </ReactMarkdown>
@@ -109,7 +101,7 @@ export function IncrementalMarkdown({
       remarkPlugins={REMARK_PLUGINS}
       rehypePlugins={rehypePlugins}
       urlTransform={safeMarkdownUrlTransform}
-      components={markdownComponents}
+      components={isStreaming ? streamingTailMarkdownComponents : markdownComponents}
     >
       {text}
     </ReactMarkdown>

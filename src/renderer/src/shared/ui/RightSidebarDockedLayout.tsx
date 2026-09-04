@@ -63,6 +63,7 @@ export function RightSidebarDockedLayout({
             className="absolute inset-y-0 right-0 h-full min-w-0 overflow-hidden border-l border-border bg-diff-bg"
             data-right-sidebar-panel="true"
             style={sidebarPanelStyle()}
+            tabIndex={-1}
           >
             {sidebar}
           </div>

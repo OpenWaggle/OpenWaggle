@@ -39,12 +39,14 @@ export interface BackfillImageState {
   readonly knownResources: ReadonlyMap<string, SessionResource>
   readonly deferred: BackfillImageInput[]
   projectionBlocked: boolean
+  progressed: boolean
 }
 
 export interface BackfillToolState {
   count: number
   readonly capturedOccurrences: Set<string>
   projectionBlocked: boolean
+  progressed: boolean
 }
 
 export function attemptBackfilledImage(input: BackfillImageInput, state: BackfillImageState) {
@@ -63,11 +65,13 @@ export function attemptBackfilledImage(input: BackfillImageInput, state: Backfil
       }
       yield* captureUnavailableGeneratedImage(input)
       state.knownSlots.add(slot)
+      state.progressed = true
       return
     }
     yield* captureGeneratedImage({ ...input, validatedImage: prepared.image })
     state.completedSlots.add(slot)
     state.knownSlots.add(slot)
+    state.progressed = true
   })
 }
 
@@ -122,6 +126,7 @@ export function captureBackfilledAssistantResources(
         createdAt: message.createdAt,
       }).pipe(Effect.catchAll(() => Effect.void))
       toolState.capturedOccurrences.add(toolOccurrence)
+      toolState.progressed = true
       for (const group of groups) {
         const captured = collectExplicitResources(group.result)
         for (const image of captured.images) {

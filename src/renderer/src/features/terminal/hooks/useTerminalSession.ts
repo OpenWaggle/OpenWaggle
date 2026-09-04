@@ -3,8 +3,8 @@ import { type ITheme, Terminal } from '@xterm/xterm'
 import { type RefObject, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
-const FONT_SIZE = 14
 const TERMINAL_SELECTION_OPACITY = 0.3
+const DEFAULT_TERMINAL_FONT_SIZE = 14
 
 function colorWithOpacity(color: string, opacity: number) {
   const context = document.createElement('canvas').getContext('2d')
@@ -43,14 +43,19 @@ function terminalAppearance() {
     brightWhite: color('--color-text-primary'),
   }
 
-  return { fontFamily: styles.getPropertyValue('--font-mono').trim(), theme }
+  const fontSize = Number.parseFloat(styles.getPropertyValue('--font-terminal-size'))
+  return {
+    fontFamily: styles.getPropertyValue('--font-terminal').trim(),
+    fontSize: Number.isFinite(fontSize) ? fontSize : DEFAULT_TERMINAL_FONT_SIZE,
+    theme,
+  }
 }
 
 function createTerminal() {
   const appearance = terminalAppearance()
   return new Terminal({
     theme: appearance.theme,
-    fontSize: FONT_SIZE,
+    fontSize: appearance.fontSize,
     fontFamily: appearance.fontFamily,
     cursorBlink: true,
     allowProposedApi: true,
@@ -103,16 +108,32 @@ export function useTerminalSession(projectPath: string | null) {
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     term.open(containerRef.current)
-    requestAnimationFrame(() => fitAddon.fit())
+    let geometryFrame: number | null = null
+    const synchronizeGeometry = () => {
+      if (geometryFrame !== null) cancelAnimationFrame(geometryFrame)
+      geometryFrame = requestAnimationFrame(() => {
+        geometryFrame = null
+        if (cleanedUp) return
+        fitAddon.fit()
+        if (terminalIdRef.current) {
+          api.resizeTerminal(terminalIdRef.current, term.cols, term.rows)
+        }
+      })
+    }
+    synchronizeGeometry()
     const appearanceObserver = new MutationObserver(() => {
       const appearance = terminalAppearance()
       term.options.theme = appearance.theme
       term.options.fontFamily = appearance.fontFamily
+      term.options.fontSize = appearance.fontSize
+      synchronizeGeometry()
     })
+    const fitLoadedFont = () => synchronizeGeometry()
     appearanceObserver.observe(document.documentElement, {
-      attributeFilter: ['data-theme'],
+      attributeFilter: ['data-theme', 'style'],
       attributes: true,
     })
+    document.fonts.addEventListener('loadingdone', fitLoadedFont)
 
     const cwd = projectPath ?? ''
     // This effect owns the terminal it creates. Tracking the id in an
@@ -151,9 +172,11 @@ export function useTerminalSession(projectPath: string | null) {
 
     return () => {
       cleanedUp = true
+      if (geometryFrame !== null) cancelAnimationFrame(geometryFrame)
       inputDispose.dispose()
       unsubscribe()
       appearanceObserver.disconnect()
+      document.fonts.removeEventListener('loadingdone', fitLoadedFont)
       resizeObserver.disconnect()
       if (createdTerminalId) void api.closeTerminal(createdTerminalId)
       term.dispose()

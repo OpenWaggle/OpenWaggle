@@ -15,7 +15,6 @@ import { SESSION_SUMMARY_SECTION_ORDER } from '../SessionSummaryPanelSections'
 const listSessionResources = vi.hoisted(() => vi.fn())
 const listArchivedSessions = vi.hoisted(() => vi.fn())
 const listMcpEventSubscriptions = vi.hoisted(() => vi.fn())
-const recordSessionCommit = vi.hoisted(() => vi.fn())
 const useStackedGitActions = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -23,7 +22,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     listSessionResources,
     listArchivedSessions,
     listMcpEventSubscriptions,
-    recordSessionCommit,
     openExternal: vi.fn(),
   },
 }))
@@ -150,7 +148,6 @@ describe('SessionSummaryHub', () => {
     listSessionResources.mockReset().mockResolvedValue([])
     listArchivedSessions.mockReset().mockResolvedValue([])
     listMcpEventSubscriptions.mockReset().mockResolvedValue([])
-    recordSessionCommit.mockReset().mockResolvedValue({})
     useStackedGitActions.mockReset().mockReturnValue({ isRunning: false, run: vi.fn() })
   })
 
@@ -161,6 +158,7 @@ describe('SessionSummaryHub', () => {
       'extensions-context',
       'hive',
       'extensions-coordination',
+      'resource-catalog',
       'outputs',
       'sources',
       'extensions-details',
@@ -179,6 +177,18 @@ describe('SessionSummaryHub', () => {
     expect(screen.getByText('Changes')).toBeInTheDocument()
     expect(screen.getByText('Create PR')).toBeInTheDocument()
     await waitFor(() => expect(listSessionResources).toHaveBeenCalledWith(SessionId('session-1')))
+  })
+
+  it('keeps a failed resource catalog visible and retryable in the Summary', async () => {
+    listSessionResources
+      .mockRejectedValueOnce(new Error('catalog unavailable'))
+      .mockResolvedValue([])
+    renderHub()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load session resources.')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
   })
 
   it('keeps long summary content inside a bounded, scrollable surface', () => {
@@ -278,24 +288,10 @@ describe('SessionSummaryHub', () => {
     expect(onOpenResources).toHaveBeenCalledWith({ view: 'outputs', resourceId: 'resource-1' })
   })
 
-  it('records a stacked commit against the session that owns the Summary', async () => {
+  it('runs stacked actions against the session that owns the Summary', () => {
     renderHub({ activeSession: session('session-owner') })
     const options = useStackedGitActions.mock.calls.at(-1)?.[0]
-    if (typeof options?.onCommitCreated !== 'function') {
-      throw new Error('Expected the Summary to install its commit recorder.')
-    }
-
-    await act(() =>
-      options.onCommitCreated({
-        commitHash: '0123456789abcdef0123456789abcdef01234567',
-        title: 'Summary-owned commit',
-      }),
-    )
-
-    expect(recordSessionCommit).toHaveBeenCalledWith(SessionId('session-owner'), {
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
-      title: 'Summary-owned commit',
-    })
+    expect(options?.sessionId).toBe(SessionId('session-owner'))
   })
 
   it('persists collapsed state per session', () => {

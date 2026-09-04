@@ -5,7 +5,7 @@ import { Textarea } from '@/shared/ui/Textarea'
 
 const DESCRIPTION_ROWS = 6
 
-interface ChangeRequestFieldsModel {
+export interface ChangeRequestFieldsModel {
   readonly createFeatureBranch: boolean
   readonly branchName: string
   readonly title: string

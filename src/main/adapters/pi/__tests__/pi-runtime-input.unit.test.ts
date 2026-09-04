@@ -95,4 +95,28 @@ describe('buildPiPromptInput', () => {
     expect(result.text).toContain('[Attachment: diagram.png]')
     expect(result.text.length).toBeGreaterThan(0)
   })
+
+  it('keeps reported visualization state separate from visible prompt text', () => {
+    const models = makeModels()
+    const result = buildPiPromptInput(
+      models.text,
+      makePayload({
+        text: 'Why is this service selected?',
+        attachments: [],
+        visualizationContext: {
+          title: 'Service map',
+          sourcePath: '/repo/service-map.html',
+          state: { selectedService: 'api', filters: ['errors'] },
+        },
+      }),
+    )
+
+    expect(result.text).toBe('Why is this service selected?')
+    expect(result.visualizationContext).toContain(
+      'untrusted data reported by the mounted visualization',
+    )
+    expect(result.visualizationContext).toContain(
+      '{"title":"Service map","sourcePath":"/repo/service-map.html","state":{"selectedService":"api","filters":["errors"]}}',
+    )
+  })
 })

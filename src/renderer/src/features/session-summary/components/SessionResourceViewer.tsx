@@ -1,23 +1,26 @@
+import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { api } from '@/shared/lib/ipc'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useUIStore } from '@/shell/ui-store'
+import { useSessionResourceBranchNames } from '../hooks/useSessionResourceBranchNames'
 import {
   sessionResourceContentQueryOptions,
   sessionResourcesQueryKey,
   useSessionResources,
 } from '../hooks/useSessionResources'
 import { isViewableSessionImage } from '../model/session-resource-viewability'
-import {
-  SessionResourceViewerCanvas,
-  type ImageViewerZoom as Zoom,
-} from './SessionResourceViewerCanvas'
+import type { ImageViewerZoom as Zoom } from './SessionResourceViewerCanvas'
 import {
   SessionResourceViewerCatalogState,
-  SessionResourceViewerHeader,
   VIEWER_DIALOG_CLASS,
 } from './SessionResourceViewerChrome'
+import { SessionResourceViewerContent } from './SessionResourceViewerContent'
+import { SessionResourceViewerHeader } from './SessionResourceViewerHeader'
+import { SessionResourceViewerNavigation } from './SessionResourceViewerNavigation'
+import { useCenteredImageZoom } from './useCenteredImageZoom'
 
 const EMPTY_MESSAGE_IDS: ReadonlySet<string> = new Set()
 
@@ -96,30 +99,130 @@ function selectedImage(resourceId: string | null, images: readonly SessionResour
   return { index, resource: index >= 0 ? (images[index] ?? null) : null }
 }
 
+function useSessionResourceRetry(
+  sessionId: string | null,
+  resource: SessionResource | null,
+  retryKey: string,
+  refetch: () => Promise<unknown>,
+) {
+  const queryClient = useQueryClient()
+  const retryingRef = useRef(false)
+  const [retryState, setRetryState] = useState<{
+    readonly key: string
+    readonly retrying: boolean
+    readonly error: string | null
+  }>({ key: retryKey, retrying: false, error: null })
+  const current =
+    retryState.key === retryKey ? retryState : { key: retryKey, retrying: false, error: null }
+  return {
+    ...current,
+    retry: async () => {
+      if (!sessionId || !resource || retryingRef.current) return
+      retryingRef.current = true
+      setRetryState({ key: retryKey, retrying: true, error: null })
+      try {
+        await api.retrySessionResource(SessionId(sessionId), resource.id)
+        await queryClient.invalidateQueries({
+          queryKey: sessionResourcesQueryKey(sessionId),
+          exact: true,
+        })
+        await refetch()
+      } catch (cause) {
+        setRetryState({
+          key: retryKey,
+          retrying: false,
+          error: cause instanceof Error ? cause.message : 'Could not retry this image.',
+        })
+      } finally {
+        retryingRef.current = false
+        setRetryState((state) => (state.key === retryKey ? { ...state, retrying: false } : state))
+      }
+    },
+  }
+}
+
+function viewerContentIdentity(sessionId: string | null, resource: SessionResource | null) {
+  return {
+    sessionId: sessionId ?? 'none',
+    resourceId: resource?.id ?? 'none',
+    updatedAt: resource?.updatedAt ?? 0,
+  }
+}
+
+function viewerResourceFlags(resource: SessionResource | null, sessionIsActive: boolean) {
+  const locator = resource?.locator ?? ''
+  const remote = locator.startsWith('https://')
+  return {
+    enabled:
+      sessionIsActive && resource?.kind === 'image' && (!remote || resource.available === true),
+    unavailable: resource?.available === false,
+    remote,
+    managed: resource?.managed === true || locator.startsWith('session-resource://'),
+  }
+}
+
+function useRemoteResourceProjectionRefresh(
+  sessionId: string | null,
+  remote: boolean,
+  hasContentOrError: boolean,
+) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!hasContentOrError || !sessionId || !remote) return
+    void queryClient.invalidateQueries({
+      queryKey: sessionResourcesQueryKey(sessionId),
+      exact: true,
+    })
+  }, [hasContentOrError, queryClient, remote, sessionId])
+}
+
+function viewerSourceState(
+  data: { readonly mimeType: string; readonly dataBase64: string } | null | undefined,
+  state: { readonly pending: boolean; readonly error: boolean; readonly success: boolean },
+  managed: boolean,
+  unavailable: boolean,
+) {
+  return {
+    source: data ? contentUrl(data) : null,
+    loading: state.pending && !unavailable,
+    failed: unavailable || state.error || (managed && state.success && data === null),
+  }
+}
+
 function useViewerSource(
   sessionId: string | null,
   resource: SessionResource | null,
   sessionIsActive: boolean,
 ) {
-  const queryClient = useQueryClient()
+  const identity = viewerContentIdentity(sessionId, resource)
+  const flags = viewerResourceFlags(resource, sessionIsActive)
+  const retryKey = `${identity.sessionId}:${identity.resourceId}`
   const content = useQuery({
     ...sessionResourceContentQueryOptions(
-      sessionId ?? 'none',
-      resource?.id ?? 'none',
-      resource?.updatedAt ?? 0,
+      identity.sessionId,
+      identity.resourceId,
+      identity.updatedAt,
     ),
-    enabled: sessionIsActive && resource?.kind === 'image',
+    enabled: flags.enabled,
   })
-  const remoteLocator = resource?.locator?.startsWith('https://') === true
-  useEffect(() => {
-    if (!content.data || !sessionId || !remoteLocator) return
-    void queryClient.invalidateQueries({ queryKey: sessionResourcesQueryKey(sessionId) })
-  }, [content.data, queryClient, remoteLocator, sessionId])
+  useRemoteResourceProjectionRefresh(
+    sessionId,
+    flags.remote,
+    Boolean(content.data || content.isError),
+  )
+  const retry = useSessionResourceRetry(sessionId, resource, retryKey, content.refetch)
+  const source = viewerSourceState(
+    content.data,
+    { pending: content.isPending, error: content.isError, success: content.isSuccess },
+    flags.managed,
+    flags.unavailable,
+  )
   return {
-    source: content.data ? contentUrl(content.data) : null,
-    loading: content.isLoading,
+    ...source,
     errorMessage: content.error?.message ?? null,
-    retry: content.refetch,
+    retrying: retry.retrying,
+    retryError: retry.error,
+    retry: retry.retry,
   }
 }
 
@@ -128,6 +231,10 @@ function selectedZoom(
   zoomState: { readonly resourceId: string; readonly zoom: Zoom } | undefined,
 ): Zoom {
   return resource && zoomState?.resourceId === resource.id ? zoomState.zoom : 'fit'
+}
+
+function selectedResourceId(resource: SessionResource | null) {
+  return resource?.id ?? null
 }
 
 export function SessionResourceViewer({
@@ -142,15 +249,18 @@ export function SessionResourceViewer({
   const open = useUIStore((state) => state.openResourceViewer)
   const [zoomState, setZoomState] = useState<{ readonly resourceId: string; readonly zoom: Zoom }>()
   const viewerSessionId = viewer?.sessionId ?? null
+  const branchNames = useSessionResourceBranchNames(viewerSessionId)
   const resourcesQuery = useSessionResources(viewerSessionId)
   const images = orderedImages(resourcesQuery.data, activeMessageIds)
   const { index, resource } = selectedImage(viewer?.resourceId ?? null, images)
-  const sourceState = useViewerSource(
-    viewerSessionId,
-    resource,
-    viewerSessionId !== null && viewerSessionId === activeSessionId,
-  )
+  const sessionIsActive = viewerSessionId !== null && viewerSessionId === activeSessionId
+  const viewerSource = useViewerSource(viewerSessionId, resource, sessionIsActive)
   const zoom = selectedZoom(resource, zoomState)
+  const centeredZoom = useCenteredImageZoom(
+    selectedResourceId(resource),
+    zoom,
+    viewerSource.source !== null,
+  )
 
   useCloseViewerOnSessionChange(viewerSessionId, activeSessionId, close)
   useViewerKeyboardNavigation(viewerSessionId, images, index, open)
@@ -184,18 +294,24 @@ export function SessionResourceViewer({
           index={index}
           count={images.length}
           zoom={zoom}
-          source={sourceState.source}
-          onZoomChange={(next) => setZoomState({ resourceId: resource.id, zoom: next })}
+          source={viewerSource.source}
+          branchNames={branchNames}
+          onZoomChange={(next) => {
+            centeredZoom.captureCenter(next)
+            setZoomState({ resourceId: resource.id, zoom: next })
+          }}
           onClose={close}
         />
-        <SessionResourceViewerCanvas
+        <SessionResourceViewerNavigation
+          index={index}
+          count={images.length}
+          onNavigate={navigate}
+        />
+        <SessionResourceViewerContent
           resource={resource}
-          source={sourceState.source}
-          loading={sourceState.loading}
-          errorMessage={sourceState.errorMessage}
           zoom={zoom}
-          navigation={{ index, count: images.length, onNavigate: navigate }}
-          onRetry={() => void sourceState.retry()}
+          canvasRef={centeredZoom.viewportRef}
+          model={viewerSource}
         />
       </div>
     </ModalDialog>

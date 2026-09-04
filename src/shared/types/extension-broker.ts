@@ -23,11 +23,9 @@ import type {
   extensionRuntimeRegisterContributionResultSchema,
   extensionRuntimeUnregisterContributionPayloadSchema,
   extensionRuntimeUnregisterContributionResultSchema,
-  extensionSessionResourceCategorySchema,
-  extensionSessionResourceListPayloadSchema,
-  extensionSessionResourceListResultSchema,
   extensionSessionResourcePublishPayloadSchema,
   extensionSessionResourcePublishResultSchema,
+  extensionSessionResourcesListResultSchema,
   extensionSessionResourceViewSchema,
   extensionSessionViewSchema,
   extensionSettingsGetPayloadSchema,
@@ -96,25 +94,19 @@ export type ExtensionRuntimeRegisterContributionResult = SchemaType<
 export type ExtensionRuntimeUnregisterContributionResult = SchemaType<
   typeof extensionRuntimeUnregisterContributionResultSchema
 >
-export type ExtensionSessionResourcePublishPayload = SchemaType<
-  typeof extensionSessionResourcePublishPayloadSchema
->
-export type ExtensionSessionResourceListPayload = SchemaType<
-  typeof extensionSessionResourceListPayloadSchema
->
-export type ExtensionSessionResourceCategory = SchemaType<
-  typeof extensionSessionResourceCategorySchema
->
-export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>
-export type ExtensionSessionResourcePublishResult = SchemaType<
-  typeof extensionSessionResourcePublishResultSchema
->
-export type ExtensionSessionResourceListResult = SchemaType<
-  typeof extensionSessionResourceListResultSchema
->
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>
 export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>
+export type ExtensionSessionResourcePublishPayload = SchemaType<
+  typeof extensionSessionResourcePublishPayloadSchema
+>
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>
+export type ExtensionSessionResourcesListResult = SchemaType<
+  typeof extensionSessionResourcesListResultSchema
+>
+export type ExtensionSessionResourcePublishResult = SchemaType<
+  typeof extensionSessionResourcePublishResultSchema
+>
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>
 export type ExtensionStateSelector = SchemaType<typeof extensionStateSelectorSchema>
 export type ExtensionStateReadPayload = SchemaType<typeof extensionStateReadPayloadSchema>

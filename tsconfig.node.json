@@ -28,6 +28,8 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "packages/**/*.ts",
+    "e2e/support/electron-process-tree.ts",
+    "e2e/support/electron-process-tree*.unit.test.ts",
     "e2e/support/session-fixtures.ts",
     "scripts/**/*.ts",
     "doctor.config.ts",

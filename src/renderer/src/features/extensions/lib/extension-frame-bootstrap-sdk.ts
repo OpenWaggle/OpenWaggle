@@ -1,4 +1,9 @@
 import { EXTENSION_FRAME_SURFACE_ACTION } from '@shared/constants/extension-frame'
+import type {
+  OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightOptions,
+  OpenWaggleExtensionSyntaxHighlightResult,
+} from '@shared/extension-sdk'
 import { createExtensionBrokerSdkFromInvoke } from '@shared/extension-sdk'
 import type { ExtensionSdkInvokeRequest } from '@shared/extension-sdk-core'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
@@ -19,7 +24,13 @@ function frameOpenExternal(post: FramePost) {
   }
 }
 
-function frameSurfaceSdk(post: FramePost): ExtensionFrameSdk['surface'] {
+function frameSurfaceSdk(
+  post: FramePost,
+  highlightSyntax: (
+    input: OpenWaggleExtensionSyntaxHighlightInput,
+    options?: OpenWaggleExtensionSyntaxHighlightOptions,
+  ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>,
+): ExtensionFrameSdk['surface'] {
   return {
     sendAction: (actionId, payload) => {
       post(
@@ -37,11 +48,16 @@ function frameSurfaceSdk(post: FramePost): ExtensionFrameSdk['surface'] {
       })
       return Promise.resolve()
     },
+    syntax: { highlight: highlightSyntax },
   }
 }
 
 export function createFrameExtensionSdk(input: {
   readonly invokeBroker: (input: ExtensionSdkInvokeRequest) => Promise<ExtensionInvokeResult>
+  readonly highlightSyntax: (
+    input: OpenWaggleExtensionSyntaxHighlightInput,
+    options?: OpenWaggleExtensionSyntaxHighlightOptions,
+  ) => Promise<OpenWaggleExtensionSyntaxHighlightResult>
   readonly post: FramePost
 }): ExtensionFrameSdk {
   const brokerSdk = createExtensionBrokerSdkFromInvoke(input.invokeBroker, {
@@ -50,6 +66,6 @@ export function createFrameExtensionSdk(input: {
 
   return {
     ...brokerSdk,
-    surface: frameSurfaceSdk(input.post),
+    surface: frameSurfaceSdk(input.post, input.highlightSyntax),
   }
 }

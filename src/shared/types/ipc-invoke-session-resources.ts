@@ -1,7 +1,6 @@
 import type { SessionId } from './brand'
 import type {
   RecordSessionChangeRequestInput,
-  RecordSessionCommitInput,
   SessionResource,
   SessionResourceBackfillStatus,
   SessionResourceContent,
@@ -31,10 +30,6 @@ export interface SessionResourceIpcInvokeChannels {
   }
   'sessions:resources:record-change-request': {
     args: [sessionId: SessionId, input: RecordSessionChangeRequestInput]
-    return: SessionResource
-  }
-  'sessions:resources:record-commit': {
-    args: [sessionId: SessionId, input: RecordSessionCommitInput]
     return: SessionResource
   }
 }

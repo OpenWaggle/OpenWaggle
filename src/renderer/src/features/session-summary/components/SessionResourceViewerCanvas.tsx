@@ -1,16 +1,9 @@
 import type { SessionResource } from '@shared/types/session-resource'
-import { ChevronLeft, ChevronRight, CircleAlert, LoaderCircle } from 'lucide-react'
-import { type PointerEvent as ReactPointerEvent, useRef, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 
 export type ImageViewerZoom = 'fit' | '25' | '50' | '100' | '150' | '200'
-
-export interface ImageViewerNavigation {
-  readonly index: number
-  readonly count: number
-  readonly onNavigate: (index: number) => void
-}
 
 const PERCENT_DENOMINATOR = 100
 
@@ -32,8 +25,7 @@ function imageStyle(
       }
 }
 
-function useCanvasDrag(pannable: boolean) {
-  const canvasRef = useRef<HTMLElement>(null)
+function useCanvasDrag(pannable: boolean, canvasRef: RefObject<HTMLElement | null>) {
   const dragRef = useRef<{
     readonly pointerId: number
     readonly clientX: number
@@ -73,25 +65,19 @@ function useCanvasDrag(pannable: boolean) {
     dragRef.current = null
     setDragging(false)
   }
-  return { canvasRef, dragging, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }
+  return { dragging, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }
 }
 
 export function SessionResourceViewerCanvas({
   resource,
   source,
-  loading,
-  errorMessage,
   zoom,
-  navigation,
-  onRetry,
+  canvasRef,
 }: {
   readonly resource: SessionResource
   readonly source: string | null
-  readonly loading: boolean
-  readonly errorMessage: string | null
   readonly zoom: ImageViewerZoom
-  readonly navigation: ImageViewerNavigation
-  readonly onRetry: () => void
+  readonly canvasRef: RefObject<HTMLElement | null>
 }) {
   const [intrinsicSize, setIntrinsicSize] = useState<{
     readonly resourceId: string
@@ -100,11 +86,11 @@ export function SessionResourceViewerCanvas({
   } | null>(null)
   const imageSize = intrinsicSize?.resourceId === resource.id ? intrinsicSize : null
   const pannable = source !== null && zoom !== 'fit'
-  const drag = useCanvasDrag(pannable)
+  const drag = useCanvasDrag(pannable, canvasRef)
 
   return (
     <section
-      ref={drag.canvasRef}
+      ref={canvasRef}
       aria-label="Image canvas"
       className={`relative min-h-0 flex-1 overflow-auto bg-bg-tertiary p-8 ${
         pannable ? (drag.dragging ? 'cursor-grabbing' : 'cursor-grab') : ''
@@ -114,18 +100,8 @@ export function SessionResourceViewerCanvas({
       onPointerUp={drag.onPointerUp}
       onPointerCancel={drag.onPointerCancel}
     >
-      <Button
-        variant="secondary"
-        size="icon-sm"
-        aria-label="Previous image"
-        disabled={navigation.index <= 0}
-        className="fixed left-5 top-1/2 z-10"
-        onClick={() => navigation.onNavigate(navigation.index - 1)}
-      >
-        <ChevronLeft className="size-5" />
-      </Button>
       {source ? (
-        <div className="flex min-h-full min-w-full items-center justify-center">
+        <div className="grid h-max min-h-full w-max min-w-full place-items-center">
           <img
             alt={resource.title}
             src={source}
@@ -140,29 +116,6 @@ export function SessionResourceViewerCanvas({
               })
             }}
           />
-        </div>
-      ) : loading ? (
-        <div role="status" className="flex min-h-full items-center justify-center gap-2">
-          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-          <span className="text-sm text-text-tertiary">Loading full-size image…</span>
-        </div>
-      ) : errorMessage ? (
-        <div
-          role="alert"
-          className="mx-auto max-w-sm rounded-lg border border-border bg-bg-secondary p-6 text-center"
-        >
-          <CircleAlert className="mx-auto mb-3 size-5 text-warning" aria-hidden="true" />
-          <p className="text-sm font-medium text-text-primary">Couldn’t load this image.</p>
-          <p className="mt-1 text-xs text-text-tertiary">{errorMessage}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-4"
-            aria-label="Retry loading image"
-            onClick={onRetry}
-          >
-            Retry
-          </Button>
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-bg-secondary p-6 text-center">
@@ -179,16 +132,6 @@ export function SessionResourceViewerCanvas({
           ) : null}
         </div>
       )}
-      <Button
-        variant="secondary"
-        size="icon-sm"
-        aria-label="Next image"
-        disabled={navigation.index >= navigation.count - 1}
-        className="fixed right-5 top-1/2 z-10"
-        onClick={() => navigation.onNavigate(navigation.index + 1)}
-      >
-        <ChevronRight className="size-5" />
-      </Button>
     </section>
   )
 }

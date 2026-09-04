@@ -17,6 +17,7 @@
     "src/custom-message.js",
     "src/interaction.js",
     "src/status.js",
+    "src/resources.js",
     "pi/extensions/github-issues-tool.js"
   ],
   "builtArtifacts": [
@@ -29,6 +30,7 @@
     "modules/custom-message.js",
     "modules/interaction.js",
     "modules/status.js",
+    "modules/resources.js",
     "pi/extensions/github-issues-tool.js"
   ],
   "install": {
@@ -42,6 +44,11 @@
       "id": "openwaggle.storage",
       "methods": ["get", "set", "list"],
       "scopes": ["project"]
+    },
+    {
+      "id": "openwaggle.resources",
+      "methods": ["list-resources", "publish-resource"],
+      "scopes": ["session"]
     }
   ],
   "contributions": {
@@ -65,6 +72,15 @@
         "entry": "modules/side-panel.js",
         "capability": "openwaggle.storage",
         "methods": ["get", "set", "list"]
+      },
+      {
+        "id": "github.resources",
+        "title": "GitHub Session Resources",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/resources.js",
+        "capability": "openwaggle.resources",
+        "methods": ["list-resources", "publish-resource"]
       }
     ],
     "transcriptRenderers": [

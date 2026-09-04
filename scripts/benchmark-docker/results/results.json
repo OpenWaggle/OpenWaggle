@@ -1,0 +1,83 @@
+{
+  "model": "z-ai/glm-5.3-flash",
+  "environment": "Docker (node:24-bookworm-slim), pinned agent versions, fresh home per agent, empty project, no AGENTS.md/skills/plugins/extensions/MCP; all traffic through a local logging proxy injecting the OpenRouter key",
+  "agents": {
+    "pi081": {
+      "name": "Pi CLI 0.81.1 (OpenWaggle-bundled)",
+      "turnOneTokens": 1319,
+      "modelCalls": 1,
+      "cliReported": 1319,
+      "cli": {
+        "turnOneTokens": 1319,
+        "outputTokens": 3,
+        "stopReason": "stop"
+      }
+    },
+    "pi084": {
+      "name": "Pi CLI 0.84.4",
+      "turnOneTokens": 1356,
+      "modelCalls": 1,
+      "cliReported": 1356,
+      "cli": {
+        "turnOneTokens": 1356,
+        "outputTokens": 3,
+        "stopReason": "stop"
+      }
+    },
+    "claude": {
+      "name": "Claude Code 2.1.247",
+      "turnOneTokens": 17608,
+      "modelCalls": 1,
+      "cliReported": 17608,
+      "cli": {
+        "turnOneTokens": 17608,
+        "outputTokens": 3,
+        "isError": false
+      }
+    },
+    "codex": {
+      "name": "Codex CLI 0.150.1",
+      "turnOneTokens": 9957,
+      "modelCalls": 1,
+      "cliReported": 9957,
+      "cli": {
+        "turnOneTokens": 9957,
+        "cachedInputTokens": 9920,
+        "outputTokens": 3
+      }
+    },
+    "opencode": {
+      "name": "opencode 1.18.26",
+      "turnOneTokens": 7054,
+      "modelCalls": 1,
+      "cliReported": 7054,
+      "cli": {
+        "turnOneTokens": 7054,
+        "outputTokens": 4
+      }
+    },
+    "reasonix": {
+      "name": "DeepSeek Reasonix 1.35.0",
+      "turnOneTokens": 5279,
+      "modelCalls": 1,
+      "cliReported": 10558,
+      "cli": {
+        "turnOneTokens": 10558,
+        "outputTokens": 3,
+        "numTurns": 1
+      }
+    },
+    "aider": {
+      "name": "Aider 0.86.2",
+      "turnOneTokens": 587,
+      "modelCalls": 1,
+      "cliError": "wire only"
+    },
+    "dsh": {
+      "name": "DeepSeek Harness (sdk-minimal)",
+      "turnOneTokens": 1115,
+      "modelCalls": 1,
+      "cliError": "wire only"
+    }
+  }
+}

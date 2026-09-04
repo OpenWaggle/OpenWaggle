@@ -83,10 +83,10 @@
       "import": "./dist/runtime.js",
       "require": "./dist-cjs/runtime.js"
     },
-    "./session-resources": {
-      "types": "./dist/session-resources.d.ts",
-      "import": "./dist/session-resources.js",
-      "require": "./dist-cjs/session-resources.js"
+    "./syntax": {
+      "types": "./dist/syntax.d.ts",
+      "import": "./dist/syntax.js",
+      "require": "./dist-cjs/syntax.js"
     },
     "./theme": {
       "types": "./dist/theme.d.ts",

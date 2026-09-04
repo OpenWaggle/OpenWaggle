@@ -12,13 +12,17 @@ import {
   forkAgentSessionToNewSession,
 } from '../application/agent-session-service'
 import { cleanupQueuedSessionResources } from '../application/session-resource-cleanup'
+import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
+import { InlineVisualizationService } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
+
+const logger = createLogger('session-details-handler')
 
 function cleanupBeforeSessionRemoval(sessionId: SessionId) {
   const cancelledActiveRun = cancelSessionRuns(sessionId)
@@ -147,9 +151,20 @@ function registerSessionMutationHandlers() {
     Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
       Effect.zipRight(
         Effect.gen(function* () {
+          const visualizations = yield* InlineVisualizationService
+          const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
           const repo = yield* SessionProjectionRepository
-          yield* repo.delete(id)
+          yield* repo.delete(id).pipe(Effect.tapError(() => stagedDeletion.rollback))
           yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
+          yield* stagedDeletion.commit.pipe(
+            Effect.catchAll((error) => {
+              logger.warn('Deferred visualization tombstone cleanup after session deletion', {
+                sessionId: String(id),
+                error: String(error),
+              })
+              return Effect.void
+            }),
+          )
         }),
       ),
     ),

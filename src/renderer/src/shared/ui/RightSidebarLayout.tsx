@@ -77,6 +77,17 @@ export function RightSidebarLayout({
     mainRef.current?.focus({ preventScroll: true })
   }, [open])
 
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!open || !panel || panel.contains(document.activeElement)) return
+    queueMicrotask(() => {
+      const target = panel.querySelector<HTMLElement>(
+        '[data-right-sidebar-focus-target="true"], button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      )
+      ;(target ?? panel).focus({ preventScroll: true })
+    })
+  }, [open])
+
   function captureSidebar(node: HTMLDivElement | null) {
     sidebarRef.current = node
     if (node && open) setHasOpened(true)
@@ -103,7 +114,9 @@ export function RightSidebarLayout({
   if (isSheet) {
     return (
       <>
-        {children}
+        <div inert={open} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          {children}
+        </div>
         {shouldRenderSidebar ? (
           <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
             {sidebar}

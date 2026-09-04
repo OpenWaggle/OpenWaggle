@@ -1,5 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { SessionId, WorkingPath } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
+import type { IpcRendererEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -34,21 +36,6 @@ describe('preload api surface contract', () => {
       'sessions:resources:read',
       SessionId('session-1'),
       'resource-1',
-    )
-  })
-
-  it('records a commit only in the explicitly requested session', async () => {
-    const input = {
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
-      title: 'Record commit output',
-    }
-
-    await api.recordSessionCommit(SessionId('session-1'), input)
-
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
-      'sessions:resources:record-commit',
-      SessionId('session-1'),
-      input,
     )
   })
 
@@ -116,12 +103,23 @@ describe('preload api surface contract', () => {
     )
   })
 
-  it('subscribes to exact-session resource invalidations', () => {
-    api.onSessionResourcesInvalidated(() => undefined)
+  it('subscribes to resource invalidation for the affected session and cleans up', () => {
+    const listener = vi.fn()
+    const unsubscribe = api.onSessionResourcesInvalidated(listener)
+    const registered = vi
+      .mocked(ipcRenderer.on)
+      .mock.calls.find(([channel]) => channel === 'sessions:resources-invalidated')
 
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
+    expect(registered).toBeDefined()
+    registered?.[1](fromPartial<IpcRendererEvent>({}), {
+      sessionId: SessionId('session-background'),
+    })
+    expect(listener).toHaveBeenCalledWith({ sessionId: SessionId('session-background') })
+
+    unsubscribe()
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
       'sessions:resources-invalidated',
-      expect.any(Function),
+      registered?.[1],
     )
   })
 

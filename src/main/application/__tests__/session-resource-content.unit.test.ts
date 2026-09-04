@@ -36,6 +36,7 @@ const REMOTE_RESOURCE: SessionResource = {
   title: 'Architecture',
   mimeType: null,
   locator: 'https://images.example/architecture.png',
+  managed: false,
   available: true,
   isSource: true,
   isOutput: false,
@@ -55,6 +56,7 @@ const REMOTE_RESOURCE: SessionResource = {
 }
 
 function contentLayer(input: {
+  readonly resource?: SessionResource
   readonly location?: {
     readonly resourceId: string
     readonly sessionId: typeof SESSION_ID
@@ -68,6 +70,7 @@ function contentLayer(input: {
   readonly upsert?: ReturnType<typeof vi.fn>
   readonly thumbnail?: ReturnType<typeof vi.fn>
 }) {
+  const resource = input.resource ?? REMOTE_RESOURCE
   const fetch =
     input.fetch ??
     vi.fn(() =>
@@ -91,7 +94,6 @@ function contentLayer(input: {
     input.upsert ??
     vi.fn((resource: UpsertSessionResourceInput) =>
       Effect.succeed({
-        ...REMOTE_RESOURCE,
         ...resource,
         occurrences: [resource.occurrence],
       }),
@@ -111,7 +113,7 @@ function contentLayer(input: {
       SessionResourceRepository.of(
         fromPartial<SessionResourceRepositoryShape>({
           getContentLocation: () => Effect.succeed(input.location ?? null),
-          list: () => Effect.succeed([REMOTE_RESOURCE]),
+          list: () => Effect.succeed([resource]),
           upsert,
         }),
       ),
@@ -137,6 +139,21 @@ function contentLayer(input: {
 }
 
 describe('readSessionResourceContent', () => {
+  it('materializes an image-specific canonical URL when the legacy locator is absent', async () => {
+    const resource = {
+      ...REMOTE_RESOURCE,
+      canonicalKey: 'image-url:https://images.example/architecture.png',
+      locator: null,
+    }
+    const test = contentLayer({ resource })
+
+    await Effect.runPromise(
+      readSessionResourceContent(SESSION_ID, resource.id).pipe(Effect.provide(test.layer)),
+    )
+
+    expect(test.fetch).toHaveBeenCalledWith('https://images.example/architecture.png')
+  })
+
   it('fetches and persists a remote image only when content is explicitly requested', async () => {
     const test = contentLayer({})
 
@@ -155,7 +172,7 @@ describe('readSessionResourceContent', () => {
     expect(test.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         id: REMOTE_RESOURCE.id,
-        locator: `session-resource://${REMOTE_RESOURCE.id}`,
+        locator: 'https://images.example/architecture.png',
         managedPath: '/managed/remote-image-architecture.png',
       }),
     )

@@ -7,7 +7,7 @@ section: "Using OpenWaggle"
 
 The Session Summary keeps the opened session's working context and durable resources close to the transcript. It appears in the top-right after the first message has been sent. Before then, the composer setup row owns the project, environment, and run-target choices.
 
-The Summary is always a floating overlay. It never narrows the transcript or moves the composer. OpenWaggle hides it automatically when the chat area is too narrow or a right sidebar is open. Use the **Session Summary** layout-list button in the header to hide it or explicitly reopen it over the chat at any window size. Open and collapsed choices are remembered per session.
+The Summary is always a floating overlay. It never narrows the transcript or moves the composer. OpenWaggle hides it automatically when the chat area is too narrow or a right sidebar is open. Use the **Session Summary** layout-list button in the header to hide it or explicitly reopen it over the chat at any window size. A right sidebar always takes precedence, so close it before reopening the Summary. OpenWaggle remembers whether the Summary is open and which sections are expanded for each session.
 
 Authorization mode and context usage stay in the composer. They are not duplicated in the Summary.
 
@@ -46,7 +46,7 @@ For a GitHub remote, choose **Create PR**. For GitLab, choose **Create MR**. The
 - **Open PR/MR in browser** as a fallback;
 - `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux for the primary action.
 
-Native creation checks the command-line client for the exact remote host. GitHub requires an installed, authenticated `gh`; GitLab requires an installed, authenticated `glab`. When native creation is unavailable, the composer explains why and keeps the browser workflow available when the remote can provide one.
+Native creation checks the command-line client for the exact remote host before it creates a branch, commits, or pushes. GitHub requires an installed, authenticated `gh`; GitLab requires an installed, authenticated `glab`. When native creation is unavailable, the composer explains why, disables the native draft and ready actions, and keeps the browser workflow available when the remote can provide one.
 
 After a request is created, the Summary replaces the create row with an action that opens that request.
 
@@ -84,3 +84,13 @@ Each resource belongs to exactly one session, including resources produced on al
 Recoverable resources from older sessions are backfilled lazily in bounded batches. The Summary and Resource Browser remain usable while that work completes.
 
 Extension authors can publish session Sources and Outputs or add Summary sections through the brokered extension SDK. See [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).
+
+## If A Summary Action Is Missing
+
+- Send the session's first message before looking for the Summary. OpenWaggle does not show an empty shell for a draft session.
+- Close the right sidebar or use the header's **Session Summary** button to reopen the overlay. At narrow widths, an explicit reopen floats over the transcript instead of resizing it.
+- A pull-request or merge-request action appears only when OpenWaggle can identify a supported GitHub or GitLab remote. The composer reports missing or unauthenticated `gh` or `glab` access for that remote's exact host.
+- Sources and Outputs are based on explicit evidence. A URL mentioned as ordinary prose and an otherwise unclassified modified file intentionally stay out of the catalog.
+- If managed image content is unavailable, use the viewer's retry action. Remote images are not fetched merely because a transcript, Summary, or thumbnail is visible.
+
+When switching sessions, OpenWaggle closes the image viewer and atomically rebinds an open Resource Browser before showing data. If content from the previous session ever remains visible, treat that as a privacy bug and report it with the two session titles and the navigation sequence that reproduced it.

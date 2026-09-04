@@ -1,11 +1,13 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { createOpenWaggleExtensionSurfaceContext } from '@shared/extension-context'
+import type { OpenWaggleExtensionSyntaxHighlightResult } from '@shared/extension-sdk'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { extensionInvokeScopeSchema } from '@shared/schemas/extension-broker'
 import { extensionFrameConfigSchema } from '@shared/schemas/extension-frame'
 import { extensionContributionIdSchema } from '@shared/schemas/extensions'
 import { jsonValueSchema } from '@shared/schemas/validation'
+import { MAX_SYNTAX_SOURCE_CODE_UNITS } from '@shared/syntax-highlighting-performance'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
@@ -56,6 +58,24 @@ const extensionFrameSurfaceActionMessageSchema = Schema.Struct({
   actionId: Schema.String,
   payload: Schema.optional(jsonValueSchema),
 })
+const extensionFrameSyntaxHighlightMessageSchema = Schema.Struct({
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
+  type: Schema.Literal('syntax-highlight'),
+  requestId: Schema.String,
+  input: Schema.Struct({
+    source: Schema.String.pipe(Schema.maxLength(MAX_SYNTAX_SOURCE_CODE_UNITS)),
+    language: Schema.optional(Schema.String),
+    path: Schema.optional(Schema.String),
+    priority: Schema.optional(Schema.Literal('visible', 'near-viewport', 'background')),
+  }),
+})
+const extensionFrameSyntaxHighlightCancelMessageSchema = Schema.Struct({
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
+  type: Schema.Literal('syntax-highlight-cancel'),
+  requestId: Schema.String,
+})
 const extensionFrameMessageSchema = Schema.Union(
   extensionFrameReadyMessageSchema,
   extensionFrameMountedMessageSchema,
@@ -64,6 +84,8 @@ const extensionFrameMessageSchema = Schema.Union(
   extensionFrameOpenExternalMessageSchema,
   extensionFrameResizeMessageSchema,
   extensionFrameSurfaceActionMessageSchema,
+  extensionFrameSyntaxHighlightMessageSchema,
+  extensionFrameSyntaxHighlightCancelMessageSchema,
 )
 const extensionMountInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,
@@ -118,6 +140,22 @@ export function extensionInvokeInputFromFrame(
     return invalidInvokeFailure(decoded.issues)
   }
 
+  const scope = decoded.data.scope
+  if (
+    (scope.kind === 'session' || scope.kind === 'branch') &&
+    (entry.sessionId === undefined ||
+      scope.sessionId !== entry.sessionId ||
+      !entry.projectPaths.includes(scope.projectPath))
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Extension session scope does not match the mounted surface.',
+      },
+    }
+  }
+
   return {
     ...decoded.data,
     extensionId: entry.extensionId,
@@ -138,6 +176,11 @@ export function postFrameMessage(
         readonly type: 'invoke-result'
         readonly requestId: string
         readonly result: ExtensionInvokeResult
+      }
+    | {
+        readonly type: 'syntax-highlight-result'
+        readonly requestId: string
+        readonly result: OpenWaggleExtensionSyntaxHighlightResult
       },
 ) {
   if (message.type === 'configure') {

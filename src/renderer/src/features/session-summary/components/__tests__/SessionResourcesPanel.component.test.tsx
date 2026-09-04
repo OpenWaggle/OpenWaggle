@@ -159,7 +159,7 @@ describe('SessionResourcesPanel', () => {
           {
             id: 'occurrence-source-file',
             nodeId: 'message-one',
-            branchId: 'feature/resources',
+            branchId: 'session-one:main',
             actor: 'user',
             activity: 'provided',
             label: null,
@@ -176,8 +176,8 @@ describe('SessionResourcesPanel', () => {
     expect(screen.getByRole('heading', { name: 'Links & sites' })).toBeInTheDocument()
     const fileRow = screen.getByRole('button', { name: /requirements\.md/u })
     expect(within(fileRow).getByText('Provided by you')).toBeInTheDocument()
-    expect(within(fileRow).getByText('Branch feature/resources')).toBeInTheDocument()
-    expect(fileRow).toHaveAccessibleName(/Branch feature\/resources/u)
+    expect(within(fileRow).getByText('Branch main')).toBeInTheDocument()
+    expect(fileRow).toHaveAccessibleName(/Branch main/u)
     const occurredTime = fileRow.querySelector('time')
     expect(occurredTime).toHaveAttribute('datetime', new Date(occurredAt).toISOString())
   })

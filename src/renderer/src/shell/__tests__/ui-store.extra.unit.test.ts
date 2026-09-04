@@ -14,6 +14,7 @@ describe('useUIStore — extra coverage', () => {
       toastData: null,
       slashCommandMenuOpen: false,
       feedbackModalOpen: false,
+      workspaceTreeOpen: true,
     })
   })
 

@@ -19,12 +19,19 @@ import type {
   DocsResolveTopicInput,
   FirstPartyDocsTopicSummary,
 } from './docs'
+import type {
+  InlineVisualizationDownloadInput,
+  InlineVisualizationFrameRegisterInput,
+  InlineVisualizationFrameRegisterResult,
+  InlineVisualizationFrameUnregisterInput,
+} from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
@@ -45,14 +52,6 @@ import type {
   SessionWorkspaceSelection,
   SessionWorktreePlan,
 } from './session'
-import type {
-  RecordSessionChangeRequestInput,
-  RecordSessionCommitInput,
-  SessionResource,
-  SessionResourceBackfillStatus,
-  SessionResourceContent,
-  SessionResourceList,
-} from './session-resource'
 import type { Settings } from './settings'
 import type {
   AgentsInstructionStatus,
@@ -63,9 +62,6 @@ import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
-type SessionResourceReader = (
-  ...args: [SessionId, string]
-) => Promise<SessionResourceContent | null>
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
@@ -75,6 +71,7 @@ export interface OpenWaggleApi
     OpenWaggleUpdaterApi,
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
+    OpenWaggleSessionResourceApi,
     OpenWaggleWaggleApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
@@ -125,23 +122,16 @@ export interface OpenWaggleApi
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
 
+  registerInlineVisualizationFrame(
+    input: InlineVisualizationFrameRegisterInput,
+  ): Promise<InlineVisualizationFrameRegisterResult>
+  unregisterInlineVisualizationFrame(input: InlineVisualizationFrameUnregisterInput): Promise<void>
+  saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
+
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
-  listSessionResources(sessionId: SessionId): Promise<SessionResourceList>
-  advanceSessionResourceBackfill(sessionId: SessionId): Promise<SessionResourceBackfillStatus>
-  readSessionResource: SessionResourceReader
-  readSessionResourceThumbnail: SessionResourceReader
-  retrySessionResource(sessionId: SessionId, resourceId: string): Promise<void>
-  recordSessionChangeRequest(
-    sessionId: SessionId,
-    input: RecordSessionChangeRequestInput,
-  ): Promise<SessionResource>
-  recordSessionCommit(
-    sessionId: SessionId,
-    input: RecordSessionCommitInput,
-  ): Promise<SessionResource>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
@@ -189,9 +179,6 @@ export interface OpenWaggleApi
   onSessionListInvalidated(
     callback: (payload: IpcEventPayload<'sessions:list-invalidated'>) => void,
   ): () => void
-  onSessionResourcesInvalidated(
-    callback: (payload: IpcEventPayload<'sessions:resources-invalidated'>) => void,
-  ): () => void
 
   // Terminal
   createTerminal(projectPath: string): Promise<string>
@@ -213,7 +200,6 @@ export interface OpenWaggleApi
   // Voice
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
 
-  // Standards and Skills
   getStandardsStatus(
     projectPath: string,
   ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
@@ -222,17 +208,14 @@ export interface OpenWaggleApi
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
 
-  // Dialog
   showConfirm(message: string, detail?: string): Promise<boolean>
 
-  // Shell / App
   copyToClipboard(text: string): void
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>
   revealPath(path: string): Promise<void>
 
-  // Auth
   startOAuth(provider: OAuthProvider): Promise<void>
   submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
   cancelOAuth(provider: OAuthProvider): Promise<void>

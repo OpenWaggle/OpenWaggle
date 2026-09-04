@@ -32,7 +32,9 @@ export function changeRequestPreflightPayload(
       : (input.vcsStatus?.refName ?? input.gitStatus?.branch ?? ''),
     baseRef: input.vcsStatus?.defaultRef ?? undefined,
     title: input.title.trim() || input.session.title,
-    body: input.description.trim() || generatedDescription(input.session, input.gitStatus),
+    body:
+      input.description.trim() ||
+      generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
   }
 }
@@ -74,13 +76,15 @@ export function changeRequestActionInput(
     // `create_pr` is OpenWaggle's push-and-create workflow. It pushes even when the tree is
     // clean, so a local branch without an upstream is published before provider creation.
     action: input.commitAndPush ? 'commit_push_pr' : 'create_pr',
+    sessionId: input.session.id,
     commitMessage: input.commitAndPush ? title : undefined,
     paths: input.commitAndPush
       ? (input.gitStatus?.changedFiles.map((file) => file.path) ?? [])
       : undefined,
     changeRequestTitle: title,
     changeRequestBody:
-      input.description.trim() || generatedDescription(input.session, input.gitStatus),
+      input.description.trim() ||
+      generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
     createFeatureBranch: input.createFeatureBranch,
     featureBranchName: input.createFeatureBranch ? input.branchName : undefined,

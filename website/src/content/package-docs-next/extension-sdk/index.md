@@ -1,13 +1,13 @@
 ---
 title: "@openwaggle/extension-sdk"
-description: "Browser-safe OpenWaggle extension SDK types, broker helpers, theme helpers, and federated-module context helpers."
+description: "Browser-safe OpenWaggle extension SDK types, broker helpers, themes, host syntax highlighting, and federated-module context helpers."
 order: 2
 section: "Packages"
 ---
 
 `@openwaggle/extension-sdk` is the browser-safe author package for OpenWaggle extension surfaces.
 
-Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
+Use it in extension modules that mount into OpenWaggle-owned containers. The package gives you the public `mount(context)` types, Effect Schema boundary values, manifest validation helpers, broker SDK helpers, theme and syntax helpers, UI class names, and stylesheet generation helpers without importing OpenWaggle renderer internals.
 
 <package-install packages="@openwaggle/extension-sdk"></package-install>
 
@@ -39,6 +39,7 @@ Supported public subpaths include:
 | `@openwaggle/extension-sdk/runtime` | Runtime contribution schemas, types, and SDK creation. |
 | `@openwaggle/extension-sdk/docs` | Documentation discovery schemas and DTOs. |
 | `@openwaggle/extension-sdk/theme` | Theme token and CSS-variable helpers. |
+| `@openwaggle/extension-sdk/syntax` | Host-backed syntax highlighting types and plain-text fallback helper. |
 | `@openwaggle/extension-sdk/ui` | Framework-neutral UI class names and stylesheet helpers. |
 | `@openwaggle/extension-sdk/agent-loop` | Agent-loop DTO and interaction types. |
 
@@ -106,6 +107,20 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 
 Declare matching capabilities and methods in `openwaggle.extension.json`; undeclared capability calls fail closed.
 
+## Host Syntax Highlighting
+
+Every mounted surface receives `context.sdk.surface.syntax`. Use it for source owned by the extension so the host can apply the user's active Syntax theme, canonical language aliases, worker scheduling, size limits, caching, and safe Plain Text fallback.
+
+```ts
+const result = await context.sdk.surface.syntax.highlight({
+  source: 'export const ready = true',
+  language: 'typescript',
+  priority: 'visible',
+})
+```
+
+You can provide `path` instead of `language` when the filename is the reliable signal. The result contains token lines rather than HTML, so extensions keep control of rendering without accepting executable or unsanitized host markup. Do not instantiate a second Shiki highlighter inside the extension frame; doing so bypasses the host's theme, worker, and performance policy.
+
 ## Manifest Typing
 
 Use the manifest type to keep package metadata aligned with the public extension contract.
@@ -168,30 +183,34 @@ export default {
 } satisfies OpenWaggleExtensionManifest
 ```
 
-## Session Resources
+## Session resources
 
-Extensions can publish explicit session Sources and Outputs through the brokered SDK. The calling contribution and package manifest must declare `openwaggle.session-resources`, the requested methods, and `session` scope.
+Extensions can publish explicit session Sources and Outputs through the brokered SDK. The calling contribution and package manifest must declare `openwaggle.resources`, `list-resources` and/or `publish-resource`, and `session` scope.
 
 ```ts
-const scope = { kind: 'session', projectPath, sessionId } as const
+import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
 
-await context.sdk.openWaggle.sessionResources.publish(scope, {
-  key: 'preview-site',
-  kind: 'site',
-  title: 'Preview site',
-  activity: 'created',
-  reference: { kind: 'external-url', url: 'https://preview.example.com' },
-})
+export async function publishPreview(context: OpenWaggleExtensionMountContext) {
+  const projectPath = context.projectPaths[0]
+  if (!context.sessionId || !projectPath) return
+  const scope = { kind: 'session' as const, projectPath, sessionId: context.sessionId }
 
-const result = await context.sdk.openWaggle.sessionResources.list(scope, {
-  category: 'outputs',
-  limit: 25,
-})
+  const published = await context.sdk.openWaggle.resources.publish(scope, {
+    key: 'preview-site',
+    title: 'Preview site',
+    kind: 'link',
+    role: 'output',
+    locator: 'https://preview.example.com',
+  })
+  if (!published.ok) return published
+
+  return context.sdk.openWaggle.resources.list(scope)
+}
 ```
 
-`publish` accepts `image`, `file`, `link`, `tool`, `web-search`, `site`, `commit`, and `change-request` kinds with `provided`, `read`, `created`, or `updated` activity. Use a stable `key` to deduplicate repeated publication by the same extension contribution. References are limited to credential-free HTTPS URLs or portable project-relative paths. The broker verifies the exact session and project scope; callers cannot nominate another open or archived session.
+`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`; publishing the same key, kind, role, and normalized locator from one contribution is idempotent. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
 
-`list` accepts `all`, `sources`, or `outputs` and a limit from 1 to 200. Its result includes the host resource id, Source/Output classification, availability, timestamps, and occurrence provenance. A declarative Session Summary row may use a returned resource id to open the same Resource Browser or image gallery as first-party resources.
+`list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same Resource Browser or image gallery as first-party resources.
 
 ## Theme Contract
 
@@ -226,6 +245,7 @@ Outside OpenWaggle, `createOpenWaggleExtensionTheme()` provides published fallba
 - Do not import OpenWaggle renderer feature files, Zustand stores, Electron IPC helpers, main-process services, or Pi SDK internals.
 - Do not deep-import from `@openwaggle/extension-sdk/src`, `dist`, or `dist-cjs`.
 - Use `context.theme` and SDK UI helpers instead of importing OpenWaggle app CSS or Tailwind internals.
+- Use `context.sdk.surface.syntax` instead of bundling a separate syntax highlighter or shipping pre-highlighted HTML.
 - Bundle compatible helper code into your extension artifact or resolve the versioned package supplied by the installed SDK path.
 
 For the full extension package lifecycle and manifest model, see [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).

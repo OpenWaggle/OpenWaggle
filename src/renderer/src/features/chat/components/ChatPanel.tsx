@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { SessionId } from '@shared/types/brand'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   type SessionResourceBrowserTarget,
   SessionResourceViewer,
@@ -9,6 +10,7 @@ import {
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
 import type { ChatPanelSections } from '../model'
+import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
@@ -52,6 +54,23 @@ function useSessionSummarySpace(rightSidebarOpen: boolean) {
   return { panelRef, hasSpace }
 }
 
+function SessionNotificationStack({
+  sessionId,
+  events,
+}: {
+  readonly sessionId: SessionId | null
+  readonly events: ChatPanelSections['agentInteractionEvents']
+}) {
+  const dismissNotification = useAgentLoopEventStore((state) => state.dismissNotification)
+  const handleDismiss = useCallback(
+    (interactionId: string) => {
+      if (sessionId) dismissNotification(sessionId, interactionId)
+    },
+    [dismissNotification, sessionId],
+  )
+  return <AgentNotificationStack events={events} onDismiss={handleDismiss} />
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
@@ -70,7 +89,9 @@ export function ChatPanelContent({
     sections.transcript.chatRows.length,
   )
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
-  const activeMessageIds = new Set(sections.transcript.messages.map((message) => message.id))
+  const activeMessageIds = new Set(
+    sections.transcript.messages.map((message) => message.metadata?.sessionNodeId ?? message.id),
+  )
   const summarySpace = useSessionSummarySpace(rightSidebarOpen)
   return (
     <div className="flex size-full overflow-hidden">
@@ -78,6 +99,7 @@ export function ChatPanelContent({
         ref={summarySpace.panelRef}
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"
+        data-session-summary-space={summarySpace.hasSpace ? 'available' : 'constrained'}
       >
         <ChatDisplayPathProvider
           projectPath={sections.transcript.projectPath}
@@ -102,9 +124,10 @@ export function ChatPanelContent({
             requests that hold the run, so the surface a user must answer is always the one nearest
             the prompt input, and a notice that can never be answered floats clear of it. */}
           <PanelErrorBoundary name="Notifications">
-            <AgentNotificationStack
+            <SessionNotificationStack
               events={sections.agentInteractionEvents}
               key={sections.transcript.activeSessionId ?? 'no-session'}
+              sessionId={sections.transcript.activeSessionId}
             />
           </PanelErrorBoundary>
           <SessionResourceViewer

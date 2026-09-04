@@ -10,6 +10,7 @@ const apiMocks = vi.hoisted(() => ({
   list: vi.fn(),
   openExternal: vi.fn(),
   openPath: vi.fn(),
+  revealPath: vi.fn(),
   read: vi.fn(),
   readThumbnail: vi.fn(),
   retry: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     listSessionResources: apiMocks.list,
     openExternal: apiMocks.openExternal,
     openPath: apiMocks.openPath,
+    revealPath: apiMocks.revealPath,
     readSessionResource: apiMocks.read,
     readSessionResourceThumbnail: apiMocks.readThumbnail,
     retrySessionResource: apiMocks.retry,
@@ -31,15 +33,18 @@ function imageResource(
   title: string,
   locator: string,
   available = true,
+  managed = locator.startsWith('session-resource://'),
+  canonicalKey = `resource:${id}`,
 ): SessionResource {
   return {
     id,
     sessionId: SessionId('session-one'),
-    canonicalKey: `resource:${id}`,
+    canonicalKey,
     kind: 'image',
     title,
     mimeType: 'image/png',
     locator,
+    managed,
     available,
     isSource: true,
     isOutput: false,
@@ -55,6 +60,7 @@ describe('SessionResourcesPanel source actions', () => {
     apiMocks.list.mockReset()
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
     apiMocks.openPath.mockReset().mockResolvedValue(undefined)
+    apiMocks.revealPath.mockReset().mockResolvedValue(undefined)
     apiMocks.read.mockReset().mockResolvedValue(null)
     apiMocks.readThumbnail.mockReset().mockResolvedValue(null)
     apiMocks.retry.mockReset().mockResolvedValue(undefined)
@@ -117,5 +123,55 @@ describe('SessionResourcesPanel source actions', () => {
       ),
     )
     expect(apiMocks.read).not.toHaveBeenCalled()
+  })
+
+  it('does not offer Retry for an unrecoverable generated image', async () => {
+    apiMocks.list.mockResolvedValue([
+      imageResource(
+        'invalid-generated-image',
+        'invalid-generated.png',
+        '',
+        false,
+        false,
+        'unavailable-image:session-one:node-one:0',
+      ),
+    ])
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    const resourceRow = (await screen.findByText('invalid-generated.png')).closest('button')
+    expect(resourceRow).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Retry invalid-generated.png' })).toBeNull()
+  })
+
+  it('keeps open and reveal actions for an original path beside a managed copy', async () => {
+    apiMocks.list.mockResolvedValue([
+      imageResource('managed-local', 'managed-local.png', '/input/managed-local.png', true, true),
+    ])
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open original managed-local.png' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal original managed-local.png' }))
+
+    expect(apiMocks.openPath).toHaveBeenCalledWith('/input/managed-local.png')
+    expect(apiMocks.revealPath).toHaveBeenCalledWith('/input/managed-local.png')
+    expect(screen.getByText('Managed copy · Original available')).toBeInTheDocument()
+  })
+
+  it('announces retry failure and suppresses concurrent resource retries', async () => {
+    apiMocks.list.mockResolvedValue([
+      imageResource('missing-image', 'missing.png', '/input/missing.png', false),
+    ])
+    const retryResult = Promise.withResolvers<never>()
+    apiMocks.retry.mockReturnValue(retryResult.promise)
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+    const retry = await screen.findByRole('button', { name: 'Retry missing.png' })
+
+    fireEvent.click(retry)
+    fireEvent.click(retry)
+    await waitFor(() => expect(apiMocks.retry).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'Retry missing.png' })).toBeDisabled()
+    retryResult.reject(new Error('Original is still missing'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Original is still missing')
   })
 })

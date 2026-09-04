@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   sessionResourcesQueryKey,
-  useRecordSessionCommit,
+  sessionResourcesQueryOptions,
   useSessionResourceInvalidation,
   useSessionResources,
 } from '../useSessionResources'
@@ -15,7 +15,6 @@ const resourceMocks = vi.hoisted(() => ({
   list: vi.fn(),
   advanceBackfill: vi.fn(),
   onResourcesInvalidated: vi.fn(),
-  recordCommit: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -23,7 +22,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     listSessionResources: resourceMocks.list,
     advanceSessionResourceBackfill: resourceMocks.advanceBackfill,
     onSessionResourcesInvalidated: resourceMocks.onResourcesInvalidated,
-    recordSessionCommit: resourceMocks.recordCommit,
   },
 }))
 
@@ -48,7 +46,6 @@ describe('useSessionResources', () => {
     resourceMocks.list.mockReset().mockResolvedValue([])
     resourceMocks.advanceBackfill.mockReset().mockResolvedValue({ backfillComplete: true })
     resourceMocks.onResourcesInvalidated.mockReset()
-    resourceMocks.recordCommit.mockReset().mockResolvedValue({})
   })
 
   it('refreshes only the opened Session catalog after resources change', async () => {
@@ -145,46 +142,73 @@ describe('useSessionResources', () => {
     expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(2)
   })
 
-  it('records and invalidates a commit only for its owning session', async () => {
+  it('stops a no-progress backfill loop with a retryable query error', async () => {
+    resourceMocks.list.mockResolvedValue({ resources: [], backfillComplete: false })
+    resourceMocks.advanceBackfill.mockResolvedValue({
+      backfillComplete: false,
+      progressed: false,
+    })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const invalidate = vi.spyOn(client, 'invalidateQueries')
-    const wrapper = ({ children }: { readonly children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    )
-    const { result } = renderHook(() => useRecordSessionCommit(SessionId('session-one'), client), {
-      wrapper,
-    })
-    const commit = {
-      commitHash: '0123456789abcdef0123456789abcdef01234567',
-      title: 'Record this commit',
+    const options = sessionResourcesQueryOptions('session-one')
+
+    await client.fetchQuery(options)
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await client.fetchQuery(options)
     }
-
-    await act(() => result.current(commit))
-
-    expect(resourceMocks.recordCommit).toHaveBeenCalledWith(SessionId('session-one'), commit)
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionResourcesQueryKey('session-one'),
-      exact: true,
-    })
-    expect(invalidate).not.toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: sessionResourcesQueryKey('session-two') }),
+    await expect(client.fetchQuery(options)).rejects.toThrow(
+      'Historical session resource indexing stalled',
     )
+    expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(5)
   })
 
-  it('does not record a commit when no session owns the action', async () => {
+  it('stops observer polling after the terminal no-progress error', async () => {
+    vi.useFakeTimers()
+    try {
+      resourceMocks.list.mockResolvedValue({ resources: [], backfillComplete: false })
+      resourceMocks.advanceBackfill.mockResolvedValue({
+        backfillComplete: false,
+        progressed: false,
+      })
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const wrapper = ({ children }: { readonly children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      )
+      const { result } = renderHook(() => useSessionResources('session-one'), { wrapper })
+
+      await act(async () => {
+        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(result.current.isError).toBe(true)
+      expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(5)
+
+      await act(async () => vi.advanceTimersByTimeAsync(10_000))
+      expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(5)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('allows more than five bounded passes while each pass records progress', async () => {
+    resourceMocks.list
+      .mockResolvedValueOnce({ resources: [], backfillComplete: false })
+      .mockResolvedValueOnce({ resources: [RESOURCE], backfillComplete: true })
+    resourceMocks.advanceBackfill
+      .mockResolvedValue({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: false, progressed: true })
+      .mockResolvedValueOnce({ backfillComplete: true, progressed: true })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const wrapper = ({ children }: { readonly children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    )
-    const { result } = renderHook(() => useRecordSessionCommit(null, client), { wrapper })
+    const options = sessionResourcesQueryOptions('session-one')
 
-    await act(() =>
-      result.current({
-        commitHash: '0123456789abcdef0123456789abcdef01234567',
-        title: 'Unowned commit',
-      }),
-    )
+    await client.fetchQuery(options)
+    for (let pass = 0; pass < 6; pass += 1) await client.fetchQuery(options)
 
-    expect(resourceMocks.recordCommit).not.toHaveBeenCalled()
+    await expect(client.fetchQuery(options)).resolves.toMatchObject({ resources: [RESOURCE] })
+    expect(resourceMocks.advanceBackfill).toHaveBeenCalledTimes(7)
   })
 })

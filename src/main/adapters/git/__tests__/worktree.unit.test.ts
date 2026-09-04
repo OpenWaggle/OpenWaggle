@@ -30,6 +30,32 @@ describe('worktree service', () => {
     runGitMock.mockResolvedValue(gitResult(0))
   })
 
+  it('serializes create and remove mutations against the same checkout', async () => {
+    let releaseRepositoryProbe: (() => void) | undefined
+    isGitRepositoryMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            releaseRepositoryProbe = () => resolve(true)
+          }),
+      )
+      .mockResolvedValueOnce(true)
+
+    const creation = createGitWorktree('/repo', {
+      path: '/wt/x',
+      branch: 'feat',
+      baseRef: 'main',
+    })
+    await vi.waitFor(() => expect(isGitRepositoryMock).toHaveBeenCalledTimes(1))
+    const removal = removeGitWorktree('/repo', { path: '/wt/y' })
+
+    await Promise.resolve()
+    expect(isGitRepositoryMock).toHaveBeenCalledTimes(1)
+    releaseRepositoryProbe?.()
+    await Promise.all([creation, removal])
+    expect(isGitRepositoryMock).toHaveBeenCalledTimes(2)
+  })
+
   describe('createGitWorktree', () => {
     it('rejects an already-cancelled creation before running Git', async () => {
       const controller = new AbortController()

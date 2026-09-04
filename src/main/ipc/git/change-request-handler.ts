@@ -14,6 +14,7 @@ import {
 } from './change-request-provider'
 import { planChangeRequestFetch } from './change-request-refs'
 import { adoptionSchema, referenceSchema } from './change-request-schemas'
+import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema, runGit } from './shared'
 import { detectSourceControlProvider } from './vcs-status-parse'
 
@@ -139,13 +140,18 @@ export function registerGitChangeRequestHandlers(): void {
         const repositoryPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
         const reference = decodeUnknownOrThrow(referenceSchema, rawReference)
         const adoption = decodeUnknownOrThrow(adoptionSchema, rawAdoption)
-        if (adoption === 'fetch') {
-          return yield* Effect.promise(() => fetchChangeRequestRef(repositoryPath, reference))
-        }
-        const provider = yield* Effect.promise(() => resolveProvider(repositoryPath))
-        if (!provider) return NO_PROVIDER
-        return yield* Effect.promise(() =>
-          provider.checkoutChangeRequest(repositoryPath, reference),
+        return yield* withGitMutationLock(
+          repositoryPath,
+          Effect.gen(function* () {
+            if (adoption === 'fetch') {
+              return yield* Effect.promise(() => fetchChangeRequestRef(repositoryPath, reference))
+            }
+            const provider = yield* Effect.promise(() => resolveProvider(repositoryPath))
+            if (!provider) return NO_PROVIDER
+            return yield* Effect.promise(() =>
+              provider.checkoutChangeRequest(repositoryPath, reference),
+            )
+          }),
         )
       }),
   )

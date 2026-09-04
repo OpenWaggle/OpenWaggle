@@ -13,6 +13,7 @@ import {
   type BackfillToolState,
   captureBackfilledAssistantResources,
 } from './session-resource-backfill-assistant'
+import * as AttachmentRepairs from './session-resource-backfill-attachment-repairs'
 import {
   advanceAttachmentBackfillBudget,
   type BackfillAttachmentBudget,
@@ -38,18 +39,38 @@ interface BackfillAttachmentState {
   readonly completedOccurrences: Set<string>
   readonly knownResources: ReadonlyMap<string, SessionResource>
   readonly retryUnavailableResourceId: string | null
-  readonly deferred: Array<{
-    readonly input: CaptureAttachmentInput
-    readonly resource: SessionResource
-  }>
+  readonly deferred: AttachmentRepairs.DeferredAttachmentRepair[]
   projectionBlocked: boolean
+  progressed: boolean
+}
+
+interface BackfillProgress {
+  readonly completedAttachmentOccurrences: Set<string>
+  readonly knownAttachmentResources: Map<string, SessionResource>
+  readonly completedImageSlots: Set<string>
+  readonly knownImageSlots: Set<string>
+  readonly knownImageResources: Map<string, SessionResource>
+}
+
+interface BackfillCaptureState {
+  readonly attachments: BackfillAttachmentState
+  readonly images: BackfillImageState
+  readonly links: BackfillLinkState
+  readonly tools: BackfillToolState
+}
+
+interface CaptureProjectedSessionResourcesInput {
+  readonly sessionId: SessionId
+  readonly messages?: readonly Message[]
+  readonly nodes?: readonly SessionNode[]
+  readonly retryUnavailableResourceId?: string
 }
 
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
 }
 
-function attemptBackfilledAttachment(
+function attemptAttachment(
   input: CaptureAttachmentInput,
   state: BackfillAttachmentState,
   repairResource?: SessionResource,
@@ -60,22 +81,25 @@ function attemptBackfilledAttachment(
     if (!nextBudget) {
       if (repairResource) {
         state.projectionBlocked = true
-        return
+        return false
       }
       if (!isBackfillableAttachmentSize(input.attachment.sizeBytes)) {
         yield* captureAttachment(input)
         state.completedOccurrences.add(id)
-        return
+        state.progressed = true
+        return false
       }
       state.projectionBlocked = true
-      return
+      return false
     }
     state.budget = nextBudget
-    yield* captureAttachment({
+    const repaired = yield* captureAttachment({
       ...input,
       ...(repairResource ? { repairResource } : {}),
     })
     state.completedOccurrences.add(id)
+    state.progressed = true
+    return repaired
   })
 }
 
@@ -112,7 +136,7 @@ function captureBackfilledUserResources(
         attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
         continue
       }
-      yield* attemptBackfilledAttachment(attachmentInput, attachmentState)
+      yield* attemptAttachment(attachmentInput, attachmentState)
     }
     yield* captureBackfilledLinks({
       sessionId,
@@ -128,13 +152,114 @@ function captureBackfilledUserResources(
   })
 }
 
+function createBackfillCaptureState(
+  resources: readonly SessionResource[],
+  progress: BackfillProgress,
+  retryUnavailableResourceId: string | undefined,
+): BackfillCaptureState {
+  const occurrenceIds = capturedOccurrenceIds(resources)
+  return {
+    attachments: {
+      budget: { bytes: 0, count: 0 },
+      completedOccurrences: progress.completedAttachmentOccurrences,
+      knownResources: progress.knownAttachmentResources,
+      retryUnavailableResourceId: retryUnavailableResourceId ?? null,
+      deferred: [],
+      projectionBlocked: false,
+      progressed: false,
+    },
+    images: {
+      budget: { bytes: 0, count: 0, attempts: 0 },
+      completedSlots: progress.completedImageSlots,
+      knownSlots: progress.knownImageSlots,
+      knownResources: progress.knownImageResources,
+      deferred: [],
+      projectionBlocked: false,
+      progressed: false,
+    },
+    links: {
+      count: 0,
+      capturedOccurrences: occurrenceIds,
+      projectionBlocked: false,
+      progressed: false,
+    },
+    tools: {
+      count: 0,
+      capturedOccurrences: occurrenceIds,
+      projectionBlocked: false,
+      progressed: false,
+    },
+  }
+}
+
+function captureBackfilledMessages(
+  input: CaptureProjectedSessionResourcesInput,
+  state: BackfillCaptureState,
+  workingPath: string | null,
+) {
+  return Effect.gen(function* () {
+    for (const projected of projectResourceMessages(input)) {
+      const { message } = projected
+      if (message.role === 'user') {
+        yield* captureBackfilledUserResources(
+          input.sessionId,
+          projected,
+          state.attachments,
+          state.links,
+        )
+        continue
+      }
+      if (message.role !== 'assistant') continue
+      yield* captureBackfilledAssistantResources(
+        input.sessionId,
+        projected,
+        state.images,
+        state.links,
+        state.tools,
+        workingPath,
+      )
+    }
+  })
+}
+
+function repairDeferredResources(state: BackfillCaptureState) {
+  return Effect.gen(function* () {
+    const repairedAttachmentResourceIds = new Set<string>()
+    for (const deferred of AttachmentRepairs.orderDeferredAttachmentRepairs(
+      state.attachments.deferred,
+    )) {
+      if (state.attachments.projectionBlocked) break
+      if (repairedAttachmentResourceIds.has(deferred.resource.id)) continue
+      const repaired = yield* attemptAttachment(
+        deferred.input,
+        state.attachments,
+        deferred.resource,
+      )
+      if (repaired) repairedAttachmentResourceIds.add(deferred.resource.id)
+    }
+    for (const deferred of state.images.deferred) {
+      yield* attemptBackfilledImage(deferred, state.images)
+    }
+  })
+}
+
+function summarizeBackfill(state: BackfillCaptureState) {
+  return {
+    progressed:
+      state.attachments.progressed ||
+      state.images.progressed ||
+      state.links.progressed ||
+      state.tools.progressed,
+    fullyProjected:
+      !state.attachments.projectionBlocked &&
+      !state.images.projectionBlocked &&
+      !state.links.projectionBlocked &&
+      !state.tools.projectionBlocked,
+  }
+}
+
 /** Rebuilds explicit resources with deterministic, idempotent occurrence ids. */
-export function captureProjectedSessionResources(input: {
-  readonly sessionId: SessionId
-  readonly messages?: readonly Message[]
-  readonly nodes?: readonly SessionNode[]
-  readonly retryUnavailableResourceId?: string
-}) {
+export function captureProjectedSessionResources(input: CaptureProjectedSessionResourcesInput) {
   return withSessionResourceLock(
     input.sessionId,
     withSessionResourceInvalidation(
@@ -155,66 +280,14 @@ export function captureProjectedSessionResources(input: {
           store,
           input.sessionId,
         )
-        const attachmentState: BackfillAttachmentState = {
-          budget: { bytes: 0, count: 0 },
-          completedOccurrences: progress.completedAttachmentOccurrences,
-          knownResources: progress.knownAttachmentResources,
-          retryUnavailableResourceId: input.retryUnavailableResourceId ?? null,
-          deferred: [],
-          projectionBlocked: false,
-        }
-        const imageState: BackfillImageState = {
-          budget: { bytes: 0, count: 0, attempts: 0 },
-          completedSlots: progress.completedImageSlots,
-          knownSlots: progress.knownImageSlots,
-          knownResources: progress.knownImageResources,
-          deferred: [],
-          projectionBlocked: false,
-        }
-        const linkState: BackfillLinkState = {
-          count: 0,
-          capturedOccurrences: capturedOccurrenceIds(resources),
-          projectionBlocked: false,
-        }
-        const toolState: BackfillToolState = {
-          count: 0,
-          capturedOccurrences: capturedOccurrenceIds(resources),
-          projectionBlocked: false,
-        }
-        for (const projected of projectResourceMessages(input)) {
-          const { message } = projected
-          if (message.role === 'user') {
-            yield* captureBackfilledUserResources(
-              input.sessionId,
-              projected,
-              attachmentState,
-              linkState,
-            )
-            continue
-          }
-          if (message.role !== 'assistant') continue
-          yield* captureBackfilledAssistantResources(
-            input.sessionId,
-            projected,
-            imageState,
-            linkState,
-            toolState,
-            workingPath,
-          )
-        }
-        for (const deferred of attachmentState.deferred) {
-          yield* attemptBackfilledAttachment(deferred.input, attachmentState, deferred.resource)
-        }
-        for (const deferred of imageState.deferred) {
-          yield* attemptBackfilledImage(deferred, imageState)
-        }
-        return {
-          fullyProjected:
-            !attachmentState.projectionBlocked &&
-            !imageState.projectionBlocked &&
-            !linkState.projectionBlocked &&
-            !toolState.projectionBlocked,
-        }
+        const state = createBackfillCaptureState(
+          resources,
+          progress,
+          input.retryUnavailableResourceId,
+        )
+        yield* captureBackfilledMessages(input, state, workingPath)
+        yield* repairDeferredResources(state)
+        return summarizeBackfill(state)
       }),
     ),
   )

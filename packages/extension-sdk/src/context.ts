@@ -1,6 +1,7 @@
 import type { ExtensionBrokerSdk } from './broker.js'
 import { OPENWAGGLE_EXTENSION } from './constants.js'
 import type { JsonValue } from './json.js'
+import { createPlainExtensionSyntaxResult, type OpenWaggleExtensionSyntaxSdk } from './syntax.js'
 import {
   createOpenWaggleExtensionTheme,
   extensionThemeCssVariableEntries,
@@ -32,12 +33,15 @@ export interface OpenWaggleExtensionSurfaceContext {
   }
   readonly packagePath: string
   readonly projectPaths: readonly string[]
+  /** Present when the host resolved this surface for a specific Session. */
+  readonly sessionId?: string
   readonly theme: OpenWaggleExtensionTheme
 }
 
 export interface OpenWaggleExtensionSurfaceSdk {
   readonly sendAction: (actionId: string, payload?: JsonValue) => Promise<void>
   readonly respondInteraction: (value: JsonValue | null) => Promise<void>
+  readonly syntax: OpenWaggleExtensionSyntaxSdk
 }
 
 export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
@@ -86,6 +90,13 @@ export function createNoopExtensionSurfaceSdk(): OpenWaggleExtensionSurfaceSdk {
   return {
     sendAction: async () => undefined,
     respondInteraction: async () => undefined,
+    syntax: {
+      highlight: async (input) =>
+        createPlainExtensionSyntaxResult({
+          ...input,
+          diagnostic: 'Host syntax highlighting is unavailable.',
+        }),
+    },
   }
 }
 
@@ -131,6 +142,7 @@ export function createOpenWaggleExtensionSurfaceContext(
     },
     packagePath: input.entry.packagePath,
     projectPaths: input.entry.projectPaths,
+    ...(input.entry.sessionId !== undefined ? { sessionId: input.entry.sessionId } : {}),
     theme: input.theme ?? createOpenWaggleExtensionTheme(),
   }
 }

@@ -1,15 +1,33 @@
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode, Suspense } from 'react'
 import { useBackgroundRunMonitor } from '@/features/chat/hooks'
-import { GlobalCommandPalette } from '@/features/command-palette/components'
-import { FeedbackModal } from '@/features/feedback/components'
 import { Sidebar } from '@/features/sidebar/components'
-import { ProjectContentSearch, ProjectFilePicker } from '@/features/workspace-files/components'
 import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
+
+const LazyGlobalCommandPalette = lazy(() =>
+  import('@/features/command-palette/components/GlobalCommandPalette').then((module) => ({
+    default: module.GlobalCommandPalette,
+  })),
+)
+const LazyFeedbackModal = lazy(() =>
+  import('@/features/feedback/components/FeedbackModal').then((module) => ({
+    default: module.FeedbackModal,
+  })),
+)
+const LazyProjectContentSearch = lazy(() =>
+  import('@/features/workspace-files/components/ProjectContentSearch').then((module) => ({
+    default: module.ProjectContentSearch,
+  })),
+)
+const LazyProjectFilePicker = lazy(() =>
+  import('@/features/workspace-files/components/ProjectFilePicker').then((module) => ({
+    default: module.ProjectFilePicker,
+  })),
+)
 
 interface WorkspaceShellProps {
   readonly children: ReactNode
@@ -33,10 +51,12 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
       </div>
 
       <ToastOverlay />
-      {feedbackModalOpen && <FeedbackModal />}
-      {commandSurface === 'commands' && <GlobalCommandPalette />}
-      {commandSurface === 'files' && <ProjectFilePicker />}
-      {commandSurface === 'content' && <ProjectContentSearch />}
+      <Suspense fallback={null}>
+        {feedbackModalOpen && <LazyFeedbackModal />}
+        {commandSurface === 'commands' && <LazyGlobalCommandPalette />}
+        {commandSurface === 'files' && <LazyProjectFilePicker />}
+        {commandSurface === 'content' && <LazyProjectContentSearch />}
+      </Suspense>
     </div>
   )
 }

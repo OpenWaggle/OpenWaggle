@@ -5,11 +5,14 @@ import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useDiffScopeStore } from '../../state/diff-scope-store'
 import { useReviewStore } from '../../state/review-store'
-import { DiffPanel } from '../DiffPanel'
+import { DiffPanel, requestStackedAction } from '../DiffPanel'
 import { fileDiff, gitStatus } from './diff-panel.test-harness'
 
 vi.mock('@pierre/diffs/react', async () => ({
   CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+  WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
+    .StubWorkerPoolContextProvider,
+  useWorkerPool: () => undefined,
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -21,7 +24,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     stageAllGitChanges: vi.fn(),
     revertAllGitChanges: vi.fn(),
     runStackedGitAction: vi.fn(),
-    recordSessionCommit: vi.fn(),
     getLocalVcsStatus: vi.fn(),
     getRemoteVcsStatus: vi.fn(),
     showConfirm: vi.fn(),
@@ -105,21 +107,7 @@ describe('commit scope', () => {
       branch: { status: 'unchanged', name: 'main' },
       commitHash: '0123456789abcdef0123456789abcdef01234567',
       changeRequest: null,
-    })
-    vi.mocked(api.recordSessionCommit).mockResolvedValue({
-      id: 'commit-resource',
-      sessionId: SessionId('session-owner'),
-      canonicalKey: 'git-commit:0123456789abcdef0123456789abcdef01234567',
-      kind: 'commit',
-      title: 'Ship it',
-      mimeType: null,
-      locator: null,
-      available: true,
-      isSource: false,
-      isOutput: true,
-      occurrences: [],
-      createdAt: 1,
-      updatedAt: 1,
+      commit: { commitHash: 'abc123', summary: 'Test commit' },
     })
   })
 
@@ -196,7 +184,7 @@ describe('commit scope', () => {
     ).toBeInTheDocument()
   })
 
-  it('records the created commit only against the Diff panel owning session', async () => {
+  it('runs the commit only against the Diff panel owning session', async () => {
     vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [] })
     render(
       <DiffPanel
@@ -214,14 +202,36 @@ describe('commit scope', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continue' }))
 
     await waitFor(() =>
-      expect(api.recordSessionCommit).toHaveBeenCalledWith(SessionId('session-owner'), {
-        commitHash: '0123456789abcdef0123456789abcdef01234567',
-        title: 'Ship it',
-      }),
-    )
-    expect(api.recordSessionCommit).not.toHaveBeenCalledWith(
-      SessionId('session-other'),
-      expect.anything(),
+      expect(api.runStackedGitAction).toHaveBeenCalledWith(
+        WORKING_PATH,
+        expect.objectContaining({ sessionId: SessionId('session-owner') }),
+      ),
     )
   })
+})
+
+describe('change-request quick actions', () => {
+  it.each(['create_pr', 'commit_push_pr'] as const)(
+    'routes %s through the reviewed composer instead of direct mutation',
+    (action) => {
+      const run = vi.fn()
+      const onCreateChangeRequest = vi.fn()
+      requestStackedAction({
+        action,
+        commitPaths: {
+          paths: [WORKING_TREE_FILE],
+          changedFileCount: 1,
+          isLoading: false,
+          error: null,
+        },
+        run,
+        showToast: vi.fn(),
+        onNeedsMessage: vi.fn(),
+        onCreateChangeRequest,
+      })
+
+      expect(onCreateChangeRequest).toHaveBeenCalledOnce()
+      expect(run).not.toHaveBeenCalled()
+    },
+  )
 })

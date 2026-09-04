@@ -2,6 +2,7 @@ import type { SessionDetail } from '@shared/types/session'
 import type { ReactNode } from 'react'
 import { ExtensionSessionSummarySections } from './ExtensionSessionSummarySections'
 import { HiveSummarySection } from './HiveSummarySection'
+import { SessionResourcesCatalogFailure } from './SessionResourcesCatalogFailure'
 import type { SessionSummaryPanelSection } from './SessionSummaryExpandedPanel'
 import { EnvironmentSummarySection, ResourceSummarySection } from './SessionSummarySections'
 import { SessionSummarySubscriptions } from './SessionSummarySubscriptions'
@@ -14,6 +15,7 @@ const SESSION_SUMMARY_SECTION_IDENTITIES = [
   { id: 'extensions-context', label: 'Extension context' },
   { id: 'hive', label: 'Hive' },
   { id: 'extensions-coordination', label: 'Extension coordination' },
+  { id: 'resource-catalog', label: 'Resource catalog' },
   { id: 'outputs', label: 'Outputs' },
   { id: 'sources', label: 'Sources' },
   { id: 'extensions-details', label: 'Extension details' },
@@ -90,6 +92,11 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
       />
     ),
     'extensions-coordination': extensionSection(context, 'coordination'),
+    'resource-catalog': resources.failed ? (
+      <section className="border-t border-border p-2">
+        <SessionResourcesCatalogFailure onRetry={resources.retry} />
+      </section>
+    ) : null,
     outputs: (
       <ResourceSummarySection
         title="Outputs"
