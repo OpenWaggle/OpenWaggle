@@ -43,16 +43,16 @@ describe('settings and skills route surfaces', () => {
     routeMocks.pathname = '/settings/general'
   })
 
-  it('derives the settings tab from a route tab segment', () => {
+  it('derives the settings tab from a route tab segment', async () => {
     routeMocks.pathname = '/settings/extensions'
     render(<SettingsRouteSurface tab="general" />)
-    expect(screen.getByText('Settings tab: extensions')).toBeInTheDocument()
+    expect(await screen.findByText('Settings tab: extensions')).toBeInTheDocument()
   })
 
-  it('falls back to the route-provided tab for unknown paths', () => {
+  it('falls back to the route-provided tab for unknown paths', async () => {
     routeMocks.pathname = '/settings/unknown'
     render(<SettingsRouteSurface tab="waggle" />)
-    expect(screen.getByText('Settings tab: waggle')).toBeInTheDocument()
+    expect(await screen.findByText('Settings tab: waggle')).toBeInTheDocument()
   })
 
   it('wraps the skills panel', () => {
