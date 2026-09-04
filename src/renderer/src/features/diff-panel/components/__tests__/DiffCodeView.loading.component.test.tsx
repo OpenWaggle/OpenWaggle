@@ -113,7 +113,7 @@ describe('diff loading edges', () => {
 
   it('publishes ordinary files before offloading one oversized patch', async () => {
     const posted: unknown[] = []
-    let finishParsing = () => {
+    let finishParsing: () => void = () => {
       throw new Error('Parser worker did not receive a request.')
     }
     class PendingParserWorker {
