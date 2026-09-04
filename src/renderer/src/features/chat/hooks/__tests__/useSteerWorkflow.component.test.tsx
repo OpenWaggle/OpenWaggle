@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/features/chat/state'
@@ -12,6 +15,38 @@ const PAYLOAD: AgentSendPayload = {
   text: 'Continue with the implementation',
   thinkingLevel: 'medium',
   attachments: [],
+}
+
+const EXTENSION_CONTRIBUTIONS: ExtensionContributionRegistryView = {
+  projectPaths: ['/tmp/project'],
+  entries: [
+    {
+      extensionId: 'sample.extension',
+      extensionName: 'Sample Extension',
+      extensionVersion: '1.0.0',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
+      packagePath: '/tmp/sample-extension',
+      manifestPath: '/tmp/sample-extension/openwaggle.extension.json',
+      projectPaths: ['/tmp/project'],
+      appliesToAllRequestedProjects: true,
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+      contributionId: 'sample.run',
+      title: 'Run sample slash command',
+      label: 'Run sample slash command',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+      eligibility: {
+        runtimeEnabled: true,
+        enabled: true,
+        trusted: true,
+        sdkCompatible: true,
+        updateAvailable: false,
+        disabledProjectPaths: [],
+      },
+      diagnostics: [],
+      contentHash: 'content-hash-1',
+    },
+  ],
 }
 
 function createDeps(isCompacting: boolean) {
@@ -26,6 +61,7 @@ function createDeps(isCompacting: boolean) {
   return {
     deps: {
       activeSessionId: SESSION_ID,
+      extensionContributions: EXTENSION_CONTRIBUTIONS,
       isCompacting,
       steer: vi
         .fn()
@@ -189,6 +225,27 @@ describe('useSteerWorkflow', () => {
       )
     },
   )
+
+  it('keeps an extension command queued instead of steering it as model text', async () => {
+    const commandPayload = { ...PAYLOAD, text: '/sample.run with arguments' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
+    const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
+    const queued = original?.[0]
+    if (!queued) throw new Error('Expected queued extension command')
+    const setup = createDeps(false)
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.deps.steer).not.toHaveBeenCalled()
+    expect(setup.deps.previewSteeredUserTurn).not.toHaveBeenCalled()
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
+    expect(setup.deps.showToast).toHaveBeenCalledWith(
+      'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
+    )
+  })
 
   it('restores the exact queued message at its original position when native steer fails', async () => {
     const before = { ...PAYLOAD, text: 'before' }

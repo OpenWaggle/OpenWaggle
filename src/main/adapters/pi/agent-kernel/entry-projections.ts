@@ -181,7 +181,6 @@ function compactionEntryProjection(
       summary: entry.summary,
       firstKeptEntryId: entry.firstKeptEntryId,
       tokensBefore: entry.tokensBefore,
-      details: toJsonValue(entry.details ?? null),
       fromHook: entry.fromHook ?? false,
       reason: compactionReason(entry),
     }),

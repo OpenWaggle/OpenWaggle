@@ -1,8 +1,13 @@
 import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useState } from 'react'
 import { useMessageQueueStore } from '@/features/chat/state'
-import { parseCompactCommand, parseSessionCopyCommand } from '@/features/composer/commands'
+import {
+  parseCompactCommand,
+  parseExtensionSlashCommand,
+  parseSessionCopyCommand,
+} from '@/features/composer/commands'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportQueuedSteerFailure } from '../lib/queue-failure-feedback'
 import type {
@@ -14,6 +19,7 @@ const logger = createRendererLogger('chat-panel')
 
 interface SteerWorkflowDeps {
   readonly activeSessionId: SessionId | null
+  readonly extensionContributions: ExtensionContributionRegistryView | null
   readonly isCompacting: boolean
   readonly steer: (payload: AgentSendPayload) => Promise<AgentSteerDeliveryResult>
   readonly previewSteeredUserTurn: (
@@ -33,6 +39,7 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
   const [inFlightSteerCount, setInFlightSteerCount] = useState(0)
   const {
     activeSessionId,
+    extensionContributions,
     isCompacting,
     steer,
     previewSteeredUserTurn,
@@ -48,7 +55,9 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
       ?.find((item) => item.id === messageId)
     if (
       queued &&
-      (parseCompactCommand(queued.payload.text) || parseSessionCopyCommand(queued.payload.text))
+      (parseCompactCommand(queued.payload.text) ||
+        parseSessionCopyCommand(queued.payload.text) ||
+        parseExtensionSlashCommand(queued.payload.text, extensionContributions))
     ) {
       showToast(
         'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',

@@ -99,10 +99,9 @@ export function useChatPanelSections(): ChatPanelSections {
   const phase = useStreamingPhase(activeSessionId)
   const { catalog } = useSkills(projectPath)
   const extensionProjectPaths = projectPath ? [projectPath] : []
-  const extensionContributionsQuery = useQuery(
+  const { data: extensionRegistry = null } = useQuery(
     extensionContributionsQueryOptions(extensionProjectPaths, { sessionId: activeSessionId }),
   )
-  const extensionRegistry = extensionContributionsQuery.data ?? null
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
   const waggleActiveCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
@@ -144,7 +143,7 @@ export function useChatPanelSections(): ChatPanelSections {
     branchSummary,
     clearDraftBranchForSession,
     draftBranch,
-    extensionContributions: extensionContributionsQuery.data ?? null,
+    extensionContributions: extensionRegistry,
     handleSend,
     handleSendWaggle,
     messages,
@@ -161,9 +160,9 @@ export function useChatPanelSections(): ChatPanelSections {
     stopWaggleCollaboration,
     waggleStatus,
   })
-
   const { isSteering, handleSteer } = useSteerWorkflow({
     activeSessionId,
+    extensionContributions: extensionRegistry,
     isCompacting: isCompactionRunning(compactionStatus),
     steer,
     previewSteeredUserTurn,
@@ -174,7 +173,7 @@ export function useChatPanelSections(): ChatPanelSections {
   useAutoSendQueue({
     sessionId: activeSessionId,
     status,
-    sendMessage: handleSend,
+    sendMessage: sendWorkflow.sendWithWaggle,
     paused: isSteering,
     onSendFailure: (payload, sendError) =>
       reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError),
