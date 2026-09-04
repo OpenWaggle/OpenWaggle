@@ -676,7 +676,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          }
          return false;
      }
-@@ -1730,17 +1921,29 @@ export class AgentSession {
+@@ -1730,17 +1921,32 @@ export class AgentSession {
       * @param willRetry Whether to continue the interrupted turn after overflow compaction
       * @returns Whether the post-run loop should call `agent.continue()`
       */
@@ -686,6 +686,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          let started = false;
          let fromExtension = false;
 +        let completedWillRetry = false;
++        let preserveCompactionAuth = preservePreparedAuth;
          try {
              if (!this.model) {
                  return false;
@@ -693,6 +694,8 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
 +            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = preparedCompactionAuth ??
 +                (await this._prepareCompactionRequestAuth(this._selectedModel ?? this.model));
++            preserveCompactionAuth ||= selectCompactionMechanism(requestModel) === "native" &&
++                this._extensionRunner.hasHandlers("before_provider_headers");
 +            this.agent.state.model = requestModel;
 +            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(this.agent.state.systemPrompt, [], []);
 +            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
@@ -764,7 +767,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          }
          finally {
              this._autoCompactionAbortController = undefined;
-+            if (this.model && !preservePreparedAuth) {
++            if (this.model && !preserveCompactionAuth) {
 +                await this._refreshRequestModelContext();
 +            }
 +            if (completedWillRetry) {

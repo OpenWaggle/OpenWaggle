@@ -66,6 +66,8 @@ describe('Pi native compaction provider-hook identity', () => {
   it('reuses prepared hook headers when the next prompt first compacts', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-deferred-hook-auth-')
     const events: SessionCompactEvent[] = []
+    let authHeaderCalls = 0
+    const providerContexts: string[] = []
     const providerLifecycleCounter = { headerCalls: 0, payloadCalls: 0, responseCalls: 0 }
     const thresholdResponse = fauxAssistantMessage('Reached threshold')
     thresholdResponse.usage.totalTokens = 80
@@ -76,7 +78,14 @@ describe('Pi native compaction provider-hook identity', () => {
       directory,
       compactionEvents: events,
       providerLifecycleCounter,
-      responses: [thresholdResponse, fauxAssistantMessage('Second turn complete')],
+      providerAuthHeaderResolver: () => `Bearer rotating-${++authHeaderCalls}`,
+      responses: [
+        thresholdResponse,
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Second turn complete')
+        },
+      ],
     })
 
     await session.prompt('first turn')
@@ -87,9 +96,51 @@ describe('Pi native compaction provider-hook identity', () => {
     await session.prompt('second turn')
 
     expect(providerLifecycleCounter).toEqual({
-      headerCalls: 2,
+      headerCalls: 1,
       payloadCalls: 1,
       responseCalls: 2,
     })
+    expect(authHeaderCalls).toBe(2)
+    expect(providerContexts[0]).toContain('cmp_1')
+  })
+
+  it('reuses compaction hook headers for an already queued continuation', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-events-queued-hook-auth-')
+    const events: SessionCompactEvent[] = []
+    let headerCalls = 0
+    const compactionHeaders: string[] = []
+    const continuationContexts: string[] = []
+    const compact = nativeCompactionFetch()
+    const thresholdResponse = fauxAssistantMessage('Reached threshold with queued work')
+    thresholdResponse.usage.totalTokens = 80
+    thresholdResponse.usage.input = 80
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        compactionHeaders.push(new Headers(init?.headers).get('authorization') ?? '')
+        return compact(input, init)
+      }),
+    )
+    const { faux, session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      providerAuthHeaderResolver: () => `Bearer rotating-${++headerCalls}`,
+    })
+    faux.setResponses([
+      () => {
+        void session.followUp('Continue after compaction')
+        return thresholdResponse
+      },
+      (context) => {
+        continuationContexts.push(JSON.stringify(context.messages))
+        return fauxAssistantMessage('Queued continuation complete')
+      },
+    ])
+
+    await session.prompt('first turn')
+
+    expect(headerCalls).toBe(2)
+    expect(compactionHeaders).toEqual(['Bearer rotating-2'])
+    expect(continuationContexts[0]).toContain('cmp_1')
   })
 })
