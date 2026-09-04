@@ -120,8 +120,9 @@ export async function filterConsumedVisualizationContext(
     referenceMessages.slice(referenceLatestPromptIndex + 1).some(completesPromptTurn)
   const latestPromptConsumed =
     latestPromptIndex < 0 ||
-    promptFingerprint(messages[latestPromptIndex]) !==
-      promptFingerprint(referenceMessages[referenceLatestPromptIndex]) ||
+    (!options.willRetry &&
+      promptFingerprint(messages[latestPromptIndex]) !==
+        promptFingerprint(referenceMessages[referenceLatestPromptIndex])) ||
     referenceLatestPromptCompleted
 
   return messages.flatMap((message, index) => {

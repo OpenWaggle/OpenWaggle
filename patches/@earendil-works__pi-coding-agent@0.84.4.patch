@@ -269,7 +269,21 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      /**
       * Install tool hooks once on the Agent instance.
       *
-@@ -286,12 +399,17 @@ export class AgentSession {
+@@ -274,24 +387,32 @@ export class AgentSession {
+-    async _compactBeforeNextAssistantResponse(context) {
++    async _compactBeforeNextAssistantResponse(context, preparedCompactionAuth) {
+         const model = this.model;
+         const settings = this.settingsManager.getCompactionSettings();
+         if (!model ||
+             model.contextWindow <= 0 ||
+             !shouldCompact(estimateContextTokens(context.messages).tokens, model.contextWindow, settings)) {
+             return context;
+         }
+-        await this._runAutoCompaction("threshold", false);
++        await this._runAutoCompaction("threshold", false, preparedCompactionAuth, true);
+         return {
+             ...context,
+             messages: this.agent.state.messages.slice(),
          };
      }
      _installAgentNextTurnRefresh() {
@@ -280,11 +294,14 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
                  : undefined);
          this.agent.prepareNextTurnWithContext = async (turn, signal) => {
 -            const context = await this._compactBeforeNextAssistantResponse(turn.context);
-+            const identityChanged = await this._refreshRequestModelContext();
++            let preparedCompactionAuth;
++            const identityChanged = await this._refreshRequestModelContext((prepared) => {
++                preparedCompactionAuth = prepared;
++            });
 +            const requestContext = identityChanged
 +                ? { ...turn.context, messages: this.agent.state.messages.slice() }
 +                : turn.context;
-+            const context = await this._compactBeforeNextAssistantResponse(requestContext);
++            const context = await this._compactBeforeNextAssistantResponse(requestContext, preparedCompactionAuth);
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
              return {
@@ -664,7 +681,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
       * @returns Whether the post-run loop should call `agent.continue()`
       */
 -    async _runAutoCompaction(reason, willRetry) {
-+    async _runAutoCompaction(reason, willRetry, preparedCompactionAuth) {
++    async _runAutoCompaction(reason, willRetry, preparedCompactionAuth, preservePreparedAuth = false) {
          const settings = this.settingsManager.getCompactionSettings();
          let started = false;
          let fromExtension = false;
@@ -747,7 +764,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
          }
          finally {
              this._autoCompactionAbortController = undefined;
-+            if (this.model) {
++            if (this.model && !preservePreparedAuth) {
 +                await this._refreshRequestModelContext();
 +            }
 +            if (completedWillRetry) {

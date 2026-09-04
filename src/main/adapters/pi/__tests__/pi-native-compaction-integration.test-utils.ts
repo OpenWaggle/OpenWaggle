@@ -58,8 +58,10 @@ export async function createNativeSession(options: {
     authorization?: string
     accountId?: string
   }
+  providerAuthHeaderResolver?: () => string
   blockImages?: boolean
   contextTransform?: (messages: ContextEvent['messages']) => ContextEvent['messages']
+  enableDefaultTools?: boolean
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -110,9 +112,10 @@ export async function createNativeSession(options: {
     },
   })
   const extension: ExtensionFactory = (pi) => {
-    if (options.providerAuthHeaderState) {
+    if (options.providerAuthHeaderState || options.providerAuthHeaderResolver) {
       pi.on('before_provider_headers', (event) => {
-        const authorization = options.providerAuthHeaderState?.authorization
+        const authorization =
+          options.providerAuthHeaderResolver?.() ?? options.providerAuthHeaderState?.authorization
         const accountId = options.providerAuthHeaderState?.accountId
         if (authorization) event.headers.Authorization = authorization
         if (accountId) event.headers['chatgpt-account-id'] = accountId
@@ -207,7 +210,7 @@ export async function createNativeSession(options: {
     resourceLoader,
     sessionManager,
     settingsManager,
-    noTools: 'all',
+    noTools: options.enableDefaultTools ? undefined : 'all',
   })
   sessions.push(result.session)
   return { ...result, faux, modelRuntime, sessionManager }

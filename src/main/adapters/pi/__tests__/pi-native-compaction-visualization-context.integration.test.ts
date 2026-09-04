@@ -108,6 +108,19 @@ describe('Pi compaction visualization context', () => {
         directory,
         compactionEvents: [],
         responses,
+        contextTransform: (messages) =>
+          messages.map((message) => {
+            if (message.role !== 'user') return message
+            if (typeof message.content === 'string') {
+              return { ...message, content: `${message.content}\n[context-filtered]` }
+            }
+            return {
+              ...message,
+              content: message.content.map((part) =>
+                part.type === 'text' ? { ...part, text: `${part.text}\n[context-filtered]` } : part,
+              ),
+            }
+          }),
       })
       bindVisualizationContextFilter(session)
 
