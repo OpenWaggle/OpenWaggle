@@ -38,6 +38,7 @@ function activityUnchangedSince(
 export function retainUnchangedActivities(
   ids: ReadonlySet<SessionId>,
   compactions: readonly ActiveCompactionInfo[],
+  runs: readonly ActiveAgentRunInfo[],
   capturedRevisions: ReadonlyMap<SessionId, number>,
 ) {
   return {
@@ -45,6 +46,7 @@ export function retainUnchangedActivities(
     compactions: compactions.filter((compaction) =>
       activityUnchangedSince(compaction.sessionId, capturedRevisions),
     ),
+    runs: runs.filter((run) => activityUnchangedSince(run.sessionId, capturedRevisions)),
   }
 }
 
@@ -59,6 +61,7 @@ export function isActiveCompaction(activity: ActiveRunInfo): activity is ActiveC
 export function restoreCompactionSnapshots(
   state: RunRenderState,
   compactions: readonly ActiveCompactionInfo[],
+  runs: readonly ActiveAgentRunInfo[],
 ) {
   const snapshots = new Map(state.renderSnapshotsBySessionId)
   for (const compaction of compactions) {
@@ -76,6 +79,21 @@ export function restoreCompactionSnapshots(
         messages,
       ),
       updatedAt: Date.now(),
+    })
+  }
+  for (const run of runs) {
+    const activityEvents = run.activityEvents ?? []
+    if (snapshots.has(run.sessionId) || activityEvents.length === 0) continue
+    const messages: readonly UIMessage[] = []
+    const compactionStatus = activityEvents.reduce<AgentCompactionStatus | null>(
+      (status, event) => applyCompactionSnapshotEvent(status, event, messages),
+      null,
+    )
+    if (compactionStatus === null) continue
+    snapshots.set(run.sessionId, {
+      messages,
+      compactionStatus,
+      updatedAt: activityEvents.at(-1)?.timestamp ?? run.startedAt,
     })
   }
   return snapshots

@@ -145,8 +145,7 @@ function mergeInitializedRecoveryState(
 ) {
   return {
     activeRunIds: new Set([...activeRunIds, ...state.activeRunIds]),
-    // Live renderer events received while initialization awaited IPC are newer
-    // than any snapshot being reconciled, regardless of wall-clock timestamps.
+    // Live renderer events received while initialization awaited IPC are always newer.
     worktreeLaunchBySessionId: new Map([
       ...reconciled.launches,
       ...state.worktreeLaunchBySessionId,
@@ -172,6 +171,7 @@ async function loadActiveActivityState() {
   const runs = activities.filter(isAgentRun)
   return {
     ids: new Set<SessionId>(activities.map((activity) => activity.sessionId)),
+    runs,
     compactions: activities.filter(isActiveCompaction),
     snapshots: await Promise.all(runs.map((run) => api.getBackgroundRun(run.sessionId))),
   }
@@ -186,7 +186,11 @@ function mergeCurrentActivityState(
   persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
   return {
     ...next,
-    renderSnapshotsBySessionId: restoreCompactionSnapshots(state, current.compactions),
+    renderSnapshotsBySessionId: restoreCompactionSnapshots(
+      state,
+      current.compactions,
+      current.runs,
+    ),
   }
 }
 
@@ -314,12 +318,12 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
 
   async initialize() {
     const capturedActivityRevisions = captureActivityRevisions()
-    const { ids, compactions, snapshots } = await loadActiveActivityState()
+    const { ids, compactions, runs, snapshots } = await loadActiveActivityState()
     const persisted = loadRecoverableBackgroundRuns()
     const launches = mergeLatestLaunches(launchesFromSnapshots(snapshots), persisted.launches)
     const reconciled = await reconcilePersistedFirstSends(ids, launches, persisted.recoveries)
     set((state) => {
-      const current = retainUnchangedActivities(ids, compactions, capturedActivityRevisions)
+      const current = retainUnchangedActivities(ids, compactions, runs, capturedActivityRevisions)
       return mergeCurrentActivityState(state, current, reconciled)
     })
   },
