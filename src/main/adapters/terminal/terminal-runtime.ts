@@ -117,7 +117,7 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
           outcome.pty.kill()
           return
         }
-        attachLiveShell(record, outcome.pty, outcome.pid, generation)
+        attachLiveShell(record, outcome.pty, outcome.pid, generation, outcome.shell)
       })
       .catch((error: unknown) => {
         logger.error('Terminal spawn pipeline failed', {
@@ -126,13 +126,27 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
       })
   }
 
-  const attachLiveShell = (record: TerminalRecord, pty: IPty, pid: number, generation: number) => {
+  const attachLiveShell = (
+    record: TerminalRecord,
+    pty: IPty,
+    pid: number,
+    generation: number,
+    shell: string,
+  ) => {
     record.live = { pty, pid }
     record.exitCode = null
     deps.onLivePidsChanged()
+    // Title the tab after the user's shell immediately, before the first poll.
+    emitEvent(record, { type: 'activity', processName: shell })
 
     pty.onData((data: string) => {
       if (record.closed) return
+      // First shell output = the shell is reading input now; release anything
+      // the user typed during startup, in order, before further handling.
+      if (record.pendingInput.length > 0) {
+        pty.write(record.pendingInput)
+        record.pendingInput = ''
+      }
       const sanitized = record.sanitizer.feed(data)
       record.scrollback.append(sanitized)
       history.append(record.key, sanitized)
@@ -160,6 +174,7 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
     scrollback: createTerminalScrollback(),
     sanitizer: createTerminalHistorySanitizer(),
     pendingOutput: '',
+    pendingInput: '',
     pendingStartOffset: 0,
     outputBytes: 0,
     spawnGeneration: 0,

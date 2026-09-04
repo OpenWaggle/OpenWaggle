@@ -2,7 +2,11 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import type { TerminalEventPayload, TerminalOpenInput } from '@shared/types/terminal'
+import type {
+  TerminalEventPayload,
+  TerminalOpenInput,
+  TerminalRuntimeEvent,
+} from '@shared/types/terminal'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { IPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +68,7 @@ describe('makeTerminalRuntime', () => {
         ok: true,
         pty,
         pid: pty.pid,
+        shell: 'zsh',
       }),
     )
     const runner: PtyRunner = {
@@ -74,6 +79,13 @@ describe('makeTerminalRuntime', () => {
     const onLivePidsChanged = vi.fn()
     const runtime = makeTerminalRuntime({ runner, history: store, emit, onLivePidsChanged })
     return { runtime, spawn, emit, onLivePidsChanged }
+  }
+
+
+  /** The spawn-time activity event is always first; grab later events by index. */
+  function eventAt(emit: ReturnType<typeof vi.fn>, index: number) {
+    const call = emit.mock.calls[index]?.[0] as { event: TerminalRuntimeEvent } | undefined
+    return call?.event
   }
 
   function addRecord(runtime: TerminalRuntime) {
@@ -120,20 +132,25 @@ describe('makeTerminalRuntime', () => {
     expect(record.live).not.toBeNull()
     expect(onLivePidsChanged).toHaveBeenCalledOnce()
 
+    // The spawn-time activity event names the shell; it precedes all output.
+    expect(emit).toHaveBeenCalledOnce()
+    expect(eventAt(emit, 0)).toEqual({ type: 'activity', processName: 'zsh' })
+
     fake.dataListeners[0]?.('hello')
     expect(record.pendingOutput).toBe('hello')
-    expect(emit).not.toHaveBeenCalled()
+    expect(emit).toHaveBeenCalledOnce()
 
     fake.dataListeners[0]?.(' world')
     expect(record.pendingOutput).toBe('hello world')
 
     await vi.advanceTimersByTimeAsync(TERMINAL.OUTPUT_FLUSH_MS)
 
-    expect(emit).toHaveBeenCalledOnce()
-    expect(emit).toHaveBeenCalledWith({
-      ownerKey: 'session-1',
-      terminalId: 'main',
-      event: { type: 'output', data: 'hello world', startOffset: 0, endOffset: 11 },
+    expect(emit).toHaveBeenCalledTimes(2)
+    expect(eventAt(emit, 1)).toEqual({
+      type: 'output',
+      data: 'hello world',
+      startOffset: 0,
+      endOffset: 11,
     })
     expect(record.pendingOutput).toBe('')
     expect(record.scrollback.toString()).toBe('hello world')
@@ -176,12 +193,8 @@ describe('makeTerminalRuntime', () => {
 
     fake.exitListeners[0]?.({ exitCode: 7 })
 
-    expect(emit).toHaveBeenCalledOnce()
-    expect(emit).toHaveBeenCalledWith({
-      ownerKey: 'session-1',
-      terminalId: 'main',
-      event: { type: 'exited', exitCode: 7 },
-    })
+    expect(emit).toHaveBeenCalledTimes(2)
+    expect(eventAt(emit, 1)).toEqual({ type: 'exited', exitCode: 7 })
     expect(record.exitCode).toBe(7)
     expect(record.live).toBeNull()
     expect(onLivePidsChanged).toHaveBeenCalledTimes(2)
@@ -201,7 +214,10 @@ describe('makeTerminalRuntime', () => {
 
     fake.exitListeners[0]?.({ exitCode: 0 })
 
-    expect(emit).not.toHaveBeenCalled()
+    // Only the spawn-time shell-name activity event fired; the stale exit
+    // after killLive bumped the generation must not emit.
+    expect(emit).toHaveBeenCalledOnce()
+    expect(eventAt(emit, 0)).toEqual({ type: 'activity', processName: 'zsh' })
     expect(record.exitCode).toBeNull()
     expect(onLivePidsChanged).toHaveBeenCalledTimes(2)
   })
@@ -218,7 +234,10 @@ describe('makeTerminalRuntime', () => {
     runtime.discardPendingOutput(record.key)
     await vi.advanceTimersByTimeAsync(TERMINAL.OUTPUT_FLUSH_MS)
 
-    expect(emit).not.toHaveBeenCalled()
+    // Only the spawn-time shell-name activity event fired; the discarded
+    // output batch never reached the sink.
+    expect(emit).toHaveBeenCalledOnce()
+    expect(eventAt(emit, 0)).toEqual({ type: 'activity', processName: 'zsh' })
   })
 
   it('emits a failed exit when the runner cannot spawn a shell', async () => {
@@ -261,7 +280,7 @@ describe('makeTerminalRuntime', () => {
     expect(record.spawnGeneration).toBe(2)
     expect(record.live?.pty).toBe(second.pty)
 
-    resolveFirst?.({ ok: true, pty: first.pty, pid: 111 })
+    resolveFirst?.({ ok: true, pty: first.pty, pid: 111, shell: 'zsh' })
     await vi.advanceTimersByTimeAsync(0)
 
     expect(first.kill).toHaveBeenCalledOnce()

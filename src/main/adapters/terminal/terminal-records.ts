@@ -16,6 +16,13 @@ export interface TerminalRecord {
   readonly scrollback: TerminalScrollback
   readonly sanitizer: TerminalHistorySanitizer
   pendingOutput: string
+  /**
+   * User input held until the shell produces its first output. Without this,
+   * keys typed during shell startup are kernel-echoed straight into the
+   * scrollback as garbage (the tty discipline echoes while the shell is still
+   * sourcing its rc files).
+   */
+  pendingInput: string
   /** Stream offset before the first byte currently held in pendingOutput. */
   pendingStartOffset: number
   /** Cumulative raw output bytes seen for this terminal's current shell. */

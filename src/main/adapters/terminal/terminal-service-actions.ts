@@ -11,6 +11,9 @@ import { validateTerminalCwd } from './terminal-shell'
 
 const logger = createLogger('terminal-service-actions')
 
+/** Upper bound for input held while the shell is starting (defense in depth). */
+const MAX_HELD_INPUT = TERMINAL.MAX_INPUT_BYTES * 4
+
 const CLOSED_SNAPSHOT: TerminalAttachResult = {
   history: '',
   outputBytes: 0,
@@ -118,6 +121,7 @@ function applyOpenDecision(
     record.cwd = validateTerminalCwd(input.cwd) ?? record.cwd
     record.scrollback.reset()
     record.pendingOutput = ''
+    record.pendingInput = ''
     record.pendingStartOffset = 0
     record.outputBytes = 0
     runtime.discardPendingOutput(record.key)
@@ -140,7 +144,15 @@ export function writeTerminalAction(
   data: string,
 ) {
   return Effect.sync(() => {
-    context.runtime.records.get(terminalKeyOf(ownerKey, terminalId))?.live?.pty.write(data)
+    const record = context.runtime.records.get(terminalKeyOf(ownerKey, terminalId))
+    if (record === undefined || record.live === null) return
+    // Hold input until the shell first speaks: the tty discipline would echo
+    // keys typed during startup straight into the scrollback as garbage.
+    if (record.outputBytes === 0 && record.pendingInput.length < MAX_HELD_INPUT) {
+      record.pendingInput += data
+      return
+    }
+    record.live.pty.write(data)
   })
 }
 
@@ -207,6 +219,7 @@ export function restartTerminalAction(context: TerminalActionContext, input: Ter
     record.cwd = cwd
     record.scrollback.reset()
     record.pendingOutput = ''
+    record.pendingInput = ''
     record.pendingStartOffset = 0
     record.outputBytes = 0
     runtime.discardPendingOutput(key)

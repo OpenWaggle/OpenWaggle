@@ -125,7 +125,7 @@ describe('makeNodePtyTerminalService', () => {
           heldSpawns.push(resolve)
         })
       }
-      return Promise.resolve({ ok: true, pty: fake.pty, pid: fake.pty.pid })
+      return Promise.resolve({ ok: true, pty: fake.pty, pid: fake.pty.pid, shell: 'zsh' })
     })
     const runner: PtyRunner = {
       spawn,
@@ -237,7 +237,7 @@ describe('makeNodePtyTerminalService', () => {
     expect(spawn).toHaveBeenCalledOnce()
     const heldPty = ptys[0]?.pty
     if (heldPty === undefined) throw new Error('Expected a held fake pty')
-    heldSpawns[0]?.({ ok: true, pty: heldPty, pid: heldPty.pid })
+    heldSpawns[0]?.({ ok: true, pty: heldPty, pid: heldPty.pid, shell: 'zsh' })
     await settle()
     expect(service.records.get(TERMINAL_KEY)?.live?.pty).toBe(heldPty)
   })
@@ -280,6 +280,29 @@ describe('makeNodePtyTerminalService', () => {
       },
       { timeout: 10_000 },
     )
+  })
+
+  it('holds input until the shell first speaks, then releases it in order', async () => {
+    await open(workDirA)
+    await settle()
+    const fake = ptys[0]
+
+    // Typed during shell startup: nothing reaches the pty (no kernel echo
+    // garbage in the scrollback), it is held on the record instead.
+    await Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'echo a'))
+    expect(fake.write).not.toHaveBeenCalled()
+    expect(service.records.get(TERMINAL_KEY)?.pendingInput).toBe('echo a')
+
+    await Effect.runPromise(service.write(OWNER, TERMINAL_ID, ' && echo b\n'))
+    expect(service.records.get(TERMINAL_KEY)?.pendingInput).toBe('echo a && echo b\n')
+
+    // First shell output releases the held input ahead of everything else.
+    feed(0, 'prompt> ')
+    expect(fake.write).toHaveBeenCalledExactlyOnceWith('echo a && echo b\n')
+
+    // Once the shell has spoken, input flows straight through.
+    await Effect.runPromise(service.write(OWNER, TERMINAL_ID, 'ls\n'))
+    expect(fake.write).toHaveBeenLastCalledWith('ls\n')
   })
 
   it('close deletes history, emits closed, and late output cannot resurrect it', async () => {

@@ -74,7 +74,11 @@ export function TerminalPane(props: TerminalPaneProps) {
   return (
     <div
       ref={paneRef}
-      className="relative h-full min-w-0 flex-1"
+      className={
+        props.focused
+          ? 'relative h-full min-w-0 flex-1 ring-1 ring-inset ring-accent/30'
+          : 'relative h-full min-w-0 flex-1'
+      }
       data-terminal-pane={terminalId}
       data-focused={props.focused ? 'true' : 'false'}
     >

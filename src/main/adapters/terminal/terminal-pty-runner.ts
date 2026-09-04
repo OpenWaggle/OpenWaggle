@@ -1,3 +1,4 @@
+import os from 'node:os'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
@@ -18,7 +19,7 @@ export interface PtySpawnRequest {
 }
 
 export type PtySpawnOutcome =
-  | { readonly ok: true; readonly pty: IPty; readonly pid: number }
+  | { readonly ok: true; readonly pty: IPty; readonly pid: number; readonly shell: string }
   | { readonly ok: false; readonly error: Error }
 
 export interface PtyRunner {
@@ -67,9 +68,12 @@ export function makePtyRunner(loadPty?: () => Promise<typeof NodePtyModule>): Pt
 
   const spawn = async (request: PtySpawnRequest) => {
     const pty = await loadPtyModule()
+    // Login shell on macOS (like Terminal.app and VSCode) so the user's full
+    // profile (~/.zprofile etc.) is sourced and their environment is inferred.
+    const spawnArgs = os.platform() === 'darwin' ? ['-l'] : []
     for (const shell of existingShells()) {
       try {
-        const spawned = pty.spawn(shell, [], {
+        const spawned = pty.spawn(shell, spawnArgs, {
           name: 'xterm-256color',
           cols: Math.max(MIN_SPAWN_COLS, Math.min(TERMINAL.MAX_COLS, request.cols)),
           rows: Math.max(MIN_SPAWN_ROWS, Math.min(TERMINAL.MAX_ROWS, request.rows)),
@@ -77,7 +81,12 @@ export function makePtyRunner(loadPty?: () => Promise<typeof NodePtyModule>): Pt
           env: childEnv(),
         })
         resumeMasterStream(spawned)
-        return { ok: true, pty: spawned, pid: spawned.pid } satisfies PtySpawnOutcome
+        return {
+          ok: true,
+          pty: spawned,
+          pid: spawned.pid,
+          shell: basename(shell),
+        } satisfies PtySpawnOutcome
       } catch (error) {
         logger.warn('Terminal shell spawn failed, trying fallback', {
           shell,
@@ -92,4 +101,9 @@ export function makePtyRunner(loadPty?: () => Promise<typeof NodePtyModule>): Pt
   }
 
   return { spawn, load: loadPtyModule }
+}
+
+function basename(shellPath: string) {
+  const normalized = shellPath.replaceAll('\\', '/')
+  return normalized.split('/').pop() ?? shellPath
 }

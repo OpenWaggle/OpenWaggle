@@ -36,6 +36,7 @@ function makeRecord(options: {
     scrollback,
     sanitizer: createTerminalHistorySanitizer(),
     pendingOutput: '',
+    pendingInput: '',
     pendingStartOffset: 0,
     outputBytes: 0,
     spawnGeneration: 1,
