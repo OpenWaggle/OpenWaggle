@@ -127,11 +127,17 @@ function emitCompactionStart(state: SessionListenerState, event: CompactionStart
     model: state.input.model,
   })
 }
+
+function compactionTransportResult(event: CompactionEndSessionEvent) {
+  const entryId = event.result?.entryId
+  return typeof entryId === 'string' ? { entryId } : null
+}
+
 function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSessionEvent) {
   emitEvent(state.input.onEvent, {
     type: 'compaction_end',
     reason: event.reason,
-    result: toJsonValue(event.result ?? null),
+    result: compactionTransportResult(event),
     aborted: event.aborted,
     willRetry: event.willRetry,
     ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
