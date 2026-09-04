@@ -34,6 +34,7 @@ interface FakeSession {
   }
   readonly sessionManager: {
     readonly getEntries: () => readonly unknown[]
+    readonly getBranch: () => readonly never[]
     readonly getLeafId: () => string | null
   }
   readonly abort: () => Promise<void>
@@ -125,6 +126,7 @@ describe('run lifecycle settlement edge cases', () => {
       },
       sessionManager: {
         getEntries: vi.fn(() => []),
+        getBranch: vi.fn(() => []),
         getLeafId: vi.fn(() => null),
       },
       abort: vi.fn(async () => undefined),
@@ -174,6 +176,7 @@ describe('run lifecycle settlement edge cases', () => {
       },
       sessionManager: {
         getEntries: vi.fn(() => []),
+        getBranch: vi.fn(() => []),
         getLeafId: vi.fn(() => null),
       },
       abort: vi.fn(async () => undefined),

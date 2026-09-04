@@ -75,6 +75,7 @@ export interface FakeRunSession {
     readonly buildSessionContext: () => { readonly messages: readonly unknown[] }
     readonly appendCustomEntry: (customType: string, data?: unknown) => string
     readonly getEntries: () => readonly unknown[]
+    readonly getBranch: () => readonly never[]
     readonly getLeafId: () => null
   }
   readonly abort: () => Promise<undefined>
@@ -179,6 +180,7 @@ export function createFakeSession(
       appendCustomEntry: vi.fn(() => 'mode-state-entry'),
       buildSessionContext: () => ({ messages: [] }),
       getEntries: () => [],
+      getBranch: () => [],
       getLeafId: () => null,
     },
     abort: vi.fn(async () => undefined),

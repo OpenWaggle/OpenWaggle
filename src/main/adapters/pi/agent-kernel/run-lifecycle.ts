@@ -26,6 +26,7 @@ import { createPiRunControl } from './pi-run-control'
 import {
   buildFailedRunAfterSettlement,
   buildFailedSubscribedRunResult,
+  capturePiMessageBoundary,
   collectSettledPiMessages,
   describePiRunError,
   runPiOperation,
@@ -251,7 +252,6 @@ export async function runSubscribedPiOperation(input: {
   readonly buildErrorMessages: (appended: readonly unknown[]) => readonly Message[]
 }) {
   const abortListener = createAbortListener(input.session, input.abortWarning)
-  let previousMessageCount = input.session.agent.state.messages.length
   let operationAborted = false
   let settlementAttempted = false
 
@@ -262,17 +262,17 @@ export async function runSubscribedPiOperation(input: {
     return result
   }
 
+  const messageBoundary = capturePiMessageBoundary(input.session)
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
 
   try {
-    previousMessageCount = input.session.agent.state.messages.length
     const operationOutcome = await runPiOperation(input.operation)
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)
 
     settlementAttempted = true
-    const appended = await collectSettledPiMessages(input.session, previousMessageCount)
+    const appended = await collectSettledPiMessages(input.session, messageBoundary)
 
     if (operationOutcome.status === 'failed') {
       return buildFailedSubscribedRunResult({
@@ -295,7 +295,7 @@ export async function runSubscribedPiOperation(input: {
     return buildFailedRunAfterSettlement({
       session: input.session,
       runInput: input.runInput,
-      previousMessageCount,
+      messageBoundary,
       operationAborted,
       settlementAttempted,
       error,
