@@ -3,12 +3,8 @@ import { createPiRunControl } from '../pi-run-control'
 import { modelFromReference, payload } from './run-orchestration.test-utils'
 
 function nativeSteering() {
-  const messages: string[] = []
   return {
-    getSteeringMessages: () => messages,
-    steer: vi.fn(async (text: string) => {
-      messages.push(text)
-    }),
+    steer: vi.fn(async (text: string) => text),
   }
 }
 
@@ -29,21 +25,38 @@ describe('Pi native run control', () => {
   })
 
   it('expands queued slash commands before delivering steering', async () => {
-    const steeringMessages: string[] = []
     const session = {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
-      getSteeringMessages: () => steeringMessages,
-      steer: vi.fn(async () => {
-        steeringMessages.push('Expanded review skill')
-      }),
+      steer: vi.fn(async () => 'Expanded review skill'),
     }
     const control = createPiRunControl(session, new AbortController().signal)
 
     const result = await control.steer(payload('/skill:review-pr'))
 
     expect(session.steer).toHaveBeenCalledWith('/skill:review-pr', undefined)
+    expect(result).toEqual({ delivery: 'queued', durableText: 'Expanded review skill' })
+  })
+
+  it('returns the accepted steer text even when an older queued steer drains concurrently', async () => {
+    const steeringMessages = ['Older steer']
+    const session = {
+      isCompacting: false,
+      isStreaming: true,
+      model: modelFromReference('openai/gpt-5.5'),
+      getSteeringMessages: () => steeringMessages,
+      steer: vi.fn(async () => {
+        await Promise.resolve()
+        steeringMessages.shift()
+        steeringMessages.push('Expanded review skill')
+        return 'Expanded review skill'
+      }),
+    }
+    const control = createPiRunControl(session, new AbortController().signal)
+
+    const result = await control.steer(payload('/skill:review-pr'))
+
     expect(result).toEqual({ delivery: 'queued', durableText: 'Expanded review skill' })
   })
 

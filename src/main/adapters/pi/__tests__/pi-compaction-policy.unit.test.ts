@@ -50,10 +50,16 @@ describe('Pi compaction policy', () => {
       ...baseModel,
       api: 'openai-completions',
     }
+    const azureModel: Model<'azure-openai-responses'> = {
+      ...baseModel,
+      api: 'azure-openai-responses',
+      compat: { supportsCompaction: true },
+    }
 
     expect(selectCompactionMechanism(baseModel)).toBe('portable')
     expect(selectCompactionMechanism(nativeModel)).toBe('native')
     expect(selectCompactionMechanism(completionsModel)).toBe('portable')
+    expect(selectCompactionMechanism(azureModel)).toBe('portable')
   })
 
   it('retains an oversized tool call and result as one atomic recent unit', () => {

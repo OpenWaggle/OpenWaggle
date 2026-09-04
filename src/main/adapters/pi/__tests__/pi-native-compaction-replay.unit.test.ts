@@ -90,6 +90,44 @@ describe('Pi native compaction replay', () => {
     expect(reconstructed.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
   })
 
+  it('reconstructs legacy Azure checkpoints until an Azure native transport exists', () => {
+    const sessionManager = SessionManager.inMemory('/repo')
+    sessionManager.appendMessage({ role: 'user', content: 'Raw Azure context', timestamp: 1 })
+    sessionManager.appendMessage(makeAssistant('Raw Azure response', 2))
+    const compactionId = sessionManager.appendCompaction(
+      'Legacy Azure checkpoint',
+      'native-replacement',
+      80_000,
+      {
+        ...NATIVE_DETAILS,
+        identity: {
+          ...NATIVE_DETAILS.identity,
+          api: 'azure-openai-responses',
+          provider: 'azure-openai-responses',
+          baseUrl: 'https://resource.openai.azure.com/openai/v1',
+          compactionBaseUrl: 'https://resource.openai.azure.com/openai/v1',
+        },
+      },
+    )
+    const azureModel: Model<'azure-openai-responses'> = {
+      ...makeNativeModel(),
+      api: 'azure-openai-responses',
+      provider: 'azure-openai-responses',
+      baseUrl: 'https://resource.openai.azure.com/openai/v1',
+      compat: { supportsCompaction: true },
+    }
+
+    const reconstructed = buildSessionContext(
+      sessionManager.getBranch(),
+      compactionId,
+      undefined,
+      azureModel,
+    )
+
+    expect(reconstructed.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(JSON.stringify(reconstructed.messages)).not.toContain('opaque-checkpoint')
+  })
+
   it('fits raw reconstruction by dropping complete oldest turns', () => {
     const sessionManager = SessionManager.inMemory('/repo')
     sessionManager.appendMessage({

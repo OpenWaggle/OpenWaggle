@@ -10,7 +10,6 @@ interface PiSteeringSession {
   readonly model:
     | { readonly input: readonly NonNullable<AgentSession['model']>['input'][number][] }
     | undefined
-  readonly getSteeringMessages: AgentSession['getSteeringMessages']
   readonly steer: AgentSession['steer']
 }
 
@@ -50,12 +49,10 @@ export function createPiRunControl(
       const text = promptInput.visualizationContext
         ? buildAtomicVisualizationPrompt(promptInput.visualizationContext, promptInput.text)
         : promptInput.text
-      const queuedCount = session.getSteeringMessages().length
-      await session.steer(text, promptInput.images.length > 0 ? [...promptInput.images] : undefined)
-      const durableText = session.getSteeringMessages()[queuedCount]
-      if (durableText === undefined) {
-        throw new Error('Pi accepted steering without exposing the queued message.')
-      }
+      const durableText = await session.steer(
+        text,
+        promptInput.images.length > 0 ? [...promptInput.images] : undefined,
+      )
       return { delivery: 'queued', durableText }
     },
   }

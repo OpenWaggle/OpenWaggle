@@ -3,7 +3,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useOptimisticSteerStore } from '@/features/chat/state'
 import { buildClientUserMessage } from '../../lib/chat-attachment-preview'
@@ -50,6 +50,7 @@ describe('useOptimisticSteeredTurn', () => {
           SESSION_ID,
           (payload) => payload.text,
           messagesRef,
+          false,
         ),
       { initialProps: { hydratedMessages: initialMessages } },
     )
@@ -102,6 +103,7 @@ describe('useOptimisticSteeredTurn', () => {
           sessionId,
           (payload) => payload.text,
           messagesRef,
+          false,
         ),
       { initialProps: { sessionId: SESSION_ID } },
     )
@@ -141,7 +143,13 @@ describe('useOptimisticSteeredTurn', () => {
     const messagesRef = { current: initialMessages }
     const { result, rerender } = renderHook(
       ({ hydratedMessages }) =>
-        useOptimisticSteeredTurn(hydratedMessages, SESSION_ID, buildClientUserMessage, messagesRef),
+        useOptimisticSteeredTurn(
+          hydratedMessages,
+          SESSION_ID,
+          buildClientUserMessage,
+          messagesRef,
+          false,
+        ),
       { initialProps: { hydratedMessages: initialMessages } },
     )
 
@@ -173,6 +181,7 @@ describe('useOptimisticSteeredTurn', () => {
           SESSION_ID,
           (payload) => payload.text,
           messagesRef,
+          false,
         ),
       { initialProps: { hydratedMessages: initialMessages } },
     )
@@ -190,5 +199,31 @@ describe('useOptimisticSteeredTurn', () => {
     rerender({ hydratedMessages: durableMessages })
 
     expect(result.current.visibleMessages).toEqual(durableMessages)
+  })
+
+  it('clears an accepted steer preview when the run ends without projecting it', async () => {
+    const initialMessages = [userMessage('initial', 'start')]
+    const messagesRef = { current: initialMessages }
+    const { result, rerender } = renderHook(
+      ({ isSessionIdle }) =>
+        useOptimisticSteeredTurn(
+          initialMessages,
+          SESSION_ID,
+          (payload) => payload.text,
+          messagesRef,
+          isSessionIdle,
+        ),
+      { initialProps: { isSessionIdle: false } },
+    )
+
+    act(() => {
+      result.current.previewSteeredUserTurn(FIRST_PAYLOAD, 'sending')
+    })
+    expect(result.current.visibleMessages.map(messageText)).toEqual(['start', 'continue'])
+
+    rerender({ isSessionIdle: true })
+
+    await waitFor(() => expect(result.current.visibleMessages.map(messageText)).toEqual(['start']))
+    expect(useOptimisticSteerStore.getState().previews.has(SESSION_ID)).toBe(false)
   })
 })

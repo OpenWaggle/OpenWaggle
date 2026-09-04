@@ -35,6 +35,7 @@ export function useOptimisticSteeredTurn(
   sessionId: SessionId | null,
   buildClientUserMessage: (payload: AgentSendPayload) => string,
   messagesRef: React.RefObject<UIMessage[]>,
+  isSessionIdle: boolean,
 ): OptimisticSteeredTurnReturn {
   const optimisticSteeredUserTurns = useOptimisticSteerStore(
     selectOptimisticSteerPreviews(sessionId),
@@ -60,6 +61,14 @@ export function useOptimisticSteeredTurn(
       .getState()
       .reconcile(sessionId, reconciledOptimisticTurns, allOptimisticTurnsAreDurable)
   }, [allOptimisticTurnsAreDurable, hasNewDurableMatch, reconciledOptimisticTurns, sessionId])
+
+  // A steer preview only represents delivery within the active run. Stop clears Pi's pending
+  // steering queue, so any preview that did not project into the transcript must disappear when
+  // that run settles. The store is session-scoped, which preserves previews across navigation.
+  useEffect(() => {
+    if (!sessionId || !isSessionIdle) return
+    useOptimisticSteerStore.getState().clearSession(sessionId)
+  }, [isSessionIdle, sessionId])
 
   const visibleMessages = insertOptimisticSteeredUserTurn(
     hydratedMessages,

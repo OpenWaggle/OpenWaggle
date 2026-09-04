@@ -20,6 +20,7 @@ interface OptimisticSteerState {
     update: (preview: OptimisticSteerPreview) => OptimisticSteerPreview,
   ) => void
   readonly remove: (sessionId: SessionId, previewId: string) => void
+  readonly clearSession: (sessionId: SessionId) => void
   readonly reconcile: (
     sessionId: SessionId,
     observedPreviews: readonly OptimisticSteerPreview[],
@@ -75,6 +76,14 @@ export const useOptimisticSteerStore = create<OptimisticSteerState>((set) => ({
       const next = new Map(state.previews)
       if (remaining.length === 0) next.delete(sessionId)
       else next.set(sessionId, remaining)
+      return { previews: next }
+    })
+  },
+  clearSession(sessionId) {
+    set((state) => {
+      if (!state.previews.has(sessionId)) return state
+      const next = new Map(state.previews)
+      next.delete(sessionId)
       return { previews: next }
     })
   },

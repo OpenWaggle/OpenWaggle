@@ -122,6 +122,7 @@ export function useAgentChat(
     sessionId,
     buildClientUserMessage,
     messagesRef,
+    isSessionIdle,
   )
   const refs = {
     currentSessionIdRef,
