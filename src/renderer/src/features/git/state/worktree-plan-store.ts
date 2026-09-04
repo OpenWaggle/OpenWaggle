@@ -14,9 +14,42 @@ interface WorktreePlanState {
   readonly takeOverride: (key: string) => WorktreePlanOverride | undefined
 }
 
+/** Store key for setup choices made before the user has selected a project. */
+export const PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY = 'draft:projectless'
+
 /** Store key for a not-yet-created session's plan, keyed by the opened project. */
 export function draftWorktreePlanKey(projectPath: string): string {
   return `draft:${projectPath}`
+}
+
+/**
+ * Start a fresh draft without carrying setup choices across draft boundaries.
+ * The one exception is the project-first flow: choices made while no project
+ * was selected are adopted by the project the user selects next.
+ */
+export function prepareDraftWorktreePlan(
+  previousProjectPath: string | null,
+  nextProjectPath: string | null,
+): void {
+  useWorktreePlanStore.setState((state) => {
+    const next = { ...state.bySessionId }
+    const projectless = next[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY]
+    const adoptsProjectless =
+      previousProjectPath === null && nextProjectPath !== null && projectless !== undefined
+
+    if (previousProjectPath !== null) delete next[draftWorktreePlanKey(previousProjectPath)]
+    if (nextProjectPath !== null) delete next[draftWorktreePlanKey(nextProjectPath)]
+
+    if (adoptsProjectless) {
+      // Keep the source briefly as well: project preferences persist asynchronously,
+      // so the projectless render and the project-scoped render remain identical.
+      next[draftWorktreePlanKey(nextProjectPath)] = projectless
+    } else {
+      delete next[PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY]
+    }
+
+    return { bySessionId: next }
+  })
 }
 
 /**
