@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fauxAssistantMessage } from '@earendil-works/pi-ai'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import {
@@ -107,12 +107,15 @@ describe('Pi session lifecycle', () => {
     const checkStarted = Promise.withResolvers<void>()
     const finishCheck = Promise.withResolvers<void>()
     let hasQueuedMessages = false
-    const internals = fromPartial<{
-      _lastAssistantMessage: ReturnType<typeof fauxAssistantMessage> | undefined
-      _checkCompaction: () => Promise<boolean>
-      _handlePostAgentRun: () => Promise<boolean>
-      agent: { hasQueuedMessages: () => boolean }
-    }>(session)
+    const internals = fromAny<
+      {
+        _lastAssistantMessage: ReturnType<typeof fauxAssistantMessage> | undefined
+        _checkCompaction: () => Promise<boolean>
+        _handlePostAgentRun: () => Promise<boolean>
+        agent: { hasQueuedMessages: () => boolean }
+      },
+      typeof session
+    >(session)
     internals._lastAssistantMessage = fauxAssistantMessage('Turn complete')
     internals.agent.hasQueuedMessages = vi.fn(() => hasQueuedMessages)
     internals._checkCompaction = vi.fn(async () => {
