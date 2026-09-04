@@ -167,4 +167,79 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
       },
     ])
   })
+
+  it('does not move or retype an existing retry when its id is reused', async () => {
+    const databasePath = path.join(tmpRoot, 'output-retry-identity.sqlite')
+    const layer = makeTestLayer(databasePath)
+    const firstSessionId = SessionId('session-1')
+    const secondSessionId = SessionId('session-2')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionOutputRetryRepository
+        yield* repository.put({
+          id: 'shared-pending-id',
+          sessionId: firstSessionId,
+          kind: 'commit',
+          commitHash: 'abc123',
+          summary: 'Original commit',
+          nodeId: 'original-node',
+          branchId: 'original-branch',
+          createdAt: 1000,
+        })
+        const crossSession = yield* repository
+          .put({
+            id: 'shared-pending-id',
+            sessionId: secondSessionId,
+            kind: 'commit',
+            commitHash: 'def456',
+            summary: 'Other session',
+            nodeId: 'other-node',
+            branchId: 'other-branch',
+            createdAt: 2000,
+          })
+          .pipe(Effect.either)
+        const crossKind = yield* repository
+          .put({
+            id: 'shared-pending-id',
+            sessionId: firstSessionId,
+            kind: 'change-request',
+            title: 'Retyped request',
+            url: 'https://github.com/openwaggle/openwaggle/pull/2',
+            nodeId: 'later-node',
+            branchId: 'later-branch',
+            createdAt: 3000,
+          })
+          .pipe(Effect.either)
+        return {
+          crossSession,
+          crossKind,
+          first: yield* repository.list(firstSessionId),
+          second: yield* repository.list(secondSessionId),
+        }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.crossSession).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'SessionOutputRetryRepositoryError', operation: 'put' },
+    })
+    expect(result.crossKind).toMatchObject({
+      _tag: 'Left',
+      left: { _tag: 'SessionOutputRetryRepositoryError', operation: 'put' },
+    })
+    expect(result.first).toEqual([
+      {
+        id: 'shared-pending-id',
+        sessionId: firstSessionId,
+        kind: 'commit',
+        commitHash: 'abc123',
+        summary: 'Original commit',
+        nodeId: 'original-node',
+        branchId: 'original-branch',
+        createdAt: 1000,
+      },
+    ])
+    expect(result.second).toEqual([])
+  })
 })

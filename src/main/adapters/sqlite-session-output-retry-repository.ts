@@ -49,7 +49,7 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
     const sql = yield* SqlClient.SqlClient
     return SessionOutputRetryRepository.of({
       put: (output) =>
-        sql`
+        sql<{ readonly id: string }>`
           INSERT INTO session_output_retries (
             id, session_id, kind, commit_hash, summary, title, url,
             node_id, branch_id, created_at
@@ -66,15 +66,25 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             ${output.createdAt}
           )
           ON CONFLICT(id) DO UPDATE SET
-            session_id = excluded.session_id,
-            kind = excluded.kind,
             commit_hash = excluded.commit_hash,
             summary = excluded.summary,
             title = excluded.title,
             url = excluded.url
+          WHERE session_output_retries.session_id = excluded.session_id
+            AND session_output_retries.kind = excluded.kind
+          RETURNING id
         `.pipe(
-          Effect.asVoid,
           Effect.mapError((cause) => repositoryError('put', cause)),
+          Effect.flatMap((rows) =>
+            rows.length === 1
+              ? Effect.void
+              : Effect.fail(
+                  repositoryError(
+                    'put',
+                    new Error(`Pending Session Output identity conflict: ${output.id}`),
+                  ),
+                ),
+          ),
         ),
       list: (sessionId) =>
         sql<PendingOutputRow>`
