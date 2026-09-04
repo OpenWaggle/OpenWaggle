@@ -27,6 +27,7 @@ describe('useAgentChat reconnect', () => {
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'classic',
       startedAt: 1,
+      activityEvents: [],
       parts: [],
     })
     useOptimisticUserMessageStore.getState().add(SessionId('session-1'), {

@@ -26,6 +26,7 @@ describe('useAgentChat background reconnect', () => {
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'classic',
       startedAt: 1,
+      activityEvents: [],
       parts: [{ type: 'text', text: 'Partial answer' }],
     })
 
@@ -109,6 +110,7 @@ describe('useAgentChat background reconnect', () => {
         model: SupportedModelId('claude-sonnet-4-5'),
         mode: 'classic',
         startedAt: 1,
+        activityEvents: [],
         messageId: 'assistant-1',
         parts: [
           {
