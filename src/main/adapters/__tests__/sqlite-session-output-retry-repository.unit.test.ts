@@ -121,4 +121,50 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
     expect(result.preserved).toHaveLength(1)
     expect(result.removed).toEqual([])
   })
+
+  it('preserves the original occurrence when an existing retry is refreshed', async () => {
+    const databasePath = path.join(tmpRoot, 'output-retry-upsert.sqlite')
+    const layer = makeTestLayer(databasePath)
+    const sessionId = SessionId('session-1')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionOutputRetryRepository
+        yield* repository.put({
+          id: 'pending-change-request',
+          sessionId,
+          kind: 'change-request',
+          title: 'Original title',
+          url: 'https://github.com/openwaggle/openwaggle/pull/1',
+          nodeId: 'original-node',
+          branchId: 'original-branch',
+          createdAt: 1000,
+        })
+        yield* repository.put({
+          id: 'pending-change-request',
+          sessionId,
+          kind: 'change-request',
+          title: 'Updated title',
+          url: 'https://github.com/openwaggle/openwaggle/pull/1',
+          nodeId: 'later-node',
+          branchId: 'later-branch',
+          createdAt: 2000,
+        })
+        return yield* repository.list(sessionId)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual([
+      {
+        id: 'pending-change-request',
+        sessionId,
+        kind: 'change-request',
+        title: 'Updated title',
+        url: 'https://github.com/openwaggle/openwaggle/pull/1',
+        nodeId: 'original-node',
+        branchId: 'original-branch',
+        createdAt: 1000,
+      },
+    ])
+  })
 })

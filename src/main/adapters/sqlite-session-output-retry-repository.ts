@@ -71,9 +71,7 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             commit_hash = excluded.commit_hash,
             summary = excluded.summary,
             title = excluded.title,
-            url = excluded.url,
-            node_id = excluded.node_id,
-            branch_id = excluded.branch_id
+            url = excluded.url
         `.pipe(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('put', cause)),

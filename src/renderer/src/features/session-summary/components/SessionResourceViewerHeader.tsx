@@ -37,6 +37,7 @@ function ResourceActions({
 }) {
   const originalPath =
     resource.locator && LOCAL_RESOURCE_PATH.test(resource.locator) ? resource.locator : null
+  const externalSource = resource.locator?.startsWith('http') ? resource.locator : null
   return (
     <div className="flex items-center gap-1">
       {source ? (
@@ -68,12 +69,12 @@ function ResourceActions({
             <FolderSearch className="size-4" />
           </Button>
         </>
-      ) : !source && resource.locator?.startsWith('http') ? (
+      ) : externalSource ? (
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Open image source"
-          onClick={() => void api.openExternal(resource.locator ?? '')}
+          onClick={() => void api.openExternal(externalSource)}
         >
           <ExternalLink className="size-4" />
         </Button>
