@@ -49,6 +49,17 @@ describe('release CI policy', () => {
     )
   })
 
+  it('rejects dispatched commit validation that does not derive its range from main', () => {
+    const workflowWithoutDispatchBase = compliantWorkflow.replace(
+      '            COMMIT_POLICY_FROM="$(git merge-base origin/main "$COMMIT_POLICY_TO")"',
+      '            COMMIT_POLICY_FROM="$COMMIT_POLICY_TO"',
+    )
+
+    expect(validateReleaseCiPolicy(workflowWithoutDispatchBase)).toContain(
+      'CI job Commit Policy steps must match the fail-closed required sequence.',
+    )
+  })
+
   it('rejects excess token privilege and stale action majors', () => {
     const weakenedWorkflow = compliantWorkflow
       .replace('permissions:\n  contents: read\n', '')
