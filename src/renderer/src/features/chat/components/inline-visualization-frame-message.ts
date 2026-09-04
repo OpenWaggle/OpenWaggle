@@ -9,7 +9,7 @@ import {
   sendBrokeredVisualizationFollowUp,
 } from './inline-visualization-host'
 
-const MIN_VISUALIZATION_HEIGHT = 160
+const MIN_VISUALIZATION_HEIGHT = 1
 const MAX_VISUALIZATION_HEIGHT = 10_000
 const MIN_CAPABILITY_LENGTH = 16
 
@@ -60,9 +60,11 @@ export function handleInlineVisualizationFrameMessage(
     .with('openwaggle:inline-visualization:open-link', () => {
       if (typeof value.url !== 'string' || context.brokerPending.current) return
       context.brokerPending.current = true
-      void openBrokeredVisualizationLink(value.url).finally(() => {
-        context.brokerPending.current = false
-      })
+      void openBrokeredVisualizationLink(value.url)
+        .catch(() => false)
+        .finally(() => {
+          context.brokerPending.current = false
+        })
     })
     .with('openwaggle:inline-visualization:follow-up', () => {
       if (
@@ -81,6 +83,10 @@ export function handleInlineVisualizationFrameMessage(
         prompt: value.prompt,
         ...(typeof value.title === 'string' ? { title: value.title } : {}),
       })
+        .then(
+          (accepted) => accepted,
+          () => false,
+        )
         .then((accepted) => {
           context.postToFrame({
             type: 'openwaggle:inline-visualization:follow-up-result',
@@ -106,9 +112,11 @@ export function handleInlineVisualizationFrameMessage(
         suggestedName: value.suggestedName,
         mimeType: value.mimeType,
         base64Data: value.base64Data,
-      }).finally(() => {
-        context.brokerPending.current = false
       })
+        .catch(() => false)
+        .finally(() => {
+          context.brokerPending.current = false
+        })
     })
     .with('openwaggle:inline-visualization:error', () => {
       if (typeof value.reason === 'string') context.setErrorReason(value.reason)

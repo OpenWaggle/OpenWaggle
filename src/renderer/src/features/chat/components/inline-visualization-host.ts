@@ -78,15 +78,28 @@ const THEME_TOKEN_SOURCES = [
   ['--radius', '--radius-lg'],
 ] as const
 
+function visualizationFontSize(value: string, rootStyles: CSSStyleDeclaration) {
+  const remMatch = /^(-?(?:\d+|\d*\.\d+))rem$/u.exec(value)
+  const rootPixels = Number.parseFloat(rootStyles.fontSize)
+  if (remMatch?.[1] && rootStyles.fontSize.endsWith('px') && Number.isFinite(rootPixels)) {
+    return `${String(Number.parseFloat(remMatch[1]) * rootPixels)}px`
+  }
+  return value
+}
+
 export function hostVisualizationTheme() {
   const styles = getComputedStyle(document.documentElement)
   const variables: Record<string, string> = {}
   for (const [publicName, sourceName] of THEME_TOKEN_SOURCES) {
     const value = styles.getPropertyValue(sourceName).trim()
-    if (value.length > 0) variables[publicName] = value
+    if (value.length > 0) {
+      variables[publicName] =
+        publicName === '--font-size-base' ? visualizationFontSize(value, styles) : value
+    }
   }
   const colorScheme: 'light' | 'dark' = styles.colorScheme === 'light' ? 'light' : 'dark'
-  return { colorScheme, variables }
+  const reducedMotion = document.documentElement.dataset.motion === 'reduced'
+  return { colorScheme, reducedMotion, variables }
 }
 
 export async function openBrokeredVisualizationLink(value: string) {

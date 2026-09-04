@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   INLINE_VISUALIZATION_PROTOCOL,
   MAX_INLINE_VISUALIZATION_PATH_LENGTH,
@@ -14,6 +15,7 @@ import { protocol } from 'electron'
 import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import baseStyles from './inline-visualization-assets/base.css.raw?raw'
+import hostStyles from './inline-visualization-assets/host.css.raw?raw'
 import hostRuntime from './inline-visualization-assets/host-runtime.js.raw?raw'
 
 const TEXT_HTML_CONTENT_TYPE = 'text/html; charset=utf-8'
@@ -24,6 +26,10 @@ const MAX_SESSION_ID_LENGTH = 256
 const FRAME_HOST_PATTERN =
   /^frame-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const FRAME_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const STATIC_ASSET_HOST = 'assets'
+const LUCIDE_RUNTIME_DIGEST = createHash('sha256').update(lucideRuntime).digest('hex').slice(0, 16)
+const LUCIDE_RUNTIME_PATH = `/lucide-${LUCIDE_RUNTIME_DIGEST}.js`
+const LUCIDE_RUNTIME_URL = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${STATIC_ASSET_HOST}${LUCIDE_RUNTIME_PATH}`
 const CDN_SOURCES = [
   'https://cdnjs.cloudflare.com',
   'https://cdn.jsdelivr.net',
@@ -67,7 +73,8 @@ export const VISUALIZATION_CONTENT_SECURITY_POLICY = [
   `form-action 'none'`,
 ].join('; ')
 
-const HOST_RUNTIME = `<script>${hostRuntime}</script>`
+const HOST_RUNTIME = `<script>${hostRuntime.replace('__OPENWAGGLE_LUCIDE_ASSET_URL__', LUCIDE_RUNTIME_URL)}</script>`
+const HOST_STYLES = `<style>${hostStyles}</style>`
 
 interface InlineVisualizationProtocolDependencies {
   readonly readSource?: (input: {
@@ -82,6 +89,7 @@ let registrationSequence = 0
 interface RegisteredInlineVisualizationFrame {
   readonly registrationId: string
   readonly ownerId: number
+  readonly reducedMotion: boolean
   readonly sessionId: SessionId
   readonly sourcePath: string
 }
@@ -108,6 +116,7 @@ export function registerInlineVisualizationFrame(
   registeredFrames.set(frameHost, {
     registrationId,
     ownerId,
+    reducedMotion: input.reducedMotion,
     sessionId: SessionId(input.sessionId),
     sourcePath: input.sourcePath,
   })
@@ -154,8 +163,8 @@ function isLucideRuntimeRequest(requestUrl: string) {
   const url = new URL(requestUrl)
   return (
     url.protocol === `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:` &&
-    FRAME_HOST_PATTERN.test(url.host) &&
-    url.pathname === INLINE_VISUALIZATION_PROTOCOL.LUCIDE_PATH &&
+    url.host === STATIC_ASSET_HOST &&
+    url.pathname === LUCIDE_RUNTIME_PATH &&
     url.search.length === 0
   )
 }
@@ -182,14 +191,19 @@ function escapeHtmlAttribute(value: string) {
     .replaceAll('>', '&gt;')
 }
 
-function visualizationDocument(frameHost: string, contents: string, errorReason?: string) {
+function visualizationDocument(
+  frameHost: string,
+  contents: string,
+  reducedMotion: boolean,
+  errorReason?: string,
+) {
   const frameOrigin = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}://${frameHost}`
-  const lucideUrl = `${frameOrigin}${INLINE_VISUALIZATION_PROTOCOL.LUCIDE_PATH}`
   const baseStyleUrl = `${frameOrigin}${INLINE_VISUALIZATION_PROTOCOL.BASE_STYLE_PATH}`
   const errorMetadata = errorReason
     ? `<meta name="openwaggle-visualization-error" content="${escapeHtmlAttribute(errorReason)}">`
     : ''
-  return `<!doctype html><html><head><meta charset="utf-8">${errorMetadata}<link rel="stylesheet" href="${baseStyleUrl}"><script src="${lucideUrl}"></script>${HOST_RUNTIME}</head><body>${contents}</body></html>`
+  const motionAttribute = reducedMotion ? ' data-motion="reduced"' : ''
+  return `<!doctype html><html${motionAttribute}><head><meta charset="utf-8">${errorMetadata}<link rel="stylesheet" href="${baseStyleUrl}">${HOST_STYLES}${HOST_RUNTIME}</head><body>${contents}</body></html>`
 }
 
 function visualizationResponse(document: string) {
@@ -233,7 +247,6 @@ export function registerInlineVisualizationProtocolOnce(
   protocol.handle(INLINE_VISUALIZATION_PROTOCOL.SCHEME, async (request) => {
     try {
       if (isLucideRuntimeRequest(request.url)) {
-        if (!isRegisteredAssetRequest(request.url)) return notFoundResponse()
         return new Response(lucideRuntime, {
           headers: {
             'content-type': JAVASCRIPT_CONTENT_TYPE,
@@ -265,11 +278,14 @@ export function registerInlineVisualizationProtocolOnce(
           visualizationDocument(
             input.frameHost,
             '<div class="card" role="alert">This visualization is unavailable.</div>',
+            registration.reducedMotion,
             result.reason,
           ),
         )
       }
-      return visualizationResponse(visualizationDocument(input.frameHost, result.contents))
+      return visualizationResponse(
+        visualizationDocument(input.frameHost, result.contents, registration.reducedMotion),
+      )
     } catch {
       return notFoundResponse()
     }

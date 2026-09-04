@@ -82,6 +82,30 @@ describe('appendMissingOptimisticUserMessages', () => {
       optimisticMessages[2],
     ])
   })
+
+  it('inserts an older missing optimistic turn before a newer replacement snapshot', () => {
+    const olderOptimistic = {
+      ...userMessage('optimistic-older', 'Explain the visualization'),
+      createdAt: new Date(10),
+    }
+    const replacementMessages: UIMessage[] = [
+      {
+        ...userMessage('replacement-user', 'What did I select?'),
+        createdAt: new Date(20),
+      },
+      {
+        id: 'replacement-assistant',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'You selected sandbox.' }],
+        createdAt: new Date(21),
+      },
+    ]
+
+    expect(appendMissingOptimisticUserMessages(replacementMessages, [olderOptimistic])).toEqual([
+      olderOptimistic,
+      ...replacementMessages,
+    ])
+  })
 })
 
 describe('appendUnpersistedAssistantTail', () => {
