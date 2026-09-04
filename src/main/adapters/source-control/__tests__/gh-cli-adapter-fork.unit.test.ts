@@ -15,6 +15,15 @@ describe('GitHub fork pull requests', () => {
 
   it('creates and recovers a fork PR with an owner-qualified head', async () => {
     runCliMock
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            nameWithOwner: 'upstream/r',
+            defaultBranchRef: { name: 'main' },
+            url: 'https://github.com/upstream/r',
+          }),
+        }),
+      )
       .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'User' }) }))
       .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
       .mockResolvedValueOnce(
@@ -54,13 +63,13 @@ describe('GitHub fork pull requests', () => {
       changeRequest: { url: 'https://github.com/upstream/r/pull/2' },
     })
     expect(runCliMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       'gh',
       expect.arrayContaining(['--head', 'contributor:feature/current']),
       '/repo',
     )
     expect(runCliMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       'gh',
       expect.arrayContaining(['--head', 'feature/current', '--state', 'open']),
       '/repo',
@@ -69,15 +78,16 @@ describe('GitHub fork pull requests', () => {
 
   it('creates an organization-owned fork PR through the REST API', async () => {
     runCliMock
-      .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'Organization' }) }))
       .mockResolvedValueOnce(
         cli({
           stdout: JSON.stringify({
             nameWithOwner: 'upstream/project',
             defaultBranchRef: { name: 'main' },
+            url: 'https://github.example.test/upstream/project',
           }),
         }),
       )
+      .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'Organization' }) }))
       .mockResolvedValueOnce(
         cli({ stdout: JSON.stringify({ html_url: 'https://github.com/upstream/project/pull/4' }) }),
       )
@@ -101,6 +111,8 @@ describe('GitHub fork pull requests', () => {
       'gh',
       expect.arrayContaining([
         'api',
+        '--hostname',
+        'github.example.test',
         '--method',
         'POST',
         'repos/upstream/project/pulls',
@@ -115,10 +127,25 @@ describe('GitHub fork pull requests', () => {
       ]),
       '/repo',
     )
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      2,
+      'gh',
+      ['api', '--hostname', 'github.example.test', 'users/contributors-org'],
+      '/repo',
+    )
   })
 
   it('does not recover a same-named PR from a different owner', async () => {
     runCliMock
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            nameWithOwner: 'upstream/r',
+            defaultBranchRef: { name: 'main' },
+            url: 'https://github.com/upstream/r',
+          }),
+        }),
+      )
       .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'User' }) }))
       .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
       .mockResolvedValueOnce(

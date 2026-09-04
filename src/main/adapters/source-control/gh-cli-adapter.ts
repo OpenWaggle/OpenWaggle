@@ -71,8 +71,16 @@ function jsonStringProperty(raw: unknown, property: string): string | null {
   return typeof value === 'string' ? value : null
 }
 
-async function isOrganizationOwner(projectPath: string, owner: string): Promise<boolean> {
-  const result = await runCli('gh', ['api', `users/${encodeURIComponent(owner)}`], projectPath)
+async function isOrganizationOwner(
+  projectPath: string,
+  owner: string,
+  hostname: string,
+): Promise<boolean> {
+  const result = await runCli(
+    'gh',
+    ['api', '--hostname', hostname, `users/${encodeURIComponent(owner)}`],
+    projectPath,
+  )
   if (result.code !== 0) return false
   return jsonStringProperty(safeJsonParse(result.stdout), 'type') === 'Organization'
 }
@@ -80,21 +88,28 @@ async function isOrganizationOwner(projectPath: string, owner: string): Promise<
 interface RepositoryContext {
   readonly nameWithOwner: string
   readonly defaultBranch: string | null
+  readonly hostname: string
 }
 
 async function repositoryContext(projectPath: string): Promise<RepositoryContext | null> {
   const result = await runCli(
     'gh',
-    ['repo', 'view', '--json', 'nameWithOwner,defaultBranchRef'],
+    ['repo', 'view', '--json', 'nameWithOwner,defaultBranchRef,url'],
     projectPath,
   )
   if (result.code !== 0) return null
   const parsed = safeJsonParse(result.stdout)
   const nameWithOwner = jsonStringProperty(parsed, 'nameWithOwner')
+  const repositoryUrl = jsonStringProperty(parsed, 'url')
   const decoded = safeDecodeUnknown(jsonObjectSchema, parsed)
   const defaultBranchRef = decoded.success ? decoded.data.defaultBranchRef : null
   const defaultBranch = jsonStringProperty(defaultBranchRef, 'name')
-  return nameWithOwner ? { nameWithOwner, defaultBranch } : null
+  if (!nameWithOwner || !repositoryUrl) return null
+  try {
+    return { nameWithOwner, defaultBranch, hostname: new URL(repositoryUrl).hostname }
+  } catch {
+    return null
+  }
 }
 
 function repositoryName(repository: string) {
@@ -104,16 +119,8 @@ function repositoryName(repository: string) {
 async function createOrganizationForkPullRequest(
   projectPath: string,
   payload: OpenChangeRequestPayload,
+  context: RepositoryContext,
 ): Promise<CliResult> {
-  const context = await repositoryContext(projectPath)
-  if (!context) {
-    return {
-      stdout: '',
-      stderr: 'Could not resolve the GitHub base repository.',
-      code: 1,
-      missing: false,
-    }
-  }
   const baseRef = payload.baseRef ?? context.defaultBranch
   if (!baseRef) {
     return {
@@ -127,6 +134,8 @@ async function createOrganizationForkPullRequest(
   const headRepository = payload.headRepository ?? fallbackHeadRepository
   const args = [
     'api',
+    '--hostname',
+    context.hostname,
     '--method',
     'POST',
     `repos/${context.nameWithOwner}/pulls`,
@@ -241,11 +250,14 @@ export const githubProvider: SourceControlProvider = {
   id: 'github',
   authStatus,
   openChangeRequest: async (projectPath: string, payload: OpenChangeRequestPayload) => {
+    const context = payload.headOwner === undefined ? null : await repositoryContext(projectPath)
     const organizationHead =
-      payload.headOwner !== undefined && (await isOrganizationOwner(projectPath, payload.headOwner))
+      payload.headOwner !== undefined &&
+      context !== null &&
+      (await isOrganizationOwner(projectPath, payload.headOwner, context.hostname))
     let result: CliResult
-    if (organizationHead) {
-      result = await createOrganizationForkPullRequest(projectPath, payload)
+    if (organizationHead && context) {
+      result = await createOrganizationForkPullRequest(projectPath, payload, context)
     } else {
       const args = [
         'pr',
