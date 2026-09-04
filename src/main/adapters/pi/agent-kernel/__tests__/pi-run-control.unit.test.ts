@@ -30,21 +30,21 @@ describe('Pi native run control', () => {
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
       ...nativeSteering(),
-      prompt: vi.fn(async () => undefined),
+      prompt: vi.fn(async () => 'Expanded review skill'),
     }
     const control = createPiRunControl(session, new AbortController().signal, {
       routeThroughInputHook: true,
     })
 
-    const result = await control.steer(payload('Stop Waggle and take the safer path'))
+    const result = await control.steer(payload('/skill:review-pr'))
 
-    expect(session.prompt).toHaveBeenCalledWith('Stop Waggle and take the safer path', {
+    expect(session.prompt).toHaveBeenCalledWith('/skill:review-pr', {
       streamingBehavior: 'steer',
     })
     expect(session.steer).not.toHaveBeenCalled()
     expect(result).toEqual({
       delivery: 'queued',
-      durableText: 'Stop Waggle and take the safer path',
+      durableText: 'Expanded review skill',
     })
   })
 

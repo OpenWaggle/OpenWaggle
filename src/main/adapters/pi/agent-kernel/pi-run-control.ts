@@ -58,11 +58,11 @@ export function createPiRunControl(
       const images = promptInput.images.length > 0 ? [...promptInput.images] : undefined
       if (options.routeThroughInputHook) {
         if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
-        await session.prompt(text, {
+        const durableText = await session.prompt(text, {
           ...(images ? { images } : {}),
           streamingBehavior: 'steer',
         })
-        return { delivery: 'queued', durableText: text }
+        return { delivery: 'queued', durableText: durableText ?? text }
       }
       const durableText = await session.steer(text, images)
       return { delivery: 'queued', durableText }
