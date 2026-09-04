@@ -155,7 +155,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
                  env: result.env,
              };
          }
-@@ -197,21 +244,65 @@ export class AgentSession {
+@@ -197,21 +244,77 @@ export class AgentSession {
              return this._getRequiredRequestAuth(model);
          }
          try {
@@ -225,6 +225,18 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
 +            this.agent.state.messages = projectedContext.messages;
 +        }
 +        return identityChanged;
++    }
++    async _prepareCompactionRequestAuth(model) {
++        const requestAuth = await this._getSummarizationRequestAuth(model);
++        let nativeRequestHeaders;
++        if (selectCompactionMechanism(requestAuth.model) === "native") {
++            nativeRequestHeaders = mergeProviderAttributionHeaders(requestAuth.model, this.settingsManager, this.sessionManager.getSessionId(), requestAuth.headers);
++            if (this._extensionRunner.hasHandlers("before_provider_headers")) {
++                nativeRequestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(nativeRequestHeaders ?? {});
++            }
++            withNativeCredentialFingerprint(requestAuth.model, requestAuth.apiKey, nativeRequestHeaders);
++        }
++        return { ...requestAuth, nativeRequestHeaders };
 +    }
      /**
       * Install tool hooks once on the Agent instance.
@@ -412,13 +424,13 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1447,8 +1566,38 @@ export class AgentSession {
+@@ -1447,8 +1578,33 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
 -    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
 -        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), undefined);
-+    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason, willRetry) {
++    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason, willRetry, nativeRequestHeaders) {
 +        const transformPreparation = this.agent.transformCompactionContext
 +            ? async (candidate, mechanism) => {
 +                const transformMessages = (messages) => messages.length === 0
@@ -438,13 +450,8 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
 +            : undefined;
 +        let nativeRequestOptions;
 +        if (selectCompactionMechanism(requestModel) === "native") {
-+            let requestHeaders = mergeProviderAttributionHeaders(requestModel, this.settingsManager, this.sessionManager.getSessionId(), headers);
-+            if (this._extensionRunner.hasHandlers("before_provider_headers")) {
-+                requestHeaders = await this._extensionRunner.emitBeforeProviderHeaders(requestHeaders ?? {});
-+            }
-+            withNativeCredentialFingerprint(requestModel, apiKey, requestHeaders);
 +            nativeRequestOptions = {
-+                headers: requestHeaders,
++                headers: nativeRequestHeaders,
 +                onPayload: this.agent.onPayload,
 +                onResponse: this.agent.onResponse,
 +            };
@@ -458,7 +465,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
                  throw new Error(formatNoModelSelectedMessage());
              }
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
-+            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this._selectedModel ?? this.model);
++            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = await this._prepareCompactionRequestAuth(this._selectedModel ?? this.model);
 +            this.agent.state.model = requestModel;
 +            const nativeInstructions = customInstructions?.trim()
 +                ? `${this.agent.state.systemPrompt}\n\nAdditional compaction instructions:\n${customInstructions.trim()}`
@@ -485,7 +492,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
              else {
                  // Shared default summary generator, also used by automatic compaction.
 -                const result = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, this._compactionAbortController.signal, env, "manual");
-+                const result = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, this._compactionAbortController.signal, env, "manual", false);
++                const result = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, this._compactionAbortController.signal, env, "manual", false, nativeRequestHeaders);
                  summary = result.summary;
                  firstKeptEntryId = result.firstKeptEntryId;
                  tokensBefore = result.tokensBefore;
@@ -552,7 +559,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
                  return false;
              }
 -            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this.model);
-+            const { model: requestModel, apiKey, headers, env } = await this._getSummarizationRequestAuth(this._selectedModel ?? this.model);
++            const { model: requestModel, apiKey, headers, env, nativeRequestHeaders } = await this._prepareCompactionRequestAuth(this._selectedModel ?? this.model);
 +            this.agent.state.model = requestModel;
 +            const nativeRequestOverheadTokens = estimateRequestOverheadTokens(this.agent.state.systemPrompt, [], []);
 +            const requestOverheadTokens = selectCompactionMechanism(requestModel) === "native"
@@ -574,7 +581,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..1791d0d3f95da70db0e4e2d26b842af1
              else {
                  // Shared default summary generator, also used by manual compaction.
 -                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason);
-+                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason, willRetry);
++                const compactResult = await this._runDefaultCompaction(preparation, requestModel, apiKey, headers, undefined, this._autoCompactionAbortController.signal, env, reason, willRetry, nativeRequestHeaders);
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
