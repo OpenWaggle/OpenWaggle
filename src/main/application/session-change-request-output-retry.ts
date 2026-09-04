@@ -66,6 +66,6 @@ export function listPendingSessionOutputs(sessionId: SessionId) {
 
 export function removePendingSessionOutput(output: PendingSessionOutput) {
   return SessionOutputRetryRepository.pipe(
-    Effect.flatMap((repository) => repository.remove(output.sessionId, output.id)),
+    Effect.flatMap((repository) => repository.remove(output)),
   )
 }

@@ -61,30 +61,32 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
     const firstLayer = makeTestLayer(databasePath)
     const firstSessionId = SessionId('session-1')
     const secondSessionId = SessionId('session-2')
+    const pendingCommit = {
+      id: 'pending-commit',
+      sessionId: firstSessionId,
+      kind: 'commit' as const,
+      commitHash: 'abc123',
+      summary: 'Persisted commit',
+      nodeId: 'node-at-commit',
+      branchId: 'branch-at-commit',
+      createdAt: 1000,
+    }
+    const pendingChangeRequest = {
+      id: 'pending-change-request',
+      sessionId: secondSessionId,
+      kind: 'change-request' as const,
+      title: 'Persisted PR',
+      url: 'https://github.com/openwaggle/openwaggle/pull/1',
+      nodeId: 'node-at-request',
+      branchId: 'branch-at-request',
+      createdAt: 2000,
+    }
 
     await Effect.runPromise(
       Effect.gen(function* () {
         const repository = yield* SessionOutputRetryRepository
-        yield* repository.put({
-          id: 'pending-commit',
-          sessionId: firstSessionId,
-          kind: 'commit',
-          commitHash: 'abc123',
-          summary: 'Persisted commit',
-          nodeId: 'node-at-commit',
-          branchId: 'branch-at-commit',
-          createdAt: 1000,
-        })
-        yield* repository.put({
-          id: 'pending-change-request',
-          sessionId: secondSessionId,
-          kind: 'change-request',
-          title: 'Persisted PR',
-          url: 'https://github.com/openwaggle/openwaggle/pull/1',
-          nodeId: 'node-at-request',
-          branchId: 'branch-at-request',
-          createdAt: 2000,
-        })
+        yield* repository.put(pendingCommit)
+        yield* repository.put(pendingChangeRequest)
       }).pipe(Effect.provide(firstLayer)),
     )
 
@@ -94,9 +96,9 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
         const repository = yield* SessionOutputRetryRepository
         const first = yield* repository.list(firstSessionId)
         const second = yield* repository.list(secondSessionId)
-        yield* repository.remove(secondSessionId, 'pending-commit')
+        yield* repository.remove({ ...pendingCommit, sessionId: secondSessionId })
         const preserved = yield* repository.list(firstSessionId)
-        yield* repository.remove(firstSessionId, 'pending-commit')
+        yield* repository.remove(pendingCommit)
         const removed = yield* repository.list(firstSessionId)
         return { first, second, preserved, removed }
       }).pipe(Effect.provide(restartedLayer)),
@@ -166,6 +168,58 @@ describe('SqliteSessionOutputRetryRepositoryLive', () => {
         createdAt: 1000,
       },
     ])
+  })
+
+  it('keeps a refreshed retry when stale cleanup races with the newer payload', async () => {
+    const databasePath = path.join(tmpRoot, 'output-retry-stale-cleanup.sqlite')
+    const layer = makeTestLayer(databasePath)
+    const sessionId = SessionId('session-1')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionOutputRetryRepository
+        const stale = yield* repository.put({
+          id: 'pending-change-request',
+          sessionId,
+          kind: 'change-request',
+          title: 'Original title',
+          url: 'https://github.com/openwaggle/openwaggle/pull/1',
+          nodeId: 'original-node',
+          branchId: 'original-branch',
+          createdAt: 1000,
+        })
+        const refreshed = yield* repository.put({
+          id: 'pending-change-request',
+          sessionId,
+          kind: 'change-request',
+          title: 'Updated title',
+          url: 'https://github.com/openwaggle/openwaggle/pull/1',
+          nodeId: 'later-node',
+          branchId: 'later-branch',
+          createdAt: 2000,
+        })
+        yield* repository.remove(stale)
+        const afterStaleCleanup = yield* repository.list(sessionId)
+        yield* repository.remove(refreshed)
+        const afterWinningCleanup = yield* repository.list(sessionId)
+        return { stale, refreshed, afterStaleCleanup, afterWinningCleanup }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result.stale).toMatchObject({
+      title: 'Original title',
+      nodeId: 'original-node',
+      branchId: 'original-branch',
+      createdAt: 1000,
+    })
+    expect(result.refreshed).toMatchObject({
+      title: 'Updated title',
+      nodeId: 'original-node',
+      branchId: 'original-branch',
+      createdAt: 1000,
+    })
+    expect(result.afterStaleCleanup).toEqual([result.refreshed])
+    expect(result.afterWinningCleanup).toEqual([])
   })
 
   it('does not move or retype an existing retry when its id is reused', async () => {

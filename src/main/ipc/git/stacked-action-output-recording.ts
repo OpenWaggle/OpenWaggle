@@ -26,7 +26,8 @@ function recordCommitOutput(
     if (!result.commit) return result
     const pending = pendingCommitOutput(sessionId, result.commit, occurrenceContext)
     const queued = yield* putPendingSessionOutput(pending).pipe(Effect.either)
-    const recording = yield* recordSessionCommit(sessionId, result.commit, pending).pipe(
+    const winningPending = queued._tag === 'Right' ? queued.right : pending
+    const recording = yield* recordSessionCommit(sessionId, result.commit, winningPending).pipe(
       Effect.either,
     )
     if (recording._tag === 'Left') {
@@ -49,7 +50,7 @@ function recordCommitOutput(
       }
     }
     if (queued._tag === 'Right') {
-      yield* removePendingSessionOutput(pending).pipe(Effect.catchAll(() => Effect.void))
+      yield* removePendingSessionOutput(winningPending).pipe(Effect.catchAll(() => Effect.void))
     }
     return { ...result, commitOutput: { ok: true as const } }
   }).pipe(
@@ -74,9 +75,12 @@ function recordChangeRequestOutput(
     }
     const pending = pendingChangeRequestOutput(sessionId, createdRequest, occurrenceContext)
     const queued = yield* putPendingSessionOutput(pending).pipe(Effect.either)
-    const recording = yield* recordSessionChangeRequest(sessionId, createdRequest, pending).pipe(
-      Effect.either,
-    )
+    const winningPending = queued._tag === 'Right' ? queued.right : pending
+    const recording = yield* recordSessionChangeRequest(
+      sessionId,
+      createdRequest,
+      winningPending,
+    ).pipe(Effect.either)
     if (recording._tag === 'Left') {
       logger.warn('Could not record created change request output', {
         sessionId,
@@ -97,7 +101,7 @@ function recordChangeRequestOutput(
       }
     }
     if (queued._tag === 'Right') {
-      yield* removePendingSessionOutput(pending).pipe(Effect.catchAll(() => Effect.void))
+      yield* removePendingSessionOutput(winningPending).pipe(Effect.catchAll(() => Effect.void))
     }
     broadcastToWindows('sessions:resources-invalidated', { sessionId })
     return { ...result, changeRequestOutput: { ok: true as const } }

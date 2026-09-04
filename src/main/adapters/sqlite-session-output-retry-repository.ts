@@ -49,7 +49,7 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
     const sql = yield* SqlClient.SqlClient
     return SessionOutputRetryRepository.of({
       put: (output) =>
-        sql<{ readonly id: string }>`
+        sql<PendingOutputRow>`
           INSERT INTO session_output_retries (
             id, session_id, kind, commit_hash, summary, title, url,
             node_id, branch_id, created_at
@@ -72,19 +72,24 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
             url = excluded.url
           WHERE session_output_retries.session_id = excluded.session_id
             AND session_output_retries.kind = excluded.kind
-          RETURNING id
+          RETURNING id, session_id, kind, commit_hash, summary, title, url,
+                    node_id, branch_id, created_at
         `.pipe(
           Effect.mapError((cause) => repositoryError('put', cause)),
-          Effect.flatMap((rows) =>
-            rows.length === 1
-              ? Effect.void
+          Effect.flatMap((rows) => {
+            const row = rows[0]
+            return row
+              ? Effect.try({
+                  try: () => decodeRow(row),
+                  catch: (cause) => repositoryError('put', cause),
+                })
               : Effect.fail(
                   repositoryError(
                     'put',
                     new Error(`Pending Session Output identity conflict: ${output.id}`),
                   ),
-                ),
-          ),
+                )
+          }),
         ),
       list: (sessionId) =>
         sql<PendingOutputRow>`
@@ -97,10 +102,19 @@ export const SqliteSessionOutputRetryRepositoryLive = Layer.effect(
           Effect.map((rows) => rows.map(decodeRow)),
           Effect.mapError((cause) => repositoryError('list', cause)),
         ),
-      remove: (sessionId, outputId) =>
+      remove: (output) =>
         sql`
           DELETE FROM session_output_retries
-          WHERE session_id = ${sessionId} AND id = ${outputId}
+          WHERE id = ${output.id}
+            AND session_id = ${output.sessionId}
+            AND kind = ${output.kind}
+            AND commit_hash IS ${output.kind === 'commit' ? output.commitHash : null}
+            AND summary IS ${output.kind === 'commit' ? output.summary : null}
+            AND title IS ${output.kind === 'change-request' ? output.title : null}
+            AND url IS ${output.kind === 'change-request' ? output.url : null}
+            AND node_id IS ${output.nodeId}
+            AND branch_id IS ${output.branchId}
+            AND created_at = ${output.createdAt}
         `.pipe(
           Effect.asVoid,
           Effect.mapError((cause) => repositoryError('remove', cause)),

@@ -78,7 +78,7 @@ const TestLayer = Layer.mergeAll(
   Layer.succeed(
     SessionOutputRetryRepository,
     SessionOutputRetryRepository.of({
-      put: () => Effect.void,
+      put: (output) => Effect.succeed(output),
       list: () => Effect.succeed([]),
       remove: () => Effect.void,
     }),

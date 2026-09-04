@@ -76,17 +76,20 @@ const TestLayer = Layer.mergeAll(
       put: (output) =>
         Effect.sync(() => {
           const index = handlerMocks.pendingOutputs.findIndex(({ id }) => id === output.id)
-          if (index === -1) handlerMocks.pendingOutputs.push(output)
-          else handlerMocks.pendingOutputs[index] = output
+          if (index === -1) {
+            handlerMocks.pendingOutputs.push(output)
+            return output
+          }
+          return handlerMocks.pendingOutputs[index] ?? output
         }),
       list: (sessionId) =>
         Effect.succeed(
           handlerMocks.pendingOutputs.filter((output) => output.sessionId === sessionId),
         ),
-      remove: (sessionId, outputId) =>
+      remove: (output) =>
         Effect.sync(() => {
           const index = handlerMocks.pendingOutputs.findIndex(
-            (output) => output.sessionId === sessionId && output.id === outputId,
+            (candidate) => candidate.sessionId === output.sessionId && candidate.id === output.id,
           )
           if (index !== -1) handlerMocks.pendingOutputs.splice(index, 1)
         }),

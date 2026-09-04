@@ -22,13 +22,17 @@ describe('pending session output recording', () => {
     const layer = Layer.succeed(
       SessionOutputRetryRepository,
       SessionOutputRetryRepository.of({
-        put: (output) => Effect.sync(() => rows.push(output)),
+        put: (output) =>
+          Effect.sync(() => {
+            rows.push(output)
+            return output
+          }),
         list: (sessionId) =>
           Effect.succeed(rows.filter((output) => output.sessionId === sessionId)),
-        remove: (sessionId, outputId) =>
+        remove: (output) =>
           Effect.sync(() => {
             const index = rows.findIndex(
-              (output) => output.sessionId === sessionId && output.id === outputId,
+              (candidate) => candidate.sessionId === output.sessionId && candidate.id === output.id,
             )
             if (index !== -1) rows.splice(index, 1)
           }),

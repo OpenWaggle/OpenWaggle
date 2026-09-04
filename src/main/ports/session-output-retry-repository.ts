@@ -27,13 +27,12 @@ export type PendingSessionOutput = PendingCommitSessionOutput | PendingChangeReq
 export interface SessionOutputRetryRepositoryShape {
   readonly put: (
     output: PendingSessionOutput,
-  ) => Effect.Effect<void, SessionOutputRetryRepositoryError>
+  ) => Effect.Effect<PendingSessionOutput, SessionOutputRetryRepositoryError>
   readonly list: (
     sessionId: SessionId,
   ) => Effect.Effect<readonly PendingSessionOutput[], SessionOutputRetryRepositoryError>
   readonly remove: (
-    sessionId: SessionId,
-    outputId: string,
+    output: PendingSessionOutput,
   ) => Effect.Effect<void, SessionOutputRetryRepositoryError>
 }
 

@@ -28,11 +28,15 @@ describe('stacked action Output recording', () => {
       Layer.succeed(
         SessionOutputRetryRepository,
         SessionOutputRetryRepository.of({
-          put: (output) => Effect.sync(() => pendingOutputs.push(output)),
-          list: () => Effect.succeed(pendingOutputs),
-          remove: (_sessionId, outputId) =>
+          put: (output) =>
             Effect.sync(() => {
-              const index = pendingOutputs.findIndex(({ id }) => id === outputId)
+              pendingOutputs.push(output)
+              return output
+            }),
+          list: () => Effect.succeed(pendingOutputs),
+          remove: (output) =>
+            Effect.sync(() => {
+              const index = pendingOutputs.findIndex(({ id }) => id === output.id)
               if (index !== -1) pendingOutputs.splice(index, 1)
             }),
         }),
@@ -82,6 +86,70 @@ describe('stacked action Output recording', () => {
     expect(pendingOutputs).toEqual([])
   })
 
+  it('uses the winning queued provenance when the same request is repeated on another branch', async () => {
+    const upserts: Parameters<typeof sessionResourceTestLayer>[0] = []
+    const removedIds: string[] = []
+    const sessionId = SessionId('originating-session')
+    const layer = Layer.mergeAll(
+      sessionResourceTestLayer(upserts),
+      Layer.succeed(
+        SessionOutputRetryRepository,
+        SessionOutputRetryRepository.of({
+          put: (output) =>
+            Effect.succeed({
+              ...output,
+              nodeId: 'original-node',
+              branchId: 'original-branch',
+              createdAt: 1000,
+            }),
+          list: () => Effect.succeed([]),
+          remove: (output) =>
+            Effect.sync(() => {
+              removedIds.push(output.id)
+            }),
+        }),
+      ),
+      Layer.succeed(
+        SessionRepository,
+        SessionRepository.of(
+          fromPartial<SessionRepositoryShape>({
+            getWorkspace: () => Effect.succeed(null),
+          }),
+        ),
+      ),
+    )
+    const result: GitRunStackedActionResult = {
+      ok: true,
+      action: 'create_pr',
+      branch: { status: 'unchanged', name: 'feature/later' },
+      commit: null,
+      changeRequest: {
+        title: 'Complete session summary',
+        url: 'https://github.com/openwaggle/openwaggle/pull/42',
+        baseRef: 'main',
+        headRef: 'feature/later',
+        state: 'open',
+      },
+    }
+
+    const recorded = await Effect.runPromise(
+      recordStackedActionOutputs(result, sessionId, {
+        nodeId: 'later-node',
+        branchId: 'later-branch',
+        createdAt: 2000,
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(recorded).toMatchObject({ changeRequestOutput: { ok: true } })
+    expect(upserts).toHaveLength(1)
+    expect(upserts[0]?.occurrence).toMatchObject({
+      nodeId: 'original-node',
+      branchId: 'original-branch',
+      createdAt: 1000,
+    })
+    expect(removedIds).toHaveLength(1)
+  })
+
   it.each([
     ['persists', false, true],
     ['cannot persist', true, false],
@@ -107,12 +175,12 @@ describe('stacked action Output recording', () => {
         Layer.succeed(
           SessionOutputRetryRepository,
           SessionOutputRetryRepository.of({
-            put: () =>
+            put: (output) =>
               queueFails
                 ? Effect.fail(
                     new SessionOutputRetryRepositoryError({ operation: 'put', cause: 'offline' }),
                   )
-                : Effect.void,
+                : Effect.succeed(output),
             list: () => Effect.succeed([]),
             remove: () => Effect.void,
           }),
@@ -150,7 +218,11 @@ describe('stacked action Output recording', () => {
       Layer.succeed(
         SessionOutputRetryRepository,
         SessionOutputRetryRepository.of({
-          put: (output) => Effect.sync(() => pendingOutputs.push(output)),
+          put: (output) =>
+            Effect.sync(() => {
+              pendingOutputs.push(output)
+              return output
+            }),
           list: () => Effect.succeed(pendingOutputs),
           remove: () =>
             Effect.fail(
