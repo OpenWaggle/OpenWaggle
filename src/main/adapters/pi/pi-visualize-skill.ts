@@ -3,10 +3,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import lucideRuntime from 'lucide/dist/umd/lucide.min.js?raw'
 import baseStyles from '../../inline-visualization-assets/base.css.raw?raw'
 import renderScriptSource from './visualize-skill/render.py.raw?raw'
 import visualizeSkillSource from './visualize-skill/SKILL.md.raw?raw'
+import visualizeHtmlSource from './visualize-skill/visualize.html.raw?raw'
 
 const BUILT_IN_SKILLS_DIRECTORY = 'openwaggle-built-in-skills'
 const PRIVATE_FILE_MODE = 0o600
@@ -68,8 +68,8 @@ async function preparePiVisualizeSkill(agentDir: string) {
   await Promise.all([
     writeResourceIfChanged(skillPath, visualizeSkillSource),
     writeResourceIfChanged(path.join(scriptsDirectory, 'render.py'), renderScriptSource),
-    writeResourceIfChanged(path.join(assetsDirectory, 'base.css'), baseStyles),
-    writeResourceIfChanged(path.join(assetsDirectory, 'lucide.js'), lucideRuntime),
+    writeResourceIfChanged(path.join(assetsDirectory, 'visualize.css'), baseStyles),
+    writeResourceIfChanged(path.join(assetsDirectory, 'visualize.html'), visualizeHtmlSource),
   ])
 
   return skillPath
