@@ -18,9 +18,9 @@ import {
   syntaxSourceFingerprint,
 } from '../../src/shared/syntax-highlighting-performance'
 
-// Forty samples keep p95 robust against shared-runner scheduler noise: with twenty, p95 is the
-// second-slowest sample, so a single descheduled sample becomes a false regression. Hosted
-// runners showed exactly that (median stable at 4.5ms while one sample spiked to 25ms).
+// Nearest-rank p95 is the second-slowest value at twenty samples and the third-slowest at forty.
+// Forty samples therefore tolerate up to two scheduler-descheduled samples. The hosted profile
+// also caps the median so this noise allowance cannot hide a sustained source-window regression.
 const WARM_SAMPLE_COUNT = 40
 const COLD_SAMPLE_COUNT = 20
 const LARGE_TOKEN_SAMPLE_COUNT = 20
