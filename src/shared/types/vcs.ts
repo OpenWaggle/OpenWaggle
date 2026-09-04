@@ -132,8 +132,9 @@ export interface OpenChangeRequestPayload {
    */
   readonly headOwner?: string
   /**
-   * Full source repository path for providers that select a fork by project,
-   * for example `group/contributor/project` for GitLab's `--head` flag.
+   * Full source repository path when the pushed head lives in a fork. GitLab
+   * uses it for `--head`; GitHub needs it for the REST fallback that supports
+   * organization-owned and renamed forks.
    */
   readonly headRepository?: string
   /** Omitted when the provider should use the repository's configured default branch. */

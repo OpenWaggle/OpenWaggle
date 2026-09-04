@@ -64,6 +64,87 @@ function qualifiedHead(payload: OpenChangeRequestPayload) {
   return payload.headOwner ? `${payload.headOwner}:${payload.headRef}` : payload.headRef
 }
 
+function jsonStringProperty(raw: unknown, property: string): string | null {
+  const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
+  if (!decoded.success) return null
+  const value = decoded.data[property]
+  return typeof value === 'string' ? value : null
+}
+
+async function isOrganizationOwner(projectPath: string, owner: string): Promise<boolean> {
+  const result = await runCli('gh', ['api', `users/${encodeURIComponent(owner)}`], projectPath)
+  if (result.code !== 0) return false
+  return jsonStringProperty(safeJsonParse(result.stdout), 'type') === 'Organization'
+}
+
+interface RepositoryContext {
+  readonly nameWithOwner: string
+  readonly defaultBranch: string | null
+}
+
+async function repositoryContext(projectPath: string): Promise<RepositoryContext | null> {
+  const result = await runCli(
+    'gh',
+    ['repo', 'view', '--json', 'nameWithOwner,defaultBranchRef'],
+    projectPath,
+  )
+  if (result.code !== 0) return null
+  const parsed = safeJsonParse(result.stdout)
+  const nameWithOwner = jsonStringProperty(parsed, 'nameWithOwner')
+  const decoded = safeDecodeUnknown(jsonObjectSchema, parsed)
+  const defaultBranchRef = decoded.success ? decoded.data.defaultBranchRef : null
+  const defaultBranch = jsonStringProperty(defaultBranchRef, 'name')
+  return nameWithOwner ? { nameWithOwner, defaultBranch } : null
+}
+
+function repositoryName(repository: string) {
+  return repository.split('/').filter(Boolean).at(-1) ?? repository
+}
+
+async function createOrganizationForkPullRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+): Promise<CliResult> {
+  const context = await repositoryContext(projectPath)
+  if (!context) {
+    return {
+      stdout: '',
+      stderr: 'Could not resolve the GitHub base repository.',
+      code: 1,
+      missing: false,
+    }
+  }
+  const baseRef = payload.baseRef ?? context.defaultBranch
+  if (!baseRef) {
+    return {
+      stdout: '',
+      stderr: 'Could not resolve the GitHub base branch.',
+      code: 1,
+      missing: false,
+    }
+  }
+  const fallbackHeadRepository = `${payload.headOwner}/${repositoryName(context.nameWithOwner)}`
+  const headRepository = payload.headRepository ?? fallbackHeadRepository
+  const args = [
+    'api',
+    '--method',
+    'POST',
+    `repos/${context.nameWithOwner}/pulls`,
+    '--raw-field',
+    `title=${payload.title}`,
+    '--raw-field',
+    `head=${qualifiedHead(payload)}`,
+    '--raw-field',
+    `head_repo=${repositoryName(headRepository)}`,
+    '--raw-field',
+    `base=${baseRef}`,
+    '--raw-field',
+    `body=${payload.body ?? ''}`,
+  ]
+  if (payload.draft) args.push('--field', 'draft=true')
+  return runCli('gh', args, projectPath)
+}
+
 function pullRequestHeadOwner(raw: unknown): string | null {
   const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
   if (!decoded.success) return null
@@ -116,7 +197,9 @@ function createdPullRequestFromOutput(
   result: CliResult,
   payload: OpenChangeRequestPayload,
 ): ChangeRequestResult | null {
-  const url = result.stdout.match(/https?:\/\/\S+/u)?.[0]
+  const url =
+    jsonStringProperty(safeJsonParse(result.stdout), 'html_url') ??
+    result.stdout.match(/https?:\/\/\S+/u)?.[0]
   if (!url) return null
   return {
     ok: true,
@@ -158,19 +241,26 @@ export const githubProvider: SourceControlProvider = {
   id: 'github',
   authStatus,
   openChangeRequest: async (projectPath: string, payload: OpenChangeRequestPayload) => {
-    const args = [
-      'pr',
-      'create',
-      '--head',
-      qualifiedHead(payload),
-      '--title',
-      payload.title,
-      '--body',
-      payload.body ?? '',
-    ]
-    if (payload.baseRef) args.push('--base', payload.baseRef)
-    if (payload.draft) args.push('--draft')
-    const result = await runCli('gh', args, projectPath)
+    const organizationHead =
+      payload.headOwner !== undefined && (await isOrganizationOwner(projectPath, payload.headOwner))
+    let result: CliResult
+    if (organizationHead) {
+      result = await createOrganizationForkPullRequest(projectPath, payload)
+    } else {
+      const args = [
+        'pr',
+        'create',
+        '--head',
+        qualifiedHead(payload),
+        '--title',
+        payload.title,
+        '--body',
+        payload.body ?? '',
+      ]
+      if (payload.baseRef) args.push('--base', payload.baseRef)
+      if (payload.draft) args.push('--draft')
+      result = await runCli('gh', args, projectPath)
+    }
     // Creation can succeed remotely even when the CLI exits non-zero (for example, a
     // connection drops while printing the response). Resolve the exact head before
     // reporting failure so a retry cannot create a duplicate request.

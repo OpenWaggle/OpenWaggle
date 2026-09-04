@@ -48,7 +48,11 @@ function compatibleHeadIdentity(
   if (base.provider === 'gitlab') {
     return { headRepository: `${head.owner}/${head.repository}` }
   }
-  return sameOwner ? null : { headOwner: head.owner }
+  if (sameOwner) return null
+  return {
+    headOwner: head.owner,
+    headRepository: `${head.owner}/${head.repository}`,
+  }
 }
 
 export async function buildOpenChangeRequestPayload(

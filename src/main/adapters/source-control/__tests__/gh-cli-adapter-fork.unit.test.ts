@@ -15,6 +15,7 @@ describe('GitHub fork pull requests', () => {
 
   it('creates and recovers a fork PR with an owner-qualified head', async () => {
     runCliMock
+      .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'User' }) }))
       .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
       .mockResolvedValueOnce(
         cli({
@@ -53,21 +54,72 @@ describe('GitHub fork pull requests', () => {
       changeRequest: { url: 'https://github.com/upstream/r/pull/2' },
     })
     expect(runCliMock).toHaveBeenNthCalledWith(
-      1,
+      2,
       'gh',
       expect.arrayContaining(['--head', 'contributor:feature/current']),
       '/repo',
     )
     expect(runCliMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       'gh',
       expect.arrayContaining(['--head', 'feature/current', '--state', 'open']),
       '/repo',
     )
   })
 
+  it('creates an organization-owned fork PR through the REST API', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'Organization' }) }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            nameWithOwner: 'upstream/project',
+            defaultBranchRef: { name: 'main' },
+          }),
+        }),
+      )
+      .mockResolvedValueOnce(
+        cli({ stdout: JSON.stringify({ html_url: 'https://github.com/upstream/project/pull/4' }) }),
+      )
+      .mockResolvedValueOnce(cli({ stdout: '[]' }))
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        headOwner: 'contributors-org',
+        headRepository: 'contributors-org/project-fork',
+        title: 'Organization fork',
+        body: 'Description',
+        draft: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      changeRequest: { url: 'https://github.com/upstream/project/pull/4' },
+    })
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      3,
+      'gh',
+      expect.arrayContaining([
+        'api',
+        '--method',
+        'POST',
+        'repos/upstream/project/pulls',
+        '--raw-field',
+        'head=contributors-org:feature/current',
+        '--raw-field',
+        'head_repo=project-fork',
+        '--raw-field',
+        'base=main',
+        '--field',
+        'draft=true',
+      ]),
+      '/repo',
+    )
+  })
+
   it('does not recover a same-named PR from a different owner', async () => {
     runCliMock
+      .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'User' }) }))
       .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
       .mockResolvedValueOnce(
         cli({

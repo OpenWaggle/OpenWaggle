@@ -101,6 +101,9 @@ describe('change-request pushed-head compatibility', () => {
       destination('git@github.com:contributor/project-fork.git'),
     )
 
-    expect(payload).toMatchObject({ headOwner: 'contributor' })
+    expect(payload).toMatchObject({
+      headOwner: 'contributor',
+      headRepository: 'contributor/project-fork',
+    })
   })
 })
