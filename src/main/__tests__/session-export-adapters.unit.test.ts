@@ -15,6 +15,7 @@ const SNAPSHOT_MANIFEST = {
     stateRevision: 7,
     queueRevision: 3,
     capturedAt: 1234,
+    nodeMutationRevision: 5,
     selectedHeadNodeId: 'node-42',
   },
   activeRunId: null,

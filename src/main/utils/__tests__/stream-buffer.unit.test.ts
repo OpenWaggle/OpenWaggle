@@ -167,6 +167,33 @@ describe('stream-buffer', () => {
     })
   })
 
+  it('accounts for long text streams without serializing the accumulated payload per delta', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
+
+    for (let index = 0; index < 10_000; index += 1) {
+      applyEventToStreamBuffer(SESSION_ID, {
+        type: 'message_update',
+        messageId: 'assistant-message-1',
+        role: 'assistant',
+        timestamp: index,
+        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'ab' },
+      })
+    }
+
+    const serializedObjects = stringifySpy.mock.calls.filter(
+      ([value]) => typeof value === 'object' && value !== null,
+    )
+    const serializedStrings = stringifySpy.mock.calls
+      .map(([value]) => value)
+      .filter((value): value is string => typeof value === 'string')
+    expect(serializedObjects).toHaveLength(1)
+    expect(Math.max(...serializedStrings.map((value) => value.length))).toBeLessThanOrEqual(3)
+    expect(getStreamBuffer(SESSION_ID)?.parts).toEqual([
+      { type: 'text', text: 'ab'.repeat(10_000) },
+    ])
+  })
+
   it('accounts for the retained size when cumulative tool-call arguments replace prior input', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
 

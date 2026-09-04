@@ -7,8 +7,8 @@ import { DOCX_MIME_TYPE, extractAttachmentText, ODT_MIME_TYPE } from '../attachm
 
 const mocks = vi.hoisted(() => ({
   createWorker: vi.fn(),
-  extractRawText: vi.fn(),
   metadata: vi.fn(),
+  parserWorker: vi.fn(),
   recognize: vi.fn(),
   terminate: vi.fn(),
 }))
@@ -19,7 +19,9 @@ vi.mock('sharp', () => ({
 
 vi.mock('tesseract.js', () => ({ createWorker: mocks.createWorker }))
 
-vi.mock('mammoth', () => ({ extractRawText: mocks.extractRawText }))
+vi.mock('../attachment-parser-worker', () => ({
+  runAttachmentParserWorker: mocks.parserWorker,
+}))
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -30,7 +32,7 @@ beforeEach(() => {
     recognize: mocks.recognize,
     terminate: mocks.terminate,
   })
-  mocks.extractRawText.mockResolvedValue({ messages: [], value: 'document text' })
+  mocks.parserWorker.mockResolvedValue('document text')
 })
 
 afterEach(() => {
@@ -77,7 +79,7 @@ describe('attachment text extraction resource limits', () => {
       }),
     ).resolves.toBe('')
 
-    expect(mocks.extractRawText).not.toHaveBeenCalled()
+    expect(mocks.parserWorker).not.toHaveBeenCalled()
   })
 
   it('rejects huge image dimensions before starting OCR', async () => {

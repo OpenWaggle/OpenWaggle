@@ -134,10 +134,24 @@ function stageEvidence(sql: SqlClient.SqlClient, sessionId: string) {
              json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id
            FROM temp.${AFTER_TABLE} AS after_terms
            JOIN session_nodes AS nodes ON nodes.id = after_terms.node_id
+           WHERE NOT EXISTS (
+             SELECT 1
+             FROM session_transcript_terms AS previous
+             JOIN temp.${BEFORE_TABLE} AS previous_before
+               ON previous_before.node_id = previous.first_node_id
+              AND previous_before.term = previous.term
+             WHERE previous.session_id = ?
+               AND previous.term = after_terms.term
+               AND NOT EXISTS (
+                 SELECT 1 FROM temp.${AFTER_TABLE} AS previous_after
+                 WHERE previous_after.node_id = previous.first_node_id
+                   AND previous_after.term = previous.term
+               )
+           )
          ) AS candidates
        )
        WHERE evidence_position = 1`,
-      [sessionId],
+      [sessionId, sessionId],
     )
     const missing = yield* sql.unsafe<{ readonly count: number }>(
       `SELECT COUNT(*) AS count

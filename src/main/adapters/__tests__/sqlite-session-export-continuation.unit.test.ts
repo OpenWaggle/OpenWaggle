@@ -23,7 +23,7 @@ describe('SQLite Session export continuation', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it.each(['update', 'delete'] as const)(
+  it.each(['update', 'delete', 'historical-insert'] as const)(
     'rejects continuation after a snapshot node %s instead of mixing node versions',
     async (mutation) => {
       const runtime = makeRuntime(path.join(temporaryRoot, `export-${mutation}.sqlite`))
@@ -49,9 +49,22 @@ describe('SQLite Session export continuation', () => {
               UPDATE session_nodes SET content_json = ${'{"text":"mutated"}'}
               WHERE id = ${'node-worker-2'}
             `
-          } else {
-            yield* sql`DELETE FROM session_nodes WHERE id = ${'node-worker-2'}`
+            return
           }
+          if (mutation === 'delete') {
+            yield* sql`DELETE FROM session_nodes WHERE id = ${'node-worker-2'}`
+            return
+          }
+          yield* sql`
+            INSERT INTO session_nodes (
+              id, session_id, parent_id, kind, role, timestamp_ms,
+              content_json, metadata_json, branch_hint_id, created_order
+            ) VALUES (
+              ${'node-worker-backfilled'}, ${'worker'}, ${'node-worker-1'}, ${'message'},
+              ${'assistant'}, ${3}, ${'{"text":"backfilled"}'}, ${'{}'},
+              ${'worker:branch:main'}, ${1}
+            )
+          `
         }),
       )
 

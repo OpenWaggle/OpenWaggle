@@ -46,6 +46,7 @@ const sessionExportManifestSchemaV2 = z
         stateRevision: revision,
         queueRevision: revision,
         capturedAt: revision,
+        nodeMutationRevision: revision.optional(),
         selectedHeadNodeId: mcpSessionIdSchemaV2.optional(),
       })
       .strict(),

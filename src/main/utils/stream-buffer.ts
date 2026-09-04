@@ -8,12 +8,13 @@ import type {
 } from '@shared/types/background-run'
 import { type SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { retainedBytesAfterTextAppend, retainedPartsBytes } from './stream-buffer-byte-accounting'
 import {
   appendReasoningPart,
   appendTextPart,
-  appendToolResultPart,
   upsertToolCallPart,
 } from './stream-buffer-message-parts'
+import { applyToolExecutionEndToParts } from './stream-buffer-tool-parts'
 
 interface ActiveStreamBuffer {
   readonly model: SupportedModelId
@@ -32,10 +33,6 @@ export const MAX_ACTIVE_STREAM_BUFFER_BYTES = 4 * 1024 * 1024
 // Keep enough headroom for JSON structure, model metadata, and frame fields.
 export const MAX_TOTAL_STREAM_BUFFER_BYTES = 6 * 1024 * 1024
 let totalRetainedBytes = 0
-
-function retainedPartsBytes(parts: readonly MessagePart[]) {
-  return parts.length === 0 ? 0 : Buffer.byteLength(JSON.stringify(parts), 'utf8')
-}
 
 function resetBufferedParts(sessionId: SessionId) {
   const buffer = activeBuffers.get(sessionId)
@@ -72,6 +69,32 @@ function updateBufferedParts(
   })
 }
 
+function appendBufferedText(sessionId: SessionId, type: 'text' | 'reasoning', delta: string) {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  const parts =
+    type === 'text' ? appendTextPart(buffer.parts, delta) : appendReasoningPart(buffer.parts, delta)
+  const retainedBytes = retainedBytesAfterTextAppend({
+    parts: buffer.parts,
+    retainedBytes: buffer.retainedBytes,
+    type,
+    delta,
+  })
+  const retainedDelta = retainedBytes - buffer.retainedBytes
+  if (
+    retainedBytes > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  ) {
+    activeBuffers.set(sessionId, {
+      ...buffer,
+      omittedBytes: buffer.omittedBytes + Buffer.byteLength(delta, 'utf8'),
+    })
+    return
+  }
+  totalRetainedBytes += retainedDelta
+  activeBuffers.set(sessionId, { ...buffer, parts, retainedBytes })
+}
+
 function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: string) {
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return
@@ -89,18 +112,10 @@ function applyMessageUpdateToStreamBuffer(
   matchBy(value.assistantMessageEvent, 'type')
     .with('text_start', 'text_end', 'thinking_start', 'thinking_end', () => undefined)
     .with('text_delta', (assistantEvent) => {
-      updateBufferedParts(
-        sessionId,
-        (parts) => appendTextPart(parts, assistantEvent.delta),
-        Buffer.byteLength(assistantEvent.delta, 'utf8'),
-      )
+      appendBufferedText(sessionId, 'text', assistantEvent.delta)
     })
     .with('thinking_delta', (assistantEvent) => {
-      updateBufferedParts(
-        sessionId,
-        (parts) => appendReasoningPart(parts, assistantEvent.delta),
-        Buffer.byteLength(assistantEvent.delta, 'utf8'),
-      )
+      appendBufferedText(sessionId, 'reasoning', assistantEvent.delta)
     })
     .with('toolcall_start', 'toolcall_end', (assistantEvent) => {
       updateBufferedParts(sessionId, (parts) =>
@@ -127,27 +142,6 @@ function applyMessageUpdateToStreamBuffer(
     .exhaustive()
 }
 
-function applyToolExecutionEndToStreamBuffer(
-  sessionId: SessionId,
-  value: Extract<AgentTransportEvent, { type: 'tool_execution_end' }>,
-) {
-  updateBufferedParts(sessionId, (parts) =>
-    appendToolResultPart({
-      parts: upsertToolCallPart({
-        parts,
-        toolCallId: value.toolCallId,
-        toolName: value.toolName,
-        args: value.args,
-      }),
-      toolCallId: value.toolCallId,
-      toolName: value.toolName,
-      args: value.args,
-      result: value.result,
-      isError: value.isError,
-    }),
-  )
-}
-
 export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTransportEvent) {
   matchBy(event, 'type')
     .with('agent_start', 'agent_end', 'turn_start', 'turn_end', () => undefined)
@@ -169,7 +163,9 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
         }),
       )
     })
-    .with('tool_execution_end', (value) => applyToolExecutionEndToStreamBuffer(sessionId, value))
+    .with('tool_execution_end', (value) => {
+      updateBufferedParts(sessionId, (parts) => applyToolExecutionEndToParts(parts, value))
+    })
     .with(
       'queue_update',
       'compaction_start',

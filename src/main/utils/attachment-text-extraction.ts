@@ -9,6 +9,7 @@ import {
   scheduleAttachmentExtraction,
 } from './attachment-extraction-scheduler'
 import { validateOfficeArchive } from './attachment-office-archive-validation'
+import { runAttachmentParserWorker } from './attachment-parser-worker'
 
 const SLICE_ARG_1 = 2
 const PARSE_INT_ARG_2 = 16
@@ -98,17 +99,13 @@ function extractTextFromRtf(raw: string) {
 async function extractTextFromDocx(buffer: Buffer, signal: AbortSignal) {
   await validateOfficeArchive(buffer, signal)
   assertExtractionActive(signal)
-  const mammoth = await import('mammoth')
-  const result = await mammoth.extractRawText({ buffer })
-  return normalizeText(result.value ?? '')
+  return normalizeText(await runAttachmentParserWorker({ kind: 'docx', buffer }, signal))
 }
 
 async function extractTextFromOdt(buffer: Buffer, signal: AbortSignal) {
   await validateOfficeArchive(buffer, signal)
   assertExtractionActive(signal)
-  const JSZip = (await import('jszip')).default
-  const archive = await JSZip.loadAsync(buffer)
-  const content = await archive.file('content.xml')?.async('string')
+  const content = await runAttachmentParserWorker({ kind: 'odt', buffer }, signal)
   if (!content) return ''
   const withoutTags = content.replaceAll(/<[^>]+>/g, ' ')
   const decoded = decodeXmlEntities(withoutTags)
@@ -118,10 +115,7 @@ async function extractTextFromOdt(buffer: Buffer, signal: AbortSignal) {
 
 async function extractTextFromPdf(buffer: Buffer, signal: AbortSignal) {
   assertExtractionActive(signal)
-  const { extractText } = await import('unpdf')
-  assertExtractionActive(signal)
-  const result = await extractText(new Uint8Array(buffer), { mergePages: true })
-  return normalizeText(result.text ?? '')
+  return normalizeText(await runAttachmentParserWorker({ kind: 'pdf', buffer }, signal))
 }
 
 async function extractTextFromImage(buffer: Buffer, signal: AbortSignal) {

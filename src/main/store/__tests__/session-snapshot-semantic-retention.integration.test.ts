@@ -80,6 +80,44 @@ function snapshotNodes(): readonly ProjectedSessionNodeInput[] {
 }
 
 describe('Session snapshot semantic retention', () => {
+  it('keeps unchanged evidence ahead of a later insert when the former first node is deleted', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/incremental-transcript-mixed-change',
+      piSessionId: 'pi-incremental-transcript-mixed-change',
+    })
+    const sessionId = SessionId(String(session.id))
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-incremental-transcript-mixed-change',
+      activeNodeId: 'b',
+      nodes: [
+        transcriptNode('a', null, 0, 'common first', 'run-a'),
+        transcriptNode('b', 'a', 1, 'common unchanged', 'run-b'),
+      ],
+    })
+
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-incremental-transcript-mixed-change',
+      activeNodeId: 'c',
+      nodes: [
+        transcriptNode('b', null, 1, 'common unchanged', 'run-b'),
+        transcriptNode('c', 'b', 2, 'common inserted', 'run-c'),
+      ],
+    })
+
+    expect(
+      (await readTermProjection(sessionId)).terms.find((term) => term.term === 'common'),
+    ).toEqual({
+      term: 'common',
+      occurrences: 2,
+      first_node_id: 'b',
+      first_created_order: 1,
+      first_run_id: 'run-b',
+      term_frequency: 0.5,
+    })
+  })
+
   it('keeps incremental terms identical to a full rebuild across edits, deletes, and branch changes', async () => {
     const session = await createSession({
       projectPath: '/tmp/incremental-transcript-terms',

@@ -2,6 +2,7 @@ import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { vi } from 'vitest'
 import type * as AttachmentsHandler from '../attachments-handler'
+import { resetAttachmentExtractionMocks } from './attachment-extraction-mocks.test-support'
 import {
   type AttachmentFileFixture,
   createAttachmentFileHandle,
@@ -30,10 +31,6 @@ interface AttachmentHandlerMocks {
   readonly unlinkMock: TestMock
   readonly appGetPathMock: TestMock
   readonly broadcastToWindowsMock: TestMock
-  readonly unpdfExtractTextMock: TestMock
-  readonly ocrRecognizeMock: TestMock
-  readonly mammothExtractMock: TestMock
-  readonly jszipLoadAsyncMock: TestMock
   readonly showMessageBoxMock: TestMock
   readonly dispatchLocalSessionCommandMock: TestMock
   readonly files: Map<string, AttachmentFileFixture>
@@ -60,10 +57,6 @@ const mocks: AttachmentHandlerMocks = vi.hoisted(() => ({
   unlinkMock: vi.fn(),
   appGetPathMock: vi.fn(),
   broadcastToWindowsMock: vi.fn(),
-  unpdfExtractTextMock: vi.fn(),
-  ocrRecognizeMock: vi.fn(),
-  mammothExtractMock: vi.fn(),
-  jszipLoadAsyncMock: vi.fn(),
   showMessageBoxMock: vi.fn(),
   dispatchLocalSessionCommandMock: vi.fn(),
   files: new Map<string, AttachmentFileFixture>(),
@@ -85,10 +78,6 @@ export const readdirMock: TestMock = mocks.readdirMock
 export const unlinkMock: TestMock = mocks.unlinkMock
 export const appGetPathMock: TestMock = mocks.appGetPathMock
 export const broadcastToWindowsMock: TestMock = mocks.broadcastToWindowsMock
-export const unpdfExtractTextMock: TestMock = mocks.unpdfExtractTextMock
-export const ocrRecognizeMock: TestMock = mocks.ocrRecognizeMock
-export const mammothExtractMock: TestMock = mocks.mammothExtractMock
-export const jszipLoadAsyncMock: TestMock = mocks.jszipLoadAsyncMock
 export const showMessageBoxMock: TestMock = mocks.showMessageBoxMock
 export const dispatchLocalSessionCommandMock: TestMock = mocks.dispatchLocalSessionCommandMock
 export const files: Map<string, AttachmentFileFixture> = mocks.files
@@ -140,24 +129,6 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showMessageBox: showMessageBoxMock,
-  },
-}))
-
-vi.mock('unpdf', () => ({
-  extractText: unpdfExtractTextMock,
-}))
-
-vi.mock('tesseract.js', () => ({
-  recognize: ocrRecognizeMock,
-}))
-
-vi.mock('mammoth', () => ({
-  extractRawText: mammothExtractMock,
-}))
-
-vi.mock('jszip', () => ({
-  default: {
-    loadAsync: jszipLoadAsyncMock,
   },
 }))
 
@@ -249,10 +220,7 @@ export function resetAttachmentHandlerMocks() {
   unlinkMock.mockReset()
   appGetPathMock.mockReset()
   broadcastToWindowsMock.mockReset()
-  unpdfExtractTextMock.mockReset()
-  ocrRecognizeMock.mockReset()
-  mammothExtractMock.mockReset()
-  jszipLoadAsyncMock.mockReset()
+  resetAttachmentExtractionMocks()
   showMessageBoxMock.mockReset()
   files.clear()
   registerDirectory('/tmp/repo')
@@ -306,16 +274,5 @@ export function resetAttachmentHandlerMocks() {
   })
   appGetPathMock.mockReturnValue('/tmp/user-data')
 
-  unpdfExtractTextMock.mockResolvedValue({ text: 'Extracted PDF text' })
-  ocrRecognizeMock.mockResolvedValue({ data: { text: 'OCR extracted text' } })
-  mammothExtractMock.mockResolvedValue({ value: 'Extracted DOCX text' })
   showMessageBoxMock.mockResolvedValue({ response: 0 })
-  jszipLoadAsyncMock.mockResolvedValue({
-    file: (name: string) =>
-      name === 'content.xml'
-        ? {
-            async: async () => '<text:p>Hello ODT</text:p>',
-          }
-        : null,
-  })
 }

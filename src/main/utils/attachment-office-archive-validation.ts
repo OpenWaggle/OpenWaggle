@@ -37,7 +37,7 @@ async function countArchiveEntryBytes(
   }
   const stream = await zipFile.openReadStreamPromise(entry)
   const abortStream = () => {
-    stream.destroy(attachmentExtractionTimeoutError())
+    stream.destroy()
   }
   if (signal.aborted) {
     abortStream()
@@ -57,6 +57,7 @@ async function countArchiveEntryBytes(
         )
       }
     }
+    if (signal.aborted) throw attachmentExtractionTimeoutError()
     return expandedBytes
   } finally {
     signal.removeEventListener('abort', abortStream)
