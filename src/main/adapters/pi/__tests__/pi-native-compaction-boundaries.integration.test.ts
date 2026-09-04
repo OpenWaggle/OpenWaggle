@@ -169,7 +169,8 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     boundaryPhase = true
     await session.prompt('Mandatory request after portable failure')
 
-    expect(providerBaseUrls).toEqual(['https://endpoint-d.example.test/v1'])
+    expect(boundaryResolutions).toBe(2)
+    expect(providerBaseUrls).toEqual(['https://endpoint-c.example.test/v1'])
     expect(providerContexts[0]).toContain('Mandatory request after portable failure')
     expect(providerContexts[0]).not.toContain('cmp_1')
   })
