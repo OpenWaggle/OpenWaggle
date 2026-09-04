@@ -54,12 +54,19 @@ function resolveMainHeadId(input: {
     return input.activeHeadId
   }
 
-  return findEarliestLeafDescendant({
-    leafIds: input.leafIds,
-    existingHeadId: input.previousMainHeadId,
-    nodeById: input.nodeById,
-    orderById: input.orderById,
-  })
+  // A replacement snapshot may no longer contain the previous projection's main head. In that
+  // case there is no stable branch ancestry to preserve, so the active runtime head becomes main.
+  return (
+    findEarliestLeafDescendant({
+      leafIds: input.leafIds,
+      existingHeadId: input.previousMainHeadId,
+      nodeById: input.nodeById,
+      orderById: input.orderById,
+    }) ??
+    input.activeHeadId ??
+    input.leafIds[0] ??
+    null
+  )
 }
 
 function emptyBranchResult(sessionId: string, mainBranchRow: SessionBranchRow | undefined) {

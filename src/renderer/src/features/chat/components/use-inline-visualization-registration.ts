@@ -47,6 +47,7 @@ export function useInlineVisualizationRegistration(input: {
     void api
       .registerInlineVisualizationFrame({
         frameId,
+        reducedMotion: document.documentElement.dataset.motion === 'reduced',
         sessionId: input.sessionId,
         sourcePath: input.sourcePath,
       })

@@ -42,6 +42,8 @@ Copy into every compaction summary:
   when it appears in the writable roots. Otherwise, use the task's supplied
   `work/` directory or create an output directory under its authorized
   working directory.
+- Never save inline visualization fragments to Library; they are response content, not user-facing file deliverables.
+- Never add `sandbox:` links to inline visualization HTML unless the user specifically requests a download.
 - Do not choose system temp as a separate fallback. Write access alone does
   not guarantee that the conversation can read the file.
 - Use the absolute path on the executor that creates the file. Never assume
@@ -84,12 +86,14 @@ Copy into every compaction summary:
 visualize{"path":"<absolute-path>/<title>.html"}
 ```
 
-- Add `"mode":"wide"` only when several compact chart panels must remain side
-  by side for direct comparison and would be unreadable at the normal width.
-  Never widen a single plot, map, grid, diagram, or timeline merely because
-  it is dense. Never widen full-size mockups or other self-contained views;
-  stack them vertically instead. Wide visualizations render in an expandable
-  inline surface up to 1,024px:
+- Add `"mode":"wide"` for a full-screen desktop app mockup, including its
+  application shell. For other visuals, add it only when several compact chart
+  panels must remain side by side for direct comparison and would be unreadable
+  at the normal width. Never widen a single plot, map, grid, diagram, or
+  timeline merely because it is dense. Keep contained mockups, dialogs, and
+  mobile screens at normal width; stack separate self-contained views
+  vertically. Wide visualizations render in an expandable inline surface up to
+  1,024px:
 
 ```text
 visualize{"path":"<absolute-path>/<title>.html","mode":"wide"}
@@ -136,13 +140,14 @@ Choose the smallest composition that fits.
   or long stacks. Add only requested controls, use one mechanism per state, and
   never invent search, filter, or reset controls.
 - Keep filters, selections, and other presentation-only interactions local, but
-  report the meaningful current selection and control values with
+  report meaningful current selections and control values with
   `window.openai.setVisualizationState(state)`. Call it after the initial render
-  and after meaningful state changes. Pass only JSON data needed to understand a
+  and after meaningful state changes. Pass only JSON needed to understand a
   later user message, never DOM, prose instructions, secrets, or derived bulk
   data; the serialized state must remain at or below 16 KiB. Pass `null` when no
-  visualization state remains relevant. The host treats this state as untrusted
-  context on the user's next message; reporting it does not send a message.
+  visualization state remains relevant. OpenWaggle treats this state as
+  untrusted context on the user's next message; reporting it does not send a
+  message.
 - For drill-down actions that ask Codex to investigate or explain selected data,
   call `await window.openai.sendFollowUpMessage({ prompt, title })`, where the
   optional `title` is a concise confirmation-dialog heading of up to 250
@@ -314,8 +319,7 @@ Choose the smallest composition that fits.
 
 ## Typography
 
-- Scale type with `--font-size-base`. Use normal text by default and
-  `.text-small` only for secondary annotations (never below 11px).
+- Scale type with `--font-size-base`. Use normal text by default and `.text-small` only for secondary annotations; at the default scale these are 14px and 12px. Never make supporting text smaller than 11px.
 - `h1`, `h2`, and `h3` are available; use one concise visible heading for a
   self-contained chart or graph, with short panel headings only when needed.
   Do not restate the prompt or add a redundant title to other visualizations.
@@ -357,14 +361,7 @@ Choose the smallest composition that fits.
   `--muted-foreground`.
 - Keep chart grids and inactive structure thin and neutral. Use 1-2px neutral
   structural paths; never thicken, dash, or double-stroke the whole structure.
-- In each color pair, the base token is a surface and its
-  `-foreground` token is the content on that surface. Use `.btn-primary` for
-  high-emphasis actions; its neutral fill is supplied by the utility. Use
-  `--primary` and `--primary-foreground` for filled selected, active, or pressed
-  controls. Reserve `--accent` and `--accent-foreground` for subtle interactive
-  surfaces and soft highlights. Buttons with
-  `aria-pressed="true"`, `aria-selected="true"`, or `.is-selected` already use
-  the primary pairing.
+- In each color pair, the base token is a surface and its `-foreground` token is the content on that surface. Use `.btn-primary` for high-emphasis actions; its neutral fill is supplied by the utility. Use `--primary` and `--primary-foreground` for filled selected, active, or pressed controls. Reserve `--accent` and `--accent-foreground` for subtle interactive surfaces and soft highlights. Buttons with `aria-pressed="true"`, `aria-selected="true"`, or `.is-selected` already use the primary pairing; `.nav-pills .nav-link.active` keeps selection neutral.
 
 ## Design system
 
@@ -392,6 +389,8 @@ Choose the smallest composition that fits.
   columns at 736px and controls in a separate row.
 - `.viz-row`: Use as a wrapping horizontal group with centered related values or
   inline actions that may wrap when narrow.
+- `<hr>`: Use a native horizontal rule for a subtle theme-aware separator.
+- `.nav.nav-pills` + `.nav-link`: Use the accessible, interactive [Tabs](#tabs) API below.
 - `.progress` + `.progress-bar`:
   `<div class="progress" role="progressbar" aria-label="Progress" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:25%"></div></div>`
 - `.viz-tile`: Add to a selectable dense-grid `.btn`; it stretches to fill its
@@ -403,6 +402,22 @@ Choose the smallest composition that fits.
 - `.viz-controls`: Use as a wrapping row for controls affecting the same
   visualization. Keep button groups compact. Put labeled fields directly inside
   as `.form-label`; fields form at most two columns and stack when narrow.
+
+### Tabs
+
+- `.nav.nav-pills[role="tablist"]`: Group content-width native `.nav-link[role="tab"]` buttons and label the group with `aria-label`. Add `.nav-justified` only when tabs should share and fill the row equally.
+- `.nav-link[role="tab"]`: Give each button a unique `id`, `type="button"`, `aria-controls`, and `aria-selected`. Mark the initial tab `.active` and `aria-selected="true"`; use `disabled` or `aria-disabled="true"` when needed.
+- `[role="tabpanel"]`: Match `id` to its tab's `aria-controls`, set `aria-labelledby` to the tab's `id`, and mark inactive panels `hidden`. Tabs can have separate panels or point to one shared panel.
+- Tab behavior is already implemented by the JavaScript runtime and does not need to be wired.
+
+```html
+<div class="nav nav-pills" role="tablist" aria-label="Platform">
+  <button class="nav-link active" id="mac" role="tab" aria-controls="mac-panel" aria-selected="true" type="button">macOS</button>
+  <button class="nav-link" id="linux" role="tab" aria-controls="linux-panel" aria-selected="false" type="button">Linux</button>
+</div>
+<div id="mac-panel" role="tabpanel" aria-labelledby="mac">macOS content</div>
+<div id="linux-panel" role="tabpanel" aria-labelledby="linux" hidden>Linux content</div>
+```
 
 ### Controls
 
@@ -492,8 +507,7 @@ Choose the smallest composition that fits.
   <i data-lucide="search" aria-hidden="true"></i>
   ```
 
-- Lucide replaces the placeholder in place with an inline SVG. Icons are 16px
-  and inherit `currentColor`.
+- Never author inline icon SVG or icon paths. Use only supplied Lucide names; the sandbox replaces each placeholder with a host-sized `currentColor` SVG. Reserve authored inline SVG for charts and data marks.
 - Mark decorative icons `aria-hidden="true"`. Put action icons inside labeled
   controls; use a visible label or `aria-label` for icon-only actions.
 - Let the sandbox initialize static icons after the fragment without blocking
