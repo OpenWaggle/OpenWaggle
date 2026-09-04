@@ -23,6 +23,14 @@ function makeSmallTargetModel(): Model<'openai-responses'> {
 }
 
 describe('Pi native compaction budget estimator', () => {
+  it('uses a conservative bound for token-dense Unicode content', () => {
+    const content = '漢😀'.repeat(20)
+
+    expect(
+      estimateReconstructionMessageTokens({ role: 'user', content, timestamp: 1 }),
+    ).toBeGreaterThanOrEqual(Math.ceil(Buffer.byteLength(content, 'utf8') / 2))
+  })
+
   it('conservatively budgets opaque reasoning and compaction summaries', () => {
     expect(
       estimateReconstructionMessageTokens({

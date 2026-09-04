@@ -48,6 +48,11 @@ export async function createNativeSession(options: {
   cancelAutomaticCompaction?: boolean
   supportsCompaction?: boolean
   contextEventCounter?: { value: number }
+  providerLifecycleCounter?: {
+    headerCalls: number
+    payloadCalls: number
+    responseCalls: number
+  }
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -97,6 +102,20 @@ export async function createNativeSession(options: {
     },
   })
   const extension: ExtensionFactory = (pi) => {
+    if (options.providerLifecycleCounter) {
+      pi.on('before_provider_headers', (event) => {
+        if (options.providerLifecycleCounter) options.providerLifecycleCounter.headerCalls += 1
+        event.headers['x-openwaggle-compaction-hook'] = 'enabled'
+      })
+      pi.on('before_provider_request', (event) => {
+        if (options.providerLifecycleCounter) options.providerLifecycleCounter.payloadCalls += 1
+        if (typeof event.payload !== 'object' || event.payload === null) return event.payload
+        return { ...event.payload, openwaggle_compaction_hook: true }
+      })
+      pi.on('after_provider_response', () => {
+        if (options.providerLifecycleCounter) options.providerLifecycleCounter.responseCalls += 1
+      })
+    }
     if (options.contextEventCounter) {
       pi.on('context', (event) => {
         if (options.contextEventCounter) options.contextEventCounter.value += 1

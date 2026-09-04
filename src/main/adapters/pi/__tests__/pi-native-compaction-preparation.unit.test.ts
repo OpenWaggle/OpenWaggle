@@ -27,7 +27,7 @@ describe('Pi native compaction preparation', () => {
       { ...COMPACTION_SETTINGS, reserveTokens: 20, keepRecentTokens: 1 },
       makeNativeModel({
         baseUrl: 'https://target.example.test/v1',
-        contextWindow: 500,
+        contextWindow: 600,
         maxTokens: 20,
       }),
       { nativeRequestOverheadTokens: 400 },

@@ -19,6 +19,27 @@ function codexAccessToken(accountId: string, nonce: string) {
 describe('Pi native compaction custom turns', () => {
   afterEach(cleanupNativeSessions)
 
+  it('applies provider lifecycle hooks to Native compaction requests', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-provider-hooks-')
+    const events: SessionCompactEvent[] = []
+    const providerLifecycleCounter = { headerCalls: 0, payloadCalls: 0, responseCalls: 0 }
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('x-openwaggle-compaction-hook')).toBe('enabled')
+      expect(JSON.parse(String(init?.body))).toMatchObject({ openwaggle_compaction_hook: true })
+      return nativeCompactionFetch()(_input, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: events,
+      providerLifecycleCounter,
+    })
+
+    await session.compact()
+
+    expect(providerLifecycleCounter).toEqual({ headerCalls: 1, payloadCalls: 1, responseCalls: 1 })
+  })
+
   it('prepares endpoint compatibility and compaction before trigger-turn messages', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-custom-turn-')
     const events: SessionCompactEvent[] = []

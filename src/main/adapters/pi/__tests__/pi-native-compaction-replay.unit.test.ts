@@ -117,7 +117,7 @@ describe('Pi native compaction replay', () => {
       sessionManager.getBranch(),
       compactionId,
       undefined,
-      makeTargetModel(12),
+      makeTargetModel(40),
     )
 
     expect(reconstructed.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
@@ -158,7 +158,7 @@ describe('Pi native compaction replay', () => {
       sessionManager.getBranch(),
       compactionId,
       undefined,
-      makeTargetModel(100, 40),
+      makeTargetModel(250, 40),
     )
 
     expect(reconstructed.messages[0]).toMatchObject({ content: 'new-user-'.repeat(6) })
@@ -186,7 +186,7 @@ describe('Pi native compaction replay', () => {
       sessionManager.getBranch(),
       compactionId,
       undefined,
-      makeTargetModel(160, 20),
+      makeTargetModel(300, 20),
       { requestOverheadTokens: 80 },
     )
 
@@ -257,7 +257,7 @@ describe('Pi native compaction replay', () => {
       80_000,
       NATIVE_DETAILS,
     )
-    const targetModel = makeTargetModel(8)
+    const targetModel = makeTargetModel(20)
 
     sessionManager.buildSessionContext(targetModel)
     sessionManager.buildSessionContext(targetModel)
