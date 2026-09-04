@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "macos-arm64-github-hosted-3-core",
-  "description": "Shared GitHub-hosted macOS regression guard; not an absolute workstation claim. p95 budgets sized to absorb one scheduler-descheduled sample per warm window (observed median 4.5ms, single-sample spikes to ~25ms on 3-core hosted runners).",
+  "description": "Shared GitHub-hosted macOS regression guard; not an absolute workstation claim. Warm metrics use 40 samples so p95 tolerates up to two scheduler-descheduled samples. The source-window median remains capped against sustained regressions.",
   "metricMedianBudgetsMs": {
     "javascriptCold16KiB": 100,
-    "javascriptWarm16KiB": 60
+    "javascriptWarm16KiB": 60,
+    "sourceWindow1MiB": 10
   },
   "metricBudgetsMs": {
     "javascriptCold16KiB": 240,
