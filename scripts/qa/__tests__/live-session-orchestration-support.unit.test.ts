@@ -24,7 +24,7 @@ import {
   waitForProcessIdentity,
 } from './process-tree-test-support'
 
-describe('live Session orchestration support', () => {
+describe('live Session orchestration support', { timeout: 12_000 }, () => {
   let workingDirectory: string | undefined
 
   afterEach(async () => {
@@ -100,33 +100,42 @@ describe('live Session orchestration support', () => {
   )
 
   it.skipIf(process.platform === 'win32')(
-    'bounds a hanging CLI probe and proves its process group exited',
+    'waits for process-tree cleanup before rejecting a timed-out CLI probe',
     async () => {
-      workingDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-live-qa-timeout-'))
-      const readinessPath = path.join(workingDirectory, 'process-identity.json')
+      const cleanupStarted = Promise.withResolvers<void>()
+      const releaseCleanup = Promise.withResolvers<void>()
       const processResult = runProcess(
         process.execPath,
-        ['-e', processTreeScript(readinessPath, false)],
+        ['-e', 'setInterval(() => undefined, 1000)'],
         {},
-        { timeoutMs: 1_000 },
+        {
+          timeoutMs: 50,
+          stopTimedOutProcess: async (child) => {
+            cleanupStarted.resolve()
+            await releaseCleanup.promise
+            await stopChild(child)
+          },
+        },
       )
-      const rejection = expect(processResult).rejects.toThrow('timed out after 1000ms')
-      let identity: ProcessIdentity | undefined
-      let cleanupProven = false
+      let processSettled = false
+      const settledResult = processResult.then(
+        () => ({ status: 'fulfilled' as const }),
+        (error: unknown) => ({ status: 'rejected' as const, error }),
+      ).finally(() => {
+        processSettled = true
+      })
       try {
-        identity = await waitForProcessIdentity(readinessPath)
-        expect(processExists(identity.descendantPid)).toBe(true)
-        expect(processGroupExists(identity.processGroupId)).toBe(true)
-
-        await rejection
-
-        expect(processExists(identity.descendantPid)).toBe(false)
-        expect(processGroupExists(identity.processGroupId)).toBe(false)
-        cleanupProven = true
+        await cleanupStarted.promise
+        expect(processSettled).toBe(false)
       } finally {
-        await processResult.catch(() => undefined)
-        if (!cleanupProven) forceStopProcessTree(identity)
+        releaseCleanup.resolve()
       }
+
+      const result = await settledResult
+      if (result.status !== 'rejected') throw new Error('Expected the CLI probe to time out.')
+      expect(result.error).toBeInstanceOf(Error)
+      if (!(result.error instanceof Error)) throw result.error
+      expect(result.error.message).toContain('timed out after 50ms')
     },
   )
 

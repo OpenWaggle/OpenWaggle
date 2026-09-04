@@ -23,6 +23,7 @@ export async function watchSessionExportOperations(
       writeSessionsCliStreamRecord({ kind: 'cursor', cursor }, jsonl)
     const result = await watchLocalSessionEvents({
       ...clientInput,
+      sessionIds: [sessionId],
       ...(after ? { after } : {}),
       signal: abortController.signal,
       onCursor: writeCursor,

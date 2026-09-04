@@ -9,6 +9,7 @@ import {
   byteBoundedPage,
   SESSION_QUERY_SQL_READ_BUDGET_BYTES,
 } from './session-query-byte-pagination'
+import { exportContinuationMatchesSnapshot } from './sqlite-session-export-continuation'
 import { exportBaseOutcome } from './sqlite-session-export-manifest'
 import { type ExportNodeRow, exportNodeRecord } from './sqlite-session-export-record'
 import { resolveExportSnapshotHead } from './sqlite-session-export-snapshot'
@@ -30,6 +31,7 @@ interface ExportSnapshotRow {
   readonly queue_state: 'running' | 'paused'
   readonly queue_revision: number
   readonly active_run_id: string | null
+  readonly node_mutation_revision: number
   readonly node_high_water_mark: number
 }
 
@@ -150,24 +152,6 @@ function readExportNodes(
   })
 }
 
-function continuationMatchesSnapshot(
-  query: ExportRequest['query'],
-  branchScope: 'active-branch' | 'tree',
-) {
-  const manifest = query.snapshotManifest
-  return (
-    !manifest ||
-    (manifest.sessionId === query.sessionId &&
-      manifest.branchScope === branchScope &&
-      manifest.snapshot.nodeHighWaterMark === query.throughCreatedOrder &&
-      manifest.snapshot.stateRevision === query.snapshotStateRevision &&
-      manifest.snapshot.capturedAt === query.capturedAt &&
-      manifest.snapshot.selectedHeadNodeId === query.snapshotHeadNodeId &&
-      (branchScope === 'tree' || !query.branchId || manifest.selectedBranchId === query.branchId) &&
-      manifest.queue.bodyScope === (query.includeQueueBodies ? 'included' : 'omitted-by-choice'))
-  )
-}
-
 function exportSelection(
   sql: SqlClient.SqlClient,
   request: ExportRequest,
@@ -181,16 +165,24 @@ function exportSelection(
         new Error('A Session branch can be selected only for an active-branch export.'),
       )
     }
-    if (!continuationMatchesSnapshot(query, branchScope)) {
+    if (
+      !exportContinuationMatchesSnapshot({
+        query,
+        branchScope,
+        nodeMutationRevision: snapshot.node_mutation_revision,
+      })
+    ) {
       return yield* Effect.fail(new Error('EXPORT_SNAPSHOT_MISMATCH'))
     }
     const selectedBranchId =
       query.branchId ?? query.snapshotManifest?.selectedBranchId ?? snapshot.last_active_branch_id
+    const suppliedHeadNodeId =
+      query.snapshotManifest?.snapshot.selectedHeadNodeId ?? query.snapshotHeadNodeId
     const head = yield* resolveExportSnapshotHead(sql, {
       sessionId: query.sessionId,
       branchScope,
       selectedBranchId,
-      ...(query.snapshotHeadNodeId ? { suppliedHeadNodeId: query.snapshotHeadNodeId } : {}),
+      ...(suppliedHeadNodeId ? { suppliedHeadNodeId } : {}),
     })
     if (head.status === 'not-found') return yield* Effect.fail(new Error(head.message))
     return { branchScope, selectedBranchId, selectedHeadNodeId: head.headNodeId }
@@ -239,6 +231,7 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       SELECT sessions.title, sessions.last_active_branch_id,
         session_control_states.state_revision, session_control_states.queue_state,
         session_control_states.queue_revision, session_control_states.active_run_id,
+        session_control_states.node_mutation_revision,
         COALESCE(MAX(session_nodes.created_order), 0) AS node_high_water_mark
       FROM sessions
       JOIN session_control_states ON session_control_states.session_id = sessions.id
@@ -278,9 +271,15 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
           WHERE session_id = ${query.sessionId}
           ORDER BY position, id
         `
-    const highWaterMark = query.throughCreatedOrder ?? snapshot.node_high_water_mark
-    const stateRevision = query.snapshotStateRevision ?? snapshot.state_revision
-    const capturedAt = query.capturedAt ?? Date.now()
+    const highWaterMark =
+      query.snapshotManifest?.snapshot.nodeHighWaterMark ??
+      query.throughCreatedOrder ??
+      snapshot.node_high_water_mark
+    const stateRevision =
+      query.snapshotManifest?.snapshot.stateRevision ??
+      query.snapshotStateRevision ??
+      snapshot.state_revision
+    const capturedAt = query.snapshotManifest?.snapshot.capturedAt ?? query.capturedAt ?? Date.now()
     const nodePage = yield* readExportNodes(sql, {
       sessionId: query.sessionId,
       headNodeId: selectedHeadNodeId,

@@ -1,9 +1,10 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import path from 'node:path'
 import { stopProcessTree } from './child-process-lifecycle'
 
 export interface RunProcessOptions {
   readonly timeoutMs?: number
+  readonly stopTimedOutProcess?: (child: ChildProcess) => Promise<void>
 }
 
 export async function runProcess(
@@ -52,7 +53,7 @@ export async function runProcess(
         const timeoutError = new Error(
           `${path.basename(command)} timed out after ${String(options.timeoutMs)}ms.`,
         )
-        void stopProcessTree(child).then(
+        void (options.stopTimedOutProcess ?? stopProcessTree)(child).then(
           () => reject(timeoutError),
           (cleanupError: unknown) =>
             reject(

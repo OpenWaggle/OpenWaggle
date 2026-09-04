@@ -167,6 +167,40 @@ describe('stream-buffer', () => {
     })
   })
 
+  it('accounts for the retained size when cumulative tool-call arguments replace prior input', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+
+    for (let step = 1; step <= 100; step += 1) {
+      applyEventToStreamBuffer(SESSION_ID, {
+        type: 'message_update',
+        messageId: 'assistant-message-1',
+        role: 'assistant',
+        timestamp: step,
+        assistantMessageEvent: {
+          type: 'toolcall_delta',
+          contentIndex: 0,
+          toolCallId: 'tool-1',
+          delta: 'x'.repeat(1_000),
+          input: { content: 'x'.repeat(step * 1_000) },
+        },
+      })
+    }
+
+    const snapshot = getStreamBuffer(SESSION_ID)
+    expect(snapshot?.degraded).toBeUndefined()
+    expect(snapshot?.parts).toEqual([
+      {
+        type: 'tool-call',
+        toolCall: {
+          id: 'tool-1',
+          name: '',
+          args: { content: 'x'.repeat(100_000) },
+          state: 'input-complete',
+        },
+      },
+    ])
+  })
+
   it('resets buffered parts when a new assistant message starts', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
     applyEventToStreamBuffer(SESSION_ID, {

@@ -9,6 +9,7 @@ import { encodeFloat32Vector } from './session-flat-vector-index'
 import {
   loadCurrentSemanticProjectionRows,
   loadSemanticProjectionCounts,
+  reconcileSemanticProjectionModel,
   type SessionSemanticProjectionRow,
 } from './sqlite-session-semantic-projection-source'
 
@@ -87,7 +88,7 @@ function publishProjectionBatch(
         }
       }
       if (publishable.length === 0) {
-        const counts = (yield* loadSemanticProjectionCounts(sql))[0] ?? {
+        const counts = (yield* loadSemanticProjectionCounts(sql, model))[0] ?? {
           prepared: 0,
           pending: 0,
           revision: 0,
@@ -131,7 +132,10 @@ function publishProjectionBatch(
       }
       const counts = yield* sql<{ readonly prepared: number; readonly pending: number }>`
         SELECT
-          (SELECT COUNT(*) FROM session_discovery_embeddings) AS prepared,
+          (SELECT COUNT(*) FROM session_discovery_embeddings
+            WHERE model_id = ${model.metadata.id}
+              AND model_revision = ${model.metadata.revision}
+              AND dimensions = ${model.metadata.dimensions}) AS prepared,
           (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending
       `
       const count = counts[0] ?? { prepared: 0, pending: 0 }
@@ -160,6 +164,7 @@ function publishProjectionBatch(
 
 export class SqliteSessionSemanticProjection {
   readonly #preparationOperationId = randomUUID()
+  #modelRevisionReconciled = false
 
   constructor(
     private readonly sql: SqlClient.SqlClient,
@@ -168,6 +173,7 @@ export class SqliteSessionSemanticProjection {
 
   readiness() {
     return Effect.gen(this, function* () {
+      yield* this.#ensureModelRevision()
       const rows = yield* this.sql<SemanticStateRow>`
         SELECT status, model_id, model_revision, snapshot_revision,
           prepared_count, pending_count, preparation_operation_id, failure_message, updated_at
@@ -205,6 +211,7 @@ export class SqliteSessionSemanticProjection {
 
   prepareNextBatch(limit = DEFAULT_PROJECTION_BATCH_SIZE) {
     return Effect.gen(this, function* () {
+      yield* this.#ensureModelRevision()
       const rows = yield* loadProjectionRows(this.sql, limit)
       if (rows.length === 0) return { prepared: 0, pending: 0 }
       yield* this.#markPreparing()
@@ -226,21 +233,7 @@ export class SqliteSessionSemanticProjection {
 
   recordFailure(message: string) {
     return Effect.gen(this, function* () {
-      const counts = yield* this.sql<{
-        readonly prepared: number
-        readonly pending: number
-        readonly revision: number
-      }>`
-        SELECT
-          (SELECT COUNT(*) FROM session_discovery_embeddings) AS prepared,
-          (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending,
-          MAX(
-            COALESCE((SELECT MAX(snapshot_revision) FROM session_discovery_embeddings), 0),
-            COALESCE((
-              SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
-            ), 0)
-          ) AS revision
-      `
+      const counts = yield* loadSemanticProjectionCounts(this.sql, this.model)
       const count = counts[0] ?? { prepared: 0, pending: 0, revision: 0 }
       yield* this.sql`
         INSERT INTO session_semantic_discovery_state (
@@ -264,21 +257,7 @@ export class SqliteSessionSemanticProjection {
 
   #markPreparing() {
     return Effect.gen(this, function* () {
-      const counts = yield* this.sql<{
-        readonly prepared: number
-        readonly pending: number
-        readonly revision: number
-      }>`
-        SELECT
-          (SELECT COUNT(*) FROM session_discovery_embeddings) AS prepared,
-          (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending,
-          MAX(
-            COALESCE((SELECT MAX(snapshot_revision) FROM session_discovery_embeddings), 0),
-            COALESCE((
-              SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
-            ), 0)
-          ) AS revision
-      `
+      const counts = yield* loadSemanticProjectionCounts(this.sql, this.model)
       const count = counts[0] ?? { prepared: 0, pending: 0, revision: 0 }
       yield* this.sql`
         INSERT INTO session_semantic_discovery_state (
@@ -297,6 +276,14 @@ export class SqliteSessionSemanticProjection {
           preparation_operation_id = excluded.preparation_operation_id,
           failure_message = NULL, updated_at = excluded.updated_at
       `
+    })
+  }
+
+  #ensureModelRevision() {
+    return Effect.gen(this, function* () {
+      if (this.#modelRevisionReconciled) return
+      yield* reconcileSemanticProjectionModel(this.sql, this.model, this.#preparationOperationId)
+      this.#modelRevisionReconciled = true
     })
   }
 }

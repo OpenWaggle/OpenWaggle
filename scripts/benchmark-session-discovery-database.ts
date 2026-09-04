@@ -6,6 +6,7 @@ import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY } from '../src/main/domain/s
 import { runSessionHostCutover } from '../src/main/session-host/session-host-cutover'
 import { benchmarkSessionDiscoveryModel } from './benchmark-session-discovery-model'
 import {
+  benchmarkCommonTermIncrementalProjection,
   benchmarkSessionDiscoveryBackfills,
   benchmarkSessionDiscoveryQueries,
   initializeSessionDiscoveryBenchmarkSource,
@@ -21,19 +22,12 @@ const WARM_P95_LIMIT_MS = 100
 const HYBRID_P95_LIMIT_MS = 250
 const PHRASE_P95_LIMIT_MS = 250
 const COLD_LIMIT_MS = 500
+const COMMON_TERM_INCREMENTAL_LIMIT_MS = 1_000
 const BYTES_PER_MEBIBYTE = 1_048_576
 const BENCHMARK_NOW = 1_000
-
-interface BenchmarkInput {
-  readonly sessionCount: number
-  readonly messageCount: number
-  readonly skewedSessionMessageCount: number
-  readonly projectCount: number
-}
-
 function populateSkewedMessages(
   database: DatabaseSync,
-  input: BenchmarkInput,
+  input: ReturnType<typeof sessionDiscoveryBenchmarkMode>,
   baseMessageCount: number,
 ) {
   database
@@ -73,7 +67,7 @@ function populateSkewedMessages(
     )
 }
 
-function populate(database: DatabaseSync, input: BenchmarkInput) {
+function populate(database: DatabaseSync, input: ReturnType<typeof sessionDiscoveryBenchmarkMode>) {
   database.exec('BEGIN IMMEDIATE')
   database
     .prepare(`
@@ -208,19 +202,16 @@ async function main() {
     reportSessionDiscoveryBenchmarkPhase('cutover', cutoverMs)
     if (cutover.status !== 'migrated') throw new Error('Benchmark cutover did not migrate the source.')
 
-    const backfills = await benchmarkSessionDiscoveryBackfills(
-      targetDatabasePath,
-      benchmarkSessionDiscoveryModel,
-    )
+    const commonTermIncremental = await benchmarkCommonTermIncrementalProjection(targetDatabasePath)
+    reportSessionDiscoveryBenchmarkPhase('common-term projection', commonTermIncremental.elapsedMs)
+    const backfills = await benchmarkSessionDiscoveryBackfills(targetDatabasePath, benchmarkSessionDiscoveryModel)
     reportSessionDiscoveryBenchmarkPhase('discovery backfill', backfills.discovery.elapsedMs)
     reportSessionDiscoveryBenchmarkPhase('transcript backfill', backfills.transcript.elapsedMs)
     const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
     const corpus = sessionDiscoveryBenchmarkCounts(target)
     target.close()
-    const sparseWorkingPath = `/benchmark/project-${String(mode.projectCount - 1).padStart(
-      PROJECT_ID_WIDTH,
-      '0',
-    )}`
+    const lastProject = String(mode.projectCount - 1).padStart(PROJECT_ID_WIDTH, '0')
+    const sparseWorkingPath = `/benchmark/project-${lastProject}`
     const queriesStartedAt = performance.now()
     const queries = await benchmarkSessionDiscoveryQueries(
       targetDatabasePath,
@@ -229,9 +220,9 @@ async function main() {
     )
     reportSessionDiscoveryBenchmarkPhase('queries', performance.now() - queriesStartedAt)
     const databaseSizeMb = (await stat(targetDatabasePath)).size / BYTES_PER_MEBIBYTE
+    const targetMessages = Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount
     const expectedTranscriptEmbeddings = Math.min(
-      Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount,
-      SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY.perSessionNodeLimit,
+      targetMessages, SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY.perSessionNodeLimit,
     )
     const expectedActiveBranchMessages =
       Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount
@@ -247,6 +238,7 @@ async function main() {
         backfills.transcript.counts.embeddings === expectedTranscriptEmbeddings,
       backfills.transcript.counts.eligible === expectedTranscriptEmbeddings,
       backfills.transcript.counts.pending === 0,
+      commonTermIncremental.occurrenceDelta === 1 && commonTermIncremental.elapsedMs < COMMON_TERM_INCREMENTAL_LIMIT_MS,
       queries.coldWorkingPathListMs < COLD_LIMIT_MS &&
         queries.list.p95Ms < WARM_P95_LIMIT_MS,
       queries.sparseWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
@@ -268,6 +260,7 @@ async function main() {
         skewedSessionMessageCount: mode.skewedSessionMessageCount,
         seedMs,
         cutoverMs,
+        commonTermIncremental,
         backfills,
         databaseSizeMb,
         queries: {
@@ -287,6 +280,7 @@ async function main() {
           cutoverMs: mode.cutoverLimitMs,
           discoveryBackfillMs: mode.discoveryBackfillLimitMs,
           transcriptBackfillMs: mode.transcriptBackfillLimitMs,
+          commonTermIncrementalMs: COMMON_TERM_INCREMENTAL_LIMIT_MS,
           warmP95Ms: WARM_P95_LIMIT_MS,
           hybridP95Ms: HYBRID_P95_LIMIT_MS,
           phraseP95Ms: PHRASE_P95_LIMIT_MS,

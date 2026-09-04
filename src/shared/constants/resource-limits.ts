@@ -15,6 +15,18 @@ export const ATTACHMENT = {
   MAX_LIST_PREVIEW: 5,
   /** Max extracted text characters from attachment content */
   MAX_EXTRACTED_TEXT_CHARS: 12_000,
+  /** Max total uncompressed bytes inspected inside an office-document archive */
+  MAX_ARCHIVE_EXPANDED_BYTES: 32 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
+  /** Max entries inspected inside an office-document archive */
+  MAX_ARCHIVE_ENTRY_COUNT: 2_048,
+  /** Max decoded image pixels accepted for OCR */
+  MAX_IMAGE_PIXELS: 40_000_000,
+  /** Max wall-clock time, including queueing, allowed for one rich-text extraction */
+  EXTRACTION_TIMEOUT_MS: 30_000,
+  /** Max expensive attachment extractors allowed across all concurrent requests */
+  MAX_CONCURRENT_EXTRACTIONS: 2,
+  /** Max waiting extractors allowed across all concurrent requests */
+  MAX_QUEUED_EXTRACTIONS: 16,
 } as const
 
 /** Composer limits */

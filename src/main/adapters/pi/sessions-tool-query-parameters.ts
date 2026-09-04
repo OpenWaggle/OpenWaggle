@@ -16,6 +16,7 @@ const exportSnapshotManifest = Type.Object({
     stateRevision: Type.Integer({ minimum: 0 }),
     queueRevision: Type.Integer({ minimum: 0 }),
     capturedAt: Type.Integer({ minimum: 0 }),
+    nodeMutationRevision: Type.Optional(Type.Integer({ minimum: 0 })),
     selectedHeadNodeId: Type.Optional(Type.String()),
   }),
   activeRunId: Type.Union([Type.String(), Type.Null()]),

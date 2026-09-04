@@ -1,5 +1,10 @@
-import { MultilingualE5SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5-session-embedding-model'
+import path from 'node:path'
+import {
+  MultilingualE5SessionEmbeddingModel,
+  SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
+} from '../src/main/adapters/multilingual-e5-session-embedding-model'
 import { SessionFlatVectorIndex } from '../src/main/adapters/session-flat-vector-index'
+import { prepareSessionEmbeddingModel } from './prepare-session-embedding-model'
 
 const TOP_MATCH_COUNT = 3
 const JSON_INDENT_SPACES = 2
@@ -21,7 +26,12 @@ const queries = [
 ] as const
 
 async function main() {
+  await prepareSessionEmbeddingModel()
   const model = new MultilingualE5SessionEmbeddingModel()
+  model.configureRuntime({
+    localModelPath: path.resolve('build', SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY),
+    allowRemoteModels: false,
+  })
   const index = new SessionFlatVectorIndex()
   let startedAt = performance.now()
   const vectors = await model.embedPassages(documents.map(([, document]) => document))

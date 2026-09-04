@@ -5,6 +5,10 @@ import type { SessionEmbeddingModel } from '../src/main/adapters/multilingual-e5
 import { SqliteSessionSemanticProjection } from '../src/main/adapters/sqlite-session-semantic-projection'
 import { SqliteSessionTranscriptSemanticProjection } from '../src/main/adapters/sqlite-session-transcript-semantic-projection'
 import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../src/main/services/database-schema'
+import {
+  applyIncrementalSessionTranscriptTerms,
+  prepareIncrementalSessionTranscriptTerms,
+} from '../src/main/services/session-transcript-term-incremental-projection'
 import { sessionDiscoveryBenchmarkQueryExecutor } from './benchmark-session-discovery-runtime'
 
 export { benchmarkSessionDiscoveryQueries } from './benchmark-session-discovery-queries'
@@ -65,6 +69,79 @@ export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {
         WHERE nodes.parent_id IS NOT NULL
       ) SELECT COUNT(*) AS count FROM selected_path`,
     ),
+  }
+}
+
+export async function benchmarkCommonTermIncrementalProjection(
+  databasePath: string,
+  sessionId = 'session-000000',
+) {
+  const runtime = sessionDiscoveryBenchmarkQueryExecutor(databasePath)
+  const nodeId = 'benchmark-common-term-incremental-node'
+  try {
+    return await runtime.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const parents = yield* sql<{
+          readonly parent_id: string
+          readonly path_depth: number
+          readonly created_order: number
+        }>`
+          SELECT sessions.last_active_node_id AS parent_id,
+            parent.path_depth + 1 AS path_depth,
+            (SELECT COALESCE(MAX(created_order), -1) + 1
+              FROM session_nodes WHERE session_id = sessions.id) AS created_order
+          FROM sessions
+          JOIN session_nodes AS parent ON parent.id = sessions.last_active_node_id
+          WHERE sessions.id = ${sessionId}
+        `
+        const parent = parents[0]
+        if (!parent) return yield* Effect.fail(new Error('Benchmark session has no active node.'))
+        const occurrencesBefore = yield* sql<{ readonly occurrences: number }>`
+          SELECT occurrences FROM session_transcript_terms
+          WHERE session_id = ${sessionId} AND term = ${'commonterm'}
+        `
+        const startedAt = performance.now()
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* prepareIncrementalSessionTranscriptTerms(sql, sessionId, [nodeId])
+            yield* sql`
+              INSERT INTO session_nodes (
+                id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms,
+                content_json, metadata_json, branch_hint_id, path_depth, created_order
+              ) VALUES (
+                ${nodeId}, ${sessionId}, ${parent.parent_id}, ${'message'}, ${'message'},
+                ${'assistant'}, ${parent.created_order},
+                ${JSON.stringify({
+                  parts: [{ type: 'text', text: 'commonterm post cutover incremental projection' }],
+                })}, ${'{}'}, ${`${sessionId}:main`}, ${parent.path_depth},
+                ${parent.created_order}
+              )
+            `
+            yield* applyIncrementalSessionTranscriptTerms(sql, sessionId, [nodeId])
+          }),
+        )
+        const elapsedMs = performance.now() - startedAt
+        const occurrencesAfter = yield* sql<{ readonly occurrences: number }>`
+          SELECT occurrences FROM session_transcript_terms
+          WHERE session_id = ${sessionId} AND term = ${'commonterm'}
+        `
+        yield* sql.withTransaction(
+          Effect.gen(function* () {
+            yield* prepareIncrementalSessionTranscriptTerms(sql, sessionId, [nodeId])
+            yield* sql`DELETE FROM session_nodes WHERE id = ${nodeId}`
+            yield* applyIncrementalSessionTranscriptTerms(sql, sessionId, [nodeId])
+          }),
+        )
+        return {
+          elapsedMs,
+          occurrenceDelta:
+            (occurrencesAfter[0]?.occurrences ?? 0) - (occurrencesBefore[0]?.occurrences ?? 0),
+        }
+      }),
+    )
+  } finally {
+    await runtime.dispose()
   }
 }
 

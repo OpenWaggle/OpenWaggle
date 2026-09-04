@@ -2,10 +2,23 @@ import fs, { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prepareAttachmentFiles } from '../attachment-preparation'
 
+const mocks = vi.hoisted(() => ({
+  extractAttachmentText: vi.fn(async () => ''),
+}))
+
+vi.mock('../attachment-text-extraction', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../attachment-text-extraction')>()),
+  extractAttachmentText: mocks.extractAttachmentText,
+}))
+
 const temporaryDirectories: string[] = []
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 afterEach(async () => {
   await Promise.all(
@@ -14,6 +27,24 @@ afterEach(async () => {
 })
 
 describe('attachment preparation', () => {
+  it('validates aggregate raw bytes before starting any extraction', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-attachment-total-'))
+    temporaryDirectories.push(directory)
+    const perFileSize = Math.floor(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / 3) + 1
+    const payload = Buffer.alloc(perFileSize)
+    const sources = ['one.txt', 'two.txt', 'three.txt'].map((name) => path.join(directory, name))
+    await Promise.all(sources.map((source) => writeFile(source, payload)))
+
+    await expect(
+      prepareAttachmentFiles({
+        baseDirectory: directory,
+        entries: sources.map((source) => ({ path: source })),
+      }),
+    ).rejects.toThrow('Total attachment size exceeds 20 MB')
+
+    expect(mocks.extractAttachmentText).not.toHaveBeenCalled()
+  })
+
   it('captures immutable bytes before the source path can be replaced', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-attachment-'))
     temporaryDirectories.push(directory)

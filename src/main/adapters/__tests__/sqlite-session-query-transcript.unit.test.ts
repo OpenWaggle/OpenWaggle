@@ -2,51 +2,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SESSION_QUERY_MAX_RESPONSE_BYTES } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   executeSessionQuery as executeQuery,
   makeSessionQueryRuntime as makeRuntime,
 } from './sqlite-session-query-test-layer'
-
-async function collectLargeTranscriptPages(
-  runtime: ReturnType<typeof makeRuntime>,
-  operation: 'export' | 'items',
-) {
-  const seen = new Set<string>()
-  let afterCreatedOrder: number | undefined
-  let throughCreatedOrder: number | undefined
-  do {
-    const pageCursor = {
-      ...(afterCreatedOrder === undefined ? {} : { afterCreatedOrder }),
-      ...(throughCreatedOrder === undefined ? {} : { throughCreatedOrder }),
-    }
-    const result = await executeQuery(
-      runtime,
-      operation === 'items'
-        ? { operation, sessionId: 'worker', limit: 500, branchScope: 'tree', ...pageCursor }
-        : { operation, sessionId: 'worker', limit: 500, branchScope: 'tree', ...pageCursor },
-    )
-    expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(
-      SESSION_QUERY_MAX_RESPONSE_BYTES,
-    )
-    if (result.outcome.operation === 'items' && !('error' in result.outcome)) {
-      for (const record of result.outcome.items) seen.add(record.nodeId)
-      throughCreatedOrder ??= result.outcome.highWaterMark
-      afterCreatedOrder = result.outcome.nextCreatedOrder
-      continue
-    }
-    if (result.outcome.operation === 'export' && !('error' in result.outcome)) {
-      for (const record of result.outcome.records) seen.add(record.nodeId)
-      throughCreatedOrder ??= result.outcome.manifest.snapshot.nodeHighWaterMark
-      afterCreatedOrder = result.outcome.nextCreatedOrder
-      continue
-    }
-    throw new Error(`Expected ${operation} page.`)
-  } while (afterCreatedOrder !== undefined)
-  return seen
-}
+import { collectLargeTranscriptPages } from './sqlite-session-query-transcript-test-support'
 
 describe('SQLite Session transcript queries', () => {
   let temporaryRoot = ''

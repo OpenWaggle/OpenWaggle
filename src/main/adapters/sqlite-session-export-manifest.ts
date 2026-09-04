@@ -12,6 +12,7 @@ interface ExportSnapshot {
   readonly queue_state: 'running' | 'paused'
   readonly queue_revision: number
   readonly active_run_id: string | null
+  readonly node_mutation_revision: number
 }
 
 interface ExportQueueItem {
@@ -56,6 +57,7 @@ export function exportBaseOutcome(input: {
         stateRevision: input.stateRevision,
         queueRevision: input.snapshot.queue_revision,
         capturedAt: input.capturedAt,
+        nodeMutationRevision: input.snapshot.node_mutation_revision,
         ...(input.selectedHeadNodeId ? { selectedHeadNodeId: input.selectedHeadNodeId } : {}),
       },
       activeRunId: input.snapshot.active_run_id,

@@ -254,6 +254,7 @@ export function createSessionsToolExtension(input: SessionsToolExtensionInput): 
         'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.',
         'Workers submit immutable Delegation results; parents request revision or accept an exact submission revision.',
         'Search before reading broad history, and page transcript items deliberately.',
+        'When export returns nextCreatedOrder, continue with afterCreatedOrder and the exact first-page snapshotManifest; never reconstruct or edit that manifest.',
         'Use export_create for a durable file or bundle export, then exports_wait or exports_read to inspect completion. Export destinations stay inside the current workspace.',
         'Discover optional Agent definitions on demand; do not assume named roles exist.',
       ],

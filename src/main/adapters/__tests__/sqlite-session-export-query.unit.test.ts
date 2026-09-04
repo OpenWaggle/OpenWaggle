@@ -85,7 +85,11 @@ describe('SQLite Session export query', () => {
       manifest: {
         schemaVersion: 1,
         selectedBranchId: 'worker:branch:main',
-        snapshot: { nodeHighWaterMark: 1, selectedHeadNodeId: 'node-worker-2' },
+        snapshot: {
+          nodeHighWaterMark: 1,
+          nodeMutationRevision: 0,
+          selectedHeadNodeId: 'node-worker-2',
+        },
         queue: { pendingCount: 1, bodyScope: 'omitted-by-choice', omittedBodyCount: 1 },
       },
       records: [{ record: 'node', nodeId: 'node-worker-1', runId: 'run-worker' }],

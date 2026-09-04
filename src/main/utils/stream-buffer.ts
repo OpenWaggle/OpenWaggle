@@ -33,44 +33,8 @@ export const MAX_ACTIVE_STREAM_BUFFER_BYTES = 4 * 1024 * 1024
 export const MAX_TOTAL_STREAM_BUFFER_BYTES = 6 * 1024 * 1024
 let totalRetainedBytes = 0
 
-function retainedEventBytes(event: AgentTransportEvent) {
-  if (event.type === 'message_update') {
-    const update = event.assistantMessageEvent
-    if (update.type === 'text_delta' || update.type === 'thinking_delta') {
-      return Buffer.byteLength(update.delta, 'utf8')
-    }
-    if (
-      update.type === 'toolcall_start' ||
-      update.type === 'toolcall_delta' ||
-      update.type === 'toolcall_end'
-    ) {
-      return Buffer.byteLength(JSON.stringify(update.input ?? null), 'utf8')
-    }
-    return 0
-  }
-  if (event.type === 'tool_execution_start' || event.type === 'tool_execution_update') {
-    return Buffer.byteLength(JSON.stringify(event.args), 'utf8')
-  }
-  if (event.type === 'tool_execution_end') {
-    return Buffer.byteLength(JSON.stringify({ args: event.args, result: event.result }), 'utf8')
-  }
-  return 0
-}
-
-function reserveBufferedBytes(sessionId: SessionId, bytes: number) {
-  if (bytes === 0) return true
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return false
-  if (
-    buffer.retainedBytes + bytes > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
-    totalRetainedBytes + bytes > MAX_TOTAL_STREAM_BUFFER_BYTES
-  ) {
-    activeBuffers.set(sessionId, { ...buffer, omittedBytes: buffer.omittedBytes + bytes })
-    return false
-  }
-  totalRetainedBytes += bytes
-  activeBuffers.set(sessionId, { ...buffer, retainedBytes: buffer.retainedBytes + bytes })
-  return true
+function retainedPartsBytes(parts: readonly MessagePart[]) {
+  return parts.length === 0 ? 0 : Buffer.byteLength(JSON.stringify(parts), 'utf8')
 }
 
 function resetBufferedParts(sessionId: SessionId) {
@@ -83,12 +47,28 @@ function resetBufferedParts(sessionId: SessionId) {
 function updateBufferedParts(
   sessionId: SessionId,
   update: (parts: readonly MessagePart[]) => readonly MessagePart[],
+  attemptedContentBytes?: number,
 ) {
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return
+  const parts = update(buffer.parts)
+  const retainedBytes = retainedPartsBytes(parts)
+  const retainedDelta = retainedBytes - buffer.retainedBytes
+  if (
+    retainedBytes > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  ) {
+    activeBuffers.set(sessionId, {
+      ...buffer,
+      omittedBytes: buffer.omittedBytes + (attemptedContentBytes ?? Math.max(0, retainedDelta)),
+    })
+    return
+  }
+  totalRetainedBytes += retainedDelta
   activeBuffers.set(sessionId, {
     ...buffer,
-    parts: update(buffer.parts),
+    parts,
+    retainedBytes,
   })
 }
 
@@ -109,10 +89,18 @@ function applyMessageUpdateToStreamBuffer(
   matchBy(value.assistantMessageEvent, 'type')
     .with('text_start', 'text_end', 'thinking_start', 'thinking_end', () => undefined)
     .with('text_delta', (assistantEvent) => {
-      updateBufferedParts(sessionId, (parts) => appendTextPart(parts, assistantEvent.delta))
+      updateBufferedParts(
+        sessionId,
+        (parts) => appendTextPart(parts, assistantEvent.delta),
+        Buffer.byteLength(assistantEvent.delta, 'utf8'),
+      )
     })
     .with('thinking_delta', (assistantEvent) => {
-      updateBufferedParts(sessionId, (parts) => appendReasoningPart(parts, assistantEvent.delta))
+      updateBufferedParts(
+        sessionId,
+        (parts) => appendReasoningPart(parts, assistantEvent.delta),
+        Buffer.byteLength(assistantEvent.delta, 'utf8'),
+      )
     })
     .with('toolcall_start', 'toolcall_end', (assistantEvent) => {
       updateBufferedParts(sessionId, (parts) =>
@@ -161,7 +149,6 @@ function applyToolExecutionEndToStreamBuffer(
 }
 
 export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTransportEvent) {
-  if (!reserveBufferedBytes(sessionId, retainedEventBytes(event))) return
   matchBy(event, 'type')
     .with('agent_start', 'agent_end', 'turn_start', 'turn_end', () => undefined)
     .with('message_start', (value) => {
@@ -295,7 +282,7 @@ export function replaceStreamBufferSnapshots(snapshots: readonly BackgroundRunSn
   activeBuffers.clear()
   totalRetainedBytes = 0
   for (const snapshot of snapshots) {
-    const retainedBytes = Buffer.byteLength(JSON.stringify(snapshot.parts), 'utf8')
+    const retainedBytes = retainedPartsBytes(snapshot.parts)
     const accepted =
       retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
       totalRetainedBytes + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES

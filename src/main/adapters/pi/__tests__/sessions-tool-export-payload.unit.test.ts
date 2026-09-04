@@ -66,4 +66,79 @@ describe('Sessions tool export payload', () => {
       }),
     ).toThrow('active-branch')
   })
+
+  it('rejects continuation without the exact first-page manifest', () => {
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        afterCreatedOrder: 10,
+      }),
+    ).toThrow('first page snapshotManifest')
+  })
+
+  it('rejects selectors that conflict with the continuation manifest', () => {
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'another-worker',
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('different Session')
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        branchScope: 'tree',
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('scope must match')
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        branchId: 'branch-other',
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('branch must match')
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        includeQueueBodies: false,
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('queue-body scope must match')
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        throughCreatedOrder: 41,
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('high-water mark must match')
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        snapshotStateRevision: 8,
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('state revision must match')
+    expect(() =>
+      buildSessionsToolExportPayload({
+        action: 'export',
+        sessionId: 'worker',
+        capturedAt: 1235,
+        afterCreatedOrder: 10,
+        snapshotManifest: manifest,
+      }),
+    ).toThrow('capture time must match')
+  })
 })

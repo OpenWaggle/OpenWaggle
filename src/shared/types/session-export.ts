@@ -31,6 +31,8 @@ export interface SessionExportManifest {
     readonly stateRevision: number
     readonly queueRevision: number
     readonly capturedAt: number
+    /** Monotonic guard against node mutation or deletion during paginated foreground exports. */
+    readonly nodeMutationRevision?: number
     /** Present for active-branch exports created by snapshot-aware clients. */
     readonly selectedHeadNodeId?: string
   }

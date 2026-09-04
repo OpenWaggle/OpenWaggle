@@ -114,12 +114,21 @@ function guessMimeType(filePath: string) {
     .otherwise(() => null)
 }
 
-async function prepareAttachment(
+interface AttachmentSnapshot {
+  readonly buffer: Buffer
+  readonly kind: PreparedAttachment['kind']
+  readonly mimeType: string
+  readonly name: string
+  readonly origin: AttachmentOrigin
+  readonly path: string
+}
+
+async function readAttachmentSnapshot(
   filePath: string,
   origin: AttachmentOrigin,
   allowedRoots: readonly string[] | undefined,
   beforeRead?: (filePath: string) => Promise<void>,
-): Promise<PreparedAttachmentSnapshot> {
+): Promise<AttachmentSnapshot> {
   let handle: FileHandle
   try {
     handle = await fs.open(filePath, OPEN_READ_NO_FOLLOW)
@@ -158,23 +167,36 @@ async function prepareAttachment(
     const kind = resolveAttachmentKind(mimeType)
     const name = path.basename(canonicalPath)
     return {
-      id: randomUUID(),
+      buffer,
       kind,
-      origin,
-      name,
-      path: canonicalPath,
       mimeType,
-      sizeBytes: buffer.byteLength,
-      immutableSourceBase64: buffer.toString('base64'),
-      extractedText: await extractAttachmentText({
-        kind,
-        mimeType,
-        buffer,
-        attachmentName: name,
-      }),
+      name,
+      origin,
+      path: canonicalPath,
     }
   } finally {
     await handle.close()
+  }
+}
+
+async function extractAttachmentSnapshot(
+  snapshot: AttachmentSnapshot,
+): Promise<PreparedAttachmentSnapshot> {
+  return {
+    id: randomUUID(),
+    kind: snapshot.kind,
+    origin: snapshot.origin,
+    name: snapshot.name,
+    path: snapshot.path,
+    mimeType: snapshot.mimeType,
+    sizeBytes: snapshot.buffer.byteLength,
+    immutableSourceBase64: snapshot.buffer.toString('base64'),
+    extractedText: await extractAttachmentText({
+      kind: snapshot.kind,
+      mimeType: snapshot.mimeType,
+      buffer: snapshot.buffer,
+      attachmentName: snapshot.name,
+    }),
   }
 }
 
@@ -199,14 +221,16 @@ export async function prepareAttachmentFiles(input: {
   const roots = input.allowedRoots
     ? await assertCanonicalDirectoryRoots(input.allowedRoots, 'Profile attachment root')
     : undefined
-  const prepared = await Promise.all(
-    unique.map((entry) => prepareAttachment(entry.path, entry.origin, roots, input.beforeRead)),
+  const snapshots = await Promise.all(
+    unique.map((entry) =>
+      readAttachmentSnapshot(entry.path, entry.origin, roots, input.beforeRead),
+    ),
   )
-  const totalSize = prepared.reduce((sum, attachment) => sum + attachment.sizeBytes, 0)
+  const totalSize = snapshots.reduce((sum, snapshot) => sum + snapshot.buffer.byteLength, 0)
   if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
     throw new Error(
       `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
     )
   }
-  return prepared
+  return await Promise.all(snapshots.map(extractAttachmentSnapshot))
 }

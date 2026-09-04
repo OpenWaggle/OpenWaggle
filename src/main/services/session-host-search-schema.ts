@@ -284,12 +284,12 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (old.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
-    ${refreshTranscriptScopeCoverageSql('old.session_id')}
   END
   `,
   `
   CREATE TRIGGER session_node_discovery_search_delete AFTER DELETE ON session_nodes BEGIN
     ${refreshSessionLexicalDiscoverySql('old.session_id')}
+    ${refreshTranscriptScopeCoverageSql('old.session_id')}
   END
   `,
   `

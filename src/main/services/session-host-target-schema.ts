@@ -190,6 +190,7 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
     active_run_id TEXT REFERENCES session_runs(id),
     queue_state TEXT NOT NULL CHECK (queue_state IN ('running', 'paused')),
     queue_revision INTEGER NOT NULL CHECK (queue_revision >= 0),
+    node_mutation_revision INTEGER NOT NULL DEFAULT 0 CHECK (node_mutation_revision >= 0),
     updated_at INTEGER NOT NULL
   )
   `,
@@ -268,6 +269,27 @@ export const SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS = [
   `
   CREATE INDEX IF NOT EXISTS idx_session_nodes_active_branch_created_order
   ON session_nodes (session_id, branch_hint_id, created_order)
+  `,
+  `
+  CREATE TRIGGER session_nodes_mutation_revision_update
+  AFTER UPDATE ON session_nodes
+  BEGIN
+    UPDATE session_control_states
+    SET node_mutation_revision = node_mutation_revision + 1
+    WHERE session_id = OLD.session_id;
+    UPDATE session_control_states
+    SET node_mutation_revision = node_mutation_revision + 1
+    WHERE session_id = NEW.session_id AND NEW.session_id <> OLD.session_id;
+  END
+  `,
+  `
+  CREATE TRIGGER session_nodes_mutation_revision_delete
+  AFTER DELETE ON session_nodes
+  BEGIN
+    UPDATE session_control_states
+    SET node_mutation_revision = node_mutation_revision + 1
+    WHERE session_id = OLD.session_id;
+  END
   `,
 ] as const
 

@@ -9,6 +9,41 @@ import type { SessionsToolParameters } from './sessions-tool-parameters'
 
 type ExportInput = Extract<SessionsToolParameters, { action: 'export' }>
 
+function assertManifestTarget(input: ExportInput) {
+  const manifest = input.snapshotManifest
+  if (!manifest) return
+  if (manifest.sessionId !== input.sessionId) {
+    throw new Error('The export snapshot manifest belongs to a different Session.')
+  }
+  if (input.branchScope && input.branchScope !== manifest.branchScope) {
+    throw new Error('The export scope must match the snapshot manifest.')
+  }
+  if (input.branchId && input.branchId !== manifest.selectedBranchId) {
+    throw new Error('The export branch must match the snapshot manifest.')
+  }
+  if (
+    input.includeQueueBodies !== undefined &&
+    input.includeQueueBodies !== (manifest.queue.bodyScope === 'included')
+  ) {
+    throw new Error('The export queue-body scope must match the snapshot manifest.')
+  }
+  if (
+    input.throughCreatedOrder !== undefined &&
+    input.throughCreatedOrder !== manifest.snapshot.nodeHighWaterMark
+  ) {
+    throw new Error('The export high-water mark must match the snapshot manifest.')
+  }
+  if (
+    input.snapshotStateRevision !== undefined &&
+    input.snapshotStateRevision !== manifest.snapshot.stateRevision
+  ) {
+    throw new Error('The export state revision must match the snapshot manifest.')
+  }
+  if (input.capturedAt !== undefined && input.capturedAt !== manifest.snapshot.capturedAt) {
+    throw new Error('The export capture time must match the snapshot manifest.')
+  }
+}
+
 function exportSelection(input: ExportInput) {
   const manifest = input.snapshotManifest
   const branchId = input.branchId ?? manifest?.selectedBranchId ?? undefined
@@ -25,9 +60,9 @@ function exportSelection(input: ExportInput) {
 
 function exportSnapshot(input: ExportInput) {
   const manifest = input.snapshotManifest
-  const throughCreatedOrder = input.throughCreatedOrder ?? manifest?.snapshot.nodeHighWaterMark
-  const snapshotStateRevision = input.snapshotStateRevision ?? manifest?.snapshot.stateRevision
-  const capturedAt = input.capturedAt ?? manifest?.snapshot.capturedAt
+  const throughCreatedOrder = manifest?.snapshot.nodeHighWaterMark ?? input.throughCreatedOrder
+  const snapshotStateRevision = manifest?.snapshot.stateRevision ?? input.snapshotStateRevision
+  const capturedAt = manifest?.snapshot.capturedAt ?? input.capturedAt
   return {
     ...(throughCreatedOrder === undefined ? {} : { throughCreatedOrder }),
     ...(snapshotStateRevision === undefined ? {} : { snapshotStateRevision }),
@@ -49,6 +84,10 @@ function exportPagination(input: ExportInput) {
 }
 
 export function buildSessionsToolExportPayload(input: ExportInput): LocalSessionCommandPayload {
+  if (input.afterCreatedOrder !== undefined && !input.snapshotManifest) {
+    throw new Error('Sessions export continuation requires the first page snapshotManifest.')
+  }
+  assertManifestTarget(input)
   return {
     contract: 'session-query-v2',
     request: {

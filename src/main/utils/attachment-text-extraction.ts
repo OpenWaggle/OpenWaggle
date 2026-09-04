@@ -4,6 +4,11 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { createLogger } from '../logger'
+import {
+  attachmentExtractionTimeoutError,
+  scheduleAttachmentExtraction,
+} from './attachment-extraction-scheduler'
+import { validateOfficeArchive } from './attachment-office-archive-validation'
 
 const SLICE_ARG_1 = 2
 const PARSE_INT_ARG_2 = 16
@@ -14,6 +19,21 @@ export const RTF_MIME_TYPE = 'application/rtf'
 export const ODT_MIME_TYPE = 'application/vnd.oasis.opendocument.text'
 
 const logger = createLogger('attachments')
+
+function importSharpModule() {
+  return import('sharp')
+}
+
+function importTesseractModule() {
+  return import('tesseract.js')
+}
+
+let sharpModulePromise: ReturnType<typeof importSharpModule> | undefined
+let tesseractModulePromise: ReturnType<typeof importTesseractModule> | undefined
+
+function assertExtractionActive(signal: AbortSignal) {
+  if (signal.aborted) throw attachmentExtractionTimeoutError()
+}
 
 function describeUnknownError(error: unknown) {
   if (error instanceof Error) {
@@ -26,10 +46,10 @@ function describeUnknownError(error: unknown) {
 async function withExtractionFallback(
   attachmentName: string,
   extractor: string,
-  extractText: () => Promise<string>,
+  extractText: (signal: AbortSignal) => Promise<string>,
 ) {
   try {
-    return await extractText()
+    return await scheduleAttachmentExtraction(extractText)
   } catch (error) {
     logger.warn('Attachment text extraction failed', {
       attachment: attachmentName,
@@ -75,13 +95,17 @@ function extractTextFromRtf(raw: string) {
   const withoutIndentedBreaks = withoutGroups.replaceAll(/\n\s+/g, '\n')
   return normalizeText(withoutIndentedBreaks.replaceAll(/\n{3,}/g, '\n\n'))
 }
-async function extractTextFromDocx(buffer: Buffer) {
+async function extractTextFromDocx(buffer: Buffer, signal: AbortSignal) {
+  await validateOfficeArchive(buffer, signal)
+  assertExtractionActive(signal)
   const mammoth = await import('mammoth')
   const result = await mammoth.extractRawText({ buffer })
   return normalizeText(result.value ?? '')
 }
 
-async function extractTextFromOdt(buffer: Buffer) {
+async function extractTextFromOdt(buffer: Buffer, signal: AbortSignal) {
+  await validateOfficeArchive(buffer, signal)
+  assertExtractionActive(signal)
   const JSZip = (await import('jszip')).default
   const archive = await JSZip.loadAsync(buffer)
   const content = await archive.file('content.xml')?.async('string')
@@ -92,18 +116,53 @@ async function extractTextFromOdt(buffer: Buffer) {
   return normalizeText(normalizedWhitespace)
 }
 
-async function extractTextFromPdf(buffer: Buffer) {
+async function extractTextFromPdf(buffer: Buffer, signal: AbortSignal) {
+  assertExtractionActive(signal)
   const { extractText } = await import('unpdf')
+  assertExtractionActive(signal)
   const result = await extractText(new Uint8Array(buffer), { mergePages: true })
   return normalizeText(result.text ?? '')
 }
 
-async function extractTextFromImage(buffer: Buffer) {
-  const tesseract = await import('tesseract.js')
+async function extractTextFromImage(buffer: Buffer, signal: AbortSignal) {
+  sharpModulePromise ??= importSharpModule()
+  const sharp = (await sharpModulePromise).default
+  const metadata = await sharp(buffer, {
+    limitInputPixels: ATTACHMENT.MAX_IMAGE_PIXELS,
+  }).metadata()
+  if (!metadata.width || !metadata.height) {
+    throw new Error('Image dimensions could not be determined safely.')
+  }
+  if (metadata.width * metadata.height > ATTACHMENT.MAX_IMAGE_PIXELS) {
+    throw new Error(`Image exceeds the ${String(ATTACHMENT.MAX_IMAGE_PIXELS)} pixel OCR limit.`)
+  }
+  assertExtractionActive(signal)
+  tesseractModulePromise ??= importTesseractModule()
+  const tesseract = await tesseractModulePromise
   const cachePath = path.join(os.tmpdir(), 'openwaggle-tesseract-cache')
   await fs.mkdir(cachePath, { recursive: true })
-  const result = await tesseract.recognize(buffer, 'eng', { cachePath })
-  return normalizeText(result.data.text ?? '')
+  assertExtractionActive(signal)
+  const worker = await tesseract.createWorker('eng', undefined, { cachePath })
+  if (signal.aborted) {
+    await worker.terminate()
+    throw attachmentExtractionTimeoutError()
+  }
+  let termination: ReturnType<typeof worker.terminate> | undefined
+  const terminateWorker = () => {
+    termination ??= worker.terminate()
+    return termination
+  }
+  const terminateWorkerOnAbort = () => {
+    void terminateWorker()
+  }
+  signal.addEventListener('abort', terminateWorkerOnAbort, { once: true })
+  try {
+    const result = await worker.recognize(buffer)
+    return normalizeText(result.data.text ?? '')
+  } finally {
+    signal.removeEventListener('abort', terminateWorkerOnAbort)
+    await terminateWorker()
+  }
 }
 
 export async function extractAttachmentText(input: {
@@ -114,23 +173,25 @@ export async function extractAttachmentText(input: {
 }) {
   return match(input.kind)
     .with('pdf', () =>
-      withExtractionFallback(input.attachmentName, 'pdf', () => extractTextFromPdf(input.buffer)),
+      withExtractionFallback(input.attachmentName, 'pdf', (signal) =>
+        extractTextFromPdf(input.buffer, signal),
+      ),
     )
     .with('image', () =>
-      withExtractionFallback(input.attachmentName, 'image-ocr', () =>
-        extractTextFromImage(input.buffer),
+      withExtractionFallback(input.attachmentName, 'image-ocr', (signal) =>
+        extractTextFromImage(input.buffer, signal),
       ),
     )
     .otherwise(() =>
       match(input.mimeType)
         .with(DOCX_MIME_TYPE, () =>
-          withExtractionFallback(input.attachmentName, 'docx', () =>
-            extractTextFromDocx(input.buffer),
+          withExtractionFallback(input.attachmentName, 'docx', (signal) =>
+            extractTextFromDocx(input.buffer, signal),
           ),
         )
         .with(ODT_MIME_TYPE, () =>
-          withExtractionFallback(input.attachmentName, 'odt', () =>
-            extractTextFromOdt(input.buffer),
+          withExtractionFallback(input.attachmentName, 'odt', (signal) =>
+            extractTextFromOdt(input.buffer, signal),
           ),
         )
         .with(RTF_MIME_TYPE, () =>

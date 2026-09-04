@@ -1,9 +1,9 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
+import { stageIncrementalSessionTranscriptTermChanges } from './session-transcript-term-incremental-changes'
 
 const STAGING_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
-const SESSION_VOCABULARY_TABLE = 'session_transcript_incremental_session_vocabulary'
 const SOURCE_TABLE = 'session_transcript_incremental_source'
 const SEARCH_TABLE = 'session_transcript_incremental_search'
 const CHANGED_VOCABULARY_TABLE = 'session_transcript_incremental_changed_vocabulary'
@@ -12,11 +12,8 @@ const AFTER_TABLE = 'session_transcript_incremental_after'
 const AFFECTED_TABLE = 'session_transcript_incremental_affected'
 const DELTA_TABLE = 'session_transcript_incremental_delta'
 const EVIDENCE_TABLE = 'session_transcript_incremental_evidence'
-
 function prepareStaging(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
-    yield* sql.unsafe(`CREATE VIRTUAL TABLE IF NOT EXISTS temp.${SESSION_VOCABULARY_TABLE}
-      USING fts5vocab(main, session_node_search, 'instance')`)
     yield* sql.unsafe(`CREATE TEMP TABLE IF NOT EXISTS ${SOURCE_TABLE} (
       node_id TEXT PRIMARY KEY,
       content TEXT NOT NULL
@@ -59,7 +56,6 @@ function prepareStaging(sql: SqlClient.SqlClient) {
     yield* sql.unsafe(`DELETE FROM temp.${SOURCE_TABLE}`)
   })
 }
-
 function captureNodeTerms(
   sql: SqlClient.SqlClient,
   table: typeof BEFORE_TABLE | typeof AFTER_TABLE,
@@ -93,7 +89,6 @@ function captureNodeTerms(
     )
   })
 }
-
 /** Captures changed nodes' exact term contribution before snapshot reconciliation. */
 export function prepareIncrementalSessionTranscriptTerms(
   sql: SqlClient.SqlClient,
@@ -106,48 +101,95 @@ export function prepareIncrementalSessionTranscriptTerms(
     yield* captureNodeTerms(sql, BEFORE_TABLE, sessionId, nodeIds)
   })
 }
-
-function stageTermChanges(sql: SqlClient.SqlClient) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe(`
-      INSERT INTO temp.${AFFECTED_TABLE} (term)
-      SELECT term FROM temp.${BEFORE_TABLE}
-      UNION
-      SELECT term FROM temp.${AFTER_TABLE}
-    `)
-    yield* sql.unsafe(`
-      INSERT INTO temp.${DELTA_TABLE} (term, delta)
-      SELECT term, SUM(delta) FROM (
-        SELECT term, -occurrences AS delta FROM temp.${BEFORE_TABLE}
-        UNION ALL
-        SELECT term, occurrences AS delta FROM temp.${AFTER_TABLE}
-      )
-      GROUP BY term
-      HAVING SUM(delta) <> 0
-    `)
-  })
-}
-
 function stageEvidence(sql: SqlClient.SqlClient, sessionId: string) {
-  return sql.unsafe(
-    `INSERT INTO temp.${EVIDENCE_TABLE} (term, node_id, created_order, run_id)
-    SELECT term, node_id, created_order, run_id FROM (
-      SELECT vocabulary.term, search_rows.node_id, nodes.created_order,
-        json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id,
-        ROW_NUMBER() OVER (
-          PARTITION BY vocabulary.term
-          ORDER BY nodes.created_order, search_rows.node_id
-        ) AS evidence_position
-      FROM temp.${AFFECTED_TABLE} AS affected
-      CROSS JOIN temp.${SESSION_VOCABULARY_TABLE} AS vocabulary
-      JOIN session_node_search_rows AS search_rows
-        ON search_rows.search_rowid = vocabulary.doc
-      JOIN session_nodes AS nodes ON nodes.id = search_rows.node_id
-      WHERE vocabulary.term = affected.term AND search_rows.session_id = ?
+  return Effect.gen(function* () {
+    yield* sql.unsafe(
+      `INSERT INTO temp.${EVIDENCE_TABLE} (term, node_id, created_order, run_id)
+       SELECT term, node_id, created_order, run_id FROM (
+         SELECT candidates.term, candidates.node_id, candidates.created_order,
+           candidates.run_id,
+           ROW_NUMBER() OVER (
+             PARTITION BY candidates.term
+             ORDER BY candidates.created_order, candidates.node_id
+           ) AS evidence_position
+         FROM (
+           SELECT existing.term, existing.first_node_id AS node_id,
+             nodes.created_order,
+             json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id
+           FROM temp.${AFFECTED_TABLE} AS affected
+           JOIN session_transcript_terms AS existing
+             ON existing.session_id = ? AND existing.term = affected.term
+           JOIN session_nodes AS nodes ON nodes.id = existing.first_node_id
+           WHERE NOT EXISTS (
+               SELECT 1 FROM temp.${BEFORE_TABLE} AS before_terms
+               WHERE before_terms.node_id = existing.first_node_id
+                 AND before_terms.term = existing.term
+             ) OR EXISTS (
+               SELECT 1 FROM temp.${AFTER_TABLE} AS after_terms
+               WHERE after_terms.node_id = existing.first_node_id
+                 AND after_terms.term = existing.term
+             )
+           UNION ALL
+           SELECT after_terms.term, after_terms.node_id, nodes.created_order,
+             json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id
+           FROM temp.${AFTER_TABLE} AS after_terms
+           JOIN session_nodes AS nodes ON nodes.id = after_terms.node_id
+         ) AS candidates
+       )
+       WHERE evidence_position = 1`,
+      [sessionId],
     )
-    WHERE evidence_position = 1`,
-    [sessionId],
-  )
+    const missing = yield* sql.unsafe<{ readonly count: number }>(
+      `SELECT COUNT(*) AS count
+       FROM temp.${AFFECTED_TABLE} AS affected
+       LEFT JOIN session_transcript_terms AS existing
+         ON existing.session_id = ? AND existing.term = affected.term
+       LEFT JOIN temp.${DELTA_TABLE} AS deltas ON deltas.term = affected.term
+       WHERE COALESCE(existing.occurrences, 0) + COALESCE(deltas.delta, 0) > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM temp.${EVIDENCE_TABLE} AS evidence
+           WHERE evidence.term = affected.term
+         )`,
+      [sessionId],
+    )
+    if ((missing[0]?.count ?? 0) === 0) return
+
+    yield* sql.unsafe(`DELETE FROM temp.${SEARCH_TABLE}`)
+    yield* sql.unsafe(`DELETE FROM temp.${SOURCE_TABLE}`)
+    yield* sql.unsafe(
+      `INSERT INTO temp.${SOURCE_TABLE} (node_id, content)
+       SELECT search_rows.node_id, search.content
+       FROM session_node_search_rows AS search_rows
+       JOIN session_node_search AS search ON search.rowid = search_rows.search_rowid
+       WHERE search_rows.session_id = ?`,
+      [sessionId],
+    )
+    yield* sql.unsafe(
+      `INSERT INTO temp.${SEARCH_TABLE} (rowid, content)
+       SELECT rowid, content FROM temp.${SOURCE_TABLE}`,
+    )
+    yield* sql.unsafe(
+      `INSERT INTO temp.${EVIDENCE_TABLE} (term, node_id, created_order, run_id)
+       SELECT term, node_id, created_order, run_id FROM (
+         SELECT vocabulary.term, source.node_id, nodes.created_order,
+           json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id,
+           ROW_NUMBER() OVER (
+             PARTITION BY vocabulary.term
+             ORDER BY nodes.created_order, source.node_id
+           ) AS evidence_position
+         FROM temp.${AFFECTED_TABLE} AS affected
+         CROSS JOIN temp.${CHANGED_VOCABULARY_TABLE} AS vocabulary
+         JOIN temp.${SOURCE_TABLE} AS source ON source.rowid = vocabulary.doc
+         JOIN session_nodes AS nodes ON nodes.id = source.node_id
+         WHERE vocabulary.term = affected.term
+           AND NOT EXISTS (
+             SELECT 1 FROM temp.${EVIDENCE_TABLE} AS evidence
+             WHERE evidence.term = affected.term
+           )
+       )
+       WHERE evidence_position = 1`,
+    )
+  })
 }
 
 function applyTermCounts(sql: SqlClient.SqlClient, sessionId: string) {
@@ -240,7 +282,7 @@ export function applyIncrementalSessionTranscriptTerms(
   if (nodeIds.length === 0) return Effect.void
   return Effect.gen(function* () {
     yield* captureNodeTerms(sql, AFTER_TABLE, sessionId, nodeIds)
-    yield* stageTermChanges(sql)
+    yield* stageIncrementalSessionTranscriptTermChanges(sql)
     yield* stageEvidence(sql, sessionId)
     yield* applyTermCounts(sql, sessionId)
     yield* publishTermMetadata(sql, sessionId)
