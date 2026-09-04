@@ -19,6 +19,7 @@ const MAIN_THREAD_PATCH_UNIT_BUDGET = 64 * 1024
 interface BuiltItems {
   readonly files: readonly GitFileDiff[]
   readonly items: readonly ParsedReviewCodeViewItem[] | null
+  readonly complete: boolean
   readonly error: string | null
 }
 
@@ -82,8 +83,8 @@ function buildProgressively(files: readonly GitFileDiff[], onBuilt: (built: Buil
           activeWorker = null
           if (cancelled) return
           items.push(...workerItems)
-          onBuilt({ files, items: [...items], error: null })
           index += 1
+          onBuilt({ files, items: [...items], complete: index === files.length, error: null })
           if (index < files.length) await yieldToRenderer()
           continue
         }
@@ -91,8 +92,8 @@ function buildProgressively(files: readonly GitFileDiff[], onBuilt: (built: Buil
         if (end === index) throw new Error('Could not prepare this diff.')
         items.push(...parseCodeViewItems(files.slice(index, end)))
         if (cancelled) return
-        onBuilt({ files, items: [...items], error: null })
         index = end
+        onBuilt({ files, items: [...items], complete: index === files.length, error: null })
         if (index < files.length) await yieldToRenderer()
       }
     } catch (error) {
@@ -102,6 +103,7 @@ function buildProgressively(files: readonly GitFileDiff[], onBuilt: (built: Buil
         onBuilt({
           files,
           items: null,
+          complete: false,
           error: error instanceof Error ? error.message : String(error),
         })
       }
@@ -151,5 +153,6 @@ export function useProgressiveCodeViewItems(
     () => new Set(parsedItems?.map((item) => item.filePath) ?? []),
     [parsedItems],
   )
-  return { items, preparedPaths, error: currentBuild?.error ?? null }
+  const preparationComplete = immediateItems !== null || currentBuild?.complete === true
+  return { items, preparedPaths, preparationComplete, error: currentBuild?.error ?? null }
 }
