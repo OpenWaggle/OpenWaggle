@@ -103,7 +103,7 @@ function visualizationSource() {
 </script>`
 }
 
-async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
+async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionId: string) {
   const page = app.window()
   await app.resizeMainWindow(760, 620)
   const iframe = page.locator(`iframe[title="${FRAME_TITLE}"]`)
@@ -213,6 +213,31 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
   await expect(page.getByRole('region', { name: FRAME_TITLE })).toBeVisible()
   await expect(frame.getByRole('button', { name: 'Count 1' })).toBeVisible()
   const feedback = 'The selected visualization state should keep the expanded section.'
+  await app.installSessionDetailSnapshotProbe({
+    sessionId,
+    detail: {
+      id: sessionId,
+      title: THREAD_TITLE,
+      projectPath: app.userDataDir,
+      piSessionId: 'replacement-pi-session',
+      messages: [
+        {
+          id: 'replacement-user-message',
+          role: 'user',
+          createdAt: Date.now(),
+          parts: [{ type: 'text', text: feedback }],
+        },
+        {
+          id: 'replacement-assistant-message',
+          role: 'assistant',
+          createdAt: Date.now() + 1,
+          parts: [{ type: 'text', text: 'The selected stage is sandbox.' }],
+        },
+      ],
+      createdAt: Date.now() - 1_000,
+      updatedAt: Date.now() + 2,
+    },
+  })
   await app.mainWindow().messageInput().fill(feedback)
   await app.mainWindow().submitComposer()
   await expect
@@ -227,6 +252,11 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp) {
         },
       },
     })
+  await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+  // The assistant row proves the replacement snapshot hydrated; re-check the user row afterwards.
+  await expect(page.getByText('The selected stage is sandbox.', { exact: true })).toBeVisible()
+  await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+  await app.captureEvidence('openwaggle-inline-visualization-follow-up-retained')
   const heightExpanded = await iframe.evaluate((element) => element.getBoundingClientRect().height)
   await frame.getByRole('button', { name: 'Count 1' }).evaluate((element: HTMLElement) => {
     element.click()
@@ -273,7 +303,7 @@ test('renders a persistent interactive visualization inside the isolated Electro
     const sourcePath = path.join(app.userDataDir, SOURCE_NAME)
     await fs.writeFile(sourcePath, visualizationSource(), 'utf8')
     const reference = `visualize${JSON.stringify({ path: sourcePath, title: FRAME_TITLE, mode: 'wide' })}`
-    await seedSingleSession(app.userDataDir, {
+    const sessionId = await seedSingleSession(app.userDataDir, {
       title: THREAD_TITLE,
       projectPath: app.userDataDir,
       updatedAt: Date.now(),
@@ -291,12 +321,12 @@ test('renders a persistent interactive visualization inside the isolated Electro
     await app.installAgentSendProbe()
     await openVisualizationThread(app)
     await expectVisualizeSlashCommand(app)
-    await expectSecureInteractiveVisualization(app)
+    await expectSecureInteractiveVisualization(app, sessionId)
 
     await app.restart()
     await app.installAgentSendProbe()
     await openVisualizationThread(app)
-    await expectSecureInteractiveVisualization(app)
+    await expectSecureInteractiveVisualization(app, sessionId)
   } finally {
     await app.cleanup()
   }

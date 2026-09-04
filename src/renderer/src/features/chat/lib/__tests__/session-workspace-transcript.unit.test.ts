@@ -50,6 +50,7 @@ function workspaceWithPath(
   nodes: readonly SessionNode[],
   activeNodeId: SessionNodeId,
   lastActiveNodeId: SessionNodeId,
+  updatedAt = 4,
 ) {
   return {
     tree: {
@@ -58,7 +59,7 @@ function workspaceWithPath(
         title: 'Branch test',
         projectPath: '/tmp/project',
         createdAt: 1,
-        updatedAt: 4,
+        updatedAt,
         lastActiveNodeId,
         lastActiveBranchId: MAIN_BRANCH_ID,
       },
@@ -191,5 +192,65 @@ describe('resolveTranscriptMessages', () => {
       'assistant-head',
       'completed-assistant',
     ])
+  })
+
+  it('keeps a replacement message snapshot visible when the active-head workspace is stale', () => {
+    const visualization = sessionNode(
+      'visualization-assistant',
+      null,
+      'assistant',
+      'Interactive visualization',
+      0,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceWithPath([visualization], visualization.id, visualization.id, 4),
+      messages: [
+        uiMessage('replacement-user', 'user', 'What did I select?'),
+        uiMessage('replacement-assistant', 'assistant', 'You selected sandbox.'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual([
+      'visualization-assistant',
+      'replacement-user',
+      'replacement-assistant',
+    ])
+  })
+
+  it('does not merge a disjoint active transcript into a current selected workspace', () => {
+    const selectedNode = sessionNode(
+      'selected-branch-assistant',
+      null,
+      'assistant',
+      'Selected branch',
+      0,
+    )
+    const branchHead = sessionNode(
+      'later-branch-assistant',
+      'selected-branch-assistant',
+      'assistant',
+      'Later branch answer',
+      1,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceWithPath(
+        [selectedNode, branchHead],
+        selectedNode.id,
+        branchHead.id,
+        4,
+      ),
+      messages: [
+        uiMessage('other-branch-user', 'user', 'Other branch'),
+        uiMessage('other-branch-assistant', 'assistant', 'Other answer'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual(['selected-branch-assistant'])
   })
 })
