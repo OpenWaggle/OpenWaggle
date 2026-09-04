@@ -154,6 +154,43 @@ describe('stream-buffer', () => {
     })
   })
 
+  it('preserves completed compaction history after automatic retry ends', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    const compactionStart = {
+      type: 'compaction_start' as const,
+      reason: 'threshold' as const,
+      timestamp: 10,
+    }
+    const compactionEnd = {
+      type: 'compaction_end' as const,
+      reason: 'threshold' as const,
+      result: { entryId: 'compaction-entry-1' },
+      aborted: false,
+      willRetry: false,
+      timestamp: 11,
+    }
+    applyEventToStreamBuffer(SESSION_ID, compactionStart)
+    applyEventToStreamBuffer(SESSION_ID, compactionEnd)
+    applyEventToStreamBuffer(SESSION_ID, {
+      type: 'auto_retry_start',
+      attempt: 1,
+      maxAttempts: 3,
+      delayMs: 500,
+      errorMessage: 'temporary failure',
+      timestamp: 12,
+    })
+    applyEventToStreamBuffer(SESSION_ID, {
+      type: 'auto_retry_end',
+      success: true,
+      attempt: 1,
+      timestamp: 13,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      activityEvents: [compactionStart, compactionEnd],
+    })
+  })
+
   it('accumulates assistant text, reasoning, tool calls, and tool results from transport events', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'waggle')
 
