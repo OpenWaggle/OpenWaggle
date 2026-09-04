@@ -60,6 +60,7 @@ function resource(input: {
   readonly kind: SessionResource['kind']
   readonly title: string
   readonly available?: boolean
+  readonly occurrences?: SessionResource['occurrences']
 }): SessionResource {
   return {
     id: input.id,
@@ -73,7 +74,7 @@ function resource(input: {
     available: input.available ?? true,
     isSource: false,
     isOutput: true,
-    occurrences: [],
+    occurrences: input.occurrences ?? [],
     createdAt: 1000,
     updatedAt: 1000,
   }
@@ -169,6 +170,129 @@ describe('extension image resource identity', () => {
       expect.objectContaining({
         canonicalKey: 'image-url:https://images.example.com/diagram.png',
         kind: 'image',
+      }),
+    )
+  })
+
+  it('recognizes legacy raw occurrence identities after URL migration', async () => {
+    const rawLocator = 'HTTPS://IMAGES.EXAMPLE.COM:443/diagram.png'
+    const existing = resource({
+      id: 'migrated-image',
+      canonicalKey: 'image-url:https://images.example.com/diagram.png',
+      kind: 'image',
+      title: 'Architecture diagram',
+      occurrences: [
+        {
+          id: `extension:${SESSION_ID}:${BROKER_EXTENSION_ID}:${CONTRIBUTION_ID}:diagram:output:${rawLocator}`,
+          nodeId: 'legacy-node',
+          branchId: 'legacy-branch',
+          actor: 'extension',
+          activity: 'created',
+          label: CONTRIBUTION_ID,
+          createdAt: 1000,
+        },
+      ],
+    })
+    const test = harness([existing])
+
+    const result = await test.run(
+      invocation({
+        key: 'diagram',
+        title: 'Architecture diagram',
+        kind: 'image',
+        role: 'output',
+        locator: rawLocator,
+      }),
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { resource: { id: 'migrated-image' } },
+    })
+    expect(test.resourceUpserts()).toEqual([])
+    expect(test.resources()[0]?.occurrences).toEqual(existing.occurrences)
+  })
+
+  it('returns the preserved legacy owner when distinct managed copies survive migration', async () => {
+    const rawLocator = 'HTTPS://IMAGES.EXAMPLE.COM:443/diagram.png'
+    const occurrence = {
+      id: `extension:${SESSION_ID}:${BROKER_EXTENSION_ID}:${CONTRIBUTION_ID}:diagram:output:${rawLocator}`,
+      nodeId: 'legacy-node',
+      branchId: 'legacy-branch',
+      actor: 'extension' as const,
+      activity: 'created' as const,
+      label: CONTRIBUTION_ID,
+      createdAt: 1000,
+    }
+    const normalized = resource({
+      id: 'normalized-managed-image',
+      canonicalKey: 'image-url:https://images.example.com/diagram.png',
+      kind: 'image',
+      title: 'Normalized managed image',
+    })
+    const preserved = resource({
+      id: 'preserved-legacy-image',
+      canonicalKey: 'legacy-image:preserved-legacy-image',
+      kind: 'image',
+      title: 'Preserved managed image',
+      occurrences: [occurrence],
+    })
+    const test = harness([normalized, preserved])
+
+    const result = await test.run(
+      invocation({
+        key: 'diagram',
+        title: 'Architecture diagram',
+        kind: 'image',
+        role: 'output',
+        locator: rawLocator,
+      }),
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { resource: { id: 'preserved-legacy-image' } },
+    })
+    expect(test.resourceUpserts()).toEqual([])
+  })
+
+  it('does not replay an image publication from a legacy generic occurrence', async () => {
+    const rawLocator = 'HTTPS://IMAGES.EXAMPLE.COM:443/diagram.png'
+    const generic = resource({
+      id: 'legacy-generic-link',
+      canonicalKey: 'url:https://images.example.com/diagram.png',
+      kind: 'link',
+      title: 'Generic documentation',
+      occurrences: [
+        {
+          id: `extension:${SESSION_ID}:${BROKER_EXTENSION_ID}:${CONTRIBUTION_ID}:diagram:output:${rawLocator}`,
+          nodeId: 'legacy-node',
+          branchId: 'legacy-branch',
+          actor: 'extension',
+          activity: 'created',
+          label: CONTRIBUTION_ID,
+          createdAt: 1000,
+        },
+      ],
+    })
+    const test = harness([generic])
+
+    const result = await test.run(
+      invocation({
+        key: 'diagram',
+        title: 'Architecture diagram',
+        kind: 'image',
+        role: 'output',
+        locator: rawLocator,
+      }),
+    )
+
+    expect(result).toMatchObject({ ok: true, value: { resource: { kind: 'image' } } })
+    expect(test.resourceUpserts()).toContainEqual(
+      expect.objectContaining({
+        canonicalKey: 'image-url:https://images.example.com/diagram.png',
+        kind: 'image',
+        occurrence: expect.objectContaining({ id: expect.stringContaining(':image:output:') }),
       }),
     )
   })

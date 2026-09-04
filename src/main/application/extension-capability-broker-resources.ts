@@ -63,6 +63,13 @@ function publishedResourceResult(
   })
 }
 
+function compatibleResourceKind(
+  resource: SessionResource,
+  kind: ExtensionSessionResourcePublishPayload['kind'],
+) {
+  return kind === 'image' ? resource.kind === 'image' : resource.kind !== 'image'
+}
+
 function findExistingResource(
   repository: SessionResourceRepositoryShape,
   sessionId: SessionId,
@@ -72,15 +79,13 @@ function findExistingResource(
 ) {
   return Effect.gen(function* () {
     const normalized = yield* repository.findByCanonicalKey(sessionId, normalizedCanonicalKey)
-    const compatible = (resource: SessionResource) =>
-      kind === 'image' ? resource.kind === 'image' : resource.kind !== 'image'
-    if (normalized && compatible(normalized)) {
+    if (normalized && compatibleResourceKind(normalized, kind)) {
       return { _tag: 'Existing' as const, resource: normalized, legacy: false }
     }
     let blocked = normalized !== null
     if (legacyCanonicalKey !== normalizedCanonicalKey) {
       const legacy = yield* repository.findByCanonicalKey(sessionId, legacyCanonicalKey)
-      if (legacy && compatible(legacy)) {
+      if (legacy && compatibleResourceKind(legacy, kind)) {
         return { _tag: 'Existing' as const, resource: legacy, legacy: true }
       }
       blocked ||= legacy !== null
@@ -88,7 +93,7 @@ function findExistingResource(
     const canonicalPrefix = kind === 'image' ? 'image-url:' : 'url:'
     const normalizedLocator = normalizedCanonicalKey.slice(canonicalPrefix.length)
     const legacy = (yield* repository.list(sessionId)).find((candidate) => {
-      if (!compatible(candidate)) return false
+      if (!compatibleResourceKind(candidate, kind)) return false
       const currentPrefix = candidate.canonicalKey.startsWith(canonicalPrefix)
       if (!currentPrefix) return false
       try {
@@ -107,18 +112,42 @@ function findExistingResource(
 function findReplayResource(
   repository: SessionResourceRepositoryShape,
   sessionId: SessionId,
-  occurrenceId: string,
+  occurrenceIds: readonly string[],
   existingResource: SessionResource | null,
+  kind: ExtensionSessionResourcePublishPayload['kind'],
 ) {
   return Effect.gen(function* () {
-    if (!(yield* repository.hasOccurrence(sessionId, occurrenceId))) return null
-    if (existingResource) return existingResource
-    return (
-      (yield* repository.list(sessionId)).find((candidate) =>
-        candidate.occurrences.some((occurrence) => occurrence.id === occurrenceId),
-      ) ?? null
-    )
+    let resources: readonly SessionResource[] | null = null
+    for (const occurrenceId of occurrenceIds) {
+      if (!(yield* repository.hasOccurrence(sessionId, occurrenceId))) continue
+      if (
+        existingResource &&
+        compatibleResourceKind(existingResource, kind) &&
+        existingResource.occurrences.some((occurrence) => occurrence.id === occurrenceId)
+      ) {
+        return existingResource
+      }
+      resources ??= yield* repository.list(sessionId)
+      const owner = resources.find(
+        (candidate) =>
+          compatibleResourceKind(candidate, kind) &&
+          candidate.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+      )
+      if (owner) return owner
+    }
+    return null
   })
+}
+
+function publicationOccurrenceId(
+  input: BrokerRouteInput,
+  sessionId: SessionId,
+  payload: ExtensionSessionResourcePublishPayload,
+  locator: string,
+  includeKind: boolean,
+) {
+  const kind = includeKind ? `:${payload.kind}` : ''
+  return `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}${kind}:${payload.role}:${locator}`
 }
 
 function publishPayload(input: BrokerRouteInput) {
@@ -176,14 +205,19 @@ function publishResource(
       })
     }
     const existingResource = existing._tag === 'Existing' ? existing.resource : null
-    const identityLocator =
-      existing._tag === 'Existing' && existing.legacy ? payload.locator : normalizedLocator
-    const occurrenceId = `extension:${sessionId}:${input.invocation.extensionId}:${input.invocation.contributionId}:${payload.key}:${payload.role}:${identityLocator}`
+    const occurrenceId = publicationOccurrenceId(input, sessionId, payload, normalizedLocator, true)
+    const occurrenceIds = [
+      occurrenceId,
+      publicationOccurrenceId(input, sessionId, payload, payload.locator, true),
+      publicationOccurrenceId(input, sessionId, payload, normalizedLocator, false),
+      publicationOccurrenceId(input, sessionId, payload, payload.locator, false),
+    ].filter((candidate, index, candidates) => candidates.indexOf(candidate) === index)
     const replayResource = yield* findReplayResource(
       repository,
       sessionId,
-      occurrenceId,
+      occurrenceIds,
       existingResource,
+      payload.kind,
     )
     if (replayResource) return yield* publishedResourceResult(input, sessionId, replayResource)
     const metadata = joinedResourceMetadata(existingResource, payload)
