@@ -12,20 +12,57 @@ import {
 describe('Pi compaction visualization context', () => {
   afterEach(cleanupNativeSessions)
 
-  it('does not replay general context extensions while preparing compaction', async () => {
+  it('applies general provider context filters while preparing Native compaction', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-context-count-')
     const contextEventCounter = { value: 0 }
-    vi.stubGlobal('fetch', nativeCompactionFetch())
-    const { session } = await createNativeSession({
+    const nativeRequests: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch(nativeRequests))
+    const { session, sessionManager } = await createNativeSession({
       directory,
       compactionEvents: [],
       contextEventCounter,
+      initialContext: 'PUBLIC-CONTEXT',
+      contextTransform: (messages) =>
+        messages.filter(
+          (message) => message.role !== 'user' || !String(message.content).includes('SECRET'),
+        ),
+    })
+    sessionManager.appendMessage({
+      role: 'user',
+      content: 'SECRET-CONTEXT',
+      timestamp: 2,
     })
     bindVisualizationContextFilter(session)
 
     await session.compact()
 
-    expect(contextEventCounter.value).toBe(0)
+    expect(contextEventCounter.value).toBe(1)
+    expect(nativeRequests[0]).toContain('PUBLIC-CONTEXT')
+    expect(nativeRequests[0]).not.toContain('SECRET-CONTEXT')
+  })
+
+  it('blocks images from Native compaction with the same provider-facing conversion', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-block-images-')
+    const nativeRequests: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch(nativeRequests))
+    const { session, sessionManager } = await createNativeSession({
+      directory,
+      compactionEvents: [],
+      blockImages: true,
+    })
+    sessionManager.appendMessage({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Image context' },
+        { type: 'image', data: 'c2Vuc2l0aXZlLWltYWdl', mimeType: 'image/png' },
+      ],
+      timestamp: 2,
+    })
+
+    await session.compact()
+
+    expect(nativeRequests[0]).toContain('Image reading is disabled.')
+    expect(nativeRequests[0]).not.toContain('c2Vuc2l0aXZlLWltYWdl')
   })
 
   it.each([

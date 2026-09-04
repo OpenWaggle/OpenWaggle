@@ -97,9 +97,9 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +    catch {
 +        // Cyclic extension metadata is not part of the provider-facing JSON schema.
 +    }
-+    const framingChars = (systemPrompt?.length ?? 0) + toolSchema.length;
++    const estimateTextTokens = (text) => Math.max(text.length, Math.ceil(new TextEncoder().encode(text).length / 2));
 +    const requestMessages = Array.isArray(messages) ? messages : [messages];
-+    return Math.ceil(framingChars / 4) + requestMessages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
++    return estimateTextTokens(systemPrompt ?? "") + estimateTextTokens(toolSchema) + requestMessages.reduce((total, message) => total + estimateReconstructionMessageTokens(message), 0);
 +}
 +function isRequestTurnStart(message) {
 +    return message.role === "user" || message.role === "custom" || message.role === "bashExecution" ||
@@ -528,11 +528,11 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 -    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason) {
 -        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), undefined);
 +    async _runDefaultCompaction(preparation, requestModel, apiKey, headers, customInstructions, signal, env, reason, willRetry, nativeRequestHeaders) {
-+        const transformPreparation = this.agent.transformCompactionContext
++        const transformPreparation = this.agent.transformCompactionContext || this.agent.transformContext
 +            ? async (candidate, mechanism) => {
-+                const transformMessages = (messages) => messages.length === 0
++                const transformMessages = (messages) => messages.length === 0 || (mechanism !== "native" && !this.agent.transformCompactionContext)
 +                    ? messages
-+                    : this.agent.transformCompactionContext(messages, candidate.messagesForNativeCompaction, { willRetry }, signal);
++                    : this.agent.transformCompactionContext ? this.agent.transformCompactionContext(messages, candidate.messagesForNativeCompaction, { willRetry }, signal) : this.agent.transformContext(messages, signal);
 +                return mechanism === "native"
 +                    ? {
 +                        ...candidate,
@@ -550,7 +550,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +            nativeRequestOptions = {
 +                headers: nativeRequestHeaders,
 +                onPayload: this.agent.onPayload,
-+                onResponse: this.agent.onResponse,
++                onResponse: this.agent.onResponse, convertMessages: async (messages) => this.agent.convertToLlm(messages),
 +            };
 +        }
 +        return compact(preparation, requestModel, apiKey, headers, customInstructions, signal, this.thinkingLevel, this.agent.streamFunction, env, this.settingsManager.getRetrySettings(), this._summarizationRetryCallbacks({ source: "compaction", reason }), this.sessionManager.getSessionId(), this.agent.state.systemPrompt, transformPreparation, nativeRequestOptions);
@@ -806,7 +806,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
      /** Extension-specific data (e.g., ArtifactIndex, version markers for structured compaction) */
      details?: T;
  }
-+export type NativeCompactionRequestOptions = Pick<SimpleStreamOptions, "headers" | "onPayload" | "onResponse">;
++export type NativeCompactionRequestOptions = Pick<SimpleStreamOptions, "headers" | "onPayload" | "onResponse"> & { convertMessages?: (messages: AgentMessage[]) => Promise<Message[]> };
  export interface CompactionSettings {
      enabled: boolean;
      reserveTokens: number;
@@ -1331,9 +1331,9 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
 +                : systemPrompt;
 +            const response = await compactResponses(model, {
 +                systemPrompt: nativeInstructions,
-+                messages: convertToLlm(nativePreparation.messagesForNativeCompaction),
++                messages: nativeRequestOptions?.convertMessages ? await nativeRequestOptions.convertMessages(nativePreparation.messagesForNativeCompaction) : convertToLlm(nativePreparation.messagesForNativeCompaction),
 +            }, {
-+                ...nativeRequestOptions,
++                onPayload: nativeRequestOptions?.onPayload, onResponse: nativeRequestOptions?.onResponse,
 +                apiKey,
 +                headers: nativeRequestOptions?.headers ?? headers,
 +                signal,

@@ -119,6 +119,34 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     expect(session.model?.baseUrl).toBe('https://endpoint-b.example.test/v1')
   })
 
+  it('reserves UTF-8-dense system framing when fitting reconstructed history', async () => {
+    const directory = createNativeTempDirectory('openwaggle-native-dense-request-framing-')
+    const authBaseUrlState = { value: 'https://endpoint-a.example.test/v1' }
+    const providerContexts: string[] = []
+    vi.stubGlobal('fetch', nativeCompactionFetch())
+    const { session } = await createNativeSession({
+      directory,
+      compactionEvents: [],
+      authBaseUrlState,
+      contextWindow: 400,
+      systemPrompt: '漢'.repeat(220),
+      initialContext: `OLDEST-CONTEXT-${'x'.repeat(180)}`,
+      responses: [
+        (context) => {
+          providerContexts.push(JSON.stringify(context.messages))
+          return fauxAssistantMessage('Dense framing respected')
+        },
+      ],
+    })
+
+    await session.compact()
+    authBaseUrlState.value = 'https://endpoint-b.example.test/v1'
+    await session.prompt('Mandatory request')
+
+    expect(providerContexts[0]).toContain('Mandatory request')
+    expect(providerContexts[0]).not.toContain('OLDEST-CONTEXT')
+  })
+
   it('refreshes the request endpoint after portable compaction fails', async () => {
     const directory = createNativeTempDirectory('openwaggle-native-events-portable-failure-')
     const events: SessionCompactEvent[] = []
@@ -140,10 +168,11 @@ describe('Pi automatic compaction endpoint boundaries', () => {
       if (compactionRequests > 1) return new Response(null, { status: 404 })
       return compactFetch(input, init)
     })
-    const { session } = await createNativeSession({
+    const { session, sessionManager } = await createNativeSession({
       directory,
       compactionEvents: events,
-      contextWindow: 1_200,
+      contextWindow: 10_000,
+      systemPrompt: 'Portable failure boundary test',
       authBaseUrlResolver: () => {
         if (!boundaryPhase) return 'https://endpoint-a.example.test/v1'
         boundaryResolutions += 1
@@ -165,10 +194,17 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     await session.compact()
     session.setAutoCompactionEnabled(false)
     await session.prompt('Build a high-usage previous turn')
+    const usageEntry = sessionManager
+      .getBranch()
+      .findLast((entry) => entry.type === 'message' && entry.message.role === 'assistant')
+    if (usageEntry?.type !== 'message' || usageEntry.message.role !== 'assistant') {
+      throw new Error('Expected a persisted assistant response')
+    }
+    usageEntry.message.usage.input = 9_000
+    usageEntry.message.usage.totalTokens = 9_000
     session.setAutoCompactionEnabled(true)
     boundaryPhase = true
     await session.prompt('Mandatory request after portable failure')
-
     expect(boundaryResolutions).toBe(2)
     expect(providerBaseUrls).toEqual(['https://endpoint-c.example.test/v1'])
     expect(providerContexts[0]).toContain('Mandatory request after portable failure')
@@ -251,6 +287,7 @@ describe('Pi automatic compaction endpoint boundaries', () => {
     const { session } = await createNativeSession({
       directory,
       compactionEvents: events,
+      contextWindow: 10_000,
       systemPrompt: 'Native compaction test prompt',
       authBaseUrlResolver: () => {
         if (!overflowReturned) return 'https://endpoint-a.example.test/v1'

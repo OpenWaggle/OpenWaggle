@@ -8,6 +8,7 @@ import {
   InMemoryCredentialStore,
 } from '@earendil-works/pi-ai'
 import {
+  type ContextEvent,
   createAgentSession,
   DefaultResourceLoader,
   type ExtensionFactory,
@@ -57,6 +58,8 @@ export async function createNativeSession(options: {
     authorization?: string
     accountId?: string
   }
+  blockImages?: boolean
+  contextTransform?: (messages: ContextEvent['messages']) => ContextEvent['messages']
 }) {
   const faux = fauxProvider({
     api: 'openai-responses',
@@ -98,6 +101,7 @@ export async function createNativeSession(options: {
   modelRuntime.registerNativeProvider(nativeProvider)
   const settingsManager = SettingsManager.inMemory({
     retry: { enabled: false },
+    images: { blockImages: options.blockImages ?? false },
     compaction: {
       enabled: true,
       thresholdPercent: 80,
@@ -128,10 +132,11 @@ export async function createNativeSession(options: {
         if (options.providerLifecycleCounter) options.providerLifecycleCounter.responseCalls += 1
       })
     }
-    if (options.contextEventCounter) {
+    if (options.contextEventCounter || options.contextTransform) {
       pi.on('context', (event) => {
         if (options.contextEventCounter) options.contextEventCounter.value += 1
-        return { messages: event.messages }
+        const transformed = options.contextTransform?.(event.messages)
+        return { messages: Array.isArray(transformed) ? transformed : event.messages }
       })
     }
     pi.on('session_compact', (event) => {
