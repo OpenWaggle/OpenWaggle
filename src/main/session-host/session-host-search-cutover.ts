@@ -1,9 +1,32 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
+import { queryCutoverRecord } from './session-host-cutover-database'
 
 const CUTOVER_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('session_nodes')
 const CUTOVER_INITIAL_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('initial_node')
 const CUTOVER_PREVIEW_DISCOVERY_CONTENT = sessionTranscriptSearchContentSql('preview_node')
+const NODE_SEARCH_SESSION_INDEX = 'idx_session_node_search_rows_session'
+
+function populateNodeSearchRows(database: DatabaseSync) {
+  const hasSessionIndex =
+    queryCutoverRecord(
+      database,
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
+      NODE_SEARCH_SESSION_INDEX,
+    )?.present === 1
+  if (hasSessionIndex) database.exec(`DROP INDEX ${NODE_SEARCH_SESSION_INDEX}`)
+  try {
+    database.exec(`
+      INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
+      SELECT node_id, session_id, rowid FROM session_node_search;
+    `)
+  } finally {
+    if (hasSessionIndex) {
+      database.exec(`CREATE INDEX ${NODE_SEARCH_SESSION_INDEX}
+        ON session_node_search_rows (session_id, search_rowid)`)
+    }
+  }
+}
 
 export function populateSessionSearchCatalog(database: DatabaseSync) {
   database.exec(`
@@ -14,8 +37,9 @@ export function populateSessionSearchCatalog(database: DatabaseSync) {
     SELECT id, title, COALESCE(project_path, '') FROM sessions;
     INSERT INTO session_node_search (session_id, node_id, content)
     SELECT session_id, id, ${CUTOVER_TRANSCRIPT_SEARCH_CONTENT} FROM session_nodes;
-    INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
-    SELECT node_id, session_id, rowid FROM session_node_search;
+  `)
+  populateNodeSearchRows(database)
+  database.exec(`
     INSERT INTO session_node_discovery_search (
       session_id, archived, initial_objective, current_preview
     )

@@ -129,10 +129,9 @@ describe('SQLite Session search indexes', () => {
         return yield* sql<{ readonly detail: string }>`
           EXPLAIN QUERY PLAN
           SELECT nodes.id
-          FROM session_nodes AS nodes
-          JOIN session_transcript_semantic_scopes AS scopes
-            ON scopes.session_id = nodes.session_id
-          WHERE nodes.session_id IN ${sql.in(['worker'])}
+          FROM session_transcript_semantic_scopes AS scopes
+          CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
+          WHERE scopes.session_id IN ${sql.in(['worker'])}
             AND trim(${sql.literal(sessionTranscriptSearchContentSql('nodes'))}) <> ''
           ORDER BY nodes.created_order DESC, nodes.id DESC
         `
@@ -140,7 +139,9 @@ describe('SQLite Session search indexes', () => {
     )
 
     const details = plan.map((row) => row.detail).join('\n')
-    expect(details).toMatch(/idx_session_nodes_(?:run|session)_created_order/)
+    expect(details).toMatch(
+      /idx_session_nodes_(?:run_created_order|session_created_order|active_branch_created_order)/,
+    )
     expect(details).not.toContain('session_node_search')
   })
 

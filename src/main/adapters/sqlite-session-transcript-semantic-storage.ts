@@ -42,8 +42,8 @@ export function refreshTranscriptScopeCoverage(
             ORDER BY nodes.created_order DESC, nodes.id DESC
           ) AS scope_rank,
           scopes.node_limit
-        FROM session_nodes AS nodes
-        JOIN session_transcript_semantic_scopes AS scopes ON scopes.session_id = nodes.session_id
+        FROM session_transcript_semantic_scopes AS scopes
+        CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
         WHERE nodes.session_id IN ${sql.in(sessionIds)}
           AND trim(${sql.literal(TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
       )
@@ -164,9 +164,8 @@ export function ensureTranscriptSemanticSessions(input: {
                 ORDER BY nodes.created_order DESC, nodes.id DESC
               ) AS scope_rank,
               scopes.node_limit
-            FROM session_nodes AS nodes
-            JOIN session_transcript_semantic_scopes AS scopes
-              ON scopes.session_id = nodes.session_id
+            FROM session_transcript_semantic_scopes AS scopes
+            CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
             LEFT JOIN session_transcript_embeddings AS embeddings ON embeddings.node_id = nodes.id
             LEFT JOIN session_transcript_embedding_queue AS queue ON queue.node_id = nodes.id
             WHERE nodes.session_id IN ${input.sql.in(input.sessionIds)}
@@ -230,6 +229,7 @@ export function releaseTranscriptSemanticLease(input: {
   readonly sql: SqlClient.SqlClient
   readonly operationId: string
   readonly now?: number
+  readonly maintainStorage?: boolean
 }) {
   const now = input.now ?? Date.now()
   return input.sql.withTransaction(
@@ -238,7 +238,9 @@ export function releaseTranscriptSemanticLease(input: {
         DELETE FROM session_transcript_semantic_leases
         WHERE operation_id = ${input.operationId}
       `
-      yield* maintainTranscriptSemanticStorageInTransaction(input.sql, now, POLICY)
+      if (input.maintainStorage !== false) {
+        yield* maintainTranscriptSemanticStorageInTransaction(input.sql, now, POLICY)
+      }
     }),
   )
 }

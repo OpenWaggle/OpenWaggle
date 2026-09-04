@@ -25,6 +25,13 @@ const MEASURED_RUNS = 20
 const WARMUP_RUNS = 3
 const PAGE_SIZE = BENCHMARK_QUERY_PAGE_SIZE
 const P95 = 0.95
+const TIMING_DECIMAL_PLACES = 2
+
+export function reportSessionDiscoveryBenchmarkPhase(phase: string, elapsedMs: number) {
+  process.stderr.write(
+    `[session-database-benchmark] ${phase}: ${elapsedMs.toFixed(TIMING_DECIMAL_PLACES)}ms\n`,
+  )
+}
 
 export function benchmarkPercentile(values: readonly number[], fraction: number) {
   const sorted = values.toSorted((left, right) => left - right)
@@ -182,13 +189,23 @@ export async function benchmarkSessionDiscoveryQueries(
         }),
       ),
     )
-  const lexical = (query: string, requestId: string) =>
+  const lexical = (
+    query: string,
+    requestId: string,
+    searchScope: 'discovery' | 'full-transcript' = 'discovery',
+  ) =>
     runtime.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         loadLexicalDiscoveryRows(sql, undefined, {
           contractVersion: SESSION_QUERY_CONTRACT_VERSION,
           requestId,
-          query: { operation: 'search', query, limit: PAGE_SIZE, mode: 'lexical' },
+          query: {
+            operation: 'search',
+            query,
+            limit: PAGE_SIZE,
+            mode: 'lexical',
+            searchScope,
+          },
         }),
       ),
     )
@@ -217,6 +234,16 @@ export async function benchmarkSessionDiscoveryQueries(
       missingWorkingPathList: await list('/benchmark/missing'),
       rareLexical: await lexical(RARE_LEXICAL_TERM, 'benchmark-preflight-rare-lexical'),
       commonLexical: await lexical(COMMON_LEXICAL_TERM, 'benchmark-preflight-common-lexical'),
+      rareFullTranscriptLexical: await lexical(
+        RARE_LEXICAL_TERM,
+        'benchmark-preflight-rare-full-transcript',
+        'full-transcript',
+      ),
+      commonFullTranscriptLexical: await lexical(
+        COMMON_LEXICAL_TERM,
+        'benchmark-preflight-common-full-transcript',
+        'full-transcript',
+      ),
       transcriptHead: await transcript(),
     }
     const terminalCursor = benchmarkTranscriptTerminalCursor(preflight.transcriptHead)
@@ -233,6 +260,12 @@ export async function benchmarkSessionDiscoveryQueries(
       missingWorkingPathList: await measure(() => list('/benchmark/missing')),
       lexical: await measure(() => lexical('benchmarktoken', 'benchmark-lexical')),
       commonLexical: await measure(() => lexical('commonterm', 'benchmark-common-lexical')),
+      fullTranscriptLexical: await measure(() =>
+        lexical('benchmarktoken', 'benchmark-full-transcript-lexical', 'full-transcript'),
+      ),
+      commonFullTranscriptLexical: await measure(() =>
+        lexical('commonterm', 'benchmark-common-full-transcript-lexical', 'full-transcript'),
+      ),
       transcript: await measure(transcript),
     }
   } finally {

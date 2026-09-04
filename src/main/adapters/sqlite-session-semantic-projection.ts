@@ -4,16 +4,18 @@ import type { SemanticDiscoveryReadiness } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { sessionDiscoveryDocument } from './session-discovery-document'
+import { embedPassagesInBatches } from './session-embedding-batches'
 import { encodeFloat32Vector } from './session-flat-vector-index'
 import {
-  loadCurrentSemanticProjectionRow,
+  loadCurrentSemanticProjectionRows,
   loadSemanticProjectionCounts,
   type SessionSemanticProjectionRow,
 } from './sqlite-session-semantic-projection-source'
 
 export { sessionDiscoveryDocument } from './session-discovery-document'
 
-const DEFAULT_PROJECTION_BATCH_SIZE = 32
+const DEFAULT_PROJECTION_BATCH_SIZE = 128
+const EMBEDDING_INFERENCE_BATCH_SIZE = 32
 
 interface SemanticStateRow {
   readonly status: 'preparing' | 'ready' | 'failed'
@@ -35,14 +37,12 @@ function loadProjectionRows(sql: SqlClient.SqlClient, limit: number) {
   return sql<SessionSemanticProjectionRow>`
     SELECT queue.session_id, sessions.title, queue.queued_at,
       specifications.specification_json,
-      (SELECT initial.content_json FROM session_nodes AS initial
-        WHERE initial.session_id = sessions.id AND initial.role = 'user'
-        ORDER BY initial.created_order, initial.id LIMIT 1) AS initial_content_json,
-      (SELECT preview.content_json FROM session_nodes AS preview
-        WHERE preview.session_id = sessions.id AND preview.role IN ('user', 'assistant')
-        ORDER BY preview.created_order DESC, preview.id DESC LIMIT 1) AS preview_content_json
+      discovery_rows.initial_objective AS initial_text,
+      discovery_rows.current_preview AS preview_text
     FROM session_discovery_embedding_queue AS queue
     JOIN sessions ON sessions.id = queue.session_id
+    LEFT JOIN session_discovery_search_rows AS discovery_rows
+      ON discovery_rows.session_id = sessions.id
     LEFT JOIN delegation_contracts AS contracts ON contracts.child_session_id = sessions.id
     LEFT JOIN delegation_specifications AS specifications
       ON specifications.delegation_id = contracts.id
@@ -67,13 +67,18 @@ function publishProjectionBatch(
         readonly vector: Float32Array
         readonly document: string
       }> = []
+      const currentRows = yield* loadCurrentSemanticProjectionRows(
+        sql,
+        rows.map((row) => row.session_id),
+      )
+      const currentBySessionId = new Map(currentRows.map((row) => [row.session_id, row]))
       for (const [index, row] of rows.entries()) {
         const vector = vectors[index]
         if (!vector || vector.length !== model.metadata.dimensions) {
           return yield* Effect.fail(new Error('Semantic projection vector dimensions mismatch.'))
         }
         const document = sessionDiscoveryDocument(row)
-        const current = (yield* loadCurrentSemanticProjectionRow(sql, row.session_id))[0]
+        const current = currentBySessionId.get(row.session_id)
         if (
           current?.queued_at === row.queued_at &&
           sessionDiscoveryDocument(current) === document
@@ -205,7 +210,7 @@ export class SqliteSessionSemanticProjection {
       yield* this.#markPreparing()
       const documents = rows.map(sessionDiscoveryDocument)
       const vectors = yield* Effect.tryPromise({
-        try: () => this.model.embedPassages(documents),
+        try: () => embedPassagesInBatches(this.model, documents, EMBEDDING_INFERENCE_BATCH_SIZE),
         catch: (cause) => new Error('Semantic Session projection failed.', { cause }),
       })
       return yield* publishProjectionBatch(

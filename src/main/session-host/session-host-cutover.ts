@@ -10,7 +10,10 @@ import {
   SESSION_HOST_BASELINE_MIGRATION_NAME,
   SESSION_HOST_CUTOVER_REVISION,
 } from '../services/session-host-schema-identity'
-import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../services/session-host-target-schema'
+import {
+  SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS,
+  SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
+} from '../services/session-host-target-schema'
 import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
 import { readCutoverCount, sourceSchemaRevision } from './session-host-cutover-database'
 import {
@@ -26,6 +29,7 @@ export { SESSION_HOST_SCHEMA_REVISION } from './session-host-cutover-validation'
 export const SESSION_HOST_CUTOVER_MIGRATION_ID = SESSION_HOST_BASELINE_MIGRATION_ID
 export const SESSION_HOST_CUTOVER_MIGRATION_REVISION = SESSION_HOST_CUTOVER_REVISION
 const OWNER_DIRECTORY_MODE = 0o700
+const CUTOVER_CACHE_KIB = 131_072
 
 export interface SessionHostCutoverPaths {
   readonly sourceDatabasePath: string
@@ -63,7 +67,13 @@ export function sessionHostSourceExists(paths: SessionHostCutoverPaths) {
 }
 
 function applyTargetSchema(database: DatabaseSync) {
-  for (const statement of SESSION_HOST_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
+  for (const statement of SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
+}
+
+function applyPostPopulationSchema(database: DatabaseSync) {
+  for (const statement of SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS) {
+    database.exec(statement)
+  }
 }
 
 function recordMigrationMetadata(
@@ -97,7 +107,12 @@ function recordMigrationMetadata(
 function prepareStagingDatabase(stagingPath: string, now: number) {
   const database = new DatabaseSync(stagingPath)
   try {
-    database.exec('PRAGMA foreign_keys = ON; BEGIN IMMEDIATE;')
+    database.exec(`
+      PRAGMA foreign_keys = ON;
+      PRAGMA cache_size = -${CUTOVER_CACHE_KIB};
+      PRAGMA temp_store = FILE;
+      BEGIN IMMEDIATE;
+    `)
     const revision = sourceSchemaRevision(database)
     const sourceCounts = {
       sessions: readCutoverCount(database, 'sessions'),
@@ -108,6 +123,7 @@ function prepareStagingDatabase(stagingPath: string, now: number) {
       normalizeLegacySessionTitles(database)
       applyTargetSchema(database)
       populateSessionHostTarget(database, now)
+      applyPostPopulationSchema(database)
       database.exec('COMMIT;')
       return { revision, sourceCounts }
     } catch (error) {

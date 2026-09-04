@@ -80,8 +80,8 @@ export function pruneTranscriptSemanticSessionOverflow(sql: SqlClient.SqlClient)
         ORDER BY nodes.created_order DESC, nodes.id DESC
       ) AS scope_rank,
       scopes.node_limit
-    FROM session_nodes AS nodes
-    JOIN session_transcript_semantic_scopes AS scopes ON scopes.session_id = nodes.session_id
+    FROM session_transcript_semantic_scopes AS scopes
+    CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
     WHERE trim(${TRANSCRIPT_SEARCH_CONTENT_SQL}) <> ''
   `
   return Effect.gen(function* () {

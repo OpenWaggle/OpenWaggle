@@ -6,8 +6,8 @@ export interface SessionDiscoveryDocumentSource {
   readonly session_id: string
   readonly title: string
   readonly specification_json: string | null
-  readonly initial_content_json: string | null
-  readonly preview_content_json: string | null
+  readonly initial_text: string | null
+  readonly preview_text: string | null
   readonly queued_at: number
 }
 
@@ -30,48 +30,12 @@ function optionalString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function visiblePartStrings(part: unknown) {
-  return match(part)
-    .with({ type: 'text', text: P.select('value', P.string) }, ({ value }) => {
-      const normalized = optionalString(value)
-      return normalized ? [normalized] : []
-    })
-    .with(
-      { type: 'attachment', attachment: { name: P.select('value', P.string) } },
-      { type: 'tool-call', toolCall: { name: P.select('value', P.string) } },
-      { type: 'tool-result', toolResult: { name: P.select('value', P.string) } },
-      ({ value }) => {
-        const normalized = optionalString(value)
-        return normalized ? [normalized] : []
-      },
-    )
-    .otherwise(() => [])
-}
-
-function messageDiscoveryStrings(value: string | null) {
-  if (!value) return []
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return match(parsed)
-      .with({ text: P.select('text', P.string) }, ({ text }) => {
-        const normalized = optionalString(text)
-        return normalized ? [normalized] : []
-      })
-      .with({ parts: P.select('parts', P.array(P._)) }, ({ parts }) =>
-        parts.flatMap(visiblePartStrings),
-      )
-      .otherwise(() => [])
-  } catch {
-    return []
-  }
-}
-
 export function sessionDiscoveryDocument(row: SessionDiscoveryDocumentSource) {
   return [
     row.title.trim(),
     ...delegationObjective(row.specification_json),
-    ...messageDiscoveryStrings(row.initial_content_json),
-    ...messageDiscoveryStrings(row.preview_content_json),
+    optionalString(row.initial_text),
+    optionalString(row.preview_text),
   ]
     .filter(Boolean)
     .join('\n')

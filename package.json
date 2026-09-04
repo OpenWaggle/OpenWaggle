@@ -51,7 +51,7 @@
     "test:integration:raw": "vitest run -c vitest.integration.config.ts",
     "test:coverage": "pnpm prepare:native:node && vitest run -c vitest.coverage.config.ts --coverage",
     "test:e2e": "pnpm test:e2e:headless",
-    "test:e2e:headless": "pnpm test:session-host-shutdown:platform && pnpm build && playwright test",
+    "test:e2e:headless": "pnpm test:session-host-shutdown:platform && pnpm benchmark:session-database --smoke && pnpm build && playwright test",
     "test:e2e:headless:quick": "pnpm prepare:native:electron && tsx scripts/record-build-meta.ts --verify && playwright test",
     "test:e2e:functional": "pnpm test:agent-definitions:platform && pnpm test:session-host-shutdown:platform && pnpm build && playwright test --grep-invert @visual",
     "test:e2e:functional:quick": "pnpm prepare:native:electron && tsx scripts/record-build-meta.ts --verify && playwright test --grep-invert @visual",

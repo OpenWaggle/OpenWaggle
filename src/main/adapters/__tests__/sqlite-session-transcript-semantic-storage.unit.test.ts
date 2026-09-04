@@ -214,4 +214,43 @@ describe('SQLite transcript semantic storage policy', () => {
     )
     expect(leasesAfter[0]?.count).toBe(0)
   })
+
+  it('publishes a large storage batch through bounded embedding inference chunks', async () => {
+    const embedPassages = vi.fn(async (texts: readonly string[]) =>
+      texts.map(() => new Float32Array([1, 0])),
+    )
+    const chunkedModel: SessionEmbeddingModel = { ...model, embedPassages }
+    const runtime = makeRuntime(path.join(root, 'chunked-publication.sqlite'), chunkedModel)
+    runtimes.push(runtime)
+
+    const result = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        for (let index = 0; index < 65; index += 1) {
+          yield* addSearchableNode(sql, {
+            id: `node-chunk-${index}`,
+            sessionId: 'worker',
+            order: index + 10,
+          })
+        }
+        const projection = new SqliteSessionTranscriptSemanticProjection(sql, chunkedModel)
+        yield* projection.ensureSessions(['worker'])
+        const queued = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM session_transcript_embedding_queue
+          WHERE session_id = ${'worker'}
+        `
+        const batch = yield* projection.prepareNextBatch()
+        return { batch, queued: queued[0]?.count ?? 0 }
+      }),
+    )
+
+    const inferredDocumentCount = embedPassages.mock.calls.reduce(
+      (count, [documents]) => count + documents.length,
+      0,
+    )
+    expect(result.batch.prepared).toBe(result.queued)
+    expect(inferredDocumentCount).toBe(result.queued)
+    expect(embedPassages.mock.calls.length).toBeGreaterThan(1)
+    expect(embedPassages.mock.calls.every(([documents]) => documents.length <= 32)).toBe(true)
+  })
 })

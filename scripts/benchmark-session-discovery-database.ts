@@ -9,6 +9,7 @@ import {
   benchmarkSessionDiscoveryBackfills,
   benchmarkSessionDiscoveryQueries,
   initializeSessionDiscoveryBenchmarkSource,
+  reportSessionDiscoveryBenchmarkPhase,
   sessionDiscoveryBenchmarkCounts,
 } from './benchmark-session-discovery-support'
 import { sessionDiscoveryBenchmarkMode } from './benchmark-session-discovery-mode'
@@ -210,6 +211,7 @@ async function main() {
       source.close()
     }
     const seedMs = performance.now() - seedStartedAt
+    reportSessionDiscoveryBenchmarkPhase('seed', seedMs)
     const cutoverStartedAt = performance.now()
     const cutover = await runSessionHostCutover(
       { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
@@ -217,14 +219,19 @@ async function main() {
       benchmarkModel,
     )
     const cutoverMs = performance.now() - cutoverStartedAt
+    reportSessionDiscoveryBenchmarkPhase('cutover', cutoverMs)
     if (cutover.status !== 'migrated') throw new Error('Benchmark cutover did not migrate the source.')
 
     const backfills = await benchmarkSessionDiscoveryBackfills(targetDatabasePath, benchmarkModel)
+    reportSessionDiscoveryBenchmarkPhase('discovery backfill', backfills.discovery.elapsedMs)
+    reportSessionDiscoveryBenchmarkPhase('transcript backfill', backfills.transcript.elapsedMs)
     const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
     const corpus = sessionDiscoveryBenchmarkCounts(target)
     target.close()
     const sparseWorkingPath = projectPath(mode.projectCount - 1)
+    const queriesStartedAt = performance.now()
     const queries = await benchmarkSessionDiscoveryQueries(targetDatabasePath, sparseWorkingPath)
+    reportSessionDiscoveryBenchmarkPhase('queries', performance.now() - queriesStartedAt)
     const databaseSizeMb = (await stat(targetDatabasePath)).size / BYTES_PER_MEBIBYTE
     const expectedTranscriptEmbeddings = Math.min(
       Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount,
@@ -250,6 +257,8 @@ async function main() {
       queries.missingWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
       queries.lexical.p95Ms < WARM_P95_LIMIT_MS,
       queries.commonLexical.p95Ms < WARM_P95_LIMIT_MS,
+      queries.fullTranscriptLexical.p95Ms < WARM_P95_LIMIT_MS,
+      queries.commonFullTranscriptLexical.p95Ms < WARM_P95_LIMIT_MS,
       queries.transcript.p95Ms < WARM_P95_LIMIT_MS,
     ].every(Boolean)
     process.stdout.write(
@@ -271,6 +280,8 @@ async function main() {
             missingWorkingPathListP95Ms: queries.missingWorkingPathList.p95Ms,
             lexicalP95Ms: queries.lexical.p95Ms,
             commonLexicalP95Ms: queries.commonLexical.p95Ms,
+            fullTranscriptLexicalP95Ms: queries.fullTranscriptLexical.p95Ms,
+            commonFullTranscriptLexicalP95Ms: queries.commonFullTranscriptLexical.p95Ms,
             transcriptP95Ms: queries.transcript.p95Ms,
           },
           limits: {

@@ -65,13 +65,15 @@ function rebuildTermCatalog(sql: SqlClient.SqlClient, sessionIds: readonly strin
     `
     yield* sql.unsafe(`
       INSERT INTO session_transcript_term_documents (session_id, token_count)
-      SELECT requested.session_id, COUNT(vocabulary.term)
+      SELECT requested.session_id, COALESCE(token_counts.token_count, 0)
       FROM temp.session_transcript_projection_ids AS requested
-      LEFT JOIN temp.session_transcript_projection_source AS source
-        ON source.session_id = requested.session_id
-      LEFT JOIN temp.session_transcript_projection_vocab AS vocabulary
-        ON vocabulary.doc = source.rowid
-      GROUP BY requested.session_id
+      LEFT JOIN (
+        SELECT source.session_id, COUNT(*) AS token_count
+        FROM temp.session_transcript_projection_vocab AS vocabulary
+        JOIN temp.session_transcript_projection_source AS source
+          ON source.rowid = vocabulary.doc
+        GROUP BY source.session_id
+      ) AS token_counts ON token_counts.session_id = requested.session_id
     `)
     yield* sql.unsafe(`
       WITH term_groups AS (

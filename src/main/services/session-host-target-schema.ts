@@ -249,9 +249,12 @@ export const SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS = [
 
 import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from './session-host-search-schema'
 
-export const SESSION_HOST_TARGET_SCHEMA_STATEMENTS = [
+export const SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS = [
   ...SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS,
   ...SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS,
+] as const
+
+export const SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS = [
   `CREATE INDEX idx_sessions_updated_cursor ON sessions (updated_at DESC, id DESC)`,
   `
   CREATE INDEX idx_session_nodes_run_created_order
@@ -260,9 +263,15 @@ export const SESSION_HOST_TARGET_SCHEMA_STATEMENTS = [
     json_extract(metadata_json, '$.openWaggle.runId'),
     created_order
   )
+  WHERE json_extract(metadata_json, '$.openWaggle.runId') IS NOT NULL
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_session_nodes_active_branch_created_order
   ON session_nodes (session_id, branch_hint_id, created_order)
   `,
+] as const
+
+export const SESSION_HOST_TARGET_SCHEMA_STATEMENTS = [
+  ...SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS,
+  ...SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
 ] as const

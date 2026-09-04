@@ -82,6 +82,22 @@ function validPreflight() {
         snippet: 'commonterm implement project',
       },
     ],
+    rareFullTranscriptLexical: [
+      {
+        session_id: 'session-000100',
+        matched_fields: 'transcript',
+        transcript_node_id: 'node-00000100',
+        transcript_created_order: 1,
+      },
+    ],
+    commonFullTranscriptLexical: [
+      {
+        session_id: 'session-000000',
+        matched_fields: 'transcript',
+        transcript_node_id: 'node-00000000',
+        transcript_created_order: 0,
+      },
+    ],
     transcriptHead: transcriptHead(),
     transcriptTerminal: transcriptTerminal(),
     sparseWorkingPath: SPARSE_PATH,
@@ -103,6 +119,20 @@ describe('Session discovery benchmark preflight', () => {
     [
       'the wrong sparse path',
       { ...validPreflight(), sparseWorkingPathList: listResult(summaries(1, '/wrong')) },
+    ],
+    [
+      'full-transcript rows without attributable evidence',
+      {
+        ...validPreflight(),
+        rareFullTranscriptLexical: [
+          {
+            session_id: 'session-000100',
+            matched_fields: 'transcript',
+            transcript_node_id: null,
+            transcript_created_order: null,
+          },
+        ],
+      },
     ],
     [
       'a non-empty missing-path result',

@@ -3,6 +3,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
+import { embedPassagesInBatches } from './session-embedding-batches'
 import { encodeFloat32Vector } from './session-flat-vector-index'
 import { sessionTranscriptDocument } from './session-transcript-document'
 import {
@@ -14,11 +15,12 @@ import {
   acquireTranscriptSemanticLease,
   ensureTranscriptSemanticSessions,
   maintainTranscriptSemanticStorage,
-  refreshTranscriptScopeCoverage,
   releaseTranscriptSemanticLease,
 } from './sqlite-session-transcript-semantic-storage'
 
-const DEFAULT_TRANSCRIPT_PROJECTION_BATCH_SIZE = 32
+const DEFAULT_TRANSCRIPT_PROJECTION_BATCH_SIZE = 256
+const TRANSCRIPT_EMBEDDING_INFERENCE_BATCH_SIZE = 32
+const TRANSCRIPT_MAINTENANCE_INTERVAL_MS = 60_000
 const CURRENT_TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('current_node')
 
 interface TranscriptProjectionRow {
@@ -158,6 +160,7 @@ function publishProjectionBatch(
 
 export class SqliteSessionTranscriptSemanticProjection {
   readonly #preparationOperationId = randomUUID()
+  #lastMaintenanceAt = 0
 
   constructor(
     private readonly sql: SqlClient.SqlClient,
@@ -175,6 +178,7 @@ export class SqliteSessionTranscriptSemanticProjection {
         ...(operationId ? { operationId } : {}),
         now,
       })
+      this.#lastMaintenanceAt = Date.now()
       yield* this.sql`
         INSERT INTO session_semantic_transcript_state (
           singleton, status, model_id, model_revision, dimensions,
@@ -201,7 +205,11 @@ export class SqliteSessionTranscriptSemanticProjection {
 
   prepareNextBatch(limit = DEFAULT_TRANSCRIPT_PROJECTION_BATCH_SIZE) {
     return Effect.gen(this, function* () {
-      yield* maintainTranscriptSemanticStorage(this.sql)
+      const maintenanceNow = Date.now()
+      if (maintenanceNow - this.#lastMaintenanceAt >= TRANSCRIPT_MAINTENANCE_INTERVAL_MS) {
+        yield* maintainTranscriptSemanticStorage(this.sql, maintenanceNow)
+        this.#lastMaintenanceAt = Date.now()
+      }
       const batchOperationId = randomUUID()
       const rows = yield* this.sql.withTransaction(
         Effect.gen(this, function* () {
@@ -220,7 +228,8 @@ export class SqliteSessionTranscriptSemanticProjection {
         yield* this.#markPreparing()
         const vectors = yield* Effect.tryPromise({
           try: () =>
-            this.model.embedPassages(
+            embedPassagesInBatches(
+              this.model,
               rows.map((row) =>
                 sessionTranscriptDocument({
                   kind: row.kind,
@@ -228,6 +237,7 @@ export class SqliteSessionTranscriptSemanticProjection {
                   contentJson: row.content_json,
                 }),
               ),
+              TRANSCRIPT_EMBEDDING_INFERENCE_BATCH_SIZE,
             ),
           catch: (cause) => new Error('Semantic transcript projection failed.', { cause }),
         }).pipe(
@@ -248,13 +258,13 @@ export class SqliteSessionTranscriptSemanticProjection {
           batchOperationId,
           Date.now(),
         )
-        yield* refreshTranscriptScopeCoverage(this.sql, this.model, sessionIds)
         return result
       }).pipe(
         Effect.ensuring(
           releaseTranscriptSemanticLease({
             sql: this.sql,
             operationId: batchOperationId,
+            maintainStorage: false,
           }).pipe(Effect.orDie),
         ),
       )

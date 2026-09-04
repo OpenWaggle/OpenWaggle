@@ -119,8 +119,8 @@ describe('SQLite Session semantic projection', () => {
         session_id: 'worker',
         title: 'Migration worker',
         specification_json: '{"objective":"Validate cutover"}',
-        initial_content_json: '{"text":"Start with foreign keys"}',
-        preview_content_json: '{"text":"Recovery verified"}',
+        initial_text: 'Start with foreign keys',
+        preview_text: 'Recovery verified',
         queued_at: 1,
       }),
     ).toBe('Migration worker\nValidate cutover\nStart with foreign keys\nRecovery verified')
@@ -138,34 +138,21 @@ describe('SQLite Session semantic projection', () => {
         handoffContext: PRIVATE_SPECIFICATION_MARKER,
         resourceReferences: ['/private/resource'],
       }),
-      initial_content_json: null,
-      preview_content_json: null,
+      initial_text: null,
+      preview_text: null,
       queued_at: 1,
     })
 
     expect(document).toBe('Migration worker\nValidate cutover')
   })
 
-  it('excludes reasoning and tool bodies from semantic discovery text', () => {
+  it('uses the bounded public discovery projection without private bodies', () => {
     const document = sessionDiscoveryDocument({
       session_id: 'worker',
       title: 'Migration worker',
       specification_json: null,
-      initial_content_json: null,
-      preview_content_json: JSON.stringify({
-        parts: [
-          { type: 'text', text: 'Visible answer' },
-          { type: 'reasoning', text: 'private reasoning marker' },
-          {
-            type: 'tool-call',
-            toolCall: { name: 'read_file', args: { token: 'private tool marker' } },
-          },
-          {
-            type: 'attachment',
-            attachment: { name: 'requirements.txt', extractedText: 'private attachment marker' },
-          },
-        ],
-      }),
+      initial_text: null,
+      preview_text: 'Visible answer read_file requirements.txt',
       queued_at: 1,
     })
 

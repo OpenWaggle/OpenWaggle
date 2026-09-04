@@ -21,6 +21,13 @@ const lexicalResultPattern = P.array({
   snippet: P.union(P.string, P.null),
 })
 
+const fullTranscriptLexicalResultPattern = P.array({
+  session_id: P.string,
+  matched_fields: P.string,
+  transcript_node_id: P.union(P.string, P.null),
+  transcript_created_order: P.union(P.integer, P.null),
+})
+
 const transcriptResultPattern = {
   outcome: {
     operation: 'items',
@@ -42,6 +49,8 @@ interface BenchmarkPreflightInput {
   readonly missingWorkingPathList: unknown
   readonly rareLexical: unknown
   readonly commonLexical: unknown
+  readonly rareFullTranscriptLexical: unknown
+  readonly commonFullTranscriptLexical: unknown
   readonly transcriptHead: unknown
   readonly transcriptTerminal: unknown
   readonly sparseWorkingPath: string
@@ -72,6 +81,23 @@ function requireLexicalResult(value: unknown, term: string, label: string) {
     )
   ) {
     return benchmarkValidationFailure(`${label} did not return evidence for ${term}.`)
+  }
+}
+
+function requireFullTranscriptLexicalResult(value: unknown, label: string) {
+  if (!isMatching(fullTranscriptLexicalResultPattern, value)) {
+    return benchmarkValidationFailure(`${label} returned invalid rows.`)
+  }
+  if (
+    value.length === 0 ||
+    !value.some(
+      (row) =>
+        row.matched_fields.split(',').includes('transcript') &&
+        typeof row.transcript_node_id === 'string' &&
+        typeof row.transcript_created_order === 'number',
+    )
+  ) {
+    return benchmarkValidationFailure(`${label} did not return attributable transcript evidence.`)
   }
 }
 
@@ -122,6 +148,14 @@ export function validateSessionDiscoveryBenchmarkPreflight(input: BenchmarkPrefl
 
   requireLexicalResult(input.rareLexical, RARE_LEXICAL_TERM, 'rare lexical query')
   requireLexicalResult(input.commonLexical, COMMON_LEXICAL_TERM, 'common lexical query')
+  requireFullTranscriptLexicalResult(
+    input.rareFullTranscriptLexical,
+    'rare full-transcript lexical query',
+  )
+  requireFullTranscriptLexicalResult(
+    input.commonFullTranscriptLexical,
+    'common full-transcript lexical query',
+  )
 
   const terminalCursor = benchmarkTranscriptTerminalCursor(input.transcriptHead)
   const terminal = requireTranscriptResult(input.transcriptTerminal, 'transcript terminal query')
