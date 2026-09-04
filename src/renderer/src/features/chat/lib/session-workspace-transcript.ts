@@ -68,6 +68,16 @@ function isViewingActiveBranchHead(workspace: SessionWorkspace) {
   )
 }
 
+function isViewingSessionHead(workspace: SessionWorkspace) {
+  const sessionHeadNodeId = workspace.tree.session.lastActiveNodeId
+
+  return (
+    workspace.activeNodeId !== null &&
+    sessionHeadNodeId !== null &&
+    String(workspace.activeNodeId) === String(sessionHeadNodeId)
+  )
+}
+
 function findLastWorkspaceMessageIndex(messages: UIMessage[], workspaceMessages: UIMessage[]) {
   const workspaceMessageIds = new Set(workspaceMessages.map((message) => message.id))
 
@@ -123,11 +133,12 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
   const lastWorkspaceMessageIndex = findLastWorkspaceMessageIndex(messages, workspaceMessages)
   if (lastWorkspaceMessageIndex < 0) {
     // Session detail can refresh before the workspace after completion. Only treat the disjoint
-    // detail as a replacement tail when freshness proves this is the active head, not a selected branch.
+    // detail as a replacement tail when freshness proves this is the session head, not the head
+    // of another selected branch.
     const workspaceIsStale =
       activeSessionUpdatedAt !== undefined &&
       activeSessionUpdatedAt > workspace.tree.session.updatedAt
-    if (!viewingHead || !workspaceIsStale) {
+    if (!isViewingSessionHead(workspace) || !workspaceIsStale) {
       return workspaceMessages
     }
 

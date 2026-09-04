@@ -51,6 +51,7 @@ function workspaceWithPath(
   activeNodeId: SessionNodeId,
   lastActiveNodeId: SessionNodeId,
   updatedAt = 4,
+  sessionHeadNodeId = lastActiveNodeId,
 ) {
   return {
     tree: {
@@ -60,7 +61,7 @@ function workspaceWithPath(
         projectPath: '/tmp/project',
         createdAt: 1,
         updatedAt,
-        lastActiveNodeId,
+        lastActiveNodeId: sessionHeadNodeId,
         lastActiveBranchId: MAIN_BRANCH_ID,
       },
       nodes,
@@ -252,5 +253,35 @@ describe('resolveTranscriptMessages', () => {
     })
 
     expect(resolved.map((message) => message.id)).toEqual(['selected-branch-assistant'])
+  })
+
+  it('does not merge a disjoint active transcript at the head of an inactive branch', () => {
+    const inactiveBranchHead = sessionNode(
+      'inactive-branch-head',
+      null,
+      'assistant',
+      'Inactive branch',
+      0,
+    )
+    const sessionHead = sessionNode('session-head', null, 'assistant', 'Current session head', 1)
+    const workspace = workspaceWithPath(
+      [inactiveBranchHead, sessionHead],
+      inactiveBranchHead.id,
+      inactiveBranchHead.id,
+      4,
+      sessionHead.id,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspace,
+      messages: [
+        uiMessage('replacement-user', 'user', 'Current branch question'),
+        uiMessage('replacement-assistant', 'assistant', 'Current branch answer'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual(['inactive-branch-head'])
   })
 })
