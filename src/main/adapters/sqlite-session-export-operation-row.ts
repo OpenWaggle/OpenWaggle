@@ -14,6 +14,7 @@ import type { SessionExportOperationRecord } from '../ports/session-export-opera
 export interface SessionExportOperationRow {
   readonly id: string
   readonly caller_id: string
+  readonly origin_profile_id: string | null
   readonly session_id: string
   readonly idempotency_key: string
   readonly format: SessionExportFormat
@@ -66,6 +67,7 @@ export function sessionExportOperationRecord(
   return {
     exportOperationId: row.id,
     callerId: row.caller_id,
+    ...(row.origin_profile_id ? { originProfileId: row.origin_profile_id } : {}),
     sessionId: row.session_id,
     idempotencyKey: row.idempotency_key,
     format: row.format,

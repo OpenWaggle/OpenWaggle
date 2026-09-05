@@ -4,9 +4,9 @@ import {
   SESSION_LIFECYCLE_CONTRACT_VERSION,
   type SessionExecutionSpecialization,
 } from '@shared/types/session-lifecycle'
-import { THINKING_LEVELS } from '@shared/types/settings'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import type { SessionsToolSource } from './sessions-tool-payload'
+import { sessionsToolThinkingLevel } from './sessions-tool-thinking'
 
 type LifecycleParameters = Extract<
   SessionsToolParameters,
@@ -15,17 +15,22 @@ type LifecycleParameters = Extract<
 
 type SpecializableLifecycleParameters = Exclude<LifecycleParameters, { action: 'fork' }>
 
-function thinkingLevel(value: string | undefined) {
-  if (!value) return undefined
-  const resolved = THINKING_LEVELS.find((candidate) => candidate === value)
-  if (!resolved) throw new Error(`Unsupported thinking level: ${value}.`)
-  return resolved
+function attachmentTransport(input: { readonly attachmentPaths?: readonly string[] }) {
+  return input.attachmentPaths?.length
+    ? { transport: { attachmentPaths: input.attachmentPaths } }
+    : {}
+}
+
+function rootAttachmentTransport(
+  input: Extract<LifecycleParameters, { action: 'create' | 'launch' }>,
+) {
+  return 'attachmentPaths' in input ? attachmentTransport(input) : {}
 }
 
 function specialization(
   input: SpecializableLifecycleParameters,
 ): SessionExecutionSpecialization | undefined {
-  const thinking = thinkingLevel(input.thinking)
+  const thinking = sessionsToolThinkingLevel(input.thinking)
   return input.agent || input.model || thinking
     ? {
         ...(input.agent ? { agentDefinitionName: input.agent } : {}),
@@ -84,6 +89,7 @@ function rootPayload(
         }
   return {
     contract: 'session-lifecycle-v2',
+    ...rootAttachmentTransport(input),
     request: {
       contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
       requestId: randomUUID(),
@@ -118,6 +124,7 @@ function workerPayload(
         : { mode: 'share-parent' as const }
   return {
     contract: 'session-lifecycle-v2',
+    ...attachmentTransport(input),
     request: {
       contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
       requestId: randomUUID(),
@@ -132,6 +139,7 @@ function workerPayload(
           ? { interactionTimeoutMs: input.interactionTimeoutMs }
           : {}),
         ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
+        attachmentIds: [],
         delegation: {
           objective: input.objective,
           deliverables: input.deliverables ?? [],

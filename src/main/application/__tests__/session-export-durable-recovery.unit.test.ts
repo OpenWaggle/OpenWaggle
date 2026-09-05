@@ -62,6 +62,11 @@ describe('durable Session export recovery', () => {
         order.push('cleanup-enumerated')
         return []
       }),
+      claimNextExecution: () =>
+        Effect.sync(() => {
+          order.push('queue-drained')
+          return { status: 'not-claimable' as const }
+        }),
     })
     const artifacts = fromPartial<SessionExportArtifactWriterShape>({})
 
@@ -71,7 +76,7 @@ describe('durable Session export recovery', () => {
       ),
     )
 
-    expect(order).toEqual(['transitioned', 'cleanup-enumerated'])
+    expect(order).toEqual(['transitioned', 'cleanup-enumerated', 'queue-drained'])
   })
 
   it('completes a verified installed artifact instead of re-exporting it', async () => {
@@ -84,6 +89,7 @@ describe('durable Session export recovery', () => {
     const repository = fromPartial<SessionExportOperationRepositoryShape>({
       recoverAfterHostLoss: () => Effect.succeed([recovered]),
       listPendingCleanup: Effect.succeed([]),
+      claimNextExecution: () => Effect.succeed({ status: 'not-claimable' as const }),
       complete: completed,
     })
     const artifacts = fromPartial<SessionExportArtifactWriterShape>({

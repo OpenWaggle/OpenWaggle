@@ -16,6 +16,10 @@ import {
   persistExportArtifactPreparation,
 } from './sqlite-session-export-artifact-preparation'
 import {
+  claimExportExecution,
+  claimNextExportExecution,
+} from './sqlite-session-export-operation-claims'
+import {
   type SessionExportOperationRow,
   sessionExportManifestWithoutQueueBodies,
   sessionExportOperationRecord,
@@ -85,12 +89,13 @@ function createOperation(
       const branchScope = input.command.branchScope ?? 'active-branch'
       yield* sql`
         INSERT INTO session_export_operations (
-          id, caller_id, session_id, idempotency_key, request_json, format,
+          id, caller_id, origin_profile_id, session_id, idempotency_key, request_json, format,
           destination_path, destination_root, resource_source_root, temporary_path, overwrite_existing,
           branch_scope, branch_id,
           include_queue_bodies, resources_json, status, created_at, updated_at
         ) VALUES (
-          ${operationId}, ${input.callerId}, ${input.command.sessionId}, ${input.idempotencyKey},
+          ${operationId}, ${input.callerId}, ${input.originProfileId ?? null},
+          ${input.command.sessionId}, ${input.idempotencyKey},
           ${requestJson}, ${input.command.format}, ${input.command.destinationPath},
           ${input.command.destinationRoot ?? null},
           ${input.resourceSourceRoot ?? null},
@@ -134,27 +139,6 @@ function requestCancellation(
       const updated = yield* readById(sql, input.sessionId, input.exportOperationId)
       if (!updated) return yield* Effect.fail(repositoryError('read-cancelled-operation', input))
       return { operation: updated, replayed }
-    }),
-  )
-}
-
-function claimExecution(sql: SqlClient.SqlClient, operationId: string, now: number) {
-  const executionToken = randomUUID()
-  return sql.withTransaction(
-    Effect.gen(function* () {
-      yield* sql`
-        UPDATE session_export_operations
-        SET status = ${'running'}, execution_token = ${executionToken}, updated_at = ${now}
-        WHERE id = ${operationId} AND status = ${'queued'} AND cancel_requested = ${0}
-      `
-      const rows = yield* sql<SessionExportOperationRow>`
-        SELECT * FROM session_export_operations WHERE id = ${operationId} LIMIT 1
-      `
-      const row = rows[0]
-      const operation = row ? sessionExportOperationRecord(row) : null
-      return row?.execution_token === executionToken && operation
-        ? ({ status: 'claimed', operation } as const)
-        : ({ status: 'not-claimable', ...(operation ? { operation } : {}) } as const)
     }),
   )
 }
@@ -224,7 +208,9 @@ function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationReposit
     read: (sessionId, operationId) =>
       withRepositoryError('read-export', readById(sql, sessionId, operationId)),
     claimExecution: (operationId, now) =>
-      withRepositoryError('claim-export', claimExecution(sql, operationId, now)),
+      withRepositoryError('claim-export', claimExportExecution(sql, operationId, now)),
+    claimNextExecution: (now) =>
+      withRepositoryError('claim-next-export', claimNextExportExecution(sql, now)),
     persistSnapshot: (operationId, manifest, now) =>
       withRepositoryError(
         'persist-export-snapshot',

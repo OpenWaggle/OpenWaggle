@@ -83,7 +83,15 @@ export function resetAttachmentExtractionMocks() {
   parserWorkerMock.mockImplementation(async (input: { readonly kind: string }) => {
     if (input.kind === 'pdf') return (await unpdfExtractTextMock()).text
     if (input.kind === 'docx') return (await mammothExtractMock()).value
+    if (input.kind === 'image') {
+      await sharpMetadataMock()
+      return (await ocrRecognizeMock()).data.text
+    }
     const archive = await jszipLoadAsyncMock()
-    return (await archive.file('content.xml')?.async('string')) ?? ''
+    const content = (await archive.file('content.xml')?.async('string')) ?? ''
+    return content
+      .replaceAll(/<[^>]+>/g, ' ')
+      .replaceAll(/\s+/g, ' ')
+      .trim()
   })
 }

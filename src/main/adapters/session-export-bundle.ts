@@ -31,11 +31,17 @@ async function sourceSize(source: SessionExportBundleSource) {
   return (await source.handle.stat()).size - (source.offset ?? 0)
 }
 
-async function* readHandle(source: SessionExportBundleSource) {
+function throwIfAborted(signal?: AbortSignal) {
+  if (!signal?.aborted) return
+  throw signal.reason instanceof Error ? signal.reason : new Error('Export finalization cancelled.')
+}
+
+async function* readHandle(source: SessionExportBundleSource, signal?: AbortSignal) {
   const size = await sourceSize(source)
   const offset = source.offset ?? 0
   let position = 0
   while (position < size) {
+    throwIfAborted(signal)
     const buffer = Buffer.allocUnsafe(Math.min(READ_BUFFER_BYTES, size - position))
     const { bytesRead } = await source.handle.read(buffer, 0, buffer.length, offset + position)
     if (bytesRead === 0) throw new Error(`Bundle entry became unreadable: ${source.path}`)
@@ -44,9 +50,9 @@ async function* readHandle(source: SessionExportBundleSource) {
   }
 }
 
-async function sha256(source: SessionExportBundleSource) {
+async function sha256(source: SessionExportBundleSource, signal?: AbortSignal) {
   const hash = createHash('sha256')
-  for await (const chunk of readHandle(source)) hash.update(chunk)
+  for await (const chunk of readHandle(source, signal)) hash.update(chunk)
   return hash.digest('hex')
 }
 
@@ -63,12 +69,15 @@ function mediaType(filePath: string) {
     .otherwise(() => 'application/octet-stream')
 }
 
-async function bundleEntry(source: SessionExportBundleSource): Promise<SessionExportBundleEntry> {
+async function bundleEntry(
+  source: SessionExportBundleSource,
+  signal?: AbortSignal,
+): Promise<SessionExportBundleEntry> {
   return {
     path: source.path,
     mediaType: mediaType(source.path),
     size: await sourceSize(source),
-    sha256: await sha256(source),
+    sha256: await sha256(source, signal),
   }
 }
 
@@ -77,7 +86,8 @@ function recordKind(value: unknown) {
   return value.record
 }
 
-async function validateTranscript(source: SessionExportBundleSource) {
+async function validateTranscript(source: SessionExportBundleSource, signal?: AbortSignal) {
+  throwIfAborted(signal)
   const transcriptSize = await sourceSize(source)
   if (transcriptSize === 0) throw new Error('Bundle transcript is empty.')
   const trailing = Buffer.alloc(1)
@@ -91,11 +101,12 @@ async function validateTranscript(source: SessionExportBundleSource) {
     throw new Error('Bundle transcript must end with a newline.')
   }
   const lines = createInterface({
-    input: Readable.from(readHandle(source)),
+    input: Readable.from(readHandle(source, signal)),
     crlfDelay: Number.POSITIVE_INFINITY,
   })
   let lineNumber = 0
   for await (const line of lines) {
+    throwIfAborted(signal)
     lineNumber += 1
     if (!line) throw new Error(`Bundle transcript contains an empty record at line ${lineNumber}.`)
     const kind = recordKind(JSON.parse(line))
@@ -108,7 +119,7 @@ async function validateTranscript(source: SessionExportBundleSource) {
   }
 }
 
-function writableHandle(handle: FileHandle) {
+function writableHandle(handle: FileHandle, signal?: AbortSignal) {
   let position = 0
   return new Writable({
     write(chunk: Buffer, _encoding, callback) {
@@ -116,6 +127,7 @@ function writableHandle(handle: FileHandle) {
       const writeAll = async () => {
         let offset = 0
         while (offset < buffer.length) {
+          throwIfAborted(signal)
           const { bytesWritten } = await handle.write(
             buffer,
             offset,
@@ -136,15 +148,16 @@ export async function finalizeSessionExportBundle(input: {
   readonly sources: readonly SessionExportBundleSource[]
   readonly destinationHandle: FileHandle
   readonly exportManifest: SessionExportManifest
+  readonly signal?: AbortSignal
 }) {
   const transcript = input.sources.find((source) => source.path === BUNDLE_TRANSCRIPT_PATH)
   if (!transcript) throw new Error('Bundle transcript is missing.')
-  await validateTranscript(transcript)
+  await validateTranscript(transcript, input.signal)
   const entries: SessionExportBundleEntry[] = []
   for (const source of [...input.sources].sort((left, right) =>
     left.path.localeCompare(right.path),
   )) {
-    entries.push(await bundleEntry(source))
+    entries.push(await bundleEntry(source, input.signal))
   }
   const manifest = {
     schemaVersion: SESSION_EXPORT_BUNDLE_SCHEMA_VERSION,
@@ -155,12 +168,16 @@ export async function finalizeSessionExportBundle(input: {
 
   const zip = new JSZip()
   for (const source of input.sources) {
-    zip.file(source.path, Readable.from(readHandle(source)))
+    zip.file(source.path, Readable.from(readHandle(source, input.signal)))
   }
   zip.file(BUNDLE_MANIFEST_PATH, `${canonicalJson(manifest)}\n`)
-  await pipeline(
-    zip.generateNodeStream({ type: 'nodebuffer', streamFiles: true, compression: 'DEFLATE' }),
-    writableHandle(input.destinationHandle),
-  )
+  const archive = zip.generateNodeStream({
+    type: 'nodebuffer',
+    streamFiles: true,
+    compression: 'DEFLATE',
+  })
+  const destination = writableHandle(input.destinationHandle, input.signal)
+  if (input.signal) await pipeline(archive, destination, { signal: input.signal })
+  else await pipeline(archive, destination)
   await input.destinationHandle.sync()
 }

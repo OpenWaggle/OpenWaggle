@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises'
+import { constants as FS_CONSTANTS } from 'node:fs'
+import { lstat, open } from 'node:fs/promises'
 import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-protocol'
 import { isSessionInputTextWithinLimit, SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
@@ -38,11 +39,25 @@ function readStdin(): Promise<string> {
 }
 
 async function readUtf8File(filePath: string) {
-  const bytes = await readFile(filePath)
-  if (bytes.byteLength > SESSION_INPUT_LIMITS.persistedTextBytes) {
-    throw new Error('CLI input exceeds 16 MiB.')
+  const pathStats = await lstat(filePath)
+  if (!pathStats.isFile()) throw new Error('CLI input must be a regular file.')
+  const limit = SESSION_INPUT_LIMITS.persistedTextBytes
+  if (pathStats.size > limit) throw new Error('CLI input exceeds 16 MiB.')
+  const handle = await open(filePath, FS_CONSTANTS.O_RDONLY | FS_CONSTANTS.O_NONBLOCK)
+  try {
+    const openedStats = await handle.stat()
+    if (!openedStats.isFile()) throw new Error('CLI input must be a regular file.')
+    if (openedStats.size > limit) throw new Error('CLI input exceeds 16 MiB.')
+    const bytes = Buffer.allocUnsafe(Math.min(limit + 1, openedStats.size + 1))
+    const { bytesRead } = await handle.read(bytes, 0, bytes.byteLength, 0)
+    const finalStats = await handle.stat()
+    if (bytesRead > limit || finalStats.size > limit) {
+      throw new Error('CLI input exceeds 16 MiB.')
+    }
+    return bytes.subarray(0, bytesRead).toString('utf8')
+  } finally {
+    await handle.close()
   }
-  return bytes.toString('utf8')
 }
 
 function withResolvedText(arguments_: ParsedArguments, text: string): ParsedArguments {

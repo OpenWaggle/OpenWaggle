@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionExportArtifactWriter } from '../../ports/session-export-artifact-writer'
 import { FilesystemSessionExportArtifactWriterLive } from '../filesystem-session-export-artifact-writer'
 import { openFilesystemSessionExportResource } from '../filesystem-session-export-resource-resolver'
+import { finalizeSessionExportBundle } from '../session-export-bundle'
 import {
   exportOperation,
   exportManifest as manifest,
@@ -169,6 +170,28 @@ describe('filesystem Session export artifact writer', () => {
         .update(resource ?? '')
         .digest('hex')}"`,
     )
+  })
+
+  it('stops bundle finalization when its cancellation signal is aborted', async () => {
+    const transcriptPath = path.join(temporaryRoot, 'cancelled-transcript.jsonl')
+    const destinationPath = path.join(temporaryRoot, 'cancelled-bundle.zip')
+    await fs.writeFile(transcriptPath, '{"record":"manifest"}\n')
+    const transcriptHandle = await fs.open(transcriptPath, 'r')
+    const destinationHandle = await fs.open(destinationPath, 'w+')
+    const controller = new AbortController()
+    controller.abort(new Error('cancel bundle finalization'))
+    try {
+      await expect(
+        finalizeSessionExportBundle({
+          sources: [{ path: 'session.jsonl', handle: transcriptHandle }],
+          destinationHandle,
+          exportManifest: manifest,
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow('cancel bundle finalization')
+    } finally {
+      await Promise.all([transcriptHandle.close(), destinationHandle.close()])
+    }
   })
 
   it('keeps descriptor use bounded at the maximum valid resource count', async () => {

@@ -3,6 +3,7 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
   CREATE TABLE session_export_operations (
     id TEXT PRIMARY KEY,
     caller_id TEXT NOT NULL,
+    origin_profile_id TEXT,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     idempotency_key TEXT NOT NULL,
     request_json TEXT NOT NULL,
@@ -57,7 +58,7 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
   `,
   `
   CREATE VIEW session_export_operation_summaries AS
-  SELECT id, caller_id, session_id, idempotency_key, format, destination_path,
+  SELECT id, caller_id, origin_profile_id, session_id, idempotency_key, format, destination_path,
     destination_root, resource_source_root, temporary_path, overwrite_existing,
     branch_scope, branch_id, include_queue_bodies, resources_json, status,
     manifest_summary_json AS manifest_json, artifact_sha256, artifact_size_bytes,
@@ -72,6 +73,10 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE INDEX idx_session_export_operations_recovery
   ON session_export_operations (cleanup_pending, status, cancel_requested, updated_at, id)
+  `,
+  `
+  CREATE INDEX idx_session_export_operations_scheduler
+  ON session_export_operations (status, cancel_requested, origin_profile_id, created_at, id)
   `,
   `
   CREATE UNIQUE INDEX idx_session_export_operations_active_destination

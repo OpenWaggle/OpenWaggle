@@ -142,11 +142,12 @@ export async function installExportArtifact(
   await syncParent(operation.destinationPath)
 }
 
-export async function digestFileHandle(handle: FileHandle) {
+export async function digestFileHandle(handle: FileHandle, signal?: AbortSignal) {
   const digest = createHash('sha256')
   const buffer = Buffer.allocUnsafe(COPY_BUFFER_BYTES)
   let position = 0
   while (true) {
+    throwIfCopyAborted(signal)
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, position)
     if (bytesRead === 0) return digest.digest('hex')
     digest.update(buffer.subarray(0, bytesRead))

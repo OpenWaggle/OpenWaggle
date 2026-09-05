@@ -14,6 +14,7 @@ export interface SessionExportArtifactReceipt {
 
 export interface SessionExportOperationRecord extends SessionExportOperationSummary {
   readonly callerId: string
+  readonly originProfileId?: string
   readonly idempotencyKey: string
   readonly temporaryPath: string
   readonly destinationRoot?: string
@@ -31,6 +32,7 @@ export type SessionExportExecutionClaim =
 export interface SessionExportOperationRepositoryShape {
   readonly create: (input: {
     readonly callerId: string
+    readonly originProfileId?: string
     readonly idempotencyKey: string
     readonly command: SessionExportCreateCommand
     readonly resourceSourceRoot?: string
@@ -53,6 +55,9 @@ export interface SessionExportOperationRepositoryShape {
   ) => Effect.Effect<SessionExportOperationRecord | null, SessionExportOperationRepositoryError>
   readonly claimExecution: (
     exportOperationId: string,
+    now: number,
+  ) => Effect.Effect<SessionExportExecutionClaim, SessionExportOperationRepositoryError>
+  readonly claimNextExecution: (
     now: number,
   ) => Effect.Effect<SessionExportExecutionClaim, SessionExportOperationRepositoryError>
   readonly persistSnapshot: (

@@ -6,7 +6,7 @@ import {
   SessionExportOperationRepository,
 } from '../ports/session-export-operation-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { dispatchSessionExport } from './session-export-operation-service'
+import { drainSessionExportQueue } from './session-export-operation-service'
 
 const logger = createLogger('session-export/recovery')
 
@@ -82,9 +82,8 @@ export function recoverSessionExportsAfterHostLoss() {
           yield* repository.clearArtifactPreparation(operation.exportOperationId, Date.now())
         }
       }
-      const cleaned = yield* artifacts.discard(operation).pipe(
+      yield* artifacts.discard(operation).pipe(
         Effect.zipRight(repository.completeCleanup(operation.exportOperationId, Date.now())),
-        Effect.as(true),
         Effect.catchAllCause((cleanupCause) =>
           repository
             .fail(
@@ -116,11 +115,10 @@ export function recoverSessionExportsAfterHostLoss() {
                   })
                 }),
               ),
-              Effect.as(false),
             ),
         ),
       )
-      if (cleaned) yield* dispatchSessionExport(operation)
     }
+    yield* drainSessionExportQueue()
   })
 }

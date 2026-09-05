@@ -106,12 +106,18 @@ importers:
       jsonc-parser:
         specifier: 3.3.1
         version: 3.3.1
+      jszip:
+        specifier: 3.10.1
+        version: 3.10.1
       lexical:
         specifier: 0.48.0
         version: 0.48.0(typescript@7.0.2)
       lucide:
         specifier: 1.25.0
         version: 1.25.0
+      mammoth:
+        specifier: 1.12.0
+        version: 1.12.0
       ms:
         specifier: 2.1.3
         version: 2.1.3
@@ -151,6 +157,9 @@ importers:
       unified:
         specifier: 11.0.5
         version: 11.0.5
+      unpdf:
+        specifier: 1.6.2
+        version: 1.6.2
       ws:
         specifier: 8.21.3
         version: 8.21.3
@@ -326,15 +335,9 @@ importers:
       jsdom:
         specifier: 29.1.1
         version: 29.1.1(@noble/hashes@2.3.0)
-      jszip:
-        specifier: 3.10.1
-        version: 3.10.1
       lucide-react:
         specifier: 1.25.0
         version: 1.25.0(react@19.2.8)
-      mammoth:
-        specifier: 1.12.0
-        version: 1.12.0
       oxlint:
         specifier: 1.75.0
         version: 1.75.0(oxlint-tsgolint@7.0.2001)
@@ -377,9 +380,6 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-      unpdf:
-        specifier: 1.6.2
-        version: 1.6.2
       vite:
         specifier: 8.1.5
         version: 8.1.5(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)

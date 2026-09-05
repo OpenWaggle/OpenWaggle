@@ -119,48 +119,51 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
       catch: (cause) => sessionExportArtifactError('write-export-resource', cause),
     })
 
+  private async prepareFinalizationWithSignal(signal?: AbortSignal) {
+    if (this.prepared) return this.prepared.receipt
+    if (this.closed) throw new Error('Export artifact is already closed.')
+    this.closed = true
+    await this.transcriptHandle.sync()
+    if (this.stagingPath) {
+      if (!this.exportManifest) throw new Error('Bundle export manifest was not written.')
+      if (!this.bundleHandle) throw new Error('Bundle export destination is not open.')
+      await this.resourceSpoolHandle?.sync()
+      await finalizeSessionExportBundle({
+        sources: this.bundleSources,
+        destinationHandle: this.bundleHandle,
+        exportManifest: this.exportManifest,
+        ...(signal ? { signal } : {}),
+      })
+    }
+    const expectedArtifact = await (this.bundleHandle ?? this.transcriptHandle).stat({
+      bigint: true,
+    })
+    const artifactHandle = this.bundleHandle ?? this.transcriptHandle
+    const receipt = {
+      sha256: await digestFileHandle(artifactHandle, signal),
+      sizeBytes: Number(expectedArtifact.size),
+    }
+    this.prepared = { receipt, expectedArtifact }
+    return receipt
+  }
+
   prepareFinalization = () =>
     Effect.tryPromise({
-      try: async () => {
-        if (this.prepared) return this.prepared.receipt
-        if (this.closed) throw new Error('Export artifact is already closed.')
-        this.closed = true
-        await this.transcriptHandle.sync()
-        if (this.stagingPath) {
-          if (!this.exportManifest) throw new Error('Bundle export manifest was not written.')
-          if (!this.bundleHandle) throw new Error('Bundle export destination is not open.')
-          await this.resourceSpoolHandle?.sync()
-          await finalizeSessionExportBundle({
-            sources: this.bundleSources,
-            destinationHandle: this.bundleHandle,
-            exportManifest: this.exportManifest,
-          })
-        }
-        const expectedArtifact = await (this.bundleHandle ?? this.transcriptHandle).stat({
-          bigint: true,
-        })
-        const artifactHandle = this.bundleHandle ?? this.transcriptHandle
-        const receipt = {
-          sha256: await digestFileHandle(artifactHandle),
-          sizeBytes: Number(expectedArtifact.size),
-        }
-        this.prepared = { receipt, expectedArtifact }
-        return receipt
-      },
+      try: (signal) => this.prepareFinalizationWithSignal(signal),
       catch: (cause) => sessionExportArtifactError('prepare-export-artifact-finalization', cause),
     })
 
   finalize = () =>
     Effect.tryPromise({
-      try: async () => {
-        if (!this.prepared) await Effect.runPromise(this.prepareFinalization())
+      try: async (signal) => {
+        if (!this.prepared) await this.prepareFinalizationWithSignal(signal)
         const prepared = this.prepared
         if (!prepared) throw new Error('Export artifact finalization was not prepared.')
         if (this.operation.destinationRoot) {
           const sourceHandle = this.bundleHandle ?? this.transcriptHandle
           const installSource = await openUnlinkedScopedExportFile('install')
           try {
-            await copyFileHandles(sourceHandle, installSource)
+            await copyFileHandles(sourceHandle, installSource, { signal })
             await installSource.sync()
             const installArtifact = await installSource.stat({ bigint: true })
             await installExportArtifact(this.operation, installArtifact, installSource)

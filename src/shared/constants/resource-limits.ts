@@ -21,6 +21,8 @@ export const ATTACHMENT = {
   MAX_ARCHIVE_ENTRY_COUNT: 2_048,
   /** Max decoded image pixels accepted for OCR */
   MAX_IMAGE_PIXELS: 40_000_000,
+  /** Max pixels passed to Tesseract after safe image normalization */
+  MAX_OCR_IMAGE_PIXELS: 8_000_000,
   /** Max wall-clock time, including queueing, allowed for one rich-text extraction */
   EXTRACTION_TIMEOUT_MS: 30_000,
   /** Max expensive attachment extractors allowed across all concurrent requests */

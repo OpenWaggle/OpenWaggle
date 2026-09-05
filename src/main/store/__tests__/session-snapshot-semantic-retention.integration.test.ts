@@ -10,6 +10,10 @@ import { refreshSessionTranscriptTerms } from '../../services/session-transcript
 import { createSession, persistSessionSnapshot } from '../session-details'
 import { mainBranchId } from '../session-details/branch-utils'
 import { runStoreEffect } from '../store-runtime'
+import {
+  readTermProjection,
+  transcriptNode,
+} from './session-snapshot-semantic-retention.test-support'
 
 const NODE_COUNT = 10_000
 const APPENDED_NODE_INDEX = NODE_COUNT
@@ -103,6 +107,44 @@ describe('Session snapshot semantic retention', () => {
       nodes: [
         transcriptNode('b', null, 1, 'common unchanged', 'run-b'),
         transcriptNode('c', 'b', 2, 'common inserted', 'run-c'),
+      ],
+    })
+
+    expect(
+      (await readTermProjection(sessionId)).terms.find((term) => term.term === 'common'),
+    ).toEqual({
+      term: 'common',
+      occurrences: 2,
+      first_node_id: 'b',
+      first_created_order: 1,
+      first_run_id: 'run-b',
+      term_frequency: 0.5,
+    })
+  })
+
+  it('reselects first evidence when the former first node moves behind an unchanged node', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/incremental-transcript-created-order',
+      piSessionId: 'pi-incremental-transcript-created-order',
+    })
+    const sessionId = SessionId(String(session.id))
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-incremental-transcript-created-order',
+      activeNodeId: 'b',
+      nodes: [
+        transcriptNode('a', null, 0, 'common first', 'run-a'),
+        transcriptNode('b', 'a', 1, 'common unchanged', 'run-b'),
+      ],
+    })
+
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-incremental-transcript-created-order',
+      activeNodeId: 'a',
+      nodes: [
+        transcriptNode('b', null, 1, 'common unchanged', 'run-b'),
+        transcriptNode('a', 'b', 2, 'common first', 'run-a'),
       ],
     })
 
@@ -262,50 +304,3 @@ describe('Session snapshot semantic retention', () => {
     expect(elapsedMs).toBeLessThan(APPEND_PERSISTENCE_BUDGET_MS)
   }, 60_000)
 })
-
-function transcriptNode(
-  id: string,
-  parentId: string | null,
-  createdOrder: number,
-  text: string,
-  runId: string,
-): ProjectedSessionNodeInput {
-  return {
-    id,
-    parentId,
-    piEntryType: 'message',
-    kind: 'assistant_message',
-    role: 'assistant',
-    timestampMs: createdOrder,
-    contentJson: JSON.stringify({ text }),
-    metadataJson: JSON.stringify({ openWaggle: { runId } }),
-    pathDepth: parentId === null ? 0 : createdOrder,
-    createdOrder,
-  }
-}
-
-function readTermProjection(sessionId: string) {
-  return runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const terms = yield* sql<{
-        readonly term: string
-        readonly occurrences: number
-        readonly first_node_id: string
-        readonly first_created_order: number
-        readonly first_run_id: string | null
-        readonly term_frequency: number
-      }>`
-        SELECT term, occurrences, first_node_id, first_created_order, first_run_id, term_frequency
-        FROM session_transcript_terms
-        WHERE session_id = ${sessionId}
-        ORDER BY term
-      `
-      const documents = yield* sql<{ readonly token_count: number }>`
-        SELECT token_count FROM session_transcript_term_documents
-        WHERE session_id = ${sessionId}
-      `
-      return { terms, document: documents[0] }
-    }),
-  )
-}

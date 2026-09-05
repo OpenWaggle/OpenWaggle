@@ -147,6 +147,69 @@ describe('Pi-native Sessions tool registration', () => {
     )
   })
 
+  it('authorizes Pi-native attachments before forwarding their paths to the Session gateway', async () => {
+    const gateway = vi.fn(async () => ({
+      contract: 'session-lifecycle-v2' as const,
+      response: {
+        contractVersion: 2 as const,
+        requestId: 'launch-request',
+        idempotencyKey: 'launch-key',
+        replayed: false,
+        outcome: {
+          operation: 'launch' as const,
+          effect: 'launched-root' as const,
+          sessionId: 'session-root',
+          runId: 'run-root',
+          workspaceId: 'workspace-root',
+        },
+      },
+    }))
+    releaseGateway = installSessionToolGateway(gateway)
+    let tool: ToolDefinition | undefined
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-queen',
+      workingDirectory: '/project',
+      projectPath: '/project',
+    })(
+      fromPartial<ExtensionAPI>({
+        registerTool: (registered: ToolDefinition) => {
+          tool = registered
+        },
+      }),
+    )
+    const confirm = vi.fn(async () => true)
+
+    await tool?.execute(
+      'launch-call',
+      {
+        action: 'launch',
+        objective: 'Inspect the supplied design.',
+        attachmentPaths: ['/project/design.png'],
+      },
+      new AbortController().signal,
+      () => undefined,
+      fromPartial({ hasUI: true, ui: { confirm } }),
+    )
+
+    expect(confirm).toHaveBeenCalledWith(
+      'Allow Session attachment read?',
+      expect.stringContaining('/project/design.png'),
+      expect.any(Object),
+    )
+    expect(gateway).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          contract: 'session-lifecycle-v2',
+          transport: { attachmentPaths: ['/project/design.png'] },
+          request: expect.objectContaining({
+            command: expect.objectContaining({ operation: 'launch', attachmentIds: [] }),
+          }),
+        }),
+      }),
+    )
+  })
+
   it('discovers Agent definitions from the canonical project instead of the Worker worktree', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agent-root-'))
     temporaryRoots.push(root)

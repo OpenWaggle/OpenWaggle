@@ -13,6 +13,7 @@ describe('Pi-native Sessions tool lifecycle payload', () => {
           startFromOrigin: true,
           agent: 'security-reviewer',
           authorization: 'yolo',
+          attachmentPaths: ['/repo/review.md'],
           deliverables: ['Findings'],
           acceptanceCriteria: ['No critical gaps'],
           resourceReferences: ['docs/security-model.md'],
@@ -21,6 +22,7 @@ describe('Pi-native Sessions tool lifecycle payload', () => {
       ),
     ).toMatchObject({
       contract: 'session-lifecycle-v2',
+      transport: { attachmentPaths: ['/repo/review.md'] },
       request: {
         command: {
           operation: 'spawn',
@@ -29,6 +31,7 @@ describe('Pi-native Sessions tool lifecycle payload', () => {
           workspace: { mode: 'new-worktree', baseRef: 'release', startFromOrigin: true },
           specialization: { agentDefinitionName: 'security-reviewer' },
           runAuthorizationOverride: 'yolo',
+          attachmentIds: [],
           delegation: {
             objective: 'Review the authorization boundary',
             deliverables: ['Findings'],
@@ -69,10 +72,12 @@ describe('Pi-native Sessions tool lifecycle payload', () => {
           workspace: 'new-worktree',
           baseRef: 'main',
           authorization: 'yolo',
+          attachmentPaths: ['/repo/investigation.md'],
         },
         { sessionId: 'session-queen', runId: 'run-current', projectPath: '/repo' },
       ),
     ).toMatchObject({
+      transport: { attachmentPaths: ['/repo/investigation.md'] },
       request: {
         command: {
           operation: 'launch',

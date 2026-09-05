@@ -61,6 +61,7 @@ export function exportRepository(overrides: Partial<SessionExportOperationReposi
     read: () => Effect.succeed(null),
     claimExecution: () =>
       Effect.succeed({ status: 'claimed' as const, operation: exportOperation }),
+    claimNextExecution: () => Effect.succeed({ status: 'not-claimable' as const }),
     persistSnapshot: () => Effect.void,
     updateProgress: () => Effect.void,
     cancellationRequested: () => Effect.succeed(false),

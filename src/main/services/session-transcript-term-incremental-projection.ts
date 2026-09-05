@@ -120,15 +120,13 @@ function stageEvidence(sql: SqlClient.SqlClient, sessionId: string) {
            JOIN session_transcript_terms AS existing
              ON existing.session_id = ? AND existing.term = affected.term
            JOIN session_nodes AS nodes ON nodes.id = existing.first_node_id
-           WHERE NOT EXISTS (
-               SELECT 1 FROM temp.${BEFORE_TABLE} AS before_terms
+           WHERE nodes.created_order = existing.first_created_order
+             AND (NOT EXISTS (SELECT 1 FROM temp.${BEFORE_TABLE} AS before_terms
                WHERE before_terms.node_id = existing.first_node_id
-                 AND before_terms.term = existing.term
-             ) OR EXISTS (
-               SELECT 1 FROM temp.${AFTER_TABLE} AS after_terms
+                 AND before_terms.term = existing.term)
+             OR EXISTS (SELECT 1 FROM temp.${AFTER_TABLE} AS after_terms
                WHERE after_terms.node_id = existing.first_node_id
-                 AND after_terms.term = existing.term
-             )
+                 AND after_terms.term = existing.term))
            UNION ALL
            SELECT after_terms.term, after_terms.node_id, nodes.created_order,
              json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id
@@ -142,10 +140,13 @@ function stageEvidence(sql: SqlClient.SqlClient, sessionId: string) {
               AND previous_before.term = previous.term
              WHERE previous.session_id = ?
                AND previous.term = after_terms.term
-               AND NOT EXISTS (
-                 SELECT 1 FROM temp.${AFTER_TABLE} AS previous_after
-                 WHERE previous_after.node_id = previous.first_node_id
-                   AND previous_after.term = previous.term
+               AND (
+                 NOT EXISTS (SELECT 1 FROM temp.${AFTER_TABLE} AS previous_after
+                   WHERE previous_after.node_id = previous.first_node_id
+                     AND previous_after.term = previous.term)
+                 OR NOT EXISTS (SELECT 1 FROM session_nodes AS previous_node
+                   WHERE previous_node.id = previous.first_node_id
+                     AND previous_node.created_order = previous.first_created_order)
                )
            )
          ) AS candidates

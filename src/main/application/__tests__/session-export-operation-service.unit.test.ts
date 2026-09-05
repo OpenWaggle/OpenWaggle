@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SessionExportArtifactError } from '../../errors'
+import { SessionExportArtifactError, SessionExportOperationRepositoryError } from '../../errors'
 import type { SessionExportArtifactWriterShape } from '../../ports/session-export-artifact-writer'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
 import { runSessionExportOperation } from '../session-export-operation-service'
@@ -153,6 +153,85 @@ describe('Session export operation service', () => {
     ])
   })
 
+  it('settles cancellation racing artifact receipt persistence as cancelled', async () => {
+    let cancellationChecks = 0
+    const cancel = vi.fn(() => Effect.void)
+    const fail = vi.fn(() => Effect.void)
+    const operations = repository({
+      cancellationRequested: () =>
+        Effect.sync(() => {
+          cancellationChecks += 1
+          return cancellationChecks >= 4
+        }),
+      persistArtifactPreparation: () =>
+        Effect.fail(
+          new SessionExportOperationRepositoryError({ operation: 'persist-cancelled-receipt' }),
+        ),
+      beginArtifactInstallation: () => Effect.succeed(false),
+      cancel,
+      fail,
+    })
+    const artifacts: SessionExportArtifactWriterShape = {
+      open: () =>
+        Effect.succeed({
+          writeManifest: () => Effect.succeed(0),
+          writeRecords: () => Effect.succeed(0),
+          writeResource: () => Effect.succeed(0),
+          prepareFinalization: () => Effect.succeed({ sha256: 'cancelled-digest', sizeBytes: 10 }),
+          finalize: () => Effect.void,
+          discard: () => Effect.void,
+        }),
+      discard: () => Effect.void,
+    }
+
+    await Effect.runPromise(
+      runSessionExportOperation(operation.exportOperationId, { release: vi.fn() }).pipe(
+        Effect.provide(testLayer(operations, artifacts)),
+      ),
+    )
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(fail).not.toHaveBeenCalled()
+  })
+
+  it('settles cancellation racing the installation claim as cancelled', async () => {
+    let cancellationChecks = 0
+    const cancel = vi.fn(() => Effect.void)
+    const fail = vi.fn(() => Effect.void)
+    const operations = repository({
+      cancellationRequested: () =>
+        Effect.sync(() => {
+          cancellationChecks += 1
+          return cancellationChecks >= 5
+        }),
+      persistArtifactPreparation: () => Effect.void,
+      beginArtifactInstallation: () => Effect.succeed(false),
+      cancel,
+      fail,
+    })
+    const artifacts: SessionExportArtifactWriterShape = {
+      open: () =>
+        Effect.succeed({
+          writeManifest: () => Effect.succeed(0),
+          writeRecords: () => Effect.succeed(0),
+          writeResource: () => Effect.succeed(0),
+          prepareFinalization: () => Effect.succeed({ sha256: 'cancelled-digest', sizeBytes: 10 }),
+          finalize: () => Effect.void,
+          discard: () => Effect.void,
+        }),
+      discard: () => Effect.void,
+    }
+
+    await Effect.runPromise(
+      runSessionExportOperation(operation.exportOperationId, { release: vi.fn() }).pipe(
+        Effect.provide(testLayer(operations, artifacts)),
+      ),
+    )
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(fail).not.toHaveBeenCalled()
+  })
+
   it('stops a profile export when required capabilities are reduced between pages', async () => {
     await verifyProfileCapabilityReductionStopsExport()
   })
@@ -187,15 +266,13 @@ describe('Session export operation service', () => {
     const broken = { ...operation, exportOperationId: 'export-broken', status: 'queued' as const }
     const healthy = { ...operation, exportOperationId: 'export-healthy', status: 'queued' as const }
     const fail = vi.fn(() => Effect.void)
-    const claimExecution = vi.fn((operationId: string) =>
-      Effect.succeed({
-        status: 'claimed' as const,
-        operation: operationId === healthy.exportOperationId ? healthy : broken,
-      }),
-    )
+    const claimNextExecution = vi
+      .fn()
+      .mockReturnValueOnce(Effect.succeed({ status: 'claimed' as const, operation: healthy }))
+      .mockReturnValue(Effect.succeed({ status: 'not-claimable' as const }))
     const operations = repository({
       recoverAfterHostLoss: () => Effect.succeed([broken, healthy]),
-      claimExecution,
+      claimNextExecution,
       fail,
     })
     const artifacts: SessionExportArtifactWriterShape = {
@@ -227,8 +304,6 @@ describe('Session export operation service', () => {
       expect.objectContaining({ code: 'export_recovery_cleanup_failed' }),
       expect.any(Number),
     )
-    await vi.waitFor(() =>
-      expect(claimExecution).toHaveBeenCalledWith(healthy.exportOperationId, expect.any(Number)),
-    )
+    await vi.waitFor(() => expect(claimNextExecution).toHaveBeenCalledWith(expect.any(Number)))
   })
 })

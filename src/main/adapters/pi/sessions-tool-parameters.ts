@@ -12,6 +12,7 @@ import {
   SESSION_QUERY_WAIT_TARGET_LIMIT,
 } from '@shared/types/session-query'
 import { type Static, Type } from 'typebox'
+import { sessionsToolAttachmentPaths as attachmentPaths } from './sessions-tool-attachment-parameters'
 import { sessionsToolCollaborationParameters } from './sessions-tool-collaboration-parameters'
 import { sessionsToolControlParameters } from './sessions-tool-control-parameters'
 import { delegationsConflictsParameter } from './sessions-tool-delegation-extra-parameters'
@@ -90,6 +91,7 @@ export const sessionsToolParameters = Type.Union([
     interactionTimeoutMs: Type.Optional(
       Type.Integer({ minimum: 0, maximum: MAX_NODE_TIMER_DELAY_MS }),
     ),
+    attachmentPaths,
     ...rootSpecialization,
   }),
   Type.Object({
@@ -123,11 +125,14 @@ export const sessionsToolParameters = Type.Union([
     interactionTimeoutMs: Type.Optional(
       Type.Integer({ minimum: 0, maximum: MAX_NODE_TIMER_DELAY_MS }),
     ),
+    attachmentPaths,
   }),
   Type.Object({
     action: Type.Literal('message'),
     sessionId: Type.String(),
     text: Type.String({ minLength: 1 }),
+    thinking: Type.Optional(Type.String()),
+    attachmentPaths,
   }),
   Type.Object({
     action: Type.Literal('start'),
@@ -139,6 +144,8 @@ export const sessionsToolParameters = Type.Union([
     interactionTimeoutMs: Type.Optional(
       Type.Integer({ minimum: 0, maximum: MAX_NODE_TIMER_DELAY_MS }),
     ),
+    thinking: Type.Optional(Type.String()),
+    attachmentPaths,
   }),
   Type.Object({
     action: Type.Literal('follow_up'),
@@ -147,12 +154,15 @@ export const sessionsToolParameters = Type.Union([
     authorization: Type.Optional(
       Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
     ),
+    thinking: Type.Optional(Type.String()),
+    attachmentPaths,
   }),
   Type.Object({
     action: Type.Literal('steer'),
     sessionId: Type.String(),
     text: Type.String({ minLength: 1 }),
     expectedRunId: Type.String(),
+    attachmentPaths,
   }),
   Type.Object({
     action: Type.Literal('replace'),
@@ -162,6 +172,8 @@ export const sessionsToolParameters = Type.Union([
     authorization: Type.Optional(
       Type.Union([Type.Literal('ask-for-approval'), Type.Literal('yolo')]),
     ),
+    thinking: Type.Optional(Type.String()),
+    attachmentPaths,
   }),
   Type.Object({
     action: Type.Literal('promote'),

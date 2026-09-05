@@ -1,23 +1,11 @@
-import os from 'node:os'
-import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOCX_MIME_TYPE, extractAttachmentText, ODT_MIME_TYPE } from '../attachment-text-extraction'
 
 const mocks = vi.hoisted(() => ({
-  createWorker: vi.fn(),
-  metadata: vi.fn(),
   parserWorker: vi.fn(),
-  recognize: vi.fn(),
-  terminate: vi.fn(),
 }))
-
-vi.mock('sharp', () => ({
-  default: vi.fn(() => ({ metadata: mocks.metadata })),
-}))
-
-vi.mock('tesseract.js', () => ({ createWorker: mocks.createWorker }))
 
 vi.mock('../attachment-parser-worker', () => ({
   runAttachmentParserWorker: mocks.parserWorker,
@@ -25,13 +13,6 @@ vi.mock('../attachment-parser-worker', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mocks.metadata.mockResolvedValue({ height: 1, width: 1 })
-  mocks.recognize.mockResolvedValue({ data: { text: '  scanned text  ' } })
-  mocks.terminate.mockResolvedValue(undefined)
-  mocks.createWorker.mockResolvedValue({
-    recognize: mocks.recognize,
-    terminate: mocks.terminate,
-  })
   mocks.parserWorker.mockResolvedValue('document text')
 })
 
@@ -40,8 +21,9 @@ afterEach(() => {
 })
 
 describe('attachment text extraction resource limits', () => {
-  it('keeps Tesseract language data out of the repository working directory', async () => {
+  it('runs the complete image OCR path behind the killable parser-worker boundary', async () => {
     const buffer = Buffer.from('image')
+    mocks.parserWorker.mockResolvedValueOnce('scanned text')
 
     await expect(
       extractAttachmentText({
@@ -52,11 +34,10 @@ describe('attachment text extraction resource limits', () => {
       }),
     ).resolves.toBe('scanned text')
 
-    expect(mocks.createWorker).toHaveBeenCalledWith('eng', undefined, {
-      cachePath: path.join(os.tmpdir(), 'openwaggle-tesseract-cache'),
-    })
-    expect(mocks.recognize).toHaveBeenCalledWith(buffer)
-    expect(mocks.terminate).toHaveBeenCalledOnce()
+    expect(mocks.parserWorker).toHaveBeenCalledWith(
+      { kind: 'image', buffer },
+      expect.any(AbortSignal),
+    )
   })
 
   it.each([
@@ -82,36 +63,16 @@ describe('attachment text extraction resource limits', () => {
     expect(mocks.parserWorker).not.toHaveBeenCalled()
   })
 
-  it('rejects huge image dimensions before starting OCR', async () => {
-    mocks.metadata.mockResolvedValue({
-      height: 1,
-      width: ATTACHMENT.MAX_IMAGE_PIXELS + 1,
-    })
-
-    await expect(
-      extractAttachmentText({
-        kind: 'image',
-        mimeType: 'image/png',
-        buffer: Buffer.from('oversized image'),
-        attachmentName: 'oversized.png',
-      }),
-    ).resolves.toBe('')
-
-    expect(mocks.createWorker).not.toHaveBeenCalled()
-  })
-
-  it('times out a hung OCR worker and terminates it', async () => {
+  it('times out a hung image parser worker', async () => {
     vi.useFakeTimers()
-    let rejectRecognition: ((error: Error) => void) | undefined
-    mocks.recognize.mockImplementation(
-      () =>
+    mocks.parserWorker.mockImplementation(
+      (_input, signal: AbortSignal) =>
         new Promise((_resolve, reject) => {
-          rejectRecognition = (error: Error) => reject(error)
+          signal.addEventListener('abort', () => reject(new Error('worker terminated')), {
+            once: true,
+          })
         }),
     )
-    mocks.terminate.mockImplementation(async () => {
-      rejectRecognition?.(new Error('OCR worker terminated'))
-    })
 
     const extraction = extractAttachmentText({
       kind: 'image',
@@ -120,28 +81,25 @@ describe('attachment text extraction resource limits', () => {
       attachmentName: 'hung.png',
     })
     await vi.waitFor(() => {
-      expect(mocks.recognize).toHaveBeenCalledOnce()
+      expect(mocks.parserWorker).toHaveBeenCalledOnce()
     })
 
     await vi.advanceTimersByTimeAsync(ATTACHMENT.EXTRACTION_TIMEOUT_MS)
 
     await expect(extraction).resolves.toBe('')
-    expect(mocks.terminate).toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(0)
   })
 
-  it('enforces one global extraction limit across independent callers', async () => {
-    const releaseRecognition: Array<() => void> = []
-    mocks.createWorker.mockImplementation(async () => ({
-      recognize: vi.fn(
-        () =>
-          new Promise((resolve) => {
-            releaseRecognition.push(() => resolve({ data: { text: 'done' } }))
-          }),
-      ),
-      terminate: vi.fn(async () => undefined),
-    }))
-    const requests = Array.from({ length: ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS * 2 }, (_, index) =>
+  it('releases every scheduler slot after hung image-worker initialization is terminated', async () => {
+    vi.useFakeTimers()
+    mocks.parserWorker.mockImplementation(
+      (_input, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('worker terminated')), {
+            once: true,
+          })
+        }),
+    )
+    const blocked = Array.from({ length: ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS }, (_, index) =>
       extractAttachmentText({
         kind: 'image',
         mimeType: 'image/png',
@@ -151,15 +109,22 @@ describe('attachment text extraction resource limits', () => {
     )
 
     await vi.waitFor(() => {
-      expect(mocks.createWorker).toHaveBeenCalledTimes(ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS)
+      expect(mocks.parserWorker).toHaveBeenCalledTimes(ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS)
     })
-    for (const release of releaseRecognition.splice(0)) release()
+    await vi.advanceTimersByTimeAsync(ATTACHMENT.EXTRACTION_TIMEOUT_MS)
+    await expect(Promise.all(blocked)).resolves.toEqual(
+      Array.from({ length: ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS }, () => ''),
+    )
 
-    await vi.waitFor(() => {
-      expect(mocks.createWorker).toHaveBeenCalledTimes(ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS * 2)
-    })
-    for (const release of releaseRecognition.splice(0)) release()
-
-    await expect(Promise.all(requests)).resolves.toEqual(['done', 'done', 'done', 'done'])
+    mocks.parserWorker.mockResolvedValueOnce('recovered')
+    await expect(
+      extractAttachmentText({
+        kind: 'image',
+        mimeType: 'image/png',
+        buffer: Buffer.from('later image'),
+        attachmentName: 'later.png',
+      }),
+    ).resolves.toBe('recovered')
+    expect(mocks.parserWorker).toHaveBeenCalledTimes(ATTACHMENT.MAX_CONCURRENT_EXTRACTIONS + 1)
   })
 })

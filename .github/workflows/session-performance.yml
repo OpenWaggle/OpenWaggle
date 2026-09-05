@@ -16,7 +16,7 @@ jobs:
   session-performance:
     name: Session Performance
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -42,4 +42,4 @@ jobs:
 
       - uses: ./.github/actions/pnpm-install
 
-      - run: pnpm benchmark:session-performance
+      - run: pnpm benchmark:session-release

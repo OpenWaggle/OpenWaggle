@@ -7,6 +7,7 @@ import {
   type SessionControlMutationCommand,
 } from '@shared/types/session-control'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
+import { sessionsToolThinkingLevel } from './sessions-tool-thinking'
 
 export type SessionsToolControlInput = Extract<
   SessionsToolParameters,
@@ -26,15 +27,28 @@ export type SessionsToolControlInput = Extract<
   }
 >
 
-function controlRequest(command: SessionControlMutationCommand): LocalSessionCommandPayload {
+function controlRequest(
+  command: SessionControlMutationCommand,
+  attachmentPaths?: readonly string[],
+): LocalSessionCommandPayload {
   return {
     contract: 'session-control-v2',
+    ...(attachmentPaths?.length ? { transport: { attachmentPaths } } : {}),
     request: {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
       requestId: randomUUID(),
       idempotencyKey: randomUUID(),
       command,
     },
+  }
+}
+
+function sessionInput(input: { readonly text: string; readonly thinking?: string }) {
+  const thinkingLevel = sessionsToolThinkingLevel(input.thinking)
+  return {
+    text: input.text,
+    attachmentIds: [],
+    ...(thinkingLevel ? { thinkingLevel } : {}),
   }
 }
 
@@ -57,7 +71,7 @@ function runControlCommand(
       operation: 'steer',
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
-      input: { text: input.text, attachmentIds: [] },
+      input: sessionInput(input),
     }
   }
   if (input.action === 'replace') {
@@ -66,14 +80,14 @@ function runControlCommand(
       sessionId: input.sessionId,
       expectedRunId: input.expectedRunId,
       ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
-      input: { text: input.text, attachmentIds: [] },
+      input: sessionInput(input),
     }
   }
   if (input.action === 'message') {
     return {
       operation: 'message',
       sessionId: input.sessionId,
-      input: { text: input.text, attachmentIds: [] },
+      input: sessionInput(input),
     }
   }
   if (input.action === 'follow_up') {
@@ -81,7 +95,7 @@ function runControlCommand(
       operation: 'follow-up',
       sessionId: input.sessionId,
       ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
-      input: { text: input.text, attachmentIds: [] },
+      input: sessionInput(input),
     }
   }
   return {
@@ -91,7 +105,7 @@ function runControlCommand(
     ...(input.interactionTimeoutMs !== undefined
       ? { interactionTimeoutMs: input.interactionTimeoutMs }
       : {}),
-    input: { text: input.text, attachmentIds: [] },
+    input: sessionInput(input),
   }
 }
 
@@ -136,7 +150,10 @@ export function buildSessionsToolControlPayload(
     })
   }
   if (!isRunControlInput(input)) throw new Error('Unsupported Sessions control action.')
-  return controlRequest(runControlCommand(input))
+  return controlRequest(
+    runControlCommand(input),
+    'attachmentPaths' in input ? input.attachmentPaths : undefined,
+  )
 }
 
 export function isSessionsToolControlAction(

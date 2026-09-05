@@ -1,3 +1,4 @@
+import { request as sendHttpRequest } from 'node:http'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
 import { describe, expect, it } from 'vitest'
@@ -6,6 +7,7 @@ import { getMcpProtocolOptions } from '../adapters/mcp/runtime/protocol-negotiat
 import { serveDualEraMcpLoopbackHttp } from '../mcp-server-http'
 
 const TOKEN = 'openwaggle-loopback-fixture-token-with-more-than-32-bytes'
+const TEST_REQUEST_BODY_LIMIT_BYTES = 32
 
 function server() {
   const fixture = new McpServer({ name: 'loopback-fixture', version: '1.0.0' })
@@ -36,6 +38,29 @@ async function connect(url: string, protocolVersion: '2026-07-28' | '2025-11-25'
   return client
 }
 
+function statusForUnfinishedRequest(input: {
+  readonly url: string
+  readonly headers: Readonly<Record<string, string>>
+  readonly firstChunk?: string
+}) {
+  return new Promise<number>((resolve, reject) => {
+    const request = sendHttpRequest(
+      input.url,
+      { method: 'POST', headers: input.headers },
+      (response) => {
+        response.resume()
+        response.once('end', () => {
+          request.destroy()
+          resolve(response.statusCode ?? 0)
+        })
+      },
+    )
+    request.once('error', reject)
+    request.flushHeaders()
+    if (input.firstChunk !== undefined) request.write(input.firstChunk)
+  })
+}
+
 describe('OpenWaggle loopback Streamable HTTP server', () => {
   it('requires bearer authentication and serves modern and legacy MCP from one factory', async () => {
     const handle = await serveDualEraMcpLoopbackHttp({
@@ -57,6 +82,77 @@ describe('OpenWaggle loopback Streamable HTTP server', () => {
           await client.close()
         }
       }
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('rejects unauthorized and cross-origin requests before waiting for their bodies', async () => {
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory: server,
+      port: 0,
+      bearerToken: TOKEN,
+    })
+    try {
+      await expect(
+        statusForUnfinishedRequest({
+          url: handle.url,
+          headers: { 'Transfer-Encoding': 'chunked' },
+          firstChunk: 'still-open',
+        }),
+      ).resolves.toBe(401)
+      await expect(
+        statusForUnfinishedRequest({
+          url: handle.url,
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            Host: 'attacker.example',
+            'Transfer-Encoding': 'chunked',
+          },
+          firstChunk: 'still-open',
+        }),
+      ).resolves.toBe(403)
+      await expect(
+        statusForUnfinishedRequest({
+          url: handle.url,
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            Origin: 'https://attacker.example',
+            'Transfer-Encoding': 'chunked',
+          },
+          firstChunk: 'still-open',
+        }),
+      ).resolves.toBe(403)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('rejects declared and streamed bodies above the configured ceiling', async () => {
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory: server,
+      port: 0,
+      bearerToken: TOKEN,
+      maxRequestBodyBytes: TEST_REQUEST_BODY_LIMIT_BYTES,
+    })
+    try {
+      const authorization = { Authorization: `Bearer ${TOKEN}` }
+      await expect(
+        statusForUnfinishedRequest({
+          url: handle.url,
+          headers: {
+            ...authorization,
+            'Content-Length': String(TEST_REQUEST_BODY_LIMIT_BYTES + 1),
+          },
+        }),
+      ).resolves.toBe(413)
+      await expect(
+        statusForUnfinishedRequest({
+          url: handle.url,
+          headers: { ...authorization, 'Transfer-Encoding': 'chunked' },
+          firstChunk: 'x'.repeat(TEST_REQUEST_BODY_LIMIT_BYTES + 1),
+        }),
+      ).resolves.toBe(413)
     } finally {
       await handle.close()
     }

@@ -1,9 +1,12 @@
 import { createRequire } from 'node:module'
+import os from 'node:os'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { attachmentExtractionTimeoutError } from './attachment-extraction-scheduler'
 
-export type AttachmentParserKind = 'docx' | 'odt' | 'pdf'
+export type AttachmentParserKind = 'docx' | 'image' | 'odt' | 'pdf'
 
 interface ParserWorkerMessage {
   readonly ok: boolean
@@ -33,27 +36,104 @@ const resolveParserDependency = createRequire(__filename).resolve
 const PARSER_MODULE_URLS = {
   mammoth: pathToFileURL(resolveParserDependency('mammoth')).href,
   jszip: pathToFileURL(resolveParserDependency('jszip')).href,
+  sharp: pathToFileURL(resolveParserDependency('sharp')).href,
+  tesseract: pathToFileURL(resolveParserDependency('tesseract.js')).href,
   unpdf: pathToFileURL(resolveParserDependency('unpdf')).href,
 } as const
 
-const ATTACHMENT_PARSER_WORKER_SOURCE = `
+const ATTACHMENT_PARSER_WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads')
+const fs = require('node:fs/promises')
+
+function normalizeText(value) {
+  const trimmed = value.trim()
+  if (trimmed.length <= workerData.maxExtractedTextChars) return trimmed
+  const marker = '\n...[truncated]'
+  return trimmed.slice(0, Math.max(0, workerData.maxExtractedTextChars - marker.length)) + marker
+}
+
+function decodeXmlEntities(value) {
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
+  return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (_raw, entity) => {
+    if (entity.startsWith('#x') || entity.startsWith('#X')) {
+      const codePoint = Number.parseInt(entity.slice(2), 16)
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
+    }
+    if (entity.startsWith('#')) {
+      const codePoint = Number.parseInt(entity.slice(1), 10)
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
+    }
+    return named[entity] || ''
+  })
+}
+
+function normalizeOdt(content) {
+  return normalizeText(decodeXmlEntities(content.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' '))
+}
 
 async function parse() {
   const buffer = Buffer.from(workerData.buffer)
   if (workerData.kind === 'docx') {
     const mammoth = await import(workerData.moduleUrls.mammoth)
     const result = await mammoth.extractRawText({ buffer })
-    return result.value || ''
+    return normalizeText(result.value || '')
   }
   if (workerData.kind === 'odt') {
     const JSZip = (await import(workerData.moduleUrls.jszip)).default
     const archive = await JSZip.loadAsync(buffer)
-    return (await archive.file('content.xml')?.async('string')) || ''
+    const content = (await archive.file('content.xml')?.async('string')) || ''
+    return normalizeOdt(content)
+  }
+  if (workerData.kind === 'image') {
+    const sharp = (await import(workerData.moduleUrls.sharp)).default
+    const image = sharp(buffer, {
+      limitInputPixels: workerData.maxImagePixels,
+    })
+    const metadata = await image.metadata()
+    if (!metadata.width || !metadata.height) {
+      throw new Error('Image dimensions could not be determined safely.')
+    }
+    if (metadata.width * metadata.height > workerData.maxImagePixels) {
+      throw new Error('Image exceeds the OCR pixel limit.')
+    }
+    const sourcePixels = metadata.width * metadata.height
+    const ocrBuffer = sourcePixels > workerData.maxOcrImagePixels
+      ? await image.resize({
+          fit: 'inside',
+          height: Math.max(
+            1,
+            Math.floor(metadata.height * Math.sqrt(workerData.maxOcrImagePixels / sourcePixels)),
+          ),
+          width: Math.max(
+            1,
+            Math.floor(metadata.width * Math.sqrt(workerData.maxOcrImagePixels / sourcePixels)),
+          ),
+          withoutEnlargement: true,
+        }).png().toBuffer()
+      : buffer
+    await fs.mkdir(workerData.ocrCachePath, { recursive: true, mode: 0o700 })
+    const cacheStats = await fs.lstat(workerData.ocrCachePath)
+    if (!cacheStats.isDirectory() || cacheStats.isSymbolicLink()) {
+      throw new Error('OCR cache path is not a secure directory.')
+    }
+    if (typeof process.getuid === 'function' && cacheStats.uid !== process.getuid()) {
+      throw new Error('OCR cache directory is not owned by the current user.')
+    }
+    await fs.chmod(workerData.ocrCachePath, 0o700)
+    const tesseract = await import(workerData.moduleUrls.tesseract)
+    const worker = await tesseract.createWorker('eng', undefined, {
+      cachePath: workerData.ocrCachePath,
+    })
+    try {
+      const result = await worker.recognize(ocrBuffer)
+      return normalizeText(result.data.text || '')
+    } finally {
+      await worker.terminate()
+    }
   }
   const { extractText } = await import(workerData.moduleUrls.unpdf)
   const result = await extractText(new Uint8Array(buffer), { mergePages: true })
-  return result.text || ''
+  return normalizeText(result.text || '')
 }
 
 parse().then(
@@ -68,7 +148,14 @@ parse().then(
 const createParserWorker: ParserWorkerFactory = (input) =>
   new Worker(ATTACHMENT_PARSER_WORKER_SOURCE, {
     eval: true,
-    workerData: { ...input, moduleUrls: PARSER_MODULE_URLS },
+    workerData: {
+      ...input,
+      moduleUrls: PARSER_MODULE_URLS,
+      maxExtractedTextChars: ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS,
+      maxImagePixels: ATTACHMENT.MAX_IMAGE_PIXELS,
+      maxOcrImagePixels: ATTACHMENT.MAX_OCR_IMAGE_PIXELS,
+      ocrCachePath: path.join(os.homedir(), '.openwaggle', 'cache', 'tesseract'),
+    },
     resourceLimits: {
       maxOldGenerationSizeMb: PARSER_MAX_OLD_GENERATION_MB,
       maxYoungGenerationSizeMb: PARSER_MAX_YOUNG_GENERATION_MB,

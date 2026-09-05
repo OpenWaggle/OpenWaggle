@@ -4,7 +4,10 @@ import type {
   SessionControlMutationResponse,
   SessionExportCreateMutationRequest,
 } from '@shared/types/session-control'
-import { SESSION_EXPORT_RESOURCE_BYTES_LIMIT } from '@shared/types/session-export-operation'
+import {
+  SESSION_EXPORT_GLOBAL_CONCURRENCY_LIMIT,
+  SESSION_EXPORT_RESOURCE_BYTES_LIMIT,
+} from '@shared/types/session-export-operation'
 import * as Effect from 'effect/Effect'
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import type { SessionExportArtifactSink } from '../ports/session-export-artifact-writer'
@@ -33,6 +36,13 @@ import {
 import { checkExportCancellation, readExportPage } from './session-export-query'
 import { forkSupervisedSessionExport } from './session-export-supervision'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
+
+type SessionExportExecutionDependencies =
+  | SqlClient.SqlClient
+  | SessionExportArtifactWriter
+  | SessionExportOperationRepository
+  | SessionExportResourceResolver
+  | SessionQueryRepository
 
 function checkProfileFence(lease: LocalSessionProfileBackgroundWorkLease | undefined) {
   return lease?.signal?.aborted
@@ -175,15 +185,50 @@ export function runSessionExportOperation(
   })
 }
 
+export function drainSessionExportQueue(
+  admittedLease?: SessionHostRunLease,
+): Effect.Effect<void, unknown, SessionExportExecutionDependencies> {
+  return Effect.gen(function* () {
+    const operations = yield* SessionExportOperationRepository
+    let availableLease = admittedLease
+    for (let index = 0; index < SESSION_EXPORT_GLOBAL_CONCURRENCY_LIMIT; index += 1) {
+      const lease = availableLease ?? (yield* acquireSessionHostRunLease('export'))
+      availableLease = undefined
+      let transferred = false
+      const claimed = yield* Effect.gen(function* () {
+        const claim = yield* operations.claimNextExecution(Date.now())
+        if (claim.status === 'not-claimable') return false
+        transferred = true
+        yield* forkSupervisedSessionExport({
+          operation: claim.operation,
+          effect: runClaimedExport(claim.operation).pipe(
+            Effect.ensuring(
+              drainSessionExportQueue().pipe(
+                Effect.ensuring(Effect.sync(lease.release)),
+                Effect.orDie,
+              ),
+            ),
+          ),
+        })
+        return true
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (!transferred) lease.release()
+          }),
+        ),
+      )
+      if (!claimed) return
+    }
+  })
+}
+
 export function dispatchSessionExport(
   operation: SessionExportOperationRecord,
   lease?: SessionHostRunLease,
 ) {
   return operation.status === 'queued'
-    ? forkSupervisedSessionExport({
-        operation,
-        effect: runSessionExportOperation(operation.exportOperationId, lease),
-      }).pipe(Effect.as(true))
+    ? drainSessionExportQueue(lease).pipe(Effect.as(true))
     : Effect.succeed(false)
 }
 
@@ -231,6 +276,7 @@ export function createSessionExport(input: {
     return yield* Effect.gen(function* () {
       const result = yield* repository.create({
         callerId: input.callerId,
+        ...(input.authority ? { originProfileId: input.authority.profileId } : {}),
         idempotencyKey: input.request.idempotencyKey,
         command: input.request.command,
         ...(resourceSourceRoot ? { resourceSourceRoot } : {}),
