@@ -5,6 +5,7 @@ import { useComposerStore } from '@/features/composer/state'
 import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
+import { useTerminalStore } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
 import {
   handleStoreError,
@@ -194,6 +195,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
     await api.deleteSession(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
+    useTerminalStore.getState().removeGroup(String(id))
     void useSessionStore.getState().refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
   } catch (err) {
     set({

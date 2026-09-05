@@ -1,135 +1,164 @@
-import { randomUUID } from 'node:crypto'
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { HEX_RADIX } from '@shared/constants/math'
-import { BYTES_PER_KIBIBYTE, TERMINAL } from '@shared/constants/resource-limits'
+import { Buffer } from 'node:buffer'
+import { TERMINAL } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
+import type { TerminalOpenInput } from '@shared/types/terminal'
+import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
-import type * as NodePtyModule from 'node-pty'
-import type { IPty } from 'node-pty'
-import { getSafeChildEnv } from '../env'
-import { broadcastToWindows } from '../utils/broadcast'
+import { createLogger } from '../logger'
+import { TerminalService } from '../ports/terminal-service'
+import { runAppEffect } from '../runtime'
 import { typedHandle, typedOn } from './typed-ipc'
 
-const MIN_ARG_1 = 10
-const MIN_ARG_1_VALUE_5 = 5
-// node-pty is a native module loaded via dynamic import at first use
-let ptyModule: typeof NodePtyModule | undefined
+const logger = createLogger('terminal-handler')
 
-async function getPty() {
-  if (!ptyModule) {
-    ptyModule = await import('node-pty')
-  }
-  return ptyModule
-}
-const MAX_TERMINAL_INPUT_BYTES = HEX_RADIX * BYTES_PER_KIBIBYTE
+const MAX_TERMINAL_INPUT_BYTES = TERMINAL.MAX_INPUT_BYTES
 
-interface PtyProcess {
-  id: string
-  process: IPty
-}
-
-const terminals = new Map<string, PtyProcess>()
-
-const terminalPathSchema = Schema.String.pipe(Schema.minLength(1))
-const terminalResizeSchema = Schema.Struct({
+const terminalOpenInputSchema = Schema.Struct({
+  ownerKey: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.maxLength(TERMINAL.OWNER_KEY_MAX_LENGTH),
+  ),
+  terminalId: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.maxLength(TERMINAL.TERMINAL_ID_MAX_LENGTH),
+  ),
+  cwd: Schema.String.pipe(Schema.minLength(1), Schema.maxLength(TERMINAL.CWD_PATH_MAX_LENGTH)),
   cols: Schema.Number.pipe(
     Schema.int(),
-    Schema.greaterThanOrEqualTo(MIN_ARG_1),
+    Schema.greaterThanOrEqualTo(TERMINAL.MIN_COLS),
     Schema.lessThanOrEqualTo(TERMINAL.MAX_COLS),
   ),
   rows: Schema.Number.pipe(
     Schema.int(),
-    Schema.greaterThanOrEqualTo(MIN_ARG_1_VALUE_5),
+    Schema.greaterThanOrEqualTo(TERMINAL.MIN_ROWS),
     Schema.lessThanOrEqualTo(TERMINAL.MAX_ROWS),
   ),
 })
-const terminalWriteSchema = Schema.String.pipe(Schema.maxLength(MAX_TERMINAL_INPUT_BYTES))
 
-function resolveTerminalCwd(projectPath: string) {
-  const candidate = decodeUnknownOrThrow(terminalPathSchema, projectPath).trim()
-  if (!path.isAbsolute(candidate)) {
-    throw new Error('Project path must be absolute.')
-  }
-  if (!fs.existsSync(candidate)) {
-    throw new Error(`Project path does not exist: ${candidate}`)
-  }
-  const stat = fs.statSync(candidate)
-  if (!stat.isDirectory()) {
-    throw new Error(`Project path is not a directory: ${candidate}`)
-  }
-  return candidate
-}
+const terminalResizeSchema = Schema.Struct({
+  ownerKey: Schema.String.pipe(Schema.minLength(1)),
+  terminalId: Schema.String.pipe(Schema.minLength(1)),
+  cols: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(TERMINAL.MIN_COLS),
+    Schema.lessThanOrEqualTo(TERMINAL.MAX_COLS),
+  ),
+  rows: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(TERMINAL.MIN_ROWS),
+    Schema.lessThanOrEqualTo(TERMINAL.MAX_ROWS),
+  ),
+})
 
+const terminalOwnerSchema = Schema.Struct({
+  ownerKey: Schema.String.pipe(Schema.minLength(1)),
+  terminalId: Schema.String.pipe(Schema.minLength(1)),
+})
+
+const terminalWriteSchema = Schema.String.pipe(
+  Schema.maxLength(MAX_TERMINAL_INPUT_BYTES),
+  // The cap is a wire-bytes cap: a 16k-char emoji paste is up to 64 KiB utf-8.
+  Schema.filter((data) => Buffer.byteLength(data, 'utf8') <= MAX_TERMINAL_INPUT_BYTES, {
+    message: () => 'Terminal input exceeds the byte limit.',
+  }),
+)
+
+/**
+ * Session-bound terminal transport (ADR 0030). Handlers decode, register the
+ * calling window as the terminal's event surface, and delegate everything else
+ * to the TerminalService.
+ */
 export function registerTerminalHandlers(): void {
-  typedHandle('terminal:create', (_event, projectPath: string) =>
+  typedHandle('terminal:open', (event, input: TerminalOpenInput) =>
     Effect.gen(function* () {
-      const cwd = resolveTerminalCwd(projectPath)
-      const childEnv = getSafeChildEnv()
-      const shell = os.platform() === 'win32' ? 'powershell.exe' : (childEnv.SHELL ?? '/bin/zsh')
-      const id = randomUUID()
-      const pty = yield* Effect.promise(() => getPty())
-
-      const proc = pty.spawn(shell, [], {
-        name: 'xterm-256color',
-        cols: TERMINAL.DEFAULT_COLS,
-        rows: TERMINAL.DEFAULT_ROWS,
-        cwd,
-        env: Object.fromEntries(Object.entries(childEnv).filter((entry) => entry[1] !== undefined)),
-      })
-
-      proc.onData((data: string) => {
-        broadcastToWindows('terminal:data', { terminalId: id, data })
-      })
-
-      proc.onExit(() => {
-        terminals.delete(id)
-      })
-
-      terminals.set(id, { id, process: proc })
-      return id
+      const decoded = yield* Effect.try(() => decodeUnknownOrThrow(terminalOpenInputSchema, input))
+      const service = yield* TerminalService
+      const result = yield* service.open(decoded)
+      yield* service.attachSurface(
+        terminalKeyOf(decoded.ownerKey, decoded.terminalId),
+        event.sender.id,
+      )
+      return result
     }),
   )
 
-  typedHandle('terminal:close', (_event, terminalId: string) =>
-    Effect.sync(() => {
-      const terminal = terminals.get(terminalId)
-      if (terminal) {
-        terminal.process.kill()
-        terminals.delete(terminalId)
-      }
+  typedHandle('terminal:detach', (event, ownerKey: string, terminalId: string) =>
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try(() =>
+        decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+      )
+      const service = yield* TerminalService
+      yield* service.detachTerminal(decoded.ownerKey, decoded.terminalId, event.sender.id)
     }),
   )
 
-  typedHandle('terminal:resize', (_event, terminalId: string, cols: number, rows: number) =>
-    Effect.try(() => {
-      const parsed = decodeUnknownOrThrow(terminalResizeSchema, { cols, rows })
-      const terminal = terminals.get(terminalId)
-      if (terminal) {
-        terminal.process.resize(parsed.cols, parsed.rows)
-      }
+  typedHandle(
+    'terminal:resize',
+    (_event, ownerKey: string, terminalId: string, cols: number, rows: number) =>
+      Effect.gen(function* () {
+        const decoded = yield* Effect.try(() =>
+          decodeUnknownOrThrow(terminalResizeSchema, { ownerKey, terminalId, cols, rows }),
+        )
+        const service = yield* TerminalService
+        yield* service.resize(decoded.ownerKey, decoded.terminalId, decoded.cols, decoded.rows)
+      }),
+  )
+
+  typedHandle('terminal:clear', (_event, ownerKey: string, terminalId: string) =>
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try(() =>
+        decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+      )
+      const service = yield* TerminalService
+      yield* service.clear(decoded.ownerKey, decoded.terminalId)
     }),
   )
 
-  typedOn('terminal:write', (_event, terminalId: string, data: string) =>
-    Effect.sync(() => {
-      const parsedData = safeDecodeUnknown(terminalWriteSchema, data)
-      if (!parsedData.success) {
-        return
-      }
-      if (!parsedData.data) return
-      const terminal = terminals.get(terminalId)
-      if (terminal) {
-        terminal.process.write(parsedData.data)
-      }
+  typedHandle('terminal:restart', (event, input: TerminalOpenInput) =>
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try(() => decodeUnknownOrThrow(terminalOpenInputSchema, input))
+      const service = yield* TerminalService
+      const result = yield* service.restart(decoded)
+      yield* service.attachSurface(
+        terminalKeyOf(decoded.ownerKey, decoded.terminalId),
+        event.sender.id,
+      )
+      return result
+    }),
+  )
+
+  typedHandle(
+    'terminal:close',
+    (_event, ownerKey: string, terminalId: string, deleteHistory: boolean) =>
+      Effect.gen(function* () {
+        const decoded = yield* Effect.try(() =>
+          decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+        )
+        const service = yield* TerminalService
+        yield* service.close(decoded.ownerKey, decoded.terminalId, deleteHistory === true)
+      }),
+  )
+
+  typedOn('terminal:write', (_event, ownerKey: string, terminalId: string, data: string) =>
+    Effect.gen(function* () {
+      const parsed = safeDecodeUnknown(terminalWriteSchema, data)
+      if (!parsed.success || parsed.data.length === 0) return
+      const service = yield* TerminalService
+      yield* service.write(ownerKey, terminalId, parsed.data)
     }),
   )
 }
 
-export function cleanupTerminals(): void {
-  for (const [id, terminal] of terminals) {
-    terminal.process.kill()
-    terminals.delete(id)
-  }
+/** Kill every terminal; wired into app shutdown by the IPC module. */
+export function cleanupTerminals(): Promise<void> {
+  return runAppEffect(
+    Effect.gen(function* () {
+      const service = yield* TerminalService
+      yield* service.closeAll()
+    }),
+  ).catch((error: unknown) => {
+    logger.error('Terminal cleanup on shutdown failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
 }

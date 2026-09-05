@@ -43,15 +43,9 @@ vi.mock('@/features/sidebar/components/Sidebar', () => ({
 }))
 
 vi.mock('@/features/terminal/components', () => ({
-  TerminalPanel: ({
-    projectPath,
-    onClose,
-  }: {
-    readonly projectPath: string | null
-    readonly onClose: () => void
-  }) => (
+  TerminalPanel: ({ onClose }: { readonly onClose: () => void }) => (
     <section>
-      Terminal for {projectPath ?? 'none'}
+      Terminal panel
       <Button variant="unstyled" type="button" onClick={onClose}>
         Close terminal
       </Button>
@@ -106,7 +100,7 @@ describe('shell surfaces', () => {
     expect(screen.getByText('Sidebar')).toBeInTheDocument()
     expect(screen.getByText('Header')).toBeInTheDocument()
     expect(screen.getByText('Route content')).toBeInTheDocument()
-    expect(await screen.findByText('Terminal for /repo')).toBeInTheDocument()
+    expect(await screen.findByText('Terminal panel')).toBeInTheDocument()
     expect(await screen.findByText('Feedback modal')).toBeInTheDocument()
     expect(shellMocks.workspaceLifecycle).toHaveBeenCalledOnce()
     expect(shellMocks.backgroundRunMonitor).toHaveBeenCalledOnce()

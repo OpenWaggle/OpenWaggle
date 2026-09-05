@@ -169,11 +169,14 @@ export const api: OpenWaggleApi = {
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
 
   // Terminal
-  createTerminal: invoke('terminal:create'),
-  closeTerminal: invoke('terminal:close'),
+  openTerminal: invoke('terminal:open'),
+  detachTerminal: invoke('terminal:detach'),
   resizeTerminal: invoke('terminal:resize'),
+  clearTerminal: invoke('terminal:clear'),
+  restartTerminal: invoke('terminal:restart'),
+  closeTerminal: invoke('terminal:close'),
   writeTerminal: send('terminal:write'),
-  onTerminalData: on('terminal:data'),
+  onTerminalEvent: on('terminal:event'),
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),

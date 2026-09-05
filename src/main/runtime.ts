@@ -14,6 +14,7 @@ import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
 import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
 import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
+import { NodePtyTerminalServiceLive } from './adapters/node-pty-terminal-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -109,6 +110,7 @@ const AppLayer = Layer.mergeAll(
   FilesystemWorkspaceFileLive,
   WorkspaceProjectAuthorizationLive,
   FilesystemInlineVisualizationLive,
+  NodePtyTerminalServiceLive,
 )
 
 function makeAppRuntime() {

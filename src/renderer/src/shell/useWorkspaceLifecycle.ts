@@ -10,6 +10,7 @@ import { useProject, useSessionStatusMonitor, useSessions } from '@/features/ses
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
+import { useTerminalCommands } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -86,6 +87,9 @@ export function useWorkspaceLifecycle(): void {
   usePinnedSessionShortcuts()
   useSidebarSearchShortcut()
 
+  const { newTerminal: openTerminalThenCreate, splitTerminal: openTerminalThenSplit } =
+    useTerminalCommands()
+
   const hotkeys: UseHotkeyDefinition[] = [
     {
       binding: shortcutBindings['commandPalette.toggle'],
@@ -104,6 +108,14 @@ export function useWorkspaceLifecycle(): void {
     {
       binding: shortcutBindings['terminal.toggle'],
       callback: toggleTerminal,
+    },
+    {
+      binding: shortcutBindings['terminal.new'],
+      callback: openTerminalThenCreate,
+    },
+    {
+      binding: shortcutBindings['terminal.split'],
+      callback: openTerminalThenSplit,
     },
     {
       binding: shortcutBindings['sidebar.toggle'],

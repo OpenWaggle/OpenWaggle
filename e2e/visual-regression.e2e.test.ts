@@ -177,6 +177,23 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await waitForVisualReadiness(page)
     await expect(welcome).toHaveScreenshot('welcome.png', SCREENSHOT_OPTIONS)
 
+    // The session terminal panel captures its deterministic empty state: the
+    // tab strip chrome plus the "new terminals run in <Working path>" hint.
+    // A live shell's output is intentionally excluded — scrollback content is
+    // not pixel-stable enough for a baseline — and the hint's Working path
+    // embeds the run's temp dir suffix, so that line is masked.
+    await page.keyboard.press('Meta+j')
+    const terminalPanel = page.getByTestId('workspace-terminal')
+    await expect(terminalPanel.getByText('No terminal for this session yet')).toBeVisible()
+    await expect(terminalPanel.getByText(PROJECT_LABEL)).toBeVisible()
+    await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2)
+    await waitForVisualReadiness(page)
+    await expect(terminalPanel).toHaveScreenshot('terminal-panel.png', {
+      ...SCREENSHOT_OPTIONS,
+      mask: [terminalPanel.getByText(/New terminals run in/)],
+    })
+    await page.keyboard.press('Meta+j')
+
     await app.mainWindow().openThread(PRIMARY_TITLE)
 
     const sidebar = page.locator('nav[aria-label="Sidebar"]')

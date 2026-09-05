@@ -114,11 +114,14 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'onGitWorkingTreeChanged',
   'onSessionTitleUpdated',
   // Terminal
-  'createTerminal',
+  'openTerminal',
+  'detachTerminal',
+  'clearTerminal',
+  'restartTerminal',
   'closeTerminal',
   'resizeTerminal',
   'writeTerminal',
-  'onTerminalData',
+  'onTerminalEvent',
   // Window
   'onFullscreenChanged',
   // Git

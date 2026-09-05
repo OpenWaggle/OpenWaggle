@@ -88,7 +88,6 @@ function getRuntimeModule() {
   runtimeModulePromise ??= importRuntimeModule()
   return runtimeModulePromise
 }
-
 async function registerIpcHandlersOnce() {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
@@ -122,14 +121,10 @@ async function persistActiveRunsBeforeQuit() {
     getRuntimeModule(),
     persistAllActiveRunsOnce ? Promise.resolve(null) : importAgentHandlerModule(),
   ])
-  const persistAllActiveRuns =
-    persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  const resolved = persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  if (!resolved) return
 
-  if (!persistAllActiveRuns) {
-    return
-  }
-
-  await runtimeModule.runAppEffect(persistAllActiveRuns())
+  await runtimeModule.runAppEffect(resolved())
 }
 
 async function bootstrapServicesAndWindow() {
@@ -303,7 +298,7 @@ function registerAppLifecycle() {
     })
 
   app.on('window-all-closed', () => {
-    cleanupTerminalsOnce?.()
+    // Session terminals outlive window closes; shells die in the quit shutdown.
     if (process.platform !== 'darwin') {
       app.quit()
     }
@@ -315,7 +310,10 @@ function registerAppLifecycle() {
       e.preventDefault()
       completeAppRuntimeShutdown({
         persistActiveRuns: persistActiveRunsBeforeQuit,
-        disposeRuntime: async () => (await getRuntimeModule()).disposeAppRuntime(),
+        disposeRuntime: async () => {
+          await cleanupTerminalsOnce?.()
+          await (await getRuntimeModule()).disposeAppRuntime()
+        },
       })
         .then(() => {
           beforeQuitCleanupDone = true

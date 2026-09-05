@@ -1249,3 +1249,21 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "pin" was used for both projects and sessions (issue #97 was written as project pinning). Resolved: only sessions are pinnable. A **Pinned session** is reachable by one **Pinned shortcut**, whereas a pinned project never could be — it has no single thing to open.
 - "pinned order" conflated two ideas. Resolved: **Manual order** is the sequence the user drags and owns; **Pinned sort** is the rule currently ordering the section. Switching **Pinned sort** away from Manual and back must return the user's **Manual order** unchanged.
 - "green CI" was used to mean both the three enforced merge checks and the whole pipeline including Electron E2E. Resolved: the enforced pre-merge set is the **Fast gate**; the **Full gate** runs only on the merge queue's speculative merge result. Documentation claiming "current green CI" is required for merges described the Full gate, not the enforced reality.
+
+### Terminals
+
+**Session terminal**:
+A terminal bound to one session. Its shell starts in that session's Working path — the Session worktree in worktree mode, the opened checkout in local mode, and the project path for a draft that has not sent yet. There is no terminal that is not a Session terminal.
+_Avoid_: project terminal, global terminal, workspace terminal
+
+**Terminal pane**:
+One viewport inside the terminal panel showing exactly one Session terminal. Panes compose by splitting a tab's area, so several Session terminals of the same session can be visible at once.
+_Avoid_: terminal window, tab (a tab organizes panes; a pane shows one terminal)
+
+**Terminal tab**:
+The strip entry that owns one or more Terminal panes of the active session's terminals. Switching session swaps the whole strip to that session's tabs; the panel never mixes terminals from two sessions.
+_Avoid_: session (the tab is UI organization, not the domain object), terminal (the terminal is the shell process, not its strip entry)
+
+**Terminal scrollback persistence**:
+The durable, capped per-terminal record of what a Session terminal displayed, kept by OpenWaggle so a terminal that was hidden, reloaded, or left running restores its visual state when viewed again. It is terminal state, not session conversation.
+_Avoid_: session history, transcript (those are conversation records), log (it is restored state, not an audit log)

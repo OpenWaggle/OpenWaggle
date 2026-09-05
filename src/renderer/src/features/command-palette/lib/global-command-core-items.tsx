@@ -35,6 +35,8 @@ export interface CoreCommandActions {
   readonly setProjectPath: (path: string) => Promise<void>
   readonly toggleSidebar: () => void
   readonly toggleTerminal: () => void
+  readonly newTerminal: () => void
+  readonly splitTerminal: () => void
   readonly navigateTo: (target: 'extensions' | 'settings' | 'skills' | 'waggle') => void
 }
 
@@ -157,6 +159,22 @@ function createViewAndOpenItems(
       section: 'View',
       trailing: formatShortcutBinding(settings.shortcutBindings['terminal.toggle']),
       action: () => actions.finish(actions.toggleTerminal),
+    },
+    {
+      id: 'new-terminal',
+      label: 'New terminal',
+      icon: <TerminalSquare className="size-3.5" />,
+      section: 'View',
+      trailing: formatShortcutBinding(settings.shortcutBindings['terminal.new']),
+      action: () => actions.finish(actions.newTerminal),
+    },
+    {
+      id: 'split-terminal',
+      label: 'Split terminal',
+      icon: <TerminalSquare className="size-3.5" />,
+      section: 'View',
+      trailing: formatShortcutBinding(settings.shortcutBindings['terminal.split']),
+      action: () => actions.finish(actions.splitTerminal),
     },
     {
       id: 'settings',

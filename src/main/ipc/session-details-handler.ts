@@ -15,6 +15,7 @@ import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { InlineVisualizationService } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { TerminalService } from '../ports/terminal-service'
 import { SettingsService } from '../services/settings-service'
 import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
 import { cancelSessionRuns } from './active-agent-runs'
@@ -31,6 +32,22 @@ function cleanupBeforeSessionRemoval(sessionId: SessionId) {
   if (cancelledActiveRun) {
     emitRunCompleted(sessionId)
   }
+}
+
+/** Deleted sessions take their terminals and scrollback with them (ADR 0030). */
+function cleanupTerminalsForDeletedSession(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const terminals = yield* TerminalService
+    yield* terminals.closeAllForOwner(String(sessionId), true)
+  }).pipe(
+    Effect.catchAll((error) => {
+      logger.warn('Terminal cleanup after session deletion failed', {
+        sessionId: String(sessionId),
+        error: String(error),
+      })
+      return Effect.void
+    }),
+  )
 }
 
 /** `null` is valid and means "clear the override so this session inherits again". */
@@ -148,6 +165,7 @@ function registerSessionCreationHandlers() {
 function registerSessionMutationHandlers() {
   typedHandle('sessions:delete', (_event, id: SessionId) =>
     Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
+      Effect.zipRight(cleanupTerminalsForDeletedSession(id)),
       Effect.zipRight(
         Effect.gen(function* () {
           const visualizations = yield* InlineVisualizationService

@@ -29,11 +29,10 @@ export interface SessionProvenanceInput {
   /**
    * Terminals alive for this session.
    *
-   * TODO(#97-followup): terminals are keyed by project path, not by session. `terminal:create`
-   * takes a `projectPath` and returns a `terminalId`, and nothing records which session
-   * opened it, so a per-session count cannot be derived today. Callers pass 0 until a
-   * terminal carries its owning session id. The render path below is complete, so the glyph
-   * appears the moment a real count exists.
+   * ADR 0030 keys every terminal by its owning session, so a per-session count
+   * is derivable from the terminal service's records; rendering it stays a
+   * follow-up (#97-followup) since the sidebar read path does not consume the
+   * terminal service yet.
    */
   readonly terminalCount: number
 }

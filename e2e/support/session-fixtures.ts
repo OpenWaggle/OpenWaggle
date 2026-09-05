@@ -13,6 +13,7 @@ const ASSISTANT_MESSAGE_KIND = 'assistant_message'
 const SYSTEM_MESSAGE_KIND = 'system_message'
 const STANDARD_FUTURE_MODE = 'standard'
 const WAGGLE_FUTURE_MODE = 'waggle'
+const LOCAL_ENVIRONMENT_MODE = 'local'
 const DEFAULT_BRANCH_UI_STATE_JSON = '{}'
 const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
 const TREE_SIDEBAR_EXPANDED = 0
@@ -36,6 +37,13 @@ export interface SeedSessionInput {
   readonly projectPath?: string | null
   readonly waggleConfig?: unknown
   readonly archived?: boolean
+  /**
+   * Session environment columns (ADR 0010). A worktree-mode session with a
+   * worktree path makes the Session terminal bind to that worktree (ADR 0030)
+   * without the test having to run a real agent send.
+   */
+  readonly environmentMode?: 'local' | 'worktree'
+  readonly worktreePath?: string | null
   /**
    * Leave a run on the session's main branch recorded as interrupted.
    *
@@ -198,6 +206,8 @@ function seedSessionRow(
               project_path = ?,
               waggle_config_json = ?,
               archived = ?,
+              environment_mode = ?,
+              worktree_path = ?,
               updated_at = ?,
               last_active_node_id = ?,
               last_active_branch_id = ?
@@ -209,6 +219,8 @@ function seedSessionRow(
         projectPath,
         waggleConfigJson,
         sessionInput.archived ? SQLITE_TRUE : SQLITE_FALSE,
+        sessionInput.environmentMode ?? LOCAL_ENVIRONMENT_MODE,
+        sessionInput.worktreePath ?? null,
         sessionInput.updatedAt,
         lastMessageId,
         row.branchId,
