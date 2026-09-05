@@ -3,10 +3,27 @@ import {
   createAssistantMessageEventStream,
   type Model,
 } from '@earendil-works/pi-ai'
-import { compact, prepareCompaction, SessionManager } from '@earendil-works/pi-coding-agent'
+import {
+  compact,
+  estimatePortableCompactionRequestOverheadTokens,
+  prepareCompaction,
+  SessionManager,
+} from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('Pi Portable compaction', () => {
+  it('conservatively budgets token-dense Unicode framing', () => {
+    const unicode = '漢😀'.repeat(2_000)
+    const asciiWithSameUtf16Length = 'a'.repeat(unicode.length)
+
+    expect(estimatePortableCompactionRequestOverheadTokens(unicode)).toBeGreaterThan(
+      estimatePortableCompactionRequestOverheadTokens(asciiWithSameUtf16Length),
+    )
+    expect(estimatePortableCompactionRequestOverheadTokens(undefined, unicode)).toBeGreaterThan(
+      estimatePortableCompactionRequestOverheadTokens(undefined, asciiWithSameUtf16Length),
+    )
+  })
+
   it('uses the Codex four-part handoff contract in a versioned provider-neutral envelope', async () => {
     const response: AssistantMessage = {
       role: 'assistant',

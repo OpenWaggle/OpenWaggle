@@ -27,10 +27,10 @@ describe('Pi native compaction preparation', () => {
       { ...COMPACTION_SETTINGS, reserveTokens: 20, keepRecentTokens: 1 },
       makeNativeModel({
         baseUrl: 'https://target.example.test/v1',
-        contextWindow: 600,
+        contextWindow: 3_000,
         maxTokens: 20,
       }),
-      { nativeRequestOverheadTokens: 400 },
+      { nativeRequestOverheadTokens: 2_800 },
     )
 
     expect(JSON.stringify(preparation?.messagesForNativeCompaction)).not.toContain('old-user')
