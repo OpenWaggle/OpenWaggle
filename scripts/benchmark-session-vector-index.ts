@@ -1,11 +1,17 @@
 import { SessionFlatVectorIndex } from '../src/main/adapters/session-flat-vector-index'
+import { SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY } from '../src/main/domain/session-semantic-discovery-storage-policy'
 
 const DIMENSIONS = 384
 const RESULT_LIMIT = 1_000
 const RUNS_PER_SIZE = 7
 const WARMUP_RUNS = 2
 const JSON_INDENT_SPACES = 2
-const CORPUS_SIZES = [1_000, 10_000, 50_000, 100_000] as const
+const CORPUS_SIZES = [
+  1_000,
+  10_000,
+  50_000,
+  SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
+] as const
 const LCG_MULTIPLIER = 1_664_525
 const LCG_INCREMENT = 1_013_904_223
 const UINT32_MAXIMUM = 0xffff_ffff
@@ -39,7 +45,9 @@ function percentile(sorted: readonly number[], fraction: number) {
 }
 
 function benchmarkSize(size: number) {
-  const index = new SessionFlatVectorIndex()
+  const index = new SessionFlatVectorIndex(
+    SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
+  )
   const startedAt = performance.now()
   index.replace(
     Array.from({ length: size }, (_, itemIndex) => ({
@@ -64,11 +72,14 @@ function benchmarkSize(size: number) {
     size,
     dimensions: DIMENSIONS,
     resultLimit: RESULT_LIMIT,
+    recordLimit: SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
     loadMs,
     searchP50Ms: percentile(sorted, P50),
     searchP95Ms: percentile(sorted, P95),
     residentMemoryMb: process.memoryUsage().rss / BYTES_PER_MEBIBYTE,
-    passed: percentile(sorted, P95) < MAXIMUM_P95_MS,
+    passed:
+      index.size <= SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit &&
+      percentile(sorted, P95) < MAXIMUM_P95_MS,
   }
 }
 

@@ -2,6 +2,7 @@ import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { emptySessionCatalogMethods } from '../../application/__tests__/session-repository-test-support'
 import { SessionRepository } from '../../ports/session-repository'
 import { registerSessionsHandlers } from '../sessions-handler'
 
@@ -55,6 +56,7 @@ vi.mock('../../application/local-session-command-dispatcher', () => ({
 }))
 
 const TestSessionRepositoryLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: (limit) => Effect.sync(() => listMock(limit)),
   listArchivedBranches: (limit) => Effect.sync(() => listArchivedBranchesMock(limit)),
   getTree: (sessionId) => Effect.sync(() => getTreeMock(sessionId)),

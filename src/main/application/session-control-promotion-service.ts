@@ -15,6 +15,8 @@ import { SessionControlOperationPendingError } from '../errors'
 import { type AgentSteeringInput, AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
+import { preserveOutcomeAfterAttachmentCleanup } from './session-attachment-cleanup'
+import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 
 export interface PromoteSessionFollowUpInput {
   readonly callerId: string
@@ -54,6 +56,82 @@ function response(
     replayed,
     outcome,
   }
+}
+
+function completeClaimedPromotion(input: {
+  readonly operation: PromoteSessionFollowUpInput
+  readonly expectedRunId: RunId
+  readonly followUpId: FollowUpId
+  readonly intent: SessionControlIntentSnapshot
+  readonly queueRevision: number
+  readonly stateRevision: number
+}) {
+  return Effect.gen(function* () {
+    const journal = yield* SessionControlOperationJournal
+    const attachments = yield* SessionControlAttachmentService.pipe(
+      Effect.flatMap((service) =>
+        service.resolve({
+          attachmentIds: input.intent.attachmentIds,
+          sessionId: input.operation.request.command.sessionId,
+          ownerCallerId: input.intent.callerId,
+        }),
+      ),
+      Effect.either,
+    )
+    const steering =
+      attachments._tag === 'Left'
+        ? ({ accepted: false, code: 'attachment_resolution_failed' } as const)
+        : yield* AgentSteeringService.pipe(
+            Effect.flatMap((service) =>
+              service.steer(
+                promotedSteeringInput(input.expectedRunId, input.intent, attachments.right),
+              ),
+            ),
+            Effect.catchAll(() =>
+              Effect.succeed({ accepted: false, code: 'steering_failed' } as const),
+            ),
+          )
+    const outcome: SessionControlMutationOutcome = steering.accepted
+      ? {
+          operation: 'promote',
+          effect: 'promoted-follow-up',
+          sessionId: input.operation.request.command.sessionId,
+          runId: input.expectedRunId,
+          followUpId: input.followUpId,
+          queueRevision: input.queueRevision + 1,
+          stateRevision: input.stateRevision + 1,
+        }
+      : {
+          operation: 'promote',
+          effect: 'rejected',
+          sessionId: input.operation.request.command.sessionId,
+          code: steering.code,
+        }
+    yield* journal.complete({
+      callerId: input.operation.callerId,
+      request: input.operation.request,
+      outcome,
+      ...(steering.accepted
+        ? {
+            finalizeState: (state) =>
+              applyAcceptedFollowUpPromotion(state, input.expectedRunId, input.followUpId),
+          }
+        : {}),
+    })
+    const completedResponse = response(input.operation, false, outcome)
+    return steering.accepted
+      ? yield* preserveOutcomeAfterAttachmentCleanup({
+          effect: Effect.succeed(completedResponse),
+          cleanup: releasePromotedAttachments({
+            attachmentIds: input.intent.attachmentIds,
+            sessionId: input.operation.request.command.sessionId,
+            ownerCallerId: input.intent.callerId,
+          }),
+          operation: 'promotion',
+          sessionId: input.operation.request.command.sessionId,
+        })
+      : completedResponse
+  })
 }
 
 export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
@@ -112,65 +190,19 @@ export function promoteSessionFollowUp(input: PromoteSessionFollowUpInput) {
         }),
       )
     }
-    if (!intent) return yield* Effect.fail(new Error('Claimed Follow-up has no durable intent.'))
-    const promotedIntent = intent
-    const attachments = yield* SessionControlAttachmentService.pipe(
-      Effect.flatMap((service) =>
-        service.resolve({
-          attachmentIds: promotedIntent.attachmentIds,
-          sessionId: input.request.command.sessionId,
-          ownerCallerId: promotedIntent.callerId,
-        }),
-      ),
-      Effect.either,
-    )
-    const steering =
-      attachments._tag === 'Left'
-        ? ({ accepted: false, code: 'attachment_resolution_failed' } as const)
-        : yield* AgentSteeringService.pipe(
-            Effect.flatMap((service) =>
-              service.steer(
-                promotedSteeringInput(expectedRunId, promotedIntent, attachments.right),
-              ),
-            ),
-            Effect.catchAll(() =>
-              Effect.succeed({ accepted: false, code: 'steering_failed' } as const),
-            ),
-          )
-    const outcome: SessionControlMutationOutcome = steering.accepted
-      ? {
-          operation: 'promote',
-          effect: 'promoted-follow-up',
-          sessionId: input.request.command.sessionId,
-          runId: expectedRunId,
-          followUpId,
-          queueRevision: queueRevision + 1,
-          stateRevision: claim.stateRevision + 1,
-        }
-      : {
-          operation: 'promote',
-          effect: 'rejected',
-          sessionId: input.request.command.sessionId,
-          code: steering.code,
-        }
-    yield* journal.complete({
-      callerId: input.callerId,
-      request: input.request,
-      outcome,
-      ...(steering.accepted
-        ? {
-            finalizeState: (state) =>
-              applyAcceptedFollowUpPromotion(state, expectedRunId, followUpId),
-          }
-        : {}),
-    })
-    if (steering.accepted) {
-      yield* releasePromotedAttachments({
-        attachmentIds: promotedIntent.attachmentIds,
-        sessionId: input.request.command.sessionId,
-        ownerCallerId: promotedIntent.callerId,
-      })
+    if (!intent) {
+      yield* fenceFailedClaimedSessionOperation(input.request.command.sessionId)
+      return yield* Effect.fail(new Error('Claimed Follow-up has no durable intent.'))
     }
-    return response(input, false, outcome)
+    return yield* completeClaimedPromotion({
+      operation: input,
+      expectedRunId,
+      followUpId,
+      intent,
+      queueRevision,
+      stateRevision: claim.stateRevision,
+    }).pipe(
+      Effect.onError(() => fenceFailedClaimedSessionOperation(input.request.command.sessionId)),
+    )
   })
 }

@@ -231,11 +231,10 @@ function applyTermCounts(sql: SqlClient.SqlClient, sessionId: string) {
     )
     yield* sql.unsafe(
       `INSERT INTO session_transcript_terms (
-        term, session_id, occurrences, first_node_id, first_created_order, first_run_id,
-        term_frequency
+        term, session_id, occurrences, first_node_id, first_created_order, first_run_id
       )
       SELECT deltas.term, ?, deltas.delta, evidence.node_id, evidence.created_order,
-        evidence.run_id, 0
+        evidence.run_id
       FROM temp.${DELTA_TABLE} AS deltas
       JOIN temp.${EVIDENCE_TABLE} AS evidence ON evidence.term = deltas.term
       WHERE deltas.delta > 0
@@ -270,19 +269,12 @@ function publishTermMetadata(sql: SqlClient.SqlClient, sessionId: string) {
     )
     yield* sql.unsafe(
       `INSERT INTO session_transcript_term_documents (session_id, token_count)
-       VALUES (?, (
-         SELECT COALESCE(SUM(occurrences), 0)
-         FROM session_transcript_terms WHERE session_id = ?
-       ))
-       ON CONFLICT(session_id) DO UPDATE SET token_count = excluded.token_count`,
-      [sessionId, sessionId],
-    )
-    yield* sql.unsafe(
-      `UPDATE session_transcript_terms
-       SET term_frequency = CAST(occurrences AS REAL) / (
+       VALUES (?, COALESCE((
          SELECT token_count FROM session_transcript_term_documents WHERE session_id = ?
-       )
-       WHERE session_id = ?`,
+       ), 0) + COALESCE((
+         SELECT SUM(delta) FROM temp.${DELTA_TABLE}
+       ), 0))
+       ON CONFLICT(session_id) DO UPDATE SET token_count = excluded.token_count`,
       [sessionId, sessionId],
     )
   })

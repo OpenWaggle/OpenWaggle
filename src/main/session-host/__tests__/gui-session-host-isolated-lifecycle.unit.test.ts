@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  acquire: vi.fn(),
   configureClient: vi.fn(),
   cutover: vi.fn(async () => undefined),
   ensure: vi.fn(async () => undefined),
@@ -9,13 +8,11 @@ const mocks = vi.hoisted(() => ({
   preparePaths: vi.fn(async (paths: object) => paths),
   probe: vi.fn(),
   remoteBridge: vi.fn(() => vi.fn()),
-  startHost: vi.fn(),
   targetExists: vi.fn(async () => true),
 }))
 
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   configureGuiSessionCommandClient: mocks.configureClient,
-  retireGuiSessionCommandClientForUpgrade: vi.fn(),
 }))
 vi.mock('../local-session-client', () => ({
   LocalSessionHostUpgradePendingError: class extends Error {},
@@ -39,9 +36,6 @@ vi.mock('../local-session-paths', () => ({
     endpointCapabilityPath: null,
   }),
 }))
-vi.mock('../session-host-ownership', () => ({
-  acquireSessionHostOwnership: mocks.acquire,
-}))
 vi.mock('../session-host-cutover', () => ({
   runSessionHostCutover: mocks.cutover,
   sessionHostTargetExists: mocks.targetExists,
@@ -49,10 +43,8 @@ vi.mock('../session-host-cutover', () => ({
 vi.mock('../legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: mocks.fence,
 }))
-vi.mock('../session-host-bootstrap', () => ({ startAppSessionHost: mocks.startHost }))
 vi.mock('../session-host-renderer-bridge', () => ({
   startRemoteSessionHostRendererBridge: mocks.remoteBridge,
-  startSessionHostRendererBridge: vi.fn(),
 }))
 
 import { prepareGuiSessionHostLifecycle } from '../gui-session-host-lifecycle'
@@ -60,13 +52,11 @@ import { prepareGuiSessionHostLifecycle } from '../gui-session-host-lifecycle'
 describe('isolated GUI Session Host lifecycle', () => {
   beforeEach(() => {
     const unavailable = Object.assign(new Error('missing socket'), { code: 'ENOENT' })
-    mocks.acquire.mockReset()
     mocks.cutover.mockReset().mockResolvedValue(undefined)
     mocks.ensure.mockReset().mockResolvedValue(undefined)
     mocks.fence.mockClear()
     mocks.probe.mockReset().mockRejectedValueOnce(unavailable).mockResolvedValueOnce(undefined)
     mocks.remoteBridge.mockClear()
-    mocks.startHost.mockReset()
     mocks.targetExists.mockReset().mockResolvedValue(true)
   })
 
@@ -76,18 +66,9 @@ describe('isolated GUI Session Host lifecycle', () => {
       clientVersion: 'test',
       startupMark: vi.fn(),
     })
-    await expect(
-      lifecycle.start({
-        runEffect: vi.fn(),
-        startOwnedServices: vi.fn(async () => undefined),
-        stopOwnedServices: vi.fn(async () => undefined),
-      }),
-    ).resolves.toBe('attached')
+    await expect(lifecycle.start()).resolves.toBeUndefined()
 
-    expect(lifecycle.databaseAccess).toBe('client-isolated')
     expect(mocks.ensure).toHaveBeenCalledOnce()
-    expect(mocks.acquire).not.toHaveBeenCalled()
-    expect(mocks.startHost).not.toHaveBeenCalled()
     await lifecycle.stop()
   })
 

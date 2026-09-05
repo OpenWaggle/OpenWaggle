@@ -3,7 +3,7 @@ import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { pumpLocalSessionSubscription } from '../local-session-subscription-pump'
 
 describe('Local Session subscription pump', () => {
-  it('forwards payload-free cursor advances without asynchronous authorization', async () => {
+  it('does not expose cursor advances for events filtered by the subscription', async () => {
     const hub = new SessionHostEventHub({ hostInstanceId: 'host-test' })
     const result = hub.subscribeAfter(
       hub.cursor(),
@@ -13,7 +13,7 @@ describe('Local Session subscription pump', () => {
       { advanceFilteredCursor: true },
     )
     if (result.status !== 'ready') throw new Error('Expected a ready subscription.')
-    const denied = hub.publish({
+    hub.publish({
       kind: 'session-state-changed',
       sessionId: 'private-session',
       stateRevision: 1,
@@ -40,19 +40,16 @@ describe('Local Session subscription pump', () => {
       },
     })
 
-    expect(sent).toEqual([
-      { kind: 'cursor-advanced', cursor: denied.cursor },
-      { kind: 'event', event: visible },
-    ])
+    expect(sent).toEqual([{ kind: 'event', event: visible }])
     expect(eventIsDenied).toHaveBeenCalledTimes(1)
     expect(eventIsDenied).toHaveBeenCalledWith(visible)
   })
 
-  it('advances a restricted client cursor across denied events', async () => {
+  it('drains asynchronously denied events without exposing their cursors', async () => {
     const hub = new SessionHostEventHub({ hostInstanceId: 'host-test' })
     const result = hub.subscribeAfter()
     if (result.status !== 'ready') throw new Error('Expected a ready subscription.')
-    const denied = hub.publish({
+    hub.publish({
       kind: 'session-state-changed',
       sessionId: 'private-session',
       stateRevision: 1,
@@ -79,9 +76,52 @@ describe('Local Session subscription pump', () => {
       },
     })
 
-    expect(sent).toEqual([
-      { kind: 'cursor-advanced', cursor: denied.cursor },
-      { kind: 'event', event: visible },
-    ])
+    expect(sent).toEqual([{ kind: 'event', event: visible }])
+  })
+
+  it('resumes from the last visible event across a filtered replay tail', async () => {
+    const hub = new SessionHostEventHub({ hostInstanceId: 'host-test' })
+    const acceptsVisibleSession = (event: {
+      readonly payload: { readonly kind: string; readonly sessionId?: string }
+    }) => event.payload.sessionId === 'visible-session'
+    const firstResult = hub.subscribeAfter(hub.cursor(), acceptsVisibleSession)
+    if (firstResult.status !== 'ready') throw new Error('Expected a ready subscription.')
+    hub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'private-session',
+      stateRevision: 1,
+      operation: 'run-settled',
+    })
+    const firstVisible = hub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'visible-session',
+      stateRevision: 1,
+      operation: 'run-settled',
+    })
+    await expect(firstResult.subscription.next()).resolves.toEqual({
+      status: 'event',
+      event: firstVisible,
+    })
+    firstResult.subscription.close()
+
+    hub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'private-session',
+      stateRevision: 2,
+      operation: 'run-settled',
+    })
+    const resumed = hub.subscribeAfter(firstVisible.cursor, acceptsVisibleSession)
+    if (resumed.status !== 'ready') throw new Error('Expected a resumed subscription.')
+    const nextVisible = hub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'visible-session',
+      stateRevision: 2,
+      operation: 'run-settled',
+    })
+
+    await expect(resumed.subscription.next()).resolves.toEqual({
+      status: 'event',
+      event: nextVisible,
+    })
   })
 })

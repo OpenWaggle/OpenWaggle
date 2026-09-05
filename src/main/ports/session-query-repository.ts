@@ -7,6 +7,8 @@ export interface SessionQueryRepositoryShape {
   readonly execute: (input: {
     readonly callerId?: string
     readonly authority?: LocalSessionProfileAuthority
+    /** Internal durable-export identity; never accepted from the Session query protocol. */
+    readonly exportMaterializationOperationId?: string
     readonly request: SessionQueryRequest
   }) => Effect.Effect<SessionQueryResponse, SessionQueryRepositoryError>
 }

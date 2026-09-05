@@ -4,6 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { McpOAuthServiceLive } from '../../adapters/mcp/mcp-oauth-service'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import {
   type McpRuntimeConnectionStatus,
@@ -147,6 +148,7 @@ function makeTestLayer(input?: { readonly clearStatusesOnReconcile?: boolean }) 
   return {
     layer: Layer.mergeAll(
       Layer.succeed(McpConfigService, config),
+      McpOAuthServiceLive.pipe(Layer.provide(Layer.succeed(McpSecretVaultService, vault))),
       Layer.succeed(McpRuntimeService, runtime),
       Layer.succeed(McpSecretVaultService, vault),
     ),

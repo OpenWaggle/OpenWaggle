@@ -14,7 +14,7 @@ const model: SessionEmbeddingModel = {
   embedPassages: async (texts) => texts.map(() => new Float32Array([1, 0])),
 }
 
-it('refreshes scoped coverage after deleting an indexed transcript node', async () => {
+it('refreshes scoped coverage lazily after deleting an indexed transcript node', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-scope-delete-'))
   const runtime = makeSessionQueryRuntime(path.join(root, 'scope-delete.sqlite'), model)
   try {
@@ -27,6 +27,7 @@ it('refreshes scoped coverage after deleting an indexed transcript node', async 
           // Prepare the complete bounded scope once.
         }
         yield* sql`DELETE FROM session_nodes WHERE id = ${'node-worker-1'}`
+        yield* projection.ensureSessions(['worker'])
         const rows = yield* sql<{
           readonly searchable_node_count: number
           readonly eligible_node_count: number

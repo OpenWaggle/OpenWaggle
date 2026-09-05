@@ -63,7 +63,6 @@ export function listSessionsByIds(args: readonly unknown[]) {
     }
     const ids = yield* Effect.forEach(args[0], validateSessionId)
     const repository = yield* SessionRepository
-    if (!repository.listByIds) return yield* invalid('Session hydration is unavailable.')
     return attachPendingInteractions(yield* repository.listByIds(ids))
   })
 }
@@ -77,7 +76,6 @@ export function listSessionCatalogPage(args: readonly unknown[]) {
     const limit = yield* validateLimit(args[1])
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
-    if (!repository.listCatalogPage) return yield* invalid('Session pagination is unavailable.')
     return attachCatalogPendingInteractions(
       yield* repository.listCatalogPage(args[0], limit, cursor),
     )
@@ -93,7 +91,6 @@ export function listHiveSessionCatalogPage(args: readonly unknown[]) {
     const limit = yield* validateLimit(args[1])
     const cursor = yield* validateCursor(args[TWO_ARGUMENTS])
     const repository = yield* SessionRepository
-    if (!repository.listHiveCatalogPage) return yield* invalid('Hive pagination is unavailable.')
     return attachHivePendingInteractions(
       yield* repository.listHiveCatalogPage(sessionId, limit, cursor),
     )
@@ -108,9 +105,6 @@ export function listArchivedSessionBranchCatalogPage(args: readonly unknown[]) {
     const limit = yield* validateLimit(args[0])
     const cursor = yield* validateCursor(args[1])
     const repository = yield* SessionRepository
-    if (!repository.listArchivedBranchCatalogPage) {
-      return yield* invalid('Archived branch pagination is unavailable.')
-    }
     return yield* repository.listArchivedBranchCatalogPage(limit, cursor)
   })
 }

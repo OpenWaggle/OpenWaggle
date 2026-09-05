@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import { SessionRepository } from '../../ports/session-repository'
 import { readInlineVisualizationSource } from '../inline-visualization-source-service'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const sessionId = SessionId('visualization-worktree-session')
 const readSource = vi.fn(() =>
@@ -12,6 +13,7 @@ const readSource = vi.fn(() =>
 )
 
 const SessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () =>

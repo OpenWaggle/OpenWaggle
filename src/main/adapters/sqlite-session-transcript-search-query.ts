@@ -41,9 +41,10 @@ function matchingSessionOrder(sql: SqlClient.SqlClient, parameters: TranscriptSe
   const indexRankedSingleTerm =
     parameters.phraseTranscriptSearch === 0 && parameters.transcriptTerms.length === 1
   return indexRankedSingleTerm
-    ? sql`seed_terms.term_frequency DESC, seed_terms.session_id`
+    ? sql`CAST(seed_terms.occurrences AS REAL) / seed_documents.token_count DESC,
+        seed_terms.session_id`
     : sql`(
-        SELECT SUM(ranked_terms.term_frequency)
+        SELECT CAST(SUM(ranked_terms.occurrences) AS REAL) / seed_documents.token_count
         FROM session_transcript_terms AS ranked_terms
         WHERE ranked_terms.session_id = seed_terms.session_id
           AND ranked_terms.term IN (SELECT term FROM query_transcript_terms)
@@ -71,7 +72,7 @@ export function transcriptSessionCtes(
     )}
     term_transcript_sessions_unbounded AS MATERIALIZED (
       SELECT matching_ids.session_id,
-        -SUM(matching_terms.term_frequency) AS score,
+        -CAST(SUM(matching_terms.occurrences) AS REAL) / matching_documents.token_count AS score,
         NULL AS snippet,
         CASE WHEN ${retainSingleTermEvidence ? 1 : 0} = 1
           THEN MAX(matching_terms.first_node_id) ELSE NULL END AS first_node_id,
@@ -83,6 +84,8 @@ export function transcriptSessionCtes(
       JOIN session_transcript_terms AS matching_terms
         ON matching_terms.session_id = matching_ids.session_id
         AND matching_terms.term IN (SELECT term FROM query_transcript_terms)
+      JOIN session_transcript_term_documents AS matching_documents
+        ON matching_documents.session_id = matching_ids.session_id
       GROUP BY matching_ids.session_id
     ), attributable_nodes AS MATERIALIZED (
       SELECT matching_ids.session_id,
@@ -153,6 +156,8 @@ function matchingTranscriptSessionCtes(
     ), matching_non_phrase_session_ids AS MATERIALIZED (
       SELECT seed_terms.session_id
       FROM session_transcript_terms AS seed_terms
+      JOIN session_transcript_term_documents AS seed_documents
+        ON seed_documents.session_id = seed_terms.session_id
       JOIN sessions ON sessions.id = seed_terms.session_id
       WHERE ${parameters.termTranscriptSearch} = 1
         AND ${parameters.phraseTranscriptSearch} = 0
@@ -203,8 +208,11 @@ function matchingTranscriptSessionCtes(
       JOIN session_transcript_terms AS ranked_terms
         ON ranked_terms.session_id = phrase_matches.session_id
         AND ranked_terms.term IN (SELECT term FROM query_transcript_terms)
+      JOIN session_transcript_term_documents AS phrase_documents
+        ON phrase_documents.session_id = phrase_matches.session_id
       GROUP BY phrase_matches.session_id
-      ORDER BY SUM(ranked_terms.term_frequency) DESC, phrase_matches.session_id
+      ORDER BY CAST(SUM(ranked_terms.occurrences) AS REAL) / phrase_documents.token_count DESC,
+        phrase_matches.session_id
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), matching_term_session_ids AS MATERIALIZED (
       SELECT session_id FROM matching_non_phrase_session_ids

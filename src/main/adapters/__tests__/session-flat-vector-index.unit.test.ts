@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   decodeFloat32Vector,
   encodeFloat32Vector,
@@ -60,6 +60,30 @@ describe('Session flat vector index', () => {
     ])
   })
 
+  it('rejects records beyond its structural capacity without mutating the loaded snapshot', () => {
+    const index = new SessionFlatVectorIndex(2)
+    index.replace([
+      { sessionId: 'a', vector: new Float32Array([1, 0]) },
+      { sessionId: 'b', vector: new Float32Array([0, 1]) },
+    ])
+
+    expect(() => index.upsert({ sessionId: 'c', vector: new Float32Array([0.5, 0.5]) })).toThrow(
+      'Vector index record limit exceeded.',
+    )
+    expect(() =>
+      index.replace([
+        { sessionId: 'c', vector: new Float32Array([1, 0]) },
+        { sessionId: 'd', vector: new Float32Array([0, 1]) },
+        { sessionId: 'e', vector: new Float32Array([0.5, 0.5]) },
+      ]),
+    ).toThrow('Vector index record limit exceeded.')
+    expect(index.size).toBe(2)
+    expect(index.search(new Float32Array([1, 0]), 2).map((match) => match.sessionId)).toEqual([
+      'a',
+      'b',
+    ])
+  })
+
   it('retains only the best bounded matches while scanning the authorized corpus', () => {
     const index = new SessionFlatVectorIndex()
     index.replace(
@@ -100,6 +124,35 @@ describe('Session flat vector index', () => {
     expect(matches).toEqual(index.search(new Float32Array([1, 0]), 3))
   })
 
+  it('stops an exact scan after cancellation is observed at a cooperative yield', async () => {
+    const index = new SessionFlatVectorIndex()
+    const records = Array.from({ length: 100 }, (_, itemIndex) => ({
+      sessionId: `session-${itemIndex}`,
+      vector: new Float32Array([itemIndex + 1, 100 - itemIndex]),
+    }))
+    index.replace(records)
+    const allowedSessionIds = new Set(records.map((record) => record.sessionId))
+    const has = allowedSessionIds.has.bind(allowedSessionIds)
+    const controller = new AbortController()
+    let inspectedRecords = 0
+    vi.spyOn(allowedSessionIds, 'has').mockImplementation((sessionId) => {
+      inspectedRecords += 1
+      if (inspectedRecords === 4) controller.abort(new Error('stop exact scan'))
+      return has(sessionId)
+    })
+
+    await expect(
+      index.searchCooperatively({
+        query: new Float32Array([1, 0]),
+        limit: 3,
+        allowedSessionIds,
+        yieldEveryRecords: 1,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop exact scan')
+    expect(inspectedRecords).toBe(4)
+  })
+
   it('groups transcript chunks by their authorized Session before applying the result limit', () => {
     const index = new SessionFlatVectorIndex()
     index.replace([
@@ -119,6 +172,36 @@ describe('Session flat vector index', () => {
         matchedRecordId: 'node-b1',
       },
     ])
+  })
+
+  it('stops a grouped exact scan after cancellation is observed at a cooperative yield', async () => {
+    const index = new SessionFlatVectorIndex()
+    const records = Array.from({ length: 100 }, (_, itemIndex) => ({
+      sessionId: `node-${itemIndex}`,
+      groupId: `session-${itemIndex % 10}`,
+      vector: new Float32Array([itemIndex + 1, 100 - itemIndex]),
+    }))
+    index.replace(records)
+    const allowedGroupIds = new Set(records.map((record) => record.groupId))
+    const has = allowedGroupIds.has.bind(allowedGroupIds)
+    const controller = new AbortController()
+    let inspectedRecords = 0
+    vi.spyOn(allowedGroupIds, 'has').mockImplementation((groupId) => {
+      inspectedRecords += 1
+      if (inspectedRecords === 4) controller.abort(new Error('stop grouped scan'))
+      return has(groupId)
+    })
+
+    await expect(
+      index.searchGroupedCooperatively({
+        query: new Float32Array([1, 0]),
+        limit: 3,
+        allowedGroupIds,
+        yieldEveryRecords: 1,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop grouped scan')
+    expect(inspectedRecords).toBe(4)
   })
 
   it('keeps concurrent worst-case bounded scans deterministic at the 50k node cap', async () => {

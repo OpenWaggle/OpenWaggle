@@ -1,0 +1,12 @@
+import type { AppMigration } from './database-migrations'
+import { SESSION_EXPORT_SELECTED_PATH_SCHEMA_STATEMENTS } from './session-host-export-schema'
+import {
+  SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_ID,
+  SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_NAME,
+} from './session-host-schema-identity'
+
+export const SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION = {
+  id: SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_ID,
+  name: SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_NAME,
+  statements: SESSION_EXPORT_SELECTED_PATH_SCHEMA_STATEMENTS,
+} satisfies AppMigration

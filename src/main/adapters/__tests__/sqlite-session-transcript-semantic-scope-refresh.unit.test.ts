@@ -155,6 +155,78 @@ describe('SQLite transcript semantic prepared scopes', () => {
     ])
   })
 
+  it('invalidates an active scope in constant work and refreshes it lazily', async () => {
+    const runtime = makeRuntime(path.join(root, 'scope-lazy-invalidation.sqlite'), model)
+    runtimes.push(runtime)
+
+    const result = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const projection = new SqliteSessionTranscriptSemanticProjection(sql, model)
+        const now = Date.now()
+        yield* ensureTranscriptSemanticSessions({
+          sql,
+          model,
+          sessionIds: ['worker'],
+          policy: smallPolicy,
+          now,
+        })
+        while ((yield* projection.prepareNextBatch(10)).prepared > 0) {
+          // Prepare the original bounded scope before exercising invalidation.
+        }
+        const before = yield* sql<{
+          readonly source_revision: number
+          readonly prepared_source_revision: number
+        }>`
+          SELECT source_revision, prepared_source_revision
+          FROM session_transcript_semantic_scopes WHERE session_id = ${'worker'}
+        `
+        yield* addSearchableNode(sql, {
+          id: 'node-worker-lazy',
+          sessionId: 'worker',
+          order: 10,
+        })
+        const afterAppend = yield* sql<{
+          readonly source_revision: number
+          readonly prepared_source_revision: number
+          readonly queued: number
+        }>`
+          SELECT source_revision, prepared_source_revision,
+            (SELECT COUNT(*) FROM session_transcript_embedding_queue
+              WHERE session_id = ${'worker'}) AS queued
+          FROM session_transcript_semantic_scopes WHERE session_id = ${'worker'}
+        `
+        const ensured = yield* ensureTranscriptSemanticSessions({
+          sql,
+          model,
+          sessionIds: ['worker'],
+          policy: smallPolicy,
+          now: now + 1,
+        })
+        const afterEnsure = yield* sql<{
+          readonly source_revision: number
+          readonly prepared_source_revision: number
+          readonly queued: number
+        }>`
+          SELECT source_revision, prepared_source_revision,
+            (SELECT COUNT(*) FROM session_transcript_embedding_queue
+              WHERE session_id = ${'worker'}) AS queued
+          FROM session_transcript_semantic_scopes WHERE session_id = ${'worker'}
+        `
+        return { before, afterAppend, ensured, afterEnsure }
+      }),
+    )
+
+    expect(result.before).toEqual([{ source_revision: 0, prepared_source_revision: 0 }])
+    expect(result.afterAppend).toEqual([
+      { source_revision: 1, prepared_source_revision: 0, queued: 0 },
+    ])
+    expect(result.ensured).toEqual({ refreshedSessionCount: 1, reusedSessionCount: 0 })
+    expect(result.afterEnsure).toEqual([
+      { source_revision: 1, prepared_source_revision: 1, queued: 1 },
+    ])
+  })
+
   it('refreshes expired scopes and ignores nonexistent requested Sessions', async () => {
     const runtime = makeRuntime(path.join(root, 'scope-expiry.sqlite'), model)
     runtimes.push(runtime)

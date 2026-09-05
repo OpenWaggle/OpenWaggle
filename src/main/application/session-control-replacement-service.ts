@@ -15,6 +15,7 @@ import { SessionControlOperationPendingError } from '../errors'
 import { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
+import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 import { toSessionControlIntentMessage } from './session-control-message-input'
 import { clampRunAuthorizationOverride } from './session-control-run-authorization'
 
@@ -95,38 +96,42 @@ export function replaceSessionRun(input: ReplaceSessionRunInput) {
       )
     }
 
-    const interruption = yield* AgentRunInterruptionService.pipe(
-      Effect.flatMap((service) =>
-        service.interrupt({
-          sessionId: input.request.command.sessionId,
-          runId: interruptedRunId,
-        }),
-      ),
+    return yield* Effect.gen(function* () {
+      const interruption = yield* AgentRunInterruptionService.pipe(
+        Effect.flatMap((service) =>
+          service.interrupt({
+            sessionId: input.request.command.sessionId,
+            runId: interruptedRunId,
+          }),
+        ),
+      )
+      const outcome: SessionControlMutationOutcome = interruption.accepted
+        ? {
+            operation: 'replace',
+            effect: 'replaced-run',
+            sessionId: input.request.command.sessionId,
+            interruptedRunId,
+            runId: replacementRunId,
+            stateRevision: claim.stateRevision + 1,
+          }
+        : {
+            operation: 'replace',
+            effect: 'rejected',
+            sessionId: input.request.command.sessionId,
+            code: interruption.code,
+          }
+      yield* journal.complete({
+        callerId: input.callerId,
+        request: input.request,
+        outcome,
+        finalizeState: interruption.accepted
+          ? (state) =>
+              startClaimedReplacement(state, interruptedRunId, replacementRunId, replacementIntent)
+          : (state) => releaseRejectedRunInterruption(state, interruptedRunId),
+      })
+      return response(input, false, outcome)
+    }).pipe(
+      Effect.onError(() => fenceFailedClaimedSessionOperation(input.request.command.sessionId)),
     )
-    const outcome: SessionControlMutationOutcome = interruption.accepted
-      ? {
-          operation: 'replace',
-          effect: 'replaced-run',
-          sessionId: input.request.command.sessionId,
-          interruptedRunId,
-          runId: replacementRunId,
-          stateRevision: claim.stateRevision + 1,
-        }
-      : {
-          operation: 'replace',
-          effect: 'rejected',
-          sessionId: input.request.command.sessionId,
-          code: interruption.code,
-        }
-    yield* journal.complete({
-      callerId: input.callerId,
-      request: input.request,
-      outcome,
-      finalizeState: interruption.accepted
-        ? (state) =>
-            startClaimedReplacement(state, interruptedRunId, replacementRunId, replacementIntent)
-        : (state) => releaseRejectedRunInterruption(state, interruptedRunId),
-    })
-    return response(input, false, outcome)
   })
 }

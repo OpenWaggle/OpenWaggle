@@ -94,4 +94,72 @@ describe('SQLite pending promotion recovery', () => {
       }),
     })
   })
+
+  it('fails settlement after bounded retries instead of retaining the writer forever', async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pending-promotion-'))
+    const layer = makeSessionControlRunLifecycleTestLayer(path.join(temporaryRoot, 'state.sqlite'))
+    const error = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* submitSessionMessage({
+          callerId: 'local-user',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'request-start-bounded',
+            idempotencyKey: 'idempotency-start-bounded',
+            command: {
+              operation: 'message',
+              sessionId: 'session-target',
+              input: { text: 'Start working.', attachmentIds: [] },
+            },
+          },
+        })
+        yield* queueSessionFollowUp({
+          callerId: 'local-user',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'request-follow-up-bounded',
+            idempotencyKey: 'idempotency-follow-up-bounded',
+            command: {
+              operation: 'follow-up',
+              sessionId: 'session-target',
+              input: { text: 'Continue.', attachmentIds: [] },
+            },
+          },
+        })
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        yield* lifecycle.activate({
+          sessionId: SessionId('session-target'),
+          runId: RunId('run-next'),
+        })
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_operations (
+            caller_id, operation, target_scope, idempotency_key, request_json,
+            status, outcome_json, created_at, updated_at
+          ) VALUES (
+            ${'local-user'}, ${'promote'}, ${'session-target'}, ${'bounded-promotion'},
+            ${JSON.stringify({
+              operation: 'promote',
+              sessionId: 'session-target',
+              followUpId: 'follow-up-next',
+            })},
+            ${'pending'}, ${null}, ${1}, ${1}
+          )
+        `
+        return yield* lifecycle
+          .settle({
+            sessionId: SessionId('session-target'),
+            runId: RunId('run-next'),
+            nextRunId: RunId('run-after-promotion'),
+            terminalStatus: 'completed',
+          })
+          .pipe(Effect.flip)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(error).toMatchObject({
+      _tag: 'SessionControlRepositoryError',
+      operation: 'settle-run-promotion-pending',
+    })
+  })
 })

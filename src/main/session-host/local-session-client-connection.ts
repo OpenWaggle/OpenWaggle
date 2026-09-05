@@ -42,6 +42,15 @@ export class LocalSessionHostUpgradePendingError extends Error {
   }
 }
 
+export class LocalSessionHostConnectionClosedError extends Error {
+  readonly code = 'ECONNRESET'
+
+  constructor() {
+    super('Local Session Host connection closed.')
+    this.name = 'LocalSessionHostConnectionClosedError'
+  }
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -62,7 +71,7 @@ export class LocalSessionFrameReader {
       }
     })
     socket.once('error', (error) => this.fail(error))
-    socket.once('close', () => this.fail(new Error('Local Session Host connection closed.')))
+    socket.once('close', () => this.fail(new LocalSessionHostConnectionClosedError()))
   }
 
   private push(value: unknown) {
@@ -124,6 +133,7 @@ export interface LocalSessionClientConnectionInput {
   readonly transientAuthority?: LocalSessionProfileAuthority
   readonly profileCredential?: string
   readonly timeoutMs?: number
+  readonly signal?: AbortSignal
   /** Test and forward-compatibility hook; ordinary clients advertise current and previous. */
   readonly supportedRevisions?: readonly number[]
 }
@@ -189,10 +199,13 @@ export async function authenticateLocalSessionServer(input: {
 }
 
 export async function openLocalSessionConnection(input: LocalSessionClientConnectionInput) {
+  throwIfAborted(input.signal)
   const timeoutMs = input.timeoutMs ?? LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS
   const authentication = await resolveLocalSessionClientAuthentication(input)
-  const socket = await connect(input.paths.endpoint, timeoutMs)
+  throwIfAborted(input.signal)
+  const socket = await connect(input.paths.endpoint, timeoutMs, input.signal)
   const reader = new LocalSessionFrameReader(socket)
+  const detachAbort = attachConnectionAbortSignal(socket, input.signal)
   try {
     if (authentication.serverAuthentication) {
       await authenticateLocalSessionServer({
@@ -237,24 +250,60 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
   } catch (error) {
     socket.destroy()
     throw error
+  } finally {
+    detachAbort()
   }
 }
 
-function connect(endpoint: string, timeoutMs: number) {
+function throwIfAborted(signal?: AbortSignal) {
+  signal?.throwIfAborted()
+}
+
+function attachConnectionAbortSignal(socket: Socket, signal?: AbortSignal) {
+  if (!signal) return () => undefined
+  if (signal.aborted) {
+    socket.destroy()
+    signal.throwIfAborted()
+  }
+  const abort = () => socket.destroy(abortError(signal))
+  signal.addEventListener('abort', abort, { once: true })
+  return () => signal.removeEventListener('abort', abort)
+}
+
+function abortError(signal?: AbortSignal) {
+  if (signal?.reason instanceof Error) return signal.reason
+  const error = new Error('Local Session Host connection aborted.')
+  error.name = 'AbortError'
+  return error
+}
+
+function connect(endpoint: string, timeoutMs: number, signal?: AbortSignal) {
   return new Promise<Socket>((resolve, reject) => {
+    signal?.throwIfAborted()
     const socket = net.createConnection(endpoint)
+    const abort = () => {
+      const error = abortError(signal)
+      clearTimeout(timer)
+      socket.destroy()
+      reject(error)
+    }
+    const settle = () => signal?.removeEventListener('abort', abort)
     const timer = setTimeout(() => {
+      settle()
       socket.destroy()
       reject(new Error('Timed out connecting to the Local Session Host.'))
     }, timeoutMs)
     socket.once('connect', () => {
       clearTimeout(timer)
+      settle()
       resolve(socket)
     })
     socket.once('error', (error) => {
       clearTimeout(timer)
+      settle()
       reject(error)
     })
+    signal?.addEventListener('abort', abort, { once: true })
   })
 }
 

@@ -97,7 +97,7 @@ function insertSession(sql: SqlClient.SqlClient, id: string) {
   `
 }
 
-describe('session authorization-mode migration', () => {
+describe('database migrations', () => {
   beforeEach(async () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-migrations-'))
   })

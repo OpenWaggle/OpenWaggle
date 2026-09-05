@@ -1,5 +1,6 @@
 import { decodeLocalSessionCommandPayloadForRevision } from '@shared/schemas/local-session-protocol'
 import * as Effect from 'effect/Effect'
+import { reconcileInterruptedAgentRuns } from '../application/agent-run-service'
 import { recoverPendingManagedWorktreeRemovals } from '../application/host-ui-worktree-operation'
 import {
   authorizeLocalSessionActiveRun,
@@ -119,6 +120,7 @@ export async function startAppSessionHost(input: {
             }
           }
           yield* recoverSessionExportsAfterHostLoss()
+          yield* reconcileInterruptedAgentRuns()
         }),
       ),
     describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),

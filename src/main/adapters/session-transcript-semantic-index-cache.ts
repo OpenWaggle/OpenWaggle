@@ -139,6 +139,7 @@ export class SessionTranscriptSemanticIndexCache {
   ) {
     if (revision.snapshot_revision < existing.revision) return this.#rebuild(sessionIds, revision)
     return Effect.gen(this, function* () {
+      const index = existing.index.clone()
       const currentIds = yield* this.sql<{ readonly node_id: string }>`
         SELECT node_id FROM session_transcript_embeddings
         WHERE model_id = ${this.model.metadata.id}
@@ -147,7 +148,7 @@ export class SessionTranscriptSemanticIndexCache {
       `
       const retainedIds = new Set(currentIds.map((row) => row.node_id))
       for (const nodeId of existing.nodeIds) {
-        if (!retainedIds.has(nodeId)) existing.index.remove(nodeId)
+        if (!retainedIds.has(nodeId)) index.remove(nodeId)
       }
       const changed = yield* this.sql<StoredTranscriptVectorRow>`
         SELECT node_id, session_id, dimensions, vector, snapshot_revision
@@ -157,15 +158,15 @@ export class SessionTranscriptSemanticIndexCache {
           AND session_id IN ${this.sql.in(sessionIds)}
           AND snapshot_revision > ${existing.revision}
       `
-      for (const row of changed) existing.index.upsert(vectorRecord(row))
-      existing.nodeIds.clear()
-      for (const nodeId of retainedIds) existing.nodeIds.add(nodeId)
-      existing.recordCount = retainedIds.size
-      existing.revision = revision.snapshot_revision
-      existing.lastAccess = this.#nextAccess()
-      if (existing.index.size !== revision.record_count)
-        return yield* this.#rebuild(sessionIds, revision)
-      return existing
+      for (const row of changed) index.upsert(vectorRecord(row))
+      if (index.size !== revision.record_count) return yield* this.#rebuild(sessionIds, revision)
+      return {
+        index,
+        nodeIds: retainedIds,
+        recordCount: retainedIds.size,
+        revision: revision.snapshot_revision,
+        lastAccess: this.#nextAccess(),
+      } satisfies CachedScopeIndex
     })
   }
 

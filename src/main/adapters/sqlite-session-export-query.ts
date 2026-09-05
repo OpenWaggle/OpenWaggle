@@ -2,27 +2,26 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
 import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import type {
+  ExportSelectedPathSnapshotIdentity,
+  SessionExportSelectedPathCache,
+} from './session-export-selected-path-cache'
 import { byteBoundedPage } from './session-query-byte-pagination'
 import { exportContinuationMatchesSnapshot } from './sqlite-session-export-continuation'
 import { exportBaseOutcome } from './sqlite-session-export-manifest'
 import { exportNodeReadStrategy, readExportNodes } from './sqlite-session-export-node-reader'
+import { prepareExportSelectedPath } from './sqlite-session-export-path-reader'
 import { exportNodeRecord } from './sqlite-session-export-record'
-import { resolveExportSnapshotHead } from './sqlite-session-export-snapshot'
+import { hasMaterializedExportSelectedPath } from './sqlite-session-export-selected-path'
+import {
+  type ExportSnapshotRow,
+  readExportSnapshot,
+  resolveExportSnapshotHead,
+} from './sqlite-session-export-snapshot'
 import { sessionQueryResponse } from './sqlite-session-query-support'
 
 type ExportRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { operation: 'export' }>
-}
-
-interface ExportSnapshotRow {
-  readonly title: string
-  readonly last_active_branch_id: string | null
-  readonly state_revision: number
-  readonly queue_state: 'running' | 'paused'
-  readonly queue_revision: number
-  readonly active_run_id: string | null
-  readonly node_mutation_revision: number
-  readonly node_high_water_mark: number
 }
 
 interface ExportQueueRow {
@@ -38,10 +37,25 @@ interface ExportQueueRow {
   readonly created_at: number
 }
 
+const EMPTY_EXPORT_QUEUE_ROWS: readonly ExportQueueRow[] = []
+
+function exportSelectedPathIsPrepared(
+  sql: SqlClient.SqlClient,
+  cache: SessionExportSelectedPathCache,
+  identity: ExportSelectedPathSnapshotIdentity,
+  exportOperationId?: string,
+) {
+  if (cache.has(identity)) return Effect.succeed(true)
+  if (!exportOperationId) return Effect.succeed(false)
+  return hasMaterializedExportSelectedPath(sql, { ...identity, exportOperationId })
+}
+
 function exportSelection(
   sql: SqlClient.SqlClient,
   request: ExportRequest,
   snapshot: ExportSnapshotRow,
+  exportSelectedPaths: SessionExportSelectedPathCache,
+  exportMaterializationOperationId?: string,
 ) {
   const query = request.query
   return Effect.gen(function* () {
@@ -64,6 +78,29 @@ function exportSelection(
       query.branchId ?? query.snapshotManifest?.selectedBranchId ?? snapshot.last_active_branch_id
     const suppliedHeadNodeId =
       query.snapshotManifest?.snapshot.selectedHeadNodeId ?? query.snapshotHeadNodeId
+    if (selectedBranchId && suppliedHeadNodeId) {
+      const identity: ExportSelectedPathSnapshotIdentity = {
+        sessionId: query.sessionId,
+        selectedBranchId,
+        selectedHeadNodeId: suppliedHeadNodeId,
+        nodeMutationRevision: snapshot.node_mutation_revision,
+      }
+      if (
+        yield* exportSelectedPathIsPrepared(
+          sql,
+          exportSelectedPaths,
+          identity,
+          exportMaterializationOperationId,
+        )
+      ) {
+        return {
+          branchScope,
+          selectedBranchId,
+          selectedHeadNodeId: suppliedHeadNodeId,
+          branchHeadNodeId: null,
+        }
+      }
+    }
     const head = yield* resolveExportSnapshotHead(sql, {
       sessionId: query.sessionId,
       branchScope,
@@ -115,21 +152,55 @@ function renderExportNodePage(
   })
 }
 
-export function readSessionExport(sql: SqlClient.SqlClient, request: ExportRequest) {
+function resolveExportSelectionOutcome(
+  sql: SqlClient.SqlClient,
+  request: ExportRequest,
+  snapshot: ExportSnapshotRow,
+  exportSelectedPaths: SessionExportSelectedPathCache,
+  exportMaterializationOperationId?: string,
+) {
+  return exportSelection(
+    sql,
+    request,
+    snapshot,
+    exportSelectedPaths,
+    exportMaterializationOperationId,
+  ).pipe(
+    Effect.mapError((error) =>
+      error.message === 'EXPORT_SNAPSHOT_MISMATCH'
+        ? exportErrorResponse(
+            request,
+            'resync_required',
+            'Export continuation metadata does not match its immutable manifest.',
+          )
+        : sessionQueryResponse(request, {
+            operation: 'export',
+            error: { code: 'branch_not_found', message: error.message },
+          }),
+    ),
+    Effect.either,
+  )
+}
+
+function readExportQueueRows(sql: SqlClient.SqlClient, request: ExportRequest) {
+  if (request.query.snapshotManifest) return Effect.succeed(EMPTY_EXPORT_QUEUE_ROWS)
+  return sql<ExportQueueRow>`
+    SELECT id, position, delivery_state, attention_reason, intent_json, created_at
+    FROM session_follow_ups
+    WHERE session_id = ${request.query.sessionId}
+    ORDER BY position, id
+  `
+}
+
+export function readSessionExport(
+  sql: SqlClient.SqlClient,
+  request: ExportRequest,
+  exportSelectedPaths: SessionExportSelectedPathCache,
+  exportMaterializationOperationId?: string,
+) {
   const query = request.query
   return Effect.gen(function* () {
-    const snapshots = yield* sql<ExportSnapshotRow>`
-      SELECT sessions.title, sessions.last_active_branch_id,
-        session_control_states.state_revision, session_control_states.queue_state,
-        session_control_states.queue_revision, session_control_states.active_run_id,
-        session_control_states.node_mutation_revision,
-        COALESCE(MAX(session_nodes.created_order), 0) AS node_high_water_mark
-      FROM sessions
-      JOIN session_control_states ON session_control_states.session_id = sessions.id
-      LEFT JOIN session_nodes ON session_nodes.session_id = sessions.id
-      WHERE sessions.id = ${query.sessionId}
-      GROUP BY sessions.id
-    `
+    const snapshots = yield* readExportSnapshot(sql, request)
     const snapshot = snapshots[0]
     if (!snapshot) {
       return sessionQueryResponse(request, {
@@ -137,20 +208,12 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
         error: { code: 'session_not_found', message: 'Session not found.' },
       })
     }
-    const selection = yield* exportSelection(sql, request, snapshot).pipe(
-      Effect.mapError((error) =>
-        error.message === 'EXPORT_SNAPSHOT_MISMATCH'
-          ? exportErrorResponse(
-              request,
-              'resync_required',
-              'Export continuation metadata does not match its immutable manifest.',
-            )
-          : sessionQueryResponse(request, {
-              operation: 'export',
-              error: { code: 'branch_not_found', message: error.message },
-            }),
-      ),
-      Effect.either,
+    const selection = yield* resolveExportSelectionOutcome(
+      sql,
+      request,
+      snapshot,
+      exportSelectedPaths,
+      exportMaterializationOperationId,
     )
     if (selection._tag === 'Left') return selection.left
     const { branchScope, selectedBranchId, selectedHeadNodeId, branchHeadNodeId } = selection.right
@@ -161,14 +224,6 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       selectedHeadNodeId,
       branchHeadNodeId,
     })
-    const queueRows = query.snapshotManifest
-      ? []
-      : yield* sql<ExportQueueRow>`
-          SELECT id, position, delivery_state, attention_reason, intent_json, created_at
-          FROM session_follow_ups
-          WHERE session_id = ${query.sessionId}
-          ORDER BY position, id
-        `
     const highWaterMark =
       query.snapshotManifest?.snapshot.nodeHighWaterMark ??
       query.throughCreatedOrder ??
@@ -178,11 +233,24 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       query.snapshotStateRevision ??
       snapshot.state_revision
     const capturedAt = query.snapshotManifest?.snapshot.capturedAt ?? query.capturedAt ?? Date.now()
+    const selectedPath = yield* prepareExportSelectedPath(sql, exportSelectedPaths, {
+      readStrategy,
+      exportOperationId: exportMaterializationOperationId,
+      sessionId: query.sessionId,
+      selectedBranchId,
+      selectedHeadNodeId,
+      nodeMutationRevision: snapshot.node_mutation_revision,
+      afterCreatedOrder: query.afterCreatedOrder ?? -1,
+      throughCreatedOrder: highWaterMark,
+      limit: query.limit,
+    })
+    const queueRows = yield* readExportQueueRows(sql, request)
     const nodePage = yield* readExportNodes(sql, {
       sessionId: query.sessionId,
       headNodeId: selectedHeadNodeId,
       tree: branchScope === 'tree',
       indexedBranchId: readStrategy === 'indexed-active-branch' ? selectedBranchId : null,
+      ...selectedPath,
       afterCreatedOrder: query.afterCreatedOrder ?? -1,
       throughCreatedOrder: highWaterMark,
       limit: query.limit,

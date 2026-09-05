@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { applicationCliStdout } from '../electron-cli-stdout'
 
 describe('Electron CLI stdout normalization', () => {
+  it('accepts one uncontaminated Linux application response', () => {
+    const response = '{"schemaVersion":1,"type":"response"}\n'
+
+    expect(applicationCliStdout(response, 'linux')).toBe(response)
+  })
+
   it('removes only empty Linux startup payloads before the application response', () => {
     const response = '{"result":{"response":{}}}\n'
 
@@ -22,27 +28,29 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(stdout, 'linux')).toBe(response)
   })
 
-  it('preserves non-empty Linux stdout contamination so the JSON contract fails closed', () => {
+  it('rejects non-empty Linux stdout contamination with an escaped diagnostic prefix', () => {
     const stdout = '["unexpected"]\n{"result":{}}\n'
 
-    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+    expect(() => applicationCliStdout(stdout, 'linux')).toThrow(JSON.stringify(stdout))
   })
 
-  it('preserves preamble-only output when Electron exits before the application response drains', () => {
-    expect(applicationCliStdout('[][]', 'linux')).toBe('[][]')
+  it('rejects preamble-only output when Electron exits before the application response drains', () => {
+    expect(() => applicationCliStdout('[][]', 'linux')).toThrow(JSON.stringify('[][]'))
   })
 
-  it('preserves arbitrary Linux diagnostics before a versioned response', () => {
+  it('rejects arbitrary Linux diagnostics before a versioned response', () => {
     const response = '{\n  "schemaVersion": 1,\n  "result": {}\n}\n'
     const stdout = `[electron-diagnostic]\n${response}`
 
-    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+    expect(() => applicationCliStdout(stdout, 'linux')).toThrow(JSON.stringify(stdout))
   })
 
-  it('preserves a long empty-token prefix when no application response follows', () => {
+  it('rejects a long empty-token prefix when no application response follows', () => {
     const stdout = `${'[] \u001B[90m{}\u001B[39m\n'.repeat(1_000)}diagnostic`
 
-    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+    expect(() => applicationCliStdout(stdout, 'linux')).toThrow(
+      JSON.stringify(stdout.slice(0, 256)),
+    )
   })
 
   it('normalizes a long empty-token prefix in linear time when a valid response follows', () => {
@@ -52,10 +60,10 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(stdout, 'linux')).toBe(response)
   })
 
-  it('preserves an empty-token prefix before an invalid object-shaped diagnostic', () => {
+  it('rejects an empty-token prefix before an invalid object-shaped diagnostic', () => {
     const stdout = '[]\n{}\n{diagnostic}'
 
-    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+    expect(() => applicationCliStdout(stdout, 'linux')).toThrow(JSON.stringify(stdout))
   })
 
   it('removes known trailing empty Electron payloads after the application response', () => {
@@ -65,10 +73,10 @@ describe('Electron CLI stdout normalization', () => {
     expect(applicationCliStdout(stdout, 'linux')).toBe(response)
   })
 
-  it('preserves unknown contamination after the application response', () => {
+  it('rejects unknown contamination after the application response', () => {
     const stdout = '[]\n{"result":{}}\ndiagnostic'
 
-    expect(applicationCliStdout(stdout, 'linux')).toBe(stdout)
+    expect(() => applicationCliStdout(stdout, 'linux')).toThrow(JSON.stringify(stdout))
   })
 
   it('does not normalize stdout on other platforms', () => {

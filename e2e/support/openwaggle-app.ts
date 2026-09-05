@@ -59,7 +59,14 @@ function runRoutedElectronCli(
         reject(new Error(`OpenWaggle CLI exited with ${String(code ?? signal)}.`))
         return
       }
-      resolve({ stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() })
+      try {
+        resolve({
+          stdout: applicationCliStdout(Buffer.concat(stdout).toString(), 'linux'),
+          stderr: Buffer.concat(stderr).toString(),
+        })
+      } catch (error) {
+        reject(error)
+      }
     })
   })
 }

@@ -1,5 +1,21 @@
 import * as Effect from 'effect/Effect'
+import { SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY } from '../domain/session-semantic-discovery-storage-policy'
 import { SessionFlatVectorIndex, type SessionVectorRecord } from './session-flat-vector-index'
+
+function cancellableCooperativeScan<A>(scan: (signal: AbortSignal) => Promise<A>) {
+  return Effect.async<A>((resume) => {
+    const controller = new AbortController()
+    const promise = scan(controller.signal)
+    void promise.then(
+      (value) => resume(Effect.succeed(value)),
+      (cause) => resume(Effect.die(cause)),
+    )
+    return Effect.promise(async () => {
+      controller.abort()
+      await promise.catch(() => undefined)
+    })
+  })
+}
 
 export interface SemanticIndexRefresh {
   readonly revision: number
@@ -10,8 +26,12 @@ export interface SemanticIndexRefresh {
 
 export class SessionSemanticIndexSnapshotCache {
   readonly #refreshLock = Effect.runSync(Effect.makeSemaphore(1))
-  readonly #index = new SessionFlatVectorIndex()
+  readonly #index: SessionFlatVectorIndex
   #loadedRevision = -1
+
+  constructor(maximumRecordCount: number = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit) {
+    this.#index = new SessionFlatVectorIndex(maximumRecordCount)
+  }
 
   search<Error, Requirements>(input: {
     readonly minimumRevision: number
@@ -35,19 +55,20 @@ export class SessionSemanticIndexSnapshotCache {
           if (refresh.revision > this.#loadedRevision) {
             if (refresh.rebuild) this.#index.replace(refresh.records)
             else {
-              for (const record of refresh.records) this.#index.upsert(record)
               for (const sessionId of refresh.deletedSessionIds) this.#index.remove(sessionId)
+              for (const record of refresh.records) this.#index.upsert(record)
             }
             if (input.acknowledge) yield* input.acknowledge(refresh.revision)
             this.#loadedRevision = refresh.revision
           }
         }
-        const matches = yield* Effect.promise(() =>
+        const matches = yield* cancellableCooperativeScan((signal) =>
           this.#index.searchCooperatively({
             query: input.query,
             limit: input.limit,
             ...(input.allowedSessionIds ? { allowedSessionIds: input.allowedSessionIds } : {}),
             ...(input.excludedSessionIds ? { excludedSessionIds: input.excludedSessionIds } : {}),
+            signal,
           }),
         )
         return {

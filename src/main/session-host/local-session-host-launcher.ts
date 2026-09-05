@@ -62,12 +62,12 @@ export function sessionHostChildEnvironment(input: {
 }
 
 export interface LocalSessionHostLauncherDependencies {
-  readonly canConnect: (endpoint: string) => Promise<boolean>
+  readonly canConnect: (endpoint: string, signal?: AbortSignal) => Promise<boolean>
   readonly probe: typeof probeLocalSessionHost
   readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
   readonly launch: () => void | Promise<void>
   readonly now: () => number
-  readonly wait: (milliseconds: number) => Promise<void>
+  readonly wait: (milliseconds: number, signal?: AbortSignal) => Promise<void>
   readonly refreshPaths: (paths: LocalSessionHostPaths) => Promise<LocalSessionHostPaths>
 }
 
@@ -82,22 +82,33 @@ export function isLocalSessionHostUnavailable(error: unknown) {
   )
 }
 
-function canConnect(endpoint: string) {
+function canConnect(endpoint: string, signal?: AbortSignal) {
   return new Promise<boolean>((resolve) => {
+    signal?.throwIfAborted()
     const socket = net.createConnection(endpoint)
+    const abort = () => {
+      clearTimeout(timer)
+      socket.destroy()
+      resolve(false)
+    }
+    const settle = () => signal?.removeEventListener('abort', abort)
     const timer = setTimeout(() => {
+      settle()
       socket.destroy()
       resolve(false)
     }, CONNECT_PROBE_TIMEOUT_MS)
     socket.once('connect', () => {
       clearTimeout(timer)
+      settle()
       socket.destroy()
       resolve(true)
     })
     socket.once('error', () => {
       clearTimeout(timer)
+      settle()
       resolve(false)
     })
+    signal?.addEventListener('abort', abort, { once: true })
   })
 }
 
@@ -136,21 +147,63 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
     })
   },
   now: Date.now,
-  wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  wait: (milliseconds, signal) =>
+    new Promise((resolve, reject) => {
+      signal?.throwIfAborted()
+      const abort = () => {
+        clearTimeout(timer)
+        reject(signal?.reason)
+      }
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', abort)
+        resolve()
+      }, milliseconds)
+      signal?.addEventListener('abort', abort, { once: true })
+    }),
   refreshPaths: refreshLocalSessionHostEndpoint,
+}
+
+function awaitWithSignal<T>(operation: Promise<T>, signal?: AbortSignal) {
+  if (!signal) return operation
+  signal.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const abort = () => {
+      if (settled) return
+      settled = true
+      reject(signal.reason)
+    }
+    const finish = (settle: () => void) => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', abort)
+      settle()
+    }
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error)),
+    )
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) abort()
+  })
 }
 
 async function waitForCondition(input: {
   readonly timeoutMs: number
   readonly condition: () => Promise<boolean>
   readonly dependencies: LocalSessionHostLauncherDependencies
+  readonly signal?: AbortSignal
 }) {
+  input.signal?.throwIfAborted()
   const deadline = input.dependencies.now() + input.timeoutMs
   while (input.dependencies.now() < deadline) {
-    if (await input.condition()) return true
-    await input.dependencies.wait(HOST_POLL_INTERVAL_MS)
+    if (await awaitWithSignal(input.condition(), input.signal)) return true
+    await awaitWithSignal(
+      input.dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal),
+      input.signal,
+    )
   }
-  return input.condition()
+  return awaitWithSignal(input.condition(), input.signal)
 }
 
 export async function waitForLocalSessionHostRelease(
@@ -174,11 +227,19 @@ async function waitForCompatibleHost(
   const ready = await waitForCondition({
     timeoutMs,
     dependencies,
+    signal: input.signal,
     condition: async () => {
-      const paths = await dependencies.refreshPaths(input.paths)
-      if (!(await dependencies.canConnect(paths.endpoint))) return false
+      const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+      if (
+        !(await awaitWithSignal(
+          dependencies.canConnect(paths.endpoint, input.signal),
+          input.signal,
+        ))
+      ) {
+        return false
+      }
       try {
-        await dependencies.probe({ ...input, paths })
+        await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
         return true
       } catch (error) {
         lastError = error
@@ -199,12 +260,15 @@ async function waitForLocalSessionHostAuthority(
   let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
-    const paths = await dependencies.refreshPaths(input.paths)
-    if (await dependencies.canConnect(paths.endpoint)) {
+    input.signal?.throwIfAborted()
+    const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+    if (
+      await awaitWithSignal(dependencies.canConnect(paths.endpoint, input.signal), input.signal)
+    ) {
       try {
         return {
           status: 'connected' as const,
-          negotiation: await dependencies.probe({ ...input, paths }),
+          negotiation: await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal),
         }
       } catch (error) {
         if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
@@ -214,9 +278,10 @@ async function waitForLocalSessionHostAuthority(
     const ownership = await dependencies.tryAcquireOwnership(input.paths.databasePath)
     if (ownership) {
       await ownership.release()
+      input.signal?.throwIfAborted()
       return { status: 'launch' as const }
     }
-    await dependencies.wait(HOST_POLL_INTERVAL_MS)
+    await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
   }
   if (upgradePendingError) throw upgradePendingError
   throw new Error('Timed out waiting for Local Session Host authority.')
@@ -230,10 +295,10 @@ export async function ensureLocalSessionHost(
   const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
   if (authority.status === 'connected') return authority.negotiation
 
+  input.signal?.throwIfAborted()
   await dependencies.launch()
+  input.signal?.throwIfAborted()
   await waitForCompatibleHost(input, takeoverTimeoutMs, dependencies)
-  return dependencies.probe({
-    ...input,
-    paths: await dependencies.refreshPaths(input.paths),
-  })
+  const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+  return awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
 }

@@ -53,7 +53,7 @@ describe('Local Session subscription admission refresh', () => {
         },
         eventAdmissionSessionIds: ['worker'],
       }),
-      refreshCaller: async (caller) => ({ ...caller, eventAdmissionSessionIds: [] }),
+      refreshCaller: async (caller) => caller,
       authorizeEvent,
       dispatch: async () => ({ accepted: true }),
     })
@@ -77,7 +77,7 @@ describe('Local Session subscription admission refresh', () => {
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-    const event = eventHub.publish({
+    eventHub.publish({
       kind: 'session-state-changed',
       sessionId: 'worker',
       stateRevision: 1,
@@ -93,12 +93,19 @@ describe('Local Session subscription admission refresh', () => {
     expect(refreshCompleted).toBe(false)
 
     releaseAuthorization.resolve()
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: event.cursor,
-    })
     await refresh
     expect(refreshCompleted).toBe(true)
+    authorized = true
+    const visible = eventHub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'worker',
+      stateRevision: 2,
+      operation: 'message',
+    })
+    await expect(reader.next()).resolves.toEqual({
+      kind: 'event',
+      subscriptionId: expect.any(String),
+      event: visible,
+    })
   })
 })

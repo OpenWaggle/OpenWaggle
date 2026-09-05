@@ -6,6 +6,7 @@ import {
   SESSION_HOST_CUTOVER_REVISION,
   SESSION_HOST_FRESH_REVISION,
   SESSION_HOST_SCHEMA_REVISION,
+  SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
 } from '../../services/session-host-schema-identity'
 import { validateSessionHostCompletionSeal } from '../session-host-completion-seal'
 
@@ -70,7 +71,9 @@ describe('Session Host completion seal', () => {
     {
       name: 'newer migration',
       mutate: (target: DatabaseSync) =>
-        target.exec("INSERT INTO _migrations VALUES (27, 'future', 'now')"),
+        target
+          .prepare("INSERT INTO _migrations VALUES (?, 'future', 'now')")
+          .run(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID + 1),
     },
     {
       name: 'unknown completion revision',

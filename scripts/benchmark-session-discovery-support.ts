@@ -55,6 +55,14 @@ export function sessionDiscoveryBenchmarkCounts(database: DatabaseSync) {
       database,
       'SELECT COUNT(*) AS count FROM session_node_discovery_search',
     ),
+    discoveryEmbeddings: benchmarkCount(
+      database,
+      'SELECT COUNT(*) AS count FROM session_discovery_embeddings',
+    ),
+    discoveryEmbeddingQueue: benchmarkCount(
+      database,
+      'SELECT COUNT(*) AS count FROM session_discovery_embedding_queue',
+    ),
     activeBranchMessages: benchmarkCount(
       database,
       `WITH RECURSIVE selected_path(id) AS (

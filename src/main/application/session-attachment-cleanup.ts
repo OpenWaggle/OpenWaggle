@@ -7,7 +7,7 @@ const logger = createLogger('session-control/attachment-cleanup')
 export function preserveOutcomeAfterAttachmentCleanup<A, E, R, E2, R2>(input: {
   readonly effect: Effect.Effect<A, E, R>
   readonly cleanup: Effect.Effect<void, E2, R2>
-  readonly operation: 'command' | 'run'
+  readonly operation: 'command' | 'promotion' | 'run'
   readonly sessionId: string
 }) {
   const cleanup = input.cleanup.pipe(

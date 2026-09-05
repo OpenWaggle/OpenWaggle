@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from '../../services/session-host-transcript-term-schema'
 import { populateSessionTranscriptTermCatalog } from '../session-transcript-term-cutover'
 
 function createDatabase() {
@@ -22,20 +23,7 @@ function createDatabase() {
       content,
       tokenize = 'unicode61 remove_diacritics 2'
     );
-    CREATE TABLE session_transcript_terms (
-      term TEXT NOT NULL,
-      session_id TEXT NOT NULL REFERENCES sessions(id),
-      occurrences INTEGER NOT NULL,
-      first_node_id TEXT NOT NULL,
-      first_created_order INTEGER NOT NULL,
-      first_run_id TEXT,
-      term_frequency REAL NOT NULL,
-      PRIMARY KEY (term, session_id)
-    ) WITHOUT ROWID;
-    CREATE TABLE session_transcript_term_documents (
-      session_id TEXT PRIMARY KEY REFERENCES sessions(id),
-      token_count INTEGER NOT NULL
-    );
+    ${SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS.join(';')};
     INSERT INTO sessions (id) VALUES ('worker');
     INSERT INTO session_nodes (
       id, session_id, created_order, kind, role, content_json, metadata_json
@@ -69,8 +57,12 @@ describe('Session transcript term cutover', () => {
     expect(
       database
         .prepare(`
-          SELECT term, occurrences, first_node_id, first_run_id, term_frequency
-          FROM session_transcript_terms ORDER BY term
+          SELECT terms.term, terms.occurrences, terms.first_node_id, terms.first_run_id,
+            CAST(terms.occurrences AS REAL) / documents.token_count AS term_frequency
+          FROM session_transcript_terms AS terms
+          JOIN session_transcript_term_documents AS documents
+            ON documents.session_id = terms.session_id
+          ORDER BY terms.term
         `)
         .all(),
     ).toEqual([
@@ -99,10 +91,34 @@ describe('Session transcript term cutover', () => {
     expect(
       database.prepare('SELECT token_count FROM session_transcript_term_documents').get(),
     ).toEqual({ token_count: 5 })
+    expect(
+      database
+        .prepare(
+          `SELECT COUNT(*) AS count FROM pragma_table_info('session_transcript_terms')
+           WHERE name = 'term_frequency'`,
+        )
+        .get(),
+    ).toEqual({ count: 0 })
+    expect(
+      database
+        .prepare(
+          `SELECT COUNT(*) AS count FROM sqlite_master
+           WHERE type = 'index' AND name = 'idx_session_transcript_terms_rank'`,
+        )
+        .get(),
+    ).toEqual({ count: 0 })
   })
 
-  it('covers more than one Session batch and isolates a skewed transcript', () => {
+  it('accumulates one huge Session across bounded node batches', () => {
     database.exec(`
+      CREATE TABLE cutover_batch_audit (token_count INTEGER NOT NULL);
+      CREATE TRIGGER audit_skewed_cutover_batch
+      AFTER UPDATE ON session_transcript_term_documents
+      WHEN new.session_id = 'skewed'
+      BEGIN
+        INSERT INTO cutover_batch_audit (token_count) VALUES (new.token_count);
+      END;
+
       WITH RECURSIVE sequence(value) AS (
         SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < 300
       )
@@ -155,6 +171,9 @@ describe('Session transcript term cutover', () => {
         `)
         .get(),
     ).toEqual({ occurrences: 1000, first_node_id: 'skew-node-0000' })
+    expect(database.prepare('SELECT COUNT(*) AS count FROM cutover_batch_audit').get()).toEqual({
+      count: 3,
+    })
   })
 
   it('rejects a self-consistent semantic substitution before discarding its FTS ground truth', () => {

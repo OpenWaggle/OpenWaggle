@@ -89,6 +89,7 @@ export function refreshTranscriptScopeCoverage(
               : null
       yield* sql`
         UPDATE session_transcript_semantic_scopes SET
+          prepared_source_revision = source_revision,
           searchable_node_count = ${row.searchable_count},
           eligible_node_count = ${row.eligible_count},
           coverage_limited = ${reason ? 1 : 0},

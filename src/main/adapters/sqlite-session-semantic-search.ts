@@ -2,6 +2,10 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { SemanticDiscoveryReadiness, SessionQuerySummary } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import {
+  SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
+  type SessionSemanticDiscoveryStoragePolicy,
+} from '../domain/session-semantic-discovery-storage-policy'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { decodeFloat32Vector } from './session-flat-vector-index'
 import {
@@ -97,13 +101,15 @@ function loadSemanticSessionRows(sql: SqlClient.SqlClient, sessionIds: readonly 
 
 export class SqliteSessionSemanticSearch {
   readonly projection: SqliteSessionSemanticProjection
-  readonly #snapshots = new SessionSemanticIndexSnapshotCache()
+  readonly #snapshots: SessionSemanticIndexSnapshotCache
 
   constructor(
     private readonly sql: SqlClient.SqlClient,
     private readonly model: SessionEmbeddingModel,
+    private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
   ) {
-    this.projection = new SqliteSessionSemanticProjection(sql, model)
+    this.projection = new SqliteSessionSemanticProjection(sql, model, storagePolicy)
+    this.#snapshots = new SessionSemanticIndexSnapshotCache(storagePolicy.recordLimit)
   }
 
   readiness() {
@@ -123,7 +129,9 @@ export class SqliteSessionSemanticSearch {
 
   fresh(readiness: SemanticDiscoveryReadiness) {
     return (
-      readiness.status === 'ready' && (readiness.pendingCount ?? 0) === 0 && this.usable(readiness)
+      (readiness.status === 'ready' || readiness.status === 'partial') &&
+      (readiness.pendingCount ?? 0) === 0 &&
+      this.usable(readiness)
     )
   }
 
@@ -227,12 +235,14 @@ export class SqliteSessionSemanticSearch {
               SELECT session_id, dimensions, vector FROM session_discovery_embeddings
               WHERE model_id = ${this.model.metadata.id}
                 AND model_revision = ${this.model.metadata.revision}
+              LIMIT ${this.storagePolicy.recordLimit + 1}
             `
           : yield* this.sql<StoredVectorRow>`
               SELECT session_id, dimensions, vector FROM session_discovery_embeddings
               WHERE model_id = ${this.model.metadata.id}
                 AND model_revision = ${this.model.metadata.revision}
                 AND snapshot_revision > ${afterRevision}
+              LIMIT ${this.storagePolicy.recordLimit + 1}
             `
         const deleted = rebuild
           ? []

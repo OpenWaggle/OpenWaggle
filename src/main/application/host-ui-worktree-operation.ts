@@ -6,7 +6,7 @@ import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
-import { createGitWorktree, removeGitWorktree } from '../adapters/git/worktree'
+import { GitWorktreeService } from '../ports/git-worktree-service'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
 import { resolveSessionWorktreeBranch } from '../services/git/session-branch-resolution'
 import { invalidateGitStatusCache } from '../services/git-status-cache'
@@ -85,6 +85,7 @@ export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const payload = decodeUnknownOrThrow(worktreeCreatePayloadSchema, rawPayload)
     const sessionId = payload.sessionId
+    const gitWorktrees = yield* GitWorktreeService
     const workspaces = yield* SessionWorkspaceResourceRepository
     const workspace =
       sessionId === undefined ? null : yield* workspaces.getBound(SessionId(sessionId))
@@ -115,9 +116,11 @@ export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
       (sessionId === undefined
         ? payload.branch
         : yield* Effect.promise(() => resolveSessionWorktreeBranch(projectPath, sessionId)))
-    const result = (yield* Effect.promise(() =>
-      createGitWorktree(projectPath, { ...payload, path, branch }),
-    )) satisfies GitWorktreeMutationResult
+    const result = (yield* gitWorktrees.create(projectPath, {
+      ...payload,
+      path,
+      branch,
+    })) satisfies GitWorktreeMutationResult
     if (result.ok) {
       invalidateGitStatusCache(path)
       invalidateGitStatusCache(projectPath)
@@ -130,6 +133,7 @@ export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const payload = decodeUnknownOrThrow(worktreeRemovePayloadSchema, rawPayload)
+    const gitWorktrees = yield* GitWorktreeService
     const workspaces = yield* SessionWorkspaceResourceRepository
     const candidates = yield* workspaces.listManagedWorktreeRemovalCandidates()
     const candidate = yield* Effect.promise(() =>
@@ -151,7 +155,7 @@ export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
                 message:
                   'This managed worktree is bound to a Session or is changing Workspace state.',
               } satisfies GitWorktreeMutationResult)
-            : Effect.promise(() => removeGitWorktree(projectPath, payload)),
+            : gitWorktrees.remove(projectPath, payload),
         (admission, exit) => {
           if (admission.status === 'unavailable') return Effect.void
           return workspaces

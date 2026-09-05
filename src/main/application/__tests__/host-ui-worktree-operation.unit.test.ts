@@ -3,19 +3,19 @@ import os from 'node:os'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import * as Fiber from 'effect/Fiber'
+import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SessionWorkspaceResourceRepository } from '../../ports/session-workspace-resource-repository'
+import { GitWorktreeService } from '../../ports/git-worktree-service'
+import {
+  SessionWorkspaceResourceRepository,
+  type SessionWorkspaceResourceRepositoryShape,
+} from '../../ports/session-workspace-resource-repository'
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   admitRemoval: vi.fn(),
   finalizeRemoval: vi.fn(),
   remove: vi.fn(),
-}))
-
-vi.mock('../../adapters/git/worktree', () => ({
-  createGitWorktree: mocks.create,
-  removeGitWorktree: mocks.remove,
 }))
 
 vi.mock('../../services/git-status-cache', () => ({
@@ -57,6 +57,19 @@ function workspaceRepository(input: {
   })
 }
 
+function operationLayer(repository: SessionWorkspaceResourceRepositoryShape) {
+  return Layer.mergeAll(
+    Layer.succeed(SessionWorkspaceResourceRepository, repository),
+    Layer.succeed(
+      GitWorktreeService,
+      GitWorktreeService.of({
+        create: (projectPath, payload) => Effect.promise(() => mocks.create(projectPath, payload)),
+        remove: (projectPath, payload) => Effect.promise(() => mocks.remove(projectPath, payload)),
+      }),
+    ),
+  )
+}
+
 describe('Host-backed worktree operations', () => {
   let temporaryRoot = ''
 
@@ -79,12 +92,7 @@ describe('Host-backed worktree operations', () => {
   it('rejects removal while an authoritative Workspace binding remains', async () => {
     const effect = removeHostUiWorktree('/project', {
       path: '/project/.openwaggle/worktrees/shared',
-    }).pipe(
-      Effect.provideService(
-        SessionWorkspaceResourceRepository,
-        workspaceRepository({ admission: 'unavailable' }),
-      ),
-    )
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'unavailable' }))))
 
     await expect(Effect.runPromise(effect)).resolves.toEqual({
       ok: false,
@@ -97,12 +105,7 @@ describe('Host-backed worktree operations', () => {
   it('removes an unbound worktree through the authoritative operation', async () => {
     const effect = removeHostUiWorktree('/project', {
       path: '/project/.openwaggle/worktrees/free',
-    }).pipe(
-      Effect.provideService(
-        SessionWorkspaceResourceRepository,
-        workspaceRepository({ admission: 'reserved' }),
-      ),
-    )
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' }))))
 
     await expect(Effect.runPromise(effect)).resolves.toEqual(expect.objectContaining({ ok: true }))
     expect(mocks.remove).toHaveBeenCalledWith('/project', {
@@ -127,12 +130,13 @@ describe('Host-backed worktree operations', () => {
       fs.symlink(worktreePath, worktreeAlias),
     ])
     const effect = removeHostUiWorktree(projectAlias, { path: worktreeAlias }).pipe(
-      Effect.provideService(
-        SessionWorkspaceResourceRepository,
-        workspaceRepository({
-          admission: 'reserved',
-          candidates: [{ id: 'tracked-resource', projectPath, workingPath: worktreePath }],
-        }),
+      Effect.provide(
+        operationLayer(
+          workspaceRepository({
+            admission: 'reserved',
+            candidates: [{ id: 'tracked-resource', projectPath, workingPath: worktreePath }],
+          }),
+        ),
       ),
     )
 
@@ -155,12 +159,7 @@ describe('Host-backed worktree operations', () => {
     )
     const effect = removeHostUiWorktree('/project', {
       path: '/project/.openwaggle/worktrees/interrupted',
-    }).pipe(
-      Effect.provideService(
-        SessionWorkspaceResourceRepository,
-        workspaceRepository({ admission: 'reserved' }),
-      ),
-    )
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' }))))
     const fiber = Effect.runFork(effect)
     await vi.waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce())
 
@@ -198,7 +197,7 @@ describe('Host-backed worktree operations', () => {
         workingPath: survivingPath,
         createdReservation: true,
       },
-    ]).pipe(Effect.provideService(SessionWorkspaceResourceRepository, repository))
+    ]).pipe(Effect.provide(operationLayer(repository)))
 
     await Effect.runPromise(effect)
 
@@ -225,12 +224,7 @@ describe('Host-backed worktree operations', () => {
           workingPath: loopPath,
           createdReservation: true,
         },
-      ]).pipe(
-        Effect.provideService(
-          SessionWorkspaceResourceRepository,
-          workspaceRepository({ admission: 'reserved' }),
-        ),
-      ),
+      ]).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' })))),
     )
 
     expect(results.map((result) => result.outcome._tag)).toEqual(['Left', 'Right'])
@@ -248,12 +242,7 @@ describe('Host-backed worktree operations', () => {
       branch: 'renderer-selected',
       baseRef: 'main',
       sessionId: 'deleted-session',
-    }).pipe(
-      Effect.provideService(
-        SessionWorkspaceResourceRepository,
-        workspaceRepository({ boundWorkspace: null }),
-      ),
-    )
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ boundWorkspace: null }))))
 
     await expect(Effect.runPromise(effect)).resolves.toEqual(
       expect.objectContaining({ ok: false, message: expect.stringContaining('no longer') }),

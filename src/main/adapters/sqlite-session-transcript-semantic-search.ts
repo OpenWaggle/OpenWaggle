@@ -30,6 +30,18 @@ interface TranscriptMatchRow {
   readonly created_order: number
 }
 
+function staleTranscriptScopeSessionIds(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+  if (sessionIds.length === 0) return Effect.succeed<readonly string[]>([])
+  return Effect.map(
+    sql<{ readonly session_id: string }>`
+      SELECT session_id FROM session_transcript_semantic_scopes
+      WHERE session_id IN ${sql.in(sessionIds)}
+        AND prepared_source_revision <> source_revision
+    `,
+    (rows) => rows.map((row) => row.session_id),
+  )
+}
+
 function loadEligibleSessionIds(
   sql: SqlClient.SqlClient,
   authority: LocalSessionProfileAuthority | undefined,
@@ -122,7 +134,13 @@ export class SqliteSessionTranscriptSemanticSearch {
   }
 
   readiness(scope: TranscriptSemanticScope): Effect.Effect<SemanticDiscoveryReadiness, SqlError> {
-    return this.projection.readiness(scope.sessionIds)
+    return Effect.gen(this, function* () {
+      const staleSessionIds = yield* staleTranscriptScopeSessionIds(this.sql, scope.sessionIds)
+      if (staleSessionIds.length > 0) {
+        yield* this.projection.ensureSessions(staleSessionIds, scope.operationId)
+      }
+      return yield* this.projection.readiness(scope.sessionIds)
+    })
   }
 
   usable(readiness: SemanticDiscoveryReadiness) {
@@ -167,13 +185,16 @@ export class SqliteSessionTranscriptSemanticSearch {
       })
       const vector = vectors[0]
       if (!vector) return []
-      const matches = yield* Effect.promise(() =>
-        index.searchGroupedCooperatively({
-          query: vector,
-          limit,
-          allowedGroupIds: new Set(scope.sessionIds),
-        }),
-      )
+      const matches = yield* Effect.tryPromise({
+        try: (signal) =>
+          index.searchGroupedCooperatively({
+            query: vector,
+            limit,
+            allowedGroupIds: new Set(scope.sessionIds),
+            signal,
+          }),
+        catch: (cause) => new Error('Semantic transcript vector search failed.', { cause }),
+      })
       const rows = yield* loadSessionRows(
         this.sql,
         matches.map((match) => match.sessionId),

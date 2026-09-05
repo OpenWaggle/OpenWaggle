@@ -12,7 +12,6 @@ export interface ActiveLocalSessionSubscription {
 }
 
 export type LocalSessionSubscriptionPumpFrame =
-  | { readonly kind: 'cursor-advanced'; readonly cursor: SessionHostEventEnvelope['cursor'] }
   | { readonly kind: 'event'; readonly event: SessionHostEventEnvelope }
   | {
       readonly kind: 'resync-required'
@@ -39,15 +38,9 @@ export async function pumpLocalSessionSubscription(input: {
 }) {
   while (!input.closed() && input.active()) {
     const delivery = await input.subscription.next()
-    if (delivery.status === 'cursor-advanced') {
-      await input.send({ kind: 'cursor-advanced', cursor: delivery.cursor })
-      continue
-    }
+    if (delivery.status === 'cursor-advanced') continue
     if (delivery.status === 'event') {
-      if (await input.eventIsDenied(delivery.event)) {
-        await input.send({ kind: 'cursor-advanced', cursor: delivery.event.cursor })
-        continue
-      }
+      if (await input.eventIsDenied(delivery.event)) continue
       await input.send({ kind: 'event', event: delivery.event })
       continue
     }

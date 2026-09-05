@@ -1,15 +1,10 @@
+import * as DatabaseSchema from './database-schema'
+import { SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION } from './session-host-export-selected-path-migration'
 import {
-  CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
-  CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
-  CURRENT_SESSION_SCHEMA_STATEMENTS,
-  EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS,
-  EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS,
-  EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS,
-  EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS,
-  EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
-  SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
-} from './database-schema'
-import { SESSION_HOST_DATABASE_MIGRATION } from './session-host-migration'
+  SESSION_HOST_DATABASE_MIGRATION,
+  SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION,
+} from './session-host-migration'
+import { SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION } from './session-host-transcript-term-migration'
 
 export interface AppMigration {
   readonly id: number
@@ -178,43 +173,43 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `DROP TABLE IF EXISTS session_branches`,
       `DROP TABLE IF EXISTS session_nodes`,
       `DROP TABLE IF EXISTS sessions`,
-      ...CURRENT_SESSION_SCHEMA_STATEMENTS,
+      ...DatabaseSchema.CURRENT_SESSION_SCHEMA_STATEMENTS,
     ],
   },
   {
     id: 12,
     name: 'extension-lifecycle-state',
-    statements: [...EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS],
+    statements: [...DatabaseSchema.EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS],
   },
   {
     id: 13,
     name: 'extension-project-overrides',
-    statements: [...CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS],
+    statements: [...DatabaseSchema.CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS],
   },
   {
     id: 14,
     name: 'extension-lifecycle-package-version',
-    statements: [...EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS],
+    statements: [...DatabaseSchema.EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS],
   },
   {
     id: 15,
     name: 'extension-lifecycle-build-approval',
-    statements: [...EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS],
+    statements: [...DatabaseSchema.EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS],
   },
   {
     id: 16,
     name: 'extension-lifecycle-build-run',
-    statements: [...EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS],
+    statements: [...DatabaseSchema.EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS],
   },
   {
     id: 17,
     name: 'extension-lifecycle-reload-state',
-    statements: [...EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS],
+    statements: [...DatabaseSchema.EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS],
   },
   {
     id: 18,
     name: 'extension-storage-items',
-    statements: [...CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS],
+    statements: [...DatabaseSchema.CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS],
   },
   {
     id: 19,
@@ -294,7 +289,10 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     id: 25,
     name: 'session-authorization-mode-override',
     skipIfColumns: { table: 'sessions', columns: ['authorization_mode_override'] },
-    statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
+    statements: [...DatabaseSchema.SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
   SESSION_HOST_DATABASE_MIGRATION,
+  SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION,
+  SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION,
+  SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION,
 ]

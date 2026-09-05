@@ -21,6 +21,7 @@ interface TranscriptReadinessCount {
   readonly queued: number
   readonly revision: number
   readonly node_limit: number
+  readonly stale_scope_count: number
 }
 
 function transcriptReadinessStatus(input: {
@@ -28,7 +29,9 @@ function transcriptReadinessStatus(input: {
   readonly limited: boolean
   readonly state: TranscriptStateRow | undefined
   readonly compatibleState: boolean
+  readonly stale: boolean
 }): SemanticDiscoveryReadiness['status'] {
+  if (input.stale) return 'preparing'
   if (input.compatibleState && input.state?.status === 'failed' && input.queued > 0) {
     return 'failed'
   }
@@ -76,7 +79,10 @@ function readinessCount(
         WHERE session_id IN ${sql.in(sessionIds)}), 0) AS revision,
       COALESCE((SELECT MAX(node_limit) FROM session_transcript_semantic_scopes
         WHERE session_id IN ${sql.in(sessionIds)}),
-        ${STORAGE_POLICY.perSessionNodeLimit}) AS node_limit
+        ${STORAGE_POLICY.perSessionNodeLimit}) AS node_limit,
+      COALESCE((SELECT COUNT(*) FROM session_transcript_semantic_scopes
+        WHERE session_id IN ${sql.in(sessionIds)}
+          AND prepared_source_revision <> source_revision), 0) AS stale_scope_count
   `
 }
 
@@ -110,6 +116,7 @@ export function readTranscriptSemanticReadiness(input: {
       queued: 0,
       revision: 0,
       node_limit: STORAGE_POLICY.perSessionNodeLimit,
+      stale_scope_count: 0,
     }
     const state = stateRows[0]
     const limited = count.total > count.eligible || count.eligible > count.prepared + count.queued
@@ -121,6 +128,7 @@ export function readTranscriptSemanticReadiness(input: {
       limited,
       state,
       compatibleState,
+      stale: count.stale_scope_count > 0,
     })
     return {
       status,

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   activeRuns,
   cancelAllSessionRuns,
+  claimSessionWriterSuccessor,
   claimSessionWriterSuccessorAndWait,
   interruptExactSessionRun,
   interruptSessionWriterAndWait,
@@ -127,6 +128,29 @@ describe('active Session Runs', () => {
       token ?? undefined,
     )
     waggle.release()
+  })
+
+  it('queues a classic successor behind compaction without interrupting it', async () => {
+    const sessionId = SessionId('session-compaction-successor')
+    const compactionController = new AbortController()
+    const compaction = reserveCompactionSessionWriter(
+      sessionId,
+      compactionController,
+      SupportedModelId('provider/model'),
+    )
+
+    const claimed = claimSessionWriterSuccessor(sessionId, 'classic')
+
+    expect(claimed).not.toBeNull()
+    expect(compactionController.signal.aborted).toBe(false)
+    expect(() => reserveActiveSessionRun(sessionId, 'run-racer')).toThrow(
+      'active compaction Pi writer',
+    )
+
+    compaction.release()
+    await claimed?.settled
+    const successor = reserveActiveSessionRun(sessionId, 'run-after-compaction', claimed?.token)
+    successor.release()
   })
 
   it('releases an abandoned Waggle successor claim for later writers', async () => {

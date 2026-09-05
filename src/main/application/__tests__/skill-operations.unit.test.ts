@@ -5,6 +5,10 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  SkillDiagnosticService,
+  type SkillDiagnosticServiceShape,
+} from '../../ports/skill-diagnostic-service'
 import { SettingsService } from '../../services/settings-service'
 import {
   getSkillPreviewOperation,
@@ -44,6 +48,19 @@ function settingsLayer(input?: {
   })
 }
 
+function skillOperationsLayer(
+  diagnostic: SkillDiagnosticServiceShape['getVisualizeDiagnostic'] = () => Effect.succeed(null),
+  input?: Parameters<typeof settingsLayer>[0],
+) {
+  return Layer.mergeAll(
+    settingsLayer(input),
+    Layer.succeed(
+      SkillDiagnosticService,
+      SkillDiagnosticService.of({ getVisualizeDiagnostic: diagnostic }),
+    ),
+  )
+}
+
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })))
 })
@@ -51,19 +68,14 @@ afterEach(async () => {
 describe('skill operations', () => {
   it('lists and previews skills using persisted project toggles', async () => {
     const projectPath = await makeProjectWithSkill()
-    const layer = settingsLayer({
+    const layer = skillOperationsLayer(undefined, {
       settings: {
         ...DEFAULT_SETTINGS,
         skillTogglesByProject: { [projectPath]: { 'code-review': false } },
       },
     })
 
-    const catalog = await Effect.runPromise(
-      Effect.provide(
-        listSkillsOperation(projectPath, async () => null),
-        layer,
-      ),
-    )
+    const catalog = await Effect.runPromise(Effect.provide(listSkillsOperation(projectPath), layer))
     const preview = await Effect.runPromise(
       Effect.provide(getSkillPreviewOperation(projectPath, 'code-review'), layer),
     )
@@ -103,18 +115,20 @@ describe('skill operations', () => {
     const projectPath = await makeProjectWithSkill()
     const catalog = await Effect.runPromise(
       Effect.provide(
-        listSkillsOperation(projectPath, async () => ({
-          id: 'visualize',
-          name: 'Visualize',
-          description: 'Built-in visualization authoring is unavailable',
-          folderPath: '/built-in/visualize',
-          skillPath: '/built-in/visualize/SKILL.md',
-          hasScripts: true,
-          enabled: false,
-          loadStatus: 'error',
-          loadError: 'resource preparation failed',
-        })),
-        settingsLayer(),
+        listSkillsOperation(projectPath),
+        skillOperationsLayer(() =>
+          Effect.succeed({
+            id: 'visualize',
+            name: 'Visualize',
+            description: 'Built-in visualization authoring is unavailable',
+            folderPath: '/built-in/visualize',
+            skillPath: '/built-in/visualize/SKILL.md',
+            hasScripts: true,
+            enabled: false,
+            loadStatus: 'error',
+            loadError: 'resource preparation failed',
+          }),
+        ),
       ),
     )
 
@@ -122,14 +136,9 @@ describe('skill operations', () => {
   })
 
   it('rejects empty project paths and skill ids before reading settings', async () => {
-    const layer = settingsLayer()
+    const layer = skillOperationsLayer()
     await expect(
-      Effect.runPromise(
-        Effect.provide(
-          listSkillsOperation('', async () => null),
-          layer,
-        ),
-      ),
+      Effect.runPromise(Effect.provide(listSkillsOperation(''), layer)),
     ).rejects.toThrow()
     await expect(
       Effect.runPromise(Effect.provide(getSkillPreviewOperation('/project', ''), layer)),

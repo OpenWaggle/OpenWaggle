@@ -6,6 +6,7 @@ const ANSI_FINAL_MIN = 0x40
 const ANSI_FINAL_MAX = 0x7e
 const EMPTY_ARRAY_PAYLOAD = '[]'
 const EMPTY_OBJECT_PAYLOAD = '{}'
+const DIAGNOSTIC_PREFIX_LENGTH = 256
 const WHITESPACE = /\s/u
 
 function ansiSequenceEnd(stdout: string, start: number) {
@@ -84,6 +85,14 @@ function emptyPayloadEnd(stdout: string, start: number) {
   return null
 }
 
+function invalidStdout(stdout: string) {
+  const prefix = stdout.slice(0, DIAGNOSTIC_PREFIX_LENGTH)
+  const suffix = stdout.length > prefix.length ? '…' : ''
+  return new Error(
+    `OpenWaggle CLI stdout did not contain exactly one JSON object: ${JSON.stringify(prefix)}${suffix}`,
+  )
+}
+
 export function applicationCliStdout(
   stdout: string,
   platform: NodeJS.Platform = process.platform,
@@ -91,39 +100,32 @@ export function applicationCliStdout(
   if (platform !== 'linux') return stdout
 
   let cursor = formattingEnd(stdout, 0)
-  let foundEmptyPayload = false
 
   for (let payloadEnd = emptyPayloadEnd(stdout, cursor); payloadEnd !== null; ) {
-    foundEmptyPayload = true
     cursor = formattingEnd(stdout, payloadEnd)
     payloadEnd = emptyPayloadEnd(stdout, cursor)
   }
 
-  if (!foundEmptyPayload || stdout[cursor] !== '{') return stdout
+  if (stdout[cursor] !== '{') throw invalidStdout(stdout)
 
   const responseEnd = jsonObjectEnd(stdout, cursor)
-  if (responseEnd === null) return stdout
+  if (responseEnd === null) throw invalidStdout(stdout)
 
   const applicationResponse = stdout.slice(cursor, responseEnd)
   try {
-    if (!isJsonObject(JSON.parse(applicationResponse))) return stdout
+    if (!isJsonObject(JSON.parse(applicationResponse))) throw invalidStdout(stdout)
   } catch {
-    return stdout
+    throw invalidStdout(stdout)
   }
 
   let whitespaceEnd = responseEnd
   while (WHITESPACE.test(stdout[whitespaceEnd] ?? '')) whitespaceEnd += 1
 
   let trailingCursor = formattingEnd(stdout, responseEnd)
-  let foundTrailingPayload = false
   for (let payloadEnd = emptyPayloadEnd(stdout, trailingCursor); payloadEnd !== null; ) {
-    foundTrailingPayload = true
     trailingCursor = formattingEnd(stdout, payloadEnd)
     payloadEnd = emptyPayloadEnd(stdout, trailingCursor)
   }
-  if (trailingCursor !== stdout.length) return stdout
-  if (!foundTrailingPayload && stdout.slice(responseEnd).trim().length === 0) {
-    return stdout.slice(cursor)
-  }
+  if (trailingCursor !== stdout.length) throw invalidStdout(stdout)
   return `${applicationResponse}${stdout.slice(responseEnd, whitespaceEnd)}`
 }

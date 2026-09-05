@@ -96,18 +96,12 @@ describe('Local Session subscription admission fences', () => {
     await firstRefresh
     await vi.waitFor(() => expect(refreshCall).toBe(2))
 
-    const fencedEvent = eventHub.publish({
+    eventHub.publish({
       kind: 'session-state-changed',
       sessionId: 'session-allowed',
       stateRevision: 1,
       operation: 'message',
     })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: fencedEvent.cursor,
-    })
-
     releaseSecondRefresh()
     await secondRefresh
     const visibleEvent = eventHub.publish({
@@ -169,16 +163,11 @@ describe('Local Session subscription admission fences', () => {
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
     await fenceLocalSessionProfileAdmissions('mutable')
-    const updateWindowEvent = eventHub.publish({
+    eventHub.publish({
       kind: 'session-state-changed',
       sessionId: 'session-allowed',
       stateRevision: 1,
       operation: 'message',
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: updateWindowEvent.cursor,
     })
     await refreshLocalSessionProfileAdmissions('mutable', { consumeExistingFence: true })
     const refreshedEvent = eventHub.publish({
@@ -190,16 +179,11 @@ describe('Local Session subscription admission fences', () => {
     await expect(reader.next()).resolves.toMatchObject({ kind: 'event', event: refreshedEvent })
 
     await fenceLocalSessionProfileAdmissions('mutable')
-    const revokeWindowEvent = eventHub.publish({
+    eventHub.publish({
       kind: 'session-state-changed',
       sessionId: 'session-allowed',
       stateRevision: 3,
       operation: 'message',
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: revokeWindowEvent.cursor,
     })
     const closed = new Promise<void>((resolve) => client?.once('close', () => resolve()))
     disconnectLocalSessionProfile('mutable')

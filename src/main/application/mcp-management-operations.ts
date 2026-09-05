@@ -1,11 +1,10 @@
 import * as Effect from 'effect/Effect'
-import { mcpOAuthVaultAuthority } from '../adapters/mcp/oauth-vault-authority'
-import { mcpOAuthVaultKey } from '../domain/mcp/oauth-vault-key'
 import {
   partitionServerLogoutSecretReferences,
   secretReferences,
 } from '../mcp-cli-secret-references'
 import { McpConfigService } from '../ports/mcp-config-service'
+import { McpOAuthService } from '../ports/mcp-oauth-service'
 import { McpRuntimeService } from '../ports/mcp-runtime-service'
 import { McpSecretVaultService } from '../ports/mcp-secret-vault-service'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
@@ -216,6 +215,7 @@ export function logoutMcpServerOperation(raw: unknown) {
     const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server logout')
     const input = yield* validateMcpProjectInput(decoded)
     const config = yield* McpConfigService
+    const oauth = yield* McpOAuthService
     const vault = yield* McpSecretVaultService
     const runtime = yield* McpRuntimeService
     let vaultMutationAttempted = false
@@ -235,13 +235,7 @@ export function logoutMcpServerOperation(raw: unknown) {
           })
           if (server.definition.auth?.type === 'oauth') {
             vaultMutationAttempted = true
-            yield* Effect.tryPromise({
-              try: () =>
-                mcpOAuthVaultAuthority.revoke(server.instanceId, () =>
-                  Effect.runPromise(vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })),
-                ),
-              catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-            })
+            yield* oauth.revoke(server.instanceId)
           }
           for (const name of partition.removable) {
             vaultMutationAttempted = true
@@ -272,7 +266,7 @@ export function logoutMcpServerRevision6Operation(raw: unknown) {
     const decoded = yield* decodeMcpOperationInput(mcpRemoveServerSchema, raw, 'server logout')
     const input = yield* validateMcpProjectInput(decoded)
     const config = yield* McpConfigService
-    const vault = yield* McpSecretVaultService
+    const oauth = yield* McpOAuthService
     const runtime = yield* McpRuntimeService
     let vaultMutationAttempted = false
     return yield* Effect.uninterruptible(
@@ -280,13 +274,7 @@ export function logoutMcpServerRevision6Operation(raw: unknown) {
         Effect.gen(function* () {
           const server = yield* config.getServerDefinition(input)
           vaultMutationAttempted = true
-          yield* Effect.tryPromise({
-            try: () =>
-              mcpOAuthVaultAuthority.revoke(server.instanceId, () =>
-                Effect.runPromise(vault.remove({ name: mcpOAuthVaultKey(server.instanceId) })),
-              ),
-            catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-          })
+          yield* oauth.revoke(server.instanceId)
           return { loggedOut: true as const }
         }).pipe(
           Effect.ensuring(

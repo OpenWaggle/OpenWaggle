@@ -50,16 +50,21 @@ export function readExportPage(
   manifest: SessionExportManifest | undefined,
   afterCreatedOrder: number | undefined,
 ) {
-  return repository.execute({ request: exportQuery(operation, manifest, afterCreatedOrder) }).pipe(
-    Effect.flatMap((response) => {
-      const outcome = response.outcome
-      if (outcome.operation !== 'export' || 'error' in outcome) {
-        const message = 'error' in outcome ? outcome.error.message : 'Invalid export response.'
-        return Effect.fail(new Error(message))
-      }
-      return Effect.succeed(outcome)
-    }),
-  )
+  return repository
+    .execute({
+      exportMaterializationOperationId: operation.exportOperationId,
+      request: exportQuery(operation, manifest, afterCreatedOrder),
+    })
+    .pipe(
+      Effect.flatMap((response) => {
+        const outcome = response.outcome
+        if (outcome.operation !== 'export' || 'error' in outcome) {
+          const message = 'error' in outcome ? outcome.error.message : 'Invalid export response.'
+          return Effect.fail(new Error(message))
+        }
+        return Effect.succeed(outcome)
+      }),
+    )
 }
 
 export function checkExportCancellation(

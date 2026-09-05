@@ -74,20 +74,20 @@ export interface SessionRepositoryShape {
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
-  readonly listCatalogPage?: (
+  readonly listCatalogPage: (
     archived: boolean,
     limit: number,
     cursor?: string,
   ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>
-  readonly listByIds?: (
+  readonly listByIds: (
     sessionIds: readonly SessionId[],
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
-  readonly listHiveCatalogPage?: (
+  readonly listHiveCatalogPage: (
     sessionId: SessionId,
     limit: number,
     cursor?: string,
   ) => Effect.Effect<HiveSessionCatalogPage, SessionProjectionRepositoryError>
-  readonly listArchivedBranchCatalogPage?: (
+  readonly listArchivedBranchCatalogPage: (
     limit: number,
     cursor?: string,
   ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>

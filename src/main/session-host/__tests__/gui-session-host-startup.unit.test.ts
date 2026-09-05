@@ -31,16 +31,16 @@ describe('GUI Session Host startup', () => {
   it('always reserves canonical store ownership for the detached Host', async () => {
     const startup = await prepareGuiSessionHostStartup({
       userDataRoot: '/tmp/openwaggle-test',
-      clientVersion: 'test',
       startupMark: startupMarkMock,
     })
 
     expect(prepareLocalSessionHostPathsMock).toHaveBeenCalledOnce()
     expect(startupMarkMock).toHaveBeenCalledWith('session-host-paths-ready')
-    expect(startup.databaseAccess).toBe('client-isolated')
-    await expect(startup.ownership.ensure()).rejects.toThrow(
-      'The GUI cannot own the canonical Session Host store.',
-    )
-    await expect(startup.ownership.release()).resolves.toBeUndefined()
+    expect(startup).toEqual({
+      paths: expect.objectContaining({
+        endpoint: '/tmp/openwaggle.sock',
+        databasePath: '/tmp/session-host.db',
+      }),
+    })
   })
 })

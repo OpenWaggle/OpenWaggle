@@ -3,6 +3,7 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from '../../application/__tests__/session-repository-test-support'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
@@ -204,6 +205,7 @@ const TestAgentKernelLayer = Layer.succeed(
 )
 
 const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),

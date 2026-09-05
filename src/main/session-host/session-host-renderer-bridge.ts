@@ -1,7 +1,7 @@
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
-import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   clearAgentPhase,
@@ -17,14 +17,14 @@ import { watchLocalSessionEvents } from './local-session-client'
 import { ensureLocalSessionHost } from './local-session-host-launcher'
 import type { LocalSessionHostRuntime } from './local-session-host-runtime'
 import type { LocalSessionHostPaths } from './local-session-paths'
+import {
+  type RemoteSessionHostRendererBridgeDependencies,
+  runRemoteSessionHostRendererPump,
+} from './session-host-renderer-recovery'
 
-const REMOTE_RECONNECT_DELAY_MS = 250
+const logger = createLogger('session-host/renderer-bridge')
 
-export interface RemoteSessionHostRendererBridgeDependencies {
-  readonly watch: typeof watchLocalSessionEvents
-  readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
-  readonly wait: (milliseconds: number) => Promise<void>
-}
+export type { RemoteSessionHostRendererBridgeDependencies }
 
 export function reconcileRemoteRunSnapshots(snapshots: readonly BackgroundRunSnapshot[]) {
   const previous = replaceStreamBufferSnapshots(snapshots)
@@ -130,60 +130,36 @@ export function startRemoteSessionHostRendererBridge(
   const dependencies: RemoteSessionHostRendererBridgeDependencies = {
     watch: watchLocalSessionEvents,
     ensure: ensureLocalSessionHost,
-    wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    wait: (milliseconds, signal) =>
+      new Promise((resolve, reject) => {
+        signal?.throwIfAborted()
+        const abort = () => {
+          clearTimeout(timer)
+          reject(signal?.reason)
+        }
+        const timer = setTimeout(() => {
+          signal?.removeEventListener('abort', abort)
+          resolve()
+        }, milliseconds)
+        signal?.addEventListener('abort', abort, { once: true })
+      }),
+    logger,
     ...dependencyOverrides,
   }
   const abortController = new AbortController()
-  let after: SessionHostEventEnvelope['cursor'] | undefined
-  let pendingResyncReason: string | undefined
-  const pump = async () => {
-    while (!abortController.signal.aborted) {
-      try {
-        const result = await dependencies.watch({
-          paths: input.paths,
-          clientKind: 'gui',
-          clientVersion: input.clientVersion,
-          supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
-          workingDirectory: process.cwd(),
-          ...(after ? { after } : {}),
-          signal: abortController.signal,
-          onSnapshot: (snapshots) => {
-            reconcileRemoteRunSnapshots(snapshots)
-            if (!pendingResyncReason) return
-            const reason = pendingResyncReason
-            pendingResyncReason = undefined
-            broadcastToWindows('session-host:resync-required', { reason })
-          },
-          onCursor: (cursor) => {
-            after = cursor
-          },
-          onEvent: (event) => {
-            after = event.cursor
-            relaySessionHostEvent(event)
-          },
-        })
-        if (result.status === 'resync-required') {
-          after = undefined
-          pendingResyncReason = result.reason
-        }
-      } catch {
-        // The last cursor is retained so a same-host reconnect replays the missed window.
-        if (!abortController.signal.aborted) {
-          await dependencies
-            .ensure({
-              paths: input.paths,
-              clientKind: 'gui',
-              clientVersion: input.clientVersion,
-              supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
-            })
-            .catch(() => undefined)
-        }
-      }
-      if (!abortController.signal.aborted) {
-        await dependencies.wait(REMOTE_RECONNECT_DELAY_MS)
-      }
-    }
+  const pumpPromise = runRemoteSessionHostRendererPump({
+    paths: input.paths,
+    clientVersion: input.clientVersion,
+    dependencies,
+    signal: abortController.signal,
+    handlers: {
+      onSnapshot: reconcileRemoteRunSnapshots,
+      onResyncRequired: (reason) => broadcastToWindows('session-host:resync-required', { reason }),
+      onEvent: relaySessionHostEvent,
+    },
+  })
+  return async () => {
+    abortController.abort()
+    await pumpPromise
   }
-  void pump()
-  return () => abortController.abort()
 }

@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Fiber from 'effect/Fiber'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
+import { McpOAuthServiceLive } from '../../adapters/mcp/mcp-oauth-service'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import {
@@ -48,10 +49,12 @@ describe('MCP authorization identity lease', () => {
       set: setSecret,
       remove: () => Effect.succeed([]),
     })
+    const vaultLayer = Layer.succeed(McpSecretVaultService, vault)
     const layer = Layer.mergeAll(
       Layer.succeed(McpConfigService, config),
       Layer.succeed(McpRuntimeService, runtime),
-      Layer.succeed(McpSecretVaultService, vault),
+      vaultLayer,
+      McpOAuthServiceLive.pipe(Layer.provide(vaultLayer)),
     )
     mocks.authorize.mockResolvedValueOnce({ authorized: true, browserOpened: false })
 
@@ -104,10 +107,12 @@ describe('MCP authorization identity lease', () => {
       set: setSecret,
       remove: () => Effect.succeed([]),
     })
+    const vaultLayer = Layer.succeed(McpSecretVaultService, vault)
     const layer = Layer.mergeAll(
       Layer.succeed(McpConfigService, config),
       Layer.succeed(McpRuntimeService, runtime),
-      Layer.succeed(McpSecretVaultService, vault),
+      vaultLayer,
+      McpOAuthServiceLive.pipe(Layer.provide(vaultLayer)),
     )
     const fiber = Effect.runFork(
       Effect.provide(
@@ -145,10 +150,12 @@ describe('MCP authorization identity lease', () => {
       set: () => Effect.succeed([]),
       remove: () => Effect.succeed([]),
     })
+    const vaultLayer = Layer.succeed(McpSecretVaultService, vault)
     const layer = Layer.mergeAll(
       Layer.succeed(McpConfigService, config),
       Layer.succeed(McpRuntimeService, runtime),
-      Layer.succeed(McpSecretVaultService, vault),
+      vaultLayer,
+      McpOAuthServiceLive.pipe(Layer.provide(vaultLayer)),
     )
 
     await expect(

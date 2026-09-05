@@ -7,6 +7,7 @@ import type {
   SessionLifecycleResponse,
 } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
+import { createLogger } from '../logger'
 import { SessionLifecycleIdentityService } from '../ports/session-lifecycle-identity-service'
 import {
   type PreparedSessionLifecycleAttempt,
@@ -14,6 +15,8 @@ import {
   SessionLifecyclePreparationService,
 } from '../ports/session-lifecycle-preparation-service'
 import { SessionLifecycleRepository } from '../ports/session-lifecycle-repository'
+
+const logger = createLogger('session-lifecycle-service')
 
 export interface ExecuteSessionLifecycleCommandInput {
   readonly callerId: string
@@ -123,7 +126,17 @@ export function executeSessionLifecycle(
         reason: response.replayed ? 'replayed' : 'rejected',
       })
     } else {
-      yield* preparation.commit({ attempt })
+      yield* preparation.commit({ attempt }).pipe(
+        Effect.catchAllCause((cause) =>
+          Effect.sync(() => {
+            logger.warn('Lifecycle preparation cleanup failed after durable commit.', {
+              attemptId: attempt.attemptId,
+              cause: String(cause),
+              sessionId: attempt.session.sessionId,
+            })
+          }),
+        ),
+      )
     }
     return response
   })

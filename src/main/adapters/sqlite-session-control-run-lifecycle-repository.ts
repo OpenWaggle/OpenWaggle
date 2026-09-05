@@ -37,6 +37,7 @@ interface PendingOperationRow {
 }
 
 const PROMOTION_SETTLEMENT_RETRY_DELAY_MS = 100
+const PROMOTION_SETTLEMENT_RETRY_LIMIT = 10
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
@@ -168,6 +169,7 @@ function replaceWithExternal(
 function settle(
   sql: SqlClient.SqlClient,
   input: SettleInput,
+  promotionRetriesRemaining = PROMOTION_SETTLEMENT_RETRY_LIMIT,
 ): ReturnType<SessionControlRunLifecycleRepositoryShape['settle']> {
   return sql
     .withTransaction(
@@ -211,9 +213,16 @@ function settle(
       Effect.flatMap((outcome) =>
         outcome.status === 'settled'
           ? Effect.succeed(outcome.result)
-          : Effect.sleep(PROMOTION_SETTLEMENT_RETRY_DELAY_MS).pipe(
-              Effect.zipRight(settle(sql, input)),
-            ),
+          : promotionRetriesRemaining <= 0
+            ? Effect.fail(
+                repositoryError('settle-run-promotion-pending', {
+                  runId: input.runId,
+                  sessionId: input.sessionId,
+                }),
+              )
+            : Effect.sleep(PROMOTION_SETTLEMENT_RETRY_DELAY_MS).pipe(
+                Effect.zipRight(settle(sql, input, promotionRetriesRemaining - 1)),
+              ),
       ),
       Effect.mapError((cause) =>
         cause instanceof SessionControlRepositoryError

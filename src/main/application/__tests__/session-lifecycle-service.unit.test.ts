@@ -3,7 +3,7 @@ import type { SessionLifecycleRequest } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
-import { SessionLifecycleRepositoryError } from '../../errors'
+import { SessionLifecyclePreparationError, SessionLifecycleRepositoryError } from '../../errors'
 import { SessionLifecycleIdentityService } from '../../ports/session-lifecycle-identity-service'
 import {
   type PreparedSessionLifecycleAttempt,
@@ -189,6 +189,52 @@ describe('Session lifecycle service', () => {
     )
 
     expect(discarded).toEqual(['rejected'])
+  })
+
+  it('returns the committed response when preparation cleanup must be retried at startup', async () => {
+    const committedResponse = {
+      contractVersion: 2 as const,
+      requestId: request.requestId,
+      idempotencyKey: request.idempotencyKey,
+      replayed: false,
+      outcome: {
+        operation: 'spawn' as const,
+        effect: 'spawned-worker' as const,
+        sessionId: 'session-worker',
+        runId: 'run-worker',
+        workspaceId: 'workspace-parent',
+        parentSessionId: 'session-parent',
+        parentRunId: 'run-parent',
+        hiveRootSessionId: 'session-parent',
+        depth: 1,
+        delegationId: 'delegation-worker',
+        derivedGrantId: 'grant-worker',
+      },
+    }
+    const layer = Layer.mergeAll(
+      identityLayer(),
+      Layer.succeed(SessionLifecyclePreparationService, {
+        prepare: () => Effect.succeed(prepared),
+        discard: () => Effect.void,
+        commit: () =>
+          Effect.fail(
+            new SessionLifecyclePreparationError({
+              operation: 'commit-attempt',
+              cause: new Error('temporary cleanup failure'),
+            }),
+          ),
+        recoverPending: Effect.void,
+      }),
+      Layer.succeed(SessionLifecycleRepository, {
+        execute: () => Effect.succeed(committedResponse),
+      }),
+    )
+
+    await expect(
+      Effect.runPromise(
+        executeSessionLifecycle({ callerId: 'local-user', request }).pipe(Effect.provide(layer)),
+      ),
+    ).resolves.toEqual(committedResponse)
   })
 
   it('discards prepared resources when persistence fails', async () => {

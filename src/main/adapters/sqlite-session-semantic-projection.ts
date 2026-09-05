@@ -1,23 +1,29 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type { SemanticDiscoveryReadiness } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
+import {
+  SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
+  type SessionSemanticDiscoveryStoragePolicy,
+} from '../domain/session-semantic-discovery-storage-policy'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { sessionDiscoveryDocument } from './session-discovery-document'
 import { embedPassagesInBatches } from './session-embedding-batches'
-import { encodeFloat32Vector } from './session-flat-vector-index'
 import {
-  loadCurrentSemanticProjectionRows,
+  loadSessionSemanticProjectionRows,
+  publishSessionSemanticProjectionBatch,
+} from './sqlite-session-semantic-projection-batch'
+import {
   loadSemanticProjectionCounts,
   reconcileSemanticProjectionModel,
-  type SessionSemanticProjectionRow,
+  reconcileSemanticProjectionStorage,
+  semanticProjectionReadinessStatus,
 } from './sqlite-session-semantic-projection-source'
 
 export { sessionDiscoveryDocument } from './session-discovery-document'
 
 const DEFAULT_PROJECTION_BATCH_SIZE = 128
 const EMBEDDING_INFERENCE_BATCH_SIZE = 32
-
 interface SemanticStateRow {
   readonly status: 'preparing' | 'ready' | 'failed'
   readonly model_id: string
@@ -28,161 +34,62 @@ interface SemanticStateRow {
   readonly preparation_operation_id: string | null
   readonly failure_message: string | null
   readonly updated_at: number
+  readonly eligible_count: number
 }
-
-function sourceHash(value: string) {
-  return createHash('sha256').update(value).digest('hex')
+interface SemanticStorageCountRow {
+  readonly session_count: number
+  readonly prepared_count: number
+  readonly pending_count: number
+  readonly hot_prepared_count: number
+  readonly hot_pending_count: number
 }
-
-function loadProjectionRows(sql: SqlClient.SqlClient, limit: number) {
-  return sql<SessionSemanticProjectionRow>`
-    SELECT queue.session_id, sessions.title, queue.queued_at,
-      specifications.specification_json,
-      discovery_rows.initial_objective AS initial_text,
-      discovery_rows.current_preview AS preview_text
-    FROM session_discovery_embedding_queue AS queue
-    JOIN sessions ON sessions.id = queue.session_id
-    LEFT JOIN session_discovery_search_rows AS discovery_rows
-      ON discovery_rows.session_id = sessions.id
-    LEFT JOIN delegation_contracts AS contracts ON contracts.child_session_id = sessions.id
-    LEFT JOIN delegation_specifications AS specifications
-      ON specifications.delegation_id = contracts.id
-      AND specifications.revision = contracts.current_specification_revision
-    ORDER BY queue.queued_at, queue.session_id
-    LIMIT ${limit}
-  `
-}
-
-function publishProjectionBatch(
-  sql: SqlClient.SqlClient,
-  model: SessionEmbeddingModel,
-  rows: readonly SessionSemanticProjectionRow[],
-  vectors: readonly Float32Array[],
-  preparationOperationId: string,
-  now: number,
-) {
-  return sql.withTransaction(
-    Effect.gen(function* () {
-      const publishable: Array<{
-        readonly row: SessionSemanticProjectionRow
-        readonly vector: Float32Array
-        readonly document: string
-      }> = []
-      const currentRows = yield* loadCurrentSemanticProjectionRows(
-        sql,
-        rows.map((row) => row.session_id),
-      )
-      const currentBySessionId = new Map(currentRows.map((row) => [row.session_id, row]))
-      for (const [index, row] of rows.entries()) {
-        const vector = vectors[index]
-        if (!vector || vector.length !== model.metadata.dimensions) {
-          return yield* Effect.fail(new Error('Semantic projection vector dimensions mismatch.'))
-        }
-        const document = sessionDiscoveryDocument(row)
-        const current = currentBySessionId.get(row.session_id)
-        if (
-          current?.queued_at === row.queued_at &&
-          sessionDiscoveryDocument(current) === document
-        ) {
-          publishable.push({ row, vector, document })
-        }
-      }
-      if (publishable.length === 0) {
-        const counts = (yield* loadSemanticProjectionCounts(sql, model))[0] ?? {
-          prepared: 0,
-          pending: 0,
-          revision: 0,
-        }
-        return { prepared: 0, pending: counts.pending, snapshotRevision: counts.revision }
-      }
-      const revisions = yield* sql<{ readonly revision: number }>`
-        SELECT MAX(
-          COALESCE(MAX(snapshot_revision), 0),
-          COALESCE((
-            SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
-          ), 0)
-        ) + 1 AS revision
-        FROM session_discovery_embeddings
-      `
-      const revision = revisions[0]?.revision ?? 1
-      for (const { row, vector, document } of publishable) {
-        yield* sql`
-          INSERT INTO session_discovery_embeddings (
-            session_id, model_id, model_revision, dimensions, source_hash,
-            vector, snapshot_revision, updated_at
-          ) VALUES (
-            ${row.session_id}, ${model.metadata.id}, ${model.metadata.revision},
-            ${model.metadata.dimensions}, ${sourceHash(document)}, ${encodeFloat32Vector(vector)},
-            ${revision}, ${now}
-          )
-          ON CONFLICT(session_id) DO UPDATE SET
-            model_id = excluded.model_id, model_revision = excluded.model_revision,
-            dimensions = excluded.dimensions, source_hash = excluded.source_hash,
-            vector = excluded.vector, snapshot_revision = excluded.snapshot_revision,
-            updated_at = excluded.updated_at
-        `
-        yield* sql`
-          DELETE FROM session_discovery_embedding_deletions
-          WHERE session_id = ${row.session_id}
-        `
-        yield* sql`
-          DELETE FROM session_discovery_embedding_queue
-          WHERE session_id = ${row.session_id} AND queued_at = ${row.queued_at}
-        `
-      }
-      const counts = yield* sql<{ readonly prepared: number; readonly pending: number }>`
-        SELECT
-          (SELECT COUNT(*) FROM session_discovery_embeddings
-            WHERE model_id = ${model.metadata.id}
-              AND model_revision = ${model.metadata.revision}
-              AND dimensions = ${model.metadata.dimensions}) AS prepared,
-          (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending
-      `
-      const count = counts[0] ?? { prepared: 0, pending: 0 }
-      yield* sql`
-        INSERT INTO session_semantic_discovery_state (
-          singleton, status, model_id, model_revision, dimensions,
-          snapshot_revision, prepared_count, pending_count,
-          preparation_operation_id, updated_at
-        ) VALUES (
-          ${1}, ${count.pending === 0 ? 'ready' : 'preparing'}, ${model.metadata.id},
-          ${model.metadata.revision}, ${model.metadata.dimensions}, ${revision},
-          ${count.prepared}, ${count.pending}, ${preparationOperationId}, ${now}
-        )
-        ON CONFLICT(singleton) DO UPDATE SET
-          status = excluded.status, model_id = excluded.model_id,
-          model_revision = excluded.model_revision, dimensions = excluded.dimensions,
-          snapshot_revision = excluded.snapshot_revision,
-          prepared_count = excluded.prepared_count, pending_count = excluded.pending_count,
-          preparation_operation_id = excluded.preparation_operation_id,
-          failure_message = NULL, updated_at = excluded.updated_at
-      `
-      return { prepared: publishable.length, pending: count.pending, snapshotRevision: revision }
-    }),
-  )
-}
-
 export class SqliteSessionSemanticProjection {
   readonly #preparationOperationId = randomUUID()
   #modelRevisionReconciled = false
+  #storageReconciled = false
 
   constructor(
     private readonly sql: SqlClient.SqlClient,
     private readonly model: SessionEmbeddingModel,
-  ) {}
-
+    private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
+  ) {
+    if (!Number.isSafeInteger(storagePolicy.recordLimit) || storagePolicy.recordLimit < 1) {
+      throw new Error('Semantic discovery record limit must be a positive safe integer.')
+    }
+  }
   readiness() {
     return Effect.gen(this, function* () {
-      yield* this.#ensureModelRevision()
+      yield* this.#ensureProjectionStorage()
       const rows = yield* this.sql<SemanticStateRow>`
         SELECT status, model_id, model_revision, snapshot_revision,
-          prepared_count, pending_count, preparation_operation_id, failure_message, updated_at
+          (SELECT COUNT(*)
+            FROM session_discovery_embeddings AS embeddings
+            JOIN (
+              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
+              LIMIT ${this.storagePolicy.recordLimit}
+            ) AS hot_sessions ON hot_sessions.id = embeddings.session_id
+            WHERE embeddings.model_id = ${this.model.metadata.id}
+              AND embeddings.model_revision = ${this.model.metadata.revision}
+              AND embeddings.dimensions = ${this.model.metadata.dimensions}) AS prepared_count,
+          (SELECT COUNT(*)
+            FROM session_discovery_embedding_queue AS queue
+            JOIN (
+              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
+              LIMIT ${this.storagePolicy.recordLimit}
+            ) AS hot_sessions ON hot_sessions.id = queue.session_id) AS pending_count,
+          preparation_operation_id, failure_message, updated_at,
+          (SELECT COUNT(*) FROM sessions) AS eligible_count
         FROM session_semantic_discovery_state WHERE singleton = 1
       `
       const row = rows[0]
       if (!row) {
         const pending = yield* this.sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count FROM session_discovery_embedding_queue
+          SELECT COUNT(*) AS count
+          FROM session_discovery_embedding_queue AS queue
+          JOIN (
+            SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
+            LIMIT ${this.storagePolicy.recordLimit}
+          ) AS hot_sessions ON hot_sessions.id = queue.session_id
         `
         return {
           status: 'unavailable',
@@ -190,50 +97,68 @@ export class SqliteSessionSemanticProjection {
           reason: 'Semantic discovery has not been prepared.',
         } satisfies SemanticDiscoveryReadiness
       }
+      const status = semanticProjectionReadinessStatus(row, this.storagePolicy.recordLimit)
+      const partial = status === 'partial'
       return {
-        status: row.status,
+        status,
         modelId: row.model_id,
         modelRevision: row.model_revision,
         snapshotRevision: row.snapshot_revision,
-        coverage:
-          row.prepared_count + row.pending_count === 0
-            ? 1
-            : row.prepared_count / (row.prepared_count + row.pending_count),
+        coverage: row.eligible_count === 0 ? 1 : row.prepared_count / row.eligible_count,
         pendingCount: row.pending_count,
         updatedAt: row.updated_at,
         ...(row.preparation_operation_id
           ? { preparationOperationId: row.preparation_operation_id }
           : {}),
-        ...(row.failure_message ? { reason: row.failure_message } : {}),
+        ...(partial
+          ? {
+              reason:
+                `Semantic discovery covers the ${String(this.storagePolicy.recordLimit)} most ` +
+                `recently updated Sessions out of ${String(row.eligible_count)}; older Sessions ` +
+                'remain discoverable through lexical search.',
+            }
+          : row.failure_message
+            ? { reason: row.failure_message }
+            : {}),
       } satisfies SemanticDiscoveryReadiness
     })
   }
-
   prepareNextBatch(limit = DEFAULT_PROJECTION_BATCH_SIZE) {
     return Effect.gen(this, function* () {
-      yield* this.#ensureModelRevision()
-      const rows = yield* loadProjectionRows(this.sql, limit)
-      if (rows.length === 0) return { prepared: 0, pending: 0 }
+      yield* this.#prepareProjectionStorage()
+      const rows = yield* loadSessionSemanticProjectionRows(
+        this.sql,
+        limit,
+        this.storagePolicy.recordLimit,
+      )
+      if (rows.length === 0) {
+        return { prepared: 0, pending: 0 }
+      }
       yield* this.#markPreparing()
       const documents = rows.map(sessionDiscoveryDocument)
       const vectors = yield* Effect.tryPromise({
         try: () => embedPassagesInBatches(this.model, documents, EMBEDDING_INFERENCE_BATCH_SIZE),
         catch: (cause) => new Error('Semantic Session projection failed.', { cause }),
       })
-      return yield* publishProjectionBatch(
+      return yield* publishSessionSemanticProjectionBatch(
         this.sql,
         this.model,
         rows,
         vectors,
         this.#preparationOperationId,
         Date.now(),
+        this.storagePolicy.recordLimit,
       )
     })
   }
-
   recordFailure(message: string) {
     return Effect.gen(this, function* () {
-      const counts = yield* loadSemanticProjectionCounts(this.sql, this.model)
+      yield* this.#reconcileProjectionStorage()
+      const counts = yield* loadSemanticProjectionCounts(
+        this.sql,
+        this.model,
+        this.storagePolicy.recordLimit,
+      )
       const count = counts[0] ?? { prepared: 0, pending: 0, revision: 0 }
       yield* this.sql`
         INSERT INTO session_semantic_discovery_state (
@@ -257,7 +182,11 @@ export class SqliteSessionSemanticProjection {
 
   #markPreparing() {
     return Effect.gen(this, function* () {
-      const counts = yield* loadSemanticProjectionCounts(this.sql, this.model)
+      const counts = yield* loadSemanticProjectionCounts(
+        this.sql,
+        this.model,
+        this.storagePolicy.recordLimit,
+      )
       const count = counts[0] ?? { prepared: 0, pending: 0, revision: 0 }
       yield* this.sql`
         INSERT INTO session_semantic_discovery_state (
@@ -282,8 +211,76 @@ export class SqliteSessionSemanticProjection {
   #ensureModelRevision() {
     return Effect.gen(this, function* () {
       if (this.#modelRevisionReconciled) return
-      yield* reconcileSemanticProjectionModel(this.sql, this.model, this.#preparationOperationId)
+      yield* reconcileSemanticProjectionModel(
+        this.sql,
+        this.model,
+        this.#preparationOperationId,
+        this.storagePolicy,
+      )
       this.#modelRevisionReconciled = true
+    })
+  }
+
+  #ensureProjectionStorage() {
+    return Effect.gen(this, function* () {
+      yield* this.#ensureModelRevision()
+      if (this.#storageReconciled) return
+      yield* this.#reconcileProjectionStorage()
+    })
+  }
+
+  #prepareProjectionStorage() {
+    return Effect.gen(this, function* () {
+      yield* this.#ensureProjectionStorage()
+      const rows = yield* this.sql<SemanticStorageCountRow>`
+        SELECT
+          (SELECT COUNT(*) FROM sessions) AS session_count,
+          (SELECT COUNT(*) FROM session_discovery_embeddings
+            WHERE model_id = ${this.model.metadata.id}
+              AND model_revision = ${this.model.metadata.revision}
+              AND dimensions = ${this.model.metadata.dimensions}) AS prepared_count,
+          (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending_count,
+          (SELECT COUNT(*)
+            FROM session_discovery_embeddings AS embeddings
+            JOIN (
+              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
+              LIMIT ${this.storagePolicy.recordLimit}
+            ) AS hot_sessions ON hot_sessions.id = embeddings.session_id
+            WHERE embeddings.model_id = ${this.model.metadata.id}
+              AND embeddings.model_revision = ${this.model.metadata.revision}
+              AND embeddings.dimensions = ${this.model.metadata.dimensions}
+          ) AS hot_prepared_count,
+          (SELECT COUNT(*)
+            FROM session_discovery_embedding_queue AS queue
+            JOIN (
+              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
+              LIMIT ${this.storagePolicy.recordLimit}
+            ) AS hot_sessions ON hot_sessions.id = queue.session_id
+          ) AS hot_pending_count
+      `
+      const row = rows[0]
+      if (!row) return
+      const queueExceedsLimit = row.pending_count > this.storagePolicy.recordLimit
+      const expectedHotRecordCount = Math.min(row.session_count, this.storagePolicy.recordLimit)
+      const storageTierIsCurrent =
+        row.prepared_count === row.hot_prepared_count &&
+        row.pending_count === row.hot_pending_count &&
+        row.hot_prepared_count + row.hot_pending_count === expectedHotRecordCount
+      if (!queueExceedsLimit && storageTierIsCurrent) return
+      yield* this.#reconcileProjectionStorage()
+    })
+  }
+
+  #reconcileProjectionStorage() {
+    return Effect.gen(this, function* () {
+      yield* this.#ensureModelRevision()
+      yield* reconcileSemanticProjectionStorage(
+        this.sql,
+        this.model,
+        this.#preparationOperationId,
+        this.storagePolicy,
+      )
+      this.#storageReconciled = true
     })
   }
 }

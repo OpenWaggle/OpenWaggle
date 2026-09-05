@@ -17,6 +17,12 @@ function makeLayer(filename: string) {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql.unsafe('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
+      yield* sql.unsafe(`
+        CREATE TABLE session_nodes (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE
+        )
+      `)
       for (const statement of SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS) {
         yield* sql.unsafe(statement)
       }

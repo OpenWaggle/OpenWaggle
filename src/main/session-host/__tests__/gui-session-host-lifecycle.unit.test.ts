@@ -5,7 +5,6 @@ const {
   ensureLocalSessionHostMock,
   prepareLocalSessionHostPathsMock,
   probeLocalSessionHostMock,
-  startAppSessionHostMock,
   startRemoteSessionHostRendererBridgeMock,
   stopRendererBridgeMock,
 } = vi.hoisted(() => ({
@@ -13,14 +12,12 @@ const {
   ensureLocalSessionHostMock: vi.fn(async () => undefined),
   prepareLocalSessionHostPathsMock: vi.fn(async (paths: object) => paths),
   probeLocalSessionHostMock: vi.fn(async () => undefined),
-  startAppSessionHostMock: vi.fn(),
   startRemoteSessionHostRendererBridgeMock: vi.fn(),
   stopRendererBridgeMock: vi.fn(),
 }))
 
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   configureGuiSessionCommandClient: configureGuiSessionCommandClientMock,
-  retireGuiSessionCommandClientForUpgrade: vi.fn(),
 }))
 vi.mock('../local-session-client', () => ({
   LocalSessionHostUpgradePendingError: class extends Error {},
@@ -50,10 +47,8 @@ vi.mock('../session-host-cutover', () => ({
 vi.mock('../legacy-session-writer-fence', () => ({
   withLegacySessionWriterFence: (operation: () => Promise<unknown>) => operation(),
 }))
-vi.mock('../session-host-bootstrap', () => ({ startAppSessionHost: startAppSessionHostMock }))
 vi.mock('../session-host-renderer-bridge', () => ({
   startRemoteSessionHostRendererBridge: startRemoteSessionHostRendererBridgeMock,
-  startSessionHostRendererBridge: vi.fn(),
 }))
 
 import { prepareGuiSessionHostLifecycle } from '../gui-session-host-lifecycle'
@@ -69,32 +64,28 @@ describe('GUI Session Host lifecycle', () => {
     ensureLocalSessionHostMock.mockReset().mockResolvedValue(undefined)
     prepareLocalSessionHostPathsMock.mockClear()
     probeLocalSessionHostMock.mockReset().mockResolvedValue(undefined)
-    startAppSessionHostMock.mockReset()
     startRemoteSessionHostRendererBridgeMock.mockReset().mockReturnValue(stopRendererBridgeMock)
     stopRendererBridgeMock.mockReset()
   })
 
-  it('attaches the GUI to an existing detached Host and clears attachment on stop', async () => {
+  it('attaches to an existing detached Host and awaits bridge shutdown before detaching', async () => {
     const lifecycle = await prepareGuiSessionHostLifecycle({
       userDataRoot: '/tmp/openwaggle-test',
       clientVersion: 'test',
       startupMark: vi.fn(),
     })
 
-    await expect(
-      lifecycle.start({
-        runEffect: async () => {
-          throw new Error('The remote attachment path must not run local effects.')
-        },
-        startOwnedServices: vi.fn(async () => undefined),
-        stopOwnedServices: vi.fn(async () => undefined),
-      }),
-    ).resolves.toBe('attached')
+    await expect(lifecycle.start()).resolves.toBeUndefined()
     expect(ensureLocalSessionHostMock).not.toHaveBeenCalled()
-    expect(startAppSessionHostMock).not.toHaveBeenCalled()
     expect(isGuiAttachedToRemoteSessionHost()).toBe(true)
 
-    await lifecycle.stop()
+    const bridgeStopped = Promise.withResolvers<void>()
+    stopRendererBridgeMock.mockReturnValueOnce(bridgeStopped.promise)
+    const stop = lifecycle.stop()
+    await Promise.resolve()
+    expect(isGuiAttachedToRemoteSessionHost()).toBe(true)
+    bridgeStopped.resolve()
+    await stop
 
     expect(stopRendererBridgeMock).toHaveBeenCalledOnce()
     expect(isGuiAttachedToRemoteSessionHost()).toBe(false)
@@ -109,17 +100,9 @@ describe('GUI Session Host lifecycle', () => {
       startupMark: vi.fn(),
     })
 
-    await expect(
-      lifecycle.start({
-        runEffect: vi.fn(),
-        startOwnedServices: vi.fn(async () => undefined),
-        stopOwnedServices: vi.fn(async () => undefined),
-      }),
-    ).resolves.toBe('attached')
+    await expect(lifecycle.start()).resolves.toBeUndefined()
 
     expect(ensureLocalSessionHostMock).toHaveBeenCalledOnce()
-    expect(startAppSessionHostMock).not.toHaveBeenCalled()
-    expect(lifecycle.databaseAccess).toBe('client-isolated')
     await lifecycle.stop()
   })
 })

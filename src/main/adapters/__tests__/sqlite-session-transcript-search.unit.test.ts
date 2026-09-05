@@ -118,6 +118,37 @@ describe('SQLite Session transcript search', () => {
     expect(phrase.outcome.sessions[0]?.sessionId).toBe('rank-599')
   })
 
+  it('uses the term and document keys for query-time frequency ranking', async () => {
+    const runtime = makeRuntime(path.join(temporaryRoot, 'term-frequency-query-plan.sqlite'))
+    runtimes.push(runtime)
+
+    const plan = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ readonly detail: string }>`
+          EXPLAIN QUERY PLAN
+          SELECT terms.session_id
+          FROM session_transcript_terms AS terms
+          JOIN session_transcript_term_documents AS documents
+            ON documents.session_id = terms.session_id
+          WHERE terms.term = ${'shared'}
+          ORDER BY CAST(terms.occurrences AS REAL) / documents.token_count DESC,
+            terms.session_id
+          LIMIT ${513}
+        `
+        return rows.map((row) => row.detail)
+      }),
+    )
+
+    expect(plan).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/SEARCH terms USING PRIMARY KEY \(term=\?\)/),
+        expect.stringMatching(/SEARCH documents USING .* \(session_id=\?\)/),
+      ]),
+    )
+    expect(plan.some((detail) => detail.includes('SCAN terms'))).toBe(false)
+  })
+
   it('bounds quoted transcript search after verifying the phrase', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'phrase-before-limit.sqlite'))
     runtimes.push(runtime)

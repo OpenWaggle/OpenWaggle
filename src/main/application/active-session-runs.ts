@@ -27,6 +27,11 @@ interface SessionWriterEntry {
   successor?: { readonly kind: SessionWriterKind; readonly token: symbol }
 }
 
+export interface ClaimedSessionWriterSuccessor {
+  readonly token: symbol
+  readonly settled: Promise<void>
+}
+
 const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
 const activeCompactions = new ActiveRunManager<SessionId, CompactionMetadata>()
 const activeWaggleRuns = new ActiveRunManager<SessionId, WaggleRunMetadata>()
@@ -179,10 +184,9 @@ export async function claimSessionWriterSuccessorAndWait(
   signal?: AbortSignal,
 ): Promise<symbol | null> {
   const writer = activeSessionWriters.get(sessionId)
-  if (!writer) return null
-  if (writer.successor) throw new Error(`Session ${sessionId} already has a claimed successor.`)
-  const token = Symbol(`${kind}:${sessionId}`)
-  writer.successor = { kind, token }
+  const claimed = claimSessionWriterSuccessor(sessionId, kind)
+  if (!writer || !claimed) return null
+  const { token } = claimed
   writer.controller.abort()
   let rejectAbort: (error: Error) => void = () => undefined
   const aborted = new Promise<never>((_resolve, reject) => {
@@ -201,6 +205,18 @@ export async function claimSessionWriterSuccessorAndWait(
     signal?.removeEventListener('abort', onAbort)
   }
   return token
+}
+
+export function claimSessionWriterSuccessor(
+  sessionId: SessionId,
+  kind: SessionWriterKind,
+): ClaimedSessionWriterSuccessor | null {
+  const writer = activeSessionWriters.get(sessionId)
+  if (!writer) return null
+  if (writer.successor) throw new Error(`Session ${sessionId} already has a claimed successor.`)
+  const token = Symbol(`${kind}:${sessionId}`)
+  writer.successor = { kind, token }
+  return { token, settled: writer.settled }
 }
 
 export function releaseClaimedSessionWriterSuccessor(sessionId: SessionId, token: symbol) {

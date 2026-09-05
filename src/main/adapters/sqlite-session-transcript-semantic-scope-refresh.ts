@@ -25,6 +25,7 @@ export function reusableTranscriptSemanticScopes(input: {
       AND scopes.expires_at > ${input.now}
       AND scopes.node_limit = ${input.policy.perSessionNodeLimit}
       AND scopes.vector_bytes_per_node = ${input.vectorBytes}
+      AND scopes.prepared_source_revision = scopes.source_revision
       AND (
         scopes.coverage_limit_reason IS NULL
         OR scopes.coverage_limit_reason = ${'per-session-node-limit'}

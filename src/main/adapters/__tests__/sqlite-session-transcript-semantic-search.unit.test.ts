@@ -289,6 +289,10 @@ describe('SQLite Session transcript semantic search', () => {
     expect(new Set(result.indexes).size).toBe(1)
     expect(result.before).toEqual({ cachedScopes: 1, cachedRecords: 2, fullRebuilds: 1 })
     expect(result.after).toEqual({ cachedScopes: 1, cachedRecords: 1, fullRebuilds: 1 })
+    expect(result.reconciled).not.toBe(result.indexes[0])
+    expect(
+      result.indexes[0]?.searchGrouped(new Float32Array([1, 0]), 2, new Set(['worker'])),
+    ).toEqual([expect.objectContaining({ sessionId: 'worker', matchedRecordId: 'node-worker-1' })])
     expect(
       result.reconciled.searchGrouped(new Float32Array([1, 0]), 2, new Set(['worker'])),
     ).toEqual([expect.objectContaining({ sessionId: 'worker', matchedRecordId: 'node-worker-2' })])

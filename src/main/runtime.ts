@@ -23,7 +23,6 @@ import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-
 import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
-import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
@@ -64,6 +63,7 @@ import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
 import { SessionWaitServiceLive } from './application/session-wait-service'
+import { OperationAdapterLive } from './operation-adapter-layer'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
@@ -199,8 +199,6 @@ const SessionControlServicesLive = Layer.mergeAll(
   FilesystemSessionExportArtifactWriterLive,
   SessionExportResourceResolverWithDatabaseLive,
 )
-registerPiBundledOAuthFlows()
-
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
@@ -222,6 +220,7 @@ const AppLayer = Layer.mergeAll(
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
   FilesystemWorkspaceFileLive,
+  OperationAdapterLive,
   SessionControlServicesLive,
   WorkspaceProjectAuthorizationLive,
   FilesystemInlineVisualizationLive,

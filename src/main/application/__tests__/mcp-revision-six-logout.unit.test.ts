@@ -2,6 +2,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
+import { McpOAuthServiceLive } from '../../adapters/mcp/mcp-oauth-service'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpVaultError } from '../../ports/mcp-errors'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
@@ -17,6 +18,10 @@ function operationLayer(input: {
   readonly reconcileIdleConnections: McpRuntimeServiceShape['reconcileIdleConnections']
   readonly remove: McpSecretVaultServiceShape['remove']
 }) {
+  const vaultLayer = Layer.succeed(
+    McpSecretVaultService,
+    fromPartial<McpSecretVaultServiceShape>({ remove: input.remove }),
+  )
   return Layer.mergeAll(
     Layer.succeed(
       McpConfigService,
@@ -28,10 +33,8 @@ function operationLayer(input: {
         reconcileIdleConnections: input.reconcileIdleConnections,
       }),
     ),
-    Layer.succeed(
-      McpSecretVaultService,
-      fromPartial<McpSecretVaultServiceShape>({ remove: input.remove }),
-    ),
+    vaultLayer,
+    McpOAuthServiceLive.pipe(Layer.provide(vaultLayer)),
   )
 }
 

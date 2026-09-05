@@ -13,7 +13,11 @@ import type { SessionControlIdentityService } from '../ports/session-control-ide
 import type { SessionControlRunExecutor } from '../ports/session-control-run-executor'
 import type { SessionControlRunLifecycleRepository } from '../ports/session-control-run-lifecycle-repository'
 import type { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
-import { reserveActiveSessionRun } from './active-session-runs'
+import {
+  claimSessionWriterSuccessor,
+  releaseClaimedSessionWriterSuccessor,
+  reserveActiveSessionRun,
+} from './active-session-runs'
 import {
   executeUnserializedSessionControlCommand,
   type SessionControlCommandDependencies,
@@ -88,23 +92,56 @@ export function dispatchAcceptedSessionControlRun(
   if (!startingRun || response.replayed) return Effect.succeed(false)
   const sessionId = SessionId(startingRun.sessionId)
   const runId = RunId(startingRun.runId)
-  return Effect.sync(() => reserveActiveSessionRun(sessionId, runId)).pipe(
-    Effect.flatMap((initialReservation) =>
-      forkSupervisedSessionRuns({
-        sessionId,
-        runId,
-        effect: coordinateSessionRuns({
+  return Effect.sync(() => claimSessionWriterSuccessor(sessionId, 'classic')).pipe(
+    Effect.flatMap((successor) => {
+      if (!successor) {
+        const initialReservation = reserveActiveSessionRun(sessionId, runId)
+        return forkSupervisedSessionRuns({
           sessionId,
-          startingRunId: runId,
-          initialReservation,
-          ...(lease ? { lease } : {}),
-        }),
-      }).pipe(
-        Effect.catchAllCause((cause) =>
-          Effect.sync(initialReservation.release).pipe(Effect.zipRight(Effect.failCause(cause))),
+          runId,
+          effect: coordinateSessionRuns({
+            sessionId,
+            startingRunId: runId,
+            initialReservation,
+            ...(lease ? { lease } : {}),
+          }),
+        }).pipe(
+          Effect.catchAllCause((cause) =>
+            Effect.sync(initialReservation.release).pipe(Effect.zipRight(Effect.failCause(cause))),
+          ),
+        )
+      }
+
+      let successorConsumed = false
+      let coordinatorOwnsLease = false
+      const coordinateAfterWriter = Effect.promise(() => successor.settled).pipe(
+        Effect.flatMap(() =>
+          Effect.sync(() => {
+            const reservation = reserveActiveSessionRun(sessionId, runId, successor.token)
+            successorConsumed = true
+            return reservation
+          }),
         ),
-      ),
-    ),
+        Effect.flatMap((initialReservation) => {
+          coordinatorOwnsLease = true
+          return coordinateSessionRuns({
+            sessionId,
+            startingRunId: runId,
+            initialReservation,
+            ...(lease ? { lease } : {}),
+          })
+        }),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (!successorConsumed) {
+              releaseClaimedSessionWriterSuccessor(sessionId, successor.token)
+            }
+            if (lease && !coordinatorOwnsLease) lease.release()
+          }),
+        ),
+      )
+      return forkSupervisedSessionRuns({ sessionId, runId, effect: coordinateAfterWriter })
+    }),
     Effect.as(true),
   )
 }

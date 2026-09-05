@@ -48,7 +48,7 @@ describe('Local Session server subscriptions', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('drops restricted subscription payloads before authorization and advances the cursor', async () => {
+  it('drops restricted subscription payloads without exposing their progress', async () => {
     const endpoint = path.join(temporaryRoot, 'restricted.sock')
     const eventHub = new SessionHostEventHub({
       hostInstanceId: 'host-current',
@@ -96,13 +96,12 @@ describe('Local Session server subscriptions', () => {
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-    const firstDenied = eventHub.publish({
+    eventHub.publish({
       kind: 'semantic-discovery-readiness-changed',
       readiness: { status: 'ready', pendingCount: 0, snapshotRevision: 1 },
     })
-    let lastDenied = firstDenied
     for (let stateRevision = 1; stateRevision <= 300; stateRevision += 1) {
-      lastDenied = eventHub.publish({
+      eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-denied',
         stateRevision,
@@ -116,16 +115,6 @@ describe('Local Session server subscriptions', () => {
       operation: 'message',
     })
 
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: firstDenied.cursor,
-    })
-    await expect(reader.next()).resolves.toEqual({
-      kind: 'cursor-advanced',
-      subscriptionId: expect.any(String),
-      cursor: lastDenied.cursor,
-    })
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
@@ -200,15 +189,14 @@ describe('Local Session server subscriptions', () => {
       )
       await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-      const firstDenied = eventHub.publish({
+      eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-denied',
         stateRevision: 1,
         operation: 'message',
       })
-      let lastDenied = firstDenied
       for (let stateRevision = 2; stateRevision <= 300; stateRevision += 1) {
-        lastDenied = eventHub.publish({
+        eventHub.publish({
           kind: 'session-state-changed',
           sessionId: 'session-denied',
           stateRevision,
@@ -220,16 +208,6 @@ describe('Local Session server subscriptions', () => {
         sessionId: 'session-original',
         stateRevision: 1,
         operation: 'message',
-      })
-      await expect(reader.next()).resolves.toEqual({
-        kind: 'cursor-advanced',
-        subscriptionId: expect.any(String),
-        cursor: firstDenied.cursor,
-      })
-      await expect(reader.next()).resolves.toEqual({
-        kind: 'cursor-advanced',
-        subscriptionId: expect.any(String),
-        cursor: lastDenied.cursor,
       })
       await expect(reader.next()).resolves.toEqual({
         kind: 'event',
@@ -255,15 +233,14 @@ describe('Local Session server subscriptions', () => {
 
       liveSessionIds.delete('session-original')
       await refreshLocalSessionProfileAdmissions(refreshId)
-      const firstRevoked = eventHub.publish({
+      eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-original',
         stateRevision: 2,
         operation: 'message',
       })
-      let lastRevoked = firstRevoked
       for (let stateRevision = 3; stateRevision <= 302; stateRevision += 1) {
-        lastRevoked = eventHub.publish({
+        eventHub.publish({
           kind: 'session-state-changed',
           sessionId: 'session-original',
           stateRevision,
@@ -275,16 +252,6 @@ describe('Local Session server subscriptions', () => {
         sessionId: 'session-newly-authorized',
         stateRevision: 2,
         operation: 'message',
-      })
-      await expect(reader.next()).resolves.toEqual({
-        kind: 'cursor-advanced',
-        subscriptionId: expect.any(String),
-        cursor: firstRevoked.cursor,
-      })
-      await expect(reader.next()).resolves.toEqual({
-        kind: 'cursor-advanced',
-        subscriptionId: expect.any(String),
-        cursor: lastRevoked.cursor,
       })
       await expect(reader.next()).resolves.toEqual({
         kind: 'event',

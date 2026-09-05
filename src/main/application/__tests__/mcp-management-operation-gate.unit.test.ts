@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { server, snapshot } from '../../adapters/mcp/__tests__/mcp-runtime-test-utils'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpVaultError } from '../../ports/mcp-errors'
+import { McpOAuthService } from '../../ports/mcp-oauth-service'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
 import {
   McpSecretVaultService,
@@ -221,6 +222,13 @@ describe('MCP management operation gate', () => {
       Layer.succeed(McpConfigService, config),
       Layer.succeed(McpRuntimeService, runtime),
       Layer.succeed(McpSecretVaultService, vault),
+      Layer.succeed(
+        McpOAuthService,
+        McpOAuthService.of({
+          authorize: () => Effect.die('unused'),
+          revoke: () => Effect.void,
+        }),
+      ),
     )
 
     await expect(

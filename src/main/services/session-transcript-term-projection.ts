@@ -85,17 +85,13 @@ function rebuildTermCatalog(sql: SqlClient.SqlClient, sessionIds: readonly strin
         GROUP BY vocabulary.term, source.session_id
       )
       INSERT INTO session_transcript_terms (
-        term, session_id, occurrences, first_node_id, first_created_order, first_run_id,
-        term_frequency
+        term, session_id, occurrences, first_node_id, first_created_order, first_run_id
       )
       SELECT term_groups.term, term_groups.session_id, term_groups.occurrences,
-        source.node_id, source.created_order, source.run_id,
-        CAST(term_groups.occurrences AS REAL) / documents.token_count
+        source.node_id, source.created_order, source.run_id
       FROM term_groups
       JOIN temp.session_transcript_projection_source AS source
         ON source.node_id = substr(term_groups.evidence_key, 22)
-      JOIN session_transcript_term_documents AS documents
-        ON documents.session_id = term_groups.session_id
     `)
   })
 }

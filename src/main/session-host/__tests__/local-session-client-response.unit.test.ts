@@ -91,6 +91,7 @@ describe('Local Session client Host UI response decoding', () => {
         name: 'LocalSessionClientProtocolError',
         code: 'authentication_failed',
         message: 'Local Session command failed.',
+        retryable: false,
       }),
     )
   })

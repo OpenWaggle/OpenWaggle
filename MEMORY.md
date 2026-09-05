@@ -414,6 +414,13 @@ Native Session capabilities constrain OpenWaggle tools and the Session Host API.
 OS sandbox against arbitrary commands from another process running as the same user. A hostile or
 YOLO shell needs a separate account, container, or operating-system sandbox for containment.
 
+Session semantic discovery keeps vectors only for the 100,000 most recently updated Sessions and
+enforces the same limit in the resident exact index. A larger corpus is terminally `partial` once
+that hot tier is prepared; hybrid discovery then uses the complete lexical index, while
+semantic-only discovery may search the explicitly partial tier. Tier rotation must prune cold queue
+rows and advance the deletion-compaction watermark so an evicted Session is neither re-embedded in
+a loop nor retained by a stale resident snapshot.
+
 Windows libuv named pipes use the operating system's default security descriptor, which grants
 Everyone read access and lets another account occupy a duplex server's read-only connections.
 Session Host pipe names therefore rotate after canonical database ownership is acquired, clients

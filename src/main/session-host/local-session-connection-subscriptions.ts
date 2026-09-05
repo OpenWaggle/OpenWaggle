@@ -65,7 +65,6 @@ export class LocalSessionConnectionSubscriptions {
           () => (this.input.admission.isFenced() ? null : this.input.caller()),
           sessionIds,
         ),
-        { advanceFilteredCursor: true },
       )
       if (result.status === 'resync-required') {
         await this.input.send({
@@ -165,13 +164,7 @@ export class LocalSessionConnectionSubscriptions {
   private async sendFrame(subscriptionId: string, frame: LocalSessionSubscriptionPumpFrame) {
     if (frame.kind !== 'event') return this.input.send({ ...frame, subscriptionId })
     const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
-    if (!releaseAdmissionReader) {
-      return this.input.send({
-        kind: 'cursor-advanced',
-        subscriptionId,
-        cursor: frame.event.cursor,
-      })
-    }
+    if (!releaseAdmissionReader) return
     try {
       const denied =
         this.input.admission.isFenced() ||
@@ -180,15 +173,7 @@ export class LocalSessionConnectionSubscriptions {
           this.input.dependencies.authorizeEvent,
           frame.event,
         ))
-      await this.input.send(
-        denied
-          ? {
-              kind: 'cursor-advanced',
-              subscriptionId,
-              cursor: frame.event.cursor,
-            }
-          : { ...frame, subscriptionId },
-      )
+      if (!denied) await this.input.send({ ...frame, subscriptionId })
     } finally {
       releaseAdmissionReader()
     }

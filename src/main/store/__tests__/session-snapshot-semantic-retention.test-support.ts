@@ -36,10 +36,14 @@ export function readTermProjection(sessionId: string) {
         readonly first_run_id: string | null
         readonly term_frequency: number
       }>`
-        SELECT term, occurrences, first_node_id, first_created_order, first_run_id, term_frequency
-        FROM session_transcript_terms
-        WHERE session_id = ${sessionId}
-        ORDER BY term
+        SELECT terms.term, terms.occurrences, terms.first_node_id,
+          terms.first_created_order, terms.first_run_id,
+          CAST(terms.occurrences AS REAL) / documents.token_count AS term_frequency
+        FROM session_transcript_terms AS terms
+        JOIN session_transcript_term_documents AS documents
+          ON documents.session_id = terms.session_id
+        WHERE terms.session_id = ${sessionId}
+        ORDER BY terms.term
       `
       const documents = yield* sql<{ readonly token_count: number }>`
         SELECT token_count FROM session_transcript_term_documents

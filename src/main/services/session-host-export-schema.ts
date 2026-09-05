@@ -1,3 +1,34 @@
+export const SESSION_EXPORT_SELECTED_PATH_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS session_export_selected_paths (
+    export_operation_id TEXT PRIMARY KEY
+      REFERENCES session_export_operations(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    selected_branch_id TEXT NOT NULL,
+    selected_head_node_id TEXT NOT NULL REFERENCES session_nodes(id) ON DELETE CASCADE,
+    node_mutation_revision INTEGER NOT NULL CHECK (node_mutation_revision >= 0),
+    materialized_at INTEGER NOT NULL
+  )
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS session_export_selected_path_nodes (
+    export_operation_id TEXT NOT NULL
+      REFERENCES session_export_selected_paths(export_operation_id) ON DELETE CASCADE,
+    created_order INTEGER NOT NULL CHECK (created_order >= 0),
+    node_id TEXT NOT NULL,
+    PRIMARY KEY (export_operation_id, created_order)
+  ) WITHOUT ROWID
+  `,
+  `
+  CREATE TRIGGER IF NOT EXISTS session_export_selected_path_terminal_cleanup
+  AFTER UPDATE OF status ON session_export_operations
+  WHEN NEW.status IN ('completed', 'failed', 'cancelled')
+  BEGIN
+    DELETE FROM session_export_selected_paths WHERE export_operation_id = NEW.id;
+  END
+  `,
+] as const
+
 export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE session_export_operations (
@@ -83,4 +114,5 @@ export const SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS = [
   ON session_export_operations (destination_path)
   WHERE status IN ('queued', 'running', 'installing', 'cancelling')
   `,
+  ...SESSION_EXPORT_SELECTED_PATH_SCHEMA_STATEMENTS,
 ] as const

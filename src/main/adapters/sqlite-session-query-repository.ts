@@ -10,6 +10,7 @@ import {
   type SessionEmbeddingModel,
 } from './multilingual-e5-session-embedding-model'
 import { SessionDiscoveryWindowStore } from './session-discovery-window-store'
+import { SessionExportSelectedPathCache } from './session-export-selected-path-cache'
 import { listDelegationConflicts } from './sqlite-delegation-conflict-query'
 import { listDelegations, readDelegation } from './sqlite-delegation-query'
 import { searchSessions } from './sqlite-session-discovery'
@@ -36,7 +37,9 @@ function queryProgram(
   windows: SessionDiscoveryWindowStore,
   semantic: SqliteSessionSemanticSearch,
   transcriptSemantic: SqliteSessionTranscriptSemanticSearch,
+  exportSelectedPaths: SessionExportSelectedPathCache,
   callerId?: string,
+  exportMaterializationOperationId?: string,
 ) {
   if (request.query.operation === 'list') {
     return listSessions(sql, authority, { ...request, query: request.query })
@@ -65,7 +68,12 @@ function queryProgram(
   }
   if (request.query.operation === 'items') return readItems(sql, request)
   if (request.query.operation === 'export') {
-    return readSessionExport(sql, { ...request, query: request.query })
+    return readSessionExport(
+      sql,
+      { ...request, query: request.query },
+      exportSelectedPaths,
+      exportMaterializationOperationId,
+    )
   }
   if (request.query.operation === 'exports-list') {
     return listSessionExportOperations(sql, { ...request, query: request.query })
@@ -87,7 +95,9 @@ function execute(
   windows: SessionDiscoveryWindowStore,
   semantic: SqliteSessionSemanticSearch,
   transcriptSemantic: SqliteSessionTranscriptSemanticSearch,
+  exportSelectedPaths: SessionExportSelectedPathCache,
   callerId?: string,
+  exportMaterializationOperationId?: string,
 ) {
   return queryProgram(
     sql,
@@ -96,7 +106,9 @@ function execute(
     windows,
     semantic,
     transcriptSemantic,
+    exportSelectedPaths,
     callerId,
+    exportMaterializationOperationId,
   ).pipe(Effect.mapError((cause) => repositoryError(`query-${request.query.operation}`, cause)))
 }
 
@@ -110,9 +122,20 @@ export function makeSqliteSessionQueryRepositoryLive(
       const windows = new SessionDiscoveryWindowStore()
       const semantic = new SqliteSessionSemanticSearch(sql, model)
       const transcriptSemantic = new SqliteSessionTranscriptSemanticSearch(sql, model)
+      const exportSelectedPaths = new SessionExportSelectedPathCache()
       return SessionQueryRepository.of({
-        execute: ({ callerId, authority, request }) =>
-          execute(sql, authority, request, windows, semantic, transcriptSemantic, callerId),
+        execute: ({ callerId, authority, request, exportMaterializationOperationId }) =>
+          execute(
+            sql,
+            authority,
+            request,
+            windows,
+            semantic,
+            transcriptSemantic,
+            exportSelectedPaths,
+            callerId,
+            exportMaterializationOperationId,
+          ),
       })
     }),
   )

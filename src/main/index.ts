@@ -47,7 +47,6 @@ const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
 
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
-const importAgentRunServiceModule = () => import('./application/agent-run-service')
 const importIpcHandlersModule = () => import('./ipc/handlers')
 const importRuntimeModule = () => import('./runtime')
 const importSettingsStoreModule = () => import('./store/settings')
@@ -165,16 +164,14 @@ async function bootstrapServicesAndWindow() {
     userDataRoot: app.getPath('userData'),
     clientVersion: app.getVersion(),
     startupMark,
-    requestShutdownForHandoff: () => app.quit(),
   })
 
   const { configureAppDatabaseAccess } = await import('./services/database-service')
-  configureAppDatabaseAccess(sessionHostLifecycleOnce.databaseAccess)
+  configureAppDatabaseAccess('client-isolated')
 
-  const [runtimeModule, settingsStoreModule, agentRunServiceModule] = await Promise.all([
+  const [runtimeModule, settingsStoreModule] = await Promise.all([
     getRuntimeModule(),
     importSettingsStoreModule(),
-    importAgentRunServiceModule(),
   ])
   startupMark('startup-modules-imported')
 
@@ -192,33 +189,16 @@ async function bootstrapServicesAndWindow() {
         }
       : null
 
-  if (sessionHostLifecycleOnce.databaseAccess === 'owner' && automationProjectPatch) {
-    settingsStoreModule.updateSettings({
-      ...automationProjectPatch,
-    })
-  }
+  await sessionHostLifecycleOnce.start()
 
-  const sessionHostMode = await sessionHostLifecycleOnce.start({
-    runEffect: runtimeModule.runAppEffect,
-    startOwnedServices: runtimeModule.startSessionHostOwnedServices,
-    stopOwnedServices: runtimeModule.stopSessionHostOwnedServices,
-  })
-
-  if (sessionHostMode === 'attached') {
-    if (automationProjectPatch) {
-      const update = await invokeConfiguredHostUi('settings:update', [automationProjectPatch])
-      if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
-    }
-    const settings = await invokeConfiguredHostUi('settings:get', [])
-    if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
-    settingsStoreModule.hydrateSettingsStoreFromHost(settings.result)
-    startupMark('settings-store-hydrated-from-host')
+  if (automationProjectPatch) {
+    const update = await invokeConfiguredHostUi('settings:update', [automationProjectPatch])
+    if (!update.handled) throw new Error('Attached GUI lost its Session Host settings route.')
   }
-
-  if (sessionHostMode === 'owned') {
-    await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
-  }
-  startupMark('interrupted-runs-reconciled')
+  const settings = await invokeConfiguredHostUi('settings:get', [])
+  if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
+  settingsStoreModule.hydrateSettingsStoreFromHost(settings.result)
+  startupMark('settings-store-hydrated-from-host')
 
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')
@@ -289,7 +269,6 @@ function registerAppLifecycle() {
             try {
               await (await getRuntimeModule()).disposeAppRuntime()
             } finally {
-              await sessionHostLifecycle?.releaseOwnership()
               sessionHostLifecycleOnce = null
             }
           }

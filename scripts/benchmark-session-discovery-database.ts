@@ -2,8 +2,9 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY } from '../src/main/domain/session-transcript-semantic-storage-policy'
+import { SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY } from '../src/main/domain/session-semantic-discovery-storage-policy'
 import { runSessionHostCutover } from '../src/main/session-host/session-host-cutover'
+import { sessionDiscoveryBenchmarkPassed } from './benchmark-session-discovery-assertions'
 import { benchmarkSessionDiscoveryModel } from './benchmark-session-discovery-model'
 import {
   benchmarkCommonTermIncrementalProjection,
@@ -220,37 +221,21 @@ async function main() {
     )
     reportSessionDiscoveryBenchmarkPhase('queries', performance.now() - queriesStartedAt)
     const databaseSizeMb = (await stat(targetDatabasePath)).size / BYTES_PER_MEBIBYTE
-    const targetMessages = Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount
-    const expectedTranscriptEmbeddings = Math.min(
-      targetMessages, SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY.perSessionNodeLimit,
-    )
-    const expectedActiveBranchMessages =
-      Math.ceil(mode.messageCount / mode.sessionCount) + mode.skewedSessionMessageCount
-    const passed = [
-      corpus.sessions === mode.sessionCount &&
-        corpus.messages === mode.messageCount + mode.skewedSessionMessageCount &&
-        corpus.discoveryRows === mode.sessionCount &&
-        corpus.activeBranchMessages === expectedActiveBranchMessages,
-      cutoverMs < mode.cutoverLimitMs &&
-        backfills.discovery.elapsedMs < mode.discoveryBackfillLimitMs,
-      backfills.discovery.prepared === mode.sessionCount,
-      backfills.transcript.elapsedMs < mode.transcriptBackfillLimitMs &&
-        backfills.transcript.counts.embeddings === expectedTranscriptEmbeddings,
-      backfills.transcript.counts.eligible === expectedTranscriptEmbeddings,
-      backfills.transcript.counts.pending === 0,
-      commonTermIncremental.occurrenceDelta === 1 && commonTermIncremental.elapsedMs < COMMON_TERM_INCREMENTAL_LIMIT_MS,
-      queries.coldWorkingPathListMs < COLD_LIMIT_MS &&
-        queries.list.p95Ms < WARM_P95_LIMIT_MS,
-      queries.sparseWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
-      queries.missingWorkingPathList.p95Ms < WARM_P95_LIMIT_MS,
-      queries.lexical.p95Ms < WARM_P95_LIMIT_MS,
-      queries.commonLexical.p95Ms < WARM_P95_LIMIT_MS,
-      queries.fullTranscriptLexical.p95Ms < WARM_P95_LIMIT_MS,
-      queries.commonFullTranscriptLexical.p95Ms < WARM_P95_LIMIT_MS,
-      queries.phraseFullTranscriptLexical.p95Ms < PHRASE_P95_LIMIT_MS,
-      queries.hybrid.p95Ms < HYBRID_P95_LIMIT_MS,
-      queries.transcript.p95Ms < WARM_P95_LIMIT_MS,
-    ].every(Boolean)
+    const passed = sessionDiscoveryBenchmarkPassed({
+      mode,
+      corpus,
+      cutoverMs,
+      backfills,
+      commonTermIncremental,
+      queries,
+      limits: {
+        coldMs: COLD_LIMIT_MS,
+        commonTermIncrementalMs: COMMON_TERM_INCREMENTAL_LIMIT_MS,
+        hybridP95Ms: HYBRID_P95_LIMIT_MS,
+        phraseP95Ms: PHRASE_P95_LIMIT_MS,
+        warmP95Ms: WARM_P95_LIMIT_MS,
+      },
+    })
     reportSessionDiscoveryBenchmarkResult(
       {
         mode: mode.name,
@@ -280,6 +265,7 @@ async function main() {
           cutoverMs: mode.cutoverLimitMs,
           discoveryBackfillMs: mode.discoveryBackfillLimitMs,
           transcriptBackfillMs: mode.transcriptBackfillLimitMs,
+          semanticDiscoveryRecords: SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
           commonTermIncrementalMs: COMMON_TERM_INCREMENTAL_LIMIT_MS,
           warmP95Ms: WARM_P95_LIMIT_MS,
           hybridP95Ms: HYBRID_P95_LIMIT_MS,

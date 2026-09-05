@@ -4,6 +4,7 @@ import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionRepository } from '../../ports/session-repository'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const { dispatchLocalSessionCommandMock } = vi.hoisted(() => ({
   dispatchLocalSessionCommandMock: vi.fn(),
@@ -56,6 +57,7 @@ const EXPECTED_SESSION_CHANNELS = [
 ] as const
 
 const sessionRepository = SessionRepository.of({
+  ...emptySessionCatalogMethods,
   list: (limit) =>
     Effect.succeed([
       {

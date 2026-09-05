@@ -24,7 +24,7 @@ describe('Local Session derived event admission', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('delivers exact derived read events after over-capacity base-denied traffic', async () => {
+  it('delivers derived events without exposing over-capacity denied traffic progress', async () => {
     const endpoint = path.join(temporaryRoot, 'derived-read.sock')
     const eventHub = new SessionHostEventHub({
       hostInstanceId: 'host-current',
@@ -79,14 +79,8 @@ describe('Local Session derived event admission', () => {
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-    const firstDenied = eventHub.publish({
-      kind: 'session-transport',
-      sessionId: 'queen-session',
-      event: { type: 'agent_start', runId: 'run-1', timestamp: 1 },
-    })
-    let lastDenied = firstDenied
-    for (let sequence = 2; sequence <= 300; sequence += 1) {
-      lastDenied = eventHub.publish({
+    for (let sequence = 1; sequence <= 300; sequence += 1) {
+      eventHub.publish({
         kind: 'session-transport',
         sessionId: 'queen-session',
         event: { type: 'agent_start', runId: `run-${sequence}`, timestamp: sequence },
@@ -98,8 +92,6 @@ describe('Local Session derived event admission', () => {
       event: { type: 'agent_start', runId: 'run-visible', timestamp: 301 },
     })
 
-    await expect(reader.next()).resolves.toMatchObject({ cursor: firstDenied.cursor })
-    await expect(reader.next()).resolves.toMatchObject({ cursor: lastDenied.cursor })
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),

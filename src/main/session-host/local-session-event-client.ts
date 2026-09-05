@@ -15,6 +15,7 @@ import {
   openLocalSessionConnection,
   writeLocalSessionFrame,
 } from './local-session-client-connection'
+import { localSessionClientProtocolError } from './local-session-client-protocol-error'
 import { isSessionHostEventEnvelope } from './local-session-event-validation'
 
 export type LocalSessionWatchResult =
@@ -180,7 +181,7 @@ async function establishSubscription(
   }
   if (first.kind === 'resync-required') return decodeResyncRequired(first)
   if (first.kind === 'error') {
-    throw new Error(typeof first.message === 'string' ? first.message : 'Subscription failed.')
+    throw localSessionClientProtocolError(first, 'Subscription failed.')
   }
   if (first.kind !== 'subscribed' || first.requestId !== requestId) {
     throw new Error('Local Session Host returned an unexpected subscription response.')
@@ -233,7 +234,7 @@ async function consumeSubscriptionFrame(
   if (frame.kind === 'resync-required') return decodeResyncRequired(frame)
   if (frame.kind === 'subscription-closed') return { status: 'closed' }
   if (frame.kind === 'error') {
-    throw new Error(typeof frame.message === 'string' ? frame.message : 'Subscription failed.')
+    throw localSessionClientProtocolError(frame, 'Subscription failed.')
   }
 }
 
@@ -258,6 +259,7 @@ export async function watchLocalSessionEvents(
   const { socket, reader, timeoutMs } = await openLocalSessionConnection(input)
   const abort = () => socket.destroy()
   input.signal?.addEventListener('abort', abort, { once: true })
+  if (input.signal?.aborted) abort()
   try {
     const subscription = await establishSubscription(socket, reader, timeoutMs, input)
     if (subscription.status !== 'ready') return subscription

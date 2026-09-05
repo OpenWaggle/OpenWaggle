@@ -21,6 +21,7 @@ import {
   runServiceSessionTree,
 } from './agent-run-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const runMock = vi.fn()
 const updateTitleMock = vi.fn()
@@ -75,6 +76,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(projectionTree),

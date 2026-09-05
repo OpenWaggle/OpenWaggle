@@ -1,3 +1,5 @@
+import { SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY } from '../domain/session-semantic-discovery-storage-policy'
+
 export interface SessionVectorRecord {
   readonly sessionId: string
   readonly groupId?: string
@@ -106,12 +108,38 @@ function retainBest(heap: SessionVectorMatch[], match: SessionVectorMatch, limit
 export class SessionFlatVectorIndex {
   readonly #records = new Map<string, IndexedSessionVector>()
 
+  constructor(
+    private readonly maximumRecordCount: number = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
+  ) {
+    if (!Number.isSafeInteger(maximumRecordCount) || maximumRecordCount < 1) {
+      throw new Error('Vector index record limit must be a positive safe integer.')
+    }
+  }
+
+  clone() {
+    const clone = new SessionFlatVectorIndex(this.maximumRecordCount)
+    for (const [sessionId, record] of this.#records) {
+      clone.#records.set(sessionId, record)
+    }
+    return clone
+  }
+
   replace(records: readonly SessionVectorRecord[]) {
+    const sessionIds = new Set<string>()
+    for (const record of records) {
+      sessionIds.add(record.sessionId)
+      if (sessionIds.size > this.maximumRecordCount) {
+        throw new Error('Vector index record limit exceeded.')
+      }
+    }
     this.#records.clear()
     for (const record of records) this.upsert(record)
   }
 
   upsert(record: SessionVectorRecord) {
+    if (!this.#records.has(record.sessionId) && this.#records.size >= this.maximumRecordCount) {
+      throw new Error('Vector index record limit exceeded.')
+    }
     this.#records.set(record.sessionId, {
       groupId: record.groupId ?? record.sessionId,
       vector: record.vector,
@@ -153,7 +181,9 @@ export class SessionFlatVectorIndex {
     readonly allowedSessionIds?: ReadonlySet<string>
     readonly excludedSessionIds?: ReadonlySet<string>
     readonly yieldEveryRecords?: number
+    readonly signal?: AbortSignal
   }) {
+    input.signal?.throwIfAborted()
     if (input.limit <= 0) return []
     const queryMagnitude = vectorMagnitude(input.query)
     const matches: SessionVectorMatch[] = []
@@ -161,7 +191,11 @@ export class SessionFlatVectorIndex {
     let processed = 0
     for (const [sessionId, vector] of this.#records) {
       processed += 1
-      if (processed % yieldEveryRecords === 0) await yieldToEventLoop()
+      if (processed % yieldEveryRecords === 0) {
+        input.signal?.throwIfAborted()
+        await yieldToEventLoop()
+        input.signal?.throwIfAborted()
+      }
       if (input.allowedSessionIds && !input.allowedSessionIds.has(sessionId)) continue
       if (input.excludedSessionIds?.has(sessionId)) continue
       const similarity = cosineSimilarity(input.query, queryMagnitude, vector)
@@ -208,7 +242,9 @@ export class SessionFlatVectorIndex {
     readonly limit: number
     readonly allowedGroupIds: ReadonlySet<string>
     readonly yieldEveryRecords?: number
+    readonly signal?: AbortSignal
   }) {
+    input.signal?.throwIfAborted()
     if (input.limit <= 0) return []
     const queryMagnitude = vectorMagnitude(input.query)
     const bestByGroup = new Map<
@@ -219,7 +255,11 @@ export class SessionFlatVectorIndex {
     let processed = 0
     for (const [recordId, vector] of this.#records) {
       processed += 1
-      if (processed % yieldEveryRecords === 0) await yieldToEventLoop()
+      if (processed % yieldEveryRecords === 0) {
+        input.signal?.throwIfAborted()
+        await yieldToEventLoop()
+        input.signal?.throwIfAborted()
+      }
       if (!input.allowedGroupIds.has(vector.groupId)) continue
       const similarity = cosineSimilarity(input.query, queryMagnitude, vector)
       if (!Number.isFinite(similarity)) continue

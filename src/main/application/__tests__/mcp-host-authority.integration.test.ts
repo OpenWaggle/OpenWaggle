@@ -9,6 +9,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { snapshot } from '../../adapters/mcp/__tests__/mcp-runtime-test-utils'
+import { McpOAuthServiceLive } from '../../adapters/mcp/mcp-oauth-service'
 import { mcpOAuthVaultKey } from '../../domain/mcp/oauth-vault-key'
 import { McpConfigService, type McpConfigServiceShape } from '../../ports/mcp-config-service'
 import { McpRuntimeService, type McpRuntimeServiceShape } from '../../ports/mcp-runtime-service'
@@ -221,6 +222,7 @@ describe('MCP Host authority', () => {
     })
     const mcpRuntime = fromPartial<McpRuntimeServiceShape>({ reconcileIdleConnections })
     const vault = fromPartial<McpSecretVaultServiceShape>({ remove })
+    const vaultLayer = Layer.succeed(McpSecretVaultService, vault)
     const result = await Effect.runPromise(
       logoutMcpServerRevision6Operation({
         projectPath: process.cwd(),
@@ -228,7 +230,8 @@ describe('MCP Host authority', () => {
       }).pipe(
         Effect.provideService(McpConfigService, config),
         Effect.provideService(McpRuntimeService, mcpRuntime),
-        Effect.provideService(McpSecretVaultService, vault),
+        Effect.provide(vaultLayer),
+        Effect.provide(McpOAuthServiceLive.pipe(Layer.provide(vaultLayer))),
       ),
     )
 

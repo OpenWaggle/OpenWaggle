@@ -83,15 +83,14 @@ describe('Local Session scoped event admission', () => {
       )
       await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-      const firstDenied = eventHub.publish({
+      eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-denied',
         stateRevision: 1,
         operation: 'message',
       })
-      let lastDenied = firstDenied
       for (let stateRevision = 2; stateRevision <= 300; stateRevision += 1) {
-        lastDenied = eventHub.publish({
+        eventHub.publish({
           kind: 'session-state-changed',
           sessionId: 'session-denied',
           stateRevision,
@@ -105,8 +104,6 @@ describe('Local Session scoped event admission', () => {
         operation: 'message',
       })
 
-      await expect(reader.next()).resolves.toMatchObject({ cursor: firstDenied.cursor })
-      await expect(reader.next()).resolves.toMatchObject({ cursor: lastDenied.cursor })
       await expect(reader.next()).resolves.toEqual({
         kind: 'event',
         subscriptionId: expect.any(String),
@@ -166,14 +163,13 @@ describe('Local Session scoped event admission', () => {
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-    const firstDenied = eventHub.publish({
+    eventHub.publish({
       kind: 'session-transport',
       sessionId: 'session-allowed',
       event: { type: 'agent_start', runId: 'run-1', timestamp: 1 },
     })
-    let lastDenied = firstDenied
     for (let sequence = 2; sequence <= 300; sequence += 1) {
-      lastDenied = eventHub.publish({
+      eventHub.publish({
         kind: 'session-transport',
         sessionId: 'session-allowed',
         event: { type: 'agent_start', runId: `run-${sequence}`, timestamp: sequence },
@@ -186,8 +182,6 @@ describe('Local Session scoped event admission', () => {
       operation: 'message',
     })
 
-    await expect(reader.next()).resolves.toMatchObject({ cursor: firstDenied.cursor })
-    await expect(reader.next()).resolves.toMatchObject({ cursor: lastDenied.cursor })
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
@@ -253,14 +247,13 @@ describe('Local Session scoped event admission', () => {
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
 
-    const firstDenied = eventHub.publish({
+    eventHub.publish({
       kind: 'session-transport',
       sessionId: 'worker-session',
       event: { type: 'agent_start', runId: 'run-1', timestamp: 1 },
     })
-    let lastDenied = firstDenied
     for (let sequence = 2; sequence <= 300; sequence += 1) {
-      lastDenied = eventHub.publish({
+      eventHub.publish({
         kind: 'session-transport',
         sessionId: 'worker-session',
         event: { type: 'agent_start', runId: `run-${sequence}`, timestamp: sequence },
@@ -272,8 +265,6 @@ describe('Local Session scoped event admission', () => {
       event: { type: 'agent_start', runId: 'run-visible', timestamp: 301 },
     })
 
-    await expect(reader.next()).resolves.toMatchObject({ cursor: firstDenied.cursor })
-    await expect(reader.next()).resolves.toMatchObject({ cursor: lastDenied.cursor })
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
