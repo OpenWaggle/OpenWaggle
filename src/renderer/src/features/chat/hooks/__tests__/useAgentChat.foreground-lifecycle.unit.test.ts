@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 
+import type { AgentSendReport } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
   apiMock,
+  createDeferred,
   createSession,
   createSessionWithMessages,
   emitAgentEvent,
+  emitRunCompleted,
   installUseAgentChatTestLifecycle,
   SEND_PAYLOAD,
   useAgentChat,
@@ -15,6 +18,55 @@ import {
 
 describe('useAgentChat foreground lifecycle', () => {
   installUseAgentChatTestLifecycle()
+
+  it('keeps the foreground run active after automatic compaction fails', async () => {
+    const send = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockReturnValueOnce(send.promise)
+    const { result } = renderHook(() =>
+      useAgentChat(
+        SessionId('session-1'),
+        createSession(),
+        SupportedModelId('claude-sonnet-4-5'),
+        'medium',
+      ),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SessionId('session-1'),
+        event: { type: 'compaction_start', reason: 'threshold', timestamp: 1 },
+      })
+      emitAgentEvent({
+        sessionId: SessionId('session-1'),
+        event: {
+          type: 'compaction_end',
+          reason: 'threshold',
+          result: null,
+          aborted: false,
+          willRetry: false,
+          errorMessage: 'Native and portable compaction failed',
+          timestamp: 2,
+        },
+      })
+    })
+
+    expect(result.current.error?.message).toBe('Native and portable compaction failed')
+    expect(result.current.status).toBe('streaming')
+    expect(result.current.isLoading).toBe(true)
+
+    await act(async () => {
+      send.resolve({ outcome: 'delivered' })
+      emitRunCompleted({ sessionId: SessionId('session-1') })
+      await sendPromise
+    })
+  })
+
   it('sends native steering without settling the active foreground state', async () => {
     const { result } = renderHook(() =>
       useAgentChat(

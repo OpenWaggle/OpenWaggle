@@ -25,6 +25,15 @@ function settleManualCompaction(
   context.setBackgroundStreaming(false)
 }
 
+function compactionFailureStatus(
+  event: Extract<AgentEventPayload['event'], { readonly type: 'compaction_end' }>,
+  context: AgentStreamEventContext,
+) {
+  return event.reason !== 'manual' && context.foregroundStreamActiveRef.current
+    ? ('streaming' as const)
+    : ('error' as const)
+}
+
 export function handleCompactionEndEvent(
   event: Extract<AgentEventPayload['event'], { readonly type: 'compaction_end' }>,
   context: AgentStreamEventContext,
@@ -36,7 +45,7 @@ export function handleCompactionEndEvent(
     context.setCompactionStatus(withoutLatestRunningCompaction(context.compactionStatusRef.current))
     const nextError = new Error(event.errorMessage)
     context.setError(nextError)
-    context.setStatus('error')
+    context.setStatus(compactionFailureStatus(event, context))
     return
   }
   const currentMessages =

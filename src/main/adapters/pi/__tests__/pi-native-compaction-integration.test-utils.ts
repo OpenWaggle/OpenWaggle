@@ -45,6 +45,7 @@ export async function createNativeSession(options: {
   }
   responses?: FauxResponseStep[]
   contextWindow?: number
+  httpIdleTimeoutMs?: number
   systemPrompt?: string
   initialContext?: string
   cancelAutomaticCompaction?: boolean
@@ -104,6 +105,7 @@ export async function createNativeSession(options: {
   }
   modelRuntime.registerNativeProvider(nativeProvider)
   const settingsManager = SettingsManager.inMemory({
+    httpIdleTimeoutMs: options.httpIdleTimeoutMs,
     retry: { enabled: false },
     images: { blockImages: options.blockImages ?? false },
     compaction: {

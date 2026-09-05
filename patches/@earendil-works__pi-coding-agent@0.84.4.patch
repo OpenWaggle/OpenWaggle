@@ -544,7 +544,7 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
      }
      // =========================================================================
      // Thinking Level Management
-@@ -1447,8 +1596,33 @@ export class AgentSession {
+@@ -1447,8 +1596,35 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -570,8 +570,10 @@ index fd82b71cf332715f185d07459429f04ed7491ce9..d156f489402706d806c6302957203728
 +            : undefined;
 +        let nativeRequestOptions;
 +        if (selectCompactionMechanism(requestModel) === "native") {
++            const httpIdleTimeoutMs = this.settingsManager.getHttpIdleTimeoutMs();
 +            nativeRequestOptions = {
 +                headers: nativeRequestHeaders,
++                timeoutMs: this.settingsManager.getProviderRetrySettings().timeoutMs ?? (httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs),
 +                onPayload: this.agent.onPayload,
 +                onResponse: this.agent.onResponse, convertMessages: async (messages) => this.agent.convertToLlm(messages),
 +            };
@@ -834,7 +836,7 @@ index 6f867f98bac5a371ca2bfbe0a9db6344e1a42b3f..6ec418afc25eaf0128ba08ef625864e7
      /** Extension-specific data (e.g., ArtifactIndex, version markers for structured compaction) */
      details?: T;
  }
-+export type NativeCompactionRequestOptions = Pick<SimpleStreamOptions, "headers" | "onPayload" | "onResponse"> & { convertMessages?: (messages: AgentMessage[]) => Promise<Message[]> };
++export type NativeCompactionRequestOptions = Pick<SimpleStreamOptions, "headers" | "onPayload" | "onResponse" | "timeoutMs"> & { convertMessages?: (messages: AgentMessage[]) => Promise<Message[]> };
  export interface CompactionSettings {
      enabled: boolean;
      reserveTokens: number;
@@ -1362,7 +1364,7 @@ index e936db7dc2617b5c0ff43ea11942c5a79b672dc6..f860b3053b6cde92593bf691ff0d27e6
 +                systemPrompt: nativeInstructions,
 +                messages: nativeRequestOptions?.convertMessages ? await nativeRequestOptions.convertMessages(nativePreparation.messagesForNativeCompaction) : convertToLlm(nativePreparation.messagesForNativeCompaction),
 +            }, {
-+                onPayload: nativeRequestOptions?.onPayload, onResponse: nativeRequestOptions?.onResponse,
++                onPayload: nativeRequestOptions?.onPayload, onResponse: nativeRequestOptions?.onResponse, timeoutMs: nativeRequestOptions?.timeoutMs,
 +                apiKey,
 +                headers: nativeRequestOptions?.headers ?? headers,
 +                signal,
