@@ -46,6 +46,9 @@ export class MainWindowPage {
     const thread = this.threadItem(title)
     await expect(thread).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
     await thread.click()
+    await expect(
+      this.page.locator('[data-qa="header-session-title"]').getByText(title, { exact: true }),
+    ).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
     // Clicking a client-side route can resolve before React commits the chat panel. Tests that
     // immediately emit main-process events would then race the renderer's IPC subscription and
     // lose the event on slower CI runners. The composer is the stable signal that the active

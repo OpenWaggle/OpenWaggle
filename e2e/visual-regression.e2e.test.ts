@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
+import sharp from 'sharp'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessionResources, seedSessions } from './support/session-fixtures'
 
@@ -38,9 +39,13 @@ function initializeRepository(projectPath: string) {
   })
 }
 
-function svgData(color: string) {
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" rx="24" fill="${color}"/><circle cx="160" cy="100" r="52" fill="white" fill-opacity="0.82"/></svg>`,
+async function pngData(background: string) {
+  return (
+    await sharp({
+      create: { width: 1_200, height: 900, channels: 4, background },
+    })
+      .png()
+      .toBuffer()
   ).toString('base64')
 }
 
@@ -212,9 +217,9 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
       {
         id: 'visual-agent-output',
         kind: 'image',
-        title: 'session-summary-output.svg',
-        mimeType: 'image/svg+xml',
-        dataBase64: svgData('#3778d4'),
+        title: 'session-summary-output.png',
+        mimeType: 'image/png',
+        dataBase64: await pngData('#3778d4'),
         nodeId: 'visual-primary-assistant-2',
         actor: 'agent',
         activity: 'created',
@@ -252,6 +257,7 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
     const sidebar = page.locator('nav[aria-label="Sidebar"]')
     const composer = page.getByRole('region', { name: 'Composer file drop zone' })
     const transcript = page.getByRole('log', { name: 'Chat messages' })
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
 
     await expect(sidebar.getByText(PRIMARY_TITLE)).toBeVisible()
     await expect(sidebar.getByText(SECONDARY_TITLE)).toBeVisible()
@@ -265,6 +271,16 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
         'All covered surfaces now use stable semantic locators and fixed rendering inputs.',
       ),
     ).toBeVisible()
+    await expect(summary).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'Create PR' })).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(summary.getByRole('button', { name: 'Branch: main' })).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+3', {
+      timeout: 30_000,
+    })
     await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2)
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -276,22 +292,24 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
 
     await expect(composer).toHaveScreenshot('composer.png', SCREENSHOT_OPTIONS)
     await expect(sidebar).toHaveScreenshot('sidebar.png', SCREENSHOT_OPTIONS)
+    await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
+    await expect(summary).toHaveCount(0)
     await expect(transcript).toHaveScreenshot('transcript.png', SCREENSHOT_OPTIONS)
-
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await expect(summary).toBeVisible()
-    await expect(summary.getByRole('button', { name: 'Create PR' })).toBeVisible({
+    await expect(summary.getByRole('button', { name: 'Branch: main' })).toBeVisible({
       timeout: 30_000,
     })
+
     await summary.getByRole('button', { name: 'Outputs 1' }).click()
-    await expect(summary.getByRole('button', { name: 'session-summary-output.svg' })).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'session-summary-output.png' })).toBeVisible()
     await page.mouse.move(10, 10)
     await waitForVisualReadiness(page)
     await expect(summary).toHaveScreenshot('session-summary.png', SCREENSHOT_OPTIONS)
 
-    await summary.getByRole('button', { name: 'session-summary-output.svg' }).click()
+    await summary.getByRole('button', { name: 'session-summary-output.png' }).click()
     const imageViewer = page.getByRole('dialog', {
-      name: 'Image viewer: session-summary-output.svg',
+      name: 'Image viewer: session-summary-output.png',
     })
     await expect(imageViewer).toBeVisible()
     await waitForVisualReadiness(page)

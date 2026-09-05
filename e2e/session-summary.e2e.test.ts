@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import sharp from 'sharp'
 import { buildSafeElectronEnvironment } from '../scripts/safe-electron-environment'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
@@ -17,15 +18,19 @@ const BETA_USER_MESSAGE_ID = 'summary-beta-user'
 const GITHUB_CHANGE_REQUEST_TITLE = 'Session Summary GitHub change request'
 const GITLAB_CHANGE_REQUEST_TITLE = 'Session Summary GitLab change request'
 const GITHUB_FALLBACK_TITLE = 'Session Summary GitHub browser fallback'
+const CHANGE_REQUEST_TEST_TIMEOUT_MS = 300_000
+const NATIVE_CHANGE_REQUEST_TIMEOUT_MS = 150_000
 
 function message(id: string, role: 'user' | 'assistant', text: string, createdAt: number) {
   return { id, role, parts: [{ type: 'text', text }], createdAt }
 }
 
-function svgData(color: string) {
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><rect width="1200" height="900" fill="${color}"/></svg>`,
-  ).toString('base64')
+function pngBytes(background: string) {
+  return sharp({
+    create: { width: 1_200, height: 900, channels: 4, background },
+  })
+    .png()
+    .toBuffer()
 }
 
 async function createGitProject(projectPath: string, provider?: 'github' | 'gitlab') {
@@ -110,6 +115,7 @@ echo "no merge request found" >&2
 exit 1
 `
   const git = `#!/bin/sh
+if [ "$1" = "fetch" ]; then exit 0; fi
 if [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "--push" ] && [ "$4" = "--all" ]; then
   exec ${JSON.stringify(realGitPath)} config --get "remote.$5.url"
 fi
@@ -176,6 +182,7 @@ public static class Program {
   }
 
   private static int RunGit(string[] args) {
+    if (args.Length > 0 && args[0] == "fetch") return 0;
     var actualArgs = args;
     if (args.Length >= 5 && args[0] == "remote" && args[1] == "get-url" && args[2] == "--push" && args[3] == "--all") {
       actualArgs = new[] { "config", "--get", "remote." + args[4] + ".url" };
@@ -246,6 +253,49 @@ public static class Program {
   ])
 }
 
+interface ChangeRequestFixtureInput {
+  readonly prefix: string
+  readonly projectName: string
+  readonly title: string
+  readonly provider: 'github' | 'gitlab'
+  readonly messageId: string
+  readonly messageText: string
+}
+
+async function launchChangeRequestFixture(input: ChangeRequestFixtureInput) {
+  const cliBinPath = await createFakeSourceControlCliBin()
+  const inheritedPath = buildSafeElectronEnvironment({}).PATH ?? ''
+  const app = await OpenWaggleApp.launch(input.prefix, {
+    PATH: `${cliBinPath}${path.delimiter}${inheritedPath}`,
+  })
+  const projectPath = path.join(app.userDataDir, input.projectName)
+
+  try {
+    const now = Date.now()
+    await createGitProject(projectPath, input.provider)
+    await seedSingleSession(app.userDataDir, {
+      title: input.title,
+      projectPath,
+      updatedAt: now,
+      messages: [message(input.messageId, 'user', input.messageText, now)],
+    })
+    await app.restart()
+    await app.resizeMainWindow(1_400, 850)
+    return { app, cliBinPath, projectPath }
+  } catch (error) {
+    await app.cleanup({ forceProcessTermination: true })
+    await fs.rm(cliBinPath, { recursive: true, force: true })
+    throw error
+  }
+}
+
+async function cleanupChangeRequestFixture(
+  fixture: Awaited<ReturnType<typeof launchChangeRequestFixture>>,
+) {
+  await fixture.app.cleanup({ forceProcessTermination: true })
+  await fs.rm(fixture.cliBinPath, { recursive: true, force: true })
+}
+
 test('Session Summary follows first-message, dock, and sidebar behavior', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-session-summary-lifecycle-')
   const projectPath = path.join(app.userDataDir, 'github-project')
@@ -299,7 +349,7 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await page.keyboard.press('Escape')
 
     const commitOrPush = summary.getByRole('button', { name: 'Commit or push' })
-    await expect(commitOrPush).toBeEnabled()
+    await expect(commitOrPush).toBeEnabled({ timeout: 30_000 })
     await commitOrPush.click()
     await expect(page.getByRole('heading', { name: 'Commit message' })).toBeVisible()
     await page.getByRole('button', { name: 'Cancel' }).click()
@@ -395,8 +445,8 @@ test('session resources stay scoped while inline images and the gallery navigate
   const app = await OpenWaggleApp.launch('openwaggle-session-summary-resources-')
   try {
     const now = Date.now()
-    const alphaSourceBytes = Buffer.from(svgData('#3b82f6'), 'base64')
-    const alphaSourcePath = path.join(app.userDataDir, 'user-reference.svg')
+    const alphaSourceBytes = await pngBytes('#3b82f6')
+    const alphaSourcePath = path.join(app.userDataDir, 'user-reference.png')
     await fs.writeFile(alphaSourcePath, alphaSourceBytes)
     await seedSingleSession(app.userDataDir, {
       title: ALPHA_TITLE,
@@ -414,9 +464,9 @@ test('session resources stay scoped while inline images and the gallery navigate
                 id: 'alpha-user-attachment',
                 kind: 'image',
                 origin: 'user-file',
-                name: 'user-reference.svg',
+                name: 'user-reference.png',
                 path: alphaSourcePath,
-                mimeType: 'image/svg+xml',
+                mimeType: 'image/png',
                 sizeBytes: alphaSourceBytes.byteLength,
                 contentSha256: crypto.createHash('sha256').update(alphaSourceBytes).digest('hex'),
                 extractedText: '',
@@ -441,9 +491,9 @@ test('session resources stay scoped while inline images and the gallery navigate
                 args: {},
                 result: {
                   type: 'image',
-                  data: svgData('#22c55e'),
-                  mimeType: 'image/svg+xml',
-                  name: 'agent-output.svg',
+                  data: (await pngBytes('#22c55e')).toString('base64'),
+                  mimeType: 'image/png',
+                  name: 'agent-output.png',
                 },
                 isError: false,
                 duration: 1,
@@ -453,8 +503,8 @@ test('session resources stay scoped while inline images and the gallery navigate
         },
       ],
     })
-    const betaSourceBytes = Buffer.from(svgData('#a855f7'), 'base64')
-    const betaSourcePath = path.join(app.userDataDir, 'beta-only.svg')
+    const betaSourceBytes = await pngBytes('#a855f7')
+    const betaSourcePath = path.join(app.userDataDir, 'beta-only.png')
     await fs.writeFile(betaSourcePath, betaSourceBytes)
     await seedSingleSession(app.userDataDir, {
       title: BETA_TITLE,
@@ -472,9 +522,9 @@ test('session resources stay scoped while inline images and the gallery navigate
                 id: 'beta-user-attachment',
                 kind: 'image',
                 origin: 'user-file',
-                name: 'beta-only.svg',
+                name: 'beta-only.png',
                 path: betaSourcePath,
-                mimeType: 'image/svg+xml',
+                mimeType: 'image/png',
                 sizeBytes: betaSourceBytes.byteLength,
                 contentSha256: crypto.createHash('sha256').update(betaSourceBytes).digest('hex'),
                 extractedText: '',
@@ -491,39 +541,41 @@ test('session resources stay scoped while inline images and the gallery navigate
     const page = mainWindow.page
     await mainWindow.openThread(ALPHA_TITLE)
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
-    const inlineUserImage = page.getByRole('button', { name: 'Open image user-reference.svg' })
-    await expect(inlineUserImage).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Open image agent-output.svg' })).toBeVisible()
+    const inlineUserImage = page.getByRole('button', { name: 'Open image user-reference.png' })
+    await expect(inlineUserImage).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('button', { name: 'Open image agent-output.png' })).toBeVisible({
+      timeout: 30_000,
+    })
 
     await expect(summary).toBeVisible()
     await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
     await expect(summary).toHaveCount(0)
     await inlineUserImage.click()
-    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
     await page.keyboard.press('Escape')
 
     await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await summary.getByRole('button', { name: /Sources/ }).click()
-    await summary.getByRole('button', { name: 'user-reference.svg' }).click()
-    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
+    await summary.getByRole('button', { name: 'user-reference.png' }).click()
+    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
     await page.keyboard.press('Escape')
     await summary.getByRole('button', { name: 'Show all' }).click()
 
     const resources = page.getByRole('region', { name: 'Session resources' })
     await expect(resources).toBeVisible()
     await expect(summary).toHaveCount(0)
-    await expect(resources.getByText('user-reference.svg')).toBeVisible()
+    await expect(resources.getByText('user-reference.png')).toBeVisible()
     await expect(resources.getByText('Alpha documentation')).toBeVisible()
-    await expect(resources.getByText('agent-output.svg')).toHaveCount(0)
-    await expect(resources.getByText('beta-only.svg')).toHaveCount(0)
+    await expect(resources.getByText('agent-output.png')).toHaveCount(0)
+    await expect(resources.getByText('beta-only.png')).toHaveCount(0)
 
-    await resources.getByRole('button', { name: 'Outputs' }).click()
-    await expect(resources.getByText('agent-output.svg')).toBeVisible()
-    await expect(resources.getByText('user-reference.svg')).toHaveCount(0)
-    await resources.getByRole('button', { name: 'Sources' }).click()
+    await resources.getByRole('button', { name: 'Outputs', exact: true }).click()
+    await expect(resources.getByText('agent-output.png')).toBeVisible()
+    await expect(resources.getByText('user-reference.png')).toHaveCount(0)
+    await resources.getByRole('button', { name: 'Sources', exact: true }).click()
 
-    await resources.getByText('user-reference.svg').click()
-    const viewer = page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })
+    await resources.getByText('user-reference.png').click()
+    const viewer = page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })
     await expect(viewer).toBeVisible()
     await expect(viewer).toContainText('1 of 2')
     await expect(viewer.getByLabel('Image provenance')).toContainText(
@@ -545,12 +597,17 @@ test('session resources stay scoped while inline images and the gallery navigate
       element.scrollTop = 100
       return { left: element.scrollLeft, top: element.scrollTop }
     })
-    const viewedImage = viewer.getByRole('img', { name: 'user-reference.svg' })
-    const imageBox = await viewedImage.boundingBox()
-    if (!imageBox) throw new Error('Expected the full-size image to have a bounding box')
-    await page.mouse.move(imageBox.x + imageBox.width / 2, imageBox.y + imageBox.height / 2)
+    const viewedImage = viewer.getByRole('img', { name: 'user-reference.png' })
+    await expect(viewedImage).toBeVisible()
+    const canvasBox = await imageCanvas.boundingBox()
+    if (!canvasBox) throw new Error('Expected the image canvas to have a bounding box')
+    const dragStart = {
+      x: canvasBox.x + canvasBox.width / 2,
+      y: canvasBox.y + canvasBox.height / 2,
+    }
+    await page.mouse.move(dragStart.x, dragStart.y)
     await page.mouse.down()
-    await page.mouse.move(imageBox.x + imageBox.width / 2 - 80, imageBox.y + imageBox.height / 2 - 60)
+    await page.mouse.move(dragStart.x - 80, dragStart.y - 60, { steps: 4 })
     await page.mouse.up()
     await expect
       .poll(() =>
@@ -562,21 +619,21 @@ test('session resources stay scoped while inline images and the gallery navigate
       )
       .toBe(true)
     await viewer.getByRole('button', { name: 'Next image' }).click()
-    await expect(page.getByRole('dialog', { name: 'Image viewer: agent-output.svg' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Image viewer: agent-output.png' })).toBeVisible()
     await page.keyboard.press('ArrowLeft')
-    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.svg' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
     await page.getByRole('button', { name: 'Close image viewer' }).click()
 
     await mainWindow.openThread(BETA_TITLE)
     await expect(resources).toBeVisible()
-    await expect(resources.getByText('beta-only.svg')).toBeVisible()
-    await expect(resources.getByText('user-reference.svg')).toHaveCount(0)
+    await expect(resources.getByText('beta-only.png')).toBeVisible()
+    await expect(resources.getByText('user-reference.png')).toHaveCount(0)
     await resources.getByRole('button', { name: 'Close resources' }).click()
     const betaSummary = page.getByRole('complementary', { name: 'Session Summary' })
     await expect(betaSummary).toBeVisible()
     await betaSummary.getByRole('button', { name: /Sources/ }).click()
-    await expect(betaSummary.getByText('beta-only.svg')).toBeVisible()
-    await expect(betaSummary.getByText('user-reference.svg')).toHaveCount(0)
+    await expect(betaSummary.getByText('beta-only.png')).toBeVisible()
+    await expect(betaSummary.getByText('user-reference.png')).toHaveCount(0)
     await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
 
     await mainWindow.openThread(ALPHA_TITLE)
@@ -590,165 +647,154 @@ test('session resources stay scoped while inline images and the gallery navigate
   }
 })
 
-test('Session Summary exposes complete GitHub PR and GitLab MR composition', async () => {
-  test.setTimeout(180_000)
-  const cliBinPath = await createFakeSourceControlCliBin()
-  const inheritedPath = buildSafeElectronEnvironment({}).PATH ?? ''
-  const app = await OpenWaggleApp.launch('openwaggle-session-summary-change-requests-', {
-    PATH: `${cliBinPath}${path.delimiter}${inheritedPath}`,
+test('Session Summary creates a complete GitHub pull request', async () => {
+  test.setTimeout(CHANGE_REQUEST_TEST_TIMEOUT_MS)
+  const fixture = await launchChangeRequestFixture({
+    prefix: 'openwaggle-session-summary-github-pr-',
+    projectName: 'github-change-request-project',
+    title: GITHUB_CHANGE_REQUEST_TITLE,
+    provider: 'github',
+    messageId: 'github-change-request-user',
+    messageText: 'Prepare the PR.',
   })
-  const githubProjectPath = path.join(app.userDataDir, 'github-change-request-project')
-  const gitlabProjectPath = path.join(app.userDataDir, 'gitlab-change-request-project')
-  const githubFallbackProjectPath = path.join(
-    app.userDataDir,
-    'github-browser-fallback-project',
-  )
-  try {
-    const now = Date.now()
-    await createGitProject(githubProjectPath, 'github')
-    await createGitProject(gitlabProjectPath, 'gitlab')
-    await createGitProject(githubFallbackProjectPath, 'github')
-    await seedSingleSession(app.userDataDir, {
-      title: GITHUB_CHANGE_REQUEST_TITLE,
-      projectPath: githubProjectPath,
-      updatedAt: now,
-      messages: [message('github-change-request-user', 'user', 'Prepare the PR.', now)],
-    })
-    await seedSingleSession(app.userDataDir, {
-      title: GITLAB_CHANGE_REQUEST_TITLE,
-      projectPath: gitlabProjectPath,
-      updatedAt: now - 1,
-      messages: [message('gitlab-change-request-user', 'user', 'Prepare the MR.', now - 1)],
-    })
-    await seedSingleSession(app.userDataDir, {
-      title: GITHUB_FALLBACK_TITLE,
-      projectPath: githubFallbackProjectPath,
-      updatedAt: now - 2,
-      messages: [
-        message(
-          'github-browser-fallback-user',
-          'user',
-          'Prepare the PR in the browser.',
-          now - 2,
-        ),
-      ],
-    })
-    await app.restart()
-    await app.resizeMainWindow(1_400, 850)
 
-    const mainWindow = app.mainWindow()
+  try {
+    const mainWindow = fixture.app.mainWindow()
     const page = mainWindow.page
     await mainWindow.openThread(GITHUB_CHANGE_REQUEST_TITLE)
-    const githubSummary = page.getByRole('complementary', { name: 'Session Summary' })
-    const createPr = githubSummary.getByRole('button', { name: 'Create PR' })
-    await expect(createPr).toBeVisible({ timeout: 30_000 })
-    await expect(githubSummary.getByRole('button', { name: /Changes/ })).toContainText('+2', {
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await expect(summary.getByRole('button', { name: 'Commit or push' })).toBeEnabled({
       timeout: 30_000,
     })
-    await createPr.click()
+    await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+2', {
+      timeout: 30_000,
+    })
+    await summary.getByRole('button', { name: 'Create PR' }).click()
 
-    const pullRequestComposer = page.getByRole('dialog', { name: 'Create pull request' })
-    await expect(pullRequestComposer).toBeVisible()
-    await expect(pullRequestComposer.getByText('New branch → main')).toBeVisible()
-    await expect(pullRequestComposer.getByLabel('New branch name')).toHaveValue(
+    const composer = page.getByRole('dialog', { name: 'Create pull request' })
+    await expect(composer).toBeVisible()
+    await expect(composer.getByText('New branch → main')).toBeVisible()
+    await expect(composer.getByLabel('New branch name')).toHaveValue(
       'codex/session-summary-github-change-request',
     )
-    await expect(pullRequestComposer.getByLabel('Title')).toHaveValue(GITHUB_CHANGE_REQUEST_TITLE)
+    await expect(composer.getByLabel('Title')).toHaveValue(GITHUB_CHANGE_REQUEST_TITLE)
+    await expect(composer.getByText('Description (leave empty to generate)')).toBeVisible()
     await expect(
-      pullRequestComposer.getByText('Description (leave empty to generate)'),
-    ).toBeVisible()
-    await expect(
-      pullRequestComposer.getByRole('checkbox', { name: /Commit and push local changes/ }),
+      composer.getByRole('checkbox', { name: /Commit and push local changes/ }),
     ).toBeChecked()
-    await expect(pullRequestComposer.getByRole('button', { name: 'Create draft PR' })).toBeEnabled()
-    await expect(pullRequestComposer.getByText('GitHub CLI ready as openwaggle-e2e.')).toBeVisible()
-    await expect(pullRequestComposer.getByRole('button', { name: 'Create PR' })).toHaveAttribute(
+    await expect(composer.getByRole('button', { name: 'Create draft PR' })).toBeEnabled()
+    await expect(composer.getByText('GitHub CLI ready as openwaggle-e2e.')).toBeVisible()
+    await expect(composer.getByRole('button', { name: 'Create PR' })).toHaveAttribute(
       'aria-keyshortcuts',
       'Control+Enter Meta+Enter',
     )
-    await expect(
-      pullRequestComposer.getByRole('button', { name: 'Open PR in browser' }),
-    ).toBeEnabled()
-    await pullRequestComposer.getByRole('button', { name: 'Create PR' }).click()
-    await expect(pullRequestComposer).toHaveCount(0, { timeout: 60_000 })
+    await expect(composer.getByRole('button', { name: 'Open PR in browser' })).toBeEnabled()
+    await composer.getByRole('button', { name: 'Create PR' }).click()
+    // A real push is hard-bounded at 120 seconds. Keep the E2E bound above that product contract
+    // so a loaded runner cannot report a still-valid in-flight action as a failure.
+    await expect(composer).toHaveCount(0, { timeout: NATIVE_CHANGE_REQUEST_TIMEOUT_MS })
     await expect
       .poll(() =>
         execFileSync('git', ['branch', '--show-current'], {
-          cwd: githubProjectPath,
+          cwd: fixture.projectPath,
           encoding: 'utf8',
         }).trim(),
       )
       .toBe('codex/session-summary-github-change-request')
-    const githubOutputs = page
-      .getByRole('complementary', { name: 'Session Summary' })
-      .getByRole('button', { name: /Outputs/ })
-    if ((await githubOutputs.getAttribute('aria-expanded')) !== 'true') await githubOutputs.click()
-    await expect(githubOutputs).toContainText('2')
+    const outputs = summary.getByRole('button', { name: /Outputs/ })
+    if ((await outputs.getAttribute('aria-expanded')) !== 'true') await outputs.click()
+    await expect(outputs).toContainText('2')
     await expect(
-      page
-        .getByRole('complementary', { name: 'Session Summary' })
-        .getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE, exact: true }),
+      summary.getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
+  } finally {
+    await cleanupChangeRequestFixture(fixture)
+  }
+})
 
+test('Session Summary creates a complete GitLab draft merge request', async () => {
+  test.setTimeout(CHANGE_REQUEST_TEST_TIMEOUT_MS)
+  const fixture = await launchChangeRequestFixture({
+    prefix: 'openwaggle-session-summary-gitlab-mr-',
+    projectName: 'gitlab-change-request-project',
+    title: GITLAB_CHANGE_REQUEST_TITLE,
+    provider: 'gitlab',
+    messageId: 'gitlab-change-request-user',
+    messageText: 'Prepare the MR.',
+  })
+
+  try {
+    const mainWindow = fixture.app.mainWindow()
+    const page = mainWindow.page
     await mainWindow.openThread(GITLAB_CHANGE_REQUEST_TITLE)
-    const gitlabSummary = page.getByRole('complementary', { name: 'Session Summary' })
-    const createMr = gitlabSummary.getByRole('button', { name: 'Create MR' })
-    await expect(createMr).toBeVisible({ timeout: 30_000 })
-    await expect(gitlabSummary.getByRole('button', { name: /Changes/ })).toContainText('+2', {
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await expect(summary.getByRole('button', { name: 'Commit or push' })).toBeEnabled({
       timeout: 30_000,
     })
-    await createMr.click()
+    await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+2', {
+      timeout: 30_000,
+    })
+    await summary.getByRole('button', { name: 'Create MR' }).click()
 
-    const mergeRequestComposer = page.getByRole('dialog', { name: 'Create merge request' })
-    await expect(mergeRequestComposer).toBeVisible()
-    await expect(mergeRequestComposer.getByText('New branch → main')).toBeVisible()
-    await expect(mergeRequestComposer.getByLabel('New branch name')).toHaveValue(
+    const composer = page.getByRole('dialog', { name: 'Create merge request' })
+    await expect(composer).toBeVisible()
+    await expect(composer.getByText('New branch → main')).toBeVisible()
+    await expect(composer.getByLabel('New branch name')).toHaveValue(
       'codex/session-summary-gitlab-change-request',
     )
-    await expect(
-      mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }),
-    ).toBeEnabled()
-    await expect(mergeRequestComposer.getByRole('button', { name: 'Create MR' })).toBeEnabled()
-    await expect(mergeRequestComposer.getByText('GitLab CLI ready as openwaggle-e2e.')).toBeVisible()
-    await expect(
-      mergeRequestComposer.getByRole('button', { name: 'Open MR in browser' }),
-    ).toBeEnabled()
-    await mergeRequestComposer.getByRole('button', { name: 'Create draft MR' }).click()
-    await expect(mergeRequestComposer).toHaveCount(0, { timeout: 60_000 })
+    await expect(composer.getByRole('button', { name: 'Create draft MR' })).toBeEnabled()
+    await expect(composer.getByRole('button', { name: 'Create MR' })).toBeEnabled()
+    await expect(composer.getByText('GitLab CLI ready as openwaggle-e2e.')).toBeVisible()
+    await expect(composer.getByRole('button', { name: 'Open MR in browser' })).toBeEnabled()
+    await composer.getByRole('button', { name: 'Create draft MR' }).click()
+    await expect(composer).toHaveCount(0, { timeout: NATIVE_CHANGE_REQUEST_TIMEOUT_MS })
     await expect
       .poll(() =>
         execFileSync('git', ['branch', '--show-current'], {
-          cwd: gitlabProjectPath,
+          cwd: fixture.projectPath,
           encoding: 'utf8',
         }).trim(),
       )
       .toBe('codex/session-summary-gitlab-change-request')
-    const gitlabOutputs = page
-      .getByRole('complementary', { name: 'Session Summary' })
-      .getByRole('button', { name: /Outputs/ })
-    if ((await gitlabOutputs.getAttribute('aria-expanded')) !== 'true') await gitlabOutputs.click()
-    await expect(gitlabOutputs).toContainText('2')
+    const outputs = summary.getByRole('button', { name: /Outputs/ })
+    if ((await outputs.getAttribute('aria-expanded')) !== 'true') await outputs.click()
+    await expect(outputs).toContainText('2')
     await expect(
-      page
-        .getByRole('complementary', { name: 'Session Summary' })
-        .getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
+      summary.getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
-
-    await mainWindow.openThread(GITHUB_FALLBACK_TITLE)
-    const fallbackSummary = page.getByRole('complementary', { name: 'Session Summary' })
-    await fallbackSummary.getByRole('button', { name: 'Create PR' }).click()
-    const fallbackComposer = page.getByRole('dialog', { name: 'Create pull request' })
-    await expect(fallbackComposer).toBeVisible()
-    await expect(
-      fallbackComposer.getByText('GitHub CLI is not authenticated for github.com.'),
-    ).toBeVisible()
-    await expect(fallbackComposer.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
-    await expect(fallbackComposer.getByRole('button', { name: 'Create PR' })).toBeDisabled()
-    await expect(
-      fallbackComposer.getByRole('button', { name: 'Open PR in browser' }),
-    ).toBeEnabled()
   } finally {
-    await app.cleanup({ forceProcessTermination: true })
-    await fs.rm(cliBinPath, { recursive: true, force: true })
+    await cleanupChangeRequestFixture(fixture)
+  }
+})
+
+test('Session Summary offers browser fallback when GitHub CLI authentication is missing', async () => {
+  test.setTimeout(CHANGE_REQUEST_TEST_TIMEOUT_MS)
+  const fixture = await launchChangeRequestFixture({
+    prefix: 'openwaggle-session-summary-github-fallback-',
+    projectName: 'github-browser-fallback-project',
+    title: GITHUB_FALLBACK_TITLE,
+    provider: 'github',
+    messageId: 'github-browser-fallback-user',
+    messageText: 'Prepare the PR in the browser.',
+  })
+
+  try {
+    const mainWindow = fixture.app.mainWindow()
+    const page = mainWindow.page
+    await mainWindow.openThread(GITHUB_FALLBACK_TITLE)
+    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    await expect(summary.getByRole('button', { name: 'Commit or push' })).toBeEnabled({
+      timeout: 30_000,
+    })
+    await summary.getByRole('button', { name: 'Create PR' }).click()
+
+    const composer = page.getByRole('dialog', { name: 'Create pull request' })
+    await expect(composer).toBeVisible()
+    await expect(composer.getByText('GitHub CLI is not authenticated for github.com.')).toBeVisible()
+    await expect(composer.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
+    await expect(composer.getByRole('button', { name: 'Create PR' })).toBeDisabled()
+    await expect(composer.getByRole('button', { name: 'Open PR in browser' })).toBeEnabled()
+  } finally {
+    await cleanupChangeRequestFixture(fixture)
   }
 })
