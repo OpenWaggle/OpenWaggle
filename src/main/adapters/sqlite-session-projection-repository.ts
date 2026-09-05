@@ -29,6 +29,8 @@ type RepoOperation =
   | 'updateTitle'
   | 'setWorktreePlan'
   | 'setAuthorizationMode'
+  | 'establishLineage'
+  | 'setDelegationState'
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
   | 'setTurnCheckpointAnchor'
@@ -145,6 +147,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       setAuthorizationMode: (id, mode) =>
         repoOp('setAuthorizationMode', () => store.setSessionAuthorizationMode(id, mode)),
+
+      establishLineage: (input) =>
+        repoOp('establishLineage', () => store.establishSessionLineage(input)),
+
+      setDelegationState: (id, state) =>
+        repoOp('setDelegationState', () => store.setSessionDelegationState(id, state)),
 
       listTurnCheckpoints: (id) =>
         repoOp('listTurnCheckpoints', () => turnCheckpoints.listTurnCheckpoints(id)),

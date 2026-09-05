@@ -5,11 +5,14 @@ import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcut
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
+import { queryKeys } from '@/queries/query-keys'
 import { useUIStore } from '../ui-store'
 import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
 
 type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
+type SessionListInvalidatedPayload = IpcEventChannelMap['sessions:list-invalidated']['payload']
+type SessionListInvalidatedHandler = (payload: SessionListInvalidatedPayload) => void
 interface HotkeyBinding {
   readonly hotkey: ShortcutBinding
   readonly callback: () => void
@@ -17,7 +20,10 @@ interface HotkeyBinding {
 
 const lifecycleMocks = vi.hoisted(() => {
   let titleUpdatedHandler: TitleUpdatedHandler | null = null
+  let sessionListInvalidatedHandler: SessionListInvalidatedHandler | null = null
   const titleUnsubscribe = vi.fn()
+  const sessionListUnsubscribe = vi.fn()
+  const invalidateQueries = vi.fn().mockResolvedValue(undefined)
   const hotkeys: HotkeyBinding[] = []
   const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
   return {
@@ -33,18 +39,26 @@ const lifecycleMocks = vi.hoisted(() => {
     refreshGitStatus: vi.fn().mockResolvedValue(undefined),
     refreshGitBranches: vi.fn().mockResolvedValue(undefined),
     loadSyntaxResources: vi.fn().mockResolvedValue(undefined),
+    invalidateQueries,
+    queryClient: { invalidateQueries },
     navigate: vi.fn(),
     toggleDiff: vi.fn(),
     toggleSessionTree: vi.fn(),
     useGitRefresh: vi.fn(),
     useSessionStatusMonitor: vi.fn(),
     titleUnsubscribe,
+    sessionListUnsubscribe,
     hotkeys,
     singleHotkeys,
     getTitleUpdatedHandler: () => titleUpdatedHandler,
+    getSessionListInvalidatedHandler: () => sessionListInvalidatedHandler,
     onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
       titleUpdatedHandler = handler
       return titleUnsubscribe
+    }),
+    onSessionListInvalidated: vi.fn((handler: SessionListInvalidatedHandler) => {
+      sessionListInvalidatedHandler = handler
+      return sessionListUnsubscribe
     }),
   }
 })
@@ -70,6 +84,10 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => lifecycleMocks.navigate,
   // The sidebar's filter shortcut reads the route to know whether the sidebar can take focus.
   useLocation: () => ({ pathname: '/' }),
+}))
+
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => lifecycleMocks.queryClient,
 }))
 
 vi.mock('@/features/chat/hooks', () => ({
@@ -114,6 +132,7 @@ vi.mock('@/features/sessions/hooks', () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
+    onSessionListInvalidated: lifecycleMocks.onSessionListInvalidated,
   },
 }))
 
@@ -139,6 +158,7 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.refreshGitStatus.mockClear()
     lifecycleMocks.refreshGitBranches.mockClear()
     lifecycleMocks.loadSyntaxResources.mockClear()
+    lifecycleMocks.invalidateQueries.mockClear()
     lifecycleMocks.refreshSessionTree.mockClear()
     lifecycleMocks.updateSessionTitle.mockClear()
     lifecycleMocks.navigate.mockClear()
@@ -147,7 +167,9 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.useGitRefresh.mockClear()
     lifecycleMocks.useSessionStatusMonitor.mockClear()
     lifecycleMocks.onSessionTitleUpdated.mockClear()
+    lifecycleMocks.onSessionListInvalidated.mockClear()
     lifecycleMocks.titleUnsubscribe.mockClear()
+    lifecycleMocks.sessionListUnsubscribe.mockClear()
     lifecycleMocks.hotkeys.length = 0
     lifecycleMocks.projectPath = '/repo'
     lifecycleMocks.workingPath = '/repo/.worktrees/session-1'
@@ -183,6 +205,16 @@ describe('useWorkspaceLifecycle', () => {
       'New title',
     )
 
+    const invalidatedHandler = lifecycleMocks.getSessionListInvalidatedHandler()
+    if (!invalidatedHandler) throw new Error('Expected session-list invalidation subscription')
+    invalidatedHandler({ sessionIds: [SessionId('session-1')] })
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledTimes(2))
+    expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledTimes(2)
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.archivedSessions,
+      exact: true,
+    })
+
     act(() => runHotkey('Mod+J'))
     act(() => runHotkey('Mod+B'))
     act(() => runHotkey('Mod+D'))
@@ -203,6 +235,7 @@ describe('useWorkspaceLifecycle', () => {
 
     unmount()
     expect(lifecycleMocks.titleUnsubscribe).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.sessionListUnsubscribe).toHaveBeenCalledOnce()
   })
 
   it('loads project syntax resources when direct review changes working trees', async () => {

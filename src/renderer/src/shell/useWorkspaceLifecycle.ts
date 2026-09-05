@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import { type UseHotkeyDefinition, useHotkeys } from '@tanstack/react-hotkeys'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
@@ -10,10 +11,12 @@ import { useProject, useSessionStatusMonitor, useSessions } from '@/features/ses
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
+import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 
 export function useWorkspaceLifecycle(): void {
+  const queryClient = useQueryClient()
   const { projectPath } = useProject()
   const {
     activeSessionId,
@@ -68,6 +71,17 @@ export function useWorkspaceLifecycle(): void {
       updateSessionTitle(sessionId, title)
     })
   }, [updateSessionTitle])
+
+  useEffect(() => {
+    return api.onSessionListInvalidated(() => {
+      void loadChatSessions()
+      void loadSessionTrees()
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.archivedSessions,
+        exact: true,
+      })
+    })
+  }, [loadChatSessions, loadSessionTrees, queryClient])
 
   useGitRefresh({
     workingPath,

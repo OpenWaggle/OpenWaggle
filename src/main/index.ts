@@ -3,6 +3,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { cleanupPendingSessionResourcesSafely } from './application/session-resource-cleanup'
 import { installDevToolsShortcut } from './application-menu'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import {
@@ -74,9 +75,7 @@ let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null 
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 
 function startupMark(label: string) {
-  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
-    return
-  }
+  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) return
 
   logger.info('Startup timing', {
     label,
@@ -125,9 +124,7 @@ async function persistActiveRunsBeforeQuit() {
   const persistAllActiveRuns =
     persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
 
-  if (!persistAllActiveRuns) {
-    return
-  }
+  if (!persistAllActiveRuns) return
 
   await runtimeModule.runAppEffect(persistAllActiveRuns())
 }
@@ -157,6 +154,9 @@ async function bootstrapServicesAndWindow() {
 
   await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   startupMark('interrupted-runs-reconciled')
+
+  await runtimeModule.runAppEffect(cleanupPendingSessionResourcesSafely())
+  startupMark('session-resource-cleanup-reconciled')
 
   const trustedMainActivationModule = await import(
     './application/extension-trusted-main-activation-service'

@@ -45,6 +45,7 @@ export function MessageBubble({
     return (
       <UserMessageBubble
         message={message}
+        sessionId={runtime.sessionId}
         onBranchFromMessage={actions?.onBranchFromMessage}
         onForkFromMessage={actions?.onForkFromMessage}
       />

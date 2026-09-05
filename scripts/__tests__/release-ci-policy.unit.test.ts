@@ -49,6 +49,17 @@ describe('release CI policy', () => {
     )
   })
 
+  it('rejects dispatched commit validation that does not derive its range from main', () => {
+    const workflowWithoutDispatchBase = compliantWorkflow.replace(
+      '            COMMIT_POLICY_FROM="$(git merge-base origin/main "$COMMIT_POLICY_TO")"',
+      '            COMMIT_POLICY_FROM="$COMMIT_POLICY_TO"',
+    )
+
+    expect(validateReleaseCiPolicy(workflowWithoutDispatchBase)).toContain(
+      'CI job Commit Policy steps must match the fail-closed required sequence.',
+    )
+  })
+
   it('rejects excess token privilege and stale action majors', () => {
     const weakenedWorkflow = compliantWorkflow
       .replace('permissions:\n  contents: read\n', '')
@@ -109,7 +120,7 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and approved controls only.',
     )
   })
 
@@ -120,7 +131,18 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and approved controls only.',
+    )
+  })
+
+  it('rejects parallel Windows Electron workers', () => {
+    const parallelWindowsWorkflow = compliantWorkflow.replace(
+      "      PLAYWRIGHT_WORKERS: '1'",
+      "      PLAYWRIGHT_WORKERS: '2'",
+    )
+
+    expect(validateReleaseCiPolicy(parallelWindowsWorkflow)).toContain(
+      'CI job Electron E2E (Windows) must keep the exact blocking job contract: name, windows-latest runner, and approved controls only.',
     )
   })
 

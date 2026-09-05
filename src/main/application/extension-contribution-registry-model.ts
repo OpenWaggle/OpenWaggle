@@ -1,7 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
-  ExtensionContributionEligibilityView,
-  ExtensionContributionFamily,
   ExtensionContributionRegistryEntry,
   ExtensionDiagnosticView,
   ExtensionPackageScopeView,
@@ -23,7 +21,8 @@ import {
 } from './extension-contribution-authorization-model'
 import {
   isEntryContribution,
-  type ManifestCommandContribution,
+  isSessionSummaryContribution,
+  type ManifestContribution,
   type ManifestEntryContribution,
 } from './extension-contribution-family-model'
 import {
@@ -31,34 +30,15 @@ import {
   type ContributionRegistrationResult,
   packageContributionRegistrations,
 } from './extension-contribution-registration-model'
+import type {
+  ContributionEntryInput,
+  ContributionPackageEligibility,
+  ContributionRegistryBuildResult,
+  ExtensionContributionProjectOverrideLookup,
+} from './extension-contribution-registry-types'
 import { resolveContributionTarget } from './extension-contribution-target-model'
 
-export interface ExtensionContributionProjectOverrideLookup {
-  readonly projectPath: string
-  readonly projectOverride: { readonly disabled: boolean } | null
-  readonly diagnostics: readonly ExtensionDiagnostic[]
-}
-
-interface ContributionPackageEligibility {
-  readonly contentHash: string
-  readonly projectPaths: readonly string[]
-  readonly eligibility: ExtensionContributionEligibilityView
-  readonly diagnostics: readonly ExtensionDiagnosticView[]
-}
-
-interface ContributionEntryInput {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly eligibility: ContributionPackageEligibility
-  readonly requestedProjectPaths: readonly string[]
-  readonly requestedSessionId: string | undefined
-  readonly family: ExtensionContributionFamily
-  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
-}
-
-interface ContributionRegistryBuildResult {
-  readonly entries: readonly ExtensionContributionRegistryEntry[]
-  readonly diagnostics: readonly ExtensionDiagnostic[]
-}
+export type { ExtensionContributionProjectOverrideLookup } from './extension-contribution-registry-types'
 
 function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
@@ -169,8 +149,9 @@ function entryContributionMetadata(contribution: ManifestEntryContribution) {
 
 function declaredScopesForContribution(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
-  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
+  readonly contribution: ManifestContribution
 }) {
+  if (isSessionSummaryContribution(input.contribution)) return undefined
   if (input.contribution.capability === undefined) {
     return undefined
   }
@@ -185,6 +166,7 @@ function declaredScopesForContribution(input: {
 
 function brokerBindingsForContribution(input: ContributionEntryInput) {
   const { contribution } = input
+  if (isSessionSummaryContribution(contribution)) return {}
   const declaredScopes = declaredScopesForContribution(input)
   return {
     ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
@@ -231,6 +213,16 @@ function contributionToEntry(
       : {}),
     eligibility: eligibility.eligibility,
     diagnostics: eligibility.diagnostics,
+  }
+
+  if (isSessionSummaryContribution(contribution)) {
+    return {
+      ...baseEntry,
+      sessionSummary: {
+        placement: contribution.placement ?? 'details',
+        rows: contribution.rows,
+      },
+    }
   }
 
   const brokerBindings = brokerBindingsForContribution(input)

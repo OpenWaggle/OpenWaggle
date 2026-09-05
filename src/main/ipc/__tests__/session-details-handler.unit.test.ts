@@ -10,6 +10,7 @@ import {
   cleanupSessionRunMock,
   clearAgentPhaseMock,
   clearStreamBufferMock,
+  completeSessionResourceCleanupMock,
   createRuntimeSessionMock,
   createSessionMock,
   deleteSessionMock,
@@ -20,6 +21,7 @@ import {
   getSessionDetailMock,
   listSessionDetailsMock,
   loadSessionDetailsHandlers,
+  removeSessionResourcesMock,
   resetSessionDetailsHandlerMocks,
   rollbackVisualizationSessionDeletionMock,
   setAuthorizationModeMock,
@@ -235,7 +237,34 @@ describe('registerSessionDetailsHandlers', () => {
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(completeSessionResourceCleanupMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteVisualizationSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(deleteSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      removeSessionResourcesMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
+  })
+
+  it('preserves managed resource bytes when session metadata deletion fails', async () => {
+    deleteSessionMock.mockRejectedValue(new Error('database is read-only'))
+
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:delete')
+
+    await expect(handler?.({}, SessionId('session-delete-failure'))).rejects.toBeDefined()
+    expect(removeSessionResourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('reports session deletion success when post-commit resource cleanup fails', async () => {
+    removeSessionResourcesMock.mockRejectedValue(new Error('disk is read-only'))
+
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:delete')
+
+    await expect(handler?.({}, SessionId('session-cleanup-failure'))).resolves.toBeUndefined()
+    expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
+    expect(removeSessionResourcesMock).toHaveBeenCalledWith(SessionId('session-cleanup-failure'))
+    expect(completeSessionResourceCleanupMock).not.toHaveBeenCalled()
   })
 
   it('cleans up the active run before archiving a session', async () => {

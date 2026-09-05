@@ -138,6 +138,10 @@ export function openPath(targetPath: string) {
   return Electron.shell.openPath(targetPath)
 }
 
+export function revealPath(targetPath: string) {
+  Electron.shell.showItemInFolder(targetPath)
+}
+
 export function showItemInFolder(targetPath: string) {
   return Electron.shell.showItemInFolder(targetPath)
 }

@@ -168,4 +168,22 @@ describe('extension frame host helpers', () => {
       },
     })
   })
+
+  it('rejects session calls that do not match the mounted surface session and project', () => {
+    const sessionEntry = { ...ENTRY, sessionId: 'session-1' }
+    const invoke = (sessionId: string, projectPath = '/tmp/project') =>
+      extensionInvokeInputFromFrame(sessionEntry, {
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
+        scope: { kind: 'session', projectPath, sessionId },
+        payload: {},
+      })
+
+    expect(invoke('session-1')).toMatchObject({ scope: { sessionId: 'session-1' } })
+    expect(invoke('session-2')).toMatchObject({ ok: false, error: { code: 'out-of-scope' } })
+    expect(invoke('session-1', '/tmp/other')).toMatchObject({
+      ok: false,
+      error: { code: 'out-of-scope' },
+    })
+  })
 })

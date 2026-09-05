@@ -5,6 +5,7 @@ import {
   CommitButton,
   DiffToggleButton,
   HeaderLeft,
+  SessionSummaryButton,
   SessionTreeButton,
   TerminalButton,
 } from '../HeaderControls'
@@ -56,14 +57,16 @@ describe('HeaderControls', () => {
     expect(screen.getByRole('button', { name: 'Open commit dialog' })).toBeDisabled()
   })
 
-  it('delegates enabled terminal, session-tree, and diff actions', () => {
+  it('delegates enabled terminal, session-summary, session-tree, and diff actions', () => {
     const onToggleTerminal = vi.fn()
+    const onToggleSummary = vi.fn()
     const onToggleTree = vi.fn()
     const onToggleDiff = vi.fn()
 
     render(
       <>
         <TerminalButton open projectPath="/repo" onToggle={onToggleTerminal} />
+        <SessionSummaryButton open panelId="session-summary-session-1" onToggle={onToggleSummary} />
         <SessionTreeButton hasSessionTree isChatRoute open={false} onToggle={onToggleTree} />
         <DiffToggleButton
           error={null}
@@ -78,12 +81,17 @@ describe('HeaderControls', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide terminal' }))
+    const summaryButton = screen.getByRole('button', { name: 'Session Summary' })
+    fireEvent.click(summaryButton)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
 
     expect(screen.getByText('+12')).toBeInTheDocument()
     expect(screen.getByText('-3')).toBeInTheDocument()
     expect(onToggleTerminal).toHaveBeenCalledOnce()
+    expect(summaryButton).toHaveAttribute('aria-pressed', 'true')
+    expect(summaryButton.querySelector('.lucide-layout-list')).toBeInTheDocument()
+    expect(onToggleSummary).toHaveBeenCalledOnce()
     expect(onToggleTree).toHaveBeenCalledOnce()
     expect(onToggleDiff).toHaveBeenCalledOnce()
   })

@@ -36,6 +36,7 @@ import {
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
+import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
 import { createWaggleSuccessOutcome, recoverWaggleRunFailure } from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
@@ -274,9 +275,13 @@ function runPreparedWaggle(
       }
     }
 
+    const persistedTree = yield* sessionRepo.getTree(input.sessionId)
+    const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)
+
     return createWaggleSuccessOutcome({
       sessionId: input.sessionId,
       result,
+      resources,
       ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
     })
   })

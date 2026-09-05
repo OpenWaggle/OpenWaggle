@@ -2,6 +2,7 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockShellOpenPath = vi.fn()
+const mockShellShowItemInFolder = vi.fn()
 const mockAppGetPath = vi.fn((_name: string) => '/tmp/logs')
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
@@ -11,6 +12,7 @@ vi.mock('electron', () => ({
   shell: {
     openPath: (p: string) => mockShellOpenPath(p),
     openExternal: (url: string) => mockShellOpenExternal(url),
+    showItemInFolder: (path: string) => mockShellShowItemInFolder(path),
   },
   app: { getPath: (name: string) => mockAppGetPath(name) },
   ipcMain: {
@@ -42,19 +44,21 @@ describe('shell-handler', () => {
   beforeEach(() => {
     handlers.clear()
     mockShellOpenPath.mockReset()
+    mockShellShowItemInFolder.mockReset()
     mockShellOpenExternal.mockReset()
     mockAppGetPath.mockReset()
     mockShellOpenPath.mockResolvedValue('')
     mockAppGetPath.mockReturnValue('/tmp/logs')
   })
 
-  it('registers exactly four handlers', () => {
+  it('registers exactly five handlers', () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(4)
+    expect(handlers.size).toBe(5)
     expect(handlers.has('app:open-logs-dir')).toBe(true)
     expect(handlers.has('app:get-logs-path')).toBe(true)
     expect(handlers.has('shell:open-path')).toBe(true)
+    expect(handlers.has('shell:reveal-path')).toBe(true)
     expect(handlers.has('shell:open-external')).toBe(true)
   })
 
@@ -163,6 +167,25 @@ describe('shell-handler', () => {
       await expect(handler?.({}, '/tmp/project')).rejects.toThrow(
         'No application can open the file',
       )
+    })
+  })
+
+  describe('shell:reveal-path', () => {
+    it('reveals a local path in its platform file browser', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:reveal-path')
+
+      await handler?.({}, '/tmp/project/reference.png')
+
+      expect(mockShellShowItemInFolder).toHaveBeenCalledWith('/tmp/project/reference.png')
+    })
+
+    it('rejects empty paths', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:reveal-path')
+
+      await expect(handler?.({}, '  ')).rejects.toThrow('Path is required.')
+      expect(mockShellShowItemInFolder).not.toHaveBeenCalled()
     })
   })
 })

@@ -29,6 +29,7 @@ export function ChatIndexRouteView() {
   const search = useSearch({ from: '/_chat/' })
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
+  const resourcesOpen = search.panel === 'resources'
   const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
   const workspaceFile =
     search.panel === 'file' && search.filePath
@@ -52,6 +53,21 @@ export function ChatIndexRouteView() {
 
   function setSessionTreeOpen(open: boolean) {
     const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
+    void navigate({
+      to: '/',
+      search: {
+        diff: undefined,
+        panel,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      },
+    })
+  }
+
+  function setResourcesOpen(open: boolean) {
+    const panel: ChatRouteSearch['panel'] = open ? 'resources' : undefined
     void navigate({
       to: '/',
       search: {
@@ -100,12 +116,22 @@ export function ChatIndexRouteView() {
     <Suspense fallback={<ChatRouteSurfaceFallback />}>
       <LazyChatRouteSurface
         workspace={{ branchId: null, nodeId: null, sessionId: null }}
-        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen, workspaceFile }}
+        rightSidebar={{
+          diffOpen,
+          extensionSidePanel,
+          resourcesOpen,
+          sessionTreeOpen,
+          workspaceFile,
+        }}
         rightSidebarActions={{
           onDiffOpenChange: setDiffOpen,
           onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
+          onResourcesOpenChange: setResourcesOpen,
           onSessionTreeOpenChange: setSessionTreeOpen,
           onWorkspaceFileOpenChange: setWorkspaceFileOpen,
+        }}
+        onNavigateSession={(targetSessionId) => {
+          void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
         }}
       />
     </Suspense>
@@ -118,6 +144,7 @@ export function ChatSessionRouteView() {
   const search = useSearch({ from: '/sessions/$sessionId' })
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
+  const resourcesOpen = search.panel === 'resources'
   const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
   const workspaceFile =
     search.panel === 'file' && search.filePath
@@ -143,6 +170,23 @@ export function ChatSessionRouteView() {
 
   function setSessionTreeOpen(open: boolean) {
     const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => ({
+        ...previous,
+        diff: undefined,
+        panel,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      }),
+    })
+  }
+
+  function setResourcesOpen(open: boolean) {
+    const panel: ChatRouteSearch['panel'] = open ? 'resources' : undefined
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId },
@@ -199,12 +243,22 @@ export function ChatSessionRouteView() {
     <Suspense fallback={<ChatRouteSurfaceFallback />}>
       <LazyChatRouteSurface
         workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
-        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen, workspaceFile }}
+        rightSidebar={{
+          diffOpen,
+          extensionSidePanel,
+          resourcesOpen,
+          sessionTreeOpen,
+          workspaceFile,
+        }}
         rightSidebarActions={{
           onDiffOpenChange: setDiffOpen,
           onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
+          onResourcesOpenChange: setResourcesOpen,
           onSessionTreeOpenChange: setSessionTreeOpen,
           onWorkspaceFileOpenChange: setWorkspaceFileOpen,
+        }}
+        onNavigateSession={(targetSessionId) => {
+          void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId } })
         }}
       />
     </Suspense>

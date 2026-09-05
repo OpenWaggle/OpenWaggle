@@ -15,6 +15,9 @@ import type {
   ExtensionRuntimeRegisterContributionResult,
   ExtensionRuntimeUnregisterContributionPayload,
   ExtensionRuntimeUnregisterContributionResult,
+  ExtensionSessionResourcePublishPayload,
+  ExtensionSessionResourcePublishResult,
+  ExtensionSessionResourcesListResult,
   ExtensionSettingsGetResult,
   ExtensionSettingsGetSettingResult,
   ExtensionSettingsUpdatePayload,
@@ -89,6 +92,12 @@ export type ExtensionSettingsUpdateOperationResult =
   | ExtensionInvokeFailure
 export type ExtensionSettingsUpdateSettingOperationResult =
   | ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult>
+  | ExtensionInvokeFailure
+export type ExtensionSessionResourcesListOperationResult =
+  | ExtensionOperationSuccess<ExtensionSessionResourcesListResult>
+  | ExtensionInvokeFailure
+export type ExtensionSessionResourcePublishOperationResult =
+  | ExtensionOperationSuccess<ExtensionSessionResourcePublishResult>
   | ExtensionInvokeFailure
 
 export interface ExtensionSdkIdentity {
@@ -206,6 +215,15 @@ export interface ExtensionOpenWaggleSdk {
       scope: ExtensionInvokeScope,
       input: ExtensionDocsResolveTopicPayload,
     ) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>
+  }
+  readonly resources: {
+    readonly list: (
+      scope: ExtensionInvokeScope,
+    ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>
+    readonly publish: (
+      scope: ExtensionInvokeScope,
+      resource: ExtensionSessionResourcePublishPayload,
+    ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>
   }
 }
 

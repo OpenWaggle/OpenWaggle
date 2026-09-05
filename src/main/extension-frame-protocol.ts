@@ -279,6 +279,13 @@ export function registerExtensionFrameProtocolOnce() {
         return notFoundResponse()
       }
 
+      // The stylesheet is immutable and contains no registration-specific data. A frame can be
+      // unregistered while Chromium still has its linked stylesheet request queued, so serve it
+      // independently to avoid a harmless-but-user-visible 404 during surface teardown.
+      if (parsedRequest.resource === 'style') {
+        return textResponse(extensionFrameCss, TEXT_CSS_CONTENT_TYPE)
+      }
+
       const registeredFrame = registeredFrames.get(parsedRequest.frameId)
       if (registeredFrame === undefined) {
         return notFoundResponse()
@@ -289,10 +296,6 @@ export function registerExtensionFrameProtocolOnce() {
           'content-security-policy': frameContentSecurityPolicy(registeredFrame),
           'x-openwaggle-extension-root': OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
         })
-      }
-
-      if (parsedRequest.resource === 'style') {
-        return textResponse(extensionFrameCss, TEXT_CSS_CONTENT_TYPE)
       }
 
       return redirectResponse(registeredFrame.bootstrapUrl)

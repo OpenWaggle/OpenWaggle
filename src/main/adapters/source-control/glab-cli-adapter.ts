@@ -1,3 +1,5 @@
+import { safeDecodeUnknown } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import type {
   ChangeRequestListResult,
   ChangeRequestResult,
@@ -45,6 +47,97 @@ async function viewMergeRequest(projectPath: string, ref: string): Promise<Chang
   return { ok: true, changeRequest }
 }
 
+function gitLabProjectId(raw: unknown): number | null {
+  const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
+  if (!decoded.success) return null
+  return typeof decoded.data.id === 'number' ? decoded.data.id : null
+}
+
+function mergeRequestSourceProjectId(raw: unknown): number | null {
+  const decoded = safeDecodeUnknown(jsonObjectSchema, raw)
+  if (!decoded.success) return null
+  return typeof decoded.data.source_project_id === 'number' ? decoded.data.source_project_id : null
+}
+
+async function findForkMergeRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+): Promise<ChangeRequestResult> {
+  if (!payload.headRepository) return viewMergeRequest(projectPath, payload.headRef)
+  const projectResult = await runCli(
+    'glab',
+    ['api', `projects/${encodeURIComponent(payload.headRepository)}`],
+    projectPath,
+  )
+  if (projectResult.code !== 0) return classifyFailure(projectResult)
+  const sourceProjectId = gitLabProjectId(safeJsonParse(projectResult.stdout))
+  if (sourceProjectId === null) {
+    return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
+  }
+  const args = ['mr', 'list', '--source-branch', payload.headRef, '--per-page', '100', '-F', 'json']
+  if (payload.baseRef) args.push('--target-branch', payload.baseRef)
+  const listResult = await runCli('glab', args, projectPath)
+  if (listResult.code !== 0) return classifyFailure(listResult)
+  const parsed = safeJsonParse(listResult.stdout)
+  const candidates: readonly unknown[] = Array.isArray(parsed) ? parsed : []
+  const exact =
+    candidates.find((candidate) => {
+      const changeRequest = mapGlabMergeRequest(candidate)
+      return (
+        mergeRequestSourceProjectId(candidate) === sourceProjectId &&
+        changeRequest?.headRef === payload.headRef &&
+        (payload.baseRef === undefined || changeRequest.baseRef === payload.baseRef)
+      )
+    }) ?? null
+  const changeRequest = mapGlabMergeRequest(exact)
+  return changeRequest
+    ? { ok: true, changeRequest }
+    : { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
+}
+
+function createdMergeRequestFromOutput(
+  result: CliResult,
+  payload: OpenChangeRequestPayload,
+): ChangeRequestResult | null {
+  const url = result.stdout.match(/https?:\/\/\S+/u)?.[0]
+  if (!url) return null
+  return {
+    ok: true,
+    changeRequest: {
+      title: payload.title,
+      url,
+      baseRef: payload.baseRef ?? '',
+      headRef: payload.headRef,
+      state: payload.draft ? 'draft' : 'open',
+    },
+  }
+}
+
+async function resolveCreatedMergeRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  result: CliResult,
+) {
+  const resolved = await findForkMergeRequest(projectPath, payload)
+  if (
+    resolved.ok &&
+    (resolved.changeRequest.state === 'open' || resolved.changeRequest.state === 'draft') &&
+    resolved.changeRequest.headRef === payload.headRef &&
+    (payload.baseRef === undefined || resolved.changeRequest.baseRef === payload.baseRef)
+  ) {
+    return resolved
+  }
+  if (result.code !== 0) return classifyFailure(result)
+  return (
+    createdMergeRequestFromOutput(result, payload) ?? {
+      ok: false,
+      code: 'unknown',
+      message:
+        'The merge request command succeeded, but the created request could not be verified.',
+    }
+  )
+}
+
 export const gitlabProvider: SourceControlProvider = {
   id: 'gitlab',
   authStatus: async (projectPath: string): Promise<SourceControlAuthResult> => {
@@ -58,17 +151,17 @@ export const gitlabProvider: SourceControlProvider = {
       'create',
       '--source-branch',
       payload.headRef,
-      '--target-branch',
-      payload.baseRef,
       '--title',
       payload.title,
       '--description',
       payload.body ?? '',
+      '--yes',
     ]
+    if (payload.baseRef) args.push('--target-branch', payload.baseRef)
+    if (payload.headRepository) args.push('--head', payload.headRepository)
     if (payload.draft) args.push('--draft')
     const result = await runCli('glab', args, projectPath)
-    if (result.code !== 0) return classifyFailure(result)
-    return viewMergeRequest(projectPath, payload.headRef)
+    return resolveCreatedMergeRequest(projectPath, payload, result)
   },
   resolveChangeRequestForRef: (projectPath: string, headRef: string) =>
     viewMergeRequest(projectPath, headRef),

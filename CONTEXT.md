@@ -72,6 +72,70 @@ _Avoid_: inherited desktop permissions
 The first-party OpenWaggle domain service through which authorized agents or adapters list, read, create, fork, steer, wait for, interrupt, hand off, and organize sessions.
 _Avoid_: MCP-owned sessions, loopback MCP orchestration
 
+**Spawn lineage**:
+The immutable parent-session, parent-run, child-session, depth, and origin relationship created when one Session spawns another.
+_Avoid_: session folder, caller label
+
+**Hive**:
+The complete family of Sessions connected through Spawn lineage from one root Session.
+_Avoid_: process pool, hidden agent group, Workspace
+
+**Queen Session**:
+The single root Session of a Hive, named for originating the Hive rather than for commanding its descendants.
+_Avoid_: every parent Session, privileged Session, supervisor process
+
+**Worker Session**:
+Any non-root Session in a Hive, including one that is itself the parent of further Worker Sessions.
+_Avoid_: disposable subagent, child process, leaf Session
+
+**Hive Summary section**:
+The conditional Session Summary section that projects the active Session's immediate parent and direct Workers, groups Workers as Active, Done, and Archived, and navigates to their Sessions without duplicating transcripts. A user's per-session expansion choice persists; without one, active or attention-requiring Workers expand the section and all-done Workers collapse it to compact counts.
+_Avoid_: composer Hive navigator, full descendant tree, subagent transcript
+
+**Session Resource**:
+A durable catalog entry owned by exactly one Session and classified as a Session Source, Session Output, or both when its occurrences include both input and production activity. It has a session-id-scoped canonical identity for deduplication across that Session's transcript branches and retains every contributing occurrence so repeated shares, reads, creations, and updates do not lose provenance or cross session boundaries. Parent and Worker Sessions in the same Hive remain separate owners and contribute resources only when one of them is itself opened. Existing sessions are backfilled lazily and idempotently when opened or reprojected from embedded Pi image data, explicit links and tool resources, and resolvable local outputs. Unrecoverable historical content remains visible as unavailable metadata. Archives retain resources; permanent session deletion removes session-owned copies.
+_Avoid_: global asset, transient transcript part, undifferentiated artifact
+
+**Session Resource occurrence**:
+One branch- and turn-attributed event in which a Session Resource was provided, read, created, or updated, retaining the actor and original locator when available.
+_Avoid_: duplicate Session Resource, activity log entry without resource identity
+
+**Session Source**:
+A user-supplied or agent-discovered Session Resource used to inform any branch of a session. Sources include attachments, explicit links, provider resources, completed tool reads, and web searches; ordinary prose and code-like text are not inferred as Sources.
+_Avoid_: Session Output, attachment when the item is a web or tool reference
+
+**Session Output**:
+A file, image, site, commit, Change request, or other explicitly declared result produced on any branch of a session. Working-tree changes remain under Environment unless the agent or a producing tool identifies them as Outputs.
+_Avoid_: Session Source, artifact as the user-facing category name
+
+**Session Image**:
+A session-owned durable copy of an image explicitly shared by the user or agent, classified as a Session Source, Session Output, or both and linked to its original provenance. Explicit signals are user attachments, Pi image blocks, image-producing tool results, Markdown image syntax, and declared Outputs; URL-like prose is never inferred as an image. New local or embedded images are validated and copied into managed storage atomically with their resource record. Remote images are cataloged without network access during run settlement or thumbnail rendering; opening the Image viewer explicitly requests one bounded, redirect-limited, SSRF-safe HTTPS materialization that is then cached in managed storage. Unsafe unsanitized formats remain file resources unless OpenWaggle can sanitize or rasterize them. Recoverable historical images join the same store during backfill.
+_Avoid_: temporary preview URL, transient attachment path
+
+**Session Resource Browser**:
+The right-sidebar surface for browsing only the active session's Sources and Outputs, including items from that session's branches; it rebinds without stale content when the active session changes. The Sources tab groups attachments, links and providers, tool use, and web search while exposing provided/read provenance. The Outputs tab exposes created/updated provenance and opens each item in its owning preview or external destination. The Session Summary's Sources preview opens this browser through `Show all`; a selected non-image Source or Output may also open it directly on its owning tab and item.
+_Avoid_: global asset library, cross-session resource browser
+
+**Session Image Viewer**:
+The shared full-size viewer opened from transcript images, Session Summary, or the Session Resource Browser. Its gallery contains every user- and agent-shared Session Image from the opened Session's transcript branches, never from its parent or Workers, ordering the active branch path first and then other branches, chronologically within each group, while exposing Source or Output and branch provenance. It defaults to zoom-to-fit, supports 25/50/100/150/200 percent zoom, centered zoom, drag-to-pan, keyboard and visible gallery navigation, Download, and open or reveal for resolvable local originals. It closes when the active session changes so content from another session cannot remain visible.
+_Avoid_: attachment-only lightbox, generated-image-only viewer, separate transcript preview
+
+**Session Summary**:
+The interactive session-scoped overview that appears after first send and gathers concrete, conditionally visible capabilities such as environment, Hive, Outputs, and Sources without replacing the transcript, navigation, composer authorization control, context meter, or app-wide configuration surfaces. It is a top-right floating overlay that never reserves transcript or composer width. The host hides it automatically when the chat container is too narrow or the right sidebar opens, while an always-available Layout list toggle in the header lets the user explicitly reopen or hide it at any width. Compact actions operate in place while richer workflows open their owning dialog or right-sidebar surface. Before first send, the Session context row owns the launch choices instead of showing an empty summary. Authorization and model context usage remain in the composer before and after first send and never move into the Session Summary. Live run progress, compaction, and other composer-adjacent feedback do not form a generic Activity section. OpenWaggle adds no first-party Usage section until it owns a truthful account or task-quota capability.
+_Avoid_: information hub, task summary, left sidebar, global settings dashboard
+
+**Session Summary section**:
+A bounded session-scoped category within the Session Summary that presents one OpenWaggle capability without owning the summary shell; optional sections remain absent until they have relevant content. Following Codex, Sources presents a compact preview, total count, and `Show all` action, while Outputs presents its total count and a bounded internally scrollable list. Session Images in either section open the shared Session Image Viewer.
+_Avoid_: arbitrary widget, extension side panel, duplicate capability UI
+
+**Session Summary contribution**:
+A declarative, host-rendered first-party or extension capability presented as a Session Summary section under host-owned ordering and visibility rules; contributing a section does not itself grant access to transcript or resource content. The initial core spine is Environment, Hive, Outputs, then Sources. Future first-party capabilities receive explicitly named conditional sections rather than joining a generic Activity or Usage bucket. An extension may request the semantic `context`, `coordination`, or `details` placement, but the host deterministically orders contributions within it and extensions cannot reorder core sections. Extension-published resources join Sources or Outputs rather than being duplicated in an extension section. Extension sections may declare host-rendered rows, labels, counts, badges, disclosures, resource references, and actions that open an already-declared command, side panel, or dialog through the Extension capability broker; they cannot embed callbacks, HTML, renderer components, or direct store access.
+_Avoid_: embedded custom UI, extension-owned overlay, independent summary shell
+
+**Session Summary parity**:
+The product rule that the installed Codex Session Summary supplies the default interaction behavior, with deviations only where Codex has no equivalent, OpenWaggle's domain requires one, or a materially better solution is chosen explicitly.
+_Avoid_: pixel clone, unexamined Codex imitation
+
 **Session capability grant**:
 A caller-, operation-, workspace-, ancestry-, and target-bound authorization to use Session Control without inheriting another session's permissions.
 _Avoid_: desktop session permission inheritance
@@ -620,6 +684,12 @@ _Avoid_: git remote (that is the plain URL), forge
 The provider-neutral concept that a GitHub pull request or a GitLab merge request instantiates.
 _Avoid_: PR (as the neutral term), MR (as the neutral term)
 
+The Session Summary's Environment section uses provider-specific language and exposes separate change, environment, branch, Git-action, and Change request rows while delegating mutations to the existing guarded Git workflows.
+
+**Change request composer**:
+The compact Environment-section popover that prepares a GitHub pull request or GitLab merge request, showing source and target refs, editable title and description, optional commit-and-push of local changes, draft and standard creation actions, and an open-in-browser escape hatch. It prepares an editable unique source branch when the working path is on the default ref and otherwise reuses the existing feature ref. Empty generated fields may be completed from the session changes before creation. Native creation is available only through an installed, authenticated provider CLI; otherwise the composer explains the prerequisite and retains its browser fallback.
+_Avoid_: full review dialog, immediate unreviewable change-request creation
+
 **Stacked git action**:
 A single composite git intent that runs an ordered set of steps — for example commit, then push, then open a change request — as one user action.
 _Avoid_: batch commit, macro
@@ -877,7 +947,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A surfaced **Authorization request** has exactly one **Authorization history entry**, which changes from pending to the final **Authorization decision** instead of creating separate request and resolution cards.
 - Changing a session to **YOLO (Full Access)** resolves its pending **Authorization request** automatically; changing to **Ask for Approval** governs subsequent requests without revoking completed authorization decisions.
 - **YOLO (Full Access)** does not create authorization prompts, authorization transcript entries, approval counters, or a separate authorization log; authorized work remains visible through its normal activity or result presentation.
-- The composer trigger presents the effective **Authorization mode** compactly as `YOLO` or `Ask for approval`; its open menu exposes exactly the canonical **YOLO (Full Access)** and **Ask for Approval** choices. Inheritance stays internal, and the menu checks the effective choice without adding a user-facing default option.
+- The composer trigger presents the effective **Authorization mode** compactly as `YOLO` or `Ask for approval`; its open menu exposes exactly the canonical **YOLO (Full Access)** and **Ask for Approval** choices. Inheritance stays internal, and the menu checks the effective choice without adding a user-facing default option. This control remains composer-resident before and after first send and is never duplicated in the **Session Summary**.
 - An active **Agent notification** is presented in a **Notification stack** clear of the composer, never as an authorization prompt or transcript card.
 - A **Notification stack** fronts the most severe active notice and stacks additional notices behind it.
 - The composer area is reserved for requests that hold the run, so the surface a user acts on is always the one nearest the prompt input.

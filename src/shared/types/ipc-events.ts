@@ -36,6 +36,9 @@ export interface IpcEventChannelMap {
   'agent:run-completed': {
     payload: { sessionId: SessionId }
   }
+  'sessions:resources-invalidated': {
+    payload: { sessionId: SessionId }
+  }
   'agent:worktree-launch': {
     payload: WorktreeLaunchEventPayload
   }
@@ -66,6 +69,9 @@ export interface IpcEventChannelMap {
   }
   'sessions:title-updated': {
     payload: { sessionId: SessionId; title: string }
+  }
+  'sessions:list-invalidated': {
+    payload: { sessionIds: readonly SessionId[] }
   }
   /**
    * A working tree's git state changed because OpenWaggle mutated it.

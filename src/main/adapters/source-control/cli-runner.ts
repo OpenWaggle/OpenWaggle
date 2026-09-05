@@ -5,6 +5,7 @@ import { jsonObjectSchema } from '@shared/schemas/validation'
 import { getGhCliEnv } from '../../env'
 
 const execFileAsync = promisify(execFile)
+const SOURCE_CONTROL_CLI_TIMEOUT_MS = 60_000
 
 export interface CliResult {
   readonly stdout: string
@@ -24,7 +25,11 @@ export async function runCli(
   cwd: string,
 ): Promise<CliResult> {
   try {
-    const output = await execFileAsync(command, [...args], { cwd, env: getGhCliEnv() })
+    const output = await execFileAsync(command, [...args], {
+      cwd,
+      env: getGhCliEnv(),
+      timeout: SOURCE_CONTROL_CLI_TIMEOUT_MS,
+    })
     return { stdout: output.stdout ?? '', stderr: output.stderr ?? '', code: 0, missing: false }
   } catch (error) {
     return normalizeCliError(error)

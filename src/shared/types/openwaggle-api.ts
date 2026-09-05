@@ -64,6 +64,7 @@ import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
@@ -93,6 +94,8 @@ import type {
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
+type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
+
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
     OpenWaggleFeedbackApi,
@@ -100,6 +103,7 @@ export interface OpenWaggleApi
     OpenWaggleUpdaterApi,
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
+    OpenWaggleSessionResourceApi,
     OpenWaggleWaggleApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
@@ -209,8 +213,9 @@ export interface OpenWaggleApi
   onGitWorkingTreeChanged(
     callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
   ): () => void
-  onSessionTitleUpdated(
-    callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
+  onSessionTitleUpdated(callback: SessionTitleUpdatedHandler): () => void
+  onSessionListInvalidated(
+    callback: (payload: IpcEventPayload<'sessions:list-invalidated'>) => void,
   ): () => void
 
   // Terminal
@@ -277,7 +282,6 @@ export interface OpenWaggleApi
   // Voice
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
 
-  // Standards and Skills
   getStandardsStatus(
     projectPath: string,
   ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
@@ -286,16 +290,14 @@ export interface OpenWaggleApi
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
 
-  // Dialog
   showConfirm(message: string, detail?: string): Promise<boolean>
 
-  // Shell / App
   copyToClipboard(text: string): void
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>
+  revealPath(path: string): Promise<void>
 
-  // Auth
   startOAuth(provider: OAuthProvider): Promise<void>
   submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
   cancelOAuth(provider: OAuthProvider): Promise<void>

@@ -16,6 +16,10 @@ function terminologyFor(status: VcsStatus | null): ChangeRequestTerminology {
   return getChangeRequestTerminology(status?.sourceControlProvider?.id)
 }
 
+function hasOpenChangeRequest(status: VcsStatus) {
+  return status.changeRequest?.state === 'open' || status.changeRequest?.state === 'draft'
+}
+
 /**
  * Compute the single next-best git action from combined VCS status.
  *
@@ -40,7 +44,7 @@ export function resolveQuickAction(status: VcsStatus | null, isBusy: boolean): G
   const terminology = terminologyFor(status)
   const hasBranch = status.refName !== null
   const hasChanges = status.hasWorkingTreeChanges
-  const hasOpenPr = status.changeRequest?.state === 'open'
+  const hasOpenPr = hasOpenChangeRequest(status)
   const isAhead = status.aheadCount > 0
   const isBehind = status.behindCount > 0
   const isDiverged = isAhead && isBehind

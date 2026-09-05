@@ -116,4 +116,206 @@ describe('github adapter typed failures (never throws)', () => {
       ok: false,
     })
   })
+
+  it('omits --base when the repository default could not be resolved locally', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ stdout: 'https://github.com/o/r/pull/1\n' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            url: 'https://github.com/o/r/pull/1',
+            baseRefName: 'main',
+            headRefName: 'feature/current',
+            state: 'OPEN',
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await getSourceControlProvider('github')?.openChangeRequest('/repo', {
+      headRef: 'feature/current',
+      title: 'T',
+    })
+
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'gh',
+      expect.not.arrayContaining(['--base']),
+      '/repo',
+    )
+  })
+
+  it('adopts a PR that exists after the create command reports failure', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            url: 'https://github.com/o/r/pull/2',
+            baseRefName: 'main',
+            headRefName: 'feature/current',
+            state: 'OPEN',
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      changeRequest: { url: 'https://github.com/o/r/pull/2' },
+    })
+  })
+
+  it.each([
+    ['CLOSED', 'main', 'feature/current'],
+    ['OPEN', 'release', 'feature/current'],
+    ['OPEN', 'main', 'feature/other'],
+  ])('does not adopt an unrelated or inactive PR (%s)', async (state, baseRefName, headRefName) => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'Old request',
+            url: 'https://github.com/o/r/pull/old',
+            baseRefName,
+            headRefName,
+            state,
+            isDraft: false,
+          }),
+        }),
+      )
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'unknown' })
+  })
+
+  it('preserves a successful create URL when the metadata lookup is transiently unavailable', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ stdout: 'https://github.com/o/r/pull/3\n' }))
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+
+    await expect(
+      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+        draft: true,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      changeRequest: {
+        title: 'T',
+        url: 'https://github.com/o/r/pull/3',
+        baseRef: 'main',
+        headRef: 'feature/current',
+        state: 'draft',
+      },
+    })
+  })
+})
+
+describe('gitlab adapter defaults', () => {
+  beforeEach(() => runCliMock.mockReset())
+
+  it('omits --target-branch when the repository default could not be resolved locally', async () => {
+    runCliMock.mockResolvedValueOnce(cli({ stdout: '' })).mockResolvedValueOnce(
+      cli({
+        stdout: JSON.stringify({
+          title: 'T',
+          web_url: 'https://gitlab.com/o/r/-/merge_requests/1',
+          target_branch: 'main',
+          source_branch: 'feature/current',
+          state: 'opened',
+          draft: false,
+        }),
+      }),
+    )
+
+    await getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+      headRef: 'feature/current',
+      title: 'T',
+    })
+
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'glab',
+      expect.not.arrayContaining(['--target-branch']),
+      '/repo',
+    )
+    expect(runCliMock.mock.calls[0]?.[1]).toContain('--yes')
+  })
+
+  it('adopts an MR that exists after the create command reports failure', async () => {
+    runCliMock
+      .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+      .mockResolvedValueOnce(
+        cli({
+          stdout: JSON.stringify({
+            title: 'T',
+            web_url: 'https://gitlab.com/o/r/-/merge_requests/2',
+            target_branch: 'main',
+            source_branch: 'feature/current',
+            state: 'opened',
+            draft: false,
+          }),
+        }),
+      )
+
+    await expect(
+      getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+        headRef: 'feature/current',
+        baseRef: 'main',
+        title: 'T',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      changeRequest: { url: 'https://gitlab.com/o/r/-/merge_requests/2' },
+    })
+  })
+
+  it.each([
+    ['closed', 'main', 'feature/current'],
+    ['opened', 'release', 'feature/current'],
+    ['opened', 'main', 'feature/other'],
+  ])(
+    'does not adopt an unrelated or inactive MR (%s)',
+    async (state, targetBranch, sourceBranch) => {
+      runCliMock
+        .mockResolvedValueOnce(cli({ code: 1, stderr: 'connection reset' }))
+        .mockResolvedValueOnce(
+          cli({
+            stdout: JSON.stringify({
+              title: 'Old request',
+              web_url: 'https://gitlab.com/o/r/-/merge_requests/old',
+              target_branch: targetBranch,
+              source_branch: sourceBranch,
+              state,
+              draft: false,
+            }),
+          }),
+        )
+
+      await expect(
+        getSourceControlProvider('gitlab')?.openChangeRequest('/repo', {
+          headRef: 'feature/current',
+          baseRef: 'main',
+          title: 'T',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'unknown' })
+    },
+  )
 })

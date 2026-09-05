@@ -17,6 +17,7 @@ import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
 import { SettingsService } from '../../services/settings-service'
@@ -183,6 +184,9 @@ function makeSessionLayers() {
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),
+      listResourceProjectionPage: () =>
+        Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+      getResourceProjectionNodes: () => Effect.succeed([]),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,
@@ -195,6 +199,16 @@ function makeSessionLayers() {
       clearInterruptedRuns: () => Effect.void,
       listActiveRunsForRecovery: () => Effect.succeed([]),
       markActiveRunInterrupted: () => Effect.void,
+    }),
+    Layer.succeed(SessionResourceRepository, {
+      upsert: () => Effect.dieMessage('resource upsert is not configured for this test'),
+      list: () => Effect.succeed([]),
+      findByCanonicalKey: () => Effect.succeed(null),
+      rekey: () => Effect.dieMessage('resource rekey is not configured for this test'),
+      hasOccurrence: () => Effect.succeed(false),
+      getContentLocation: () => Effect.succeed(null),
+      getBackfillCursor: () => Effect.succeed(-1),
+      advanceBackfillCursor: () => Effect.void,
     }),
   )
 }

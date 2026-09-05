@@ -1,4 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { SessionId } from '@shared/types/brand'
+import { fromPartial } from '@total-typescript/shoehorn'
+import type { IpcRendererEvent } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -17,6 +20,81 @@ describe('preload api surface contract', () => {
   it('matches the preload method contract exactly', () => {
     for (const method of PRELOAD_API_METHODS) expect(typeof api[method]).toBe('function')
     expect(Object.keys(api).sort()).toEqual([...PRELOAD_API_METHODS].sort())
+  })
+
+  it('reads only the requested session resource through typed IPC', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      resourceId: 'resource-1',
+      fileName: 'image.png',
+      mimeType: 'image/png',
+      dataBase64: 'aW1hZ2U=',
+    })
+
+    await api.readSessionResource(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:read',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
+  it('advances historical resource backfill without requesting the catalog', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({ backfillComplete: false })
+
+    await api.advanceSessionResourceBackfill(SessionId('session-1'))
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:backfill',
+      SessionId('session-1'),
+    )
+  })
+
+  it('requests a bounded session resource thumbnail through its own IPC channel', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      resourceId: 'resource-1',
+      fileName: 'resource-1-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'dGh1bWJuYWls',
+    })
+
+    await api.readSessionResourceThumbnail(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:thumbnail',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
+  it('retries only the requested resource through typed IPC', async () => {
+    await api.retrySessionResource(SessionId('session-1'), 'resource-1')
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'sessions:resources:retry',
+      SessionId('session-1'),
+      'resource-1',
+    )
+  })
+
+  it('subscribes to resource invalidation for the affected session and cleans up', () => {
+    const listener = vi.fn()
+    const unsubscribe = api.onSessionResourcesInvalidated(listener)
+    const registered = vi
+      .mocked(ipcRenderer.on)
+      .mock.calls.find(([channel]) => channel === 'sessions:resources-invalidated')
+
+    expect(registered).toBeDefined()
+    registered?.[1](fromPartial<IpcRendererEvent>({}), {
+      sessionId: SessionId('session-background'),
+    })
+    expect(listener).toHaveBeenCalledWith({ sessionId: SessionId('session-background') })
+
+    unsubscribe()
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
+      'sessions:resources-invalidated',
+      registered?.[1],
+    )
   })
 
   it('prepares attachments from user-selected File objects via preload path extraction', async () => {
@@ -157,6 +235,7 @@ describe('preload api surface contract', () => {
       'onWaggleTurnEvent',
       'onOAuthStatus',
       'onSessionTitleUpdated',
+      'onSessionListInvalidated',
       'onUpdateStatus',
     ] as const
 

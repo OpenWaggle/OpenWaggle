@@ -107,7 +107,13 @@ describe('extension frame protocol', () => {
       'openwaggle-extension-frame',
       registration.frameUrl,
     )
+    const lateStyleResponse = await dispatchProtocolRequest(
+      'openwaggle-extension-frame',
+      new URL('./frame.css', registration.frameUrl).toString(),
+    )
     expect(unregisteredResponse.status).toBe(HTTP_NOT_FOUND_STATUS)
+    expect(lateStyleResponse.status).not.toBe(HTTP_NOT_FOUND_STATUS)
+    expect(await lateStyleResponse.text()).toContain('#openwaggle-extension-root')
   })
 
   it('redirects bootstrap requests to the compiled renderer bootstrap module URL', async () => {

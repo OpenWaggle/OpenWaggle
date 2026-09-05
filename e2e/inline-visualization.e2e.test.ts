@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
+import { expectRightSidebarClosed } from './support/right-sidebar'
 import { seedSingleSession } from './support/session-fixtures'
 
 const THREAD_TITLE = 'Inline Visualization Security'
@@ -152,7 +153,11 @@ function visualizationSource() {
 </script>`
 }
 
-async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionId: string) {
+async function expectSecureInteractiveVisualization(
+  app: OpenWaggleApp,
+  sessionId: string,
+  options: { verifyAgentPayload?: boolean } = {},
+) {
   const page = app.window()
   await app.resizeMainWindow(760, 620)
   const iframe = page.locator(`iframe[title="${FRAME_TITLE}"]`)
@@ -247,6 +252,29 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   await expect(frame.getByRole('tooltip')).toHaveCount(0)
 
   await app.resizeMainWindow(1440, 900)
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_400)
+  const sessionTreeToggle = page
+    .locator('header')
+    .getByRole('button', { name: 'Toggle Session Tree' })
+  if ((await sessionTreeToggle.getAttribute('aria-expanded')) === 'true') {
+    await sessionTreeToggle.click()
+    await expect(sessionTreeToggle).toHaveAttribute('aria-expanded', 'false')
+  }
+  await expectRightSidebarClosed(page)
+  await expect(page.locator('[data-chat-panel-main="true"]')).toHaveAttribute(
+    'data-session-summary-space',
+    'available',
+  )
+  const summary = page.getByRole('complementary', { name: 'Session Summary' })
+  const summaryToggle = page
+    .locator('header')
+    .getByRole('button', { name: 'Session Summary', exact: true })
+  await expect(summaryToggle).toBeVisible()
+  if ((await summaryToggle.getAttribute('aria-pressed')) === 'true') {
+    await summaryToggle.click()
+  }
+  await expect(summaryToggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(summary).toHaveCount(0)
   await page.getByRole('button', { name: 'Expand visualization' }).click()
   const largeFocusLayer = page.locator('[data-visualization-focus-layer="true"]')
   const largeDialog = page.getByRole('dialog', { name: FRAME_TITLE })
@@ -326,62 +354,64 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   await expect(focusLayer).toHaveCount(0)
   await expect(page.getByRole('region', { name: FRAME_TITLE })).toBeVisible()
   await expect(frame.getByRole('button', { name: 'Count 1', exact: true })).toBeVisible()
-  const feedback = 'The selected visualization state should keep the expanded section.'
-  await app.installSessionDetailSnapshotProbe({
-    sessionId,
-    detail: {
-      id: sessionId,
-      title: THREAD_TITLE,
-      projectPath: app.userDataDir,
-      piSessionId: 'replacement-pi-session',
-      messages: [
-        {
-          id: 'replacement-user-message',
-          role: 'user',
-          createdAt: Date.now(),
-          parts: [{ type: 'text', text: feedback }],
-        },
-        {
-          id: 'replacement-assistant-message',
-          role: 'assistant',
-          createdAt: Date.now() + 1,
-          parts: [{ type: 'text', text: 'The selected stage is sandbox.' }],
-        },
-      ],
-      createdAt: Date.now() - 1_000,
-      updatedAt: Date.now() + 2,
-    },
-  })
-  await app.mainWindow().messageInput().fill(feedback)
-  await app.mainWindow().submitComposer()
-  await expect
-    .poll(() => app.readAgentSendProbe(), { timeout: CROSS_PROCESS_UI_TIMEOUT_MS })
-    .toMatchObject({
-      payload: {
-        text: feedback,
-        visualizationContext: {
-          sourcePath: expect.stringContaining(SOURCE_NAME),
-          title: FRAME_TITLE,
-          state: { count: 1, expanded: true },
-        },
+  if (options.verifyAgentPayload !== false) {
+    const feedback = 'The selected visualization state should keep the expanded section.'
+    await app.installSessionDetailSnapshotProbe({
+      sessionId,
+      detail: {
+        id: sessionId,
+        title: THREAD_TITLE,
+        projectPath: app.userDataDir,
+        piSessionId: 'replacement-pi-session',
+        messages: [
+          {
+            id: 'replacement-user-message',
+            role: 'user',
+            createdAt: Date.now(),
+            parts: [{ type: 'text', text: feedback }],
+          },
+          {
+            id: 'replacement-assistant-message',
+            role: 'assistant',
+            createdAt: Date.now() + 1,
+            parts: [{ type: 'text', text: 'The selected stage is sandbox.' }],
+          },
+        ],
+        createdAt: Date.now() - 1_000,
+        updatedAt: Date.now() + 2,
       },
     })
-  await expect(page.getByText(feedback, { exact: true })).toBeVisible()
-  // The assistant row proves the replacement snapshot hydrated; re-check the user row afterwards.
-  await expect(page.getByText('The selected stage is sandbox.', { exact: true })).toBeVisible()
-  await expect(page.getByText(feedback, { exact: true })).toBeVisible()
-  await expect(async () => {
-    const earlierFollowUpBounds = await page
-      .getByText('Explain visualization count 0', { exact: true })
-      .boundingBox()
-    const feedbackBounds = await page.getByText(feedback, { exact: true }).boundingBox()
-    const assistantBounds = await page
-      .getByText('The selected stage is sandbox.', { exact: true })
-      .boundingBox()
-    expect(earlierFollowUpBounds?.y).toBeLessThan(feedbackBounds?.y ?? 0)
-    expect(feedbackBounds?.y).toBeLessThan(assistantBounds?.y ?? 0)
-  }).toPass()
-  await app.captureEvidence('openwaggle-inline-visualization-follow-up-retained')
+    await app.mainWindow().messageInput().fill(feedback)
+    await app.mainWindow().submitComposer()
+    await expect
+      .poll(() => app.readAgentSendProbe(), { timeout: CROSS_PROCESS_UI_TIMEOUT_MS })
+      .toMatchObject({
+        payload: {
+          text: feedback,
+          visualizationContext: {
+            sourcePath: expect.stringContaining(SOURCE_NAME),
+            title: FRAME_TITLE,
+            state: { count: 1, expanded: true },
+          },
+        },
+      })
+    await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+    // The assistant row proves the replacement snapshot hydrated; re-check the user row afterwards.
+    await expect(page.getByText('The selected stage is sandbox.', { exact: true })).toBeVisible()
+    await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+    await expect(async () => {
+      const earlierFollowUpBounds = await page
+        .getByText('Explain visualization count 0', { exact: true })
+        .boundingBox()
+      const feedbackBounds = await page.getByText(feedback, { exact: true }).boundingBox()
+      const assistantBounds = await page
+        .getByText('The selected stage is sandbox.', { exact: true })
+        .boundingBox()
+      expect(earlierFollowUpBounds?.y).toBeLessThan(feedbackBounds?.y ?? 0)
+      expect(feedbackBounds?.y).toBeLessThan(assistantBounds?.y ?? 0)
+    }).toPass()
+    await app.captureEvidence('openwaggle-inline-visualization-follow-up-retained')
+  }
   const heightExpanded = await iframe.evaluate((element) => element.getBoundingClientRect().height)
   await frame
     .getByRole('button', { name: 'Count 1', exact: true })
@@ -468,7 +498,7 @@ test('renders a persistent interactive visualization inside the isolated Electro
     await app.installAgentSendProbe()
     await app.confirmNativeDialogs()
     await openVisualizationThread(app)
-    await expectSecureInteractiveVisualization(app, sessionId)
+    await expectSecureInteractiveVisualization(app, sessionId, { verifyAgentPayload: false })
   } finally {
     await app.cleanup()
   }

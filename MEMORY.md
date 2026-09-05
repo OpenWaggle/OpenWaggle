@@ -123,6 +123,14 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
 - **React Compiler runs in the app build (`electron.vite.config.ts` -> `reactCompilerPreset()`) and, since this work, in the component test config too — but not in the node unit config, which renders nothing.** Any component that reads render data from a library-owned *mutable* instance can pass a suite that does not run the compiler and still render permanently stale in the real app: the compiler memoizes on referential identity, and the instance is mutated in place so its identity never changes. Hit for real with `@headless-tree` in the Changed-file navigator — `tree.getItems()` returned 262 items while zero rows reached the DOM. Fix is the scoped `'use no memo'` directive on the component that maps the mutable instance (an official compiler escape hatch, not a lint-ignore comment). See "The React Compiler now runs in component tests" below for the mechanism that now catches this class; for anything outside component tests, still treat a green suite as no evidence and verify in real Electron over CDP.
 - Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
+- A provider CLI can create a PR/MR remotely and still exit non-zero if its response is interrupted. Before surfacing create failure, resolve the exact head ref and adopt an existing request; after a successful create, retain the CLI's returned URL if the metadata lookup is transiently unavailable. This prevents duplicate requests on retry.
+- Change-request creation follows the destination that actually received the push, including `pushurl`, remote branch, and repository owner. Require one compatible provider/authority/repository destination; GitHub fork creation uses `owner:branch`, recovery verifies owner/head/base, and browser fallback is withheld because it cannot verify the fork relationship. A bare local ref can target or adopt an unrelated same-named branch in the base repository.
+- Main-process Git mutations are serialized by canonical checkout root, not the caller's opened subfolder. Worktree create/remove owns that same low-level boundary so IPC, first-send birth, and Session prune cannot race each other; linked worktrees remain distinct checkout identities.
+- A successful commit or change request can still fail Session Output projection. The result contract exposes whether durable retry authorization was persisted; renderer actions must surface every projection failure and offer manual retry only for an authorized queued request, while retaining the remote request's browser URL.
+- Session-resource run-completion invalidation is keyed by the event's Session id, not the currently opened Session. Background Sessions otherwise retain a fresh-looking cached catalog and omit newly captured resources when reopened.
+- Extension resource contributions use the approved `openwaggle.resources` broker capability with explicit Session scope. Publish payloads accept only credential-free HTTPS links/images; the host derives actor, occurrence, canonical identity, and Session ownership. List results expose display metadata only—never locators, managed paths, canonical keys, or occurrence history—and invalidation events carry the affected Session id.
+- Session resources retain two distinct locator concepts: the original public locator for provenance/open/reveal and the host-managed path for safe rendering. Raster image status is established from stored bytes, not filenames or declared MIME; SVG remains an ordinary file rather than renderable active content.
+- A remote image read refreshes its Session resource projection only after managed content materializes. Refreshing after a failed read bumps the resource revision and immediately repeats the same failed query; failures remain stable until the user explicitly retries.
 
 ## Syntax And Workspace Editing Memory
 
@@ -134,6 +142,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Pierre patch parsing is synchronous even when highlighting uses its worker pool. Prepare ordinary multi-file patches in renderer tasks bounded by both file count and UTF-16 input units, publishing incremental items so the first highlighted file is not blocked by the whole change set. Offload each oversized unified patch individually in a short-lived module worker rather than sending the whole mixed-size diff, and surface parser failures ahead of loading placeholders. Retain and replay Changed-file navigation until the requested item has been prepared.
 - Pierre renders highlighted rows inside the open shadow root of its `<diffs-container>` element. Readiness probes must observe that shadow root rather than relying on a light-DOM `querySelector`, and the expanded Changed-file navigator must receive large file lists through deferred rendering with offscreen row layout/paint containment so secondary tree rows cannot delay the primary loading/highlight frame.
 - Diff performance E2E starts inside the panel toggle's capture listener, records Pierre's first shadow-root readiness through the light-DOM `data-diff-code-ready` contract, and keeps measuring until progressive patch preparation completes. Long-task entries are selected by interval overlap because the browser task that dispatches the click starts just before the listener timestamp. A body-level code query cannot see Pierre's shadow rows, and falling back to the time when Playwright finishes polling charges startup, runner descheduling, and test-driver delay to diff rendering.
+- Chromium long-task entries measure wall time, not renderer CPU time. A hidden Electron renderer on a shared GitHub-hosted Windows VM can be descheduled for several seconds during the roughly 40-second 1 MiB source scenario and report the pause as one long task. That one uncalibrated absolute assertion is therefore disabled only for hosted Windows; the scenario still enforces first paint, skeleton-before-tokenization, bounded DOM/worker/transfer work, completion, and renderer errors. Local, macOS, Linux, diff rendering, and shorter Windows interaction windows retain their absolute long-task budgets.
 - Pierre's working pool owns the effective render options. Passing the active Syntax theme only to `<File>` or `<CodeView>` is insufficient: initialize the worker pool and surface with the same revision-specific runtime theme, and call the pool's `setRenderOptions` when a mounted diff changes theme because `WorkerPoolContextProvider` consumes `highlighterOptions` only during its initial state creation.
 - Right-sidebar performance checks must target the shared visible panel marker, not the docked shell: narrower or DPI-scaled viewports use the sheet variant, and a docked-only locator reports missing feedback even while highlighted code is visible.
 - Workspace document identity includes the active working-tree root and relative path. The active file, search highlighting, syntax caches, journals, saves, and file mutations must not collide when two worktrees expose the same relative path.
@@ -153,6 +162,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ## Product And UX Memory
 
+- The Session Summary is a floating overlay, never a layout column. It must not add transcript or composer padding. The host auto-hides it when the chat container has less than 840px or the right sidebar opens, while the Summary toggle remains available so an explicit open can overlay the chat at any width.
 - Pi-native sidebar navigation is Projects-only. Do not add a global projectless Chats section.
 - Waggle mode must run inside Pi as extension/runtime behavior, not as an OpenWaggle application loop that calls Pi once per agent turn.
 - Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.
@@ -405,3 +415,40 @@ The consequence that outlives the ring: anything hidden behind `group-focus-with
 ### The menu role and its keyboard model are one decision
 
 `role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.
+
+### Session resources are durable, session-scoped projections
+
+Images, links, files, and change-request outputs are indexed in `session_resources`; their uses are
+separate `session_resource_occurrences` keyed to transcript node and branch ids. The resource row is
+deduplicated by `(session_id, canonical_key)`, so the same image may be both a source and an output
+without losing either provenance. Never query or read one by resource id alone: every repository and
+IPC read includes the opened `SessionId` to prevent resources leaking across sessions.
+
+Managed bytes live below Electron user data in `session-resources/<session-id>/`, not in the project.
+Archiving retains them; permanent session deletion removes them after the database cascade. Successful
+runs capture new explicit resources, while opening the resource catalog backfills reconstructable
+resources from older projected transcripts with deterministic occurrence ids. Attachment backfill is
+bounded per lazy pass and resumes by skipping cataloged occurrence ids; do not turn catalog opening into
+an unbounded sweep over historical files. Explicit links from both actors share one per-run or per-pass
+budget, and backfill resumes by skipping cataloged link occurrence ids. Prepared local attachments carry a SHA-256 content identity
+through hydration and managed-file capture, so a same-size replacement at the original path is rejected.
+A transcript occurrence's `nodeId` is what connects an inline thumbnail to the exact user or assistant
+message and lets the viewer prioritise images on the visible branch before images from other branches in
+the same session.
+
+Remote Markdown images are metadata-only during run settlement and thumbnail rendering. The main
+process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,
+then stores the validated bytes as the resource's managed copy. Do not reintroduce automatic remote
+thumbnail prefetching: it leaks network timing and can turn one agent response into unbounded download
+work before run completion. Managed previews use the thumbnail IPC path, which rasterizes at most a
+256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
+transcript thumbnails. Full bytes are reserved for an explicit viewer or download action.
+
+### Hive state comes from the session projection
+
+`session_lineage` records immutable parentage for Sessions created by a hosted task plus the caller
+profile and current delegation state. The detail-side session summary query derives Queen/Worker roles
+and direct/active Worker counts from that table for both live and archived lists. The hosted task manager
+is the production writer: a new task-created Session establishes lineage once, while success, failure,
+and cancellation update only an existing lineage row. Do not reconstruct Hive state from task JSON in
+the renderer or reparent an existing Session when a task merely targets it.

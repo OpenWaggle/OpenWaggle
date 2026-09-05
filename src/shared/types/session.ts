@@ -22,6 +22,32 @@ export type SessionNodeKind =
 export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
+export type SessionHiveRole = 'queen' | 'worker' | 'independent'
+export type SessionDelegationState =
+  | 'working'
+  | 'waiting'
+  | 'needs_attention'
+  | 'ready_for_review'
+  | 'revision_requested'
+  | 'accepted'
+  | 'cancelled'
+
+export interface SessionLineage {
+  readonly role: SessionHiveRole
+  readonly parentSessionId: SessionId | null
+  readonly directWorkerCount: number
+  readonly activeDirectWorkerCount: number
+  readonly agentDefinitionName: string | null
+  readonly delegationState: SessionDelegationState | null
+}
+
+export interface EstablishSessionLineageInput {
+  readonly sessionId: SessionId
+  readonly parentSessionId: SessionId
+  readonly agentDefinitionName: string | null
+  readonly delegationState: SessionDelegationState
+}
+
 export interface SessionSummary {
   readonly id: SessionId
   readonly title: string
@@ -37,6 +63,8 @@ export interface SessionSummary {
   /** Resolves this session's working path, so per-session git state can be shown in lists. */
   readonly environmentMode?: SessionEnvironmentMode
   readonly worktreePath?: string | null
+  /** Hive ancestry and direct-worker state projected for this session only. */
+  readonly lineage?: SessionLineage
 }
 
 export interface SessionInterruptedRun {

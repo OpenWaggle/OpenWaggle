@@ -7,6 +7,7 @@ import {
   extensionInvokeOutcomeSchema,
   extensionInvokeResultSchema,
 } from '@shared/schemas/extension-broker'
+import { extensionSessionResourcePublishPayloadSchema } from '@shared/schemas/extension-broker-resources'
 import { describe, expect, it } from 'vitest'
 
 const validInvocation = {
@@ -193,5 +194,31 @@ describe('extension broker schemas', () => {
     )
 
     expect(results.every((result) => result.success)).toBe(true)
+  })
+
+  it('accepts only credential-free HTTPS resource publications', () => {
+    const valid = {
+      key: 'analysis-report',
+      title: 'Analysis report',
+      kind: 'link',
+      role: 'output',
+      locator: 'https://example.com/report',
+    }
+
+    expect(safeDecodeUnknown(extensionSessionResourcePublishPayloadSchema, valid).success).toBe(
+      true,
+    )
+    expect(
+      safeDecodeUnknown(extensionSessionResourcePublishPayloadSchema, {
+        ...valid,
+        locator: 'http://example.com/report',
+      }).success,
+    ).toBe(false)
+    expect(
+      safeDecodeUnknown(extensionSessionResourcePublishPayloadSchema, {
+        ...valid,
+        locator: 'https://user:secret@example.com/report',
+      }).success,
+    ).toBe(false)
   })
 })

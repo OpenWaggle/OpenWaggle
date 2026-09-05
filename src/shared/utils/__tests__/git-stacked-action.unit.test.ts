@@ -15,6 +15,7 @@ describe('git-stacked-action pure logic', () => {
     it('prefixes feature/ and slugifies', () => {
       expect(sanitizeFeatureBranchName('Fix toast copy')).toBe('feature/fix-toast-copy')
       expect(sanitizeFeatureBranchName('feature/refine-toolbar')).toBe('feature/refine-toolbar')
+      expect(sanitizeFeatureBranchName('codex/session summary')).toBe('codex/session-summary')
     })
   })
 

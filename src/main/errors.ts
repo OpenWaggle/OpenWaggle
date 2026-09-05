@@ -27,6 +27,39 @@ export class SessionProjectionRepositoryError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
+export class SessionResourceRepositoryError extends Data.TaggedError(
+  'SessionResourceRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionOutputRetryRepositoryError extends Data.TaggedError(
+  'SessionOutputRetryRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceStoreError extends Data.TaggedError('SessionResourceStoreError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceImageFetchError extends Data.TaggedError(
+  'SessionResourceImageFetchError',
+)<{
+  readonly url: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceThumbnailError extends Data.TaggedError(
+  'SessionResourceThumbnailError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
 export class StandardsLoadError extends Data.TaggedError('StandardsLoadError')<{
   readonly message: string
   readonly cause?: unknown

@@ -54,12 +54,12 @@ function targetSessionId(input: {
   readonly target: ExtensionContributionTargetView | undefined
   readonly requestedSessionId: string | undefined
 }) {
+  const requestedSessionId = input.requestedSessionId?.trim()
   const sessionIds = input.target?.sessionIds
   if (sessionIds === undefined) {
-    return undefined
+    return requestedSessionId && requestedSessionId.length > 0 ? requestedSessionId : undefined
   }
 
-  const requestedSessionId = input.requestedSessionId?.trim()
   return requestedSessionId !== undefined && sessionIds.includes(requestedSessionId)
     ? requestedSessionId
     : null

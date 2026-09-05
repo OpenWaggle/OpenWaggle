@@ -11,7 +11,12 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
+import * as SessionResourceTest from './session-details-handler-resource-test-layer'
 import { SESSION_DETAILS_HANDLER_SOURCE_TREE } from './session-details-handler-tree-fixture'
+
+export const completeSessionResourceCleanupMock: TestMock =
+  SessionResourceTest.completeSessionResourceCleanupMock
+export const removeSessionResourcesMock: TestMock = SessionResourceTest.removeSessionResourcesMock
 
 type TestMock = Mock
 
@@ -160,6 +165,8 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) =>
           new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
       }),
+    establishLineage: () => Effect.void,
+    setDelegationState: () => Effect.void,
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
@@ -198,8 +205,7 @@ const TestAgentKernelLayer = Layer.succeed(
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
     run: () => Effect.fail(new Error('agent run not used by session detail handler tests')),
-    getContextUsage: () =>
-      Effect.fail(new Error('context usage not used by session detail handler tests')),
+    getContextUsage: () => Effect.fail(new Error('context usage is not used')),
     compact: () => Effect.fail(new Error('compaction not used by session detail handler tests')),
     navigateTree: () =>
       Effect.fail(new Error('tree navigation not used by session detail handler tests')),
@@ -217,6 +223,9 @@ const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -275,6 +284,7 @@ const TestRuntimeLayer = Layer.mergeAll(
   TestSessionRepoLayer,
   TestProviderLayer,
   TestSettingsLayer,
+  SessionResourceTest.TestSessionResourceLayer,
   TestInlineVisualizationLayer,
   EmptyExtensionRuntimeLayer,
 )
@@ -284,9 +294,7 @@ export function getInvokeHandler(name: string) {
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
-  if (typeof handler !== 'function') {
-    return undefined
-  }
+  if (typeof handler !== 'function') return undefined
 
   return (...args: unknown[]) =>
     Effect.runPromise(Effect.provide(handler(...args), TestRuntimeLayer))
@@ -303,6 +311,7 @@ export function resetSessionDetailsHandlerMocks() {
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
+  SessionResourceTest.resetSessionResourceTestMocks()
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

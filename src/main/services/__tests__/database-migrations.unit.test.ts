@@ -74,6 +74,7 @@ function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
         }
       }
 
+      if (migration.run) yield* migration.run(sql)
       for (const statement of migration.statements) {
         yield* sql.unsafe(statement)
       }
@@ -214,5 +215,109 @@ describe('session authorization-mode migration', () => {
 
     expect(tables.map((table) => table.name)).toContain('pinned_sessions')
     expect(APP_MIGRATIONS.find((migration) => migration.id === 24)?.name).toBe('pinned-sessions')
+  })
+
+  it('adds the session resource catalog at migration 27 and keeps it session-owned', async () => {
+    const result = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 27)
+        yield* insertSession(sql, 'resource-session')
+        yield* sql`
+          INSERT INTO session_resources (
+            id, session_id, canonical_key, kind, title, available, created_at, updated_at
+          ) VALUES (
+            'resource-1', 'resource-session', 'sha256:image', 'image', 'image.png', 1, 1, 1
+          )
+        `
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, actor, activity, created_at
+          ) VALUES ('occurrence-1', 'resource-1', 'user', 'provided', 1)
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'resource-session'`
+        const resources = yield* sql<{ readonly id: string }>`SELECT id FROM session_resources`
+        const occurrences = yield* sql<{ readonly id: string }>`
+          SELECT id FROM session_resource_occurrences
+        `
+        return { resources, occurrences }
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 27)?.name).toBe(
+      'session-resource-catalog',
+    )
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 26)?.name).toBe(
+      'session-hive-lineage',
+    )
+    expect(result).toEqual({ resources: [], occurrences: [] })
+  })
+
+  it('adds session-owned resource backfill progress at migration 28', async () => {
+    const state = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 28)
+        yield* insertSession(sql, 'backfill-session')
+        yield* sql`
+          INSERT INTO session_resource_backfill_state (session_id, through_created_order)
+          VALUES ('backfill-session', 42)
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'backfill-session'`
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_backfill_state
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 28)?.name).toBe(
+      'session-resource-backfill-state',
+    )
+    expect(state).toEqual([])
+  })
+
+  it('adds durable managed-resource cleanup work at migration 29', async () => {
+    const queued = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 28)
+        yield* sql`DROP TABLE session_resource_cleanup_queue`
+        yield* applyMigrations(sql, 29)
+        yield* sql`
+          INSERT INTO session_resource_cleanup_queue (session_id, queued_at)
+          VALUES ('deleted-session', 1)
+        `
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_cleanup_queue
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 29)?.name).toBe(
+      'session-resource-cleanup-queue',
+    )
+    expect(queued).toEqual([{ session_id: 'deleted-session' }])
+  })
+
+  it('adds session-owned durable Output retry work at migration 30', async () => {
+    const pending = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 30)
+        yield* insertSession(sql, 'output-session')
+        yield* sql`
+          INSERT INTO session_output_retries (
+            id, session_id, kind, commit_hash, summary, created_at
+          ) VALUES (
+            'pending-commit', 'output-session', 'commit', 'abc123', 'Complete hub', 1
+          )
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'output-session'`
+        return yield* sql<{ readonly id: string }>`
+          SELECT id FROM session_output_retries
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 30)?.name).toBe(
+      'session-output-retry-queue',
+    )
+    expect(pending).toEqual([])
   })
 })

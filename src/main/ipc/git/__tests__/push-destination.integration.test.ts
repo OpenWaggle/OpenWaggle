@@ -21,6 +21,7 @@ const IDENTITY = [
   '-c',
   'user.email=tests@openwaggle.ai',
 ] as const
+const REAL_GIT_TEST_TIMEOUT_MS = 30_000
 
 let workspace: string | null = null
 
@@ -71,8 +72,29 @@ async function repositoryTrackingMain() {
   return { remote, work }
 }
 
+async function repositoryWithUpstreamOnly() {
+  const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-first-push-'))
+  workspace = root
+  const remote = path.join(root, 'remote')
+  const work = path.join(root, 'work')
+  await git(root, ['init', '--quiet', '--bare', '-b', 'main', remote])
+  await git(root, ['clone', '--quiet', remote, work])
+  await writeFile(path.join(work, 'a.txt'), 'base\n')
+  await git(work, ['add', '--all'])
+  await git(work, ['commit', '-m', 'base'])
+  await git(work, ['push', '--quiet', '-u', 'origin', 'main'])
+  await git(work, ['remote', 'rename', 'origin', 'upstream'])
+  await git(work, ['checkout', '--quiet', '-b', 'feature'])
+  await writeFile(path.join(work, 'b.txt'), 'feature\n')
+  await git(work, ['add', '--all'])
+  await git(work, ['commit', '-m', 'feature work'])
+  return { remote, work }
+}
+
 describe('where a push lands', () => {
-  it('reports the destination, not just the ref the user is on', async () => {
+  it('reports the destination, not just the ref the user is on', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
     /*
      * The confirmation before a push to the default branch judged only the current ref, so this state - on
      * `feature`, writing `main` - was waved straight through. The status now carries what a push would write.
@@ -89,7 +111,9 @@ describe('where a push lands', () => {
     expect(result.status.pushTargetIsDefaultRef).toBe(true)
   })
 
-  it('pushes to the named upstream rather than leaving it to push.default', async () => {
+  it('pushes to the named upstream rather than leaving it to push.default', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
     /*
      * The destination is named explicitly, so the same command cannot land somewhere else because of a setting
      * the app never sees. It is still the user's own mapping, so a branch deliberately tracking a
@@ -101,8 +125,63 @@ describe('where a push lands', () => {
 
     expect(result.ok).toBe(true)
     expect(result.message).toContain('origin/main')
+    expect(result.destination).toMatchObject({ remote: 'origin', branch: 'main' })
     expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/main'])).toBe('feature work')
     // A bare push would have created this instead of updating the upstream.
     await expect(git(remote, ['rev-parse', '--verify', 'refs/heads/feature'])).rejects.toThrow()
+  })
+
+  it('uses the selected non-origin remote for a branch first push', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
+    const { remote, work } = await repositoryWithUpstreamOnly()
+
+    const result = await pushCurrentBranch(work)
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain('upstream/feature')
+    expect(result.destination).toMatchObject({ remote: 'upstream', branch: 'feature' })
+    expect(await git(remote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+      'feature work',
+    )
+  })
+
+  it('reports the configured push URL instead of the remote fetch URL', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
+    const { remote: fetchRemote, work } = await repositoryWithUpstreamOnly()
+    const pushRemote = path.join(workspace ?? '', 'fork.git')
+    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', pushRemote])
+    await git(work, ['remote', 'set-url', '--push', 'upstream', pushRemote])
+
+    const result = await pushCurrentBranch(work)
+
+    expect(result.ok).toBe(true)
+    expect(result.destination).toMatchObject({
+      remote: 'upstream',
+      remoteUrl: pushRemote,
+      multiplePushUrls: false,
+    })
+    expect(result.destination?.remoteUrl).not.toBe(fetchRemote)
+    expect(await git(pushRemote, ['log', '--format=%s', '-1', 'refs/heads/feature'])).toBe(
+      'feature work',
+    )
+  })
+
+  it('marks multiple configured push URLs as ambiguous for change-request targeting', {
+    timeout: REAL_GIT_TEST_TIMEOUT_MS,
+  }, async () => {
+    const { work } = await repositoryWithUpstreamOnly()
+    const firstPushRemote = path.join(workspace ?? '', 'fork-one.git')
+    const secondPushRemote = path.join(workspace ?? '', 'fork-two.git')
+    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', firstPushRemote])
+    await git(workspace ?? '', ['init', '--quiet', '--bare', '-b', 'main', secondPushRemote])
+    await git(work, ['remote', 'set-url', '--push', 'upstream', firstPushRemote])
+    await git(work, ['remote', 'set-url', '--add', '--push', 'upstream', secondPushRemote])
+
+    const result = await pushCurrentBranch(work)
+
+    expect(result.ok).toBe(true)
+    expect(result.destination).toMatchObject({ remoteUrl: null, multiplePushUrls: true })
   })
 })

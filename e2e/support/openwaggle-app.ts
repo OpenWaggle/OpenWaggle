@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
-import { closeElectronApplication } from './electron-process-tree'
+import { closeElectronApplication, forceCloseElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { MainWindowPage } from '../page-models/main-window.page'
@@ -11,8 +11,12 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
-const USER_DATA_REMOVE_RETRIES = 3
-const USER_DATA_REMOVE_RETRY_DELAY_MS = 500
+const USER_DATA_REMOVE_RETRIES = 10
+const USER_DATA_REMOVE_RETRY_DELAY_MS = 250
+
+interface CleanupOptions {
+  readonly forceProcessTermination?: boolean
+}
 
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
@@ -37,17 +41,28 @@ export class OpenWaggleApp {
     private currentWindow: Page,
     readonly hidden: boolean,
     private readonly evidencePrefix: string,
+    private readonly environmentOverrides: Readonly<Record<string, string>>,
   ) {}
 
-  static async launch(prefix = 'openwaggle-e2e-'): Promise<OpenWaggleApp> {
+  static async launch(
+    prefix = 'openwaggle-e2e-',
+    environmentOverrides: Readonly<Record<string, string>> = {},
+  ): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
     let app: ElectronApplication | null = null
     let window: Page | null = null
     try {
-      app = await launchOpenWaggleElectron({ userDataDir, hidden })
+      app = await launchOpenWaggleElectron({ userDataDir, hidden, environmentOverrides })
       window = await app.firstWindow()
-      const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix)
+      const instance = new OpenWaggleApp(
+        userDataDir,
+        app,
+        window,
+        hidden,
+        prefix,
+        environmentOverrides,
+      )
       await instance.mainWindow().waitUntilReady()
       return instance
     } catch (error) {
@@ -84,6 +99,7 @@ export class OpenWaggleApp {
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
+      environmentOverrides: this.environmentOverrides,
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()
@@ -103,31 +119,28 @@ export class OpenWaggleApp {
     }, response)
   }
 
-  async cleanup(): Promise<void> {
+  async cleanup(options: CleanupOptions = {}): Promise<void> {
     let evidenceError: unknown
     try {
       await this.captureEvidence(this.evidencePrefix)
     } catch (error) {
       evidenceError = error
     } finally {
-      await this.close().catch(() => undefined)
-      // A just-killed process tree can hold handles on the user-data dir for a moment;
-      // a bounded retry keeps that race from failing an otherwise-passing test.
-      let attempt = 0
-      while (true) {
-        try {
-          await fs.rm(this.userDataDir, { recursive: true, force: true })
-          break
-        } catch (error) {
-          if (attempt >= USER_DATA_REMOVE_RETRIES) {
-            throw error
-          }
-          attempt += 1
-          await this.currentWindow
-            .waitForTimeout(USER_DATA_REMOVE_RETRY_DELAY_MS)
-            .catch(() => undefined)
-        }
+      if (options.forceProcessTermination) {
+        console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
+        await forceCloseElectronApplication(this.app)
+      } else {
+        await this.close().catch(() => undefined)
       }
+      // A just-killed process tree can hold handles on the user-data dir for a moment;
+      // Node's native recursive retry uses real timers and covers Windows EBUSY/EPERM races. A
+      // Playwright page timeout is not suitable here because the page has already been closed.
+      await fs.rm(this.userDataDir, {
+        recursive: true,
+        force: true,
+        maxRetries: USER_DATA_REMOVE_RETRIES,
+        retryDelay: USER_DATA_REMOVE_RETRY_DELAY_MS,
+      })
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)

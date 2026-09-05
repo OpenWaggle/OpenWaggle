@@ -1,7 +1,7 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionNode } from '@shared/types/session'
+import type { SessionDelegationState, SessionHiveRole, SessionNode } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 
 export interface SessionRow {
@@ -31,6 +31,13 @@ export interface SessionSummaryRow {
   readonly created_at: number
   readonly updated_at: number
   readonly message_count: number
+  readonly lineage_present: number
+  readonly lineage_role: SessionHiveRole
+  readonly parent_session_id: string | null
+  readonly direct_worker_count: number
+  readonly active_direct_worker_count: number
+  readonly agent_definition_name: string | null
+  readonly delegation_state: SessionDelegationState | null
 }
 
 export interface SessionBranchRow {

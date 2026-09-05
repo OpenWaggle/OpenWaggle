@@ -9,8 +9,10 @@ import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type {
+  EstablishSessionLineageInput,
   PinnedSession,
   PinnedSessionMove,
+  SessionDelegationState,
   SessionDetail,
   SessionSummary,
   SessionWorktreePlan,
@@ -57,6 +59,13 @@ export interface SessionProjectionRepositoryShape {
   readonly setAuthorizationMode: (
     id: SessionId,
     mode: AgentAuthorizationMode | null,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly establishLineage: (
+    input: EstablishSessionLineageInput,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly setDelegationState: (
+    id: SessionId,
+    state: SessionDelegationState,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,

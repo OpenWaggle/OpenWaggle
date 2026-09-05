@@ -42,6 +42,26 @@ export interface ExtensionContributionMatchView {
   readonly interactionKinds?: readonly string[]
 }
 
+export interface ExtensionSessionSummaryActionView {
+  readonly family: 'commands' | 'sidePanels' | 'dialogs'
+  readonly contributionId: string
+}
+
+export interface ExtensionSessionSummaryRowView {
+  readonly id: string
+  readonly label: string
+  readonly value?: string
+  readonly badge?: string
+  readonly count?: number
+  readonly resourceId?: string
+  readonly action?: ExtensionSessionSummaryActionView
+}
+
+export interface ExtensionSessionSummaryView {
+  readonly placement: 'context' | 'coordination' | 'details'
+  readonly rows: readonly ExtensionSessionSummaryRowView[]
+}
+
 export interface ExtensionContributionRegistryEntry {
   readonly extensionId: string
   readonly extensionName: string
@@ -68,6 +88,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
+  readonly sessionSummary?: ExtensionSessionSummaryView
   readonly eligibility: ExtensionContributionEligibilityView
   readonly diagnostics: readonly ExtensionDiagnosticView[]
 }

@@ -7,6 +7,7 @@ import type {
 import { networkGitOptions } from '../../adapters/git/run-git'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { resolveDefaultRef, resolveLocalDefaultRef } from './default-ref'
+import { type PrimaryRemote, resolvePrimaryRemote } from './primary-remote'
 import { isGitRepository, runGit } from './shared'
 import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
@@ -22,17 +23,7 @@ async function resolveRefName(projectPath: string): Promise<string | null> {
   return name || null
 }
 
-async function resolvePrimaryRemoteUrl(projectPath: string): Promise<string | null> {
-  const originResult = await runGit(projectPath, ['remote', 'get-url', 'origin'])
-  if (originResult.code === 0 && originResult.stdout.trim()) return originResult.stdout.trim()
-
-  const listResult = await runGit(projectPath, ['remote'])
-  if (listResult.code !== 0) return null
-  const firstRemote = listResult.stdout.trim().split('\n')[0]?.trim()
-  if (!firstRemote) return null
-  const urlResult = await runGit(projectPath, ['remote', 'get-url', firstRemote])
-  return urlResult.code === 0 ? urlResult.stdout.trim() || null : null
-}
+export { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
 
 async function resolveWorkingTree(projectPath: string) {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([
@@ -65,14 +56,15 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     return { ok: false, code: 'not-a-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  const [refName, remoteUrl, defaultRef, workingTree, upstreamBranch] = await Promise.all([
+  const [refName, primaryRemote, workingTree, upstreamBranch] = await Promise.all([
     resolveRefName(projectPath),
-    resolvePrimaryRemoteUrl(projectPath),
-    // Offline by contract: this status is cached with a two-second TTL and gates the quick action.
-    resolveLocalDefaultRef(projectPath),
+    resolvePrimaryRemote(projectPath),
     resolveWorkingTree(projectPath),
     resolveUpstreamBranch(projectPath),
   ])
+  // Offline by contract: this status is cached with a two-second TTL and gates the quick action.
+  const defaultRef = await resolveLocalDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
+  const remoteUrl = primaryRemote?.url ?? null
   // What a push would write, which is the upstream's branch when one is set - not necessarily this one.
   const pushTargetRef = upstreamBranch ?? refName
 
@@ -80,6 +72,7 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     isRepo: true,
     sourceControlProvider: detectSourceControlProvider(remoteUrl),
     hasPrimaryRemote: remoteUrl !== null,
+    defaultRef,
     /*
      * Unknown counts as "yes", so the confirmation that guards a push to the default branch fails closed.
      * `refs/remotes/origin/HEAD` is what records the default branch locally, and `git clone` writes it while
@@ -101,11 +94,16 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
 async function resolveAheadOfDefault(
   projectPath: string,
   refName: string | null,
+  remoteName: string,
 ): Promise<number | null> {
   // The remote status may reach the network; the local one may not.
-  const defaultRef = await resolveDefaultRef(projectPath)
+  const defaultRef = await resolveDefaultRef(projectPath, remoteName)
   if (!defaultRef || !refName || refName === defaultRef) return null
-  const result = await runGit(projectPath, ['rev-list', '--count', `origin/${defaultRef}..HEAD`])
+  const result = await runGit(projectPath, [
+    'rev-list',
+    '--count',
+    `${remoteName}/${defaultRef}..HEAD`,
+  ])
   if (result.code !== 0) return null
   const parsed = Number.parseInt(result.stdout.trim(), GIT_PARSE_INT_RADIX)
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
@@ -129,7 +127,10 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
     }
   }
 
-  const upstreamResult = await runGit(projectPath, ['rev-parse', '--abbrev-ref', '@{upstream}'])
+  const [upstreamResult, primaryRemote] = await Promise.all([
+    runGit(projectPath, ['rev-parse', '--abbrev-ref', '@{upstream}']),
+    resolvePrimaryRemote(projectPath),
+  ])
   const hasUpstream = upstreamResult.code === 0 && upstreamResult.stdout.trim().length > 0
 
   const aheadBehind = hasUpstream
@@ -141,8 +142,8 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
 
   const refName = await resolveRefName(projectPath)
   const [aheadOfDefaultCount, changeRequest] = await Promise.all([
-    resolveAheadOfDefault(projectPath, refName),
-    resolveOpenChangeRequest(projectPath, refName),
+    resolveAheadOfDefault(projectPath, refName, primaryRemote?.name ?? 'origin'),
+    resolveOpenChangeRequest(projectPath, refName, primaryRemote),
   ])
 
   return {
@@ -164,11 +165,10 @@ export async function getRemoteVcsStatus(projectPath: string): Promise<RemoteVcs
 async function resolveOpenChangeRequest(
   projectPath: string,
   refName: string | null,
+  primaryRemote: PrimaryRemote | null,
 ): Promise<VcsChangeRequest | null> {
   if (!refName) return null
-  const remote = await runGit(projectPath, ['remote', 'get-url', 'origin'])
-  const remoteUrl = remote.code === 0 ? remote.stdout.trim() || null : null
-  const provider = getSourceControlProvider(detectSourceControlProvider(remoteUrl)?.id)
+  const provider = getSourceControlProvider(detectSourceControlProvider(primaryRemote?.url)?.id)
   if (!provider) return null
   const result = await provider.resolveChangeRequestForRef(projectPath, refName)
   return result.ok ? result.changeRequest : null

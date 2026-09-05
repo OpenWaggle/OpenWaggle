@@ -1,7 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT } from './database-session-output-retry-schema'
 
 const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
-const DEFAULT_EXTENSION_RELOAD_STATUS = OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
 
 const SESSION_TABLE_STATEMENT = `
   CREATE TABLE IF NOT EXISTS sessions (
@@ -98,6 +98,62 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
+export const SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT = `
+  CREATE TABLE IF NOT EXISTS session_resource_backfill_state (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    through_created_order INTEGER NOT NULL
+  )
+  `
+
+export const SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT = `
+  CREATE TABLE IF NOT EXISTS session_resource_cleanup_queue (
+    session_id TEXT PRIMARY KEY,
+    queued_at INTEGER NOT NULL
+  )
+  `
+
+export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS session_resources (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    canonical_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    mime_type TEXT,
+    locator TEXT,
+    managed_path TEXT,
+    available INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (session_id, canonical_key)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_resources_session_updated
+  ON session_resources (session_id, updated_at DESC)
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS session_resource_occurrences (
+    id TEXT PRIMARY KEY,
+    resource_id TEXT NOT NULL REFERENCES session_resources(id) ON DELETE CASCADE,
+    node_id TEXT,
+    branch_id TEXT,
+    actor TEXT NOT NULL,
+    activity TEXT NOT NULL,
+    label TEXT,
+    created_at INTEGER NOT NULL
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_resource_occurrences_resource_created
+  ON session_resource_occurrences (resource_id, created_at ASC)
+  `,
+  SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT,
+  SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT,
+  SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT,
+] as const
+
 export const EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
@@ -150,7 +206,7 @@ export const EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS = [
 export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
   `
   ALTER TABLE extension_lifecycle_state
-  ADD COLUMN reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}'
+  ADD COLUMN reload_status TEXT NOT NULL DEFAULT '${OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED}'
   `,
   `
   ALTER TABLE extension_lifecycle_state
@@ -188,7 +244,7 @@ export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
     approved_build_plan_hash TEXT,
     build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}',
     build_log TEXT,
-    reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}',
+    reload_status TEXT NOT NULL DEFAULT '${OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED}',
     last_reloaded_at INTEGER,
     sdk_range TEXT,
     sdk_compatible INTEGER NOT NULL DEFAULT 0,

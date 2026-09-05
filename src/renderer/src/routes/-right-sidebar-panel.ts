@@ -6,12 +6,16 @@ interface ResolveRightSidebarPanelInput {
   readonly fileOpen?: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
   readonly lastPanel: RightSidebarPanel
+  readonly resourcesOpen?: boolean
   readonly sessionTreeOpen: boolean
 }
 
 export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): RightSidebarPanel {
   if (input.fileOpen) {
     return 'file'
+  }
+  if (input.resourcesOpen) {
+    return 'resources'
   }
   if (input.sessionTreeOpen) {
     return 'session-tree'

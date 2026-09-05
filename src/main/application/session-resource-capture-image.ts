@@ -1,0 +1,156 @@
+import { randomUUID } from 'node:crypto'
+import type { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import {
+  type ValidatedSessionResourceImage,
+  validatedImageBytes,
+} from '../domain/session-resource-image'
+import { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
+import { SessionResourceRepository } from '../ports/session-resource-repository'
+import { SessionResourceStore } from '../ports/session-resource-store'
+import {
+  imageFileName,
+  inspectManagedCopy,
+  occurrence,
+  occurrenceId,
+  removeReplacedCopy,
+  sha256,
+} from './session-resource-capture-shared'
+import type { CapturedImage } from './session-resource-extraction'
+
+export function captureGeneratedImage(input: {
+  readonly sessionId: SessionId
+  readonly runId: string
+  readonly image: CapturedImage
+  readonly index: number
+  readonly nodeId: string
+  readonly createdAt: number
+  readonly branchId?: string | null
+  readonly validatedImage?: ValidatedSessionResourceImage
+}) {
+  return Effect.gen(function* () {
+    const validated =
+      input.validatedImage ?? validatedImageBytes(input.image.data, input.image.mimeType)
+    if (!validated) return
+    const validator = yield* SessionResourceImageValidator
+    const decoded = yield* validator.validate(validated.bytes, validated.mimeType)
+    if (!decoded) return
+    const repository = yield* SessionResourceRepository
+    const digestHex = sha256(decoded.bytes)
+    const id = `${generatedImageOccurrencePrefix(input)}${digestHex}`
+    const store = yield* SessionResourceStore
+    const canonicalKey = `sha256:${digestHex}`
+    const fileName = imageFileName(input.image.title, decoded.mimeType)
+    const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
+    const existingCopy = existing
+      ? yield* inspectManagedCopy(repository, store, input.sessionId, existing.id)
+      : null
+    if (existing && existingCopy?.readable) {
+      yield* repository.upsert({
+        id: existing.id,
+        sessionId: input.sessionId,
+        canonicalKey,
+        kind: 'image',
+        title: existing.title,
+        mimeType: existing.mimeType ?? decoded.mimeType,
+        locator: existing.locator,
+        managedPath: null,
+        available: existing.available,
+        occurrence: occurrence({
+          id,
+          nodeId: input.nodeId,
+          branchId: input.branchId,
+          actor: 'agent',
+          activity: 'created',
+          createdAt: input.createdAt,
+        }),
+        createdAt: existing.createdAt,
+        updatedAt: input.createdAt,
+      })
+      return
+    }
+    const resourceId = randomUUID()
+    const stored = yield* store.storeBytes({
+      sessionId: input.sessionId,
+      resourceId,
+      fileName,
+      bytes: decoded.bytes,
+    })
+    const locator = `session-resource://${resourceId}`
+    const resource = yield* repository
+      .upsert({
+        id: resourceId,
+        sessionId: input.sessionId,
+        canonicalKey,
+        kind: 'image',
+        title: fileName,
+        mimeType: decoded.mimeType,
+        locator,
+        managedPath: stored.path,
+        available: true,
+        occurrence: occurrence({
+          id,
+          nodeId: input.nodeId,
+          branchId: input.branchId,
+          actor: 'agent',
+          activity: 'created',
+          createdAt: input.createdAt,
+        }),
+        createdAt: input.createdAt,
+        updatedAt: input.createdAt,
+      })
+      .pipe(
+        Effect.tapError(() => store.remove(stored.path).pipe(Effect.catchAll(() => Effect.void))),
+      )
+    if (resource.locator !== locator) yield* store.remove(stored.path)
+    else yield* removeReplacedCopy(store, existingCopy?.managedPath, stored.path)
+  })
+}
+
+export function generatedImageOccurrencePrefix(input: {
+  readonly sessionId: SessionId
+  readonly nodeId: string | null
+  readonly index: number
+}) {
+  return occurrenceId({
+    ...input,
+    suffix: `created:image:${String(input.index)}:`,
+  })
+}
+
+export function captureUnavailableGeneratedImage(input: {
+  readonly sessionId: SessionId
+  readonly image: CapturedImage
+  readonly index: number
+  readonly nodeId: string
+  readonly createdAt: number
+  readonly branchId?: string | null
+}) {
+  return Effect.gen(function* () {
+    const repository = yield* SessionResourceRepository
+    const canonicalKey = `unavailable-image:${input.sessionId}:${input.nodeId}:${String(input.index)}`
+    const existing = yield* repository.findByCanonicalKey(input.sessionId, canonicalKey)
+    const id = existing?.id ?? randomUUID()
+    yield* repository.upsert({
+      id,
+      sessionId: input.sessionId,
+      canonicalKey,
+      kind: 'image',
+      title: input.image.title,
+      mimeType: input.image.mimeType,
+      locator: null,
+      managedPath: null,
+      available: false,
+      occurrence: occurrence({
+        id: `${generatedImageOccurrencePrefix(input)}unavailable`,
+        nodeId: input.nodeId,
+        branchId: input.branchId,
+        actor: 'agent',
+        activity: 'created',
+        createdAt: input.createdAt,
+      }),
+      createdAt: existing?.createdAt ?? input.createdAt,
+      updatedAt: input.createdAt,
+    })
+  })
+}

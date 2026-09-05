@@ -55,6 +55,118 @@ describe('stacked action safety gates', () => {
     expect(result).toMatchObject({ ok: false, code: 'cancelled' })
   })
 
+  it('does not ask for default-branch confirmation when the action first creates a feature branch', async () => {
+    respondWith(
+      new Map([
+        ['rev-parse --is-inside-work-tree', 'true\n'],
+        ['symbolic-ref --quiet --short HEAD', 'main\n'],
+        ['remote get-url origin', 'https://github.com/example/repo.git\n'],
+        ['rev-parse --abbrev-ref origin/HEAD', 'origin/main\n'],
+        ['-c core.quotePath=false status --porcelain=v1', ''],
+        ['-c core.quotePath=false diff --numstat', ''],
+        ['-c core.quotePath=false diff --cached --numstat', ''],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ]),
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    await expect(
+      handler?.({ sender: {} }, '/tmp/repo', {
+        action: 'create_pr',
+        createFeatureBranch: true,
+        featureBranchName: 'codex/session-summary',
+        changeRequestTitle: 'Session Summary',
+        changeRequestBody: 'Summary body',
+        baseRef: 'main',
+        draft: false,
+      }),
+    ).rejects.toThrow('Git command failed')
+
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
+  })
+
+  it('aborts when the confirmed branch or push destination changes before mutation', async () => {
+    let headReads = 0
+    const mutationCommands: string[] = []
+    showMessageBoxMock.mockResolvedValue({ response: 1 })
+    execFileMock.mockImplementation(
+      (_command: string, args: string[], _options: unknown, callback: GitCallback) => {
+        const joined = args.join(' ')
+        if (joined === 'rev-parse --is-inside-work-tree') return callback(null, 'true\n', '')
+        if (joined === 'symbolic-ref --quiet --short HEAD') {
+          headReads += 1
+          return callback(null, headReads === 1 ? 'main\n' : 'feature\n', '')
+        }
+        if (joined === 'remote get-url origin') {
+          return callback(null, 'https://github.com/example/repo.git\n', '')
+        }
+        if (joined === 'symbolic-ref --quiet --short refs/remotes/origin/HEAD') {
+          return callback(null, 'origin/main\n', '')
+        }
+        if (joined === 'rev-parse --abbrev-ref @{upstream}') {
+          return callback(null, 'origin/main\n', '')
+        }
+        if (joined.startsWith('-c core.quotePath=false status --porcelain=v1')) {
+          return callback(null, ' M a.txt\n', '')
+        }
+        if (joined.includes('diff ') && joined.includes('--numstat')) return callback(null, '', '')
+        mutationCommands.push(joined)
+        return callback(new Error(`Unexpected mutation: ${joined}`), '', '')
+      },
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    const result = await handler?.({ sender: {} }, '/tmp/repo-changing-target', {
+      action: 'commit_push',
+      commitMessage: 'Ship it',
+      paths: ['a.txt'],
+    })
+
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
+    expect(headReads).toBe(2)
+    expect(mutationCommands).toEqual([])
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'unknown',
+      message: expect.stringContaining('push destination changed'),
+    })
+  })
+
+  it('asks when a requested feature branch normalizes to the default ref', async () => {
+    const unexpected: string[] = []
+    respondWith(
+      new Map([
+        ['rev-parse --is-inside-work-tree', 'true\n'],
+        ['symbolic-ref --quiet --short HEAD', 'feature/main\n'],
+        ['remote get-url origin', 'https://github.com/example/repo.git\n'],
+        ['symbolic-ref --quiet --short refs/remotes/origin/HEAD', 'origin/feature/main\n'],
+        ['-c core.quotePath=false status --porcelain=v1', ''],
+        ['-c core.quotePath=false diff --numstat', ''],
+        ['-c core.quotePath=false diff --cached --numstat', ''],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/feature/main\n'],
+      ]),
+      (args) => unexpected.push(args),
+    )
+    registerGitHandlers()
+    const handler = registeredHandler('git:stacked-action:run')
+
+    const result = await handler?.({ sender: {} }, '/tmp/repo-normalized-feature', {
+      action: 'create_pr',
+      createFeatureBranch: true,
+      featureBranchName: 'main',
+      changeRequestTitle: 'Session Summary',
+      changeRequestBody: 'Summary body',
+      baseRef: 'feature/main',
+      draft: false,
+    })
+
+    expect(unexpected).toEqual([])
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
+    expect(result).toMatchObject({ ok: false, code: 'cancelled' })
+  })
+
   it('refuses to commit when no paths were selected, rather than staging the repository', async () => {
     /*
      * The commit phase used to fall back to `git add --all`, which has no pathspec and so

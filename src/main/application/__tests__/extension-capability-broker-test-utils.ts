@@ -2,6 +2,7 @@ import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
@@ -14,10 +15,13 @@ import { ExtensionProjectOverridesRepository } from '../../ports/extension-proje
 import type { ExtensionStorageItem } from '../../ports/extension-storage-repository'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
 import { clearExtensionContributionRegistryCacheForTests } from '../extension-contribution-registry-cache'
+import type { CapturedLog } from './broker-log-test-utils'
+import { makeSessionResourceRepositoryTestLayer } from './extension-capability-broker-resource-test-utils'
 import {
   BROKER_BRANCH_ID,
   BROKER_SESSION_ID,
@@ -39,16 +43,11 @@ export const BRANCH_ID = BROKER_BRANCH_ID
 const DOCS_BUNDLE_PATH = '/tmp/openwaggle-docs'
 const DOCS_GENERATED_AT = '2026-01-01T00:00:00.000Z'
 
+export type { CapturedLog } from './broker-log-test-utils'
 export {
   makeSessionDetail,
   makeSessionTree,
 } from './extension-capability-broker-session-test-utils'
-
-export interface CapturedLog {
-  readonly namespace: string
-  readonly message: string
-  readonly data?: Readonly<Record<string, unknown>>
-}
 
 export function makeBrokerPackage() {
   return makePackage({
@@ -133,6 +132,8 @@ function makeBrokerLayer(input: {
   readonly currentProjectPath: string | null
   readonly reconciledProjectPaths: string[]
   readonly reconcileFailure?: Error
+  readonly resources: SessionResource[]
+  readonly resourceUpserts: UpsertSessionResourceInput[]
 }) {
   const projectOverrides = input.projectOverrides ?? []
 
@@ -219,11 +220,10 @@ function makeBrokerLayer(input: {
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: (sessionId) =>
-        Effect.succeed(
-          input.sessionTree && input.sessionTree.session.id === sessionId
-            ? input.sessionTree
-            : null,
-        ),
+        Effect.succeed(input.sessionTree?.session.id === sessionId ? input.sessionTree : null),
+      listResourceProjectionPage: () =>
+        Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+      getResourceProjectionNodes: () => Effect.succeed([]),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,
@@ -237,6 +237,7 @@ function makeBrokerLayer(input: {
       listActiveRunsForRecovery: () => Effect.succeed([]),
       markActiveRunInterrupted: () => Effect.void,
     }),
+    makeSessionResourceRepositoryTestLayer(input.resources, input.resourceUpserts),
   )
 }
 
@@ -259,7 +260,7 @@ export function makeProjectInvocation(
   }
 }
 
-export async function runBroker(input: {
+interface BrokerHarnessInput {
   readonly invocation: ExtensionInvokeInput
   readonly packages?: readonly DiscoveredExtensionPackage[]
   readonly lifecycles?: readonly ExtensionLifecycleState[]
@@ -271,27 +272,22 @@ export async function runBroker(input: {
   readonly currentProjectPath?: string | null
   readonly reconciledProjectPaths?: string[]
   readonly reconcileFailure?: Error
-}) {
+  readonly resources?: readonly SessionResource[]
+  readonly resourceUpserts?: UpsertSessionResourceInput[]
+}
+
+export async function runBroker(input: BrokerHarnessInput) {
   const harness = makeBrokerHarness(input)
   return harness.run(input.invocation)
 }
 
-export function makeBrokerHarness(input: {
-  readonly packages?: readonly DiscoveredExtensionPackage[]
-  readonly lifecycles?: readonly ExtensionLifecycleState[]
-  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
-  readonly sessionDetail?: SessionDetail
-  readonly sessionTree?: SessionTree
-  readonly storageItems?: readonly ExtensionStorageItem[]
-  readonly capturedLogs?: CapturedLog[]
-  readonly currentProjectPath?: string | null
-  readonly reconciledProjectPaths?: string[]
-  readonly reconcileFailure?: Error
-}) {
+export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>) {
   clearExtensionContributionRegistryCacheForTests()
   const capturedLogs = input.capturedLogs ?? []
   const reconciledProjectPaths = input.reconciledProjectPaths ?? []
   const storageItems = [...(input.storageItems ?? [])]
+  const resources = [...(input.resources ?? [])]
+  const resourceUpserts = input.resourceUpserts ?? []
   const layer = makeBrokerLayer({
     packages: input.packages ?? [],
     lifecycles: input.lifecycles ?? [],
@@ -303,6 +299,8 @@ export function makeBrokerHarness(input: {
     currentProjectPath: input.currentProjectPath ?? PROJECT_PATH,
     reconciledProjectPaths,
     ...(input.reconcileFailure !== undefined ? { reconcileFailure: input.reconcileFailure } : {}),
+    resources,
+    resourceUpserts,
   })
 
   return {
@@ -312,5 +310,7 @@ export function makeBrokerHarness(input: {
       ),
     storageItems: () => storageItems.map((item) => item),
     reconciledProjectPaths: () => reconciledProjectPaths.map((projectPath) => projectPath),
+    resources: () => resources.map((resource) => resource),
+    resourceUpserts: () => resourceUpserts.map((resource) => resource),
   }
 }

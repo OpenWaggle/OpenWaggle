@@ -1,3 +1,5 @@
+import type * as SqlClient from '@effect/sql/SqlClient'
+import type * as Effect from 'effect/Effect'
 import {
   CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
   CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
@@ -9,20 +11,15 @@ import {
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
+import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
 
 export interface AppMigration {
   readonly id: number
   readonly name: string
   readonly statements: readonly string[]
-  /**
-   * Skip when this column already exists.
-   *
-   * SQLite has no `ADD COLUMN IF NOT EXISTS`, and the ledger only prevents re-running a migration
-   * under the same id. A database that already carries the column under a *different* ledger id
-   * would fail to boot on `duplicate column name`. That is reachable here: this migration was
-   * renumbered from 24 to 25 so `pinned-sessions` could keep 24, so any database created by the
-   * earlier build has the column recorded under the old id.
-   */
+  readonly run?: (sql: SqlClient.SqlClient) => Effect.Effect<void, unknown>
+  /** Skip a column migration already applied under an earlier ledger id. */
   readonly skipIfColumn?: { readonly table: string; readonly column: string }
 }
 
@@ -295,4 +292,10 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     skipIfColumn: { table: 'sessions', column: 'authorization_mode_override' },
     statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
+  {
+    id: 26,
+    name: 'session-hive-lineage',
+    statements: CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
+  },
+  ...SESSION_RESOURCE_MIGRATIONS,
 ]

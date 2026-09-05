@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import {
   Check,
@@ -15,6 +16,7 @@ import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
+import { SessionMessageImages } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
@@ -163,12 +165,14 @@ function UserMessageContent({
 
 interface UserMessageBubbleProps {
   message: UIMessage
+  sessionId?: SessionId | null
   onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
 }
 
 export function UserMessageBubble({
   message,
+  sessionId = null,
   onBranchFromMessage,
   onForkFromMessage,
 }: UserMessageBubbleProps) {
@@ -194,8 +198,12 @@ export function UserMessageBubble({
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
+        <SessionMessageImages
+          sessionId={sessionId}
+          messageId={message.metadata?.sessionNodeId ?? message.id}
+        />
         {attachmentParts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
+          <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (
               <AttachmentChip
                 key={`${message.id}-attachment-${String(i)}`}

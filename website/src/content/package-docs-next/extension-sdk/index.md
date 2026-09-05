@@ -145,6 +145,14 @@ export default {
     },
   ],
   contributions: {
+    commands: [
+      {
+        id: 'example.refresh',
+        title: 'Refresh extension status',
+        capability: 'openwaggle.storage',
+        method: 'get',
+      },
+    ],
     settingsSections: [
       {
         id: 'example.settings',
@@ -154,6 +162,21 @@ export default {
         entry: 'dist/settings.js',
         capability: 'openwaggle.storage',
         methods: ['get', 'set'],
+      },
+    ],
+    sessionSummarySections: [
+      {
+        id: 'example.session-summary',
+        title: 'Example Session Status',
+        placement: 'details',
+        rows: [
+          { id: 'status', label: 'Status', value: 'Ready' },
+          {
+            id: 'open-settings',
+            label: 'Open settings',
+            action: { family: 'commands', contributionId: 'example.refresh' },
+          },
+        ],
       },
     ],
   },

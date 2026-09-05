@@ -25,6 +25,7 @@ import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 
@@ -111,6 +112,12 @@ export function executeAgentRun(input: AgentRunInput) {
       piSessionFile: agentResult.piSessionFile,
     })
 
+    const persistedTree = yield* sessionRepo.getTree(input.sessionId)
+    const { resourceMessages, resourceNodeIds, resourceBranchIds } = mapPersistedRunResourceNodes(
+      existingTree,
+      persistedTree,
+    )
+
     // WS6b: anchor this turn's checkpoint to the run's final assistant node so
     // the transcript can reveal its Turn diff (no-op when no checkpoint/anchor).
     const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes)
@@ -129,6 +136,9 @@ export function executeAgentRun(input: AgentRunInput) {
       sessionId: input.sessionId,
       runId: input.runId,
       model: input.model,
+      resourceMessages,
+      resourceNodeIds,
+      resourceBranchIds,
     })
   }).pipe(
     Effect.catchAll(

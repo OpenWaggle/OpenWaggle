@@ -5,6 +5,10 @@ export {
 export { persistSessionSnapshot } from './session-details/persist-snapshot'
 export { createSession } from './session-details/session-creation'
 export {
+  establishSessionLineage,
+  setSessionDelegationState,
+} from './session-details/session-lineage'
+export {
   archiveSession,
   clearSessionWorktree,
   deleteSession,

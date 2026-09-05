@@ -48,6 +48,13 @@ test('draft branch selection shows transcript only up to the selected source nod
     const mainWindow = app.mainWindow()
     await mainWindow.openThread(TITLE)
     await expect(mainWindow.text(MAIN_CONTINUATION)).toBeVisible()
+    const summaryToggle = mainWindow.page
+      .locator('[data-qa="header-actions"]')
+      .getByRole('button', { name: 'Session Summary', exact: true })
+    await expect(summaryToggle).toBeVisible()
+    if ((await summaryToggle.getAttribute('aria-pressed')) === 'true') {
+      await summaryToggle.click()
+    }
 
     const branchPointRow = mainWindow.page.locator('[data-user-message-id="branch-point"]')
     await branchPointRow.hover()

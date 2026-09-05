@@ -4,6 +4,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
+import { withGitMutationLock } from './mutation-lock'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { GIT_LITERAL_PATHS, GIT_RAW_PATHS } from './status-constants'
 import { invalidateGitStatusCache } from './status-handler'
@@ -258,12 +259,17 @@ export function registerGitCommitHandlers(): void {
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
-      const result = yield* Effect.promise(() => commitGit(projectPath, payload))
-      if (result.ok) {
-        invalidateGitStatusCache(projectPath)
-        invalidateVcsStatus(projectPath)
-      }
-      return result
+      return yield* withGitMutationLock(
+        projectPath,
+        Effect.gen(function* () {
+          const result = yield* Effect.promise(() => commitGit(projectPath, payload))
+          if (result.ok) {
+            invalidateGitStatusCache(projectPath)
+            invalidateVcsStatus(projectPath)
+          }
+          return result
+        }),
+      )
     }),
   )
 }

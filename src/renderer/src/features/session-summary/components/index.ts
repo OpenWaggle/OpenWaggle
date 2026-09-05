@@ -1,0 +1,6 @@
+export { ChangeRequestComposer } from './ChangeRequestComposer'
+export type { SessionSummaryExtensionSidePanelTarget } from './ExtensionSessionSummarySections'
+export { SessionMessageImages } from './SessionMessageImages'
+export { type SessionResourceFilter, SessionResourcesPanel } from './SessionResourcesPanel'
+export { SessionResourceViewer } from './SessionResourceViewer'
+export { SessionSummaryHub } from './SessionSummaryHub'

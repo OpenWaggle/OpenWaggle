@@ -11,6 +11,7 @@ import {
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../application/agent-session-service'
+import { cleanupQueuedSessionResources } from '../application/session-resource-cleanup'
 import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { InlineVisualizationService } from '../ports/inline-visualization-service'
@@ -154,6 +155,7 @@ function registerSessionMutationHandlers() {
           const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
           const repo = yield* SessionProjectionRepository
           yield* repo.delete(id).pipe(Effect.tapError(() => stagedDeletion.rollback))
+          yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
           yield* stagedDeletion.commit.pipe(
             Effect.catchAll((error) => {
               logger.warn('Deferred visualization tombstone cleanup after session deletion', {

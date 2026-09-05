@@ -47,6 +47,9 @@ describe('buildAgentRunOutcome', () => {
     expect(result).toEqual({
       outcome: 'success',
       newMessages: messages,
+      resourceMessages: messages,
+      resourceNodeIds: { 'message-1': 'message-1' },
+      resourceBranchIds: {},
       assignedTitle: 'New title',
     })
   })

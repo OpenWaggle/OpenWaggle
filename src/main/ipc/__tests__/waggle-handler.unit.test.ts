@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   broadcastToWindowsMock,
+  captureSuccessfulRunResourcesMock,
   clearAgentPhaseMock,
   clearStreamBufferMock,
   emitErrorAndFinishMock,
@@ -20,6 +21,7 @@ const {
   typedOnMock,
 } = vi.hoisted(() => ({
   broadcastToWindowsMock: vi.fn(),
+  captureSuccessfulRunResourcesMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
   emitErrorAndFinishMock: vi.fn(),
@@ -42,6 +44,10 @@ vi.mock('../typed-ipc', () => ({
 
 vi.mock('../../application/waggle-run-service', () => ({
   executeWaggleRun: executeWaggleRunMock,
+}))
+
+vi.mock('../../application/session-resource-capture', () => ({
+  captureSuccessfulRunResources: captureSuccessfulRunResourcesMock,
 }))
 
 vi.mock('../../utils/broadcast', () => ({
@@ -103,6 +109,8 @@ describe('registerWaggleHandlers', () => {
   beforeEach(() => {
     cancelAllSessionRuns()
     broadcastToWindowsMock.mockReset()
+    captureSuccessfulRunResourcesMock.mockReset()
+    captureSuccessfulRunResourcesMock.mockReturnValue(Effect.void)
     clearAgentPhaseMock.mockReset()
     clearStreamBufferMock.mockReset()
     emitErrorAndFinishMock.mockReset()
@@ -174,6 +182,73 @@ describe('registerWaggleHandlers', () => {
     )
 
     expect(emitWorktreeLaunchProgressMock).toHaveBeenCalledWith(SESSION_ID, progress)
+  })
+
+  it('captures session resources after a successful Waggle run', async () => {
+    const payload = {
+      text: 'Review this image',
+      thinkingLevel: 'medium' as const,
+      attachments: [
+        {
+          id: 'attachment-1',
+          kind: 'image' as const,
+          origin: 'user-file' as const,
+          name: 'reference.png',
+          path: '/tmp/reference.png',
+          mimeType: 'image/png',
+          sizeBytes: 42,
+          extractedText: '',
+        },
+      ],
+    }
+    const newMessages = [
+      {
+        id: 'assistant-1',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, text: 'Done' }],
+        createdAt: 1,
+      },
+    ]
+    const resourceMessages = [
+      {
+        id: 'persisted-assistant-message',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, text: 'Done' }],
+        createdAt: 1,
+      },
+    ]
+    executeWaggleRunMock.mockReturnValue(
+      Effect.succeed({
+        outcome: 'success',
+        newMessages,
+        resourceMessages,
+        resourceNodeIds: {
+          'persisted-assistant-message': 'persisted-assistant-node',
+        },
+        resourceBranchIds: {
+          'persisted-assistant-message': 'session-1:main',
+        },
+      }),
+    )
+
+    registerWaggleHandlers()
+    const send = getSendHandler()
+    await Effect.runPromise(
+      send({}, SESSION_ID, payload, SELECTED_MODEL, inheritedFirstAgentConfig()),
+    )
+
+    expect(captureSuccessfulRunResourcesMock).toHaveBeenCalledWith({
+      sessionId: SESSION_ID,
+      runId: `waggle-${SESSION_ID}`,
+      payload,
+      messages: resourceMessages,
+      nodeIdByMessageId: {
+        'persisted-assistant-message': 'persisted-assistant-node',
+      },
+      branchIdByMessageId: {
+        'persisted-assistant-message': 'session-1:main',
+      },
+    })
   })
 
   it('marks an in-progress Waggle worktree launch as failed when setup is refused', async () => {

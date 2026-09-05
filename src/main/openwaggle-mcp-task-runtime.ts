@@ -1,12 +1,15 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { EstablishSessionLineageInput, SessionDelegationState } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { type AgentRunResult, executeAgentRun } from './application/agent-run-service'
+import { captureSuccessfulRunResources } from './application/session-resource-capture'
 import type { ServerTaskRecord } from './openwaggle-mcp-task-store'
 import { AgentKernelService } from './ports/agent-kernel-service'
 import { SessionProjectionRepository } from './ports/session-projection-repository'
 import { runAppEffect } from './runtime'
 import { SettingsService } from './services/settings-service'
+import { broadcastToWindows } from './utils/broadcast'
 
 export interface TaskExecutionProfile {
   readonly model: string
@@ -21,6 +24,11 @@ interface CreatedOrReusedSession {
 export interface OpenWaggleServerTaskServices {
   readonly resolveExecutionProfile: (sessionId?: string) => Promise<TaskExecutionProfile>
   readonly createOrReuseSession: (task: ServerTaskRecord) => Promise<CreatedOrReusedSession>
+  readonly establishLineage: (input: EstablishSessionLineageInput) => Promise<void>
+  readonly setDelegationState: (
+    sessionId: SessionId,
+    state: SessionDelegationState,
+  ) => Promise<void>
   readonly execute: (input: {
     readonly sessionId: SessionId
     readonly runId: string
@@ -34,15 +42,58 @@ export interface OpenWaggleServerTaskServices {
 export const defaultTaskServices: OpenWaggleServerTaskServices = {
   resolveExecutionProfile: resolveTargetExecutionProfile,
   createOrReuseSession,
+  establishLineage: async (input) => {
+    await runAppEffect(
+      Effect.gen(function* () {
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.establishLineage(input)
+      }),
+    )
+    broadcastToWindows('sessions:list-invalidated', {
+      sessionIds: [input.parentSessionId, input.sessionId],
+    })
+  },
+  setDelegationState: async (sessionId, state) => {
+    await runAppEffect(
+      Effect.gen(function* () {
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.setDelegationState(sessionId, state)
+      }),
+    )
+    broadcastToWindows('sessions:list-invalidated', { sessionIds: [sessionId] })
+  },
   execute: (input) =>
     runAppEffect(
-      executeAgentRun({
-        sessionId: input.sessionId,
-        runId: input.runId,
-        payload: { text: input.objective, attachments: [], thinkingLevel: input.thinkingLevel },
-        model: SupportedModelId(input.model),
-        signal: input.signal,
-        onEvent: () => undefined,
+      Effect.gen(function* () {
+        const payload = {
+          text: input.objective,
+          attachments: [],
+          thinkingLevel: input.thinkingLevel,
+        }
+        const result = yield* executeAgentRun({
+          sessionId: input.sessionId,
+          runId: input.runId,
+          payload,
+          model: SupportedModelId(input.model),
+          signal: input.signal,
+          onEvent: () => undefined,
+        })
+        if (result.outcome === 'success') {
+          yield* captureSuccessfulRunResources({
+            sessionId: input.sessionId,
+            runId: input.runId,
+            payload,
+            messages: result.resourceMessages,
+            nodeIdByMessageId: result.resourceNodeIds,
+            branchIdByMessageId: result.resourceBranchIds,
+          }).pipe(Effect.catchAll(() => Effect.void))
+          yield* Effect.sync(() =>
+            broadcastToWindows('sessions:resources-invalidated', {
+              sessionId: input.sessionId,
+            }),
+          )
+        }
+        return result
       }),
     ),
 }

@@ -134,6 +134,34 @@ export async function saveSettings(context: OpenWaggleExtensionMountContext) {
 
 Declare matching capabilities and methods in `openwaggle.extension.json`; undeclared capability calls fail closed.
 
+### Session resources
+
+Extensions can contribute credential-free HTTPS links and images to the active Session Summary. Resource calls require an explicit Session scope and an approved `openwaggle.resources` capability; an extension cannot select another Session in its payload.
+
+Session-bound surfaces receive `context.sessionId`; use it to construct the explicit scope rather than accepting a Session id from extension-controlled input.
+
+```ts
+import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
+
+export async function publishReport(context: OpenWaggleExtensionMountContext) {
+  const projectPath = context.projectPaths[0]
+  if (!context.sessionId || !projectPath) return
+  const scope = { kind: 'session' as const, projectPath, sessionId: context.sessionId }
+
+  await context.sdk.openWaggle.resources.publish(scope, {
+    key: 'analysis-report',
+    title: 'Analysis report',
+    kind: 'link',
+    role: 'output',
+    locator: 'https://example.com/reports/analysis',
+  })
+
+  return context.sdk.openWaggle.resources.list(scope)
+}
+```
+
+The list response exposes display metadata only. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. Re-publishing the same stable key and locator is idempotent.
+
 ## Manifest Typing
 
 Use the manifest type to keep package metadata aligned with the public extension contract.
@@ -155,6 +183,11 @@ export default {
       id: 'openwaggle.storage',
       methods: ['get', 'set'],
       scopes: ['project'],
+    },
+    {
+      id: 'openwaggle.resources',
+      methods: ['list-resources', 'publish-resource'],
+      scopes: ['session'],
     },
   ],
   contributions: {

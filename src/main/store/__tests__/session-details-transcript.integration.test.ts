@@ -4,7 +4,7 @@ import lifecyclePath from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSession, getSessionDetail, persistSessionSnapshot } from '../session-details'
-import { getSessionTree, getSessionWorkspace } from '../sessions'
+import { getSessionTree, getSessionWorkspace, listSessionResourceProjectionPage } from '../sessions'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -112,6 +112,8 @@ describe('session-details transcript projection', () => {
     const sessionId = SessionId(String(session.id))
     const tree = await getSessionTree(sessionId)
     const workspace = await getSessionWorkspace(sessionId)
+    const firstResourcePage = await listSessionResourceProjectionPage(sessionId, -1, 2)
+    const secondResourcePage = await listSessionResourceProjectionPage(sessionId, 1, 2)
 
     const expectVisibleMessages = () => {
       expect(reloaded?.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
@@ -137,6 +139,16 @@ describe('session-details transcript projection', () => {
 
     expectVisibleMessages()
     expectVisibleTreePath()
+    expect(firstResourcePage).toMatchObject({
+      throughCreatedOrder: 1,
+      hasMore: true,
+      nodes: [{ id: 'visible-request' }],
+    })
+    expect(secondResourcePage).toMatchObject({
+      throughCreatedOrder: 2,
+      hasMore: false,
+      nodes: [{ id: 'assistant-turn' }],
+    })
   })
 
   it('hydrates tool results and structural Pi summaries as transcript messages', async () => {
@@ -247,6 +259,7 @@ describe('session-details transcript projection', () => {
     })
 
     const reloaded = await getSessionDetail(session.id)
+    const tree = await getSessionTree(SessionId(String(session.id)))
 
     expect(reloaded?.messages.map((message) => String(message.id))).toEqual([
       'user-1',
@@ -256,6 +269,9 @@ describe('session-details transcript projection', () => {
       'compaction-summary-1',
     ])
     expect(reloaded?.messages[2]?.parts).toMatchObject([{ type: 'tool-result' }])
+    expect(
+      tree?.nodes.find((node) => String(node.id) === 'tool-result-1')?.message?.parts,
+    ).toMatchObject([{ type: 'tool-result' }])
     expect(reloaded?.messages[3]?.parts).toEqual([
       { type: 'text', text: 'Branch summary\n\nInvestigated package metadata.' },
     ])

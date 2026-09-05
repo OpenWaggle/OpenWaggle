@@ -1,5 +1,5 @@
 import type { GitStatusSummary } from '@shared/types/git'
-import { Hash, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
+import { Hash, LayoutList, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
@@ -28,6 +28,12 @@ interface SessionTreeButtonProps {
   readonly hasSessionTree: boolean
   readonly isChatRoute: boolean
   readonly open: boolean
+  readonly onToggle: () => void
+}
+
+interface SessionSummaryButtonProps {
+  readonly open: boolean
+  readonly panelId: string
   readonly onToggle: () => void
 }
 
@@ -170,6 +176,25 @@ export function SessionTreeButton({
       title={hasSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
     >
       <ListTree className="size-3.5 text-text-secondary" />
+    </Button>
+  )
+}
+
+export function SessionSummaryButton({ open, panelId, onToggle }: SessionSummaryButtonProps) {
+  const label = open ? 'Hide Session Summary' : 'Open Session Summary'
+  return (
+    <Button
+      variant={open ? 'subtle' : 'secondary'}
+      size="none"
+      radius="sm"
+      id={`${panelId}-toggle`}
+      aria-pressed={open}
+      aria-label="Session Summary"
+      onClick={onToggle}
+      className="no-drag h-7 border-button-border px-2"
+      title={label}
+    >
+      <LayoutList className="size-3.5 text-text-secondary" />
     </Button>
   )
 }

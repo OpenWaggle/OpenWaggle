@@ -13,7 +13,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.unit.test.ts', 'packages/**/*.unit.test.ts', 'scripts/**/*.unit.test.ts'],
+    include: [
+      'src/**/*.unit.test.ts',
+      'packages/**/*.unit.test.ts',
+      'scripts/**/*.unit.test.ts',
+      'e2e/support/**/*.unit.test.ts',
+    ],
     /*
      * Vitest's 5s default is unrealistic for this suite, not generous. The unit
      * suite spans 365 files whose cumulative import cost is ~576s across workers,
