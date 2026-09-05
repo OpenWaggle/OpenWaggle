@@ -325,7 +325,10 @@ export class OpenWaggleApp {
         })
         probe.delivered.push(delivery)
         probe.release = null
-        return { preserved: true }
+        return {
+          preserved: true,
+          delivery: { delivery: 'queued', durableText: payload.text },
+        }
       })
     })
   }

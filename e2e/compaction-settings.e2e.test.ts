@@ -207,6 +207,7 @@ test('automatic compaction stays in the transcript and defers explicit steering 
       delivered: [{ sessionId: runtime.sessionId, payload: { text: 'continue' } }],
     })
     await expect(page.getByText('Will send after compaction')).toHaveCount(0)
+    await expect(page.getByText('Queued', { exact: true })).toHaveCount(0)
   } finally {
     await app.cleanup()
   }
