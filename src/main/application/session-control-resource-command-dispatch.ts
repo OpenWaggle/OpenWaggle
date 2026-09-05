@@ -9,7 +9,7 @@ import type {
 } from '@shared/types/session-control'
 import { executeSessionDelegationMutation } from './session-delegation-service'
 import { cancelSessionExport } from './session-export-cancellation'
-import { createSessionExport } from './session-export-operation-service'
+import { createSessionExport } from './session-export-creation'
 import { organizeSession } from './session-organization-service'
 import { submitSessionReport } from './session-report-service'
 

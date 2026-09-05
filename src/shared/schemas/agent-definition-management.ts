@@ -18,6 +18,7 @@ const sourceToolSchema = Schema.Union(importSourceSchema, Schema.Literal('auto')
 const importProvenanceSchema = Schema.Struct({
   sourceTool: importSourceSchema,
   sourcePath: Schema.String,
+  sourceName: Schema.optional(Schema.String),
   sourceDigest: Schema.String,
   importerVersion: Schema.Literal(1),
   baselineDigest: Schema.String,

@@ -20,12 +20,14 @@
     "description": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 500
+      "maxLength": 500,
+      "pattern": "\\S"
     },
     "model": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 200
+      "maxLength": 200,
+      "pattern": "\\S"
     },
     "reasoning": {
       "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
@@ -96,6 +98,7 @@
           ]
         },
         "sourcePath": { "type": "string", "minLength": 1 },
+        "sourceName": { "type": "string", "minLength": 1 },
         "sourceDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "importerVersion": { "const": 1 },
         "baselineDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
@@ -109,7 +112,8 @@
       "maxItems": 128,
       "items": {
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "pattern": "\\S"
       }
     }
   }

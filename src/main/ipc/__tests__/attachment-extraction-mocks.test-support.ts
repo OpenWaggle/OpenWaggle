@@ -4,7 +4,11 @@ type UnpdfExtractTextMock = Mock<() => Promise<{ readonly text: string }>>
 type MammothExtractMock = Mock<() => Promise<{ readonly value: string }>>
 type OcrRecognizeMock = Mock<() => Promise<{ readonly data: { readonly text: string } }>>
 type OcrTerminateMock = Mock<() => Promise<void>>
-type ParserWorkerMock = Mock<(input: { readonly kind: string }) => Promise<string>>
+interface ParserWorkerInput {
+  readonly kind: string
+  readonly buffer: Buffer
+}
+type ParserWorkerMock = Mock<(input: ParserWorkerInput) => Promise<string>>
 type SharpMetadataMock = Mock<() => Promise<{ readonly height: number; readonly width: number }>>
 type ValidateOfficeArchiveMock = Mock<() => Promise<void>>
 interface ZipArchiveMock {
@@ -18,7 +22,7 @@ const attachmentExtractionMocks = vi.hoisted(() => ({
   unpdfExtractText: vi.fn<() => Promise<{ readonly text: string }>>(),
   ocrRecognize: vi.fn<() => Promise<{ readonly data: { readonly text: string } }>>(),
   ocrTerminate: vi.fn<() => Promise<void>>(),
-  parserWorker: vi.fn<(input: { readonly kind: string }) => Promise<string>>(),
+  parserWorker: vi.fn<(input: ParserWorkerInput) => Promise<string>>(),
   sharpMetadata: vi.fn<() => Promise<{ readonly height: number; readonly width: number }>>(),
   validateOfficeArchive: vi.fn<() => Promise<void>>(),
   mammothExtract: vi.fn<() => Promise<{ readonly value: string }>>(),
@@ -80,12 +84,23 @@ export function resetAttachmentExtractionMocks() {
           }
         : null,
   })
-  parserWorkerMock.mockImplementation(async (input: { readonly kind: string }) => {
+  parserWorkerMock.mockImplementation(async (input: ParserWorkerInput) => {
     if (input.kind === 'pdf') return (await unpdfExtractTextMock()).text
     if (input.kind === 'docx') return (await mammothExtractMock()).value
     if (input.kind === 'image') {
       await sharpMetadataMock()
       return (await ocrRecognizeMock()).data.text
+    }
+    if (input.kind === 'rtf') {
+      return input.buffer
+        .toString('utf8')
+        .replaceAll(/\\par[d]?/g, '\n')
+        .replaceAll(/\\'[0-9a-fA-F]{2}/g, '')
+        .replaceAll(/\\[a-z]+-?\d* ?/g, '')
+        .replaceAll(/[{}]/g, '')
+        .replaceAll(/\n\s+/g, '\n')
+        .replaceAll(/\n{3,}/g, '\n\n')
+        .trim()
     }
     const archive = await jszipLoadAsyncMock()
     const content = (await archive.file('content.xml')?.async('string')) ?? ''

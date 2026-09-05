@@ -43,14 +43,6 @@ function normalizeText(value: string) {
   return `${trimmed.slice(0, ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
 }
 
-function extractTextFromRtf(raw: string) {
-  const withParagraphs = raw.replaceAll(/\\par[d]?/g, '\n')
-  const withoutHexEscapes = withParagraphs.replaceAll(/\\'[0-9a-fA-F]{2}/g, '')
-  const withoutControls = withoutHexEscapes.replaceAll(/\\[a-z]+-?\d* ?/g, '')
-  const withoutGroups = withoutControls.replaceAll(/[{}]/g, '')
-  const withoutIndentedBreaks = withoutGroups.replaceAll(/\n\s+/g, '\n')
-  return normalizeText(withoutIndentedBreaks.replaceAll(/\n{3,}/g, '\n\n'))
-}
 async function extractTextFromDocx(buffer: Buffer, signal: AbortSignal) {
   await validateOfficeArchive(buffer, signal)
   return normalizeText(await runAttachmentParserWorker({ kind: 'docx', buffer }, signal))
@@ -67,6 +59,10 @@ async function extractTextFromPdf(buffer: Buffer, signal: AbortSignal) {
 
 async function extractTextFromImage(buffer: Buffer, signal: AbortSignal) {
   return normalizeText(await runAttachmentParserWorker({ kind: 'image', buffer }, signal))
+}
+
+async function extractTextFromRtf(buffer: Buffer, signal: AbortSignal) {
+  return normalizeText(await runAttachmentParserWorker({ kind: 'rtf', buffer }, signal))
 }
 
 export async function extractAttachmentText(input: {
@@ -99,7 +95,9 @@ export async function extractAttachmentText(input: {
           ),
         )
         .with(RTF_MIME_TYPE, () =>
-          Promise.resolve(extractTextFromRtf(input.buffer.toString('utf8'))),
+          withExtractionFallback(input.attachmentName, 'rtf', (signal) =>
+            extractTextFromRtf(input.buffer, signal),
+          ),
         )
         .otherwise(() => Promise.resolve(normalizeText(input.buffer.toString('utf8')))),
     )

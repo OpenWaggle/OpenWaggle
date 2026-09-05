@@ -157,6 +157,11 @@ describe('Local Session client', () => {
           mode: 'classic',
           startedAt: 1,
           parts: [{ type: 'text', text: 'already streamed' }],
+          degraded: {
+            reason: 'content-limit',
+            omittedBytes: 42,
+            toolCallIds: ['tool-already-running'],
+          },
         },
       ],
     })
@@ -244,6 +249,11 @@ describe('Local Session client', () => {
           mode: 'classic',
           startedAt: 1,
           parts: [{ type: 'text', text: 'already streamed' }],
+          degraded: {
+            reason: 'content-limit',
+            omittedBytes: 42,
+            toolCallIds: ['tool-already-running'],
+          },
         },
       ],
     ])

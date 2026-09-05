@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import { SessionExportArtifactWriter } from '../ports/session-export-artifact-writer'
 import { SessionExportOperationRepository } from '../ports/session-export-operation-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { cancelActiveSessionExport } from './session-export-active-operation'
 
 export function cancelSessionExport(input: {
   readonly request: SessionExportCancelMutationRequest
@@ -18,6 +19,9 @@ export function cancelSessionExport(input: {
       exportOperationId: input.request.command.exportOperationId,
       now: Date.now(),
     })
+    if (result.operation.status === 'cancelling') {
+      cancelActiveSessionExport(result.operation.exportOperationId)
+    }
     if (result.operation.status === 'cancelled') yield* artifacts.discard(result.operation)
     publishSessionHostEvent({
       kind: 'session-export-changed',

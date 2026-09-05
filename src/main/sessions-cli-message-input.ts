@@ -17,6 +17,46 @@ const MESSAGE_INPUT_COMMANDS = new Set([
   'report',
 ])
 
+interface CliInputFileStats {
+  readonly ctimeMs: number
+  readonly dev: number
+  readonly ino: number
+  readonly mtimeMs: number
+  readonly size: number
+  isFile(): boolean
+}
+
+interface CliInputFileHandle {
+  close(): Promise<void>
+  read(
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number,
+  ): Promise<{ readonly bytesRead: number }>
+  stat(): Promise<CliInputFileStats>
+}
+
+export interface CliInputFileSystem {
+  lstat(filePath: string): Promise<CliInputFileStats>
+  open(filePath: string, flags: number): Promise<CliInputFileHandle>
+}
+
+const NODE_INPUT_FILE_SYSTEM: CliInputFileSystem = { lstat, open }
+
+function sameInputFile(left: CliInputFileStats, right: CliInputFileStats) {
+  return left.dev === right.dev && left.ino === right.ino
+}
+
+function sameInputVersion(left: CliInputFileStats, right: CliInputFileStats) {
+  return (
+    sameInputFile(left, right) &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  )
+}
+
 export interface ResolvedSessionsCliInput {
   readonly arguments: ParsedArguments
   readonly payload?: LocalSessionCommandPayload
@@ -38,21 +78,43 @@ function readStdin(): Promise<string> {
   })
 }
 
-async function readUtf8File(filePath: string) {
-  const pathStats = await lstat(filePath)
+export async function readUtf8File(
+  filePath: string,
+  fileSystem: CliInputFileSystem = NODE_INPUT_FILE_SYSTEM,
+) {
+  const pathStats = await fileSystem.lstat(filePath)
   if (!pathStats.isFile()) throw new Error('CLI input must be a regular file.')
   const limit = SESSION_INPUT_LIMITS.persistedTextBytes
   if (pathStats.size > limit) throw new Error('CLI input exceeds 16 MiB.')
-  const handle = await open(filePath, FS_CONSTANTS.O_RDONLY | FS_CONSTANTS.O_NONBLOCK)
+  const handle = await fileSystem.open(
+    filePath,
+    FS_CONSTANTS.O_RDONLY | FS_CONSTANTS.O_NONBLOCK | (FS_CONSTANTS.O_NOFOLLOW ?? 0),
+  )
   try {
     const openedStats = await handle.stat()
     if (!openedStats.isFile()) throw new Error('CLI input must be a regular file.')
     if (openedStats.size > limit) throw new Error('CLI input exceeds 16 MiB.')
-    const bytes = Buffer.allocUnsafe(Math.min(limit + 1, openedStats.size + 1))
-    const { bytesRead } = await handle.read(bytes, 0, bytes.byteLength, 0)
+    if (!sameInputVersion(pathStats, openedStats)) {
+      throw new Error('CLI input changed while it was being opened.')
+    }
+    const bytes = Buffer.allocUnsafe(limit + 1)
+    let bytesRead = 0
+    while (bytesRead < bytes.byteLength) {
+      const result = await handle.read(bytes, bytesRead, bytes.byteLength - bytesRead, bytesRead)
+      if (result.bytesRead === 0) break
+      bytesRead += result.bytesRead
+    }
     const finalStats = await handle.stat()
     if (bytesRead > limit || finalStats.size > limit) {
       throw new Error('CLI input exceeds 16 MiB.')
+    }
+    const finalPathStats = await fileSystem.lstat(filePath)
+    if (
+      bytesRead !== openedStats.size ||
+      !sameInputVersion(openedStats, finalStats) ||
+      !sameInputVersion(openedStats, finalPathStats)
+    ) {
+      throw new Error('CLI input changed while it was being read.')
     }
     return bytes.subarray(0, bytesRead).toString('utf8')
   } finally {

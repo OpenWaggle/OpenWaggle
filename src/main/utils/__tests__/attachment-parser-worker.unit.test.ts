@@ -65,4 +65,13 @@ describe('attachment parser worker', () => {
     expect(result).toContain('expanded & content')
     expect(result.endsWith('...[truncated]')).toBe(true)
   })
+
+  it('extracts RTF inside the parser worker', async () => {
+    await expect(
+      runAttachmentParserWorker(
+        { kind: 'rtf', buffer: Buffer.from('{\\rtf1\\ansi Hello\\par world}') },
+        new AbortController().signal,
+      ),
+    ).resolves.toBe('Hello\nworld')
+  })
 })

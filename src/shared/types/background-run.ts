@@ -58,6 +58,7 @@ export interface BackgroundRunSnapshot extends ActiveRunInfo {
   readonly degraded?: {
     readonly reason: 'content-limit'
     readonly omittedBytes: number
+    readonly toolCallIds?: readonly string[]
   }
   readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }

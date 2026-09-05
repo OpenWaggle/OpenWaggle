@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { AgentDefinitionManagementOutcome } from '@shared/types/agent-definition-management'
@@ -14,6 +13,11 @@ import {
 } from './agents/agent-definition-management'
 import { parseAgentDefinition } from './agents/agent-definition-parser'
 import { validateAgentDefinitionSemantics } from './agents/agent-definition-semantic-validation'
+import {
+  readAgentsCliDocumentSource,
+  readBoundedAgentsCliStdin,
+  writeAgentsCliDocument,
+} from './agents-cli-document-source'
 import { validateAgentsCliOptions } from './agents-cli-option-contract'
 import {
   agentDefinitionsProjectPath,
@@ -40,35 +44,8 @@ export interface AgentsCliIo {
   readonly home?: string
   readonly stdout?: (value: string) => void | Promise<void>
   readonly stderr?: (value: string) => void
+  readonly readStdin?: () => Promise<string>
   readonly loadSemanticCatalog?: AgentDefinitionSemanticCatalogLoader
-}
-
-async function writeDocumentCommand(input: {
-  readonly command: 'create' | 'update'
-  readonly arguments_: ReturnType<typeof parseMcpCliArguments>
-  readonly cwd: string
-  readonly home: string
-  readonly projectPath: string
-  readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
-}) {
-  const sourcePath = path.resolve(
-    input.cwd,
-    required(input.arguments_.positionals[0], 'Agent definition file'),
-  )
-  const document = parseAgentDefinition(await fs.readFile(sourcePath, 'utf8'))
-  return executeAgentDefinitionManagement(
-    {
-      operation: 'write',
-      projectPath: input.projectPath,
-      scope: parseAgentDefinitionScope(option(input.arguments_, 'scope')),
-      document,
-      replaceExisting: input.command === 'update',
-      ...(option(input.arguments_, 'expected-digest')
-        ? { expectedContentDigest: option(input.arguments_, 'expected-digest') }
-        : {}),
-    },
-    managementContext(input),
-  )
 }
 
 async function importCommand(input: {
@@ -151,10 +128,11 @@ async function mutationCommand(input: {
   readonly cwd: string
   readonly home: string
   readonly projectPath: string
+  readonly readStdin: () => Promise<string>
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
 }): Promise<AgentDefinitionManagementOutcome | undefined> {
   if (input.command === 'create' || input.command === 'update') {
-    return writeDocumentCommand({ ...input, command: input.command })
+    return writeAgentsCliDocument({ ...input, command: input.command })
   }
   if (input.command === 'duplicate') {
     return executeAgentDefinitionManagement(
@@ -193,6 +171,7 @@ async function executeAgentDefinitionCommand(input: {
   readonly cwd: string
   readonly home: string
   readonly stdout: (value: string) => void | Promise<void>
+  readonly readStdin: () => Promise<string>
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
 }) {
   const { command, arguments_, cwd, home, stdout } = input
@@ -204,6 +183,7 @@ async function executeAgentDefinitionCommand(input: {
     cwd,
     home,
     projectPath: project,
+    readStdin: input.readStdin,
     loadSemanticCatalog: input.loadSemanticCatalog,
   })
   if (mutation) {
@@ -223,8 +203,13 @@ async function executeAgentDefinitionCommand(input: {
     return EXIT.SUCCESS
   }
   if (command === 'validate') {
-    const sourcePath = path.resolve(cwd, required(arguments_.positionals[0], 'File'))
-    const definition = parseAgentDefinition(await fs.readFile(sourcePath, 'utf8'))
+    const source = await readAgentsCliDocumentSource({
+      argument: arguments_.positionals[0],
+      label: 'File',
+      cwd,
+      readStdin: input.readStdin,
+    })
+    const definition = parseAgentDefinition(source.content)
     const validation = validateAgentDefinitionSemantics(
       definition,
       await input.loadSemanticCatalog({ projectPath: project, userHome: home }),
@@ -233,7 +218,7 @@ async function executeAgentDefinitionCommand(input: {
       {
         valid: validation.valid,
         name: definition.name,
-        sourcePath,
+        sourcePath: source.sourcePath,
         diagnostics: validation.diagnostics,
       },
       json,
@@ -262,6 +247,7 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
   const home = io.home ?? os.homedir()
   const stdout = io.stdout ?? writeCliStdout
   const stderr = io.stderr ?? ((value: string) => process.stderr.write(value))
+  const readStdin = io.readStdin ?? readBoundedAgentsCliStdin
   const loadSemanticCatalog = io.loadSemanticCatalog ?? loadAgentDefinitionSemanticCatalog
   const parsed = parseMcpCliArguments(args)
   const command = parsed.positionals[0]
@@ -283,6 +269,7 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
       cwd,
       home,
       stdout,
+      readStdin,
       loadSemanticCatalog,
     })
   } catch (error) {

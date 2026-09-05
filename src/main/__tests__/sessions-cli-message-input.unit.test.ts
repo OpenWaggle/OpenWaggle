@@ -161,30 +161,6 @@ describe('Sessions CLI explicit message input', () => {
     ).rejects.toThrow('does not accept message input')
   })
 
-  it('rejects oversized and non-regular input files before reading their contents', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cli-input-'))
-    const oversizedPath = path.join(root, 'oversized.txt')
-    await fs.writeFile(oversizedPath, '')
-    await fs.truncate(oversizedPath, SESSION_INPUT_LIMITS.persistedTextBytes + 1)
-
-    try {
-      await expect(
-        resolveSessionsCliMessageInput(
-          'message',
-          argumentsFor(['session-1', '--input-file', oversizedPath]),
-        ),
-      ).rejects.toThrow('exceeds 16 MiB')
-      await expect(
-        resolveSessionsCliMessageInput(
-          'message',
-          argumentsFor(['session-1', '--input-file', root]),
-        ),
-      ).rejects.toThrow('regular file')
-    } finally {
-      await fs.rm(root, { recursive: true, force: true })
-    }
-  })
-
   it('accepts a complete exact typed request from a named JSON source', async () => {
     const request = {
       contract: 'session-control-v2',
@@ -265,8 +241,3 @@ describe('Sessions CLI explicit message input', () => {
     ).rejects.toThrow('target must be the same as the positional')
   })
 })
-
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'

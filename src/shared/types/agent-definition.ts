@@ -15,6 +15,7 @@ export type AgentDefinitionImportSource =
 export interface AgentDefinitionImportProvenance {
   readonly sourceTool: AgentDefinitionImportSource
   readonly sourcePath: string
+  readonly sourceName?: string
   readonly sourceDigest: string
   readonly importerVersion: 1
   readonly baselineDigest: string

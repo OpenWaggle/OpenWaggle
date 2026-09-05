@@ -46,6 +46,7 @@ const frontmatterSchema = z
           'opencode',
         ]),
         sourcePath: z.string().min(1),
+        sourceName: z.string().min(1).optional(),
         sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
         importerVersion: z.literal(1),
         baselineDigest: z.string().regex(/^[a-f0-9]{64}$/),

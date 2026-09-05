@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { canonicalJson } from '@shared/canonical-json'
 import type {
   AgentDefinitionDocument,
   AgentDefinitionImportSource,
@@ -82,10 +83,16 @@ async function mappedSource(input: {
   readonly tool: AgentDefinitionImportSource
   readonly content: string
 }) {
+  const consumedSources = [{ sourcePath: input.sourcePath, content: input.content }]
   if (input.tool === 'openwaggle') {
     const document = parseAgentDefinition(input.content)
     const { import: _provenance, ...withoutImport } = document
-    return { document: withoutImport, fields: canonicalFields(document), diagnostics: [] }
+    return {
+      document: withoutImport,
+      fields: canonicalFields(document),
+      diagnostics: [],
+      consumedSources,
+    }
   }
   if (input.tool === 'codex') {
     return mapCodexAgent(
@@ -96,11 +103,24 @@ async function mappedSource(input: {
       input.content,
     )
   }
-  return mapForeignMarkdownAgent({
-    sourceTool: input.tool,
-    sourcePath: input.sourcePath,
-    markdown: input.content,
-  })
+  return {
+    ...mapForeignMarkdownAgent({
+      sourceTool: input.tool,
+      sourcePath: input.sourcePath,
+      markdown: input.content,
+    }),
+    consumedSources,
+  }
+}
+
+function importSourceDigest(
+  sources: readonly { readonly sourcePath: string; readonly content: string }[],
+) {
+  return createHash('sha256').update(canonicalJson(sources)).digest('hex')
+}
+
+function selectedSourceName(sourceName: string | undefined) {
+  return sourceName ? { sourceName } : {}
 }
 
 async function existingDigest(destinationPath: string) {
@@ -132,7 +152,7 @@ export async function planAgentDefinitionImport(
     tool: resolvedTool,
     content,
   })
-  const sourceDigest = createHash('sha256').update(content).digest('hex')
+  const sourceDigest = importSourceDigest(mapped.consumedSources)
   const baselineDigest = mapped.document
     ? agentDefinitionSemanticDigest(mapped.document)
     : undefined
@@ -143,6 +163,7 @@ export async function planAgentDefinitionImport(
           import: {
             sourceTool: resolvedTool,
             sourcePath: resolvedSourcePath,
+            ...selectedSourceName(input.sourceName),
             sourceDigest,
             importerVersion: 1 as const,
             baselineDigest,
@@ -171,7 +192,7 @@ export async function planAgentDefinitionImport(
     sourceTool: resolvedTool,
     sourcePath: resolvedSourcePath,
     sourceDigest,
-    ...(input.sourceName ? { sourceName: input.sourceName } : {}),
+    ...selectedSourceName(input.sourceName),
     targetScope: input.targetScope,
     destinationPath,
     status: diagnostics.length > 0 ? 'blocked' : existing.digest ? 'conflict' : 'ready',

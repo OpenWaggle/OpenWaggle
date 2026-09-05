@@ -35,7 +35,15 @@ export function toStreamBufferSnapshot(
     ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
     parts: [...buffer.parts],
     ...(buffer.omittedBytes > 0
-      ? { degraded: { reason: 'content-limit' as const, omittedBytes: buffer.omittedBytes } }
+      ? {
+          degraded: {
+            reason: 'content-limit' as const,
+            omittedBytes: buffer.omittedBytes,
+            ...(buffer.degradedToolCallIds.size > 0
+              ? { toolCallIds: [...buffer.degradedToolCallIds] }
+              : {}),
+          },
+        }
       : {}),
     ...(buffer.worktreeLaunch ? { worktreeLaunch: buffer.worktreeLaunch } : {}),
   }
@@ -71,7 +79,7 @@ export function restoreStreamBufferSnapshots(
       parts: accepted ? [...snapshot.parts] : [],
       retainedBytes: accepted ? retainedBytes : 0,
       omittedBytes: (snapshot.degraded?.omittedBytes ?? 0) + (accepted ? 0 : retainedBytes),
-      degradedToolCallIds: new Set(),
+      degradedToolCallIds: new Set(snapshot.degraded?.toolCallIds ?? []),
       ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
     })
     totalRetainedBytes += accepted ? retainedBytes : 0

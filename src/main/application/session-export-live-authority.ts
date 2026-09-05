@@ -175,14 +175,11 @@ function parseSessionAgentCaller(callerId: string) {
   }
 }
 
-export function resolveExportOriginProfileId(
-  sql: SqlClient.SqlClient,
-  operation: SessionExportOperationRecord,
-) {
-  if (operation.callerId.startsWith('profile:')) {
-    return Effect.succeed(operation.callerId.slice('profile:'.length))
+export function resolveExportCallerOriginProfileId(sql: SqlClient.SqlClient, callerId: string) {
+  if (callerId.startsWith('profile:')) {
+    return Effect.succeed(callerId.slice('profile:'.length))
   }
-  const source = parseSessionAgentCaller(operation.callerId)
+  const source = parseSessionAgentCaller(callerId)
   if (!source) return Effect.succeed<string | undefined>(undefined)
   return sql<{ readonly authority_origin_caller_id: string }>`
     SELECT authority_origin_caller_id
@@ -195,6 +192,13 @@ export function resolveExportOriginProfileId(
       return callerId?.startsWith('profile:') ? callerId.slice('profile:'.length) : undefined
     }),
   )
+}
+
+export function resolveExportOriginProfileId(
+  sql: SqlClient.SqlClient,
+  operation: SessionExportOperationRecord,
+) {
+  return resolveExportCallerOriginProfileId(sql, operation.callerId)
 }
 
 function loadSessionAgentCaller(sql: SqlClient.SqlClient, callerId: string) {

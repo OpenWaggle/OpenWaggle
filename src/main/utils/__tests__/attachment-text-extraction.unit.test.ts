@@ -1,7 +1,12 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DOCX_MIME_TYPE, extractAttachmentText, ODT_MIME_TYPE } from '../attachment-text-extraction'
+import {
+  DOCX_MIME_TYPE,
+  extractAttachmentText,
+  ODT_MIME_TYPE,
+  RTF_MIME_TYPE,
+} from '../attachment-text-extraction'
 
 const mocks = vi.hoisted(() => ({
   parserWorker: vi.fn(),
@@ -38,6 +43,38 @@ describe('attachment text extraction resource limits', () => {
       { kind: 'image', buffer },
       expect.any(AbortSignal),
     )
+  })
+
+  it('runs RTF extraction behind the bounded killable parser-worker boundary', async () => {
+    vi.useFakeTimers()
+    let workerSignal: AbortSignal | undefined
+    mocks.parserWorker.mockImplementation(
+      (_input, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          workerSignal = signal
+          signal.addEventListener('abort', () => reject(new Error('worker terminated')), {
+            once: true,
+          })
+        }),
+    )
+    const buffer = Buffer.from('{\\rtf1\\ansi Hello\\par world}')
+
+    const extraction = extractAttachmentText({
+      kind: 'text',
+      mimeType: RTF_MIME_TYPE,
+      buffer,
+      attachmentName: 'document.rtf',
+    })
+    await vi.waitFor(() => {
+      expect(mocks.parserWorker).toHaveBeenCalledWith(
+        { kind: 'rtf', buffer },
+        expect.any(AbortSignal),
+      )
+    })
+    await vi.advanceTimersByTimeAsync(ATTACHMENT.EXTRACTION_TIMEOUT_MS)
+
+    await expect(extraction).resolves.toBe('')
+    expect(workerSignal?.aborted).toBe(true)
   })
 
   it.each([

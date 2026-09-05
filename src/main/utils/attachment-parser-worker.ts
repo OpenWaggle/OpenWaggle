@@ -6,7 +6,7 @@ import { Worker } from 'node:worker_threads'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { attachmentExtractionTimeoutError } from './attachment-extraction-scheduler'
 
-export type AttachmentParserKind = 'docx' | 'image' | 'odt' | 'pdf'
+export type AttachmentParserKind = 'docx' | 'image' | 'odt' | 'pdf' | 'rtf'
 
 interface ParserWorkerMessage {
   readonly ok: boolean
@@ -71,8 +71,18 @@ function normalizeOdt(content) {
   return normalizeText(decodeXmlEntities(content.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' '))
 }
 
+function normalizeRtf(raw) {
+  const withParagraphs = raw.replace(/\\par[d]?/g, '\n')
+  const withoutHexEscapes = withParagraphs.replace(/\\'[0-9a-fA-F]{2}/g, '')
+  const withoutControls = withoutHexEscapes.replace(/\\[a-z]+-?\d* ?/g, '')
+  const withoutGroups = withoutControls.replace(/[{}]/g, '')
+  const withoutIndentedBreaks = withoutGroups.replace(/\n\s+/g, '\n')
+  return normalizeText(withoutIndentedBreaks.replace(/\n{3,}/g, '\n\n'))
+}
+
 async function parse() {
   const buffer = Buffer.from(workerData.buffer)
+  if (workerData.kind === 'rtf') return normalizeRtf(buffer.toString('utf8'))
   if (workerData.kind === 'docx') {
     const mammoth = await import(workerData.moduleUrls.mammoth)
     const result = await mammoth.extractRawText({ buffer })

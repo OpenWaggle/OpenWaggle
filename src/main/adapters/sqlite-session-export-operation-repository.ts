@@ -194,7 +194,11 @@ function finish(
       resources_written = ${progress?.resourcesWritten ?? 0},
       bytes_written = ${progress?.bytesWritten ?? 0}, updated_at = ${now}, completed_at = ${now}
     WHERE id = ${operationId} AND (
-      (${status} = ${'completed'} AND status IN (${'running'}, ${'installing'}))
+      (${status} = ${'completed'} AND (
+        status IN (${'running'}, ${'installing'})
+        OR (status = ${'queued'} AND artifact_sha256 IS NOT NULL
+          AND artifact_size_bytes IS NOT NULL)
+      ))
       OR (${status} = ${'cancelled'} AND status IN (${'queued'}, ${'running'}, ${'cancelling'}))
     )
   `.pipe(Effect.asVoid)

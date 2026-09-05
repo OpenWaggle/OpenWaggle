@@ -131,6 +131,7 @@ async function refreshPlan(input: {
     userHome: input.userHome,
     sourcePath: current.import.sourcePath,
     sourceTool: current.import.sourceTool,
+    ...(current.import.sourceName ? { sourceName: current.import.sourceName } : {}),
     targetScope: current.scope,
     now: input.now,
     ...(input.semanticCatalog ? { semanticCatalog: input.semanticCatalog } : {}),
@@ -139,7 +140,7 @@ async function refreshPlan(input: {
     agentDefinitionSemanticDigest(semanticDocument(current)) !== current.import.baselineDigest
   return {
     ...plan,
-    status: modified ? ('conflict' as const) : plan.status === 'blocked' ? 'blocked' : 'ready',
+    status: plan.status === 'blocked' ? 'blocked' : modified ? ('conflict' as const) : 'ready',
     diagnostics: modified
       ? [...plan.diagnostics, 'The imported Agent definition was modified locally.']
       : plan.diagnostics,

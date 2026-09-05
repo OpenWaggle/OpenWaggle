@@ -36,13 +36,14 @@ interface CodexImportInput {
 async function selectedRecord(input: CodexImportInput, content: string) {
   const root = record(parse(content)) ?? {}
   const agents = record(root.agents)
-  if (!agents) return { selected: root, name: input.sourceName }
+  if (!agents) return { selected: root, name: input.sourceName, additionalSources: [] }
   const names = Object.keys(agents).sort()
   const selectedName = input.sourceName ?? (names.length === 1 ? names[0] : undefined)
   if (!selectedName) {
     return {
       selected: undefined,
       diagnostic: `Codex config contains ${names.length} Agent entries; select one with --source-name.`,
+      additionalSources: [],
     }
   }
   const selected = record(agents[selectedName])
@@ -50,16 +51,21 @@ async function selectedRecord(input: CodexImportInput, content: string) {
     return {
       selected: undefined,
       diagnostic: `Codex Agent ${JSON.stringify(selectedName)} was not found.`,
+      additionalSources: [],
     }
   }
   const configFile = typeof selected.config_file === 'string' ? selected.config_file : undefined
-  if (!configFile) return { selected, name: selectedName }
+  if (!configFile) return { selected, name: selectedName, additionalSources: [] }
   const nestedSource = await readBoundedAgentDefinitionSource({
     sourcePath: configFile,
     containingDirectory: path.dirname(input.sourcePath),
   })
   const config = record(parse(nestedSource.content)) ?? {}
-  return { selected: { ...selected, ...config }, name: selectedName }
+  return {
+    selected: { ...selected, ...config },
+    name: selectedName,
+    additionalSources: [nestedSource],
+  }
 }
 
 function description(source: Readonly<Record<string, unknown>>, name?: string) {
@@ -186,7 +192,8 @@ export async function mapCodexAgent(input: CodexImportInput, content: string) {
   const selected = await selectedRecord(input, content)
   const fields: AgentDefinitionImportFieldPlan[] = []
   const diagnostics = selected.diagnostic ? [selected.diagnostic] : []
-  if (!selected.selected) return { fields, diagnostics }
+  const consumedSources = [{ sourcePath: input.sourcePath, content }, ...selected.additionalSources]
+  if (!selected.selected) return { fields, diagnostics, consumedSources }
   const mappedIdentity = identity({
     ...(selected.name ? { selectedName: selected.name } : {}),
     sourcePath: input.sourcePath,
@@ -211,5 +218,6 @@ export async function mapCodexAgent(input: CodexImportInput, content: string) {
       : {}),
     fields,
     diagnostics,
+    consumedSources,
   }
 }

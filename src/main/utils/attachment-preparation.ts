@@ -40,7 +40,10 @@ export function toPublicPreparedAttachment(attachment: PreparedAttachment): Prep
 
 const ATTACHMENT_LIMIT_SENTINEL_BYTES = 1
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
-const OPEN_READ_NO_FOLLOW = filesystemConstants.O_RDONLY | (filesystemConstants.O_NOFOLLOW ?? 0)
+const OPEN_READ_NO_FOLLOW_NONBLOCKING =
+  filesystemConstants.O_RDONLY |
+  (filesystemConstants.O_NOFOLLOW ?? 0) |
+  (filesystemConstants.O_NONBLOCK ?? 0)
 
 function sameFile(
   left: { readonly dev: number | bigint; readonly ino: number | bigint },
@@ -129,9 +132,12 @@ async function readAttachmentSnapshot(
   allowedRoots: readonly string[] | undefined,
   beforeRead?: (filePath: string) => Promise<void>,
 ): Promise<AttachmentSnapshot> {
+  if (allowedRoots && !allowedRoots.some((root) => isPathInsideDirectory(root, filePath))) {
+    throw new Error('Attachment path is outside the caller-authorized workspace.')
+  }
   let handle: FileHandle
   try {
-    handle = await fs.open(filePath, OPEN_READ_NO_FOLLOW)
+    handle = await fs.open(filePath, OPEN_READ_NO_FOLLOW_NONBLOCKING)
   } catch (error) {
     if (allowedRoots && error instanceof Error && 'code' in error && error.code === 'ELOOP') {
       throw new Error('Attachment symbolic links are not accepted for scoped callers.', {

@@ -178,6 +178,54 @@ describe('SQLite Session export operation repository', () => {
     expect(result.cancelled).toMatchObject({ status: 'cancelled', completedAt: 5 })
   })
 
+  it('durably completes a verified installation after host-loss recovery', async () => {
+    const active = runtime()
+    const result = await withSessionExportOperationRepository(active, (repository) =>
+      Effect.gen(function* () {
+        const created = yield* repository.create({
+          callerId: 'cli-1',
+          idempotencyKey: 'recover-installed',
+          command: {
+            operation: 'export-create',
+            sessionId: 'session-1',
+            format: 'jsonl',
+            destinationPath: path.join(temporaryRoot, 'installed.jsonl'),
+          },
+          now: 1,
+        })
+        const operationId = created.operation.exportOperationId
+        yield* repository.claimExecution(operationId, 2)
+        if (!repository.persistArtifactPreparation || !repository.beginArtifactInstallation) {
+          return yield* Effect.die('durable artifact installation unavailable')
+        }
+        yield* repository.persistArtifactPreparation(
+          operationId,
+          { sha256: 'installed-digest', sizeBytes: 20 },
+          3,
+        )
+        const installationClaimed = yield* repository.beginArtifactInstallation(operationId, 4)
+        const recovered = yield* repository.recoverAfterHostLoss(5)
+        const recoveredOperation = recovered[0]
+        if (!recoveredOperation) return yield* Effect.die('installed export was not recovered')
+        yield* repository.complete(operationId, recoveredOperation.progress, 6)
+        return {
+          installationClaimed,
+          recoveredOperation,
+          completed: yield* repository.read('session-1', operationId),
+          nextClaim: yield* repository.claimNextExecution(7),
+        }
+      }),
+    )
+
+    expect(result.installationClaimed).toBe(true)
+    expect(result.recoveredOperation).toMatchObject({
+      status: 'queued',
+      artifactReceipt: { sha256: 'installed-digest', sizeBytes: 20 },
+    })
+    expect(result.completed).toMatchObject({ status: 'completed', completedAt: 6 })
+    expect(result.nextClaim).toEqual({ status: 'not-claimable' })
+  })
+
   it('allows only one background writer to claim a replayed export', async () => {
     const active = runtime()
     const claims = await withSessionExportOperationRepository(active, (repository) =>

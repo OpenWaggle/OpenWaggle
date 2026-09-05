@@ -1,15 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
-import type {
-  SessionControlMutationResponse,
-  SessionExportCreateMutationRequest,
-} from '@shared/types/session-control'
 import {
   SESSION_EXPORT_GLOBAL_CONCURRENCY_LIMIT,
   SESSION_EXPORT_RESOURCE_BYTES_LIMIT,
 } from '@shared/types/session-export-operation'
 import * as Effect from 'effect/Effect'
-import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import type { SessionExportArtifactSink } from '../ports/session-export-artifact-writer'
 import { SessionExportArtifactWriter } from '../ports/session-export-artifact-writer'
 import {
@@ -18,12 +12,11 @@ import {
 } from '../ports/session-export-operation-repository'
 import { SessionExportResourceResolver } from '../ports/session-export-resource-resolver'
 import { SessionQueryRepository } from '../ports/session-query-repository'
-import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
-import { assertFilesystemReadDirectoryScope } from '../utils/filesystem-read-directory-scope'
 import {
   acquireLocalSessionProfileBackgroundWork,
   type LocalSessionProfileBackgroundWorkLease,
 } from './local-session-profile-background-work'
+import { runActiveSessionExport } from './session-export-active-operation'
 import { prepareDurableExportInstallation } from './session-export-artifact-installation'
 import {
   ensureLiveExportAuthority,
@@ -69,9 +62,10 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
     let durableInstallPrepared = false
     let progress = { recordsWritten: 0, resourcesWritten: 0, bytesWritten: 0 }
     let resourceBytesWritten = 0
-    yield* Effect.gen(function* () {
+    const exportEffect = Effect.gen(function* () {
       if (!profileLease) return yield* Effect.fail(new Error('Profile authority is changing.'))
       yield* checkProfileFence(profileLease)
+      yield* checkExportCancellation(operations, operation.exportOperationId)
       yield* ensureLiveExportAuthority(sql, operation)
       const openedSink = yield* artifacts.open(operation)
       sink = openedSink
@@ -155,7 +149,8 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
         yield* operations.complete(operation.exportOperationId, progress, Date.now())
         publishSessionExportChange(operation, 'completed', progress)
       }
-    }).pipe(
+    })
+    yield* runActiveSessionExport(operation.exportOperationId, exportEffect).pipe(
       Effect.catchAll((error) =>
         settleFailedSessionExport({
           operations,
@@ -230,78 +225,4 @@ export function dispatchSessionExport(
   return operation.status === 'queued'
     ? drainSessionExportQueue(lease).pipe(Effect.as(true))
     : Effect.succeed(false)
-}
-
-export function createSessionExport(input: {
-  readonly callerId: string
-  readonly authority?: LocalSessionProfileAuthority
-  readonly request: SessionExportCreateMutationRequest
-}) {
-  return Effect.gen(function* () {
-    if (input.request.command.resources?.length && input.request.command.format !== 'bundle') {
-      return yield* Effect.fail(new Error('Bundled resources require the bundle export format.'))
-    }
-    let resourceSourceRoot: string | undefined
-    if (input.request.command.resources?.length) {
-      const targetRepository = yield* SessionAuthorizationTargetRepository
-      const target = yield* targetRepository.resolve(input.request.command.sessionId)
-      const sourceRoot = target.workingPath ?? target.projectPath
-      resourceSourceRoot = yield* Effect.tryPromise({
-        try: async () => {
-          if (!input.authority) {
-            const [canonicalSourceRoot] = await assertCanonicalDirectoryRoots(
-              [sourceRoot],
-              'Export resource source root',
-            )
-            if (!canonicalSourceRoot) throw new Error('Export resource source root is unavailable.')
-            return canonicalSourceRoot
-          }
-          const roots = await assertCanonicalDirectoryRoots(
-            input.authority.scope.exportRoots ?? [],
-            'Profile export root',
-          )
-          if (roots.length === 0) throw new Error('Export filesystem authority was removed.')
-          return assertFilesystemReadDirectoryScope({
-            roots,
-            directoryPath: sourceRoot,
-            label: 'Export resource source root',
-          })
-        },
-        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-      })
-    }
-    const repository = yield* SessionExportOperationRepository
-    const lease = yield* acquireSessionHostRunLease('export')
-    let transferred = false
-    return yield* Effect.gen(function* () {
-      const result = yield* repository.create({
-        callerId: input.callerId,
-        ...(input.authority ? { originProfileId: input.authority.profileId } : {}),
-        idempotencyKey: input.request.idempotencyKey,
-        command: input.request.command,
-        ...(resourceSourceRoot ? { resourceSourceRoot } : {}),
-        now: Date.now(),
-      })
-      transferred = yield* dispatchSessionExport(result.operation, lease)
-      return {
-        contractVersion: input.request.contractVersion,
-        requestId: input.request.requestId,
-        idempotencyKey: input.request.idempotencyKey,
-        replayed: result.replayed,
-        outcome: {
-          operation: 'export-create',
-          effect: 'export-accepted',
-          sessionId: result.operation.sessionId,
-          exportOperationId: result.operation.exportOperationId,
-          status: result.operation.status,
-        },
-      } satisfies SessionControlMutationResponse
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          if (!transferred) lease.release()
-        }),
-      ),
-    )
-  })
 }

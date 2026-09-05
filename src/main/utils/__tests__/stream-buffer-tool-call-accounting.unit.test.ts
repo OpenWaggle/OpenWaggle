@@ -5,6 +5,7 @@ import {
   clearStreamBuffer,
   getStreamBuffer,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
+  replaceStreamBufferSnapshots,
   startStreamBuffer,
 } from '../stream-buffer'
 
@@ -88,5 +89,23 @@ describe('stream-buffer cumulative tool-call accounting', () => {
     expect(getStreamBuffer(SESSION_ID)?.degraded?.omittedBytes).toBe(
       Buffer.byteLength(oversizedDelta, 'utf8') + 1,
     )
+  })
+
+  it('preserves degraded cumulative arguments across snapshot restoration', () => {
+    startToolCall()
+    const oversizedDelta = 'x'.repeat(MAX_ACTIVE_STREAM_BUFFER_BYTES)
+    appendToolCallDelta(1, oversizedDelta, oversizedDelta)
+    const degradedSnapshot = getStreamBuffer(SESSION_ID)
+    if (!degradedSnapshot) throw new Error('Expected a degraded stream snapshot.')
+
+    replaceStreamBufferSnapshots([degradedSnapshot])
+    appendToolCallDelta(2, 'y', `${oversizedDelta}y`)
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      parts: [{ toolCall: { args: { content: '' } } }],
+      degraded: {
+        omittedBytes: Buffer.byteLength(oversizedDelta, 'utf8') + 1,
+      },
+    })
   })
 })

@@ -34,6 +34,29 @@ export type LocalSessionWatchInput = LocalSessionClientConnectionInput & {
   readonly onSnapshot?: (activeRuns: readonly BackgroundRunSnapshot[]) => void | Promise<void>
 }
 
+function decodeStringArray(value: unknown) {
+  if (!Array.isArray(value)) return undefined
+  const strings = value.filter((item): item is string => typeof item === 'string')
+  return strings.length === value.length ? strings : undefined
+}
+
+function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded'] | undefined {
+  if (
+    !isRecord(value) ||
+    value.reason !== 'content-limit' ||
+    typeof value.omittedBytes !== 'number'
+  ) {
+    return undefined
+  }
+  const toolCallIds = value.toolCallIds === undefined ? [] : decodeStringArray(value.toolCallIds)
+  if (!toolCallIds) return undefined
+  return {
+    reason: 'content-limit',
+    omittedBytes: value.omittedBytes,
+    ...(toolCallIds.length > 0 ? { toolCallIds } : {}),
+  }
+}
+
 function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
   return value.map((candidate) => {
@@ -48,6 +71,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
     ) {
       throw new Error('Local Session Host returned an invalid active Run snapshot.')
     }
+    const degraded = decodeDegradedSnapshot(candidate.degraded)
     return {
       sessionId: SessionId(candidate.sessionId),
       model: SupportedModelId(candidate.model),
@@ -55,16 +79,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
       startedAt: candidate.startedAt,
       ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
       parts: candidate.parts.map(decodeMessagePart),
-      ...(isRecord(candidate.degraded) &&
-      candidate.degraded.reason === 'content-limit' &&
-      typeof candidate.degraded.omittedBytes === 'number'
-        ? {
-            degraded: {
-              reason: 'content-limit' as const,
-              omittedBytes: candidate.degraded.omittedBytes,
-            },
-          }
-        : {}),
+      ...(degraded ? { degraded } : {}),
     }
   })
 }
