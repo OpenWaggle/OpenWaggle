@@ -19,6 +19,7 @@ describe('buildChatRows compaction summaries', () => {
         compactionSummary: {
           summary: 'Kept the failing test context.',
           tokensBefore: 123456,
+          reason: 'threshold',
         },
       },
     }
@@ -40,6 +41,82 @@ describe('buildChatRows compaction summaries', () => {
       id: 'compaction-summary',
       summary: 'Kept the failing test context.',
       tokensBefore: 123456,
+      reason: 'threshold',
+    })
+  })
+
+  it.each([
+    ['manual', 'manual'],
+    ['threshold', 'automatic'],
+    ['overflow', 'automatic'],
+  ] as const)('appends an inline %s compaction status row', (reason, presentation) => {
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'continue')],
+      isLoading: true,
+      error: undefined,
+      lastUserMessage: 'continue',
+      dismissedError: null,
+      sessionId: 'session-compacting',
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+      compactionStatus: {
+        type: 'compacting',
+        reason,
+        summaryCountAtStart: 0,
+        timeline: [
+          {
+            id: 'compaction-running',
+            phase: 'running',
+            reason,
+            summaryCountAtStart: 0,
+            messageCountAtStart: 1,
+          },
+        ],
+      },
+    })
+
+    expect(rows.find((row) => row.type === 'compaction-status')).toEqual({
+      type: 'compaction-status',
+      id: 'compaction-running',
+      anchorMessageCount: 1,
+      announce: true,
+      state: `${presentation}-running`,
+    })
+    expect(rows.some((row) => row.type === 'phase-indicator')).toBe(false)
+  })
+
+  it('keeps a completed status visible until its durable summary is hydrated', () => {
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'continue')],
+      isLoading: true,
+      error: undefined,
+      lastUserMessage: 'continue',
+      dismissedError: null,
+      sessionId: 'session-compacting',
+      waggleMetadataLookup: {},
+      phase: { current: { label: 'Thinking', elapsedMs: 0 }, completed: [], totalElapsedMs: 0 },
+      compactionStatus: {
+        type: 'completed',
+        reason: 'threshold',
+        summaryCountAtStart: 0,
+        timeline: [
+          {
+            id: 'compaction-complete',
+            phase: 'completed',
+            reason: 'threshold',
+            summaryCountAtStart: 0,
+            messageCountAtStart: 1,
+          },
+        ],
+      },
+    })
+
+    expect(rows.find((row) => row.type === 'compaction-status')).toEqual({
+      type: 'compaction-status',
+      id: 'compaction-complete',
+      anchorMessageCount: 1,
+      announce: true,
+      state: 'automatic-complete',
     })
   })
 

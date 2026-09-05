@@ -22,9 +22,11 @@ import {
   type OpenWaggleAgentSessionOptions,
 } from '../pi-session-lifecycle'
 import { logger } from './constants'
+import { createPiRunControl } from './pi-run-control'
 import {
   buildFailedRunAfterSettlement,
   buildFailedSubscribedRunResult,
+  capturePiMessageBoundary,
   collectSettledPiMessages,
   describePiRunError,
   runPiOperation,
@@ -49,11 +51,27 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly runId: AgentKernelRunInput['runId']
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
+  readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
   readonly signal: AgentKernelRunInput['signal']
   readonly onEvent: AgentKernelRunInput['onEvent']
+  readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly visualizationDirectory?: string
+  readonly steeringInputHook?: boolean
+}
+
+function exposePiRunControl(
+  input: CreatePiRunSessionRuntimeInput,
+  model: PiModel,
+  session: AgentSession,
+) {
+  input.onControlAvailable?.(
+    createPiRunControl(session, input.signal, {
+      routeThroughInputHook: input.steeringInputHook === true,
+    }),
+  )
+  return { model, session }
 }
 
 function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
@@ -96,6 +114,7 @@ export async function createPiRunSessionRuntime(
   const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
+    compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
     ...(input.visualizationDirectory
@@ -132,7 +151,7 @@ export async function createPiRunSessionRuntime(
       openWaggleUi,
     })
 
-    return { model: selectedRuntime.runtime.model, session }
+    return exposePiRunControl(input, selectedRuntime.runtime.model, session)
   } catch (error) {
     if (selectedRuntime.enabledOpenWaggleExtensionPackagePaths.length === 0) {
       throw error
@@ -152,7 +171,7 @@ export async function createPiRunSessionRuntime(
       openWaggleUi,
     })
 
-    return { model: fallbackRuntime.model, session }
+    return exposePiRunControl(input, fallbackRuntime.model, session)
   }
 }
 
@@ -233,7 +252,6 @@ export async function runSubscribedPiOperation(input: {
   readonly buildErrorMessages: (appended: readonly unknown[]) => readonly Message[]
 }) {
   const abortListener = createAbortListener(input.session, input.abortWarning)
-  let previousMessageCount = input.session.agent.state.messages.length
   let operationAborted = false
   let settlementAttempted = false
 
@@ -244,17 +262,17 @@ export async function runSubscribedPiOperation(input: {
     return result
   }
 
+  const messageBoundary = capturePiMessageBoundary(input.session)
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
 
   try {
-    previousMessageCount = input.session.agent.state.messages.length
     const operationOutcome = await runPiOperation(input.operation)
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)
 
     settlementAttempted = true
-    const appended = await collectSettledPiMessages(input.session, previousMessageCount)
+    const appended = await collectSettledPiMessages(input.session, messageBoundary)
 
     if (operationOutcome.status === 'failed') {
       return buildFailedSubscribedRunResult({
@@ -277,7 +295,7 @@ export async function runSubscribedPiOperation(input: {
     return buildFailedRunAfterSettlement({
       session: input.session,
       runInput: input.runInput,
-      previousMessageCount,
+      messageBoundary,
       operationAborted,
       settlementAttempted,
       error,

@@ -1,14 +1,28 @@
+import type { ActiveCompactionInfo } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { ActiveRunManager } from './active-run-manager'
 
-interface AgentRunMetadata {
+export interface AgentRunControlMetadata {
+  readonly controlRef: { current: AgentKernelRunControl | null }
+  readonly steerTailRef: { current: Promise<void> }
+}
+
+interface AgentModelMetadata {
   readonly model: SupportedModelId
 }
 
+interface AgentCompactionMetadata extends AgentModelMetadata {
+  readonly reason: 'manual'
+  readonly startedAt: number
+}
+
+interface AgentRunMetadata extends AgentModelMetadata, AgentRunControlMetadata {}
+
 const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
-const activeCompactions = new ActiveRunManager<SessionId, AgentRunMetadata>()
-const activeWaggleRuns = new ActiveRunManager<SessionId, Record<string, never>>()
+const activeCompactions = new ActiveRunManager<SessionId, AgentCompactionMetadata>()
+const activeWaggleRuns = new ActiveRunManager<SessionId, AgentRunControlMetadata>()
 const ACTIVE_RUN_POLL_INTERVAL_MS = 50
 
 export { activeCompactions, activeRuns, activeWaggleRuns }
@@ -30,6 +44,22 @@ export function getAllActiveRunSessionIds(): SessionId[] {
   return [
     ...new Set([...activeRuns.keys(), ...activeCompactions.keys(), ...activeWaggleRuns.keys()]),
   ]
+}
+
+export function listActiveCompactions(): ActiveCompactionInfo[] {
+  const result: ActiveCompactionInfo[] = []
+  for (const sessionId of activeCompactions.keys()) {
+    const entry = activeCompactions.get(sessionId)
+    if (!entry) continue
+    result.push({
+      activity: 'compaction',
+      sessionId,
+      model: entry.metadata.model,
+      reason: entry.metadata.reason,
+      startedAt: entry.metadata.startedAt,
+    })
+  }
+  return result
 }
 
 export function cancelAllSessionRuns(): SessionId[] {

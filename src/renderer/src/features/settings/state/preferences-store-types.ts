@@ -30,6 +30,7 @@ export interface PreferencesState {
   setSyntaxTheme: (variant: SyntaxAppearanceVariant, themeId: SyntaxThemeId) => Promise<void>
   setDiffView: (view: DiffView) => Promise<void>
   setDiffWrapLines: (wrap: boolean) => Promise<void>
+  setCompactionThresholdPercent: (percent: number) => Promise<void>
   setAppearanceTypography: (typography: Partial<AppearanceTypographyPreferences>) => Promise<void>
   setAppearanceMotion: (motion: AppearanceMotionPreference) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>

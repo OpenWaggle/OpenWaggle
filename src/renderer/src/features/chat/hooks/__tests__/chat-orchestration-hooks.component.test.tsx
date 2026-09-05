@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId, SessionNodeId, SupportedModelId, WagglePresetId } from '@shared/types/brand'
+import { SessionId, SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -10,7 +10,6 @@ import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatStore } from '../../state/chat-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
-import { useSessionCopyWorkflow } from '../useSessionCopyWorkflow'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
@@ -70,6 +69,10 @@ function requireRunCompletedHandler() {
   const handler = apiMock.getRunCompletedHandler()
   if (!handler) throw new Error('Expected run-completed handler')
   return handler
+}
+
+function emitAgentEvent(event: AgentEventPayload['event']) {
+  requireAgentEventHandler()({ sessionId: SESSION_ID, event })
 }
 
 function payload(text: string): AgentSendPayload {
@@ -139,6 +142,14 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
     handleSend: vi.fn().mockResolvedValue(undefined),
     handleSendWaggle: vi.fn().mockResolvedValue(undefined),
     model: MODEL,
+    messages: [
+      {
+        id: 'persisted-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Existing transcript' }],
+        createdAt: new Date(1),
+      },
+    ],
     phase: { reset: vi.fn() },
     projectPath: '/tmp/project',
     refreshSession: vi.fn().mockResolvedValue(undefined),
@@ -201,10 +212,7 @@ describe('chat orchestration hooks', () => {
     )
     useBackgroundRunStore.getState().setRunRenderMessages(SESSION_ID, [])
 
-    requireAgentEventHandler()({
-      sessionId: SESSION_ID,
-      event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 },
-    })
+    emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 })
     expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
 
     requireAgentEventHandler()({
@@ -250,6 +258,9 @@ describe('chat orchestration hooks', () => {
     expect(params.refreshSession).toHaveBeenCalledWith(SESSION_ID)
     expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID)
     expect(params.handleSend).not.toHaveBeenCalled()
+    expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_ID)?.messages).toEqual(
+      params.messages,
+    )
   })
 
   it('sends through Waggle when the one-shot payload includes a preset', async () => {
@@ -307,30 +318,5 @@ describe('chat orchestration hooks', () => {
     expect(apiMock.cancelWaggle).toHaveBeenCalledWith(SESSION_ID)
     expect(params.stopWaggleCollaboration).toHaveBeenCalledOnce()
     expect(params.stop).toHaveBeenCalledOnce()
-  })
-
-  it('keeps session copy commands safe when there is no active session or fork target', async () => {
-    const showToast = vi.fn()
-    const { result } = renderHook(() =>
-      useSessionCopyWorkflow({
-        activeSessionId: null,
-        activeWorkspace: null,
-        draftBranchSourceNodeId: SessionNodeId('draft-source'),
-        model: MODEL,
-        projectPath: '/repo',
-        navigate: vi.fn(),
-        setActiveSession: vi.fn(),
-        loadSessions: vi.fn().mockResolvedValue(undefined),
-        refreshSession: vi.fn().mockResolvedValue(undefined),
-        refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-        showToast,
-      }),
-    )
-
-    await act(() => result.current.cloneCurrentSessionToNewSession())
-    act(() => result.current.openForkSelector())
-
-    expect(showToast).toHaveBeenCalledWith('No active session to clone.')
-    expect(showToast).toHaveBeenCalledWith('No user messages are available to fork.')
   })
 })

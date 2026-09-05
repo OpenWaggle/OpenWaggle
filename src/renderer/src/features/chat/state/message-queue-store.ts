@@ -6,18 +6,29 @@ export interface QueuedMessage {
   readonly id: string
   readonly payload: AgentSendPayload
   readonly queuedAt: number
+  readonly queueOrder: number
+}
+
+export interface TakenQueuedMessage {
+  readonly item: QueuedMessage
+  readonly index: number
+  readonly previousId: string | null
+  readonly nextId: string | null
 }
 
 interface MessageQueueState {
   queues: Map<SessionId, QueuedMessage[]>
   enqueue: (sessionId: SessionId, payload: AgentSendPayload) => void
   dequeue: (sessionId: SessionId) => QueuedMessage | null
+  take: (sessionId: SessionId, messageId: string) => TakenQueuedMessage | null
+  restore: (sessionId: SessionId, taken: TakenQueuedMessage) => void
   dismiss: (sessionId: SessionId, messageId: string) => void
   promoteToFront: (sessionId: SessionId, messageId: string) => void
   clearQueue: (sessionId: SessionId) => void
 }
 
 const EMPTY_QUEUE: readonly QueuedMessage[] = []
+let nextQueueOrder = 0
 
 const nullSelector = (_state: MessageQueueState) => EMPTY_QUEUE
 const selectorCache = new Map<SessionId, (state: MessageQueueState) => readonly QueuedMessage[]>()
@@ -40,6 +51,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       id: crypto.randomUUID(),
       payload,
       queuedAt: Date.now(),
+      queueOrder: nextQueueOrder++,
     }
     set((state) => {
       const next = new Map(state.queues)
@@ -65,6 +77,41 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
     return first
   },
 
+  take(sessionId, messageId) {
+    const queue = get().queues.get(sessionId)
+    if (!queue) return null
+    const index = queue.findIndex((item) => item.id === messageId)
+    if (index < 0) return null
+    const item = queue[index]
+    if (!item) return null
+    set((state) => {
+      const next = new Map(state.queues)
+      const remaining = queue.filter((candidate) => candidate.id !== messageId)
+      if (remaining.length === 0) next.delete(sessionId)
+      else next.set(sessionId, remaining)
+      return { queues: next }
+    })
+    return {
+      item,
+      index,
+      previousId: queue[index - 1]?.id ?? null,
+      nextId: queue[index + 1]?.id ?? null,
+    }
+  },
+
+  restore(sessionId, taken) {
+    set((state) => {
+      const next = new Map(state.queues)
+      const queue = next.get(sessionId) ?? []
+      if (queue.some((candidate) => candidate.id === taken.item.id)) return state
+      next.set(
+        sessionId,
+        [...queue, taken.item].sort((left, right) => left.queueOrder - right.queueOrder),
+      )
+      return { queues: next }
+    })
+  },
+
   dismiss(sessionId, messageId) {
     set((state) => {
       const queue = state.queues.get(sessionId)
@@ -87,8 +134,12 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       const index = queue.findIndex((item) => item.id === messageId)
       if (index <= 0) return state
       const item = queue[index]
+      const promoted = {
+        ...item,
+        queueOrder: Math.min(...queue.map((candidate) => candidate.queueOrder)) - 1,
+      }
       const next = new Map(state.queues)
-      next.set(sessionId, [item, ...queue.slice(0, index), ...queue.slice(index + 1)])
+      next.set(sessionId, [promoted, ...queue.slice(0, index), ...queue.slice(index + 1)])
       return { queues: next }
     })
   },

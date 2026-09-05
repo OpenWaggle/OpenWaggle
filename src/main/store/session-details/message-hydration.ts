@@ -162,6 +162,11 @@ function getNumberField(value: unknown, key: string) {
   return typeof field === 'number' && Number.isFinite(field) ? field : null
 }
 
+function getCompactionReason(value: unknown) {
+  const reason = getStringField(value, 'reason')
+  return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : undefined
+}
+
 export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | null {
   const content = parseJsonValue(row.content_json)
   const summary = getStringField(content, 'summary')
@@ -181,12 +186,13 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
 
   if (row.kind === 'compaction_summary') {
     const tokensBefore = getNumberField(content, 'tokensBefore')
+    const reason = getCompactionReason(content)
     return {
       id: MessageId(row.id),
       role: 'assistant',
       parts: [{ type: 'text', text: `Compaction summary\n\n${summary}` }],
       ...(tokensBefore !== null
-        ? { metadata: { compactionSummary: { summary, tokensBefore } } }
+        ? { metadata: { compactionSummary: { summary, tokensBefore, reason } } }
         : {}),
       createdAt: row.timestamp_ms,
     }

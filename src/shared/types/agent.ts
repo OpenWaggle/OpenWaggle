@@ -78,6 +78,15 @@ export interface AgentSendPayload {
   readonly visualizationContext?: InlineVisualizationContext
 }
 
+export type AgentSteerDeliveryResult =
+  | {
+      readonly delivery: 'queued'
+      readonly durableText: string
+    }
+  | {
+      readonly delivery: 'handled'
+    }
+
 export interface InlineVisualizationContext {
   readonly title: string
   readonly sourcePath: string
@@ -87,6 +96,7 @@ export interface InlineVisualizationContext {
 export interface CompactionSummaryMetadata {
   readonly summary: string
   readonly tokensBefore: number
+  readonly reason?: 'manual' | 'threshold' | 'overflow'
 }
 
 export interface BranchSummaryMetadata {

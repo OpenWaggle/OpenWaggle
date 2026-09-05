@@ -22,10 +22,12 @@ describe('useAgentChat reconnect', () => {
   it('keeps an optimistic user message when reconnecting after a route remount', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue({
+      activity: 'agent-run',
       sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'classic',
       startedAt: 1,
+      activityEvents: [],
       parts: [],
     })
     useOptimisticUserMessageStore.getState().add(SessionId('session-1'), {
@@ -165,6 +167,7 @@ describe('useAgentChat reconnect', () => {
     const backgroundRun = createDeferred<BackgroundRunSnapshot>()
     apiMock.getBackgroundRun.mockReturnValue(backgroundRun.promise)
     runRenderSnapshots.set('session-1', {
+      compactionStatus: null,
       updatedAt: 1,
       messages: [
         {

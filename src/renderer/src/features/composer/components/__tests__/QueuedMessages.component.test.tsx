@@ -63,20 +63,14 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('Steer')).toBeInTheDocument()
   })
 
-  it('uses compaction copy and hides Steer while compaction is running', () => {
+  it('keeps the ordinary queue title and Steer action while compaction is running', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('wait for compact'))
 
-    render(
-      <QueuedMessages
-        sessionId={CONV_A}
-        onSteer={noOpSteer}
-        isStreaming={true}
-        isCompacting={true}
-      />,
-    )
+    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
 
-    expect(screen.getByText('Queued until compaction finishes')).toBeInTheDocument()
-    expect(screen.queryByText('Steer')).not.toBeInTheDocument()
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.queryByText('Queued until compaction finishes')).not.toBeInTheDocument()
+    expect(screen.getByText('Steer')).toBeInTheDocument()
   })
 
   it('Steer button calls onSteer with correct messageId', () => {

@@ -136,6 +136,7 @@ describe('Pi run OpenWaggle extension selection', () => {
     expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
       projectPath: '/repo',
       modelReference: PRIMARY_MODEL,
+      compactionThresholdPercent: 80,
       enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
       enabledOpenWaggleExtensionResourceRoots: [
         { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },

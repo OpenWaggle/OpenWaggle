@@ -1,8 +1,10 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionInvokeScope } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
+import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import {
   type ExtensionSlashCommand,
@@ -30,6 +32,7 @@ interface ChatSendWorkflowParams {
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly model: SupportedModelId
+  readonly messages: readonly UIMessage[]
   readonly phase: { readonly reset: () => void }
   readonly projectPath: string | null
   readonly refreshSession: (sessionId: SessionId) => Promise<void>
@@ -50,6 +53,7 @@ async function compactSession(params: ChatSendWorkflowParams, customInstructions
   }
 
   try {
+    useBackgroundRunStore.getState().setRunRenderMessages(params.activeSessionId, params.messages)
     await api.compactSession(params.activeSessionId, params.model, customInstructions)
     await Promise.all([
       params.refreshSession(params.activeSessionId),

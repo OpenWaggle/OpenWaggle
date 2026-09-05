@@ -33,12 +33,6 @@ function isWaggleDisplayMessage(message: ContextMessage) {
   )
 }
 
-function buildSteeringContent(event: InputEvent) {
-  return event.images && event.images.length > 0
-    ? [{ type: 'text' as const, text: event.text }, ...event.images]
-    : event.text
-}
-
 function rewriteLatestUserMessage(input: {
   readonly messages: readonly ContextMessage[]
   readonly run: DefaultPiWaggleRunState
@@ -114,14 +108,12 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     clearRunStatus(ctx, setActiveRun)
   })
   pi.on('input', async (event: InputEvent, ctx) => {
-    if (event.source === 'extension' || event.text.trim().startsWith('/')) {
-      return { action: 'continue' }
-    }
+    if (event.source === 'extension') return { action: 'continue' }
     if (activeRun) {
       clearRunStatus(ctx, setActiveRun)
-      pi.sendUserMessage(buildSteeringContent(event), { deliverAs: 'steer' })
-      return { action: 'handled' }
+      return { action: 'transform', text: event.text, images: event.images }
     }
+    if (event.text.trim().startsWith('/')) return { action: 'continue' }
     if (!ctx.isIdle()) return { action: 'continue' }
 
     const state = latestPiWaggleModeStateFromBranch(ctx.sessionManager)

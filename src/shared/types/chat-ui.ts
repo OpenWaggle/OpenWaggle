@@ -71,6 +71,7 @@ export type UIMessagePart =
 export interface ChatCompactionSummaryMetadata {
   readonly summary: string
   readonly tokensBefore: number
+  readonly reason?: 'manual' | 'threshold' | 'overflow'
 }
 
 export interface ChatBranchSummaryMetadata {
@@ -82,6 +83,7 @@ export interface UIMessageMetadata {
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata
+  readonly steerDelivery?: 'waiting-for-compaction' | 'sending'
 }
 
 export interface UIMessage {

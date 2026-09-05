@@ -1,11 +1,20 @@
 import type { MessagePart } from './agent'
 import type { SessionId } from './brand'
 import type { SupportedModelId } from './llm'
+import type { AgentTransportEvent } from './stream'
 
 export const WORKTREE_CREATED_CUSTOM_EVENT = 'openwaggle.worktree-created'
 
 /** The run mode for a live Pi-backed execution. */
 export type RunMode = 'classic' | 'waggle'
+
+/** Compaction and retry events needed to restore the live chat activity after reconnecting. */
+export type BackgroundRunActivityEvent = Extract<
+  AgentTransportEvent,
+  {
+    readonly type: 'compaction_start' | 'compaction_end' | 'auto_retry_start' | 'auto_retry_end'
+  }
+>
 
 /** OpenWaggle-owned setup stages that run before Pi starts the task. */
 export type WorktreeLaunchStage =
@@ -43,16 +52,29 @@ export interface WorktreeLaunchEventPayload {
   readonly launch: WorktreeLaunchSnapshot | null
 }
 
-/** Lightweight info about an active background run (no message content). */
-export interface ActiveRunInfo {
+/** Lightweight info about an active agent run (no message content). */
+export interface ActiveAgentRunInfo {
+  readonly activity: 'agent-run'
   readonly sessionId: SessionId
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
+  readonly activityEvents: readonly BackgroundRunActivityEvent[]
 }
 
+/** Lightweight info about a standalone manual compaction. */
+export interface ActiveCompactionInfo {
+  readonly activity: 'compaction'
+  readonly sessionId: SessionId
+  readonly model: SupportedModelId
+  readonly reason: 'manual'
+  readonly startedAt: number
+}
+
+export type ActiveRunInfo = ActiveAgentRunInfo | ActiveCompactionInfo
+
 /** Full snapshot including accumulated message parts for reconnection. */
-export interface BackgroundRunSnapshot extends ActiveRunInfo {
+export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
   readonly worktreeLaunch?: WorktreeLaunchSnapshot

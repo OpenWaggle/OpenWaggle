@@ -1,13 +1,18 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { AgentAccessSection } from './AgentAccessSection'
 
 const logger = createRendererLogger('settings')
+
+const COMPACTION_THRESHOLD_MINIMUM = 1
+const COMPACTION_THRESHOLD_MAXIMUM = 100
 
 function useAppVersion() {
   const [version, setVersion] = useState('…')
@@ -88,6 +93,59 @@ function getStatusRow(status: UpdateStatus) {
     .exhaustive()
 }
 
+function CompactionThresholdSetting() {
+  const compactionThresholdPercent = usePreferencesStore(
+    (state) => state.settings.compactionThresholdPercent,
+  )
+  const setCompactionThresholdPercent = usePreferencesStore(
+    (state) => state.setCompactionThresholdPercent,
+  )
+  const [isPersistingCompactionThreshold, setIsPersistingCompactionThreshold] = useState(false)
+  const isPersistingCompactionThresholdRef = useRef(false)
+
+  const updateCompactionThreshold = (percent: number) => {
+    if (isPersistingCompactionThresholdRef.current) return
+    if (percent === compactionThresholdPercent) return
+
+    isPersistingCompactionThresholdRef.current = true
+    setIsPersistingCompactionThreshold(true)
+    void setCompactionThresholdPercent(percent)
+      .catch(() => undefined)
+      .finally(() => {
+        isPersistingCompactionThresholdRef.current = false
+        setIsPersistingCompactionThreshold(false)
+      })
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex min-h-14 items-center justify-between gap-3 px-5 py-3">
+          <label htmlFor="automatic-compaction-threshold">
+            <span className="block text-xs font-medium text-text-primary">
+              Automatic compaction threshold
+            </span>
+            <span className="mt-0.5 block text-xs text-text-tertiary">
+              Compact before the next model request when context reaches this percentage.
+            </span>
+          </label>
+          <NumberStepper
+            id="automatic-compaction-threshold"
+            label="Automatic compaction threshold"
+            value={compactionThresholdPercent}
+            minimum={COMPACTION_THRESHOLD_MINIMUM}
+            maximum={COMPACTION_THRESHOLD_MAXIMUM}
+            suffix="%"
+            disabled={isPersistingCompactionThreshold}
+            onValueChange={updateCompactionThreshold}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function GeneralSection() {
   const version = useAppVersion()
   const status = useUpdateStatus()
@@ -101,6 +159,8 @@ export function GeneralSection() {
   return (
     <div className="space-y-6">
       <AgentAccessSection />
+
+      <CompactionThresholdSetting />
 
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">

@@ -53,6 +53,12 @@ export async function compactPiSession(
           createSessionListener(
             {
               model: input.model,
+              getContextWindow: (provider, modelId) => {
+                const activeModel = session.model
+                return activeModel?.provider === provider && activeModel.id === modelId
+                  ? activeModel.contextWindow
+                  : undefined
+              },
               onEvent: input.onEvent,
             },
             randomUUID(),

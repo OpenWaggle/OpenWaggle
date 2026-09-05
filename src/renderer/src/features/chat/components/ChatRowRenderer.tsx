@@ -11,7 +11,7 @@ import { StatusRow } from './AgentLoopStatusRow'
 import { BranchSummaryCard } from './BranchSummaryCard'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
-import { CompactionSummaryCard } from './CompactionSummaryCard'
+import { CompactionTimelineRow } from './CompactionTimelineRow'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
 import { WorktreeLaunchRow } from './WorktreeLaunchRow'
@@ -143,13 +143,18 @@ export function ChatRowRenderer(props: ChatRowRendererProps) {
       />
     ))
     .with('compaction-summary', (row) => (
-      <CompactionSummaryCard
-        id={row.id}
-        summary={row.summary}
-        tokensBefore={row.tokensBefore}
-        onBranchFromMessage={context.actions.onBranchFromMessage}
+      <CompactionTimelineRow
+        accessible
+        state={
+          row.reason === 'threshold' || row.reason === 'overflow'
+            ? 'automatic-complete'
+            : row.reason === 'manual'
+              ? 'manual-complete'
+              : 'legacy-complete'
+        }
       />
     ))
+    .with('compaction-status', (row) => <CompactionTimelineRow state={row.state} />)
     .with('agent-loop-custom-message', (row) => (
       <CustomMessageRow row={row} extensions={context.extensions} />
     ))

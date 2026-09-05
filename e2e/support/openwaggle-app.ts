@@ -300,6 +300,60 @@ export class OpenWaggleApp {
     })
   }
 
+  async installAgentSteerProbe(): Promise<void> {
+    await this.app.evaluate(({ ipcMain }) => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSteerProbe?: {
+          received: unknown[]
+          delivered: unknown[]
+          release: (() => void) | null
+        }
+      }
+      probeGlobal.__openWaggleAgentSteerProbe = {
+        received: [],
+        delivered: [],
+        release: null,
+      }
+      ipcMain.removeHandler('agent:steer')
+      ipcMain.handle('agent:steer', async (_event, sessionId, payload) => {
+        const probe = probeGlobal.__openWaggleAgentSteerProbe
+        if (!probe) throw new Error('Steer probe was not installed')
+        const delivery = { sessionId, payload }
+        probe.received.push(delivery)
+        await new Promise<void>((resolve) => {
+          probe.release = resolve
+        })
+        probe.delivered.push(delivery)
+        probe.release = null
+        return {
+          preserved: true,
+          delivery: { delivery: 'queued', durableText: payload.text },
+        }
+      })
+    })
+  }
+
+  async releaseAgentSteerProbe(): Promise<void> {
+    await this.app.evaluate(() => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSteerProbe?: { release: (() => void) | null }
+      }
+      probeGlobal.__openWaggleAgentSteerProbe?.release?.()
+    })
+  }
+
+  async readAgentSteerProbe(): Promise<{ received: unknown[]; delivered: unknown[] }> {
+    return this.app.evaluate(() => {
+      const probeGlobal = globalThis as typeof globalThis & {
+        __openWaggleAgentSteerProbe?: { received: unknown[]; delivered: unknown[] }
+      }
+      return {
+        received: probeGlobal.__openWaggleAgentSteerProbe?.received ?? [],
+        delivered: probeGlobal.__openWaggleAgentSteerProbe?.delivered ?? [],
+      }
+    })
+  }
+
   async installSessionDetailSnapshotProbe(input: {
     readonly sessionId: string
     readonly detail: unknown

@@ -73,6 +73,84 @@ describe('ChatPanel composer regressions', () => {
     expect(document.querySelector('[data-extension-run-status-host="true"]')).toBeInTheDocument()
   })
 
+  it('shows active compaction in the transcript instead of docking it to the composer', () => {
+    renderSections(
+      createSections(
+        {
+          chatRows: [
+            {
+              type: 'compaction-status',
+              id: 'compaction-1',
+              anchorMessageCount: 0,
+              announce: true,
+              state: 'automatic-running',
+            },
+          ],
+          isLoading: true,
+        },
+        {
+          isLoading: true,
+          status: 'compacting',
+          compactionStatus: {
+            type: 'compacting',
+            reason: 'threshold',
+            summaryCountAtStart: 0,
+            timeline: [],
+          },
+        },
+      ),
+    )
+
+    expect(screen.getAllByText('Context automatically compacting')).toHaveLength(2)
+    expect(screen.queryByText('Auto-compacting…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel compaction' })).not.toBeInTheDocument()
+  })
+
+  it('does not announce an earlier completion after a later compaction fails', () => {
+    renderSections(
+      createSections({
+        chatRows: [
+          {
+            type: 'compaction-status',
+            id: 'earlier-compaction',
+            anchorMessageCount: 0,
+            announce: false,
+            state: 'automatic-complete',
+          },
+        ],
+      }),
+    )
+
+    expect(screen.getAllByText('Context automatically compacted')).toHaveLength(1)
+    expect(
+      screen.queryByText('Context automatically compacted', { selector: '.sr-only' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps hydrated compaction history accessible without announcing it as new activity', () => {
+    renderSections(
+      createSections({
+        chatRows: [
+          {
+            type: 'compaction-summary',
+            id: 'summary-1',
+            summary: 'Preserved context',
+            tokensBefore: 100,
+            reason: 'threshold',
+          },
+        ],
+      }),
+    )
+
+    expect(
+      screen.queryByText('Context automatically compacted', { selector: '.sr-only' }),
+    ).not.toBeInTheDocument()
+    const durableLabel = screen
+      .getAllByText('Context automatically compacted')
+      .find((element) => !element.closest('.sr-only'))
+    expect(durableLabel?.closest('div')).not.toHaveAttribute('aria-hidden')
+  })
+
   it('keeps the full project-first setup dock usable when no project is selected', () => {
     usePreferencesStore.setState({
       settings: { ...DEFAULT_SETTINGS, projectPath: null },

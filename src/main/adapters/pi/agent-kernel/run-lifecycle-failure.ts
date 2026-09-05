@@ -1,4 +1,4 @@
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent'
 import type { Message } from '@shared/types/agent'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
 import { getPiAssistantStopReason } from '../pi-run-result'
@@ -27,12 +27,31 @@ export async function runPiOperation(operation: () => Promise<void>): Promise<Pi
   }
 }
 
-export async function collectSettledPiMessages(
-  session: AgentSession,
-  previousMessageCount: number,
-) {
+export interface PiMessageBoundary {
+  readonly entryIds: ReadonlySet<string>
+  readonly messageCount: number
+}
+
+export function capturePiMessageBoundary(session: AgentSession): PiMessageBoundary {
+  return {
+    entryIds: new Set(session.sessionManager.getBranch().map((entry) => entry.id)),
+    messageCount: session.agent.state.messages.length,
+  }
+}
+
+function collectPiMessagesAfterBoundary(session: AgentSession, boundary: PiMessageBoundary) {
+  const branch = session.sessionManager.getBranch()
+  if (branch.length === 0 && boundary.entryIds.size === 0) {
+    return session.agent.state.messages.slice(boundary.messageCount)
+  }
+  return branch
+    .filter((entry) => !boundary.entryIds.has(entry.id))
+    .flatMap(sessionEntryToContextMessages)
+}
+
+export async function collectSettledPiMessages(session: AgentSession, boundary: PiMessageBoundary) {
   await waitForPostRunSettlement(session)
-  return session.agent.state.messages.slice(previousMessageCount)
+  return collectPiMessagesAfterBoundary(session, boundary)
 }
 
 function buildFailedRunResult(input: {
@@ -94,7 +113,7 @@ export function buildFailedSubscribedRunResult(input: {
 export async function buildFailedRunAfterSettlement(input: {
   readonly session: AgentSession
   readonly runInput: AgentKernelRunInput
-  readonly previousMessageCount: number
+  readonly messageBoundary: PiMessageBoundary
   readonly operationAborted: boolean
   readonly settlementAttempted: boolean
   readonly error: unknown
@@ -104,7 +123,7 @@ export async function buildFailedRunAfterSettlement(input: {
     await waitForPostRunSettlement(input.session)
   }
 
-  const appended = input.session.agent.state.messages.slice(input.previousMessageCount)
+  const appended = collectPiMessagesAfterBoundary(input.session, input.messageBoundary)
   return buildFailedSubscribedRunResult({
     session: input.session,
     runInput: input.runInput,

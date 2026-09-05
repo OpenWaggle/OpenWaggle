@@ -15,6 +15,7 @@ import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { isCompactionRunning } from '../lib/compaction-lifecycle'
 import { buildDiffSection } from '../lib/diff-section'
 import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
@@ -33,7 +34,6 @@ const logger = createRendererLogger('chat-panel')
 
 export function useChatPanelSections(): ChatPanelSections {
   const [userDidSend, setUserDidSend] = useState(false)
-  const onUserDidSendConsumed = () => setUserDidSend(false)
 
   const env = useChatPanelEnvironment()
   const {
@@ -99,10 +99,9 @@ export function useChatPanelSections(): ChatPanelSections {
   const phase = useStreamingPhase(activeSessionId)
   const { catalog } = useSkills(projectPath)
   const extensionProjectPaths = projectPath ? [projectPath] : []
-  const extensionContributionsQuery = useQuery(
+  const { data: extensionRegistry = null } = useQuery(
     extensionContributionsQueryOptions(extensionProjectPaths, { sessionId: activeSessionId }),
   )
-  const extensionRegistry = extensionContributionsQuery.data ?? null
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
   const waggleActiveCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
@@ -110,7 +109,6 @@ export function useChatPanelSections(): ChatPanelSections {
   const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
 
-  // Scope waggle status to the active session — other sessions see 'idle'
   const waggleOwningId = waggleActiveCollaborationId ?? waggleConfigSessionId
   const waggleStatus: WaggleCollaborationStatus =
     waggleOwningId && waggleOwningId !== activeSessionId ? 'idle' : waggleStoreStatus
@@ -145,9 +143,10 @@ export function useChatPanelSections(): ChatPanelSections {
     branchSummary,
     clearDraftBranchForSession,
     draftBranch,
-    extensionContributions: extensionContributionsQuery.data ?? null,
+    extensionContributions: extensionRegistry,
     handleSend,
     handleSendWaggle,
+    messages,
     model,
     phase,
     projectPath,
@@ -161,20 +160,20 @@ export function useChatPanelSections(): ChatPanelSections {
     stopWaggleCollaboration,
     waggleStatus,
   })
-
   const { isSteering, handleSteer } = useSteerWorkflow({
     activeSessionId,
+    extensionContributions: extensionRegistry,
+    isCompacting: isCompactionRunning(compactionStatus),
     steer,
     previewSteeredUserTurn,
     withDeferredSnapshotRefresh,
-    handleSendWithWaggle: sendWorkflow.sendWithWaggle,
     showToast,
   })
 
   useAutoSendQueue({
     sessionId: activeSessionId,
     status,
-    sendMessage: handleSend,
+    sendMessage: sendWorkflow.sendWithWaggle,
     paused: isSteering,
     onSendFailure: (payload, sendError) =>
       reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError),
@@ -254,8 +253,9 @@ export function useChatPanelSections(): ChatPanelSections {
     handleViewTurnDiff,
     turnAnchorMessageIds,
     userDidSend,
-    onUserDidSendConsumed,
+    onUserDidSendConsumed: () => setUserDidSend(false),
     streamSignalVersion,
+    compactionStatus,
   })
 
   const composer = useComposerSection({
