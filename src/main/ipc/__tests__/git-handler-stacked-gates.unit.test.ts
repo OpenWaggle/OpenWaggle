@@ -130,12 +130,14 @@ describe('stacked action safety gates', () => {
       new Map([
         ['rev-parse --is-inside-work-tree', 'true\n'],
         ['symbolic-ref --quiet --short HEAD', 'feature/x\n'],
-        ['status --porcelain=v2 --branch', '# branch.head feature/x\n'],
         // The working-tree probe now runs before the commit phase and must be able to answer.
         // The path-yielding reads disable git's quoting, so the canned key carries that prefix.
         ['-c core.quotePath=false status --porcelain=v1', ' M a.txt\n'],
+        ['-c core.quotePath=false diff --numstat', '1\t0\ta.txt\n'],
+        ['-c core.quotePath=false diff --cached --numstat', ''],
         ['remote get-url origin', 'https://github.com/example/repo.git\n'],
-        ['rev-parse --abbrev-ref origin/HEAD', 'origin/main\n'],
+        ['symbolic-ref --quiet --short refs/remotes/origin/HEAD', 'origin/main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/feature/x\n'],
       ]),
       (args) => unexpected.push(args),
     )

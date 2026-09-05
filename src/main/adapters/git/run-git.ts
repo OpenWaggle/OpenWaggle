@@ -30,6 +30,8 @@ export interface GitExecResult {
   readonly timedOut?: boolean
   /** The owning operation was cancelled and the Git child was terminated. */
   readonly aborted?: boolean
+  /** The child never returned a normal numeric Git exit status (for example ENOENT/EAGAIN/signal). */
+  readonly executionFailed?: boolean
 }
 
 /** Node's error code when a child is killed for exceeding `maxBuffer`. */
@@ -80,6 +82,7 @@ function normalizeGitError(error: unknown): GitExecResult {
     ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
     ...(value.name === 'AbortError' || value.code === 'ABORT_ERR' ? { aborted: true } : {}),
+    ...(typeof value.code !== 'number' ? { executionFailed: true } : {}),
   }
 }
 

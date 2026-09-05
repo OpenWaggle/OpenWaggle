@@ -33,8 +33,13 @@ const { getLocalVcsStatus, getRemoteVcsStatus, resolvePrimaryRemoteUrl } = await
   '../vcs-status-service'
 )
 
-function gitResult(code: number, stdout = '', stderr = '') {
-  return { code, stdout, stderr }
+function gitResult(
+  code: number,
+  stdout = '',
+  stderr = '',
+  metadata: { readonly executionFailed?: boolean } = {},
+) {
+  return { code, stdout, stderr, ...metadata }
 }
 
 /** Route runGit responses by the git subcommand for readable expectations. */
@@ -104,13 +109,8 @@ describe('vcs-status-service', () => {
     })
 
     it('resolves local status without any network command', async () => {
-      /*
-       * The routed map below is exhaustive: an unrouted command throws, so a network call added to
-       * this path fails the test rather than passing silently. `ls-remote` is what nearly slipped in -
-       * the shared default-ref resolver falls through to it whenever the local `origin/HEAD` symref is
-       * missing, which is the normal state of a repository built with `git init` + `git remote add`,
-       * and this status is cached with a two-second TTL precisely because it is meant to be cheap.
-       */
+      // The exhaustive route map and final assertion keep this cached quick-action path offline,
+      // including when default-ref resolution would otherwise fall through to `ls-remote`.
       routeGit({
         'symbolic-ref --quiet --short HEAD': gitResult(0, 'main\n'),
         'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
@@ -134,14 +134,6 @@ describe('vcs-status-service', () => {
       expect(result.status.workingTree.files).toEqual([
         { path: 'src/a.ts', insertions: 2, deletions: 1 },
       ])
-      /*
-       * No command that reaches the network. `fetch` was the only one checked, which missed the one
-       * that nearly slipped in: the shared default-ref resolver falls through to
-       * `ls-remote --symref origin HEAD` whenever the local `origin/HEAD` symref is absent - the normal
-       * state of a repository built with `git init` + `git remote add`. This status is cached with a
-       * two-second TTL precisely because it is meant to be cheap, and the quick action and the
-       * default-branch confirmation gate both wait on it.
-       */
       expectNoNetworkCommands()
     })
 
@@ -167,6 +159,74 @@ describe('vcs-status-service', () => {
 
       expect(result.ok).toBe(true)
       expectNoNetworkCommands()
+    })
+
+    it('rejects a failed branch read instead of reporting a detached HEAD', async () => {
+      routeGit({
+        'symbolic-ref --quiet --short HEAD': gitResult(1, '', '', { executionFailed: true }),
+        'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
+        '-c core.quotePath=false status --porcelain=v1': gitResult(0, ''),
+        '-c core.quotePath=false diff --numstat': gitResult(0, ''),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
+      })
+
+      await expect(getLocalVcsStatus('/repo')).resolves.toEqual({
+        ok: false,
+        code: 'unknown',
+        message: 'Could not read the current Git branch.',
+      })
+    })
+
+    it('preserves a genuine detached HEAD reported quietly by git', async () => {
+      routeGit({
+        'symbolic-ref --quiet --short HEAD': gitResult(1),
+        'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
+        '-c core.quotePath=false status --porcelain=v1': gitResult(0, ''),
+        '-c core.quotePath=false diff --numstat': gitResult(0, ''),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
+      })
+
+      await expect(getLocalVcsStatus('/repo')).resolves.toMatchObject({
+        ok: true,
+        status: { refName: null },
+      })
+    })
+
+    it('rejects a partial working-tree read instead of reporting no changes', async () => {
+      routeGit({
+        'symbolic-ref --quiet --short HEAD': gitResult(0, 'main\n'),
+        'remote get-url origin': gitResult(0, 'git@github.com:o/r.git\n'),
+        '-c core.quotePath=false status --porcelain=v1': gitResult(
+          1,
+          '',
+          'fatal: index file corrupt',
+        ),
+        '-c core.quotePath=false diff --numstat': gitResult(0, ''),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
+      })
+
+      await expect(getLocalVcsStatus('/repo')).resolves.toEqual({
+        ok: false,
+        code: 'unknown',
+        message: 'Could not read the Git working tree: fatal: index file corrupt',
+      })
+    })
+
+    it('rejects a failed remote list instead of reporting a repository without remotes', async () => {
+      routeGit({
+        'symbolic-ref --quiet --short HEAD': gitResult(0, 'main\n'),
+        'remote get-url origin': gitResult(2, '', "error: No such remote 'origin'"),
+        remote: gitResult(1, '', 'spawn git EAGAIN'),
+        '-c core.quotePath=false status --porcelain=v1': gitResult(0, ''),
+        '-c core.quotePath=false diff --numstat': gitResult(0, ''),
+        '-c core.quotePath=false diff --cached --numstat': gitResult(0, ''),
+      })
+
+      await expect(getLocalVcsStatus('/repo')).resolves.toEqual({
+        ok: false,
+        code: 'unknown',
+        message: 'Could not read Git remotes: spawn git EAGAIN',
+      })
     })
   })
 

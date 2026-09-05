@@ -5,6 +5,12 @@ import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('git')
+// A status load fans out to several short-lived Git processes after the initial repository probe.
+// Under process pressure the probe can fail before any repository command runs. Give that transient
+// state time to clear, but stop after 15.25 seconds so a genuinely non-Git folder is never polled.
+const LOCAL_STATUS_RETRY_DELAYS_MS = [250, 1_000, 4_000, 10_000] as const
+
+type LocalLoadOutcome = 'loaded' | 'failed' | 'stale'
 
 /**
  * Shared bookkeeping for one status load.
@@ -31,18 +37,49 @@ async function loadLocalStatus(
     readonly setLocal: (status: LocalVcsStatus | null) => void
     readonly loadedPath: MutableRef<WorkingPath | null>
   },
-) {
+): Promise<LocalLoadOutcome> {
   const { workingPath, requestedPath, requestId, thisRequest } = input
   try {
     const result = await api.getLocalVcsStatus(workingPath)
-    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
-    input.setLocal(result.ok ? result.status : null)
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return 'stale'
+    if (!result.ok) {
+      input.setLocal(null)
+      return 'failed'
+    }
+    input.setLocal(result.status)
     input.loadedPath.current = workingPath
+    return 'loaded'
   } catch (error) {
     logger.warn('Failed to load local VCS status', { error: String(error) })
-    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
+    if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return 'stale'
     input.setLocal(null)
+    return 'failed'
   }
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function loadLocalStatusWithRetry(
+  input: LoadGuard & {
+    readonly setLocal: (status: LocalVcsStatus | null) => void
+    readonly loadedPath: MutableRef<WorkingPath | null>
+  },
+) {
+  let outcome = await loadLocalStatus(input)
+  for (const retryDelay of LOCAL_STATUS_RETRY_DELAYS_MS) {
+    if (outcome !== 'failed') return outcome
+    await delay(retryDelay)
+    if (
+      input.requestedPath.current !== input.workingPath ||
+      input.requestId.current !== input.thisRequest
+    ) {
+      return 'stale'
+    }
+    outcome = await loadLocalStatus(input)
+  }
+  return outcome
 }
 
 async function loadRemoteStatus(
@@ -111,7 +148,7 @@ export function useCombinedVcsStatus(
     }
     // Capability checks do not depend on any response, so they are settled before the first await.
     const canReadRemote = typeof api.getRemoteVcsStatus === 'function'
-    await loadLocalStatus({
+    const localOutcome = await loadLocalStatusWithRetry({
       workingPath,
       requestedPath,
       requestId,
@@ -119,13 +156,16 @@ export function useCombinedVcsStatus(
       setLocal,
       loadedPath,
     })
-    if (!canReadRemote) return
+    if (localOutcome !== 'loaded' || !canReadRemote) return
     await loadRemoteStatus({ workingPath, requestedPath, requestId, thisRequest, setRemote })
   }, [workingPath])
 
   useEffect(() => {
     logger.debug('Loading VCS status', { refreshToken })
     void refresh()
+    return () => {
+      requestId.current += 1
+    }
   }, [refresh, refreshToken])
 
   const status: VcsStatus | null = local ? { ...local, ...(remote ?? EMPTY_REMOTE) } : null

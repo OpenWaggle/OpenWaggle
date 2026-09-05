@@ -3,11 +3,16 @@ import type {
   LocalVcsStatusResult,
   RemoteVcsStatusResult,
   VcsChangeRequest,
+  VcsWorkingTree,
 } from '@shared/types/git'
 import { networkGitOptions } from '../../adapters/git/run-git'
 import { getSourceControlProvider } from '../../adapters/source-control'
 import { resolveDefaultRef, resolveLocalDefaultRef } from './default-ref'
-import { type PrimaryRemote, resolvePrimaryRemote } from './primary-remote'
+import {
+  type PrimaryRemote,
+  resolvePrimaryRemote,
+  resolvePrimaryRemoteResult,
+} from './primary-remote'
 import { isGitRepository, runGit } from './shared'
 import { GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import { buildChangedFiles, parseNumstat, parsePorcelain } from './status-parse'
@@ -16,24 +21,50 @@ import { detectSourceControlProvider, parseAheadBehind, toWorkingTree } from './
 /** The remote status is refreshed in the background, so a stalled remote must not pin it open. */
 const REMOTE_FETCH_TIMEOUT_MS = 60_000
 
-async function resolveRefName(projectPath: string): Promise<string | null> {
+type LocalReadResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly message: string }
+
+function localReadFailure(label: string, stderr: string) {
+  const detail = stderr.trim()
+  return detail ? `Could not read ${label}: ${detail}` : `Could not read ${label}.`
+}
+
+async function resolveRefNameResult(projectPath: string): Promise<LocalReadResult<string | null>> {
   const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
-  if (result.code !== 0) return null
+  // `symbolic-ref --quiet` exits non-zero without stderr for a genuine detached HEAD. An execution
+  // failure has a diagnostic; accepting that as detached silently enabled the wrong Git workflow.
+  if (result.code !== 0) {
+    return result.executionFailed === true || result.stderr.trim()
+      ? { ok: false, message: localReadFailure('the current Git branch', result.stderr) }
+      : { ok: true, value: null }
+  }
   const name = result.stdout.trim()
-  return name || null
+  return { ok: true, value: name || null }
+}
+
+async function resolveRefName(projectPath: string): Promise<string | null> {
+  const result = await resolveRefNameResult(projectPath)
+  return result.ok ? result.value : null
 }
 
 export { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
 
-async function resolveWorkingTree(projectPath: string) {
+async function resolveWorkingTree(projectPath: string): Promise<LocalReadResult<VcsWorkingTree>> {
   const [porcelainResult, worktreeNumstat, cachedNumstat] = await Promise.all([
     runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1']),
     runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat']),
     runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat']),
   ])
+  const failed = [porcelainResult, worktreeNumstat, cachedNumstat].find(
+    (result) => result.code !== 0,
+  )
+  if (failed) {
+    return { ok: false, message: localReadFailure('the Git working tree', failed.stderr) }
+  }
   const numstat = parseNumstat(`${worktreeNumstat.stdout}\n${cachedNumstat.stdout}`)
   const changedFiles = buildChangedFiles(parsePorcelain(porcelainResult.stdout), numstat)
-  return toWorkingTree(changedFiles)
+  return { ok: true, value: toWorkingTree(changedFiles) }
 }
 
 /**
@@ -56,12 +87,24 @@ export async function getLocalVcsStatus(projectPath: string): Promise<LocalVcsSt
     return { ok: false, code: 'not-a-repo', message: 'Selected folder is not a Git repository.' }
   }
 
-  const [refName, primaryRemote, workingTree, upstreamBranch] = await Promise.all([
-    resolveRefName(projectPath),
-    resolvePrimaryRemote(projectPath),
-    resolveWorkingTree(projectPath),
-    resolveUpstreamBranch(projectPath),
-  ])
+  const [refNameResult, primaryRemoteResult, workingTreeResult, upstreamBranch] = await Promise.all(
+    [
+      resolveRefNameResult(projectPath),
+      resolvePrimaryRemoteResult(projectPath),
+      resolveWorkingTree(projectPath),
+      resolveUpstreamBranch(projectPath),
+    ],
+  )
+  if (!refNameResult.ok) return { ok: false, code: 'unknown', message: refNameResult.message }
+  if (!primaryRemoteResult.ok) {
+    return { ok: false, code: 'unknown', message: primaryRemoteResult.message }
+  }
+  if (!workingTreeResult.ok) {
+    return { ok: false, code: 'unknown', message: workingTreeResult.message }
+  }
+  const refName = refNameResult.value
+  const primaryRemote = primaryRemoteResult.remote
+  const workingTree = workingTreeResult.value
   // Offline by contract: this status is cached with a two-second TTL and gates the quick action.
   const defaultRef = await resolveLocalDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
   const remoteUrl = primaryRemote?.url ?? null

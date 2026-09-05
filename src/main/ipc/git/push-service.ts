@@ -118,12 +118,14 @@ export async function pushCurrentBranch(
   }
   const destinationRemote =
     firstPushRemote ?? (await resolvePrimaryRemote(projectPath))?.name ?? 'origin'
-  const destination = await resolvePushDestination(projectPath, destinationRemote, branch)
-  const result = await runGit(
-    projectPath,
-    ['push', '-u', destinationRemote, branch],
-    networkGitOptions(PUSH_TIMEOUT_MS),
-  )
+  const [destination, result] = await Promise.all([
+    resolvePushDestination(projectPath, destinationRemote, branch),
+    runGit(
+      projectPath,
+      ['push', '-u', destinationRemote, branch],
+      networkGitOptions(PUSH_TIMEOUT_MS),
+    ),
+  ])
   return result.code === 0
     ? successfulPush(destination, `Pushed and set upstream to ${destinationRemote}/${branch}.`)
     : { ok: false, code: 'push-failed', message: result.stderr.trim() || 'Failed to push.' }
