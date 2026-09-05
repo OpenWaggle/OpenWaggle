@@ -5,6 +5,7 @@ import {
   clearStreamBuffer,
   getStreamBuffer,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
+  MAX_DEGRADED_TOOL_CALL_IDS,
   replaceStreamBufferSnapshots,
   startStreamBuffer,
 } from '../stream-buffer'
@@ -34,7 +35,7 @@ function startToolCall() {
   })
 }
 
-function appendToolCallDelta(step: number, delta: string, content: string) {
+function appendToolCallDelta(step: number, delta: string, content: string, toolCallId = 'tool-1') {
   applyEventToStreamBuffer(SESSION_ID, {
     type: 'message_update',
     messageId: 'assistant-message-1',
@@ -43,7 +44,7 @@ function appendToolCallDelta(step: number, delta: string, content: string) {
     assistantMessageEvent: {
       type: 'toolcall_delta',
       contentIndex: 0,
-      toolCallId: 'tool-1',
+      toolCallId,
       delta,
       input: { content },
     },
@@ -107,5 +108,63 @@ describe('stream-buffer cumulative tool-call accounting', () => {
         omittedBytes: Buffer.byteLength(oversizedDelta, 'utf8') + 1,
       },
     })
+  })
+
+  it('bounds degraded tool-call ids by count across restoration and live updates', () => {
+    const toolCallIds = Array.from(
+      { length: MAX_DEGRADED_TOOL_CALL_IDS + 100 },
+      (_, index) => `tool-${String(index)}`,
+    )
+    replaceStreamBufferSnapshots([
+      {
+        sessionId: SESSION_ID,
+        model: MODEL,
+        mode: 'classic',
+        startedAt: 0,
+        parts: [],
+        degraded: { reason: 'content-limit', omittedBytes: 1, toolCallIds },
+      },
+    ])
+
+    expect(getStreamBuffer(SESSION_ID)?.degraded?.toolCallIds).toEqual(
+      toolCallIds.slice(0, MAX_DEGRADED_TOOL_CALL_IDS),
+    )
+
+    const oversizedContent = 'x'.repeat(MAX_ACTIVE_STREAM_BUFFER_BYTES)
+    appendToolCallDelta(1, oversizedContent, oversizedContent, 'tool-after-limit')
+
+    expect(getStreamBuffer(SESSION_ID)?.degraded?.toolCallIds).toEqual(
+      toolCallIds.slice(0, MAX_DEGRADED_TOOL_CALL_IDS),
+    )
+  })
+
+  it('accounts degraded tool-call ids against the active snapshot byte budget', () => {
+    const toolCallIds = Array.from(
+      { length: MAX_DEGRADED_TOOL_CALL_IDS },
+      (_, index) => `tool-${String(index)}-${'x'.repeat(20 * 1024)}`,
+    )
+    replaceStreamBufferSnapshots([
+      {
+        sessionId: SESSION_ID,
+        model: MODEL,
+        mode: 'classic',
+        startedAt: 0,
+        parts: [],
+        degraded: { reason: 'content-limit', omittedBytes: 1, toolCallIds },
+      },
+    ])
+
+    const snapshot = getStreamBuffer(SESSION_ID)
+    if (!snapshot) throw new Error('Expected a restored stream snapshot.')
+    const restoredToolCallIds = snapshot.degraded?.toolCallIds ?? []
+    const retainedContentBytes =
+      Buffer.byteLength(JSON.stringify(snapshot.parts), 'utf8') +
+      Buffer.byteLength(JSON.stringify(restoredToolCallIds), 'utf8')
+
+    expect(restoredToolCallIds.length).toBeLessThan(toolCallIds.length)
+    expect(retainedContentBytes).toBeLessThanOrEqual(MAX_ACTIVE_STREAM_BUFFER_BYTES + 2)
+    expect(Buffer.byteLength(JSON.stringify(snapshot), 'utf8')).toBeLessThan(
+      MAX_ACTIVE_STREAM_BUFFER_BYTES + 1_024,
+    )
   })
 })

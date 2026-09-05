@@ -59,16 +59,9 @@ export function recoverSessionExportsAfterHostLoss() {
           continue
         }
         if (verification.right) {
-          const cleanup = yield* artifacts.discard(operation).pipe(Effect.either)
-          if (cleanup._tag === 'Left') {
-            logger.error('Installed export verification succeeded but residual cleanup failed.', {
-              cause: String(cleanup.left),
-              exportOperationId: operation.exportOperationId,
-              sessionId: operation.sessionId,
-            })
-            continue
-          }
-          yield* repository.complete(operation.exportOperationId, operation.progress, Date.now())
+          yield* repository.complete(operation.exportOperationId, operation.progress, Date.now(), {
+            cleanupPending: true,
+          })
           publishSessionHostEvent({
             kind: 'session-export-changed',
             sessionId: operation.sessionId,
@@ -76,6 +69,18 @@ export function recoverSessionExportsAfterHostLoss() {
             status: 'completed',
             progress: operation.progress,
           })
+          yield* artifacts.discard(operation).pipe(
+            Effect.zipRight(repository.completeCleanup(operation.exportOperationId, Date.now())),
+            Effect.catchAllCause((cause) =>
+              Effect.sync(() => {
+                logger.error('Installed export completed but residual cleanup remains pending.', {
+                  cause: String(cause),
+                  exportOperationId: operation.exportOperationId,
+                  sessionId: operation.sessionId,
+                })
+              }),
+            ),
+          )
           continue
         }
         if (repository.clearArtifactPreparation) {

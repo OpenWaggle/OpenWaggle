@@ -93,6 +93,7 @@ export const agentDefinitionManagementCommandSchema = Schema.Union(
     ...projectPathSchema,
     name: Schema.String,
     expectedSourceDigest: Schema.String,
+    expectedContentDigest: Schema.String,
     replaceModified: Schema.optional(Schema.Boolean),
   }),
 )

@@ -81,6 +81,7 @@ describe('durable Session export recovery', () => {
 
   it('completes a verified installed artifact instead of re-exporting it', async () => {
     const completed = vi.fn(() => Effect.void)
+    const cleanupCompleted = vi.fn(() => Effect.void)
     const discard = vi.fn(() => Effect.void)
     const recovered = {
       ...operation,
@@ -91,6 +92,7 @@ describe('durable Session export recovery', () => {
       listPendingCleanup: Effect.succeed([]),
       claimNextExecution: () => Effect.succeed({ status: 'not-claimable' as const }),
       complete: completed,
+      completeCleanup: cleanupCompleted,
     })
     const artifacts = fromPartial<SessionExportArtifactWriterShape>({
       verifyInstalled: () => Effect.succeed(true),
@@ -107,7 +109,9 @@ describe('durable Session export recovery', () => {
       recovered.exportOperationId,
       recovered.progress,
       expect.any(Number),
+      { cleanupPending: true },
     )
     expect(discard).toHaveBeenCalledOnce()
+    expect(cleanupCompleted).toHaveBeenCalledWith(recovered.exportOperationId, expect.any(Number))
   })
 })

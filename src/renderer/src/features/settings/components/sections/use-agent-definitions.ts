@@ -103,6 +103,9 @@ export function useAgentDefinitions(projectPath: string | null) {
         if (plan.status === 'blocked') {
           throw new Error(plan.diagnostics.join(' ') || 'The imported definition cannot refresh.')
         }
+        if (!plan.existingContentDigest) {
+          throw new Error('The refresh plan did not bind the installed Agent definition.')
+        }
         let replaceModified = false
         if (plan.status === 'conflict') {
           replaceModified = await api.showConfirm(
@@ -116,6 +119,7 @@ export function useAgentDefinitions(projectPath: string | null) {
           projectPath,
           name: item.name,
           expectedSourceDigest: plan.sourceDigest,
+          expectedContentDigest: plan.existingContentDigest,
           replaceModified,
         })
       } catch (cause) {

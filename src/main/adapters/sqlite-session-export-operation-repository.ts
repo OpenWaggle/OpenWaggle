@@ -185,11 +185,12 @@ function finish(
   status: 'completed' | 'cancelled',
   progress: SessionExportProgress | undefined,
   now: number,
+  cleanupPending = false,
 ) {
   return sql`
     UPDATE session_export_operations
     SET status = ${status}, execution_token = ${null},
-      cleanup_pending = ${status === 'cancelled' ? 1 : 0},
+      cleanup_pending = ${status === 'cancelled' || cleanupPending ? 1 : 0},
       records_written = ${progress?.recordsWritten ?? 0},
       resources_written = ${progress?.resourcesWritten ?? 0},
       bytes_written = ${progress?.bytesWritten ?? 0}, updated_at = ${now}, completed_at = ${now}
@@ -247,8 +248,11 @@ function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationReposit
           SELECT cancel_requested FROM session_export_operations WHERE id = ${operationId}
         `.pipe(Effect.map((rows) => rows[0]?.cancel_requested === 1)),
       ),
-    complete: (operationId, progress, now) =>
-      withRepositoryError('complete-export', finish(sql, operationId, 'completed', progress, now)),
+    complete: (operationId, progress, now, options) =>
+      withRepositoryError(
+        'complete-export',
+        finish(sql, operationId, 'completed', progress, now, options?.cleanupPending),
+      ),
     fail: (operationId, error, now) =>
       withRepositoryError(
         'fail-export',

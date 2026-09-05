@@ -17,15 +17,20 @@ import {
 } from './stream-buffer-message-parts'
 import {
   type ActiveStreamBuffer,
+  exceedsStreamBufferLimit,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
+  MAX_DEGRADED_TOOL_CALL_IDS,
   MAX_TOTAL_STREAM_BUFFER_BYTES,
   restoreStreamBufferSnapshots,
+  retainDegradedToolCallId,
+  retainedStreamBufferBytes,
   toStreamBufferSnapshot,
+  withoutRetainedStreamContent,
   withWorktreeLaunchSnapshot,
 } from './stream-buffer-snapshots'
 import { applyToolExecutionEndToParts } from './stream-buffer-tool-parts'
 
-export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_TOTAL_STREAM_BUFFER_BYTES }
+export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS, MAX_TOTAL_STREAM_BUFFER_BYTES }
 
 const activeBuffers = new Map<SessionId, ActiveStreamBuffer>()
 // The Local Session protocol sends all active snapshots in one 8 MiB frame.
@@ -35,20 +40,8 @@ let totalRetainedBytes = 0
 function resetBufferedParts(sessionId: SessionId) {
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return
-  totalRetainedBytes = Math.max(0, totalRetainedBytes - buffer.retainedBytes)
-  activeBuffers.set(sessionId, {
-    ...buffer,
-    parts: [],
-    retainedBytes: 0,
-    degradedToolCallIds: new Set(),
-  })
-}
-
-function exceedsBufferLimit(retainedBytes: number, retainedDelta: number) {
-  return (
-    retainedBytes > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
-    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
-  )
+  totalRetainedBytes = Math.max(0, totalRetainedBytes - retainedStreamBufferBytes(buffer))
+  activeBuffers.set(sessionId, withoutRetainedStreamContent(buffer))
 }
 
 function updateBufferedParts(
@@ -61,7 +54,7 @@ function updateBufferedParts(
   const parts = update(buffer.parts)
   const retainedBytes = retainedPartsBytes(parts)
   const retainedDelta = retainedBytes - buffer.retainedBytes
-  if (exceedsBufferLimit(retainedBytes, retainedDelta)) {
+  if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {
     activeBuffers.set(sessionId, {
       ...buffer,
       omittedBytes: buffer.omittedBytes + (attemptedContentBytes ?? Math.max(0, retainedDelta)),
@@ -102,11 +95,12 @@ function appendBufferedToolCallDelta(
     ? buffer.retainedBytes + deltaBytes
     : retainedPartsBytes(parts)
   const retainedDelta = retainedBytes - buffer.retainedBytes
-  if (exceedsBufferLimit(retainedBytes, retainedDelta)) {
+  if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {
+    const degraded = retainDegradedToolCallId(buffer, input.toolCallId, totalRetainedBytes)
+    totalRetainedBytes += degraded.retainedDelta
     activeBuffers.set(sessionId, {
-      ...buffer,
+      ...degraded.buffer,
       omittedBytes: buffer.omittedBytes + deltaBytes,
-      degradedToolCallIds: new Set([...buffer.degradedToolCallIds, input.toolCallId]),
     })
     return
   }
@@ -126,7 +120,7 @@ function appendBufferedText(sessionId: SessionId, type: 'text' | 'reasoning', de
     delta,
   })
   const retainedDelta = retainedBytes - buffer.retainedBytes
-  if (exceedsBufferLimit(retainedBytes, retainedDelta)) {
+  if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {
     activeBuffers.set(sessionId, {
       ...buffer,
       omittedBytes: buffer.omittedBytes + Buffer.byteLength(delta, 'utf8'),
@@ -245,6 +239,7 @@ export function startStreamBuffer(sessionId: SessionId, model: SupportedModelId,
     retainedBytes: 0,
     omittedBytes: 0,
     degradedToolCallIds: new Set(),
+    degradedToolCallIdsBytes: 0,
   })
 }
 
@@ -269,13 +264,16 @@ export function startStreamBufferFromAgentStart(
           retainedBytes: 0,
           omittedBytes: 0,
           degradedToolCallIds: new Set(),
+          degradedToolCallIdsBytes: 0,
         },
   )
 }
 
 export function clearStreamBuffer(sessionId: SessionId) {
   const buffer = activeBuffers.get(sessionId)
-  if (buffer) totalRetainedBytes = Math.max(0, totalRetainedBytes - buffer.retainedBytes)
+  if (buffer) {
+    totalRetainedBytes = Math.max(0, totalRetainedBytes - retainedStreamBufferBytes(buffer))
+  }
   activeBuffers.delete(sessionId)
 }
 

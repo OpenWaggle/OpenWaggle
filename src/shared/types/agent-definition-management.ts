@@ -91,6 +91,7 @@ export type AgentDefinitionManagementCommand =
       readonly projectPath: string
       readonly name: string
       readonly expectedSourceDigest: string
+      readonly expectedContentDigest: string
       readonly replaceModified?: boolean
     }
 

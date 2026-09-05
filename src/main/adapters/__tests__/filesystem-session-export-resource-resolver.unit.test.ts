@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process'
+import { constants as FS_CONSTANTS } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,7 +10,10 @@ import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionExportResourceResolver } from '../../ports/session-export-resource-resolver'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
-import { FilesystemSessionExportResourceResolverLive } from '../filesystem-session-export-resource-resolver'
+import {
+  FilesystemSessionExportResourceResolverLive,
+  openFilesystemSessionExportResource,
+} from '../filesystem-session-export-resource-resolver'
 
 describe('Filesystem Session export resource resolver', () => {
   let temporaryRoot = ''
@@ -22,6 +27,41 @@ describe('Filesystem Session export resource resolver', () => {
   afterEach(async () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a FIFO resource without waiting for a producer',
+    async () => {
+      const workspace = path.join(temporaryRoot, 'workspace')
+      const fifoPath = path.join(workspace, 'resource.pipe')
+      await fs.mkdir(workspace)
+      expect(spawnSync('mkfifo', [fifoPath]).status).toBe(0)
+
+      const opening = openFilesystemSessionExportResource({
+        workspacePath: workspace,
+        resourcePath: 'resource.pipe',
+      })
+      let rescueWriter: Awaited<ReturnType<typeof fs.open>> | undefined
+      const outcome = await Promise.race([
+        opening.then(
+          () => 'opened' as const,
+          () => 'rejected' as const,
+        ),
+        new Promise<'stalled'>((resolve) => {
+          setTimeout(() => resolve('stalled'), 500).unref()
+        }),
+      ])
+      if (outcome === 'stalled') {
+        rescueWriter = await fs.open(fifoPath, FS_CONSTANTS.O_RDWR | (FS_CONSTANTS.O_NONBLOCK ?? 0))
+      }
+      try {
+        expect(outcome).toBe('rejected')
+        await expect(opening).rejects.toThrow('must be a file')
+      } finally {
+        await rescueWriter?.close()
+      }
+    },
+    2_000,
+  )
 
   it('rejects a workspace handoff after authority was checked instead of opening the new root', async () => {
     const authorizedWorkspace = path.join(temporaryRoot, 'authorized')

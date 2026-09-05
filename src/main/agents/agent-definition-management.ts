@@ -162,6 +162,9 @@ async function applyRefresh(input: {
   if (plan.sourceDigest !== input.command.expectedSourceDigest) {
     throw new Error('Import source changed since the refresh plan was reviewed.')
   }
+  if (plan.existingContentDigest !== input.command.expectedContentDigest) {
+    throw new Error('Agent definition changed since the refresh plan was reviewed.')
+  }
   if (!plan.document || plan.status === 'blocked') {
     throw new Error(plan.diagnostics.join(' ') || 'Agent refresh plan is blocked.')
   }
@@ -174,7 +177,7 @@ async function applyRefresh(input: {
     scope: plan.targetScope,
     document: plan.document,
     replaceExisting: true,
-    ...(plan.existingContentDigest ? { expectedContentDigest: plan.existingContentDigest } : {}),
+    expectedContentDigest: input.command.expectedContentDigest,
   })
   return { operation: 'refresh-apply', ...written } satisfies AgentDefinitionManagementOutcome
 }

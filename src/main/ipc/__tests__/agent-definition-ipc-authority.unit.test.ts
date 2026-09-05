@@ -146,5 +146,32 @@ describe('Agent definition IPC authority', () => {
       operation: 'refresh-plan',
       name: 'reviewer',
     })
+
+    await expect(
+      authorizeAgentDefinitionIpcCommand({
+        ...refreshInput,
+        command: {
+          operation: 'refresh-apply',
+          projectPath,
+          name: 'reviewer',
+          expectedSourceDigest: 'source-digest',
+        },
+      }),
+    ).rejects.toThrow()
+    await expect(
+      authorizeAgentDefinitionIpcCommand({
+        ...refreshInput,
+        command: {
+          operation: 'refresh-apply',
+          projectPath,
+          name: 'reviewer',
+          expectedSourceDigest: 'source-digest',
+          expectedContentDigest: 'content-digest',
+        },
+      }),
+    ).resolves.toMatchObject({
+      operation: 'refresh-apply',
+      expectedContentDigest: 'content-digest',
+    })
   })
 })

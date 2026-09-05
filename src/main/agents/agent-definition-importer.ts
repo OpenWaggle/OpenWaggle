@@ -123,6 +123,18 @@ function selectedSourceName(sourceName: string | undefined) {
   return sourceName ? { sourceName } : {}
 }
 
+function resolveMappedSourceName(mapped: unknown, fallback: string | undefined) {
+  if (
+    typeof mapped === 'object' &&
+    mapped !== null &&
+    'sourceName' in mapped &&
+    typeof mapped.sourceName === 'string'
+  ) {
+    return mapped.sourceName
+  }
+  return fallback
+}
+
 async function existingDigest(destinationPath: string) {
   try {
     const existing = await readBoundedAgentDefinitionSource({ sourcePath: destinationPath })
@@ -152,6 +164,7 @@ export async function planAgentDefinitionImport(
     tool: resolvedTool,
     content,
   })
+  const resolvedSourceName = resolveMappedSourceName(mapped, input.sourceName)
   const sourceDigest = importSourceDigest(mapped.consumedSources)
   const baselineDigest = mapped.document
     ? agentDefinitionSemanticDigest(mapped.document)
@@ -163,7 +176,7 @@ export async function planAgentDefinitionImport(
           import: {
             sourceTool: resolvedTool,
             sourcePath: resolvedSourcePath,
-            ...selectedSourceName(input.sourceName),
+            ...selectedSourceName(resolvedSourceName),
             sourceDigest,
             importerVersion: 1 as const,
             baselineDigest,
@@ -192,7 +205,7 @@ export async function planAgentDefinitionImport(
     sourceTool: resolvedTool,
     sourcePath: resolvedSourcePath,
     sourceDigest,
-    ...selectedSourceName(input.sourceName),
+    ...selectedSourceName(resolvedSourceName),
     targetScope: input.targetScope,
     destinationPath,
     status: diagnostics.length > 0 ? 'blocked' : existing.digest ? 'conflict' : 'ready',

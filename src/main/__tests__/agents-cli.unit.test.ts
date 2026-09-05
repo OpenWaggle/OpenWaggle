@@ -76,6 +76,29 @@ describe('Agent definitions CLI', () => {
     expect(stderr).toEqual([])
   })
 
+  it('refreshes against the destination content inspected by its plan', async () => {
+    const sourcePath = path.join(root, 'incoming.md')
+    await fs.writeFile(sourcePath, definition, 'utf8')
+    await expect(run(['import', sourcePath, '--scope', 'project'])).resolves.toBe(0)
+
+    await fs.writeFile(
+      sourcePath,
+      definition.replace(
+        'Review authorization boundaries and report concrete findings.',
+        'Review the refreshed authorization boundaries.',
+      ),
+      'utf8',
+    )
+
+    await expect(run(['refresh', 'security-reviewer'])).resolves.toBe(0)
+    expect(
+      parseAgentDefinition(
+        await fs.readFile(path.join(project, '.openwaggle/agents/security-reviewer.md'), 'utf8'),
+      ).instructions,
+    ).toBe('Review the refreshed authorization boundaries.')
+    expect(stderr).toEqual([])
+  })
+
   it('refuses an invalid import and does not create a destination file', async () => {
     const sourcePath = path.join(root, 'invalid.md')
     await fs.writeFile(sourcePath, '# missing frontmatter', 'utf8')

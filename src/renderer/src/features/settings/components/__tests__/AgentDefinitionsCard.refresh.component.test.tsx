@@ -101,6 +101,43 @@ describe('AgentDefinitionsCard refresh lifecycle', () => {
     )
   })
 
+  it('applies a confirmed refresh with the destination digest from its plan', async () => {
+    const sourceDigest = 'e'.repeat(64)
+    const existingContentDigest = 'f'.repeat(64)
+    showConfirmMock.mockResolvedValue(true)
+    manageAgentDefinitionsMock.mockImplementation(async (command) => {
+      if (command.operation === 'list') {
+        return { operation: 'list', items: [IMPORTED_REVIEWER] }
+      }
+      if (command.operation === 'refresh-plan') {
+        return {
+          operation: 'refresh-plan',
+          plan: {
+            status: 'conflict',
+            sourceDigest,
+            existingContentDigest,
+            diagnostics: [],
+          },
+        }
+      }
+      return { operation: command.operation }
+    })
+    render(<AgentDefinitionsCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh reviewer' }))
+
+    await waitFor(() =>
+      expect(manageAgentDefinitionsMock).toHaveBeenCalledWith({
+        operation: 'refresh-apply',
+        projectPath: PROJECT,
+        name: 'reviewer',
+        expectedSourceDigest: sourceDigest,
+        expectedContentDigest: existingContentDigest,
+        replaceModified: true,
+      }),
+    )
+  })
+
   it('cancels a pending deletion confirmation when the selected project changes', async () => {
     const deferred = Promise.withResolvers<boolean>()
     showConfirmMock.mockReturnValue(deferred.promise)

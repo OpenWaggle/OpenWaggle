@@ -46,7 +46,11 @@ function firstHeaderValue(value: string | string[] | undefined): string | undefi
 }
 
 function requestPath(request: IncomingMessage) {
-  return new URL(request.url ?? '/', 'http://localhost').pathname
+  try {
+    return new URL(request.url ?? '/', 'http://localhost').pathname
+  } catch {
+    return undefined
+  }
 }
 
 function rejectRawRequest(
@@ -71,7 +75,12 @@ function validateRawRequest(
   expectedDigest: Buffer,
   maxRequestBodyBytes: number,
 ) {
-  if (requestPath(request) !== MCP_PATH) {
+  const path = requestPath(request)
+  if (path === undefined) {
+    rejectRawRequest(request, response, HTTP_BAD_REQUEST, 'Invalid request target.')
+    return false
+  }
+  if (path !== MCP_PATH) {
     rejectRawRequest(request, response, HTTP_NOT_FOUND, 'Not found.')
     return false
   }

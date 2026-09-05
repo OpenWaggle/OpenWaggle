@@ -110,12 +110,16 @@ async function refreshCommand(input: {
   if (planned.plan.status === 'blocked') {
     throw new Error(planned.plan.diagnostics.join(' ') || 'Agent refresh plan is blocked.')
   }
+  if (!planned.plan.existingContentDigest) {
+    throw new Error('Agent refresh plan did not bind the installed definition.')
+  }
   return executeAgentDefinitionManagement(
     {
       operation: 'refresh-apply',
       projectPath: input.projectPath,
       name,
       expectedSourceDigest: planned.plan.sourceDigest,
+      expectedContentDigest: planned.plan.existingContentDigest,
       ...(hasFlag(input.arguments_, 'replace') ? { replaceModified: true } : {}),
     },
     managementContext(input),

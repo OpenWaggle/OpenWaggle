@@ -1,4 +1,5 @@
 import { request as sendHttpRequest } from 'node:http'
+import { connect as connectTcp } from 'node:net'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
 import { describe, expect, it } from 'vitest'
@@ -58,6 +59,28 @@ function statusForUnfinishedRequest(input: {
     request.once('error', reject)
     request.flushHeaders()
     if (input.firstChunk !== undefined) request.write(input.firstChunk)
+  })
+}
+
+function statusForRawRequest(url: string, request: string) {
+  const endpoint = new URL(url)
+  return new Promise<number>((resolve, reject) => {
+    const socket = connectTcp({ host: endpoint.hostname, port: Number(endpoint.port) }, () =>
+      socket.write(request),
+    )
+    let response = ''
+    socket.setEncoding('utf8')
+    socket.on('data', (chunk: string) => {
+      response += chunk
+      const match = /^HTTP\/1\.1 (\d{3})/.exec(response)
+      if (!match) return
+      socket.destroy()
+      resolve(Number(match[1]))
+    })
+    socket.once('error', reject)
+    socket.once('end', () => {
+      if (!response) reject(new Error('Raw HTTP request ended without a response.'))
+    })
   })
 }
 
@@ -123,6 +146,25 @@ describe('OpenWaggle loopback Streamable HTTP server', () => {
           firstChunk: 'still-open',
         }),
       ).resolves.toBe(403)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('rejects a malformed request target without terminating the server', async () => {
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory: server,
+      port: 0,
+      bearerToken: TOKEN,
+    })
+    try {
+      await expect(
+        statusForRawRequest(
+          handle.url,
+          'GET http://[ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n',
+        ),
+      ).resolves.toBe(400)
+      await expect(fetch(handle.url, { method: 'POST' })).resolves.toMatchObject({ status: 401 })
     } finally {
       await handle.close()
     }

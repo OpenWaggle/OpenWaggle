@@ -115,6 +115,9 @@ describe('Agent definition import and refresh integrity', () => {
       { userHome, now: 430 },
     )
     if (refreshPlan.operation !== 'refresh-plan') throw new Error('Expected a refresh plan.')
+    if (!refreshPlan.plan.existingContentDigest) {
+      throw new Error('Expected the refresh plan to bind the installed definition.')
+    }
     expect(refreshPlan.plan).toMatchObject({
       status: 'ready',
       sourceName: 'reviewer',
@@ -132,10 +135,61 @@ describe('Agent definition import and refresh integrity', () => {
           projectPath,
           name: 'reviewer',
           expectedSourceDigest: refreshPlan.plan.sourceDigest,
+          expectedContentDigest: refreshPlan.plan.existingContentDigest,
         },
         { userHome, now: 440 },
       ),
     ).rejects.toThrow('Import source changed since the refresh plan was reviewed.')
+  })
+
+  it('preserves an inferred sole Codex Agent when the source later gains another entry', async () => {
+    const sourcePath = path.join(root, 'config.toml')
+    const initialSource = `[agents.reviewer]\ndescription = "Reviews"\ndeveloper_instructions = "Review changes."\n`
+    await fs.writeFile(sourcePath, initialSource, 'utf8')
+
+    const initialPlan = await executeAgentDefinitionManagement(
+      {
+        operation: 'import-plan',
+        projectPath,
+        sourcePath,
+        sourceTool: 'codex',
+        targetScope: 'project',
+      },
+      { userHome, now: 440 },
+    )
+    if (initialPlan.operation !== 'import-plan') throw new Error('Expected an import plan.')
+    expect(initialPlan.plan).toMatchObject({
+      status: 'ready',
+      sourceName: 'reviewer',
+      document: { import: { sourceName: 'reviewer' } },
+    })
+    await executeAgentDefinitionManagement(
+      {
+        operation: 'import-apply',
+        projectPath,
+        sourcePath,
+        sourceTool: 'codex',
+        targetScope: 'project',
+        expectedSourceDigest: initialPlan.plan.sourceDigest,
+      },
+      { userHome, now: 440 },
+    )
+
+    await fs.writeFile(
+      sourcePath,
+      `${initialSource}\n[agents.builder]\ndescription = "Builds"\ndeveloper_instructions = "Build changes."\n`,
+      'utf8',
+    )
+    const refreshPlan = await executeAgentDefinitionManagement(
+      { operation: 'refresh-plan', projectPath, name: 'reviewer' },
+      { userHome, now: 450 },
+    )
+    if (refreshPlan.operation !== 'refresh-plan') throw new Error('Expected a refresh plan.')
+    expect(refreshPlan.plan).toMatchObject({
+      status: 'ready',
+      sourceName: 'reviewer',
+      document: { name: 'reviewer', instructions: 'Review changes.' },
+    })
   })
 
   it('keeps semantically invalid refreshes blocked when the local definition changed', async () => {
@@ -183,6 +237,9 @@ describe('Agent definition import and refresh integrity', () => {
       { userHome, now: 460, loadSemanticCatalog },
     )
     if (refreshPlan.operation !== 'refresh-plan') throw new Error('Expected a refresh plan.')
+    if (!refreshPlan.plan.existingContentDigest) {
+      throw new Error('Expected the refresh plan to bind the installed definition.')
+    }
     expect(refreshPlan.plan).toMatchObject({
       status: 'blocked',
       diagnostics: expect.arrayContaining([
@@ -198,6 +255,7 @@ describe('Agent definition import and refresh integrity', () => {
           projectPath,
           name: 'reviewer',
           expectedSourceDigest: refreshPlan.plan.sourceDigest,
+          expectedContentDigest: refreshPlan.plan.existingContentDigest,
           replaceModified: true,
         },
         { userHome, now: 460, loadSemanticCatalog },

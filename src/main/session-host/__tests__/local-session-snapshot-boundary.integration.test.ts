@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalSessionAuthenticator } from '../local-session-authenticator'
@@ -41,6 +42,18 @@ describe('Local Session snapshot boundary', () => {
 
   it('queues events after the synchronous snapshot cursor without duplicating their deltas', async () => {
     const { paths, credential } = await pathsAndCredential()
+    const worktreeLaunch = {
+      status: 'failed',
+      stage: 'starting-task',
+      startedAt: 2,
+      updatedAt: 3,
+      details: ['Created the worktree', 'Could not start the task'],
+      progressPercentage: 75,
+      worktreePath: '/project/.worktrees/session-running',
+      branch: 'ow/session-running',
+      baseRef: 'main',
+      errorMessage: 'Task startup failed.',
+    } satisfies Required<WorktreeLaunchSnapshot>
     let releaseAuthorization: (() => void) | undefined
     const authorizationGate = new Promise<void>((resolve) => {
       releaseAuthorization = resolve
@@ -59,6 +72,7 @@ describe('Local Session snapshot boundary', () => {
           startedAt: 1,
           messageId: 'message-running',
           parts: [{ type: 'text', text: 'before' }],
+          worktreeLaunch,
         },
       ],
       authorizeActiveRun: async () => {
@@ -99,7 +113,7 @@ describe('Local Session snapshot boundary', () => {
 
     await expect(watching).resolves.toEqual({ status: 'closed' })
     expect(snapshots).toEqual([
-      [expect.objectContaining({ parts: [{ type: 'text', text: 'before' }] })],
+      [expect.objectContaining({ parts: [{ type: 'text', text: 'before' }], worktreeLaunch })],
     ])
     expect(events).toHaveLength(1)
   })

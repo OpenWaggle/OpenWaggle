@@ -90,6 +90,7 @@ export interface SessionExportOperationRepositoryShape {
     exportOperationId: string,
     progress: SessionExportProgress,
     now: number,
+    options?: { readonly cleanupPending?: boolean },
   ) => Effect.Effect<void, SessionExportOperationRepositoryError>
   readonly fail: (
     exportOperationId: string,

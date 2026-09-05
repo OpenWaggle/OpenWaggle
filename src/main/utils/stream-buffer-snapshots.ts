@@ -16,11 +16,101 @@ export interface ActiveStreamBuffer {
   readonly retainedBytes: number
   readonly omittedBytes: number
   readonly degradedToolCallIds: ReadonlySet<string>
+  readonly degradedToolCallIdsBytes: number
   readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }
 
 export const MAX_ACTIVE_STREAM_BUFFER_BYTES = 4 * 1024 * 1024
 export const MAX_TOTAL_STREAM_BUFFER_BYTES = 6 * 1024 * 1024
+export const MAX_DEGRADED_TOOL_CALL_IDS = 256
+
+const JSON_ARRAY_BRACKETS_BYTES = 2
+const JSON_ARRAY_SEPARATOR_BYTES = 1
+
+export function degradedToolCallIdRetainedDelta(
+  toolCallIds: ReadonlySet<string>,
+  toolCallId: string,
+) {
+  if (toolCallIds.has(toolCallId)) return 0
+  if (toolCallIds.size >= MAX_DEGRADED_TOOL_CALL_IDS) return null
+  return (
+    Buffer.byteLength(JSON.stringify(toolCallId), 'utf8') +
+    (toolCallIds.size === 0 ? JSON_ARRAY_BRACKETS_BYTES : JSON_ARRAY_SEPARATOR_BYTES)
+  )
+}
+
+export function retainedStreamBufferBytes(buffer: ActiveStreamBuffer) {
+  return buffer.retainedBytes + buffer.degradedToolCallIdsBytes
+}
+
+export function withoutRetainedStreamContent(buffer: ActiveStreamBuffer): ActiveStreamBuffer {
+  return {
+    ...buffer,
+    parts: [],
+    retainedBytes: 0,
+    degradedToolCallIds: new Set(),
+    degradedToolCallIdsBytes: 0,
+  }
+}
+
+export function exceedsStreamBufferLimit(
+  buffer: ActiveStreamBuffer,
+  retainedPartsBytes: number,
+  totalRetainedBytes: number,
+  retainedDelta: number,
+) {
+  return (
+    retainedPartsBytes + buffer.degradedToolCallIdsBytes > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  )
+}
+
+export function retainDegradedToolCallId(
+  buffer: ActiveStreamBuffer,
+  toolCallId: string,
+  totalRetainedBytes: number,
+) {
+  const retainedDelta = degradedToolCallIdRetainedDelta(buffer.degradedToolCallIds, toolCallId)
+  if (
+    retainedDelta === null ||
+    retainedStreamBufferBytes(buffer) + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  ) {
+    return { buffer, retainedDelta: 0 }
+  }
+  return {
+    buffer: {
+      ...buffer,
+      degradedToolCallIds: new Set([...buffer.degradedToolCallIds, toolCallId]),
+      degradedToolCallIdsBytes: buffer.degradedToolCallIdsBytes + retainedDelta,
+    },
+    retainedDelta,
+  }
+}
+
+function restoreDegradedToolCallIds(input: {
+  readonly toolCallIds: readonly string[]
+  readonly retainedPartsBytes: number
+  readonly totalRetainedBytes: number
+}) {
+  const toolCallIds = new Set<string>()
+  let retainedBytes = 0
+  for (const toolCallId of input.toolCallIds) {
+    const retainedDelta = degradedToolCallIdRetainedDelta(toolCallIds, toolCallId)
+    if (retainedDelta === null) break
+    if (retainedDelta === 0) continue
+    if (
+      input.retainedPartsBytes + retainedBytes + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+      input.totalRetainedBytes + input.retainedPartsBytes + retainedBytes + retainedDelta >
+        MAX_TOTAL_STREAM_BUFFER_BYTES
+    ) {
+      continue
+    }
+    toolCallIds.add(toolCallId)
+    retainedBytes += retainedDelta
+  }
+  return { toolCallIds, retainedBytes }
+}
 
 export function toStreamBufferSnapshot(
   sessionId: SessionId,
@@ -71,18 +161,25 @@ export function restoreStreamBufferSnapshots(
     const accepted =
       retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
       totalRetainedBytes + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES
+    const acceptedRetainedBytes = accepted ? retainedBytes : 0
+    const degradedToolCallIds = restoreDegradedToolCallIds({
+      toolCallIds: snapshot.degraded?.toolCallIds ?? [],
+      retainedPartsBytes: acceptedRetainedBytes,
+      totalRetainedBytes,
+    })
     buffers.set(snapshot.sessionId, {
       model: snapshot.model,
       mode: snapshot.mode,
       startedAt: snapshot.startedAt,
       ...(snapshot.messageId ? { messageId: snapshot.messageId } : {}),
       parts: accepted ? [...snapshot.parts] : [],
-      retainedBytes: accepted ? retainedBytes : 0,
+      retainedBytes: acceptedRetainedBytes,
       omittedBytes: (snapshot.degraded?.omittedBytes ?? 0) + (accepted ? 0 : retainedBytes),
-      degradedToolCallIds: new Set(snapshot.degraded?.toolCallIds ?? []),
+      degradedToolCallIds: degradedToolCallIds.toolCallIds,
+      degradedToolCallIdsBytes: degradedToolCallIds.retainedBytes,
       ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
     })
-    totalRetainedBytes += accepted ? retainedBytes : 0
+    totalRetainedBytes += acceptedRetainedBytes + degradedToolCallIds.retainedBytes
   }
   return { previousSessionIds, totalRetainedBytes }
 }

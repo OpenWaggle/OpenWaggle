@@ -9,7 +9,10 @@ import { isPathInsideDirectory } from '../utils/project-path-validation'
 
 const MAX_BUNDLED_RESOURCE_BYTES = 256 * 1024 * 1024
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
-const OPEN_READ_NO_FOLLOW = filesystemConstants.O_RDONLY | (filesystemConstants.O_NOFOLLOW ?? 0)
+const OPEN_READ_NO_FOLLOW_NONBLOCKING =
+  filesystemConstants.O_RDONLY |
+  (filesystemConstants.O_NOFOLLOW ?? 0) |
+  (filesystemConstants.O_NONBLOCK ?? 0)
 
 function resourceError(operation: string, cause: unknown) {
   return new SessionExportArtifactError({
@@ -53,7 +56,7 @@ export async function openFilesystemSessionExportResource(input: {
   // canonical path. From this point onward the descriptor, not the path, is the authority.
   // An ancestor swapped before/during this sequence either resolves outside the workspace or
   // produces a different device/inode pair and is rejected.
-  const sourceHandle = await fs.open(candidate, OPEN_READ_NO_FOLLOW)
+  const sourceHandle = await fs.open(candidate, OPEN_READ_NO_FOLLOW_NONBLOCKING)
   try {
     const openedStats = await sourceHandle.stat()
     if (!openedStats.isFile()) throw new Error('Bundled workspace resource must be a file.')

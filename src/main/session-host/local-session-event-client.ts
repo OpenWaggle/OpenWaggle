@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Socket } from 'node:net'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
-import type { BackgroundRunSnapshot } from '@shared/types/background-run'
+import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type {
   SessionHostEventCursor,
@@ -57,6 +57,29 @@ function decodeDegradedSnapshot(value: unknown): BackgroundRunSnapshot['degraded
   }
 }
 
+const worktreeLaunchSnapshotSchema = Schema.Struct({
+  status: Schema.Literal('running', 'complete', 'failed'),
+  stage: Schema.Literal(
+    'preparing-workspace',
+    'checking-out-files',
+    'worktree-created',
+    'starting-task',
+  ),
+  startedAt: Schema.Number,
+  updatedAt: Schema.Number,
+  details: Schema.Array(Schema.String),
+  progressPercentage: Schema.optional(Schema.Number),
+  worktreePath: Schema.optional(Schema.String),
+  branch: Schema.optional(Schema.String),
+  baseRef: Schema.optional(Schema.String),
+  errorMessage: Schema.optional(Schema.String),
+})
+
+function decodeWorktreeLaunchSnapshot(value: unknown): WorktreeLaunchSnapshot | undefined {
+  if (value === undefined) return undefined
+  return decodeUnknownExactOrThrow(worktreeLaunchSnapshotSchema, value)
+}
+
 function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   if (!Array.isArray(value)) throw new Error('Local Session Host returned an invalid Run snapshot.')
   return value.map((candidate) => {
@@ -72,6 +95,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
       throw new Error('Local Session Host returned an invalid active Run snapshot.')
     }
     const degraded = decodeDegradedSnapshot(candidate.degraded)
+    const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate.worktreeLaunch)
     return {
       sessionId: SessionId(candidate.sessionId),
       model: SupportedModelId(candidate.model),
@@ -80,6 +104,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
       ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
       parts: candidate.parts.map(decodeMessagePart),
       ...(degraded ? { degraded } : {}),
+      ...(worktreeLaunch ? { worktreeLaunch } : {}),
     }
   })
 }
