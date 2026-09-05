@@ -174,4 +174,32 @@ describe('Agent definition IPC authority', () => {
       expectedContentDigest: 'content-digest',
     })
   })
+
+  it('requires destination CAS when a renderer applies an import replacement', async () => {
+    await rememberAgentDefinitionImportSource(SENDER_ID, sourcePath)
+    const input = {
+      senderId: SENDER_ID,
+      command: {
+        operation: 'import-apply',
+        projectPath,
+        sourcePath,
+        targetScope: 'project',
+        expectedSourceDigest: 'source-digest',
+        replaceExisting: true,
+      },
+      knownProjectPaths: [projectPath],
+    } as const
+
+    await expect(authorizeAgentDefinitionIpcCommand(input)).rejects.toThrow()
+    await expect(
+      authorizeAgentDefinitionIpcCommand({
+        ...input,
+        command: { ...input.command, expectedContentDigest: 'content-digest' },
+      }),
+    ).resolves.toMatchObject({
+      operation: 'import-apply',
+      replaceExisting: true,
+      expectedContentDigest: 'content-digest',
+    })
+  })
 })

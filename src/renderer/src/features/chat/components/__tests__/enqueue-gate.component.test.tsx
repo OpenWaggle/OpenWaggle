@@ -19,13 +19,15 @@ describe('enqueueIfAllowed', () => {
     const enqueue = vi.fn()
     const onToast = vi.fn()
 
-    await enqueueIfAllowed({
-      payload: PAYLOAD,
-      activeSessionId: SessionId('session-a'),
-      sendBlockedReason: "This session's worktree no longer exists.",
-      enqueue,
-      onToast,
-    })
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: SessionId('session-a'),
+        sendBlockedReason: "This session's worktree no longer exists.",
+        enqueue,
+        onToast,
+      }),
+    ).resolves.toBe(false)
 
     expect(enqueue).not.toHaveBeenCalled()
     expect(onToast).toHaveBeenCalledWith("This session's worktree no longer exists.")
@@ -42,13 +44,15 @@ describe('enqueueIfAllowed', () => {
       state: { selected: 'api' },
     })
 
-    await enqueueIfAllowed({
-      payload: PAYLOAD,
-      activeSessionId: sessionId,
-      sendBlockedReason: null,
-      enqueue,
-      onToast: vi.fn(),
-    })
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: sessionId,
+        sendBlockedReason: null,
+        enqueue,
+        onToast: vi.fn(),
+      }),
+    ).resolves.toBe(true)
 
     expect(enqueue).toHaveBeenCalledWith({
       ...PAYLOAD,
@@ -64,13 +68,15 @@ describe('enqueueIfAllowed', () => {
   it('does nothing without an active session', async () => {
     const enqueue = vi.fn()
 
-    await enqueueIfAllowed({
-      payload: PAYLOAD,
-      activeSessionId: null,
-      sendBlockedReason: null,
-      enqueue,
-      onToast: vi.fn(),
-    })
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: null,
+        sendBlockedReason: null,
+        enqueue,
+        onToast: vi.fn(),
+      }),
+    ).resolves.toBe(false)
 
     expect(enqueue).not.toHaveBeenCalled()
   })

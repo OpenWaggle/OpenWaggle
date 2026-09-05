@@ -178,7 +178,6 @@ export class SqliteSessionTranscriptSemanticProjection {
         ...(operationId ? { operationId } : {}),
         now,
       })
-      this.#lastMaintenanceAt = Date.now()
       yield* this.sql`
         INSERT INTO session_semantic_transcript_state (
           singleton, status, model_id, model_revision, dimensions,

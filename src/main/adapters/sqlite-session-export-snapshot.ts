@@ -16,7 +16,7 @@ export function resolveExportSnapshotHead(
     if (input.branchScope === 'tree') {
       return input.suppliedHeadNodeId
         ? { status: 'not-found' as const, message: 'Tree exports do not select a branch head.' }
-        : { status: 'ready' as const, headNodeId: null }
+        : { status: 'ready' as const, headNodeId: null, branchHeadNodeId: null }
     }
     if (!input.selectedBranchId) {
       return { status: 'not-found' as const, message: 'Session branch not found.' }

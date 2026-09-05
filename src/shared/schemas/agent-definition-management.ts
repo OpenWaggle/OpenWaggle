@@ -51,6 +51,23 @@ const sourceImportSchema = {
   targetScope: scopeSchema,
 }
 
+const importApplySchema = Schema.Union(
+  Schema.Struct({
+    operation: Schema.Literal('import-apply'),
+    ...sourceImportSchema,
+    expectedSourceDigest: Schema.String,
+    replaceExisting: Schema.Literal(true),
+    expectedContentDigest: Schema.String,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('import-apply'),
+    ...sourceImportSchema,
+    expectedSourceDigest: Schema.String,
+    replaceExisting: Schema.optional(Schema.Literal(false)),
+    expectedContentDigest: Schema.optional(Schema.String),
+  }),
+)
+
 export const agentDefinitionManagementCommandSchema = Schema.Union(
   Schema.Struct({ operation: Schema.Literal('list'), ...projectPathSchema }),
   Schema.Struct({
@@ -76,13 +93,7 @@ export const agentDefinitionManagementCommandSchema = Schema.Union(
     expectedContentDigest: Schema.optional(Schema.String),
   }),
   Schema.Struct({ operation: Schema.Literal('import-plan'), ...sourceImportSchema }),
-  Schema.Struct({
-    operation: Schema.Literal('import-apply'),
-    ...sourceImportSchema,
-    expectedSourceDigest: Schema.String,
-    replaceExisting: Schema.optional(Schema.Boolean),
-    expectedContentDigest: Schema.optional(Schema.String),
-  }),
+  importApplySchema,
   Schema.Struct({
     operation: Schema.Literal('refresh-plan'),
     ...projectPathSchema,

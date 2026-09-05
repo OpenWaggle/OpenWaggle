@@ -6,6 +6,7 @@ import { sessionTranscriptSearchContentSql } from '../services/session-transcrip
 export interface TranscriptSemanticStoragePolicy {
   readonly scopeTtlMs: number
   readonly leaseTtlMs: number
+  readonly scopeLimit: number
   readonly totalNodeLimit: number
   readonly vectorByteLimit: number
   readonly queuedNodeLimit: number
@@ -72,8 +73,34 @@ function evictScopes(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
   })
 }
 
-export function pruneTranscriptSemanticSessionOverflow(sql: SqlClient.SqlClient) {
-  const rankedNodes = `
+export function reclaimExpiredTranscriptSemanticScopesInTransaction(
+  sql: SqlClient.SqlClient,
+  now: number,
+) {
+  return Effect.gen(function* () {
+    yield* sql`DELETE FROM session_transcript_semantic_leases WHERE expires_at <= ${now}`
+    const expired = yield* sql<{ readonly session_id: string }>`
+      SELECT scopes.session_id FROM session_transcript_semantic_scopes AS scopes
+      WHERE scopes.expires_at <= ${now}
+        AND NOT EXISTS (
+          SELECT 1 FROM session_transcript_semantic_leases AS leases
+          WHERE leases.session_id = scopes.session_id AND leases.expires_at > ${now}
+        )
+    `
+    yield* evictScopes(
+      sql,
+      expired.map((scope) => scope.session_id),
+    )
+  })
+}
+
+export function pruneTranscriptSemanticSessionOverflow(
+  sql: SqlClient.SqlClient,
+  sessionIds?: readonly string[],
+) {
+  if (sessionIds?.length === 0) return Effect.void
+  const sessionFilter = sessionIds ? sql`AND nodes.session_id IN ${sql.in(sessionIds)}` : sql``
+  const rankedNodes = sql`
     SELECT nodes.id AS node_id, nodes.session_id,
       ROW_NUMBER() OVER (
         PARTITION BY nodes.session_id
@@ -82,19 +109,48 @@ export function pruneTranscriptSemanticSessionOverflow(sql: SqlClient.SqlClient)
       scopes.node_limit
     FROM session_transcript_semantic_scopes AS scopes
     CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
-    WHERE trim(${TRANSCRIPT_SEARCH_CONTENT_SQL}) <> ''
+    WHERE trim(${sql.literal(TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
+      ${sessionFilter}
   `
   return Effect.gen(function* () {
-    yield* sql.unsafe(`
+    yield* sql`
       WITH ranked AS (${rankedNodes})
       DELETE FROM session_transcript_embedding_queue
       WHERE node_id IN (SELECT node_id FROM ranked WHERE scope_rank > node_limit)
-    `)
-    yield* sql.unsafe(`
+    `
+    yield* sql`
       WITH ranked AS (${rankedNodes})
       DELETE FROM session_transcript_embeddings
       WHERE node_id IN (SELECT node_id FROM ranked WHERE scope_rank > node_limit)
-    `)
+    `
+  })
+}
+
+export function enforceTranscriptSemanticScopeLimit(
+  sql: SqlClient.SqlClient,
+  now: number,
+  policy: TranscriptSemanticStoragePolicy,
+) {
+  return Effect.gen(function* () {
+    const countRows = yield* sql<{ readonly count: number }>`
+      SELECT COUNT(*) AS count FROM session_transcript_semantic_scopes
+    `
+    const overflow = Math.max(0, (countRows[0]?.count ?? 0) - policy.scopeLimit)
+    if (overflow === 0) return
+    const candidates = yield* sql<{ readonly session_id: string }>`
+      SELECT scopes.session_id
+      FROM session_transcript_semantic_scopes AS scopes
+      WHERE NOT EXISTS (
+        SELECT 1 FROM session_transcript_semantic_leases AS leases
+        WHERE leases.session_id = scopes.session_id AND leases.expires_at > ${now}
+      )
+      ORDER BY scopes.last_accessed_at, scopes.session_id
+      LIMIT ${overflow}
+    `
+    yield* evictScopes(
+      sql,
+      candidates.map((candidate) => candidate.session_id),
+    )
   })
 }
 
@@ -153,19 +209,8 @@ export function maintainTranscriptSemanticStorageInTransaction(
   policy: TranscriptSemanticStoragePolicy,
 ) {
   return Effect.gen(function* () {
-    yield* sql`DELETE FROM session_transcript_semantic_leases WHERE expires_at <= ${now}`
-    const expired = yield* sql<{ readonly session_id: string }>`
-      SELECT scopes.session_id FROM session_transcript_semantic_scopes AS scopes
-      WHERE scopes.expires_at <= ${now}
-        AND NOT EXISTS (
-          SELECT 1 FROM session_transcript_semantic_leases AS leases
-          WHERE leases.session_id = scopes.session_id AND leases.expires_at > ${now}
-        )
-    `
-    yield* evictScopes(
-      sql,
-      expired.map((scope) => scope.session_id),
-    )
+    yield* reclaimExpiredTranscriptSemanticScopesInTransaction(sql, now)
+    yield* enforceTranscriptSemanticScopeLimit(sql, now, policy)
     yield* pruneTranscriptSemanticSessionOverflow(sql)
     const usageRows = yield* transcriptSemanticStorageUsage(sql)
     const usage = { ...(usageRows[0] ?? emptyTranscriptSemanticStorageUsage) }

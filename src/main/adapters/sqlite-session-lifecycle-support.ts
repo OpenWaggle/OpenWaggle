@@ -11,6 +11,10 @@ import type {
 } from '../ports/session-lifecycle-repository'
 
 type ExecuteInput = Parameters<SessionLifecycleRepositoryShape['execute']>[0]
+type ProvisionedWorkspace = Extract<
+  SessionLifecycleWorkspacePlan,
+  { readonly mode: 'provisioned' }
+>['workspace']
 
 export interface LifecycleWorkspaceRow {
   readonly id: string
@@ -24,6 +28,46 @@ export interface LifecycleWorkspaceRow {
 
 function lifecycleSupportError(operation: string, cause: unknown) {
   return new SessionLifecycleRepositoryError({ operation, cause })
+}
+
+function resolveProvisionedLocalWorkspace(
+  sql: SqlClient.SqlClient,
+  workspace: ProvisionedWorkspace,
+  now: number,
+) {
+  return Effect.gen(function* () {
+    yield* sql`
+      INSERT INTO workspace_resources (
+        id, project_path, kind, working_path, lifecycle_state, worktree_branch,
+        worktree_base_ref, worktree_start_from_origin, created_at, updated_at
+      ) VALUES (
+        ${workspace.id}, ${workspace.projectPath}, ${workspace.kind}, ${workspace.workingPath},
+        ${workspace.lifecycleState}, ${workspace.worktreeBranch ?? null},
+        ${workspace.worktreeBaseRef ?? null}, ${workspace.worktreeStartFromOrigin ? 1 : 0},
+        ${now}, ${now}
+      )
+      ON CONFLICT (project_path, working_path) DO NOTHING
+    `
+    const rows = yield* sql<LifecycleWorkspaceRow>`
+      SELECT
+        id, project_path, kind, working_path, lifecycle_state,
+        worktree_base_ref, worktree_start_from_origin
+      FROM workspace_resources
+      WHERE project_path = ${workspace.projectPath}
+        AND working_path = ${workspace.workingPath}
+      LIMIT 1
+    `
+    const resolved = rows[0]
+    if (resolved?.kind !== 'local' || resolved.lifecycle_state !== 'ready') {
+      return yield* Effect.fail(
+        lifecycleSupportError('local-workspace-conflict', {
+          projectPath: workspace.projectPath,
+          workingPath: workspace.workingPath,
+        }),
+      )
+    }
+    return resolved
+  })
 }
 
 export function resolveLifecycleWorkspace(
@@ -79,6 +123,9 @@ export function resolveLifecycleWorkspace(
       return rows[0]
     }
     const workspace = plan.workspace
+    if (workspace.kind === 'local') {
+      return yield* resolveProvisionedLocalWorkspace(sql, workspace, now)
+    }
     yield* sql`
       INSERT INTO workspace_resources (
         id, project_path, kind, working_path, lifecycle_state, worktree_branch,

@@ -1,12 +1,11 @@
-import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionExportManifest } from '@shared/types/session-export'
-import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import {
   SessionExportArtifactWriter,
   type SessionExportArtifactWriterShape,
 } from '../../ports/session-export-artifact-writer'
+import { SessionExportLiveAuthority } from '../../ports/session-export-live-authority'
 import {
   type SessionExportOperationRecord,
   SessionExportOperationRepository,
@@ -89,12 +88,22 @@ export function exportTestDependencies(
   resourceResolver = Layer.succeed(SessionExportResourceResolver, {
     resolve: () => Effect.die('unused resource resolver'),
   }),
+  liveAuthority: Layer.Layer<SessionExportLiveAuthority, unknown> = Layer.succeed(
+    SessionExportLiveAuthority,
+    {
+      liveAuthorityBlockReason: () => Effect.succeed(undefined),
+      loadTarget: () => Effect.die('unused live export target'),
+      loadCaller: () => Effect.die('unused live export caller'),
+      resolveOriginProfileId: () => Effect.succeed(undefined),
+    },
+  ),
 ) {
   return Layer.mergeAll(
     Layer.succeed(SessionExportOperationRepository, operations),
     Layer.succeed(SessionExportArtifactWriter, artifacts),
     queries,
     resourceResolver,
+    liveAuthority,
   )
 }
 
@@ -102,8 +111,5 @@ export function exportTestLayer(
   operations: SessionExportOperationRepositoryShape,
   artifacts: SessionExportArtifactWriterShape,
 ) {
-  return Layer.mergeAll(
-    exportTestDependencies(operations, artifacts),
-    Layer.succeed(SqlClient.SqlClient, fromPartial({})),
-  )
+  return exportTestDependencies(operations, artifacts)
 }

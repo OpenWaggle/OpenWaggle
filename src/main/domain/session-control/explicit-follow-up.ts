@@ -1,4 +1,4 @@
-import type { FollowUpId } from '@shared/types/brand'
+import type { FollowUpId, RunId } from '@shared/types/brand'
 import { mutateFollowUpQueue } from './follow-up-queue'
 import type {
   SessionControlFollowUp,
@@ -12,14 +12,22 @@ export type ApplyExplicitFollowUpResult =
   | {
       readonly accepted: true
       readonly state: SessionControlSessionState
-      readonly outcome: {
-        readonly operation: 'follow-up'
-        readonly effect: 'queued-follow-up'
-        readonly sessionId: SessionControlSessionState['sessionId']
-        readonly followUpId: FollowUpId
-        readonly queueRevision: number
-        readonly stateRevision: number
-      }
+      readonly outcome:
+        | {
+            readonly operation: 'follow-up'
+            readonly effect: 'started-run'
+            readonly sessionId: SessionControlSessionState['sessionId']
+            readonly runId: RunId
+            readonly stateRevision: number
+          }
+        | {
+            readonly operation: 'follow-up'
+            readonly effect: 'queued-follow-up'
+            readonly sessionId: SessionControlSessionState['sessionId']
+            readonly followUpId: FollowUpId
+            readonly queueRevision: number
+            readonly stateRevision: number
+          }
     }
   | {
       readonly accepted: false
@@ -32,6 +40,7 @@ export type ApplyExplicitFollowUpResult =
 
 export interface ApplyExplicitFollowUpInput {
   readonly state: SessionControlSessionState
+  readonly runId: RunId
   readonly followUpId: FollowUpId
   readonly intent: SessionControlIntentSnapshot
 }
@@ -39,6 +48,29 @@ export interface ApplyExplicitFollowUpInput {
 export function applyExplicitFollowUp(
   input: ApplyExplicitFollowUpInput,
 ): ApplyExplicitFollowUpResult {
+  if (
+    input.state.run.state === 'idle' &&
+    input.state.followUpQueue.state === 'running' &&
+    input.state.followUpQueue.items.length === 0
+  ) {
+    const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
+    return {
+      accepted: true,
+      state: {
+        ...input.state,
+        revision: nextRevision,
+        run: { state: 'starting', runId: input.runId, intent: input.intent },
+      },
+      outcome: {
+        operation: 'follow-up',
+        effect: 'started-run',
+        sessionId: input.state.sessionId,
+        runId: input.runId,
+        stateRevision: nextRevision,
+      },
+    }
+  }
+
   const followUp: SessionControlFollowUp = {
     id: input.followUpId,
     intent: input.intent,

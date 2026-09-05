@@ -35,6 +35,14 @@ const followUpQueuedOutcomeSchema = Schema.Struct({
   stateRevision: stateRevisionSchema,
 })
 
+const followUpStartedRunOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('follow-up'),
+  effect: Schema.Literal('started-run'),
+  sessionId: Schema.String,
+  runId: Schema.String,
+  stateRevision: stateRevisionSchema,
+})
+
 const messageQueuedFollowUpOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('message'),
   effect: Schema.Literal('queued-follow-up'),
@@ -178,6 +186,7 @@ export const sessionControlMutationOutcomeSchema: Schema.Schema<SessionControlMu
     exportCancelOutcomeSchema,
     exportCreateOutcomeSchema,
     followUpQueuedOutcomeSchema,
+    followUpStartedRunOutcomeSchema,
     messageStartedRunOutcomeSchema,
     messageQueuedFollowUpOutcomeSchema,
     ...sessionOrganizationOutcomeSchemas,

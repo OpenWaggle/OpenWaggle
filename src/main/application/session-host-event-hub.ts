@@ -6,6 +6,10 @@ import type {
   SessionHostEventPayload,
   SessionHostEventReplayResult,
 } from '@shared/types/session-host-event'
+import {
+  type RetainedReplayResult,
+  SessionHostEventReplayWindow,
+} from './session-host-event-replay-window'
 
 const DEFAULT_REPLAY_CAPACITY = 4096
 const DEFAULT_SUBSCRIBER_CAPACITY = 256
@@ -151,8 +155,7 @@ export class SessionHostEventHub {
   private readonly subscriberAggregateByteCapacity: number
   private readonly now: () => number
   private sequence = 0
-  private readonly replayWindow: SessionHostEventEnvelope[] = []
-  private replayBytes = 0
+  private readonly replayWindow: SessionHostEventReplayWindow
   private retainedSubscriberBytes = 0
   private readonly subscribers = new Set<SessionHostEventSubscription>()
 
@@ -170,6 +173,10 @@ export class SessionHostEventHub {
     this.assertPositiveCapacity(this.replayByteCapacity, 'replay bytes')
     this.assertPositiveCapacity(this.subscriberByteCapacity, 'subscriber bytes')
     this.assertPositiveCapacity(this.subscriberAggregateByteCapacity, 'aggregate subscriber bytes')
+    this.replayWindow = new SessionHostEventReplayWindow(
+      this.replayCapacity,
+      this.replayByteCapacity,
+    )
   }
 
   private assertPositiveCapacity(capacity: number, name: string) {
@@ -195,24 +202,26 @@ export class SessionHostEventHub {
     } satisfies SessionHostEventEnvelope
     const bytes = Buffer.byteLength(JSON.stringify(event), 'utf8')
     if (bytes <= this.replayByteCapacity) {
-      this.replayWindow.push(event)
-      this.replayBytes += bytes
-      while (
-        this.replayWindow.length > this.replayCapacity ||
-        this.replayBytes > this.replayByteCapacity
-      ) {
-        const removed = this.replayWindow.shift()
-        if (removed) this.replayBytes -= Buffer.byteLength(JSON.stringify(removed), 'utf8')
-      }
+      this.replayWindow.push({ event, bytes })
     } else {
-      this.replayWindow.length = 0
-      this.replayBytes = 0
+      this.replayWindow.clear()
     }
     for (const subscriber of this.subscribers) subscriber.enqueue(event, bytes)
     return event
   }
 
   replayAfter(cursor: SessionHostEventCursor): SessionHostEventReplayResult {
+    const replay = this.#retainedReplayAfter(cursor)
+    return replay.status === 'ready'
+      ? {
+          status: 'ready',
+          events: replay.entries.map((entry) => entry.event),
+          cursor: replay.cursor,
+        }
+      : replay
+  }
+
+  #retainedReplayAfter(cursor: SessionHostEventCursor): RetainedReplayResult {
     const current = this.cursor()
     if (cursor.hostInstanceId !== this.hostInstanceId) {
       return { status: 'resync-required', reason: 'host-restarted', cursor: current }
@@ -220,13 +229,13 @@ export class SessionHostEventHub {
     if (cursor.sequence > this.sequence) {
       return { status: 'resync-required', reason: 'cursor-ahead', cursor: current }
     }
-    const oldestSequence = this.replayWindow[0]?.cursor.sequence ?? this.sequence + 1
+    const oldestSequence = this.replayWindow.first()?.event.cursor.sequence ?? this.sequence + 1
     if (cursor.sequence < oldestSequence - 1) {
       return { status: 'resync-required', reason: 'cursor-expired', cursor: current }
     }
     return {
-      status: 'ready',
-      events: this.replayWindow.filter((event) => event.cursor.sequence > cursor.sequence),
+      status: 'ready' as const,
+      entries: this.replayWindow.after(cursor.sequence),
       cursor: current,
     }
   }
@@ -236,13 +245,10 @@ export class SessionHostEventHub {
     accepts: (event: SessionHostEventEnvelope) => boolean = () => true,
     options: { readonly advanceFilteredCursor?: boolean } = {},
   ): SessionHostSubscriptionResult {
-    const replay = this.replayAfter(cursor)
+    const replay = this.#retainedReplayAfter(cursor)
     if (replay.status === 'resync-required') return replay
-    const visibleReplay = replay.events.filter(accepts)
-    const replayBytes = visibleReplay.reduce(
-      (total, event) => total + Buffer.byteLength(JSON.stringify(event), 'utf8'),
-      0,
-    )
+    const visibleReplay = replay.entries.filter((entry) => accepts(entry.event))
+    const replayBytes = visibleReplay.reduce((total, entry) => total + entry.bytes, 0)
     if (
       visibleReplay.length > this.subscriberCapacity ||
       replayBytes > this.subscriberByteCapacity ||
@@ -273,8 +279,8 @@ export class SessionHostEventHub {
         this.retainedSubscriberBytes = Math.max(0, this.retainedSubscriberBytes - bytes)
       },
     )
-    for (const event of replay.events) {
-      subscription.enqueue(event, Buffer.byteLength(JSON.stringify(event), 'utf8'))
+    for (const entry of replay.entries) {
+      subscription.enqueue(entry.event, entry.bytes)
     }
     this.subscribers.add(subscription)
     return { status: 'ready', subscription }

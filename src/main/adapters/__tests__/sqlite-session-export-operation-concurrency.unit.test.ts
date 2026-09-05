@@ -20,6 +20,7 @@ import { SessionExportOperationRepository } from '../../ports/session-export-ope
 import { SessionExportResourceResolver } from '../../ports/session-export-resource-resolver'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
+import { SqliteSessionExportLiveAuthorityLive } from '../sqlite-session-export-live-authority'
 import {
   makeSessionExportOperationRuntime,
   withSessionExportOperationRepository,
@@ -121,6 +122,7 @@ describe('SQLite Session export concurrency', () => {
       Layer.succeed(SessionExportArtifactWriter, fromPartial({})),
       Layer.succeed(SessionExportResourceResolver, fromPartial({})),
       Layer.succeed(SessionQueryRepository, fromPartial({})),
+      SqliteSessionExportLiveAuthorityLive,
     )
     const result = await active.runPromise(
       Effect.gen(function* () {

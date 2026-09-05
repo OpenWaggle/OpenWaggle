@@ -1,4 +1,3 @@
-import * as SqlClient from '@effect/sql/SqlClient'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type {
   SessionControlMutationResponse,
@@ -52,11 +51,10 @@ export function createSessionExport(input: {
       })
     }
     const repository = yield* SessionExportOperationRepository
-    const sql = yield* SqlClient.SqlClient
     const lease = yield* acquireSessionHostRunLease('export')
     let transferred = false
     return yield* Effect.gen(function* () {
-      const resolvedOriginProfileId = yield* resolveExportCallerOriginProfileId(sql, input.callerId)
+      const resolvedOriginProfileId = yield* resolveExportCallerOriginProfileId(input.callerId)
       const originProfileId = input.callerId.startsWith('session-agent:')
         ? resolvedOriginProfileId
         : (resolvedOriginProfileId ?? input.authority?.profileId)

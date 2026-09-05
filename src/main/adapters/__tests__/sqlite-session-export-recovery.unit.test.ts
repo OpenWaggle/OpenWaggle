@@ -11,6 +11,7 @@ import {
   SessionExportArtifactWriter,
   type SessionExportArtifactWriterShape,
 } from '../../ports/session-export-artifact-writer'
+import { SessionExportLiveAuthority } from '../../ports/session-export-live-authority'
 import { SessionExportResourceResolver } from '../../ports/session-export-resource-resolver'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
 import {
@@ -81,6 +82,7 @@ describe('SQLite Session export recovery', () => {
             Layer.succeed(SessionExportArtifactWriter, artifacts),
             Layer.succeed(SessionExportResourceResolver, fromPartial({})),
             Layer.succeed(SessionQueryRepository, fromPartial({})),
+            Layer.succeed(SessionExportLiveAuthority, fromPartial({})),
           ),
         ),
       ),

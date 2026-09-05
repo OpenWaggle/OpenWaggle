@@ -1,6 +1,7 @@
 export const SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY = {
   scopeTtlMs: 7 * 24 * 60 * 60 * 1_000,
   leaseTtlMs: 60 * 60 * 1_000,
+  scopeLimit: 2_000,
   totalNodeLimit: 50_000,
   vectorByteLimit: 64 * 1_024 * 1_024,
   queuedNodeLimit: 10_000,

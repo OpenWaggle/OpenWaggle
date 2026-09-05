@@ -167,7 +167,13 @@ export class SqliteSessionTranscriptSemanticSearch {
       })
       const vector = vectors[0]
       if (!vector) return []
-      const matches = index.searchGrouped(vector, limit, new Set(scope.sessionIds))
+      const matches = yield* Effect.promise(() =>
+        index.searchGroupedCooperatively({
+          query: vector,
+          limit,
+          allowedGroupIds: new Set(scope.sessionIds),
+        }),
+      )
       const rows = yield* loadSessionRows(
         this.sql,
         matches.map((match) => match.sessionId),
@@ -214,7 +220,11 @@ export class SqliteSessionTranscriptSemanticSearch {
 
   releaseScope(scope: TranscriptSemanticScope) {
     return scope.operationId
-      ? releaseTranscriptSemanticLease({ sql: this.sql, operationId: scope.operationId })
+      ? releaseTranscriptSemanticLease({
+          sql: this.sql,
+          operationId: scope.operationId,
+          maintainStorage: false,
+        })
       : Effect.void
   }
 

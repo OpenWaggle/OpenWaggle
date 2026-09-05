@@ -7,6 +7,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { SqliteSessionExportLiveAuthorityLive } from '../../adapters/sqlite-session-export-live-authority'
+import type { SessionExportLiveAuthority } from '../../ports/session-export-live-authority'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { ensureLiveExportAuthority } from '../session-export-live-authority'
 import { exportOperation } from './session-export-operation-service.test-support'
@@ -14,7 +16,10 @@ import { exportOperation } from './session-export-operation-service.test-support
 describe('live Session export authority', () => {
   let root = ''
   let runtime:
-    | ManagedRuntime.ManagedRuntime<SqlClient.SqlClient | SqliteClient.SqliteClient, unknown>
+    | ManagedRuntime.ManagedRuntime<
+        SessionExportLiveAuthority | SqlClient.SqlClient | SqliteClient.SqliteClient,
+        unknown
+      >
     | undefined
 
   beforeEach(async () => {
@@ -116,7 +121,10 @@ describe('live Session export authority', () => {
         `
       }),
     )
-    runtime = ManagedRuntime.make(Layer.provideMerge(schema, sqlite))
+    const database = Layer.provideMerge(schema, sqlite)
+    runtime = ManagedRuntime.make(
+      Layer.merge(database, SqliteSessionExportLiveAuthorityLive.pipe(Layer.provide(database))),
+    )
   })
 
   afterEach(async () => {
@@ -138,12 +146,7 @@ describe('live Session export authority', () => {
   async function check(callerId: string) {
     const active = runtime
     if (!active) throw new Error('Test runtime was not initialized.')
-    return active.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        return yield* ensureLiveExportAuthority(sql, operation(callerId))
-      }),
-    )
+    return active.runPromise(ensureLiveExportAuthority(operation(callerId)))
   }
 
   async function mutate(statement: (sql: SqlClient.SqlClient) => Effect.Effect<unknown, unknown>) {

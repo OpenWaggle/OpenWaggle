@@ -6,6 +6,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { expect, vi } from 'vitest'
+import { SqliteSessionExportLiveAuthorityLive } from '../../adapters/sqlite-session-export-live-authority'
 import type { SessionExportArtifactWriterShape } from '../../ports/session-export-artifact-writer'
 import { SessionExportResourceResolver } from '../../ports/session-export-resource-resolver'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
@@ -161,12 +162,13 @@ export async function verifyRevokedWorkspaceRootStopsExport() {
       resolve: resolveResource,
     })
     const database = Layer.provideMerge(schema, sqlite)
+    const liveAuthority = SqliteSessionExportLiveAuthorityLive.pipe(Layer.provide(database))
 
     await Effect.runPromise(
       runSessionExportOperation(operation.exportOperationId, { release: vi.fn() }).pipe(
         Effect.provide(
           Layer.merge(
-            testDependencies(operations, artifacts, undefined, resourceResolver),
+            testDependencies(operations, artifacts, undefined, resourceResolver, liveAuthority),
             database,
           ),
         ),

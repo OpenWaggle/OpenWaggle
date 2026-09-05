@@ -22,20 +22,26 @@ vi.mock('../useComposerModel', () => ({
 function deferred() {
   let resolve!: () => void
   let reject!: (error: Error) => void
-  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
+  const promise = new Promise<undefined>((resolvePromise, rejectPromise) => {
+    resolve = () => resolvePromise(undefined)
     reject = rejectPromise
   })
   return { promise, resolve, reject }
 }
 
-function renderSubmission(onEnqueue: () => Promise<void>) {
+function renderSubmission(
+  onEnqueue: () => Promise<boolean | undefined>,
+  options: {
+    readonly isLoading?: boolean
+    readonly onSend?: () => Promise<void> | void | false
+  } = {},
+) {
   const editorRef: RefObject<LexicalEditor | null> = { current: null }
   return renderHook(() =>
     useComposerSubmission({
-      onSend: vi.fn(),
+      onSend: options.onSend ?? vi.fn(),
       onEnqueue,
-      isLoading: true,
+      isLoading: options.isLoading ?? true,
       requiresText: false,
       clearOnSubmit: true,
       recordHistory: true,
@@ -109,6 +115,32 @@ describe('useComposerSubmission Follow-up lifecycle', () => {
     expect(useComposerStore.getState().promptHistory).not.toContain('keep this draft')
   })
 
+  it('preserves the draft when the renderer send gate blocks the Follow-up', async () => {
+    const { result } = renderSubmission(async () => false)
+
+    let submission!: Promise<boolean>
+    act(() => {
+      submission = Promise.resolve(result.current.handleSubmit())
+    })
+
+    await expect(submission).resolves.toBe(false)
+    expect(useComposerStore.getState().input).toBe('keep this draft')
+    expect(useComposerStore.getState().attachments).toHaveLength(1)
+    expect(useComposerStore.getState().promptHistory).not.toContain('keep this draft')
+  })
+
+  it('preserves the draft when the renderer send gate blocks a direct send', async () => {
+    const { result } = renderSubmission(async () => true, {
+      isLoading: false,
+      onSend: () => false,
+    })
+
+    expect(result.current.handleSubmit()).toBe(false)
+    expect(useComposerStore.getState().input).toBe('keep this draft')
+    expect(useComposerStore.getState().attachments).toHaveLength(1)
+    expect(useComposerStore.getState().promptHistory).not.toContain('keep this draft')
+  })
+
   it('does not clear a newer draft when an earlier Follow-up succeeds', async () => {
     const request = deferred()
     const { result } = renderSubmission(() => request.promise)
@@ -150,7 +182,7 @@ describe('useComposerSubmission Follow-up lifecycle', () => {
   it('unlocks a rejected draft for an explicit retry', async () => {
     const firstRequest = deferred()
     const onEnqueue = vi
-      .fn<() => Promise<void>>()
+      .fn<() => Promise<undefined>>()
       .mockImplementationOnce(() => firstRequest.promise)
       .mockResolvedValueOnce(undefined)
     const { result } = renderSubmission(onEnqueue)

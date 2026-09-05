@@ -38,6 +38,7 @@ export interface StartSessionRunInput {
 export interface QueueSessionFollowUpInput {
   readonly callerId: string
   readonly callerAuthorizationCeiling?: AgentAuthorizationMode
+  readonly hostRunCeiling?: number
   readonly request: SessionControlFollowUpMutationRequest
 }
 
@@ -191,14 +192,17 @@ export function queueSessionFollowUp(input: QueueSessionFollowUpInput) {
   return Effect.gen(function* () {
     const identities = yield* SessionControlIdentityService
     const repository = yield* SessionControlRepository
+    const runId = yield* identities.nextRunId
     const followUpId = yield* identities.nextFollowUpId
     const acceptedAt = yield* identities.now
     const execution = yield* repository.executeMutation({
       callerId: input.callerId,
+      ...(input.hostRunCeiling ? { hostRunCeiling: input.hostRunCeiling } : {}),
       request: input.request,
       decide: (state) => {
         const result = applyExplicitFollowUp({
           state,
+          runId,
           followUpId,
           intent: {
             ...toSessionControlIntentMessage(input.request.command.input),

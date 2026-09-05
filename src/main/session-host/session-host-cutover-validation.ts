@@ -3,6 +3,7 @@ import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as TRANSCRIPT_POLICY } from 
 import { SESSION_HOST_SCHEMA_REVISION } from '../services/session-host-schema-identity'
 import { queryCutoverRecord, readCutoverCount } from './session-host-cutover-database'
 import { validateSessionReportReferenceCatalog } from './session-host-report-reference-catalog'
+import { validateSessionHostWorkspaceBindingProjects } from './session-host-workspace-binding-validation'
 import { validateTranscriptTermCounts } from './session-transcript-term-validation'
 
 export { SESSION_HOST_SCHEMA_REVISION }
@@ -290,6 +291,7 @@ export function validateSessionHostTarget(
       FROM session_semantic_discovery_state WHERE singleton = 1`,
   )
   validateCanonicalCoverage(counts, invalidExecutionProfileCount(database))
+  validateSessionHostWorkspaceBindingProjects(database)
   validateTranscriptTermCounts(database)
   validateSessionReportReferenceCatalog(database)
   validateSemanticCoverage({

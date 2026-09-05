@@ -444,6 +444,7 @@ _Avoid_: Pi queue, renderer queue, steering queue
 
 **Follow-up message**:
 Input retained outside the active run in the Follow-up queue for later delivery as a new run.
+If the intended active run settles immediately before an explicit Follow-up is admitted, Session Control atomically starts that input as the next run instead of leaving it stranded in an otherwise runnable queue.
 _Avoid_: steering message, deferred steer
 
 **Run start**:
@@ -1285,6 +1286,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A **Message submission** performs a **Run start** when the session is idle with no pending Follow-up messages, otherwise it appends a **Follow-up message**.
 - A **Message submission** never resumes a paused **Follow-up queue** implicitly.
 - A **Message submission** reports whether it produced a **Run start** or **Follow-up message**, together with the resulting run or follow-up identity and queue revision.
+- An explicit **Follow-up** admitted after its intended active run has already settled starts as the next run when the queue is running and empty; admission never leaves new work stranded in an idle runnable queue.
 - A **Steering promotion** removes only the selected **Follow-up message**, and only after the active run accepts the **Steering message**.
 - A **Steering message** inherits the active run's execution profile and carries only compatible conversational content.
 - A queued Waggle invocation remains a **Follow-up message** or becomes input to a **Run replacement**; it cannot become a **Steering message**.

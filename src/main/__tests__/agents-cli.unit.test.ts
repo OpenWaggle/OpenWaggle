@@ -34,7 +34,7 @@ describe('Agent definitions CLI', () => {
 
   afterEach(async () => fs.rm(root, { recursive: true, force: true }))
 
-  function run(args: readonly string[]) {
+  function run(args: readonly string[], beforeImportApply?: () => Promise<void>) {
     return runAgentsCli(args, {
       cwd: project,
       home,
@@ -48,6 +48,7 @@ describe('Agent definitions CLI', () => {
         skills: ['code-review'],
         mcpServers: ['github'],
       }),
+      ...(beforeImportApply ? { beforeImportApply } : {}),
     })
   }
 
@@ -208,6 +209,26 @@ describe('Agent definitions CLI', () => {
     expect(firstImport, stderr.join('')).toBe(0)
     await expect(run(['import', sourcePath, '--scope', 'user'])).resolves.toBe(1)
     await expect(run(['import', sourcePath, '--scope', 'user', '--replace'])).resolves.toBe(0)
+  })
+
+  it('binds --replace to the destination content inspected by its import plan', async () => {
+    const sourcePath = path.join(root, 'incoming.md')
+    const destinationPath = path.join(home, '.openwaggle', 'agents', 'security-reviewer.md')
+    await fs.writeFile(sourcePath, definition, 'utf8')
+    await expect(run(['import', sourcePath, '--scope', 'user'])).resolves.toBe(0)
+    const concurrentEdit = (await fs.readFile(destinationPath, 'utf8')).replace(
+      'Review authorization boundaries and report concrete findings.',
+      'Preserve this concurrent local edit.',
+    )
+
+    await expect(
+      run(['import', sourcePath, '--scope', 'user', '--replace'], () =>
+        fs.writeFile(destinationPath, concurrentEdit, 'utf8'),
+      ),
+    ).resolves.toBe(1)
+
+    expect(stderr.join('')).toContain('changed since it was loaded')
+    await expect(fs.readFile(destinationPath, 'utf8')).resolves.toBe(concurrentEdit)
   })
 
   it('waits for asynchronous stdout before completing', async () => {

@@ -58,7 +58,7 @@ openwaggle sessions replace <session-id> --expected-run <run-id> \
 
 Use exactly one of `--text`, `--stdin`, `--input-file`, or `--request-json` for message input. Attach files with repeatable `--attach`. Lifecycle commands accept `--agent`, `--model`, `--thinking`, explicit Workspace options, and `--yolo` when the resolved authorization ceiling permits it.
 
-Use `message` when adaptive start-or-queue behavior is wanted. Use `follow-up` when the message must remain pending for the next Run, or `steer` when it must enter the current Run. Run-targeted mutations require `--expected-run`; stale callers fail instead of steering or interrupting the wrong Run.
+Use `message` when adaptive start-or-queue behavior is wanted. Use `follow-up` when the message must become a separate next Run, or `steer` when it must enter the current Run. A Follow-up remains queued while a Run is active; if that Run settles just before admission, the Host starts the Follow-up as the next Run instead of stranding it. Run-targeted mutations require `--expected-run`; stale callers fail instead of steering or interrupting the wrong Run.
 
 Profiles that use `replace` need both `sessions:message` and `sessions:interrupt`. A `sessions:start` grant does not substitute for message authority during Run replacement.
 

@@ -23,6 +23,7 @@ describe('Session Control explicit Follow-up', () => {
         run: { state: 'active', runId: activeRunId },
         followUpQueue: { state: 'running', revision: 3, items: [] },
       },
+      runId: RunId('run-next'),
       followUpId,
       intent,
     })

@@ -114,6 +114,7 @@ function commandMayStartRun(request: SessionControlMutationRequest) {
   return (
     operation === 'message' ||
     operation === 'start' ||
+    operation === 'follow-up' ||
     operation === 'replace' ||
     operation === 'queue-resume'
   )

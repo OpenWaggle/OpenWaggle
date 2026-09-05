@@ -17,6 +17,19 @@ interface IndexedSessionVector {
 }
 
 const BINARY_HEAP_BRANCHING_FACTOR = 2
+const DEFAULT_COOPERATIVE_YIELD_INTERVAL = 2_048
+
+function yieldToEventLoop() {
+  return new Promise<void>((resolve) => setImmediate(resolve))
+}
+
+function cooperativeYieldInterval(value: number | undefined) {
+  const interval = value ?? DEFAULT_COOPERATIVE_YIELD_INTERVAL
+  if (!Number.isSafeInteger(interval) || interval < 1) {
+    throw new Error('Vector search yield interval must be a positive safe integer.')
+  }
+  return interval
+}
 
 function vectorMagnitude(vector: Float32Array) {
   let squaredMagnitude = 0
@@ -134,6 +147,31 @@ export class SessionFlatVectorIndex {
     return matches.toSorted(compareBestFirst)
   }
 
+  async searchCooperatively(input: {
+    readonly query: Float32Array
+    readonly limit: number
+    readonly allowedSessionIds?: ReadonlySet<string>
+    readonly excludedSessionIds?: ReadonlySet<string>
+    readonly yieldEveryRecords?: number
+  }) {
+    if (input.limit <= 0) return []
+    const queryMagnitude = vectorMagnitude(input.query)
+    const matches: SessionVectorMatch[] = []
+    const yieldEveryRecords = cooperativeYieldInterval(input.yieldEveryRecords)
+    let processed = 0
+    for (const [sessionId, vector] of this.#records) {
+      processed += 1
+      if (processed % yieldEveryRecords === 0) await yieldToEventLoop()
+      if (input.allowedSessionIds && !input.allowedSessionIds.has(sessionId)) continue
+      if (input.excludedSessionIds?.has(sessionId)) continue
+      const similarity = cosineSimilarity(input.query, queryMagnitude, vector)
+      if (Number.isFinite(similarity)) {
+        retainBest(matches, { sessionId, similarity }, input.limit)
+      }
+    }
+    return matches.toSorted(compareBestFirst)
+  }
+
   searchGrouped(query: Float32Array, limit: number, allowedGroupIds: ReadonlySet<string>) {
     if (limit <= 0) return []
     const queryMagnitude = vectorMagnitude(query)
@@ -165,6 +203,46 @@ export class SessionFlatVectorIndex {
     return matches.toSorted(compareBestFirst)
   }
 
+  async searchGroupedCooperatively(input: {
+    readonly query: Float32Array
+    readonly limit: number
+    readonly allowedGroupIds: ReadonlySet<string>
+    readonly yieldEveryRecords?: number
+  }) {
+    if (input.limit <= 0) return []
+    const queryMagnitude = vectorMagnitude(input.query)
+    const bestByGroup = new Map<
+      string,
+      { readonly similarity: number; readonly recordId: string }
+    >()
+    const yieldEveryRecords = cooperativeYieldInterval(input.yieldEveryRecords)
+    let processed = 0
+    for (const [recordId, vector] of this.#records) {
+      processed += 1
+      if (processed % yieldEveryRecords === 0) await yieldToEventLoop()
+      if (!input.allowedGroupIds.has(vector.groupId)) continue
+      const similarity = cosineSimilarity(input.query, queryMagnitude, vector)
+      if (!Number.isFinite(similarity)) continue
+      const previous = bestByGroup.get(vector.groupId)
+      if (
+        previous === undefined ||
+        similarity > previous.similarity ||
+        (similarity === previous.similarity && recordId.localeCompare(previous.recordId) < 0)
+      ) {
+        bestByGroup.set(vector.groupId, { similarity, recordId })
+      }
+    }
+    const matches: SessionVectorMatch[] = []
+    for (const [sessionId, best] of bestByGroup) {
+      retainBest(
+        matches,
+        { sessionId, similarity: best.similarity, matchedRecordId: best.recordId },
+        input.limit,
+      )
+    }
+    return matches.toSorted(compareBestFirst)
+  }
+
   get size() {
     return this.#records.size
   }
@@ -178,6 +256,9 @@ export function decodeFloat32Vector(value: Uint8Array, dimensions: number) {
   if (value.byteLength !== dimensions * Float32Array.BYTES_PER_ELEMENT) {
     throw new Error('Stored semantic vector has an invalid byte length.')
   }
-  const copy = Uint8Array.from(value)
-  return new Float32Array(copy.buffer)
+  if (value.byteOffset % Float32Array.BYTES_PER_ELEMENT === 0) {
+    return new Float32Array(value.buffer, value.byteOffset, dimensions)
+  }
+  const aligned = Uint8Array.from(value)
+  return new Float32Array(aligned.buffer)
 }

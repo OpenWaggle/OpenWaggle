@@ -190,6 +190,13 @@ export type SessionControlMutationOutcome =
       readonly stateRevision: number
     }
   | {
+      readonly operation: 'follow-up'
+      readonly effect: 'started-run'
+      readonly sessionId: string
+      readonly runId: string
+      readonly stateRevision: number
+    }
+  | {
       readonly operation: 'message'
       readonly effect: 'started-run'
       readonly sessionId: string

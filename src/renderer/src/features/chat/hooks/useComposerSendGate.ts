@@ -23,7 +23,7 @@ interface UseComposerSendGateInput {
  */
 export function useComposerSendGate(input: UseComposerSendGateInput): {
   readonly strip: SessionContextRowState
-  readonly guardedSend: (payload: AgentSendPayload) => Promise<void>
+  readonly guardedSend: (payload: AgentSendPayload) => Promise<void> | false
   /**
    * Why sending is currently refused, or null when it is allowed.
    *
@@ -51,10 +51,10 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
     strip.sendPlan.kind === 'blocked' || strip.sendPlan.kind === 'worktree-missing'
       ? strip.sendPlan.reason
       : null
-  const guardedSend = async (payload: AgentSendPayload) => {
+  const guardedSend = (payload: AgentSendPayload) => {
     if (sendBlockedReason !== null) {
       input.onToast(sendBlockedReason)
-      return
+      return false
     }
     // Persist the resolved plan onto the draft key so the lazily-created session
     // (created inside onSend) is born with the user's pre-send choice.
@@ -65,7 +65,7 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
         startFromOrigin: strip.startFromOrigin,
       })
     }
-    await input.onSend(
+    return input.onSend(
       input.activeSessionId
         ? withInlineVisualizationContext(input.activeSessionId, payload)
         : payload,

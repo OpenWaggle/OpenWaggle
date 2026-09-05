@@ -42,14 +42,17 @@ export class SessionSemanticIndexSnapshotCache {
             this.#loadedRevision = refresh.revision
           }
         }
+        const matches = yield* Effect.promise(() =>
+          this.#index.searchCooperatively({
+            query: input.query,
+            limit: input.limit,
+            ...(input.allowedSessionIds ? { allowedSessionIds: input.allowedSessionIds } : {}),
+            ...(input.excludedSessionIds ? { excludedSessionIds: input.excludedSessionIds } : {}),
+          }),
+        )
         return {
           revision: this.#loadedRevision,
-          matches: this.#index.search(
-            input.query,
-            input.limit,
-            input.allowedSessionIds,
-            input.excludedSessionIds,
-          ),
+          matches,
         }
       }),
     )

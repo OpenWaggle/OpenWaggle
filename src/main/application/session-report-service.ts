@@ -7,7 +7,6 @@ import * as Effect from 'effect/Effect'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionReportDeliveryService } from '../ports/session-report-delivery-service'
 import { SessionReportRepository } from '../ports/session-report-repository'
-import { publishSessionHostEvent } from '../session-host/session-host-events'
 
 export function submitSessionReport(input: {
   readonly callerId: string
@@ -32,18 +31,7 @@ export function submitSessionReport(input: {
     if (!response.replayed && response.outcome.effect === 'accepted-report') {
       yield* Effect.forEach(
         response.outcome.targetSessionIds,
-        (targetSessionId) =>
-          Effect.gen(function* () {
-            // The database commit above is the source of truth; this event only wakes observers.
-            yield* Effect.sync(() =>
-              publishSessionHostEvent({
-                kind: 'session-list-changed',
-                sessionId: targetSessionId,
-                change: 'updated',
-              }),
-            )
-            yield* delivery.deliverPendingToActiveRun({ targetSessionId })
-          }),
+        (targetSessionId) => delivery.deliverPendingToActiveRun({ targetSessionId }),
         { discard: true },
       )
     }

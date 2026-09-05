@@ -3,8 +3,6 @@ import { constants as FS_CONSTANTS } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import * as SqlClient from '@effect/sql/SqlClient'
-import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it, vi } from 'vitest'
@@ -185,14 +183,11 @@ describe('Session export cancellation', () => {
             message: cause instanceof Error ? cause.message : String(cause),
           }),
       })
-      const layer = Layer.merge(
-        exportTestDependencies(
-          operations,
-          artifacts,
-          undefined,
-          Layer.succeed(SessionExportResourceResolver, { resolve: () => resourceResolver }),
-        ),
-        Layer.succeed(SqlClient.SqlClient, fromPartial({})),
+      const layer = exportTestDependencies(
+        operations,
+        artifacts,
+        undefined,
+        Layer.succeed(SessionExportResourceResolver, { resolve: () => resourceResolver }),
       )
       let rescueWriter: Awaited<ReturnType<typeof fs.open>> | undefined
       try {

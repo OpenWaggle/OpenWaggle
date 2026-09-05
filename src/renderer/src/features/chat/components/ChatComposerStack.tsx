@@ -150,11 +150,12 @@ export async function enqueueIfAllowed(input: {
 }) {
   if (input.sendBlockedReason !== null) {
     input.onToast(input.sendBlockedReason)
-    return
+    return false
   }
-  if (!input.activeSessionId) return
+  if (!input.activeSessionId) return false
   try {
     await input.enqueue(withInlineVisualizationContext(input.activeSessionId, input.payload))
+    return true
   } catch (error) {
     input.onToast(error instanceof Error ? error.message : String(error))
     throw error

@@ -1,4 +1,3 @@
-import * as SqlClient from '@effect/sql/SqlClient'
 import {
   SESSION_EXPORT_GLOBAL_CONCURRENCY_LIMIT,
   SESSION_EXPORT_RESOURCE_BYTES_LIMIT,
@@ -6,6 +5,7 @@ import {
 import * as Effect from 'effect/Effect'
 import type { SessionExportArtifactSink } from '../ports/session-export-artifact-writer'
 import { SessionExportArtifactWriter } from '../ports/session-export-artifact-writer'
+import type { SessionExportLiveAuthority } from '../ports/session-export-live-authority'
 import {
   type SessionExportOperationRecord,
   SessionExportOperationRepository,
@@ -31,8 +31,8 @@ import { forkSupervisedSessionExport } from './session-export-supervision'
 import { acquireSessionHostRunLease, type SessionHostRunLease } from './session-host-run-admission'
 
 type SessionExportExecutionDependencies =
-  | SqlClient.SqlClient
   | SessionExportArtifactWriter
+  | SessionExportLiveAuthority
   | SessionExportOperationRepository
   | SessionExportResourceResolver
   | SessionQueryRepository
@@ -53,8 +53,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
     const queries = yield* SessionQueryRepository
     const artifacts = yield* SessionExportArtifactWriter
     const resources = yield* SessionExportResourceResolver
-    const sql = yield* SqlClient.SqlClient
-    const originProfileId = yield* resolveExportOriginProfileId(sql, operation)
+    const originProfileId = yield* resolveExportOriginProfileId(operation)
     const profileLease = originProfileId
       ? acquireLocalSessionProfileBackgroundWork(originProfileId, { cancelOnFence: true })
       : { release: () => undefined }
@@ -66,7 +65,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
       if (!profileLease) return yield* Effect.fail(new Error('Profile authority is changing.'))
       yield* checkProfileFence(profileLease)
       yield* checkExportCancellation(operations, operation.exportOperationId)
-      yield* ensureLiveExportAuthority(sql, operation)
+      yield* ensureLiveExportAuthority(operation)
       const openedSink = yield* artifacts.open(operation)
       sink = openedSink
       let page = yield* readExportPage(queries, operation, operation.manifest, undefined)
@@ -79,7 +78,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
       while (true) {
         yield* checkProfileFence(profileLease)
         yield* checkExportCancellation(operations, operation.exportOperationId)
-        yield* ensureLiveExportAuthority(sql, operation)
+        yield* ensureLiveExportAuthority(operation)
         const bytes = yield* openedSink.writeRecords(page.records)
         progress = {
           ...progress,
@@ -94,7 +93,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
       for (const resource of operation.resources) {
         yield* checkProfileFence(profileLease)
         yield* checkExportCancellation(operations, operation.exportOperationId)
-        const expectedWorkspacePath = yield* ensureLiveExportAuthority(sql, operation)
+        const expectedWorkspacePath = yield* ensureLiveExportAuthority(operation)
         const bytes = yield* Effect.acquireUseRelease(
           resources.resolve({
             sessionId: operation.sessionId,
@@ -128,7 +127,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
       }
       yield* checkProfileFence(profileLease)
       yield* checkExportCancellation(operations, operation.exportOperationId)
-      yield* ensureLiveExportAuthority(sql, operation)
+      yield* ensureLiveExportAuthority(operation)
       const installation = yield* prepareDurableExportInstallation({
         operationId: operation.exportOperationId,
         sink: openedSink,
@@ -144,7 +143,7 @@ function runClaimedExport(operation: SessionExportOperationRecord) {
       }
       if (durableInstallPrepared && sink) {
         yield* checkProfileFence(profileLease)
-        yield* ensureLiveExportAuthority(sql, operation)
+        yield* ensureLiveExportAuthority(operation)
         yield* sink.finalize()
         yield* operations.complete(operation.exportOperationId, progress, Date.now())
         publishSessionExportChange(operation, 'completed', progress)

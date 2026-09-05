@@ -1,27 +1,17 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
-import {
-  SESSION_QUERY_MAX_RESPONSE_BYTES,
-  type SessionQueryRequest,
-} from '@shared/types/session-query'
+import type { SessionQueryRequest } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
-import {
-  byteBoundedPage,
-  SESSION_QUERY_SQL_READ_BUDGET_BYTES,
-} from './session-query-byte-pagination'
+import { byteBoundedPage } from './session-query-byte-pagination'
 import { exportContinuationMatchesSnapshot } from './sqlite-session-export-continuation'
 import { exportBaseOutcome } from './sqlite-session-export-manifest'
-import { type ExportNodeRow, exportNodeRecord } from './sqlite-session-export-record'
+import { exportNodeReadStrategy, readExportNodes } from './sqlite-session-export-node-reader'
+import { exportNodeRecord } from './sqlite-session-export-record'
 import { resolveExportSnapshotHead } from './sqlite-session-export-snapshot'
 import { sessionQueryResponse } from './sqlite-session-query-support'
 
 type ExportRequest = SessionQueryRequest & {
   readonly query: Extract<SessionQueryRequest['query'], { operation: 'export' }>
-}
-
-interface ExportNodeSizeRow {
-  readonly created_order: number
-  readonly estimated_bytes: number
 }
 
 interface ExportSnapshotRow {
@@ -46,110 +36,6 @@ interface ExportQueueRow {
     | null
   readonly intent_json: string
   readonly created_at: number
-}
-
-const EMPTY_EXPORT_NODE_ROWS: readonly ExportNodeRow[] = []
-
-function selectExportSizePrefix(rows: readonly ExportNodeSizeRow[], limit: number) {
-  const selected: ExportNodeSizeRow[] = []
-  let bytes = 0
-  for (const row of rows.slice(0, limit)) {
-    if (selected.length > 0 && bytes + row.estimated_bytes > SESSION_QUERY_SQL_READ_BUDGET_BYTES) {
-      break
-    }
-    selected.push(row)
-    bytes += row.estimated_bytes
-  }
-  return selected
-}
-
-function readExportNodes(
-  sql: SqlClient.SqlClient,
-  input: {
-    readonly sessionId: string
-    readonly headNodeId: string | null
-    readonly tree: boolean
-    readonly afterCreatedOrder: number
-    readonly throughCreatedOrder: number
-    readonly limit: number
-  },
-) {
-  return Effect.gen(function* () {
-    if (!input.tree && !input.headNodeId) {
-      return { rows: EMPTY_EXPORT_NODE_ROWS, hasMore: false, oversized: false }
-    }
-    const sizes = input.tree
-      ? yield* sql<ExportNodeSizeRow>`
-          SELECT created_order,
-            length(CAST(content_json AS BLOB)) + length(CAST(metadata_json AS BLOB)) + 4096
-              AS estimated_bytes
-          FROM session_nodes
-          WHERE session_id = ${input.sessionId}
-            AND created_order > ${input.afterCreatedOrder}
-            AND created_order <= ${input.throughCreatedOrder}
-          ORDER BY created_order ASC
-          LIMIT ${input.limit + 1}
-        `
-      : yield* sql<ExportNodeSizeRow>`
-          WITH RECURSIVE selected_path(id) AS (
-            SELECT id FROM session_nodes
-            WHERE id = ${input.headNodeId} AND session_id = ${input.sessionId}
-            UNION ALL
-            SELECT nodes.parent_id
-            FROM session_nodes AS nodes
-            JOIN selected_path ON selected_path.id = nodes.id
-            WHERE nodes.parent_id IS NOT NULL
-          )
-          SELECT nodes.created_order,
-            length(CAST(nodes.content_json AS BLOB)) +
-              length(CAST(nodes.metadata_json AS BLOB)) + 4096 AS estimated_bytes
-          FROM session_nodes AS nodes
-          JOIN selected_path ON selected_path.id = nodes.id
-          WHERE nodes.session_id = ${input.sessionId}
-            AND nodes.created_order > ${input.afterCreatedOrder}
-            AND nodes.created_order <= ${input.throughCreatedOrder}
-          ORDER BY nodes.created_order ASC
-          LIMIT ${input.limit + 1}
-        `
-    const selected = selectExportSizePrefix(sizes, input.limit)
-    if ((selected[0]?.estimated_bytes ?? 0) > SESSION_QUERY_MAX_RESPONSE_BYTES) {
-      return { rows: EMPTY_EXPORT_NODE_ROWS, hasMore: false, oversized: true }
-    }
-    const selectedThrough = selected.at(-1)?.created_order
-    if (selectedThrough === undefined) {
-      return { rows: EMPTY_EXPORT_NODE_ROWS, hasMore: false, oversized: false }
-    }
-    const rows = input.tree
-      ? yield* sql<ExportNodeRow>`
-          SELECT id, parent_id, branch_hint_id, role, kind, timestamp_ms, created_order,
-            content_json, metadata_json
-          FROM session_nodes
-          WHERE session_id = ${input.sessionId}
-            AND created_order > ${input.afterCreatedOrder}
-            AND created_order <= ${selectedThrough}
-          ORDER BY created_order ASC
-        `
-      : yield* sql<ExportNodeRow>`
-          WITH RECURSIVE selected_path(id) AS (
-            SELECT id FROM session_nodes
-            WHERE id = ${input.headNodeId} AND session_id = ${input.sessionId}
-            UNION ALL
-            SELECT nodes.parent_id
-            FROM session_nodes AS nodes
-            JOIN selected_path ON selected_path.id = nodes.id
-            WHERE nodes.parent_id IS NOT NULL
-          )
-          SELECT nodes.id, nodes.parent_id, nodes.branch_hint_id, nodes.role, nodes.kind,
-            nodes.timestamp_ms, nodes.created_order, nodes.content_json, nodes.metadata_json
-          FROM session_nodes AS nodes
-          JOIN selected_path ON selected_path.id = nodes.id
-          WHERE nodes.session_id = ${input.sessionId}
-            AND nodes.created_order > ${input.afterCreatedOrder}
-            AND nodes.created_order <= ${selectedThrough}
-          ORDER BY nodes.created_order ASC
-        `
-    return { rows, hasMore: sizes.length > selected.length, oversized: false }
-  })
 }
 
 function exportSelection(
@@ -185,7 +71,12 @@ function exportSelection(
       ...(suppliedHeadNodeId ? { suppliedHeadNodeId } : {}),
     })
     if (head.status === 'not-found') return yield* Effect.fail(new Error(head.message))
-    return { branchScope, selectedBranchId, selectedHeadNodeId: head.headNodeId }
+    return {
+      branchScope,
+      selectedBranchId,
+      selectedHeadNodeId: head.headNodeId,
+      branchHeadNodeId: head.branchHeadNodeId,
+    }
   })
 }
 
@@ -262,7 +153,14 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       Effect.either,
     )
     if (selection._tag === 'Left') return selection.left
-    const { branchScope, selectedBranchId, selectedHeadNodeId } = selection.right
+    const { branchScope, selectedBranchId, selectedHeadNodeId, branchHeadNodeId } = selection.right
+    const readStrategy = exportNodeReadStrategy({
+      tree: branchScope === 'tree',
+      selectedBranchId,
+      activeBranchId: snapshot.last_active_branch_id,
+      selectedHeadNodeId,
+      branchHeadNodeId,
+    })
     const queueRows = query.snapshotManifest
       ? []
       : yield* sql<ExportQueueRow>`
@@ -284,6 +182,7 @@ export function readSessionExport(sql: SqlClient.SqlClient, request: ExportReque
       sessionId: query.sessionId,
       headNodeId: selectedHeadNodeId,
       tree: branchScope === 'tree',
+      indexedBranchId: readStrategy === 'indexed-active-branch' ? selectedBranchId : null,
       afterCreatedOrder: query.afterCreatedOrder ?? -1,
       throughCreatedOrder: highWaterMark,
       limit: query.limit,

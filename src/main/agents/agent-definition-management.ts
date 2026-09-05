@@ -79,6 +79,9 @@ async function writeImport(input: {
   readonly plan: AgentDefinitionImportPlan
   readonly userHome: string
 }) {
+  if (input.command.replaceExisting && !input.command.expectedContentDigest) {
+    throw new Error('Agent import replacement requires an expected destination content digest.')
+  }
   if (input.plan.sourceDigest !== input.command.expectedSourceDigest) {
     throw new Error('Import source changed since the plan was reviewed.')
   }

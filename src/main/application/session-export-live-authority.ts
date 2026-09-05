@@ -1,38 +1,14 @@
 import path from 'node:path'
-import type * as SqlClient from '@effect/sql/SqlClient'
-import { parseJsonUnknown } from '@shared/schema'
-import {
-  decodeLocalSessionProfileCapabilities,
-  decodeLocalSessionProfileScope,
-} from '@shared/schemas/local-session-profile'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import * as Effect from 'effect/Effect'
-import { liveSessionAuthorityBlockReason } from '../adapters/sqlite-session-live-authority'
 import { requiredSessionControlCapabilities } from '../domain/session-control/session-capability-authorization'
+import {
+  type SessionExportAuthorityTarget,
+  SessionExportLiveAuthority,
+} from '../ports/session-export-live-authority'
 import type { SessionExportOperationRecord } from '../ports/session-export-operation-repository'
-import { resolveSessionToolAgentCaller } from '../session-host/session-tool-agent-caller'
 import { assertCanonicalDirectoryRoots } from '../utils/canonical-directory-roots'
 import { authorizeTargetForCaller } from './local-session-derived-authority'
-
-interface ExportProfileRow {
-  readonly id: string
-  readonly capabilities_json: string
-  readonly scope_json: string
-  readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
-}
-
-interface ExportTargetRow {
-  readonly session_id: string
-  readonly project_path: string | null
-  readonly hive_root_session_id: string | null
-  readonly working_path: string | null
-}
-
-interface DerivedExportAuthorityRow {
-  readonly child_session_id: string
-  readonly capabilities_json: string
-  readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
-}
 
 function requiresLiveAuthority(callerId: string) {
   return (
@@ -42,32 +18,9 @@ function requiresLiveAuthority(callerId: string) {
   )
 }
 
-function loadExportTarget(sql: SqlClient.SqlClient, operation: SessionExportOperationRecord) {
-  return sql<ExportTargetRow>`
-    SELECT sessions.id AS session_id, sessions.project_path,
-      lineage.hive_root_session_id, workspace_resources.working_path
-    FROM sessions
-    LEFT JOIN session_spawn_lineage AS lineage ON lineage.child_session_id = sessions.id
-    LEFT JOIN session_workspace_bindings AS bindings ON bindings.session_id = sessions.id
-    LEFT JOIN workspace_resources ON workspace_resources.id = bindings.workspace_id
-    WHERE sessions.id = ${operation.sessionId}
-    LIMIT 1
-  `
-}
-
-function decodeExportAuthority(row: ExportProfileRow) {
-  return {
-    profileId: row.id,
-    profileName: row.id,
-    capabilities: decodeLocalSessionProfileCapabilities(parseJsonUnknown(row.capabilities_json)),
-    scope: decodeLocalSessionProfileScope(parseJsonUnknown(row.scope_json)),
-    authorizationCeiling: row.authorization_ceiling,
-  }
-}
-
 async function validateFilesystemAuthority(input: {
   readonly operation: SessionExportOperationRecord
-  readonly row: ExportTargetRow
+  readonly target: SessionExportAuthorityTarget
   readonly exportRoots: readonly string[]
 }) {
   const canonicalRoots = await assertCanonicalDirectoryRoots(
@@ -87,7 +40,7 @@ async function validateFilesystemAuthority(input: {
     throw new Error('Export destination root is no longer authorized.')
   }
   if (input.operation.resources.length === 0) return undefined
-  const sourceRoot = input.row.working_path ?? input.row.project_path
+  const sourceRoot = input.target.workingPath ?? input.target.projectPath
   if (!sourceRoot) throw new Error('Export resource source root is unavailable.')
   const [canonicalSourceRoot] = await assertCanonicalDirectoryRoots(
     [sourceRoot],
@@ -115,116 +68,33 @@ function exportRequiredCapabilities(operation: SessionExportOperationRecord) {
 
 function assertProfileAuthority(
   operation: SessionExportOperationRecord,
-  row: ExportTargetRow,
+  target: SessionExportAuthorityTarget,
   caller: LocalSessionCallerIdentity,
 ) {
-  const required = exportRequiredCapabilities(operation)
   const targetAuthorized = authorizeTargetForCaller(
     caller,
     {
-      sessionId: row.session_id,
-      ...(row.project_path ? { projectPath: row.project_path } : {}),
-      hiveRootSessionId: row.hive_root_session_id ?? row.session_id,
+      sessionId: target.sessionId,
+      ...(target.projectPath ? { projectPath: target.projectPath } : {}),
+      hiveRootSessionId: target.hiveRootSessionId,
     },
-    required,
+    exportRequiredCapabilities(operation),
   ).authorized
-  if (!targetAuthorized) {
-    throw new Error('Export profile authority changed.')
-  }
+  if (!targetAuthorized) throw new Error('Export profile authority changed.')
 }
 
-function loadNamedProfileCaller(sql: SqlClient.SqlClient, callerId: string) {
-  const profileId = callerId.slice('profile:'.length)
+export function resolveExportCallerOriginProfileId(callerId: string) {
   return Effect.gen(function* () {
-    const profiles = yield* sql<ExportProfileRow>`
-      SELECT id, capabilities_json, scope_json, authorization_ceiling
-      FROM session_client_profiles
-      WHERE id = ${profileId} AND revoked_at IS NULL
-      LIMIT 1
-    `
-    const profile = profiles[0]
-    if (!profile) return yield* Effect.fail(new Error('Export profile was revoked.'))
-    const authority = decodeExportAuthority(profile)
-    const derived = yield* sql<DerivedExportAuthorityRow>`
-      SELECT child_session_id, capabilities_json, authorization_ceiling
-      FROM derived_child_management_grants
-      WHERE source_caller_id = ${callerId} AND revoked_at IS NULL
-    `
-    return {
-      callerId,
-      baseProfileScope: authority.scope,
-      profileAuthority: authority,
-      derivedSessionAuthorities: derived.map((row) => ({
-        sessionId: row.child_session_id,
-        capabilities: decodeLocalSessionProfileCapabilities(
-          parseJsonUnknown(row.capabilities_json),
-        ),
-        authorizationCeiling: row.authorization_ceiling,
-      })),
-    } satisfies LocalSessionCallerIdentity
+    const authority = yield* SessionExportLiveAuthority
+    return yield* authority.resolveOriginProfileId(callerId)
   })
 }
 
-function parseSessionAgentCaller(callerId: string) {
-  const prefix = 'session-agent:'
-  const lastSeparator = callerId.lastIndexOf(':')
-  if (!callerId.startsWith(prefix) || lastSeparator <= prefix.length) return undefined
-  return {
-    sessionId: callerId.slice(prefix.length, lastSeparator),
-    runId: callerId.slice(lastSeparator + 1),
-  }
+export function resolveExportOriginProfileId(operation: SessionExportOperationRecord) {
+  return resolveExportCallerOriginProfileId(operation.callerId)
 }
 
-export function resolveExportCallerOriginProfileId(sql: SqlClient.SqlClient, callerId: string) {
-  if (callerId.startsWith('profile:')) {
-    return Effect.succeed(callerId.slice('profile:'.length))
-  }
-  const source = parseSessionAgentCaller(callerId)
-  if (!source) return Effect.succeed<string | undefined>(undefined)
-  return sql<{ readonly authority_origin_caller_id: string }>`
-    SELECT authority_origin_caller_id
-    FROM session_execution_profiles
-    WHERE session_id = ${source.sessionId}
-    LIMIT 1
-  `.pipe(
-    Effect.map((rows) => {
-      const callerId = rows[0]?.authority_origin_caller_id
-      return callerId?.startsWith('profile:') ? callerId.slice('profile:'.length) : undefined
-    }),
-  )
-}
-
-export function resolveExportOriginProfileId(
-  sql: SqlClient.SqlClient,
-  operation: SessionExportOperationRecord,
-) {
-  return resolveExportCallerOriginProfileId(sql, operation.callerId)
-}
-
-function loadSessionAgentCaller(sql: SqlClient.SqlClient, callerId: string) {
-  const source = parseSessionAgentCaller(callerId)
-  if (!source) return Effect.fail(new Error('Export Session-agent caller identity is invalid.'))
-  return Effect.gen(function* () {
-    const workspaces = yield* sql<{ readonly working_path: string | null }>`
-      SELECT COALESCE(workspace_resources.working_path, sessions.project_path) AS working_path
-      FROM sessions
-      LEFT JOIN session_workspace_bindings ON session_workspace_bindings.session_id = sessions.id
-      LEFT JOIN workspace_resources ON workspace_resources.id = session_workspace_bindings.workspace_id
-      WHERE sessions.id = ${source.sessionId}
-      LIMIT 1
-    `
-    const workingDirectory = workspaces[0]?.working_path
-    if (!workingDirectory) {
-      return yield* Effect.fail(new Error('Export Session-agent workspace is unavailable.'))
-    }
-    return yield* resolveSessionToolAgentCaller(sql, { ...source, workingDirectory })
-  })
-}
-
-export function ensureLiveExportAuthority(
-  sql: SqlClient.SqlClient,
-  operation: SessionExportOperationRecord,
-) {
+export function ensureLiveExportAuthority(operation: SessionExportOperationRecord) {
   return Effect.gen(function* () {
     const expectedWorkspacePath =
       operation.resources.length > 0 ? operation.resourceSourceRoot : undefined
@@ -232,8 +102,8 @@ export function ensureLiveExportAuthority(
       return yield* Effect.fail(new Error('Export resource source authority is unavailable.'))
     }
     if (!requiresLiveAuthority(operation.callerId)) return expectedWorkspacePath
-    const reason = yield* liveSessionAuthorityBlockReason(
-      sql,
+    const authority = yield* SessionExportLiveAuthority
+    const reason = yield* authority.liveAuthorityBlockReason(
       operation.callerId,
       operation.sessionId,
     )
@@ -241,21 +111,19 @@ export function ensureLiveExportAuthority(
       return yield* Effect.fail(new Error(`Export authority is no longer valid: ${reason}.`))
     }
     if (operation.callerId.startsWith('transient-mcp:')) return expectedWorkspacePath
-    const row = (yield* loadExportTarget(sql, operation))[0]
-    if (!row) return yield* Effect.fail(new Error('Export target Session was removed.'))
-    const caller = operation.callerId.startsWith('profile:')
-      ? yield* loadNamedProfileCaller(sql, operation.callerId)
-      : yield* loadSessionAgentCaller(sql, operation.callerId)
+    const target = yield* authority.loadTarget(operation.sessionId)
+    if (!target) return yield* Effect.fail(new Error('Export target Session was removed.'))
+    const caller = yield* authority.loadCaller(operation.callerId)
     const exportRoots = caller.profileAuthority?.scope.exportRoots ?? []
     if (!operation.destinationRoot || exportRoots.length === 0) {
       return yield* Effect.fail(new Error('Export filesystem authority was removed.'))
     }
     const currentWorkspacePath = yield* Effect.tryPromise({
-      try: () => validateFilesystemAuthority({ operation, row, exportRoots }),
+      try: () => validateFilesystemAuthority({ operation, target, exportRoots }),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     })
     yield* Effect.try({
-      try: () => assertProfileAuthority(operation, row, caller),
+      try: () => assertProfileAuthority(operation, target, caller),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     })
     if (currentWorkspacePath !== expectedWorkspacePath) {

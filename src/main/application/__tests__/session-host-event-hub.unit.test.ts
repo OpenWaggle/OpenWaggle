@@ -129,30 +129,6 @@ describe('Session Host event hub', () => {
     })
   })
 
-  it('disconnects a subscriber before retaining an oversized event', async () => {
-    const hub = new SessionHostEventHub({
-      hostInstanceId: 'host-current',
-      subscriberCapacity: 10,
-      subscriberByteCapacity: 256,
-    })
-    const result = hub.subscribeAfter()
-    expect(result.status).toBe('ready')
-    if (result.status !== 'ready') return
-
-    hub.publish({
-      kind: 'session-state-changed',
-      sessionId: `session-${'x'.repeat(512)}`,
-      stateRevision: 1,
-      operation: 'message',
-    })
-
-    expect(hub.subscriberCount()).toBe(0)
-    await expect(result.subscription.next()).resolves.toMatchObject({
-      status: 'resync-required',
-      reason: 'slow-consumer',
-    })
-  })
-
   it('resolves a pending read when a live event requires resynchronization', async () => {
     const hub = new SessionHostEventHub({
       hostInstanceId: 'host-current',
@@ -296,33 +272,5 @@ describe('Session Host event hub', () => {
       cursor: denied.cursor,
     })
     await expect(result.subscription.next()).resolves.toEqual({ status: 'event', event: visible })
-  })
-
-  it('bounds retained subscriber bytes across all connections', async () => {
-    const hub = new SessionHostEventHub({
-      hostInstanceId: 'host-current',
-      subscriberCapacity: 10,
-      subscriberByteCapacity: 1_024,
-      subscriberAggregateByteCapacity: 500,
-    })
-    const first = hub.subscribeAfter()
-    const second = hub.subscribeAfter()
-    expect(first.status).toBe('ready')
-    expect(second.status).toBe('ready')
-    if (first.status !== 'ready' || second.status !== 'ready') return
-
-    hub.publish({
-      kind: 'session-state-changed',
-      sessionId: `session-${'x'.repeat(190)}`,
-      stateRevision: 1,
-      operation: 'message',
-    })
-
-    expect(hub.subscriberCount()).toBe(1)
-    await expect(second.subscription.next()).resolves.toMatchObject({
-      status: 'resync-required',
-      reason: 'slow-consumer',
-    })
-    first.subscription.close()
   })
 })

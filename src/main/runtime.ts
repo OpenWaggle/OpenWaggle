@@ -48,6 +48,7 @@ import { SqliteSessionControlRepositoryLive } from './adapters/sqlite-session-co
 import { SqliteSessionControlRunLifecycleRepositoryLive } from './adapters/sqlite-session-control-run-lifecycle-repository'
 import { SqliteSessionDelegationRepositoryLive } from './adapters/sqlite-session-delegation-repository'
 import { SqliteSessionDescendantRunRepositoryLive } from './adapters/sqlite-session-descendant-run-repository'
+import { SqliteSessionExportLiveAuthorityLive } from './adapters/sqlite-session-export-live-authority'
 import { SqliteSessionExportOperationRepositoryLive } from './adapters/sqlite-session-export-operation-repository'
 import { SqliteSessionHostRecoveryRepositoryLive } from './adapters/sqlite-session-host-recovery-repository'
 import { SqliteSessionLifecycleRepositoryLive } from './adapters/sqlite-session-lifecycle-repository'
@@ -134,6 +135,7 @@ const SessionControlPersistenceLive = Layer.mergeAll(
   SqliteSessionDelegationRepositoryLive,
   SqliteSessionDescendantRunRepositoryLive,
   SqliteSessionExportOperationRepositoryLive,
+  SqliteSessionExportLiveAuthorityLive,
   SqliteSessionWorkspaceResourceRepositoryLive,
 ).pipe(Layer.provide(AppDatabaseLive))
 const SessionExportResourceResolverWithDatabaseLive =

@@ -1,4 +1,7 @@
-import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCallerIdentity,
+  LocalSessionProfileScope,
+} from '@shared/types/local-session-profile'
 import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { authorizeSessionTargetForCaller } from '../domain/session-control/session-capability-authorization'
@@ -127,6 +130,47 @@ export function refreshNamedProfileCaller(
   )
 }
 
+function hasEveryCapability(
+  available: readonly SessionCapability[],
+  required: readonly SessionCapability[],
+) {
+  const availableCapabilities = new Set(available)
+  return required.every((capability) => availableCapabilities.has(capability))
+}
+
+function projectedSessionIds(
+  caller: LocalSessionCallerIdentity,
+  baseScope: LocalSessionProfileScope,
+  required: readonly SessionCapability[],
+  includeBaseScope: boolean,
+) {
+  const sessionIds = new Set(includeBaseScope ? (baseScope.sessionIds ?? []) : [])
+  for (const derived of caller.derivedSessionAuthorities ?? []) {
+    if (hasEveryCapability(derived.capabilities, required)) sessionIds.add(derived.sessionId)
+  }
+  return [...sessionIds]
+}
+
+function fileScopeFrom(baseScope: LocalSessionProfileScope): LocalSessionProfileScope {
+  return {
+    ...(baseScope.workspaceRoots ? { workspaceRoots: baseScope.workspaceRoots } : {}),
+    ...(baseScope.exportRoots ? { exportRoots: baseScope.exportRoots } : {}),
+    ...(baseScope.attachmentRoots ? { attachmentRoots: baseScope.attachmentRoots } : {}),
+  }
+}
+
+function targetScopeFrom(
+  baseScope: LocalSessionProfileScope,
+  includeBaseScope: boolean,
+): LocalSessionProfileScope {
+  if (!includeBaseScope) return {}
+  return {
+    ...(baseScope.all !== undefined ? { all: baseScope.all } : {}),
+    ...(baseScope.projectPaths ? { projectPaths: baseScope.projectPaths } : {}),
+    ...(baseScope.hiveRootSessionIds ? { hiveRootSessionIds: baseScope.hiveRootSessionIds } : {}),
+  }
+}
+
 export function profileAuthorityForCapabilities(
   caller: LocalSessionCallerIdentity,
   required: readonly SessionCapability[],
@@ -134,17 +178,14 @@ export function profileAuthorityForCapabilities(
   const authority = caller.profileAuthority
   if (!authority) return undefined
   const baseScope = caller.baseProfileScope ?? authority.scope
-  const sessionIds = new Set(baseScope.sessionIds ?? [])
-  for (const derived of caller.derivedSessionAuthorities ?? []) {
-    if (required.every((capability) => derived.capabilities.includes(capability))) {
-      sessionIds.add(derived.sessionId)
-    }
-  }
+  const baseHasCapabilities = hasEveryCapability(authority.capabilities, required)
+  const sessionIds = projectedSessionIds(caller, baseScope, required, baseHasCapabilities)
   return {
     ...authority,
     scope: {
-      ...baseScope,
-      ...(sessionIds.size > 0 ? { sessionIds: [...sessionIds] } : {}),
+      ...fileScopeFrom(baseScope),
+      ...targetScopeFrom(baseScope, baseHasCapabilities),
+      ...(sessionIds.length > 0 ? { sessionIds } : {}),
     },
   }
 }

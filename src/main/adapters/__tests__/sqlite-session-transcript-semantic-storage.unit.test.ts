@@ -27,6 +27,7 @@ const model: SessionEmbeddingModel = {
 const smallPolicy: TranscriptSemanticStoragePolicy = {
   scopeTtlMs: 60_000,
   leaseTtlMs: 60_000,
+  scopeLimit: 3,
   totalNodeLimit: 3,
   vectorByteLimit: 3 * 2 * Float32Array.BYTES_PER_ELEMENT,
   queuedNodeLimit: 2,

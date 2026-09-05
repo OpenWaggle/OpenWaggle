@@ -1,4 +1,3 @@
-import * as SqlClient from '@effect/sql/SqlClient'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -7,6 +6,7 @@ import {
   SessionExportArtifactWriter,
   type SessionExportArtifactWriterShape,
 } from '../../ports/session-export-artifact-writer'
+import { SessionExportLiveAuthority } from '../../ports/session-export-live-authority'
 import {
   type SessionExportOperationRecord,
   SessionExportOperationRepository,
@@ -45,7 +45,7 @@ function recoveryLayer(
     Layer.succeed(SessionExportArtifactWriter, artifacts),
     Layer.succeed(SessionExportResourceResolver, fromPartial({})),
     Layer.succeed(SessionQueryRepository, fromPartial({})),
-    Layer.succeed(SqlClient.SqlClient, fromPartial({})),
+    Layer.succeed(SessionExportLiveAuthority, fromPartial({})),
   )
 }
 

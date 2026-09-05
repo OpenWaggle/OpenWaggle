@@ -35,7 +35,7 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `sess
 | **Fork** | Create a new Session from a stable point in an existing transcript. |
 | **Message** | Adaptive convenience action: start immediately when idle, otherwise append a durable Follow-up. |
 | **Start** | Start a new Run on an idle Session. It never queues behind an active Run. |
-| **Follow-up** | Append a durable next Run to the Session queue. It remains queued while the current Run finishes. |
+| **Follow-up** | Submit a durable, separate next Run. It remains queued while the current Run finishes; if that Run has just settled, it starts immediately as the next Run. |
 | **Steer** | Append guidance to one exact active Run without interrupting it. It requires that Run's identity. |
 | **Replace** | Interrupt one exact active Run and start the supplied message as a new Run. |
 | **Promote** | Remove one queued Follow-up and deliver it as Steering to the exact active Run. |

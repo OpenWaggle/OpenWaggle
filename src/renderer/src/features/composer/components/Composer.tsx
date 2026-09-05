@@ -14,8 +14,8 @@ import { ComposerModeControls } from './ComposerModeControls'
 
 interface ComposerProps {
   readonly accessControl?: ReactNode
-  onSend: (payload: AgentSendPayload) => Promise<void> | void
-  onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
+  onSend: (payload: AgentSendPayload) => Promise<void> | void | false
+  onEnqueue: (payload: AgentSendPayload) => Promise<boolean | undefined> | boolean | undefined
   onCancel: () => void
   isLoading: boolean
   mode?: {

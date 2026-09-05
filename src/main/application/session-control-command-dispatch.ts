@@ -1,5 +1,4 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type * as SqlClient from '@effect/sql/SqlClient'
 import type {
   LocalSessionCallerIdentity,
   LocalSessionProfileAuthority,
@@ -30,6 +29,7 @@ import type { SessionControlRepository } from '../ports/session-control-reposito
 import type { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import type { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
 import type { SessionExportArtifactWriter } from '../ports/session-export-artifact-writer'
+import type { SessionExportLiveAuthority } from '../ports/session-export-live-authority'
 import type { SessionExportOperationRepository } from '../ports/session-export-operation-repository'
 import type { SessionExportResourceResolver } from '../ports/session-export-resource-resolver'
 import type { SessionOrchestrationUpdateDeliveryService } from '../ports/session-orchestration-update-delivery-service'
@@ -65,7 +65,6 @@ interface ExecuteCommandInput {
 }
 
 export type SessionControlCommandDependencies =
-  | SqlClient.SqlClient
   | AgentRunInterruptionService
   | AgentSteeringService
   | SessionAuthorizationTargetRepository
@@ -75,6 +74,7 @@ export type SessionControlCommandDependencies =
   | SessionControlRepository
   | SessionDescendantRunRepository
   | SessionExportArtifactWriter
+  | SessionExportLiveAuthority
   | SessionExportOperationRepository
   | SessionExportResourceResolver
   | SessionQueryRepository
@@ -127,6 +127,7 @@ function executeRunOrQueueCommand(
       queueSessionFollowUp({
         callerId,
         ...(authority ? { callerAuthorizationCeiling: authority.authorizationCeiling } : {}),
+        ...(hostRunCeiling ? { hostRunCeiling } : {}),
         request: { ...request, command } satisfies SessionControlFollowUpMutationRequest,
       }),
     )

@@ -11,8 +11,10 @@ const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
 const pendingQueuedSubmissions = new Map<string, Promise<boolean>>()
 
 interface UseComposerSubmissionInput {
-  readonly onSend: (payload: AgentSendPayload) => Promise<void> | void
-  readonly onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
+  readonly onSend: (payload: AgentSendPayload) => Promise<void> | void | false
+  readonly onEnqueue: (
+    payload: AgentSendPayload,
+  ) => Promise<boolean | undefined> | boolean | undefined
   readonly isLoading: boolean
   readonly disabled?: boolean
   readonly requiresText: boolean
@@ -44,7 +46,7 @@ interface ComposerDraftSnapshot {
 type DispatchResult =
   | { readonly type: 'blocked' }
   | { readonly type: 'sent' }
-  | { readonly type: 'queued'; readonly completion: Promise<void> }
+  | { readonly type: 'queued'; readonly completion: Promise<boolean | undefined> }
 
 export function useComposerSubmission({
   onSend,
@@ -91,7 +93,9 @@ export function useComposerSubmission({
       consumeSendResult(completion)
       return { type: 'queued', completion } satisfies DispatchResult
     }
-    consumeSendResult(onSend(payload))
+    const result = onSend(payload)
+    if (result === false) return { type: 'blocked' } satisfies DispatchResult
+    consumeSendResult(result)
     return { type: 'sent' } satisfies DispatchResult
   }
 
@@ -107,7 +111,8 @@ export function useComposerSubmission({
       return true
     }
     const result = dispatch.completion.then(
-      () => {
+      (accepted) => {
+        if (accepted === false) return false
         finishSuccessfulSubmission(payload, draftSnapshot)
         return true
       },
@@ -252,7 +257,7 @@ function queuedSubmissionKey(snapshot: ComposerDraftSnapshot, payload: AgentSend
   })
 }
 
-function callAsPromise(action: () => Promise<void> | void): Promise<void> {
+function callAsPromise<Result>(action: () => Promise<Result> | Result): Promise<Result> {
   try {
     return Promise.resolve(action())
   } catch (error) {

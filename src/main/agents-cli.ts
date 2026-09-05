@@ -46,6 +46,8 @@ export interface AgentsCliIo {
   readonly stderr?: (value: string) => void
   readonly readStdin?: () => Promise<string>
   readonly loadSemanticCatalog?: AgentDefinitionSemanticCatalogLoader
+  /** Test-only interleaving point after import planning and before apply. */
+  readonly beforeImportApply?: () => Promise<void>
 }
 
 async function importCommand(input: {
@@ -54,6 +56,7 @@ async function importCommand(input: {
   readonly home: string
   readonly projectPath: string
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
+  readonly beforeImportApply?: () => Promise<void>
 }) {
   const sourcePath = path.resolve(
     input.cwd,
@@ -80,15 +83,20 @@ async function importCommand(input: {
   if (planned.plan.status === 'conflict' && !hasFlag(input.arguments_, 'replace')) {
     throw new Error('Agent definition exists; review the plan and use --replace explicitly.')
   }
+  await input.beforeImportApply?.()
+  const replaceExisting = planned.plan.status === 'conflict' && hasFlag(input.arguments_, 'replace')
+  const expectedContentDigest =
+    option(input.arguments_, 'expected-digest') ?? planned.plan.existingContentDigest
+  if (replaceExisting && !expectedContentDigest) {
+    throw new Error('Agent import replacement requires the planned destination content digest.')
+  }
   return executeAgentDefinitionManagement(
     {
       operation: 'import-apply',
       ...base,
       expectedSourceDigest: planned.plan.sourceDigest,
-      ...(hasFlag(input.arguments_, 'replace') ? { replaceExisting: true } : {}),
-      ...(option(input.arguments_, 'expected-digest')
-        ? { expectedContentDigest: option(input.arguments_, 'expected-digest') }
-        : {}),
+      ...(replaceExisting ? { replaceExisting: true } : {}),
+      ...(expectedContentDigest ? { expectedContentDigest } : {}),
     },
     managementContext(input),
   )
@@ -134,6 +142,7 @@ async function mutationCommand(input: {
   readonly projectPath: string
   readonly readStdin: () => Promise<string>
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
+  readonly beforeImportApply?: () => Promise<void>
 }): Promise<AgentDefinitionManagementOutcome | undefined> {
   if (input.command === 'create' || input.command === 'update') {
     return writeAgentsCliDocument({ ...input, command: input.command })
@@ -177,6 +186,7 @@ async function executeAgentDefinitionCommand(input: {
   readonly stdout: (value: string) => void | Promise<void>
   readonly readStdin: () => Promise<string>
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
+  readonly beforeImportApply?: () => Promise<void>
 }) {
   const { command, arguments_, cwd, home, stdout } = input
   const json = hasFlag(arguments_, 'json')
@@ -189,6 +199,7 @@ async function executeAgentDefinitionCommand(input: {
     projectPath: project,
     readStdin: input.readStdin,
     loadSemanticCatalog: input.loadSemanticCatalog,
+    ...(input.beforeImportApply ? { beforeImportApply: input.beforeImportApply } : {}),
   })
   if (mutation) {
     await writeAgentsCliResult(mutation, json, stdout)
@@ -275,6 +286,7 @@ export async function runAgentsCli(args: readonly string[], io: AgentsCliIo = {}
       stdout,
       readStdin,
       loadSemanticCatalog,
+      ...(io.beforeImportApply ? { beforeImportApply: io.beforeImportApply } : {}),
     })
   } catch (error) {
     writeAgentsCliError(error, hasFlag(arguments_, 'json'), stderr)

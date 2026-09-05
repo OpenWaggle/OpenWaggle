@@ -29,7 +29,22 @@ describe('Session flat vector index', () => {
 
   it('round-trips vectors through the SQLite BLOB representation', () => {
     const vector = new Float32Array([0.25, -0.5, 1])
-    expect([...decodeFloat32Vector(encodeFloat32Vector(vector), 3)]).toEqual([...vector])
+    const encoded = encodeFloat32Vector(vector)
+    const decoded = decodeFloat32Vector(encoded, 3)
+    expect([...decoded]).toEqual([...vector])
+    expect(decoded.buffer).toBe(encoded.buffer)
+  })
+
+  it('copies only an unaligned SQLite BLOB view', () => {
+    const source = new Float32Array([0.25, -0.5])
+    const backing = new ArrayBuffer(source.byteLength + 1)
+    const unaligned = new Uint8Array(backing, 1, source.byteLength)
+    unaligned.set(new Uint8Array(source.buffer))
+
+    const decoded = decodeFloat32Vector(unaligned, source.length)
+
+    expect([...decoded]).toEqual([...source])
+    expect(decoded.buffer).not.toBe(backing)
   })
 
   it('reconciles records removed from the durable projection', () => {
@@ -60,6 +75,29 @@ describe('Session flat vector index', () => {
       'session-097',
     ])
     expect(index.search(new Float32Array([1, 0]), 0)).toEqual([])
+  })
+
+  it('yields to the event loop during a bounded exact scan', async () => {
+    const index = new SessionFlatVectorIndex()
+    index.replace(
+      Array.from({ length: 100 }, (_, itemIndex) => ({
+        sessionId: `session-${itemIndex}`,
+        vector: new Float32Array([itemIndex + 1, 100 - itemIndex]),
+      })),
+    )
+    let eventLoopAdvanced = false
+    setImmediate(() => {
+      eventLoopAdvanced = true
+    })
+
+    const matches = await index.searchCooperatively({
+      query: new Float32Array([1, 0]),
+      limit: 3,
+      yieldEveryRecords: 10,
+    })
+
+    expect(eventLoopAdvanced).toBe(true)
+    expect(matches).toEqual(index.search(new Float32Array([1, 0]), 3))
   })
 
   it('groups transcript chunks by their authorized Session before applying the result limit', () => {

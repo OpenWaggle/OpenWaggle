@@ -111,7 +111,9 @@ export function normalizeLegacySessionColumns(database: DatabaseSync) {
 function workspaceForSession(session: LegacySessionRow) {
   if (session.environment_mode === 'worktree') {
     const projectPath = session.project_path ?? `unknown://project/${session.id}`
-    const identity = session.worktree_path ?? `${projectPath}\0${session.id}`
+    const identity = session.worktree_path
+      ? `${projectPath}\0${session.worktree_path}`
+      : `${projectPath}\0${session.id}`
     const id = stableResourceId('managed-worktree', identity)
     return {
       id,

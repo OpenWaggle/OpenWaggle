@@ -20,6 +20,7 @@ import type { SessionControlRunLifecycleRepository } from '../ports/session-cont
 import type { SessionDelegationRepository } from '../ports/session-delegation-repository'
 import type { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
 import type { SessionExportArtifactWriter } from '../ports/session-export-artifact-writer'
+import type { SessionExportLiveAuthority } from '../ports/session-export-live-authority'
 import type { SessionExportOperationRepository } from '../ports/session-export-operation-repository'
 import type { SessionExportResourceResolver } from '../ports/session-export-resource-resolver'
 import type { SessionLifecycleIdentityService } from '../ports/session-lifecycle-identity-service'
@@ -78,6 +79,7 @@ type SessionToolDependencies =
   | SessionDelegationRepository
   | SessionDescendantRunRepository
   | SessionExportArtifactWriter
+  | SessionExportLiveAuthority
   | SessionExportOperationRepository
   | SessionExportResourceResolver
   | SessionWaitService
