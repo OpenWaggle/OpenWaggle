@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { observePtyOutput } from './native-pty-output-observer'
 import {
   activeCloseScript,
   assertExitEvent,
@@ -13,15 +14,16 @@ import {
   type Disposable,
   type ExitEvent,
   finalOutputScript,
-  IDENTITY_PREFIX,
+  IDENTITY_SUFFIX,
   parseIdentity,
   PROBE_TIMEOUT_MS,
   PROMPT_INPUT,
   PROMPT_OUTPUT,
-  type ProbedPty,
   type PtyEvent,
   type PtySpawner,
   resizePty,
+  RESIZED_COLUMNS,
+  RESIZED_ROWS,
   sentinelExists,
   signalOwnedPosixPty,
   spawnOptions,
@@ -44,31 +46,6 @@ function withTimeout<T>(label: string, operation: Promise<T>) {
 
 function wait(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
-}
-
-function observeOutput(pty: ProbedPty) {
-  let output = ''
-  const waiters = new Map<string, Set<() => void>>()
-  const subscription = pty.onData((data) => {
-    output += data
-    for (const [marker, resolves] of waiters) {
-      if (!output.includes(marker)) continue
-      waiters.delete(marker)
-      for (const resolve of resolves) resolve()
-    }
-  })
-  return {
-    dispose: () => subscription.dispose(),
-    read: () => output,
-    waitFor: (marker: string) => {
-      if (output.includes(marker)) return Promise.resolve()
-      return new Promise<void>((resolve) => {
-        const resolves = waiters.get(marker) ?? new Set<() => void>()
-        resolves.add(resolve)
-        waiters.set(marker, resolves)
-      })
-    },
-  }
 }
 
 function waitForEvent(event: PtyEvent<ExitEvent>, onEvent?: () => void) {
@@ -99,7 +76,7 @@ async function probeActiveClose(
     backend,
     platform,
   )
-  const output = observeOutput(pty)
+  const output = observePtyOutput(pty, platform === 'win32')
   const stages: string[] = []
   const publicExit = waitForEvent(pty.onExit, () => stages.push('public'))
   const treeExit = pty.onProcessTreeExit
@@ -107,17 +84,18 @@ async function probeActiveClose(
     : undefined
   let descriptorClosed = false
   try {
-    await withTimeout(`${backend.label} identity`, output.waitFor('\n')).catch((error: unknown) => {
+    await withTimeout(`${backend.label} identity`, output.waitFor(IDENTITY_SUFFIX)).catch((error: unknown) => {
       throw new Error(
         `${error instanceof Error ? error.message : String(error)} ` +
           `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
       )
     })
-    const identity = parseIdentity(output.read())
+    const identity = parseIdentity(output.readVisible())
     if (identity.pid !== pty.pid) {
       throw new Error(`${backend.label} reported PID ${pty.pid}, but spawned PID ${identity.pid}.`)
     }
     resizePty(pty)
+    output.resize(RESIZED_COLUMNS, RESIZED_ROWS)
     pty.write(PROMPT_INPUT)
     await withTimeout(`${backend.label} prompt delivery`, output.waitFor(PROMPT_OUTPUT)).catch((error: unknown) => {
       throw new Error(
@@ -169,7 +147,7 @@ async function probeNaturalFinalOutput(
     backend,
     platform,
   )
-  const output = observeOutput(pty)
+  const output = observePtyOutput(pty)
   const stages: string[] = []
   const publicExit = waitForEvent(pty.onExit, () => stages.push('public'))
   const treeExit = pty.onProcessTreeExit
@@ -204,5 +182,6 @@ export async function probeNodePtyLifecycle(
   for (const backend of backends(platform)) {
     await probeActiveClose(nodePty, platform, executablePath, backend)
     await probeNaturalFinalOutput(nodePty, platform, executablePath, backend)
+    console.log(`[native-pty] ${backend.label} lifecycle and payload verified`)
   }
 }

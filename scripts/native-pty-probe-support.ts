@@ -6,14 +6,15 @@ import { Terminal } from '@xterm/xterm'
 export const PROBE_TIMEOUT_MS = 10_000
 export const DESCENDANT_SETTLE_MS = 650
 export const IDENTITY_PREFIX = 'OPENWAGGLE_PTY_IDENTITY:'
+export const IDENTITY_SUFFIX = ':OPENWAGGLE_PTY_IDENTITY_END'
 // A terminal Enter is CR. Windows console line input does not submit on LF.
 export const PROMPT_INPUT = 'openwaggle-native-probe-input\r'
 export const PROMPT_OUTPUT = 'OPENWAGGLE_PTY_PROMPT_OK'
 
 const INITIAL_COLUMNS = 80
 const INITIAL_ROWS = 24
-const RESIZED_COLUMNS = 81
-const RESIZED_ROWS = 25
+export const RESIZED_COLUMNS = 81
+export const RESIZED_ROWS = 25
 const DESCENDANT_SENTINEL_DELAY_MS = 450
 const FINAL_PAYLOAD_BYTES = 256 * 1024
 const FINAL_PREFIX = 'OPENWAGGLE_PTY_FINAL_START:'
@@ -134,7 +135,7 @@ export function assertPatchedPty(
 
 export function parseIdentity(output: string): PtyIdentity {
   const prefixIndex = output.indexOf(IDENTITY_PREFIX)
-  const lineEnd = output.indexOf('\n', prefixIndex)
+  const lineEnd = output.indexOf(IDENTITY_SUFFIX, prefixIndex)
   if (prefixIndex === -1 || lineEnd === -1) throw new Error('PTY identity record was incomplete.')
   const serialized = output.slice(prefixIndex + IDENTITY_PREFIX.length, lineEnd).trim()
   const [pidText, descendantPidText, stdinTtyText, stdoutTtyText, ...extraFields] =
@@ -176,19 +177,27 @@ export function assertTreeFirst(label: string, stages: readonly string[]) {
   }
 }
 
-async function renderConsoleOutput(output: string) {
-  const terminal = new Terminal({
+export function createConsoleTerminal() {
+  return new Terminal({
     cols: INITIAL_COLUMNS,
     rows: INITIAL_ROWS,
     scrollback: Math.ceil((FINAL_PAYLOAD_BYTES + FINAL_PREFIX.length + FINAL_SUFFIX.length) / INITIAL_COLUMNS) + INITIAL_ROWS,
   })
+}
+
+export function readConsoleOutput(terminal: Terminal) {
+  const lines: string[] = []
+  for (let row = 0; row < terminal.buffer.active.length; row += 1) {
+    lines.push(terminal.buffer.active.getLine(row)?.translateToString(true) ?? '')
+  }
+  return lines.join('')
+}
+
+async function renderConsoleOutput(output: string) {
+  const terminal = createConsoleTerminal()
   try {
     await new Promise<void>((resolve) => terminal.write(output, resolve))
-    const lines: string[] = []
-    for (let row = 0; row < terminal.buffer.active.length; row += 1) {
-      lines.push(terminal.buffer.active.getLine(row)?.translateToString(true) ?? '')
-    }
-    return lines.join('')
+    return readConsoleOutput(terminal)
   } finally {
     terminal.dispose()
   }
@@ -236,7 +245,7 @@ export function activeCloseScript(sentinelPath: string) {
     "const cp=require('node:child_process')",
     `const descendant=cp.spawn(process.execPath,['-e',${JSON.stringify(descendantScript)}],{stdio:'ignore'})`,
     'descendant.unref()',
-    `process.stdout.write(${JSON.stringify(IDENTITY_PREFIX)}+[process.pid,descendant.pid,process.stdin.isTTY===true?1:0,process.stdout.isTTY===true?1:0].join(',')+'\\n')`,
+    `process.stdout.write(${JSON.stringify(IDENTITY_PREFIX)}+[process.pid,descendant.pid,process.stdin.isTTY===true?1:0,process.stdout.isTTY===true?1:0].join(',')+${JSON.stringify(IDENTITY_SUFFIX)}+'\\n')`,
     `process.stdin.once('data',()=>process.stdout.write(${JSON.stringify(PROMPT_OUTPUT)}))`,
     'process.stdin.resume()',
     'setInterval(()=>{},60000)',

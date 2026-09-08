@@ -8,6 +8,7 @@ const FINAL_PAYLOAD_BYTES = 256 * 1024
 const FINAL_PREFIX = 'OPENWAGGLE_PTY_FINAL_START:'
 const FINAL_SUFFIX = ':OPENWAGGLE_PTY_FINAL_END'
 const IDENTITY_PREFIX = 'OPENWAGGLE_PTY_IDENTITY:'
+const IDENTITY_SUFFIX = ':OPENWAGGLE_PTY_IDENTITY_END'
 const PROMPT_OUTPUT = 'OPENWAGGLE_PTY_PROMPT_OK'
 
 type ExitEvent = { readonly exitCode: number; readonly signal?: number }
@@ -46,7 +47,7 @@ class FakePty {
         return
       }
       this.emitData(
-        `${IDENTITY_PREFIX}${pid},${pid + 1_000},1,1\n`,
+        `${IDENTITY_PREFIX}${pid},${pid + 1_000},1,1${IDENTITY_SUFFIX}\n`,
       )
     })
   }
