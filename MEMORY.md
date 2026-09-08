@@ -490,6 +490,8 @@ renderer only through the managed streaming protocol, never through an IPC base6
 
 ### Hive state comes from the session projection
 
+The Host may omit a Worker's optional parent ID. Validate explicit parent IDs against the focused Session, but trust the scoped Worker page when the field is absent. Resolve an omitted focused-parent ID from the unique other Session in Host context; reject ambiguous context and preserve explicit-null root semantics. Tests must omit the parent ID itself, not just other optional lineage fields.
+
 The Session Host task's confirmed future-facing reader is `listHiveSessionCatalogPage(sessionId,
 limit, cursor?)`, with unordered focused/parent `context` and a page of direct `workers`. Summary now
 accepts that contract and optional lineage fields through `SessionHiveReader`, preferring it over the

@@ -20,7 +20,7 @@ listHiveSessionCatalogPage(sessionId, limit, cursor?)
 - The seven delegation states remain `working`, `waiting`, `needs_attention`, `ready_for_review`, `revision_requested`, `accepted`, and `cancelled`.
 - Direct and active counts come from the Host projection, not the number of loaded rows. An active Worker beyond page one still keeps the Hive expanded.
 
-The Summary requests 50 Workers per page and loads subsequent pages only when requested. It resolves the current and parent Session by identity, checks direct-worker ownership, and deduplicates Workers across page boundaries. A session-keyed query prevents a late page from appearing after navigation to another Session.
+The Summary requests 50 Workers per page and loads subsequent pages only when requested. It resolves the current Session by identity and rejects explicitly mismatched Worker parent IDs. When a parent ID is omitted, the Host's scoped `workers` and immediate-parent `context` are authoritative; omitted metadata must not reject a valid page or hide parent navigation. Explicit `null` still means no parent, and ambiguous context with multiple possible parents is rejected. The Summary deduplicates Workers across page boundaries. A session-keyed query prevents a late page from appearing after navigation to another Session.
 
 `SessionHiveReader` is a read-only structural subset. It accepts both API generations without requiring the orchestration branch to adopt the Summary's older nullable lineage DTO. When `listHiveSessionCatalogPage` exists, it is authoritative. The Summary uses `getSessionHiveRelations` only when the new capability is absent. A Host error never triggers fallback to the old projection.
 

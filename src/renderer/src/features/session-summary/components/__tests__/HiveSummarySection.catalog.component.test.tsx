@@ -21,7 +21,6 @@ const worker = {
   title: 'Worker on page two',
   lineage: {
     role: 'worker',
-    parentSessionId: queen.id,
     directWorkerCount: 0,
     activeDirectWorkerCount: 0,
     delegationState: 'working',
@@ -31,6 +30,14 @@ const worker = {
 beforeEach(() => {
   localStorage.clear()
   listHiveSessionCatalogPage.mockReset()
+})
+
+it('keeps parent navigation available when the Host omits the focused Worker parent ID', async () => {
+  listHiveSessionCatalogPage.mockResolvedValueOnce({ context: [worker, queen], workers: [] })
+  const navigate = vi.fn()
+  renderWithQueryClient(<HiveSummarySection sessionId="worker" onNavigateSession={navigate} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Queen/ }))
+  expect(navigate).toHaveBeenCalledWith('queen')
 })
 
 it('retries a failed later page without losing previously loaded workers', async () => {
