@@ -14,6 +14,7 @@ import {
   emitWaggleTurnEvent,
   startStreamBuffer,
 } from '../utils/stream-bridge'
+import { captureRunResultResources } from './agent-run-resources'
 import { emitErrorAndFinish } from './run-handler-utils'
 
 function waggleInvocationFromHandoff(handoff: WaggleHandoffRequest): WaggleInvocation {
@@ -48,15 +49,16 @@ export function runAgentRequestedWaggle(input: {
     })
 
     const runId = `waggle-${input.sessionId}`
+    const payload: AgentSendPayload = {
+      text: input.handoff.prompt,
+      thinkingLevel: input.thinkingLevel,
+      attachments: [],
+      waggle: invocation,
+    }
     const result = yield* executeWaggleRun({
       sessionId: input.sessionId,
       runId,
-      payload: {
-        text: input.handoff.prompt,
-        thinkingLevel: input.thinkingLevel,
-        attachments: [],
-        waggle: invocation,
-      },
+      payload,
       model: input.model,
       config: input.handoff.config,
       signal: input.abortController.signal,
@@ -78,6 +80,8 @@ export function runAgentRequestedWaggle(input: {
         broadcastToWindows('sessions:title-updated', { sessionId: input.sessionId, title })
       },
     })
+
+    yield* captureRunResultResources(input.sessionId, runId, payload, result)
 
     matchBy(result, 'outcome')
       // 'error' joins these: a run that failed is reported like a run that was refused up front.

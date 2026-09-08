@@ -7,7 +7,6 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
-import { captureSuccessfulRunResources } from '../application/session-resource-capture'
 import { executeWaggleRun } from '../application/waggle-run-service'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -23,6 +22,7 @@ import {
   startStreamBuffer,
 } from '../utils/stream-bridge'
 import { activeWaggleRuns, cancelSessionRuns } from './active-agent-runs'
+import { captureRunResultResources } from './agent-run-resources'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -182,16 +182,7 @@ function runRegisteredWaggleMessage(
         broadcastToWindows('sessions:title-updated', { sessionId, title }),
     })
 
-    if (result.resourceMessages !== undefined) {
-      yield* captureSuccessfulRunResources({
-        sessionId,
-        runId,
-        payload,
-        messages: result.resourceMessages,
-        nodeIdByMessageId: result.resourceNodeIds ?? {},
-        branchIdByMessageId: result.resourceBranchIds ?? {},
-      }).pipe(Effect.catchAll(() => Effect.void))
-    }
+    yield* captureRunResultResources(sessionId, runId, payload, result)
 
     if (result.outcome === 'error') {
       emitWorktreeLaunchFailure(sessionId, result.message)
