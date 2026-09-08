@@ -1,4 +1,4 @@
-import { mkdir, realpath } from 'node:fs/promises'
+import { mkdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import type { LocalSessionProfileManagementEnvelope } from '../src/shared/types/local-session-profile'
@@ -44,6 +44,7 @@ test('restricted CLI profile UI edits preserve resource roots and narrower manag
     const errors: string[] = []
     collectErrors(page, errors)
     const projectPath = await realpath(app.userDataDir)
+    const credentialPath = path.join(projectPath, 'restricted-profile.credential')
     const exportRoot = path.join(projectPath, 'exports')
     const attachmentRoot = path.join(projectPath, 'attachments')
     const delegatedExportRoot = path.join(exportRoot, 'delegated')
@@ -81,12 +82,17 @@ test('restricted CLI profile UI edits preserve resource roots and narrower manag
       'ask-for-approval',
       '--management-envelope-json',
       JSON.stringify(managementEnvelope),
-      '--credential-store',
+      // This test covers policy editing, not desktop keychain availability on headless runners.
+      '--credential-file',
+      credentialPath,
       '--json',
     ])
     expect(created.stderr).toBe('')
     const createdResponse: unknown = JSON.parse(created.stdout)
     expect(createdResponse).toMatchObject({ outcome: { effect: 'profile-created' } })
+    const credentialFile = await stat(credentialPath)
+    expect(credentialFile.isFile()).toBe(true)
+    if (process.platform !== 'win32') expect(credentialFile.mode & 0o777).toBe(0o600)
 
     await openProfileSettings(page, name)
     await page.getByRole('button', { name: 'Edit', exact: true }).click()

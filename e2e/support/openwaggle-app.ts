@@ -12,6 +12,7 @@ import {
   captureElectronStartupDiagnostics,
   electronStartupErrorMessage,
 } from '../../scripts/qa/electron-startup-diagnostics'
+import { cliExitError } from '../../scripts/qa/cli-exit-diagnostics'
 import {
   prepareQaProfileRemoval,
   shutdownSessionHostForQa,
@@ -60,7 +61,7 @@ function runRoutedElectronCli(
         return
       }
       if (code !== 0) {
-        reject(new Error(`OpenWaggle CLI exited with ${String(code ?? signal)}.`))
+        reject(cliExitError(code, signal, Buffer.concat(stderr).toString()))
         return
       }
       try {
