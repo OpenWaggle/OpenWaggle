@@ -17,7 +17,7 @@ function containsTokenSequence(tokens: readonly string[], sequence: readonly str
   )
 }
 
-function lexicalDiscoveryFieldMatches(value: string, exactQuery: string) {
+function prepareLexicalDiscoveryQuery(exactQuery: string) {
   const explicitPhrase =
     exactQuery.length >= QUOTED_QUERY_DELIMITER_COUNT &&
     exactQuery.startsWith('"') &&
@@ -25,13 +25,16 @@ function lexicalDiscoveryFieldMatches(value: string, exactQuery: string) {
   const clauses = (explicitPhrase ? [exactQuery.slice(1, -1)] : exactQuery.split(/\s+/u))
     .map(tokenizeSessionTranscriptTerms)
     .filter((clause) => clause.length > 0)
+  return { clauses, terms: tokenizeSessionTranscriptTerms(exactQuery) }
+}
+
+function lexicalDiscoveryFieldMatches(value: string, clauses: readonly (readonly string[])[]) {
   const tokens = tokenizeSessionTranscriptTerms(value)
   return clauses.every((clause) => containsTokenSequence(tokens, clause))
 }
 
-function lexicalDiscoverySnippet(value: string, exactQuery: string) {
+function lexicalDiscoverySnippet(value: string, queryTerms: readonly string[]) {
   if (value.length <= DISCOVERY_SNIPPET_CHARACTER_LIMIT) return value
-  const queryTerms = tokenizeSessionTranscriptTerms(exactQuery)
   const lowerValue = value.toLowerCase()
   const firstMatch = queryTerms.reduce((earliest, term) => {
     const index = lowerValue.indexOf(term)
@@ -47,14 +50,16 @@ export function decorateLexicalDiscoveryRows(
   rows: readonly LexicalDiscoverySearchRow[],
   exactQuery: string,
 ): readonly DiscoverySearchRow[] {
+  let preparedQuery: ReturnType<typeof prepareLexicalDiscoveryQuery> | undefined
   return rows.map((row): DiscoverySearchRow => {
     const matchedFields = row.matched_fields.split(',')
     if (!matchedFields.includes('discovery')) return row
+    preparedQuery ??= prepareLexicalDiscoveryQuery(exactQuery)
     const projectedFields = [
-      ...(lexicalDiscoveryFieldMatches(row.discovery_initial_objective, exactQuery)
+      ...(lexicalDiscoveryFieldMatches(row.discovery_initial_objective, preparedQuery.clauses)
         ? ['initial-objective']
         : []),
-      ...(lexicalDiscoveryFieldMatches(row.discovery_current_preview, exactQuery)
+      ...(lexicalDiscoveryFieldMatches(row.discovery_current_preview, preparedQuery.clauses)
         ? ['current-preview']
         : []),
     ]
@@ -67,7 +72,7 @@ export function decorateLexicalDiscoveryRows(
         ...matchedFields.filter((field) => field !== 'discovery'),
         ...projectedFields,
       ].join(','),
-      snippet: row.snippet ?? lexicalDiscoverySnippet(matchingDiscoveryText, exactQuery),
+      snippet: row.snippet ?? lexicalDiscoverySnippet(matchingDiscoveryText, preparedQuery.terms),
     }
   })
 }

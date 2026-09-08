@@ -497,6 +497,11 @@ avoids repeated FTS content callbacks without copying metadata or changing BM25 
 that join read-only, preserve the FTS column order, and compare scores, ties, live mutations,
 and pre-limit authority/archive filtering against the public FTS interface in regression tests.
 
+Lexical evidence prepares query clauses and snippet terms once per result batch, lazily on the
+first discovery match. Entirely ASCII input skips per-character Unicode normalization but retains
+the same lowercasing and token regex. Mixed or non-ASCII text uses the original Unicode path;
+do not broaden this fast path without token-sequence parity tests.
+
 Node-delete search triggers must requeue semantic work only while the owning Session still
 exists. During a Session cascade, the parent row is already gone; unconditional queue inserts
 recreated a foreign-key dependency and made deletion preflight reject populated Sessions.
