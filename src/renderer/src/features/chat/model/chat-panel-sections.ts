@@ -22,6 +22,9 @@ export interface ChatTranscriptSectionState {
   readonly worktreePath: string | null
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
+  readonly activeBranchId?: SessionBranchId | null
+  /** Exact persisted workspace path rendered for this branch or deep-linked node. */
+  readonly activePathNodeIds?: readonly string[]
   readonly chatRows: ChatRow[]
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]

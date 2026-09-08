@@ -92,6 +92,10 @@ _Avoid_: disposable subagent, child process, leaf Session
 The conditional Session Summary section that projects the active Session's immediate parent and direct Workers, groups Workers as Active, Done, and Archived, and navigates to their Sessions without duplicating transcripts. A user's per-session expansion choice persists; without one, active or attention-requiring Workers expand the section and all-done Workers collapse it to compact counts.
 _Avoid_: composer Hive navigator, full descendant tree, subagent transcript
 
+**Hive deletion order**:
+Permanent deletion proceeds from Worker leaves toward the Queen. A Session with any direct Worker, including a completed or archived Worker, cannot be deleted because that would leave a surviving Session without its immutable parent relationship.
+_Avoid_: cascading only the lineage row, orphaned Worker Session, implicit Worker deletion
+
 **Session Resource**:
 A durable catalog entry owned by exactly one Session and classified as a Session Source, Session Output, or both when its occurrences include both input and production activity. It has a session-id-scoped canonical identity for deduplication across that Session's transcript branches and retains every contributing occurrence so repeated shares, reads, creations, and updates do not lose provenance or cross session boundaries. Parent and Worker Sessions in the same Hive remain separate owners and contribute resources only when one of them is itself opened. Existing sessions are backfilled lazily and idempotently when opened or reprojected from embedded Pi image data, explicit links and tool resources, and resolvable local outputs. Unrecoverable historical content remains visible as unavailable metadata. Archives retain resources; permanent session deletion removes session-owned copies.
 _Avoid_: global asset, transient transcript part, undifferentiated artifact
@@ -633,6 +637,10 @@ The Session Summary's Environment section uses provider-specific language and ex
 **Change request composer**:
 The compact Environment-section popover that prepares a GitHub pull request or GitLab merge request, showing source and target refs, editable title and description, optional commit-and-push of local changes, draft and standard creation actions, and an open-in-browser escape hatch. It prepares an editable unique source branch when the working path is on the default ref and otherwise reuses the existing feature ref. Empty generated fields may be completed from the session changes before creation. Native creation is available only through an installed, authenticated provider CLI; otherwise the composer explains the prerequisite and retains its browser fallback.
 _Avoid_: full review dialog, immediate unreviewable change-request creation
+
+**Change request inspector**:
+The Session-bound right-sidebar view for an existing GitHub pull request or GitLab merge request. It shows bounded provider lifecycle detail and only the current-branch request or additional requests recorded as Outputs by that Session. Browser opening remains explicit. A merge is confirmed and then revalidated against the Session working path, repository/request identity, provider availability, merge state, and exact head commit before the provider CLI runs.
+_Avoid_: browser-only request row, repository-wide request feed
 
 **Stacked git action**:
 A single composite git intent that runs an ordered set of steps — for example commit, then push, then open a change request — as one user action.

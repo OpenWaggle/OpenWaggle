@@ -1,20 +1,27 @@
-import { lstat } from 'node:fs/promises'
-import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { SessionId } from '@shared/types/brand'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { resolveSessionOutputOccurrenceContext } from '../../application/session-resource-recording'
 import { typedHandle } from '../typed-ipc'
+import { resolveCommittedHead } from './commit-head-resolution'
+import {
+  encodeSelectedGitPaths,
+  selectedGitPathsSchema,
+  validateSelectedGitPaths,
+} from './commit-path-contract'
+import { resolveSelectedCommitPaths } from './commit-path-selection'
 import { withGitMutationLock } from './mutation-lock'
 import { verifySessionWorkingPath } from './session-working-path'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { recordSessionCommitOutput } from './stacked-action-output-recording'
-import { GIT_LITERAL_PATHS, GIT_RAW_PATHS } from './status-constants'
+import { GIT_LITERAL_PATHS } from './status-constants'
 import { invalidateGitStatusCache } from './status-handler'
-import { parsePorcelain } from './status-parse'
 import { invalidateVcsStatus } from './vcs-status-cache'
 import { resolveRepositoryRoot } from './working-tree-service'
+
+const COMMIT_HASH_UNAVAILABLE_MESSAGE =
+  'The commit was created, but Git did not return its full hash. OpenWaggle did not add an Output for it. Do not repeat the commit; refresh Git status before continuing.'
 
 function commitFailure(code: GitCommitFailure['code'], message: string): GitCommitFailure {
   return { ok: false, code, message }
@@ -54,6 +61,34 @@ function mapCommitFailure(stderr: string): GitCommitFailure {
   return commitFailure('unknown', message || 'Git commit failed.')
 }
 
+type PreparedCommitPaths =
+  | {
+      readonly ok: true
+      readonly includeUnstaged: boolean
+      readonly paths: readonly string[]
+    }
+  | { readonly ok: false; readonly failure: GitCommitFailure }
+
+async function prepareCommitPaths(
+  projectPath: string,
+  payload: GitCommitPayload,
+): Promise<PreparedCommitPaths> {
+  const inputPathFailure = validateSelectedGitPaths(payload.paths)
+  if (inputPathFailure) {
+    return { ok: false, failure: commitFailure('unknown', inputPathFailure) }
+  }
+
+  const includeUnstaged = payload.includeUnstaged !== false
+  if (!includeUnstaged) return { ok: true, includeUnstaged, paths: payload.paths }
+
+  const pathResult = await resolveSelectedCommitPaths(projectPath, payload.paths)
+  if (!pathResult.ok) return pathResult
+  const expandedPathFailure = validateSelectedGitPaths(pathResult.paths)
+  return expandedPathFailure
+    ? { ok: false, failure: commitFailure('unknown', expandedPathFailure) }
+    : { ok: true, includeUnstaged, paths: pathResult.paths }
+}
+
 export async function commitGit(
   rawProjectPath: string,
   payload: GitCommitPayload,
@@ -81,33 +116,48 @@ export async function commitGit(
   const preflightFailure = await validateCommitPreflight(projectPath, message)
   if (preflightFailure) return preflightFailure
 
-  const renames = await resolveSelectedRenames(projectPath, payload.paths)
-  const paths = expandRenameSources(payload.paths, renames)
+  const pathResult = await prepareCommitPaths(projectPath, payload)
+  if (!pathResult.ok) return pathResult.failure
+  const { includeUnstaged, paths } = pathResult
 
-  const stageFailure = await stageCommitPaths(projectPath, paths)
-  if (stageFailure) return stageFailure
+  if (includeUnstaged) {
+    const stageFailure = await stageCommitPaths(projectPath, paths)
+    if (stageFailure) return stageFailure
+  }
 
   const commitArgs = [...GIT_LITERAL_PATHS, 'commit', '-m', message]
   if (payload.amend) {
     commitArgs.push('--amend')
   }
-  if (paths.length > 0) {
-    commitArgs.push('--', ...paths)
+  if (includeUnstaged && paths.length > 0) {
+    commitArgs.push('--pathspec-from-file=-', '--pathspec-file-nul')
   }
 
-  const commitResult = await runGit(projectPath, commitArgs)
+  const commitResult = await runGit(
+    projectPath,
+    commitArgs,
+    includeUnstaged && paths.length > 0 ? { input: encodeSelectedGitPaths(paths) } : {},
+  )
   if (commitResult.code !== 0) {
     return mapCommitFailure(`${commitResult.stderr}\n${commitResult.stdout}`)
   }
 
-  const hashResult = await runGit(projectPath, ['rev-parse', 'HEAD'])
-  const commitHash = hashResult.code === 0 ? hashResult.stdout.trim() : ''
+  const commitHash = await resolveCommittedHead(projectPath)
   const summary = commitResult.stdout.trim().split('\n')[0] ?? 'Commit created.'
 
   return {
     ok: true,
     commitHash,
     summary,
+    ...(commitHash === null
+      ? {
+          commitOutput: {
+            ok: false as const,
+            retryPersisted: false,
+            message: COMMIT_HASH_UNAVAILABLE_MESSAGE,
+          },
+        }
+      : {}),
   }
 }
 
@@ -129,134 +179,42 @@ async function validateCommitPreflight(projectPath: string, message: string) {
    * Verified against real git: a rebase conflict has an unmerged entry and no `MERGE_HEAD`.
    */
   const unmerged = await runGit(projectPath, ['ls-files', '--unmerged'])
-  return unmerged.code === 0 && unmerged.stdout.trim().length > 0
+  if (unmerged.code !== 0) {
+    const detail = unmerged.stderr.trim()
+    return commitFailure(
+      'unknown',
+      detail
+        ? `Could not inspect unresolved Git entries: ${detail}`
+        : 'Could not inspect unresolved Git entries.',
+    )
+  }
+  return unmerged.stdout.trim().length > 0
     ? commitFailure('merge-in-progress', 'Resolve the conflicts in progress before committing.')
     : null
-}
-
-interface SelectedRename {
-  readonly from: string
-  readonly to: string
-  /** Whether anything still sits at the source path - see {@link expandRenameSources}. */
-  readonly sourceOccupied: boolean
-}
-
-/** The renames among the selected paths, read from the working tree rather than trusted from the caller. */
-async function resolveSelectedRenames(
-  projectPath: string,
-  paths: readonly string[],
-): Promise<readonly SelectedRename[]> {
-  if (paths.length === 0) return []
-
-  const status = await runGit(projectPath, [
-    ...GIT_RAW_PATHS,
-    'status',
-    '--porcelain=v1',
-    '--untracked-files=all',
-  ])
-  if (status.code !== 0) return []
-
-  const selected = new Set(paths)
-  const pairs: { from: string; to: string }[] = []
-  for (const file of parsePorcelain(status.stdout)) {
-    if (file.renamedFrom !== undefined && selected.has(file.path)) {
-      pairs.push({ from: file.renamedFrom, to: file.path })
-    }
-  }
-  // Independent reads, so asked together.
-  const occupied = await Promise.all(
-    pairs.map((pair) => pathExists(path.join(projectPath, pair.from))),
-  )
-  return pairs.map((pair, index) => ({ ...pair, sourceOccupied: occupied[index] === true }))
-}
-
-/**
- * Add each rename's source beside its target, unless something now occupies that path.
- *
- * A commit that names only the target keeps both files and leaves the deletion staged, so the source belongs
- * in the commit. Read from the working tree rather than trusted from the caller, so a caller that knows
- * nothing about renames still commits one correctly.
- *
- * The occupancy check also settles copies, which `git status` reports with the same `old -> new` shape when
- * `status.renames` is set to `copies`. A copy's source is not deleted, so it is still there to be found, and
- * committing it would commit a file the user did not select.
- *
- * The occupancy check is not a nicety. `git commit -- <paths>` commits the *working tree* content of those
- * paths, so if the user has since created a new file - or a directory - where the rename started, naming that
- * path commits whatever is there now: verified that a rename plus an unrelated new file at the old name
- * committed the new file, which the user never selected. When the path is occupied there is no deletion to
- * express, and the honest commit is the target alone.
- */
-function expandRenameSources(
-  paths: readonly string[],
-  renames: readonly SelectedRename[],
-): readonly string[] {
-  if (renames.length === 0) return paths
-
-  const selected = new Set(paths)
-  for (const rename of renames) {
-    if (!rename.sourceOccupied) selected.add(rename.from)
-  }
-  return [...selected]
-}
-
-/**
- * Whether the only complaint is that a pathspec matched nothing.
- *
- * That is not a failure for this purpose: it means the path is already staged, as a rename's source is.
- */
-function isUnmatchedPathspec(stderr: string) {
-  return /did not match any files/u.test(stderr)
-}
-
-/**
- * Whether anything at all sits at this path, without following it.
- *
- * `lstat`, not `stat`: a broken symlink is something the user put there, and `stat` reports it as absent - so
- * the rename source was expanded into the commit and the symlink committed unselected.
- */
-async function pathExists(absolutePath: string) {
-  try {
-    await lstat(absolutePath)
-    return true
-  } catch {
-    return false
-  }
 }
 
 async function stageCommitPaths(projectPath: string, paths: readonly string[]) {
   if (paths.length === 0) return null
 
   /*
-   * `-A`, so removals count as changes to stage, and one path at a time.
-   *
-   * Two real git behaviours force this shape. A plain `git add -- <paths>` refuses a path that is gone from
-   * disk, which is true of a deletion and of a rename's source, so `-A` is required. And a path can be in
-   * the commit set while matching nothing for `add`: an *already staged* rename has its source gone from
-   * both disk and index, yet the source must stay in the commit pathspec or the commit keeps both files and
-   * leaves the deletion staged. Batching makes that fatal - `add -A -- kept.txt moved.txt` exits 128 -
-   * whereas per-path staging lets the unmatched entry be skipped while everything else is staged.
+   * `update-index --add --remove` stages additions, edits, and deletions for exact file paths. Its NUL input
+   * also accepts an already-staged rename source that is gone from both disk and index. `git add -A` rejects
+   * that source when batched, which previously forced one child process per selected file.
    */
-  for (const singlePath of paths) {
-    const addResult = await runGit(projectPath, [
-      ...GIT_LITERAL_PATHS,
-      'add',
-      '-A',
-      '--',
-      singlePath,
-    ])
-    if (addResult.code === 0) continue
-    if (isUnmatchedPathspec(addResult.stderr)) continue
-    return mapCommitFailure(addResult.stderr)
-  }
-  return null
+  const addResult = await runGit(
+    projectPath,
+    [...GIT_LITERAL_PATHS, 'update-index', '--add', '--remove', '-z', '--stdin'],
+    { input: encodeSelectedGitPaths(paths) },
+  )
+  return addResult.code === 0 ? null : mapCommitFailure(`${addResult.stderr}\n${addResult.stdout}`)
 }
 
 const commitPayloadSchema = Schema.Struct({
   sessionId: Schema.optional(Schema.String),
   message: Schema.String,
   amend: Schema.Boolean,
-  paths: Schema.Array(Schema.String),
+  paths: selectedGitPathsSchema,
+  includeUnstaged: Schema.optional(Schema.Boolean),
 })
 
 export function registerGitCommitHandlers(): void {
@@ -293,7 +251,13 @@ export function registerGitCommitHandlers(): void {
             invalidateGitStatusCache(projectPath)
             invalidateVcsStatus(projectPath)
             if (payload.sessionId && occurrenceContext) {
-              yield* recordSessionCommitOutput(result, payload.sessionId, occurrenceContext)
+              if (result.commitHash === null) return result
+              const commitOutput = yield* recordSessionCommitOutput(
+                { commitHash: result.commitHash, summary: result.summary },
+                payload.sessionId,
+                occurrenceContext,
+              )
+              return { ...result, commitOutput }
             }
           }
           return result

@@ -2,226 +2,50 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { SessionResourceRepositoryError } from '../errors'
+import { SessionResourceCatalogCursorError, SessionResourceRepositoryError } from '../errors'
 import {
-  type RekeySessionResourceInput,
   type SessionResourceContentLocation,
   SessionResourceRepository,
   type SessionResourceRepositoryShape,
-  type UpsertSessionResourceInput,
 } from '../ports/session-resource-repository'
 import {
   advanceSessionResourceBackfillCursor,
   getSessionResourceBackfillCursor,
 } from './sqlite-session-resource-backfill-state'
 import {
-  rowToResource,
-  type SessionResourceOccurrenceRow,
-  type SessionResourceRow,
-} from './sqlite-session-resource-codec'
-import { listResources, readResourceById } from './sqlite-session-resource-reader'
+  findExistingOccurrences,
+  findResourceById,
+  findResourceByLocator,
+  findResourceByOccurrence,
+  listManagedResourceNodeIds,
+  listResourcePage,
+  listResourcesByNodeIds,
+  listResourcesByNodeIdsPage,
+  locateSessionImage,
+} from './sqlite-session-resource-catalog'
+import { listResources } from './sqlite-session-resource-reader'
+import { rekeyResource, upsertResource } from './sqlite-session-resource-writer'
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionResourceRepositoryError({ operation, cause })
 }
 
-function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionResourceInput) {
-  return sql
-    .withTransaction(
-      Effect.gen(function* () {
-        yield* sql`
-          INSERT INTO session_resources (
-            id,
-            session_id,
-            canonical_key,
-            kind,
-            title,
-            mime_type,
-            locator,
-            managed_path,
-            available,
-            created_at,
-            updated_at
-          ) VALUES (
-            ${input.id},
-            ${input.sessionId},
-            ${input.canonicalKey},
-            ${input.kind},
-            ${input.title},
-            ${input.mimeType},
-            ${input.locator},
-            ${input.managedPath},
-            ${input.available ? 1 : 0},
-            ${input.createdAt},
-            ${input.updatedAt}
-          )
-          ON CONFLICT(session_id, canonical_key) DO UPDATE SET
-            kind = CASE
-              WHEN excluded.id = session_resources.id THEN excluded.kind
-              WHEN session_resources.kind = 'image' OR excluded.kind <> 'image'
-                THEN session_resources.kind
-              ELSE excluded.kind
-            END,
-            title = CASE
-              WHEN excluded.updated_at >= session_resources.updated_at THEN excluded.title
-              ELSE session_resources.title
-            END,
-            mime_type = CASE
-              WHEN excluded.kind = 'image' AND excluded.mime_type LIKE 'image/%'
-                THEN excluded.mime_type
-              ELSE COALESCE(session_resources.mime_type, excluded.mime_type)
-            END,
-            locator = CASE
-              WHEN excluded.id = session_resources.id AND excluded.available = 0
-                THEN excluded.locator
-              WHEN excluded.managed_path IS NOT NULL THEN excluded.locator
-              ELSE COALESCE(session_resources.locator, excluded.locator)
-            END,
-            managed_path = CASE
-              WHEN excluded.id = session_resources.id AND excluded.available = 0 THEN NULL
-              ELSE COALESCE(excluded.managed_path, session_resources.managed_path)
-            END,
-            available = CASE
-              WHEN excluded.id = session_resources.id AND excluded.available = 0 THEN 0
-              ELSE MAX(excluded.available, session_resources.available)
-            END,
-            updated_at = MAX(session_resources.updated_at, excluded.updated_at)
-        `
-        const rows = yield* sql<{ readonly id: string }>`
-          SELECT id
-          FROM session_resources
-          WHERE session_id = ${input.sessionId}
-            AND canonical_key = ${input.canonicalKey}
-          LIMIT 1
-        `
-        const resourceId = rows[0]?.id
-        if (!resourceId) {
-          return yield* Effect.fail(new Error('Upserted session resource could not be read.'))
-        }
-        yield* sql`
-          INSERT INTO session_resource_occurrences (
-            id,
-            resource_id,
-            node_id,
-            branch_id,
-            actor,
-            activity,
-            label,
-            created_at
-          ) VALUES (
-            ${input.occurrence.id},
-            ${resourceId},
-            ${input.occurrence.nodeId},
-            ${input.occurrence.branchId},
-            ${input.occurrence.actor},
-            ${input.occurrence.activity},
-            ${input.occurrence.label},
-            ${input.occurrence.createdAt}
-          )
-          ON CONFLICT(id) DO NOTHING
-        `
-        const resource = yield* readResourceById(sql, input.sessionId, resourceId)
-        if (!resource) {
-          return yield* Effect.fail(new Error('Upserted session resource could not be read.'))
-        }
-        return resource
-      }),
-    )
-    .pipe(Effect.mapError((cause) => repositoryError('upsert', cause)))
-}
-
-function rekeyResource(sql: SqlClient.SqlClient, input: RekeySessionResourceInput) {
-  return sql
-    .withTransaction(
-      Effect.gen(function* () {
-        const sourceRows = yield* sql<{ readonly id: string }>`
-          SELECT id
-          FROM session_resources
-          WHERE session_id = ${input.sessionId}
-            AND id = ${input.resourceId}
-            AND available = 0
-            AND managed_path IS NULL
-          LIMIT 1
-        `
-        if (!sourceRows[0]) {
-          return yield* Effect.fail(new Error('Session resource to re-key could not be read.'))
-        }
-        const targetRows = yield* sql<{ readonly id: string }>`
-          SELECT id
-          FROM session_resources
-          WHERE session_id = ${input.sessionId}
-            AND canonical_key = ${input.canonicalKey}
-          LIMIT 1
-        `
-        const targetId = targetRows[0]?.id
-        const resolvedId = targetId ?? input.resourceId
-
-        if (targetId && targetId !== input.resourceId) {
-          yield* sql`
-            UPDATE session_resource_occurrences
-            SET resource_id = ${targetId}
-            WHERE resource_id = ${input.resourceId}
-          `
-          yield* sql`
-            UPDATE session_resources
-            SET updated_at = MAX(updated_at, ${input.updatedAt})
-            WHERE session_id = ${input.sessionId}
-              AND id = ${targetId}
-          `
-          yield* sql`
-            DELETE FROM session_resources
-            WHERE session_id = ${input.sessionId}
-              AND id = ${input.resourceId}
-          `
-        } else {
-          yield* sql`
-            UPDATE session_resources
-            SET canonical_key = ${input.canonicalKey},
-                updated_at = MAX(updated_at, ${input.updatedAt})
-            WHERE session_id = ${input.sessionId}
-              AND id = ${input.resourceId}
-          `
-        }
-
-        const resource = yield* readResourceById(sql, input.sessionId, resolvedId)
-        if (!resource) {
-          return yield* Effect.fail(new Error('Re-keyed session resource could not be read.'))
-        }
-        return resource
-      }),
-    )
-    .pipe(Effect.mapError((cause) => repositoryError('rekey', cause)))
+function listPageError(cause: unknown) {
+  return cause instanceof SessionResourceCatalogCursorError
+    ? cause
+    : repositoryError('listPage', cause)
 }
 
 function findByCanonicalKey(sql: SqlClient.SqlClient, sessionId: SessionId, canonicalKey: string) {
   return Effect.gen(function* () {
-    const rows = yield* sql<SessionResourceRow>`
-      SELECT
-        id,
-        session_id,
-        canonical_key,
-        kind,
-        title,
-        mime_type,
-        locator,
-        managed_path,
-        available,
-        created_at,
-        updated_at
-      FROM session_resources
+    const rows = yield* sql<{ readonly id: string }>`
+      SELECT id FROM session_resources
       WHERE session_id = ${sessionId}
         AND canonical_key = ${canonicalKey}
       LIMIT 1
     `
-    const row = rows[0]
-    if (!row) return null
-    const occurrenceRows = yield* sql<SessionResourceOccurrenceRow>`
-      SELECT id, resource_id, node_id, branch_id, actor, activity, label, created_at
-      FROM session_resource_occurrences
-      WHERE resource_id = ${row.id}
-      ORDER BY created_at ASC, id ASC
-    `
-    return rowToResource(row, occurrenceRows)
+    const resourceId = rows[0]?.id
+    return resourceId ? yield* findResourceById(sql, sessionId, resourceId, 'all') : null
   }).pipe(Effect.mapError((cause) => repositoryError('findByCanonicalKey', cause)))
 }
 
@@ -274,10 +98,46 @@ export const SqliteSessionResourceRepositoryLive = Layer.effect(
     return SessionResourceRepository.of({
       upsert: (input) => upsertResource(sql, input),
       list: (sessionId) => listResources(sql, sessionId),
+      listPage: (sessionId, input) =>
+        sql
+          .withTransaction(listResourcePage(sql, sessionId, input))
+          .pipe(Effect.mapError(listPageError)),
+      findById: (sessionId, resourceId, view, selection) =>
+        findResourceById(sql, sessionId, resourceId, view, selection).pipe(
+          Effect.mapError((cause) => repositoryError('findById', cause)),
+        ),
+      findByOccurrence: (sessionId, occurrenceId, view) =>
+        findResourceByOccurrence(sql, sessionId, occurrenceId, view).pipe(
+          Effect.mapError((cause) => repositoryError('findByOccurrence', cause)),
+        ),
+      findByLocator: (sessionId, kind, locator) =>
+        findResourceByLocator(sql, sessionId, kind, locator).pipe(
+          Effect.mapError((cause) => repositoryError('findByLocator', cause)),
+        ),
+      locateImage: (sessionId, resourceId, selection) =>
+        sql
+          .withTransaction(locateSessionImage(sql, sessionId, resourceId, selection))
+          .pipe(Effect.mapError((cause) => repositoryError('locateImage', cause))),
       findByCanonicalKey: (sessionId, canonicalKey) =>
         findByCanonicalKey(sql, sessionId, canonicalKey),
       rekey: (input) => rekeyResource(sql, input),
       hasOccurrence: (sessionId, occurrenceId) => hasOccurrence(sql, sessionId, occurrenceId),
+      hasOccurrences: (sessionId, occurrenceIds) =>
+        findExistingOccurrences(sql, sessionId, occurrenceIds).pipe(
+          Effect.mapError((cause) => repositoryError('hasOccurrences', cause)),
+        ),
+      listByNodeIds: (sessionId, nodeIds, kind, limit) =>
+        sql
+          .withTransaction(listResourcesByNodeIds(sql, sessionId, nodeIds, kind, limit))
+          .pipe(Effect.mapError((cause) => repositoryError('listByNodeIds', cause))),
+      listByNodeIdsPage: (sessionId, input) =>
+        sql
+          .withTransaction(listResourcesByNodeIdsPage(sql, sessionId, input))
+          .pipe(Effect.mapError(listPageError)),
+      listManagedNodeIds: (sessionId, limit) =>
+        listManagedResourceNodeIds(sql, sessionId, limit).pipe(
+          Effect.mapError((cause) => repositoryError('listManagedNodeIds', cause)),
+        ),
       getContentLocation: (sessionId, resourceId) => getContentLocation(sql, sessionId, resourceId),
       getBackfillCursor: (sessionId) => getSessionResourceBackfillCursor(sql, sessionId),
       advanceBackfillCursor: (sessionId, throughCreatedOrder) =>

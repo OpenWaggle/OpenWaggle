@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import { getGhCliEnv } from '../../env'
+import { getSourceControlCliEnv } from '../../env'
 
 const execFileAsync = promisify(execFile)
 const SOURCE_CONTROL_CLI_TIMEOUT_MS = 60_000
@@ -27,7 +27,7 @@ export async function runCli(
   try {
     const output = await execFileAsync(command, [...args], {
       cwd,
-      env: getGhCliEnv(),
+      env: getSourceControlCliEnv(),
       timeout: SOURCE_CONTROL_CLI_TIMEOUT_MS,
     })
     return { stdout: output.stdout ?? '', stderr: output.stderr ?? '', code: 0, missing: false }

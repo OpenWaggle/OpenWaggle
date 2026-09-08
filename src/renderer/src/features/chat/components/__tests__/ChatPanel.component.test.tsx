@@ -34,6 +34,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     listArchivedSessions: vi.fn().mockResolvedValue([]),
     onRunCompleted: vi.fn(() => () => undefined),
     onSessionResourcesInvalidated: vi.fn(() => () => undefined),
+    activateSessionResourceOwner: vi.fn(),
     getVcsStatus: vi.fn().mockResolvedValue(null),
     onGitWorkingTreeChanged: vi.fn(() => () => undefined),
   },

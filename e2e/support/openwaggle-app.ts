@@ -2,6 +2,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
+import type { NativeImage } from 'electron'
+import type { RemoteVcsStatusResult } from '../../src/shared/types/git'
 import { closeElectronApplication, forceCloseElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
@@ -16,6 +18,29 @@ const USER_DATA_REMOVE_RETRY_DELAY_MS = 250
 
 interface CleanupOptions {
   readonly forceProcessTermination?: boolean
+}
+
+interface RemoteImageFetchProbeInput {
+  readonly url: string
+  readonly dataBase64: string
+  readonly mimeType: string
+  readonly failuresBeforeSuccess: number
+}
+
+interface ResourceDesktopActionProbe {
+  readonly openedPath: string | null
+  readonly revealedPath: string | null
+}
+
+interface RemoteImageFetchProbe {
+  readonly count: number
+  readonly lastUrl: string | null
+}
+
+interface ClipboardImageProbe {
+  readonly empty: boolean
+  readonly width: number
+  readonly height: number
 }
 
 function evidenceDirectory() {
@@ -117,6 +142,136 @@ export class OpenWaggleApp {
           checkboxChecked: false,
         })
     }, response)
+  }
+
+  async installClipboardImageProbe(): Promise<void> {
+    await this.app.evaluate(({ clipboard }) => {
+      delete process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_EMPTY
+      delete process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_WIDTH
+      delete process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_HEIGHT
+      Object.defineProperty(clipboard, 'writeImage', {
+        configurable: true,
+        writable: true,
+        value: (image: NativeImage) => {
+          const size = image.getSize()
+          process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_EMPTY = String(image.isEmpty())
+          process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_WIDTH = String(size.width)
+          process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_HEIGHT = String(size.height)
+        },
+      })
+    })
+  }
+
+  async captureResourceDownload(destination: string): Promise<void> {
+    await this.app.evaluate(({ session }, savePath) => {
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_STATE
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_NAME
+      session.defaultSession.once('will-download', (_event, item) => {
+        item.setSavePath(savePath)
+        process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_NAME = item.getFilename()
+        item.once('done', (_doneEvent, state) => {
+          process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_STATE = state
+        })
+      })
+    }, destination)
+  }
+
+  async resourceDownloadResult() {
+    return this.app.evaluate(() => ({
+      state: process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_STATE ?? null,
+      fileName: process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_NAME ?? null,
+    }))
+  }
+
+  async clipboardImageProbe(): Promise<ClipboardImageProbe | null> {
+    return this.app.evaluate(() => {
+      const empty = process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_EMPTY
+      const width = Number.parseInt(process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_WIDTH ?? '', 10)
+      const height = Number.parseInt(process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_HEIGHT ?? '', 10)
+      if ((empty !== 'true' && empty !== 'false') || !Number.isFinite(width + height)) return null
+      return { empty: empty === 'true', width, height }
+    })
+  }
+
+  async installResourceDesktopActionProbe(): Promise<void> {
+    await this.app.evaluate(({ shell }) => {
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_OPEN_PATH
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_REVEAL_PATH
+      Object.defineProperty(shell, 'openPath', {
+        configurable: true,
+        writable: true,
+        value: (targetPath: string) => {
+          process.env.OPENWAGGLE_E2E_RESOURCE_OPEN_PATH = targetPath
+          return Promise.resolve('')
+        },
+      })
+      Object.defineProperty(shell, 'showItemInFolder', {
+        configurable: true,
+        writable: true,
+        value: (targetPath: string) => {
+          process.env.OPENWAGGLE_E2E_RESOURCE_REVEAL_PATH = targetPath
+        },
+      })
+    })
+  }
+
+  async resourceDesktopActionProbe(): Promise<ResourceDesktopActionProbe> {
+    return this.app.evaluate(() => ({
+      openedPath: process.env.OPENWAGGLE_E2E_RESOURCE_OPEN_PATH ?? null,
+      revealedPath: process.env.OPENWAGGLE_E2E_RESOURCE_REVEAL_PATH ?? null,
+    }))
+  }
+
+  async installRemoteImageFetchProbe(input: RemoteImageFetchProbeInput): Promise<void> {
+    await this.app.evaluate((_electron, probe) => {
+      process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT = '0'
+      delete process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_URL
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = async (request, requestInit) => {
+        const requestedUrl =
+          typeof request === 'string'
+            ? request
+            : request instanceof URL
+              ? request.href
+              : request.url
+        if (requestedUrl !== probe.url) return originalFetch(request, requestInit)
+        const count = Number.parseInt(
+          process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT ?? '0',
+          10,
+        ) + 1
+        process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT = String(count)
+        process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_URL = requestedUrl
+        if (count <= probe.failuresBeforeSuccess) {
+          return new Response('Remote image fixture failure', { status: 503 })
+        }
+        return new Response(Uint8Array.from(Buffer.from(probe.dataBase64, 'base64')), {
+          status: 200,
+          headers: {
+            'Content-Type': probe.mimeType,
+          },
+        })
+      }
+    }, input)
+  }
+
+  async remoteImageFetchProbe(): Promise<RemoteImageFetchProbe> {
+    return this.app.evaluate(() => ({
+      count: Number.parseInt(process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT ?? '0', 10),
+      lastUrl: process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_URL ?? null,
+    }))
+  }
+
+  /**
+   * Replaces only the network-derived VCS lookup with a deterministic IPC response.
+   *
+   * Local repository discovery and all renderer/preload behavior stay real. Restarting the app
+   * restores the production handler, so this cannot mask the production fetch implementation.
+   */
+  async installRemoteVcsStatusProbe(result: RemoteVcsStatusResult): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, probeResult) => {
+      ipcMain.removeHandler('git:vcs-status:remote')
+      ipcMain.handle('git:vcs-status:remote', () => probeResult)
+    }, result)
   }
 
   async cleanup(options: CleanupOptions = {}): Promise<void> {

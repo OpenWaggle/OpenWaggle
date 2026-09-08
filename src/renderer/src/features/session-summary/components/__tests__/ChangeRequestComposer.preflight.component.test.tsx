@@ -1,5 +1,6 @@
-import type { ChangeRequestPreflightResult } from '@shared/types/git'
+import type { VcsStatus } from '@shared/types/git'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   openExternal,
@@ -8,6 +9,7 @@ import {
   runStackedGitAction,
   SESSION,
   setupChangeRequestComposerMocks,
+  vcsStatus,
 } from './change-request-composer.test-harness'
 
 describe('ChangeRequestComposer preflight', () => {
@@ -24,6 +26,7 @@ describe('ChangeRequestComposer preflight', () => {
         message: 'GitHub CLI (gh) is not installed.',
       },
       browserUrl: 'https://github.com/openwaggle/openwaggle/compare?expand=1',
+      plannedHeadRef: 'codex/explore-image-hub-parity',
     })
     renderComposer({ gitStatus: null, isDefaultRef: false })
 
@@ -35,7 +38,7 @@ describe('ChangeRequestComposer preflight', () => {
     fireEvent.click(browserAction)
 
     expect(openExternal).toHaveBeenCalledWith(
-      'https://github.com/openwaggle/openwaggle/compare?expand=1',
+      'https://github.com/openwaggle/openwaggle/compare?expand=1&title=Explore+image+hub+parity&body=%23%23+Summary%0A%0A-+Explore+image+hub+parity',
     )
     expect(runStackedGitAction).not.toHaveBeenCalled()
   })
@@ -48,6 +51,7 @@ describe('ChangeRequestComposer preflight', () => {
         status: { authenticated: false, account: null, host: null },
       },
       browserUrl: 'https://gitlab.example.com/openwaggle/openwaggle/-/merge_requests/new',
+      plannedHeadRef: 'codex/explore-image-hub-parity',
     })
     renderComposer({ provider: 'gitlab', gitStatus: null, isDefaultRef: false })
 
@@ -58,46 +62,73 @@ describe('ChangeRequestComposer preflight', () => {
     expect(screen.getByRole('button', { name: 'Open MR in browser' })).toBeEnabled()
   })
 
-  it('ignores an older preflight response after the request payload changes', async () => {
-    const oldRequest = Promise.withResolvers<ChangeRequestPreflightResult>()
-    const currentRequest = Promise.withResolvers<ChangeRequestPreflightResult>()
-    preflightChangeRequest
-      .mockReturnValueOnce(oldRequest.promise)
-      .mockReturnValueOnce(currentRequest.promise)
+  it('shows and submits the exact collision-free branch planned by main', async () => {
+    preflightChangeRequest.mockResolvedValue({
+      provider: { id: 'github', host: 'github.com' },
+      readiness: {
+        ok: true,
+        status: { authenticated: true, account: 'octocat', host: 'github.com' },
+      },
+      browserUrl: 'https://github.com/openwaggle/openwaggle/compare/main...planned',
+      plannedHeadRef: 'codex/explore-image-hub-parity-2',
+    })
+    renderComposer()
+
+    expect(await screen.findByDisplayValue('codex/explore-image-hub-parity-2')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+    await waitFor(() =>
+      expect(runStackedGitAction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          createFeatureBranch: true,
+          featureBranchName: 'codex/explore-image-hub-parity-2',
+          exactFeatureBranchName: true,
+        }),
+      ),
+    )
+  })
+
+  it('recomposes browser fields locally without rerunning provider readiness', async () => {
     renderComposer({ gitStatus: null, isDefaultRef: false })
 
     await waitFor(() => expect(preflightChangeRequest).toHaveBeenCalledTimes(1))
     fireEvent.change(screen.getByDisplayValue(SESSION.title), {
       target: { value: 'Updated request title' },
     })
-    expect(screen.getByRole('status')).toHaveTextContent('Checking GitHub CLI')
-    await waitFor(() => expect(preflightChangeRequest).toHaveBeenCalledTimes(2))
-    expect(preflightChangeRequest.mock.calls[1]?.[1]).toMatchObject({
-      title: 'Updated request title',
+    fireEvent.change(screen.getByLabelText('Description (leave empty to generate)'), {
+      target: { value: 'Fresh description' },
     })
+    await new Promise((resolve) => window.setTimeout(resolve, 350))
 
-    currentRequest.resolve({
-      provider: { id: 'github', host: 'github.com' },
-      readiness: {
-        ok: true,
-        status: { authenticated: true, account: 'current-user', host: 'github.com' },
-      },
-      browserUrl: 'https://github.com/openwaggle/openwaggle/compare?title=Updated+request+title',
-    })
-    expect(await screen.findByText('GitHub CLI ready as current-user.')).toBeInTheDocument()
+    expect(preflightChangeRequest).toHaveBeenCalledTimes(1)
+    expect(preflightChangeRequest.mock.calls[0]?.[1]).toMatchObject({ title: '', body: '' })
+    fireEvent.click(screen.getByRole('button', { name: 'Open PR in browser' }))
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://github.com/openwaggle/openwaggle/compare?expand=1&title=Updated+request+title&body=Fresh+description',
+    )
+  })
 
-    oldRequest.resolve({
-      provider: { id: 'github', host: 'github.com' },
-      readiness: {
-        ok: false,
-        code: 'not-authenticated',
-        message: 'Stale authentication failure.',
-      },
-      browserUrl: null,
-    })
-    await waitFor(() => {
-      expect(screen.getByText('GitHub CLI ready as current-user.')).toBeInTheDocument()
-      expect(screen.queryByText('Stale authentication failure.')).toBeNull()
-    })
+  it('blocks a detached HEAD before provider preflight', async () => {
+    const detached = fromPartial<VcsStatus>({ ...vcsStatus('github', false), refName: null })
+    renderComposer({ vcs: detached, gitStatus: null })
+
+    expect(
+      await screen.findAllByText('Create or check out a branch before creating a pull request.'),
+    ).not.toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Create PR' })).toBeDisabled()
+    expect(preflightChangeRequest).not.toHaveBeenCalled()
+  })
+
+  it('blocks dirty default-branch creation until detailed file status loads', async () => {
+    renderComposer({ vcs: vcsStatus('github', true), gitStatus: null })
+
+    expect(
+      await screen.findAllByText(
+        'Waiting for local change details before creating a pull request.',
+      ),
+    ).not.toHaveLength(0)
+    expect(screen.queryByRole('checkbox', { name: /Commit and push local changes/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Create PR' })).toBeDisabled()
+    expect(preflightChangeRequest).not.toHaveBeenCalled()
   })
 })

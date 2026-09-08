@@ -15,9 +15,13 @@ export interface SessionSummaryPanelState extends SessionSummaryPanelContext {
 
 interface SessionSummaryUIState {
   readonly panels: Readonly<Record<string, SessionSummaryPanelState>>
+  readonly toggleFocusTargetSessionId: string | null
   readonly syncPanel: (sessionId: string, context: SessionSummaryPanelContext) => void
   readonly closePanel: (sessionId: string) => void
+  readonly dismissTransientPanel: (sessionId: string) => void
   readonly togglePanel: (sessionId: string) => void
+  readonly requestToggleFocus: (sessionId: string) => void
+  readonly clearToggleFocus: (sessionId: string) => void
 }
 
 function panelStorageKey(sessionId: string) {
@@ -67,15 +71,26 @@ export function isSessionSummaryPanelVisible(
   currentContext: SessionSummaryPanelContext | undefined = panel,
 ) {
   return Boolean(
-    panel?.expanded &&
+    panel &&
       currentContext?.available &&
       !currentContext.rightSidebarOpen &&
-      (!currentContext.autoHidden || panel.forcedOpen),
+      (currentContext.autoHidden ? panel.forcedOpen : panel.expanded),
   )
 }
 
 export const useSessionSummaryUIStore = create<SessionSummaryUIState>((set, get) => ({
   panels: {},
+  toggleFocusTargetSessionId: null,
+
+  requestToggleFocus(sessionId) {
+    set({ toggleFocusTargetSessionId: sessionId })
+  },
+
+  clearToggleFocus(sessionId) {
+    set((state) =>
+      state.toggleFocusTargetSessionId === sessionId ? { toggleFocusTargetSessionId: null } : state,
+    )
+  },
 
   syncPanel(sessionId, context) {
     set((state) => {
@@ -90,7 +105,10 @@ export const useSessionSummaryUIStore = create<SessionSummaryUIState>((set, get)
           [sessionId]: {
             ...current,
             ...context,
-            forcedOpen: context.available ? current.forcedOpen : false,
+            forcedOpen:
+              context.available && context.autoHidden && current.autoHidden === context.autoHidden
+                ? current.forcedOpen
+                : false,
           },
         },
       }
@@ -109,13 +127,30 @@ export const useSessionSummaryUIStore = create<SessionSummaryUIState>((set, get)
     }))
   },
 
+  dismissTransientPanel(sessionId) {
+    const current = get().panels[sessionId]
+    if (!current?.forcedOpen) return
+    set((state) => ({
+      panels: {
+        ...state.panels,
+        [sessionId]: { ...current, forcedOpen: false },
+      },
+    }))
+  },
+
   togglePanel(sessionId) {
     const current = get().panels[sessionId]
-    if (!current) return
-    const shouldClose = current.rightSidebarOpen
-      ? current.expanded
-      : isSessionSummaryPanelVisible(current)
-    if (shouldClose) {
+    if (!current || current.rightSidebarOpen) return
+    if (current.autoHidden) {
+      set((state) => ({
+        panels: {
+          ...state.panels,
+          [sessionId]: { ...current, forcedOpen: !current.forcedOpen },
+        },
+      }))
+      return
+    }
+    if (current.expanded) {
       get().closePanel(sessionId)
       return
     }
@@ -126,7 +161,7 @@ export const useSessionSummaryUIStore = create<SessionSummaryUIState>((set, get)
         [sessionId]: {
           ...current,
           expanded: true,
-          forcedOpen: current.autoHidden,
+          forcedOpen: false,
         },
       },
     }))

@@ -5,4 +5,5 @@
  * outer cap, but the useful reading width drifted by 56px. Keeping the cap and gutter together
  * makes ordinary messages, Waggle turns, status rows, and the composer align as one conversation.
  */
+export const CHAT_CONTENT_MAX_WIDTH_PX = 720
 export const CHAT_CONTENT_FRAME_CLASS = 'mx-auto w-full max-w-180 px-5'

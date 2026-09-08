@@ -29,6 +29,7 @@ const ENTRY: ExtensionContributionRegistryEntry = {
   packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
   manifestPath: '/tmp/project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
   contentHash: 'abcdef',
+  invocationBinding: 'host-issued-binding',
   projectPaths: ['/tmp/project'],
   appliesToAllRequestedProjects: true,
   family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
@@ -165,14 +166,17 @@ describe('ExtensionFederatedModuleHost', () => {
     })
 
     await waitFor(() => {
-      expect(apiMock.invokeExtension).toHaveBeenCalledWith({
-        extensionId: 'sample-extension',
-        contributionId: 'sample.settings',
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
-        scope: { kind: 'project', projectPath: '/tmp/project' },
-        payload: {},
-      })
+      expect(apiMock.invokeExtension).toHaveBeenCalledWith(
+        {
+          extensionId: 'sample-extension',
+          contributionId: 'sample.settings',
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+          scope: { kind: 'project', projectPath: '/tmp/project' },
+          payload: {},
+        },
+        'host-issued-binding',
+      )
     })
     expect(postMessage).toHaveBeenCalledWith(
       expect.objectContaining({

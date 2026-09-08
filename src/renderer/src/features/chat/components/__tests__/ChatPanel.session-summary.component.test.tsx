@@ -1,106 +1,24 @@
-import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useProviderStore } from '@/features/providers/state'
-import { useSessionSummaryUIStore } from '@/features/session-summary'
-import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
-import type { ChatPanelSections } from '../../model'
-import { ChatPanel } from '../ChatPanel'
 import { createSections, makeMessage } from './ChatPanel.test-utils'
-
-const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
-const listSessionResources = vi.hoisted(() => vi.fn())
-const readSessionResource = vi.hoisted(() => vi.fn())
-let notifyResize = () => {}
-
-class TestResizeObserver {
-  constructor(callback: ResizeObserverCallback) {
-    notifyResize = () => callback([], this)
-  }
-
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-  takeRecords(): ResizeObserverEntry[] {
-    return []
-  }
-}
-
-vi.mock('../../hooks/use-chat-panel-controller', () => ({
-  useChatPanelSections: useChatPanelSectionsMock,
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    getSettings: vi.fn().mockResolvedValue({}),
-    updateSettings: vi.fn().mockResolvedValue({ ok: true }),
-    getProviderModels: vi.fn().mockResolvedValue([]),
-    getGitStatus: vi.fn().mockResolvedValue(null),
-    listGitBranches: vi.fn().mockResolvedValue({ currentBranch: 'main', branches: [] }),
-    checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    prepareAttachments: vi.fn().mockResolvedValue([]),
-    onWaggleEvent: vi.fn(() => () => undefined),
-    onWaggleTurnEvent: vi.fn(() => () => undefined),
-    listSessionResources,
-    readSessionResource,
-    listArchivedSessions: vi.fn().mockResolvedValue([]),
-    onRunCompleted: vi.fn(() => () => undefined),
-    onSessionResourcesInvalidated: vi.fn(() => () => undefined),
-    getVcsStatus: vi.fn().mockResolvedValue(null),
-    onGitWorkingTreeChanged: vi.fn(() => () => undefined),
-  },
-}))
-
-const SESSION: SessionDetail = {
-  id: SessionId('session-1'),
-  title: 'Session one',
-  projectPath: '/test/project',
-  messages: [],
-  createdAt: 1,
-  updatedAt: 1,
-}
-
-function renderPanel(
-  overrides: Partial<ChatPanelSections['transcript']> = {},
-  composerOverrides: Partial<ChatPanelSections['composer']> = {},
-) {
-  useChatPanelSectionsMock.mockReturnValue(createSections(overrides, composerOverrides))
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <ChatPanel />
-    </QueryClientProvider>,
-  )
-}
+import {
+  advanceSessionResourceBackfill,
+  chatPanelElement,
+  listSessionResources,
+  notifyResize,
+  renderPanel,
+  SESSION,
+  setupChatPanelSessionSummaryHarness,
+  toggleSessionSummaryPanel,
+  useChatPanelSectionsMock,
+} from './chat-panel-session-summary.test-harness'
 
 describe('ChatPanel session summary and setup dock', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', TestResizeObserver)
-    localStorage.clear()
-    useSessionSummaryUIStore.setState({ panels: {} })
-    usePreferencesStore.setState({
-      ...usePreferencesStore.getInitialState(),
-      settings: {
-        ...DEFAULT_SETTINGS,
-        projectPath: '/test/project',
-        selectedModel: SupportedModelId('openai/gpt-5'),
-      },
-      isLoaded: true,
-    })
-    useProviderStore.setState({ ...useProviderStore.getInitialState(), providerModels: [] })
-    useUIStore.setState({ resourceViewer: null })
-    listSessionResources.mockReset().mockResolvedValue([])
-    readSessionResource.mockReset().mockResolvedValue({
-      resourceId: 'active-image',
-      fileName: 'active.png',
-      mimeType: 'image/png',
-      dataBase64: 'aW1hZ2U=',
-    })
+    setupChatPanelSessionSummaryHarness()
   })
 
   afterEach(() => {
@@ -114,6 +32,8 @@ describe('ChatPanel session summary and setup dock', () => {
       { isFirstMessage: true, session: SESSION },
     )
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(advanceSessionResourceBackfill).not.toHaveBeenCalled()
+    expect(listSessionResources).not.toHaveBeenCalled()
   })
 
   it('keeps the transcript width independent from the floating Session Summary', () => {
@@ -138,7 +58,7 @@ describe('ChatPanel session summary and setup dock', () => {
       { isFirstMessage: false, session: SESSION },
     )
     expect(screen.getByRole('log', { name: 'Chat messages' })).not.toHaveClass('pr-84')
-    act(() => useSessionSummaryUIStore.getState().togglePanel('session-1'))
+    act(() => toggleSessionSummaryPanel('session-1'))
     expect(screen.getByRole('log', { name: 'Chat messages' })).not.toHaveClass('pr-84')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
@@ -172,7 +92,40 @@ describe('ChatPanel session summary and setup dock', () => {
 
     expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
-    act(() => useSessionSummaryUIStore.getState().togglePanel('session-1'))
+    act(() => toggleSessionSummaryPanel('session-1'))
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+  })
+
+  it('auto-hides at a medium width where the panel would overlap centered chat content', () => {
+    const message = makeMessage({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello agent' }],
+    })
+    renderPanel(
+      {
+        messages: [message],
+        chatRows: [
+          {
+            type: 'message',
+            message,
+            isStreaming: false,
+            isRunActive: false,
+            showTurnDivider: false,
+          },
+        ],
+      },
+      { isFirstMessage: false, session: SESSION },
+    )
+    const chatPanel = document.querySelector('[data-chat-panel-main="true"]')
+    if (!(chatPanel instanceof HTMLElement)) throw new Error('Chat panel main element is missing.')
+    Object.defineProperty(chatPanel, 'clientWidth', { configurable: true, value: 1_200 })
+
+    act(() => notifyResize())
+
+    expect(chatPanel).toHaveAttribute('data-session-summary-space', 'constrained')
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    act(() => toggleSessionSummaryPanel('session-1'))
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
   })
 
@@ -229,16 +182,20 @@ describe('ChatPanel session summary and setup dock', () => {
           actor: 'agent',
           activity: 'created',
           label: null,
+          locator: `session-resource://${id}`,
           createdAt,
         },
       ],
       createdAt,
       updatedAt: createdAt,
     })
-    listSessionResources.mockResolvedValue([
-      resource('hidden-image', 'hidden.png', 'hidden-node', 1),
-      resource('active-image', 'active.png', 'persisted-node', 2),
-    ])
+    listSessionResources.mockResolvedValue({
+      resources: [
+        resource('hidden-image', 'hidden.png', 'hidden-node', 1),
+        resource('active-image', 'active.png', 'persisted-node', 2),
+      ],
+      backfillComplete: true,
+    })
     useUIStore.getState().openResourceViewer('session-1', 'active-image')
     const message = makeMessage({
       id: 'runtime-message-id',
@@ -251,7 +208,7 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: active.png' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('1 of 2')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Image provenance')).toHaveTextContent('1 of 2')
   })
 
   it('shows the session setup dock before the first message', () => {
@@ -305,11 +262,7 @@ describe('ChatPanel session summary and setup dock', () => {
     useChatPanelSectionsMock.mockReturnValue(
       createSections({}, { isFirstMessage: true, isLoading: true, status: 'submitted' }),
     )
-    rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ChatPanel />
-      </QueryClientProvider>,
-    )
+    rerender(chatPanelElement())
     expect(screen.queryByRole('group', { name: 'Session setup' })).not.toBeInTheDocument()
   })
 })

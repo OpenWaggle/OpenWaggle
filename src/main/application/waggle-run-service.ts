@@ -40,6 +40,7 @@ import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
 import { createWaggleSuccessOutcome, recoverWaggleRunFailure } from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
+import { loadPersistedWaggleResourceProvenanceTree } from './waggle-run/resource-provenance'
 import {
   clearDurableWaggleActiveRun,
   recordDurableWaggleRun,
@@ -262,16 +263,17 @@ function runPreparedWaggle(
       waggleConfig: input.config,
     })
 
+    const persistedTree = yield* loadPersistedWaggleResourceProvenanceTree(sessionRepo, input)
+    const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)
+
     if (result.aborted || input.signal.aborted) {
       input.onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
       return {
         outcome: 'aborted' as const,
+        ...(resources.resourceMessages.length > 0 ? resources : {}),
         ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
       }
     }
-
-    const persistedTree = yield* sessionRepo.getTree(input.sessionId)
-    const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)
 
     return createWaggleSuccessOutcome({
       sessionId: input.sessionId,

@@ -21,6 +21,7 @@ vi.mock('../use-change-request-preflight', () => ({
     message: 'GitHub CLI ready as openwaggle.',
     nativeCreationBlocked: false,
     browserUrl: null,
+    plannedHeadRef: null,
   }),
 }))
 
@@ -194,7 +195,7 @@ describe('ChangeRequestComposer recovery', () => {
       message: 'The commit succeeded, but its Output and durable retry could not be recorded.',
       variant: 'error',
     })
-    expect(openExternal).toHaveBeenCalledWith('https://github.com/openwaggle/openwaggle/pull/1')
+    expect(openExternal).not.toHaveBeenCalled()
   })
 
   it('reports both a later PR failure and the earlier commit Output failure', async () => {
@@ -233,12 +234,21 @@ describe('ChangeRequestComposer recovery', () => {
     fireEvent.click(createButton)
 
     expect(createButton).toHaveFocus()
+    expect(createButton).toBeEnabled()
     expect(createButton).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(screen.getByRole('status')).toHaveTextContent('Creating PR…')
     const closeButton = screen.getByRole('button', { name: 'Close change request composer' })
-    expect(closeButton).toBeDisabled()
+    expect(closeButton).toBeEnabled()
+    expect(closeButton).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(closeButton)
     expect(callbacks.onClose).not.toHaveBeenCalled()
+
+    const title = screen.getByDisplayValue(SESSION.title)
+    expect(title).toHaveAttribute('readonly')
+    expect(title).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.change(title, { target: { value: 'A stale edit' } })
+    expect(title).toHaveValue(SESSION.title)
     resolveAction?.({
       ok: true,
       action: 'create_pr',
@@ -248,6 +258,29 @@ describe('ChangeRequestComposer recovery', () => {
     await waitFor(() => expect(runStackedGitAction).toHaveBeenCalledOnce())
   })
 
+  it('reports a browser-launch failure without closing the composer', async () => {
+    runStackedGitAction.mockResolvedValue({
+      ok: false,
+      phase: 'pr',
+      code: 'change-request-failed',
+      message: 'GitHub CLI is unavailable.',
+      fallbackUrl: 'https://github.com/openwaggle/openwaggle/compare/main...feature?expand=1',
+    })
+    openExternal.mockRejectedValueOnce(new Error('The browser could not be opened.'))
+    const callbacks = renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open PR in browser' }))
+
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData).toEqual({
+        message: 'The browser could not be opened.',
+        variant: 'error',
+      }),
+    )
+    expect(callbacks.onClose).not.toHaveBeenCalled()
+  })
+
   it('announces output recording as a separate phase from remote creation', async () => {
     let resolveRecording: (() => void) | undefined
     recordSessionChangeRequest.mockReturnValue(
@@ -255,7 +288,7 @@ describe('ChangeRequestComposer recovery', () => {
         resolveRecording = resolve
       }),
     )
-    renderComposer()
+    const callbacks = renderComposer()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
 
@@ -265,8 +298,10 @@ describe('ChangeRequestComposer recovery', () => {
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent('Adding PR to Outputs…'),
     )
+    expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(screen.getByRole('status')).not.toHaveTextContent('Creating PR…')
     resolveRecording?.()
-    await waitFor(() => expect(openExternal).toHaveBeenCalledOnce())
+    await waitFor(() => expect(callbacks.onClose).toHaveBeenCalledOnce())
+    expect(openExternal).not.toHaveBeenCalled()
   })
 })

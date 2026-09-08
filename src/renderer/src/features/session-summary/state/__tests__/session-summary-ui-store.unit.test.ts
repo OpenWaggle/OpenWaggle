@@ -12,7 +12,7 @@ const WIDE_CONTEXT = {
 describe('session-summary-ui-store', () => {
   beforeEach(() => {
     localStorage.clear()
-    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.setState({ panels: {}, toggleFocusTargetSessionId: null })
   })
 
   afterEach(() => vi.restoreAllMocks())
@@ -47,6 +47,7 @@ describe('session-summary-ui-store', () => {
     expect(
       isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-a']),
     ).toBe(true)
+    expect(localStorage.getItem('openwaggle:session-summary:session-a:panel')).toBeNull()
   })
 
   it('hides while a right sidebar is open and restores the same session afterward', () => {
@@ -67,7 +68,7 @@ describe('session-summary-ui-store', () => {
     ).toBe(true)
   })
 
-  it('keeps a manual narrow-width override through a wide and narrow round trip', () => {
+  it('treats a narrow-width override as transient across layout changes', () => {
     const store = useSessionSummaryUIStore.getState()
     store.syncPanel('session-a', { ...WIDE_CONTEXT, autoHidden: true })
     store.togglePanel('session-a')
@@ -76,15 +77,14 @@ describe('session-summary-ui-store', () => {
 
     expect(
       isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-a']),
-    ).toBe(true)
+    ).toBe(false)
+    expect(useSessionSummaryUIStore.getState().panels['session-a']?.forcedOpen).toBe(false)
   })
 
-  it('toggles deferred user intent while a right sidebar suppresses visibility', () => {
+  it('preserves persistent user intent while a right sidebar suppresses visibility', () => {
     const store = useSessionSummaryUIStore.getState()
     store.syncPanel('session-a', { ...WIDE_CONTEXT, rightSidebarOpen: true })
 
-    store.togglePanel('session-a')
-    expect(useSessionSummaryUIStore.getState().panels['session-a']?.expanded).toBe(false)
     store.togglePanel('session-a')
     expect(useSessionSummaryUIStore.getState().panels['session-a']?.expanded).toBe(true)
     expect(useSessionSummaryUIStore.getState().panels['session-a']?.forcedOpen).toBe(false)
@@ -93,23 +93,39 @@ describe('session-summary-ui-store', () => {
     ).toBe(false)
   })
 
-  it('restores a narrow-width open request after sidebar suppression ends', () => {
+  it('temporarily suppresses a transient narrow-width panel while a sidebar is open', () => {
     const store = useSessionSummaryUIStore.getState()
     const narrowContext = { ...WIDE_CONTEXT, autoHidden: true }
     store.syncPanel('session-a', narrowContext)
-    store.closePanel('session-a')
-    store.syncPanel('session-a', { ...narrowContext, rightSidebarOpen: true })
-
     store.togglePanel('session-a')
+    expect(useSessionSummaryUIStore.getState().panels['session-a']?.forcedOpen).toBe(true)
 
+    store.syncPanel('session-a', { ...narrowContext, rightSidebarOpen: true })
     expect(useSessionSummaryUIStore.getState().panels['session-a']).toMatchObject({
       expanded: true,
       forcedOpen: true,
     })
+    expect(
+      isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-a']),
+    ).toBe(false)
     store.syncPanel('session-a', narrowContext)
     expect(
       isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-a']),
     ).toBe(true)
+  })
+
+  it('dismisses only the transient override without changing the wide-layout preference', () => {
+    const store = useSessionSummaryUIStore.getState()
+    store.syncPanel('session-a', { ...WIDE_CONTEXT, autoHidden: true })
+    store.togglePanel('session-a')
+
+    store.dismissTransientPanel('session-a')
+
+    expect(useSessionSummaryUIStore.getState().panels['session-a']).toMatchObject({
+      expanded: true,
+      forcedOpen: false,
+    })
+    expect(localStorage.getItem('openwaggle:session-summary:session-a:panel')).toBeNull()
   })
 
   it('keeps controls usable when localStorage access fails', () => {
@@ -125,5 +141,15 @@ describe('session-summary-ui-store', () => {
     store.closePanel('session-a')
 
     expect(useSessionSummaryUIStore.getState().panels['session-a']?.expanded).toBe(false)
+  })
+
+  it('clears a Hive navigation focus request only for its target session', () => {
+    const store = useSessionSummaryUIStore.getState()
+    store.requestToggleFocus('session-b')
+    store.clearToggleFocus('session-a')
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-b')
+
+    store.clearToggleFocus('session-b')
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
   })
 })

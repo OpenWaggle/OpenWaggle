@@ -138,13 +138,23 @@ export const api: OpenWaggleApi = {
   revokeAuthorization: invoke('authorization-grants:revoke'),
 
   // Sessions
+  activateSessionResourceOwner: send('sessions:resources:activate-owner'),
   listSessions: invoke('sessions:list'),
   listSessionDetails: invoke('sessions:list-details'),
   getSessionDetail: invoke('sessions:get-detail'),
+  getSessionHiveRelations: invoke('sessions:get-hive-relations'),
   listSessionResources: invoke('sessions:resources:list'),
+  listSessionResourcePage: invoke('sessions:resources:page'),
+  getSessionResource: invoke('sessions:resources:get'),
+  locateSessionResourceImage: invoke('sessions:resources:locate-image'),
+  listSessionResourceNodePage: invoke('sessions:resources:node-page'),
+  listSessionResourcesByNodeIds: invoke('sessions:resources:list-by-node-ids'),
   advanceSessionResourceBackfill: invoke('sessions:resources:backfill'),
   readSessionResource: invoke('sessions:resources:read'),
   readSessionResourceThumbnail: invoke('sessions:resources:thumbnail'),
+  copySessionResourceImage: invoke('sessions:resources:copy-image'),
+  prepareSessionResourceAttachment: invoke('sessions:resources:prepare-attachment'),
+  discardPreparedAttachment: invoke('attachments:discard'),
   retrySessionResource: invoke('sessions:resources:retry'),
   recordSessionChangeRequest: invoke('sessions:resources:record-change-request'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
@@ -175,6 +185,7 @@ export const api: OpenWaggleApi = {
   onSessionTitleUpdated: on('sessions:title-updated'),
   onSessionListInvalidated: on('sessions:list-invalidated'),
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
+  onGitStackedActionProgress: on('git:stacked-action:progress'),
 
   // Terminal
   createTerminal: invoke('terminal:create'),
@@ -196,6 +207,7 @@ export const api: OpenWaggleApi = {
   listGitBranches: invoke('git:branches:list'),
   checkoutGitBranch: invoke('git:branches:checkout'),
   createGitBranch: invoke('git:branches:create'),
+  validateGitBranchName: invoke('git:branches:validate-name'),
   listGitWorktrees: invoke('git:worktrees:list'),
   createGitWorktree: invoke('git:worktrees:create'),
   removeGitWorktree: invoke('git:worktrees:remove'),
@@ -203,9 +215,12 @@ export const api: OpenWaggleApi = {
   getLocalVcsStatus: invoke('git:vcs-status:local'),
   getRemoteVcsStatus: invoke('git:vcs-status:remote'),
   runStackedGitAction: invoke('git:stacked-action:run'),
+  cancelStackedGitAction: invoke('git:stacked-action:cancel'),
   preflightChangeRequest: invoke('git:change-request:preflight'),
   listChangeRequests: invoke('git:change-request:list'),
   checkoutChangeRequest: invoke('git:change-request:checkout'),
+  getChangeRequestPanel: invoke('git:change-request:panel'),
+  mergeChangeRequest: invoke('git:change-request:merge'),
 
   // Attachments
   prepareAttachments: prepareSelectedAttachments,

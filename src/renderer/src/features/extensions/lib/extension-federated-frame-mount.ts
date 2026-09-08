@@ -80,6 +80,8 @@ export function federatedModuleMountKey(
     entry.execution ?? '',
     entry.packagePath,
     entry.contentHash,
+    entry.sessionId ?? '',
+    entry.invocationBinding ?? '',
     entry.projectPaths,
     entry.networkOrigins ?? [],
     moduleUrl,

@@ -2,6 +2,7 @@ import type { RightSidebarPanel } from '@/shell'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
 
 interface ResolveRightSidebarPanelInput {
+  readonly changeRequestOpen?: boolean
   readonly diffOpen: boolean
   readonly fileOpen?: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
@@ -11,6 +12,7 @@ interface ResolveRightSidebarPanelInput {
 }
 
 interface ChatRightSidebarSelection {
+  readonly changeRequestUrl?: string | null
   readonly diffOpen: boolean
   readonly extensionSidePanel: ChatExtensionSidePanelTarget | null
   readonly resourcesTarget: unknown | null
@@ -19,6 +21,9 @@ interface ChatRightSidebarSelection {
 }
 
 export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): RightSidebarPanel {
+  if (input.changeRequestOpen) {
+    return 'change-request'
+  }
   if (input.fileOpen) {
     return 'file'
   }
@@ -55,6 +60,7 @@ export function resolveChatRightSidebarPanel(
   lastPanel: RightSidebarPanel,
 ) {
   return resolveRightSidebarPanel({
+    changeRequestOpen: state.changeRequestUrl !== null && state.changeRequestUrl !== undefined,
     diffOpen: state.diffOpen,
     fileOpen: state.workspaceFile !== null,
     extensionSidePanel: state.extensionSidePanel,

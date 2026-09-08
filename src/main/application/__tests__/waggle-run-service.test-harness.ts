@@ -6,6 +6,7 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
+import { SessionProjectionRepositoryError } from '../../errors'
 import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
@@ -65,9 +66,11 @@ const assistantMessage: Message = {
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(session),
   getOptional: () => Effect.succeed(session),
+  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
+  hasDirectWorkers: () => Effect.succeed(false),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -100,7 +103,13 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 const TestSessionLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: (requestedSessionId) => Effect.sync(() => getTreeMock(requestedSessionId)),
+  getTree: (requestedSessionId) =>
+    Effect.suspend(() => {
+      const result = getTreeMock(requestedSessionId)
+      return result instanceof SessionProjectionRepositoryError
+        ? Effect.fail(result)
+        : Effect.succeed(result)
+    }),
   listResourceProjectionPage: () =>
     Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
   getResourceProjectionNodes: () => Effect.succeed([]),

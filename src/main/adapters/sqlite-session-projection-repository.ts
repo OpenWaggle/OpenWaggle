@@ -19,9 +19,11 @@ import {
 type RepoOperation =
   | 'get'
   | 'getOptional'
+  | 'getHiveRelations'
   | 'list'
   | 'listDetails'
   | 'create'
+  | 'hasDirectWorkers'
   | 'delete'
   | 'archive'
   | 'unarchive'
@@ -59,8 +61,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   async function pruneWorktreeForSession(
     id: Parameters<typeof store.getSessionDetail>[0],
     reason: 'delete' | 'archive',
+    knownSession?: Awaited<ReturnType<typeof store.getSessionDetail>>,
   ) {
-    const session = await store.getSessionDetail(id)
+    const session = knownSession === undefined ? await store.getSessionDetail(id) : knownSession
     if (!session) return
     if (reason === 'archive' && session.worktreePath) {
       const tree = await import('../store/sessions/session-tree').then(({ getSessionTree }) =>
@@ -78,7 +81,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
         reason,
       },
       {
-        listWorktreeRefs: () => store.listSessionWorktreeRefs(),
+        listWorktreeRefs: async () => {
+          const refs = await store.listSessionWorktreeRefs()
+          return refs.some(({ sessionId }) => sessionId === String(id))
+            ? refs
+            : [{ sessionId: String(id), worktreePath: session.worktreePath ?? null }, ...refs]
+        },
         clearWorktree: (sessionId) => store.clearSessionWorktree(SessionId(sessionId)),
         deleteCheckpoints: async (sessionId) => {
           await deleteTurnCheckpointsForSession(SessionId(sessionId))
@@ -109,6 +117,8 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       getOptional: (id) => repoOp('getOptional', () => store.getSessionDetail(id)),
 
+      getHiveRelations: (id) => repoOp('getHiveRelations', () => store.getSessionHiveRelations(id)),
+
       list: (limit) => repoOp('list', () => store.listSessionSummaries(limit)),
 
       listDetails: (limit, offset) =>
@@ -116,10 +126,15 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       create: (input) => repoOp('create', () => store.createSession(input)),
 
+      hasDirectWorkers: (id) => repoOp('hasDirectWorkers', () => store.hasDirectSessionWorkers(id)),
+
       delete: (id) =>
         repoOp('delete', async () => {
-          await pruneWorktreeForSession(id, 'delete')
-          return store.deleteSession(id)
+          const session = await store.getSessionDetail(id)
+          // Commit the lineage-guarded delete before pruning, so a concurrent Worker cannot leave
+          // a surviving Queen with a removed checkout after the atomic guard rejects the delete.
+          await store.deleteSession(id)
+          await pruneWorktreeForSession(id, 'delete', session)
         }),
 
       archive: (id) =>

@@ -14,35 +14,17 @@ import {
   captureBackfilledAssistantResources,
 } from './session-resource-backfill-assistant'
 import * as AttachmentRepairs from './session-resource-backfill-attachment-repairs'
-import {
-  advanceAttachmentBackfillBudget,
-  type BackfillAttachmentBudget,
-  isBackfillableAttachmentSize,
-} from './session-resource-backfill-budget'
-import { type BackfillLinkState, captureBackfilledLinks } from './session-resource-backfill-link'
-import {
-  type ProjectedResourceMessage,
-  projectResourceMessages,
-} from './session-resource-backfill-messages'
+import type { BackfillLinkState } from './session-resource-backfill-link'
+import { projectResourceMessages } from './session-resource-backfill-messages'
+import { backfillCandidateOccurrenceIds } from './session-resource-backfill-occurrences'
 import { loadSessionResourceBackfillProgress } from './session-resource-backfill-progress'
-import { captureAttachment } from './session-resource-capture'
 import {
-  attachmentOccurrenceId,
-  type CaptureAttachmentInput,
-} from './session-resource-capture-attachment'
-import { collectExplicitResources } from './session-resource-extraction'
+  attemptBackfilledAttachment,
+  type BackfillAttachmentState,
+  captureBackfilledUserResources,
+} from './session-resource-backfill-user'
 import { withSessionResourceInvalidation } from './session-resource-invalidation'
 import { withSessionResourceLock } from './session-resource-lock'
-
-interface BackfillAttachmentState {
-  budget: BackfillAttachmentBudget
-  readonly completedOccurrences: Set<string>
-  readonly knownResources: ReadonlyMap<string, SessionResource>
-  readonly retryUnavailableResourceId: string | null
-  readonly deferred: AttachmentRepairs.DeferredAttachmentRepair[]
-  projectionBlocked: boolean
-  progressed: boolean
-}
 
 interface BackfillProgress {
   readonly completedAttachmentOccurrences: Set<string>
@@ -66,98 +48,20 @@ interface CaptureProjectedSessionResourcesInput {
   readonly retryUnavailableResourceId?: string
 }
 
+const SESSION_RESOURCE_BACKFILL_LOOKUP_LIMIT = 512
+
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
-}
-
-function attemptAttachment(
-  input: CaptureAttachmentInput,
-  state: BackfillAttachmentState,
-  repairResource?: SessionResource,
-) {
-  return Effect.gen(function* () {
-    const id = attachmentOccurrenceId(input)
-    const nextBudget = advanceAttachmentBackfillBudget(state.budget, input.attachment.sizeBytes)
-    if (!nextBudget) {
-      if (repairResource) {
-        state.projectionBlocked = true
-        return false
-      }
-      if (!isBackfillableAttachmentSize(input.attachment.sizeBytes)) {
-        yield* captureAttachment(input)
-        state.completedOccurrences.add(id)
-        state.progressed = true
-        return false
-      }
-      state.projectionBlocked = true
-      return false
-    }
-    state.budget = nextBudget
-    const repaired = yield* captureAttachment({
-      ...input,
-      ...(repairResource ? { repairResource } : {}),
-    })
-    state.completedOccurrences.add(id)
-    state.progressed = true
-    return repaired
-  })
-}
-
-function captureBackfilledUserResources(
-  sessionId: SessionId,
-  projected: ProjectedResourceMessage,
-  attachmentState: BackfillAttachmentState,
-  linkState: BackfillLinkState,
-) {
-  return Effect.gen(function* () {
-    const { message, nodeId, branchId } = projected
-    const runId = `backfill:${nodeId}`
-    const attachments = message.parts.filter((part) => part.type === 'attachment')
-    for (const [index, part] of attachments.entries()) {
-      const attachmentInput = {
-        sessionId,
-        runId,
-        attachment: part.attachment,
-        index,
-        nodeId,
-        createdAt: message.createdAt,
-        branchId,
-      }
-      const id = attachmentOccurrenceId(attachmentInput)
-      if (attachmentState.completedOccurrences.has(id)) continue
-      const knownResource = attachmentState.knownResources.get(id)
-      if (knownResource) {
-        if (!knownResource.available) {
-          if (knownResource.id === attachmentState.retryUnavailableResourceId) {
-            attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
-          }
-          continue
-        }
-        attachmentState.deferred.push({ input: attachmentInput, resource: knownResource })
-        continue
-      }
-      yield* attemptAttachment(attachmentInput, attachmentState)
-    }
-    yield* captureBackfilledLinks({
-      sessionId,
-      runId,
-      links: collectExplicitResources(message.parts).links,
-      nodeId,
-      actor: 'user',
-      activity: 'provided',
-      createdAt: message.createdAt,
-      branchId,
-      state: linkState,
-    })
-  })
 }
 
 function createBackfillCaptureState(
   resources: readonly SessionResource[],
   progress: BackfillProgress,
+  knownOccurrenceIds: ReadonlySet<string>,
   retryUnavailableResourceId: string | undefined,
 ): BackfillCaptureState {
   const occurrenceIds = capturedOccurrenceIds(resources)
+  for (const id of knownOccurrenceIds) occurrenceIds.add(id)
   return {
     attachments: {
       budget: { bytes: 0, count: 0 },
@@ -230,7 +134,7 @@ function repairDeferredResources(state: BackfillCaptureState) {
     )) {
       if (state.attachments.projectionBlocked) break
       if (repairedAttachmentResourceIds.has(deferred.resource.id)) continue
-      const repaired = yield* attemptAttachment(
+      const repaired = yield* attemptBackfilledAttachment(
         deferred.input,
         state.attachments,
         deferred.resource,
@@ -273,7 +177,18 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
           .pipe(Effect.catchAll(() => Effect.succeed(null)))
         const session = workspace?.tree.session ?? null
         const workingPath = resolveSessionWorkingDir(session, session?.projectPath ?? null)
-        const resources = yield* repository.list(input.sessionId)
+        const projectedMessages = projectResourceMessages(input)
+        const nodeIds = projectedMessages.map(({ nodeId }) => nodeId)
+        const resources = yield* repository.listByNodeIds(
+          input.sessionId,
+          nodeIds,
+          null,
+          SESSION_RESOURCE_BACKFILL_LOOKUP_LIMIT,
+        )
+        const knownOccurrenceIds = yield* repository.hasOccurrences(
+          input.sessionId,
+          backfillCandidateOccurrenceIds(input.sessionId, projectedMessages),
+        )
         const progress = yield* loadSessionResourceBackfillProgress(
           resources,
           repository,
@@ -283,6 +198,7 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
         const state = createBackfillCaptureState(
           resources,
           progress,
+          knownOccurrenceIds,
           input.retryUnavailableResourceId,
         )
         yield* captureBackfilledMessages(input, state, workingPath)

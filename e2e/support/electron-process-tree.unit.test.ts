@@ -5,7 +5,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { forceCloseElectronApplication } from './electron-process-tree'
 
-describe('Electron process-tree teardown', () => {
+describe.skipIf(process.platform === 'win32')('Electron POSIX process-tree teardown', () => {
   const children: ChildProcess[] = []
 
   afterEach(() => {

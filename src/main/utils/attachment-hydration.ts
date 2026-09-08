@@ -5,6 +5,8 @@ import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent
 import { extractAttachmentText } from '../ipc/attachment-text-extraction'
 import { resolvePreparedAttachmentCapability } from './attachment-registry'
 
+const ATTACHMENT_HYDRATION_CONCURRENCY = 2
+
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
 }
@@ -64,6 +66,26 @@ async function hydrateAttachmentSource(
 export async function hydrateAttachmentSources(
   attachments: readonly PreparedAttachment[],
 ): Promise<HydratedAttachment[]> {
-  // Independent per-attachment reads; Promise.all preserves input order.
-  return Promise.all(attachments.map(hydrateAttachmentSource))
+  const hydrated: HydratedAttachment[] = []
+  let nextIndex = 0
+  let firstFailure: unknown
+
+  async function worker() {
+    while (firstFailure === undefined) {
+      const index = nextIndex
+      nextIndex += 1
+      const attachment = attachments[index]
+      if (!attachment) return
+      try {
+        hydrated[index] = await hydrateAttachmentSource(attachment)
+      } catch (cause) {
+        firstFailure ??= cause
+      }
+    }
+  }
+
+  const workerCount = Math.min(ATTACHMENT_HYDRATION_CONCURRENCY, attachments.length)
+  await Promise.all(Array.from({ length: workerCount }, worker))
+  if (firstFailure !== undefined) throw firstFailure
+  return hydrated
 }

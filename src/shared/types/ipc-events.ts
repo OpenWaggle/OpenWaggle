@@ -4,10 +4,14 @@ import type { SessionId } from './brand'
 import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
+import type { GitActionProgressEvent } from './vcs'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 import type { WorkspaceFilesChangedEvent } from './workspace-files'
 
 export interface IpcSendChannelMap {
+  'sessions:resources:activate-owner': {
+    args: [sessionId: SessionId | null]
+  }
   'agent:cancel-waggle': {
     args: [sessionId: SessionId]
   }
@@ -84,6 +88,13 @@ export interface IpcEventChannelMap {
    */
   'git:working-tree-changed': {
     payload: { workingPath: string }
+  }
+  'git:stacked-action:progress': {
+    payload: {
+      operationId: string
+      workingPath: string
+      progress: GitActionProgressEvent
+    }
   }
   'workspace-files:changed': {
     payload: WorkspaceFilesChangedEvent

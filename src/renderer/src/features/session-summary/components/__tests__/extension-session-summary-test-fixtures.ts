@@ -39,6 +39,7 @@ export function baseEntry(
       disabledProjectPaths: [],
     },
     diagnostics: [],
+    invocationBinding: 'host-issued-binding',
   }
 }
 

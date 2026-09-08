@@ -4,7 +4,7 @@ import type {
   OpenChangeRequestPayload,
 } from '@shared/types/git'
 import type { GitPushDestination } from './push-service'
-import { detectSourceControlProvider, parseRemoteRepositoryIdentity } from './vcs-status-parse'
+import { parseRemoteRepositoryIdentity } from './vcs-status-parse'
 
 interface ChangeRequestRefDeps {
   readonly resolveCurrentRef: (projectPath: string) => Promise<string | null>
@@ -35,21 +35,28 @@ async function resolveBaseRef(
 function compatibleHeadIdentity(
   baseUrl: string | null,
   destination: GitPushDestination,
-): Pick<OpenChangeRequestPayload, 'headOwner' | 'headRepository'> | null {
+): Pick<OpenChangeRequestPayload, 'headOwner' | 'headRepository' | 'targetRepository'> | null {
   if (destination.multiplePushUrls || !destination.remoteUrl || !baseUrl) return null
   const base = parseRemoteRepositoryIdentity(baseUrl)
-  if (!base) return detectSourceControlProvider(baseUrl) ? null : {}
+  if (!base) return null
   const head = parseRemoteRepositoryIdentity(destination.remoteUrl)
   if (!head || base.provider !== head.provider) return null
   if (base.authority !== head.authority) return null
+  const targetRepository = {
+    provider: base.provider,
+    host: base.host,
+    owner: base.owner,
+    repository: base.repository,
+  }
   const sameOwner = base.owner.toLowerCase() === head.owner.toLowerCase()
   const sameRepository = base.repository.toLowerCase() === head.repository.toLowerCase()
-  if (sameOwner && sameRepository) return {}
+  if (sameOwner && sameRepository) return { targetRepository }
   if (base.provider === 'gitlab') {
-    return { headRepository: `${head.owner}/${head.repository}` }
+    return { targetRepository, headRepository: `${head.owner}/${head.repository}` }
   }
   if (sameOwner) return null
   return {
+    targetRepository,
     headOwner: head.owner,
     headRepository: `${head.owner}/${head.repository}`,
   }

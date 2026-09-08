@@ -30,6 +30,7 @@ export function occurrence(input: {
   readonly createdAt: number
   readonly branchId?: string | null
   readonly label?: string | null
+  readonly locator?: string | null
 }) {
   return {
     id: input.id,
@@ -38,6 +39,7 @@ export function occurrence(input: {
     actor: input.actor,
     activity: input.activity,
     label: input.label ?? null,
+    locator: input.locator ?? null,
     createdAt: input.createdAt,
   }
 }

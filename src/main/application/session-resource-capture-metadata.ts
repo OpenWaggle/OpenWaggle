@@ -59,6 +59,7 @@ export function captureMetadataResource(input: MetadataResourceCaptureInput) {
         actor: input.actor,
         activity: input.activity,
         label: input.label,
+        locator: input.locator,
         createdAt: input.createdAt,
       }),
       createdAt: existing?.createdAt ?? input.createdAt,

@@ -3,7 +3,7 @@ import type { GitStackedAction, VcsStatus } from '@shared/types/git'
 export interface SessionSummaryGitAction {
   readonly label: string
   readonly disabled: boolean
-  readonly kind: 'run_action' | 'show_hint'
+  readonly kind: 'refresh_status' | 'run_action' | 'show_hint'
   readonly action?: GitStackedAction
   readonly hint?: string
 }
@@ -24,32 +24,36 @@ const unavailable = (hint: string): SessionSummaryGitAction => ({
 export function resolveSessionSummaryGitAction(
   status: VcsStatus | null,
   isBusy: boolean,
+  loadState: 'loading' | 'loaded' | 'error' | 'unavailable' = status ? 'loaded' : 'unavailable',
+  localAheadCount = 0,
 ): SessionSummaryGitAction {
   if (isBusy) return unavailable('A Git action is already in progress.')
-  if (!status) return unavailable('Git status is unavailable.')
-  if (!status.refName) return unavailable('Create or checkout a branch before committing.')
-
-  if (status.hasWorkingTreeChanges) {
-    if (!status.hasPrimaryRemote) {
-      return { label: 'Commit or push', disabled: false, kind: 'run_action', action: 'commit' }
-    }
+  if (loadState === 'error') {
     return {
-      label: 'Commit or push',
+      label: 'Retry Git status',
       disabled: false,
-      kind: 'run_action',
-      action: 'commit_push',
+      kind: 'refresh_status',
+      hint: 'Git status could not be loaded.',
     }
   }
+  if (loadState === 'loading') return unavailable('Checking Git status.')
+  if (!status) return unavailable('Git status is unavailable.')
+  // A detached HEAD is recoverable in the command: it defaults to creating a named branch at
+  // the current HEAD, so hiding the command here would strand both dirty files and detached commits.
+  if (!status.refName) {
+    return { label: 'Commit or push', disabled: false, kind: 'run_action' }
+  }
 
-  const ahead = status.aheadCount > 0
-  const behind = status.behindCount > 0
-  if (ahead && behind) {
-    return unavailable('The branch has diverged from its upstream. Rebase or merge first.')
+  const unpublishedCommits = Math.max(
+    status.aheadCount,
+    status.aheadOfDefaultCount ?? 0,
+    localAheadCount,
+  )
+  if (status.hasWorkingTreeChanges || unpublishedCommits > 0) {
+    return { label: 'Commit or push', disabled: false, kind: 'run_action' }
   }
-  if (ahead && status.hasPrimaryRemote) {
-    return { label: 'Commit or push', disabled: false, kind: 'run_action', action: 'push' }
+  if (status.behindCount > 0) {
+    return unavailable('Pull the upstream changes before committing or pushing.')
   }
-  if (ahead) return unavailable('Add a remote before publishing this branch.')
-  if (behind) return unavailable('Pull the upstream changes before committing or pushing.')
   return unavailable('There are no local changes or commits to publish.')
 }

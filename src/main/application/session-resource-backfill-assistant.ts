@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionResource, SessionResourceActor } from '@shared/types/session-resource'
+import type { ToolCallResult } from '@shared/types/tools'
 import * as Effect from 'effect/Effect'
 import { type BackfillLinkState, captureBackfilledLinks } from './session-resource-backfill-link'
 import type { ProjectedResourceMessage } from './session-resource-backfill-messages'
@@ -15,6 +16,7 @@ import {
 import {
   captureToolResultMetadata,
   SESSION_TOOL_CAPTURE_LIMIT,
+  toolResultCompletionOccurrenceIds,
   toolResultOccurrenceId,
   toolResultOutputGroups,
 } from './session-resource-capture-tool'
@@ -88,6 +90,51 @@ function captureOrDeferBackfilledImage(input: BackfillImageInput, state: Backfil
   })
 }
 
+function toolResultAlreadyCaptured(
+  state: BackfillToolState,
+  occurrenceId: string,
+  completionOccurrenceIds: readonly string[],
+) {
+  return (
+    state.capturedOccurrences.has(occurrenceId) ||
+    (completionOccurrenceIds.length > 0 &&
+      completionOccurrenceIds.every((id) => state.capturedOccurrences.has(id)))
+  )
+}
+
+function captureBackfilledToolMetadata(input: {
+  readonly sessionId: SessionId
+  readonly nodeId: string
+  readonly branchId: string | null
+  readonly toolResult: ToolCallResult
+  readonly createdAt: number
+  readonly workingPath: string | null
+  readonly state: BackfillToolState
+}) {
+  return Effect.gen(function* () {
+    const groups = toolResultOutputGroups(input.toolResult)
+    if (groups.length === 0) return null
+    const toolOccurrence = toolResultOccurrenceId(input)
+    const completionOccurrences = toolResultCompletionOccurrenceIds(input)
+    if (!toolResultAlreadyCaptured(input.state, toolOccurrence, completionOccurrences)) {
+      if (input.state.count >= SESSION_TOOL_CAPTURE_LIMIT) {
+        input.state.projectionBlocked = true
+        return null
+      }
+      input.state.count += 1
+    }
+    const captured = yield* captureToolResultMetadata(input).pipe(Effect.option)
+    if (captured._tag === 'None') {
+      input.state.projectionBlocked = true
+      return null
+    }
+    input.state.capturedOccurrences.add(toolOccurrence)
+    for (const id of completionOccurrences) input.state.capturedOccurrences.add(id)
+    input.state.progressed = true
+    return groups
+  })
+}
+
 export function captureBackfilledAssistantResources(
   sessionId: SessionId,
   projected: ProjectedResourceMessage,
@@ -103,30 +150,16 @@ export function captureBackfilledAssistantResources(
     let linkIndex = 0
     for (const part of message.parts) {
       if (part.type !== 'tool-result') continue
-      const groups = toolResultOutputGroups(part.toolResult)
-      if (groups.length === 0) continue
-      const toolOccurrence = toolResultOccurrenceId({
+      const groups = yield* captureBackfilledToolMetadata({
         sessionId,
-        nodeId,
-        toolResult: part.toolResult,
-      })
-      if (!toolState.capturedOccurrences.has(toolOccurrence)) {
-        if (toolState.count >= SESSION_TOOL_CAPTURE_LIMIT) {
-          toolState.projectionBlocked = true
-          continue
-        }
-        toolState.count += 1
-      }
-      yield* captureToolResultMetadata({
-        sessionId,
-        toolResult: part.toolResult,
         nodeId,
         branchId,
-        workingPath,
+        toolResult: part.toolResult,
         createdAt: message.createdAt,
-      }).pipe(Effect.catchAll(() => Effect.void))
-      toolState.capturedOccurrences.add(toolOccurrence)
-      toolState.progressed = true
+        workingPath,
+        state: toolState,
+      })
+      if (!groups) continue
       for (const group of groups) {
         const captured = collectExplicitResources(group.result)
         for (const image of captured.images) {

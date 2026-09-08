@@ -28,8 +28,7 @@ function PreflightStatus({ model }: { readonly model: ChangeRequestActionModel }
   if (model.requestCreated) return null
   return (
     <p
-      role={running ? undefined : preflight.status === 'blocked' ? 'alert' : 'status'}
-      aria-live={running ? undefined : 'polite'}
+      role={preflight.status === 'blocked' ? 'alert' : undefined}
       className={`flex items-center gap-2 px-2.5 py-1.5 text-xs ${
         preflight.status === 'blocked' ? 'text-error-text' : 'text-text-tertiary'
       }`}
@@ -119,7 +118,8 @@ export function ChangeRequestComposerActions({ model }: ChangeRequestComposerAct
       <Button
         variant="ghost"
         className="w-full justify-start"
-        disabled={!model.browserUrl || model.running}
+        disabled={!model.browserUrl}
+        aria-disabled={!model.browserUrl || model.running}
         onClick={() => {
           if (!model.running && model.browserUrl) model.onOpenBrowser()
         }}

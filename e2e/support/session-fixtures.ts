@@ -435,13 +435,15 @@ export async function seedSessionResources(
         fs.writeFileSync(managedPath, Buffer.from(resource.dataBase64 ?? '', 'base64'))
       }
       const locator = managedPath ? `session-resource://${resource.id}` : (resource.url ?? null)
+      const isSource = resource.activity === 'provided' || resource.activity === 'read'
+      const isOutput = resource.activity === 'created' || resource.activity === 'updated'
       database
         .prepare(
           `
             INSERT INTO session_resources (
               id, session_id, canonical_key, kind, title, mime_type, locator,
-              managed_path, available, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              managed_path, available, is_source, is_output, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         )
         .run(
@@ -454,6 +456,8 @@ export async function seedSessionResources(
           locator,
           managedPath,
           SQLITE_TRUE,
+          isSource ? SQLITE_TRUE : SQLITE_FALSE,
+          isOutput ? SQLITE_TRUE : SQLITE_FALSE,
           resource.updatedAt,
           resource.updatedAt,
         )

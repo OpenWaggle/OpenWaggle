@@ -1,5 +1,5 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
 import type { OpenWaggleQueryOptions } from './query-options'
@@ -31,6 +31,16 @@ export function archivedSessionBranchesQueryOptions(): OpenWaggleQueryOptions<
   })
 }
 
+export function refreshArchivedSessions(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.archivedSessions,
+      exact: true,
+    }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives }),
+  ])
+}
+
 interface RestoreSessionBranchInput {
   readonly sessionId: SessionId
   readonly branchId: SessionBranchId
@@ -41,12 +51,7 @@ export function useUnarchiveSessionMutation() {
 
   return useMutation({
     mutationFn: (sessionId: SessionId) => api.unarchiveSession(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessions,
-        exact: true,
-      })
-    },
+    onSuccess: () => refreshArchivedSessions(queryClient),
   })
 }
 
@@ -70,11 +75,6 @@ export function useArchivedDeleteSessionMutation() {
 
   return useMutation({
     mutationFn: (sessionId: SessionId) => api.deleteSession(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessions,
-        exact: true,
-      })
-    },
+    onSuccess: () => refreshArchivedSessions(queryClient),
   })
 }

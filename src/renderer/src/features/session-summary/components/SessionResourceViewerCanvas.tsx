@@ -2,10 +2,32 @@ import type { SessionResource } from '@shared/types/session-resource'
 import { type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 
 export type ImageViewerZoom = 'fit' | '25' | '50' | '100' | '150' | '200'
 
 const PERCENT_DENOMINATOR = 100
+const IMAGE_VIEWER_ZOOM_STEPS: readonly Exclude<ImageViewerZoom, 'fit'>[] = [
+  '25',
+  '50',
+  '100',
+  '150',
+  '200',
+]
+
+export function stepImageViewerZoom(
+  zoom: ImageViewerZoom,
+  direction: 'in' | 'out',
+): ImageViewerZoom {
+  if (zoom === 'fit') return direction === 'in' ? '100' : 'fit'
+  const index = IMAGE_VIEWER_ZOOM_STEPS.indexOf(zoom)
+  const offset = direction === 'in' ? 1 : -1
+  return (
+    IMAGE_VIEWER_ZOOM_STEPS[
+      Math.max(0, Math.min(IMAGE_VIEWER_ZOOM_STEPS.length - 1, index + offset))
+    ] ?? zoom
+  )
+}
 
 function imageStyle(
   zoom: ImageViewerZoom,
@@ -73,12 +95,17 @@ export function SessionResourceViewerCanvas({
   source,
   zoom,
   canvasRef,
+  onZoomChange,
+  onImageError,
 }: {
   readonly resource: SessionResource
   readonly source: string | null
   readonly zoom: ImageViewerZoom
   readonly canvasRef: RefObject<HTMLElement | null>
+  readonly onZoomChange: (zoom: ImageViewerZoom) => void
+  readonly onImageError: () => void
 }) {
+  const showToast = useUIStore((state) => state.showToast)
   const [intrinsicSize, setIntrinsicSize] = useState<{
     readonly resourceId: string
     readonly width: number
@@ -99,13 +126,26 @@ export function SessionResourceViewerCanvas({
       onPointerMove={drag.onPointerMove}
       onPointerUp={drag.onPointerUp}
       onPointerCancel={drag.onPointerCancel}
+      onWheel={(event) => {
+        // Chromium exposes trackpad pinch as a modifier-wheel gesture in Electron.
+        if ((!event.ctrlKey && !event.metaKey) || event.deltaY === 0) return
+        event.preventDefault()
+        onZoomChange(stepImageViewerZoom(zoom, event.deltaY < 0 ? 'in' : 'out'))
+      }}
     >
       {source ? (
-        <div className="grid h-max min-h-full w-max min-w-full place-items-center">
+        <div
+          className={
+            zoom === 'fit'
+              ? 'flex h-full w-full items-center justify-center'
+              : 'grid h-max min-h-full w-max min-w-full place-items-center'
+          }
+        >
           <img
             alt={resource.title}
             src={source}
             draggable={false}
+            onError={onImageError}
             style={imageStyle(zoom, imageSize)}
             className="shrink-0 object-contain shadow-2xl"
             onLoad={(event) => {
@@ -125,7 +165,14 @@ export function SessionResourceViewerCanvas({
               variant="secondary"
               size="sm"
               className="mt-3"
-              onClick={() => void api.openExternal(resource.locator ?? '')}
+              onClick={() => {
+                void api.openExternal(resource.locator ?? '').catch((cause: unknown) => {
+                  showToast(
+                    cause instanceof Error ? cause.message : 'Could not open the image source.',
+                    'error',
+                  )
+                })
+              }}
             >
               Open source
             </Button>

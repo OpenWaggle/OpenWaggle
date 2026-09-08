@@ -105,7 +105,7 @@ Use quick E2E only when the built app is current or the test intentionally avoid
 
 ### Visual Baselines
 
-The six primary-surface baselines in `e2e/visual-regression.e2e.test.ts-snapshots/` are native Darwin images generated on the `macos-15` CI runner image; local macOS rendering can differ by a small margin, so the runner is the source of truth. When a change intentionally moves rendered pixels:
+The visual baselines in `e2e/visual-regression.e2e.test.ts-snapshots/` are native Darwin images generated on the `macos-15` CI runner image; local macOS rendering can differ by a small margin, so the runner is the source of truth. When a change intentionally moves rendered pixels:
 
 1. Update the snapshots: `pnpm test:e2e -- --update-snapshots` (or run `e2e/visual-regression.e2e.test.ts` only) and review the diff.
 2. Push and let the Fast gate's macOS E2E verify on the runner image.

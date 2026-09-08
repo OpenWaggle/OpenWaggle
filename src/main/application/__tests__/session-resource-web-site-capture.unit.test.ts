@@ -44,6 +44,7 @@ describe('production Session Resource web and site capture', () => {
             actor: 'tool',
             activity: 'read',
             label: 'web',
+            locator: null,
           }),
         }),
         expect.objectContaining({ title: 'OpenWaggle resource browser' }),
@@ -121,6 +122,7 @@ describe('production Session Resource web and site capture', () => {
           actor: 'tool',
           activity: 'created',
           label: 'publish_site',
+          locator: 'https://preview.example/session-summary',
         }),
       }),
     )
@@ -209,6 +211,7 @@ describe('production Session Resource web and site capture', () => {
         actor: 'tool',
         activity: 'read',
         label: 'lookup_documentation',
+        locator: 'https://docs.example/session-summary',
       },
     })
   })
@@ -282,6 +285,7 @@ describe('production Session Resource web and site capture', () => {
           actor: 'tool',
           activity: 'read',
           label: 'lookup_docs · Documentation',
+          locator: 'https://docs.example/orchestrated',
         }),
       }),
     )

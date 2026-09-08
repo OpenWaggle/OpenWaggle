@@ -18,6 +18,7 @@ function resourceOccurrence(input: CaptureAttachmentInput, id: string): SessionR
     branchId: input.branchId,
     actor: 'user',
     activity: 'provided',
+    locator: input.attachment.path,
     createdAt: input.createdAt,
   })
 }

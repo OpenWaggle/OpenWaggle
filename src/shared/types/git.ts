@@ -1,4 +1,5 @@
 import type { SessionId } from './brand'
+import type { GitOutputRecordingResult } from './vcs'
 
 export type GitFileStatus =
   | 'modified'
@@ -26,12 +27,22 @@ export interface GitChangedFile {
   readonly renamedFrom?: string
 }
 
+export interface GitChangeStats {
+  readonly filesChanged: number
+  readonly additions: number
+  readonly deletions: number
+}
+
 export interface GitStatusSummary {
   readonly branch: string
   readonly additions: number
   readonly deletions: number
   readonly filesChanged: number
   readonly changedFiles: readonly GitChangedFile[]
+  /** Exact index-only totals from `git diff --cached --numstat`. */
+  readonly stagedChanges?: GitChangeStats
+  /** Exact working-tree-only totals from `git diff --numstat`. */
+  readonly unstagedChanges?: GitChangeStats
   readonly clean: boolean
   readonly ahead: number
   readonly behind: number
@@ -43,6 +54,8 @@ export interface GitCommitPayload {
   readonly message: string
   readonly amend: boolean
   readonly paths: readonly string[]
+  /** False commits the existing index without staging working-tree changes. Defaults to true. */
+  readonly includeUnstaged?: boolean
 }
 
 export const GIT_COMMIT_ERROR_CODES = [
@@ -58,8 +71,11 @@ export type GitCommitErrorCode = (typeof GIT_COMMIT_ERROR_CODES)[number]
 
 export interface GitCommitSuccess {
   readonly ok: true
-  readonly commitHash: string
+  /** Full object id, or null when the commit succeeded but Git could not resolve HEAD afterward. */
+  readonly commitHash: string | null
   readonly summary: string
+  /** Session Output readiness/projection outcome. A missing hash suppresses Output creation. */
+  readonly commitOutput?: GitOutputRecordingResult
 }
 
 export interface GitCommitFailure {
@@ -105,6 +121,8 @@ export type GitWorkingTreeMutationResult =
 
 export interface GitBranchInfo {
   readonly name: string
+  /** The local branch component, with any configured remote-name prefix removed. */
+  readonly localName: string
   readonly fullName: string
   readonly isCurrent: boolean
   readonly isRemote: boolean
@@ -199,6 +217,15 @@ export interface GitBranchMutationFailure {
 }
 
 export type GitBranchMutationResult = GitBranchMutationSuccess | GitBranchMutationFailure
+
+/** Read-only validation used before a branch-creating command is submitted. */
+export type GitBranchValidationResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false
+      readonly code: 'required' | 'invalid-name' | 'branch-exists' | 'not-git-repo'
+      readonly message: string
+    }
 
 // --- Session worktrees (ADR 0010) ---
 

@@ -9,22 +9,18 @@ import type {
   ExtensionProjectOverrideKey,
   ExtensionProjectOverrideState,
 } from '../../extensions/types'
-import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { ActiveProjectChangeService } from '../../ports/active-project-change-service'
 import { DocsBundleService } from '../../ports/docs-bundle-service'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
-import { SessionProjectionRepository } from '../../ports/session-projection-repository'
-import { SessionRepository } from '../../ports/session-repository'
-import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
 import { SettingsService } from '../../services/settings-service'
 import { EmptySessionResourceRepositoryTestLayer } from './empty-session-resource-repository-test-layer'
-import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
+import { makeTrustedMainSessionLayers } from './extension-trusted-main-session-layers'
 
 export const TRUSTED_MAIN_TEST_PROJECT_PATH = '/tmp/project'
 const SDK_RANGE = '>=0.1.0 <0.2.0'
@@ -161,59 +157,6 @@ function makeDocsBundleLayer() {
   })
 }
 
-function makeSessionLayers() {
-  return Layer.mergeAll(
-    Layer.succeed(SessionProjectionRepository, {
-      get: () => Effect.succeed(makeSessionDetail(TRUSTED_MAIN_TEST_PROJECT_PATH)),
-      getOptional: () => Effect.succeed(null),
-      list: () => Effect.succeed([]),
-      listDetails: () => Effect.succeed([]),
-      create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
-      delete: () => Effect.void,
-      archive: () => Effect.void,
-      unarchive: () => Effect.void,
-      listArchived: () => Effect.succeed([]),
-      updateTitle: () => Effect.void,
-      setWorktreePlan: () => Effect.void,
-      setAuthorizationMode: () => Effect.void,
-      listTurnCheckpoints: () => Effect.succeed([]),
-      getTurnDiff: () => Effect.succeed(null),
-      setTurnCheckpointAnchor: () => Effect.void,
-      ...PINNED_SESSION_REPOSITORY_STUB,
-    }),
-    Layer.succeed(SessionRepository, {
-      list: () => Effect.succeed([]),
-      listArchivedBranches: () => Effect.succeed([]),
-      getTree: () => Effect.succeed(null),
-      listResourceProjectionPage: () =>
-        Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
-      getResourceProjectionNodes: () => Effect.succeed([]),
-      getWorkspace: () => Effect.succeed(null),
-      persistSnapshot: () => Effect.void,
-      updateRuntime: () => Effect.void,
-      renameBranch: () => Effect.void,
-      archiveBranch: () => Effect.void,
-      restoreBranch: () => Effect.void,
-      updateTreeUiState: () => Effect.void,
-      recordActiveRun: () => Effect.void,
-      clearActiveRun: () => Effect.void,
-      clearInterruptedRuns: () => Effect.void,
-      listActiveRunsForRecovery: () => Effect.succeed([]),
-      markActiveRunInterrupted: () => Effect.void,
-    }),
-    Layer.succeed(SessionResourceRepository, {
-      upsert: () => Effect.dieMessage('resource upsert is not configured for this test'),
-      list: () => Effect.succeed([]),
-      findByCanonicalKey: () => Effect.succeed(null),
-      rekey: () => Effect.dieMessage('resource rekey is not configured for this test'),
-      hasOccurrence: () => Effect.succeed(false),
-      getContentLocation: () => Effect.succeed(null),
-      getBackfillCursor: () => Effect.succeed(-1),
-      advanceBackfillCursor: () => Effect.void,
-    }),
-  )
-}
-
 function makeSettingsLayer(input: {
   readonly projectPath: string | null
   readonly failure?: Error
@@ -253,7 +196,7 @@ export function makeTrustedMainActivationHarness(input: {
     makeDocsBundleLayer(),
     makeExtensionStorageRepositoryLayer([]),
     makeSettingsLayer({ projectPath: settingsProjectPath, failure: input.settingsGetFailure }),
-    makeSessionLayers(),
+    makeTrustedMainSessionLayers(TRUSTED_MAIN_TEST_PROJECT_PATH),
     EmptySessionResourceRepositoryTestLayer,
     Layer.succeed(ExtensionManagerService, {
       listPackages: () => Effect.succeed(input.packages),

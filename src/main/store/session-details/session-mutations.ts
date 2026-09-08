@@ -1,4 +1,8 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import {
+  SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE,
+  SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE,
+} from '@shared/constants/session-lifecycle'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
@@ -6,6 +10,7 @@ import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
 import { stageSessionFileDeletion } from './file-deletion'
+import { hasActiveSessionWorker, hasDirectSessionWorkers } from './session-lineage'
 import type { UpdateSessionRuntimeInput } from './types'
 
 export interface SessionWorktreeRefRow {
@@ -112,6 +117,13 @@ export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Pr
 }
 
 export async function deleteSession(id: SessionId): Promise<void> {
+  if (await hasDirectSessionWorkers(id)) {
+    throw new Error(SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE)
+  }
+  if (await hasActiveSessionWorker(id)) {
+    throw new Error(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE)
+  }
+
   const piSessionFile = await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -129,6 +141,25 @@ export async function deleteSession(id: SessionId): Promise<void> {
         const sql = yield* SqlClient.SqlClient
         yield* sql.withTransaction(
           Effect.gen(function* () {
+            const directWorkers = yield* sql<{ readonly present: number }>`
+              SELECT 1 AS present
+              FROM session_lineage
+              WHERE parent_session_id = ${id}
+              LIMIT 1
+            `
+            if (directWorkers[EMPTY_INDEX]?.present === 1) {
+              return yield* Effect.fail(new Error(SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE))
+            }
+            const activeWorker = yield* sql<{ readonly present: number }>`
+              SELECT 1 AS present
+              FROM session_lineage
+              WHERE session_id = ${id}
+                AND delegation_state IN ('working', 'waiting')
+              LIMIT 1
+            `
+            if (activeWorker[EMPTY_INDEX]?.present === 1) {
+              return yield* Effect.fail(new Error(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE))
+            }
             yield* sql`
               INSERT INTO session_resource_cleanup_queue (session_id, queued_at)
               VALUES (${id}, ${Date.now()})

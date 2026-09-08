@@ -1,4 +1,3 @@
-import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
@@ -6,9 +5,10 @@ import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
-import { SessionMessageImages } from '@/features/session-summary'
+import { SessionMessageImages, useSessionMessageImageResources } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
+import { NonFetchingMarkdownImage } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
 import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-components'
 import { Button } from '@/shared/ui/Button'
@@ -56,6 +56,7 @@ function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
 const userMarkdownComponents: Components = createSyntaxMarkdownComponents({
   p: UserMarkdownParagraph,
   li: UserMarkdownListItem,
+  img: NonFetchingMarkdownImage,
 })
 
 function isAttachmentText(content: string) {
@@ -112,6 +113,25 @@ function AttachmentChip({ name }: { readonly name: string }) {
   )
 }
 
+function visibleAttachmentParts(
+  textParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[],
+  capturedImages: readonly { readonly title: string }[],
+) {
+  const capturedImageCountByName = new Map<string, number>()
+  for (const image of capturedImages) {
+    capturedImageCountByName.set(image.title, (capturedImageCountByName.get(image.title) ?? 0) + 1)
+  }
+
+  return textParts.filter((part) => {
+    if (!isAttachmentText(part.content)) return false
+    const name = parseAttachmentName(part.content)
+    const capturedCount = capturedImageCountByName.get(name) ?? 0
+    if (capturedCount === 0) return true
+    capturedImageCountByName.set(name, capturedCount - 1)
+    return false
+  })
+}
+
 function WaggleInvocationChip({ message }: { readonly message: UIMessage }) {
   const invocation = message.metadata?.waggleInvocation
   if (!invocation) return null
@@ -155,24 +175,24 @@ function UserMessageContent({
 
 interface UserMessageBubbleProps {
   message: UIMessage
-  sessionId?: SessionId | null
   onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
 }
 
 export function UserMessageBubble({
   message,
-  sessionId = null,
   onBranchFromMessage,
   onForkFromMessage,
 }: UserMessageBubbleProps) {
   const { copied, copy } = useCopyToClipboard()
+  const messageNodeId = message.metadata?.sessionNodeId ?? message.id
+  const capturedImages = useSessionMessageImageResources(messageNodeId)
 
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
   )
   const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
-  const attachmentParts = textParts.filter((p) => isAttachmentText(p.content))
+  const attachmentParts = visibleAttachmentParts(textParts, capturedImages)
 
   function handleCopy() {
     copy(contentParts.map((p) => p.content).join('\n'))
@@ -186,10 +206,7 @@ export function UserMessageBubble({
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
-        <SessionMessageImages
-          sessionId={sessionId}
-          messageId={message.metadata?.sessionNodeId ?? message.id}
-        />
+        <SessionMessageImages messageId={messageNodeId} />
         {attachmentParts.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (

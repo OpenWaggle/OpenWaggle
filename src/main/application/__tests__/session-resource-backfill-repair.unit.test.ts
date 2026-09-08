@@ -50,6 +50,7 @@ function sharedResource(count: number): SessionResource {
       actor: 'user' as const,
       activity: 'provided' as const,
       label: null,
+      locator: `/input/attachment-${String(index)}.txt`,
       createdAt: index,
     })),
     createdAt: 0,

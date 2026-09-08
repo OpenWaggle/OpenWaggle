@@ -30,9 +30,11 @@ import {
   methodIsDeclared,
 } from './extension-contribution-authorization-model'
 import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
+import { invocationHasMountedSessionBinding } from './extension-invocation-binding'
 
 export interface InvokeExtensionCapabilityDependencies {
   readonly now?: () => number
+  readonly invocationBinding?: string
 }
 
 type ScopeResolution =
@@ -265,14 +267,11 @@ export function invokeExtensionCapability(
       })
     }
 
-    if (
-      input.contributionId === TRUSTED_MAIN_CONTRIBUTION_ID &&
-      input.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES
-    ) {
+    if (!invocationHasMountedSessionBinding(entry, input, dependencies.invocationBinding)) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
-        message: 'Trusted main resource access requires a host-bound active Session surface.',
+        message: 'Session resource access requires a host-bound mounted Session contribution.',
         timestamp,
       })
     }

@@ -29,9 +29,20 @@ function recordingLayer(
           })
         },
         list: () => Effect.succeed([]),
+        listPage: () =>
+          Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+        findById: () => Effect.succeed(null),
+        findByOccurrence: () => Effect.succeed(null),
+        findByLocator: () => Effect.succeed(null),
+        locateImage: () => Effect.succeed(null),
         findByCanonicalKey: () => Effect.succeed(null),
         rekey: () => Effect.dieMessage('rekey is not used'),
         hasOccurrence: () => Effect.succeed(false),
+        hasOccurrences: () => Effect.succeed(new Set()),
+        listByNodeIds: () => Effect.succeed([]),
+        listByNodeIdsPage: () =>
+          Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+        listManagedNodeIds: () => Effect.succeed([]),
         getContentLocation: () => Effect.succeed(null),
         getBackfillCursor: () => Effect.succeed(-1),
         advanceBackfillCursor: () => Effect.void,
@@ -102,6 +113,7 @@ describe('session Output recording', () => {
         activity: 'created',
         nodeId: 'node-current',
         branchId: 'branch-main',
+        locator: 'https://github.com/openwaggle/openwaggle/pull/42',
       },
     })
     expect(recorded[0]?.occurrence.id).toBe(recorded[1]?.occurrence.id)
@@ -141,6 +153,7 @@ describe('session Output recording', () => {
       'created:commit:session-1:abc123',
       'created:commit:session-2:abc123',
     ])
+    expect(recorded.map((entry) => entry.occurrence.locator)).toEqual([null, null])
     expect(invalidated.mock.calls.map(([event]) => event)).toEqual([
       { sessionId: SessionId('session-1') },
       { sessionId: SessionId('session-2') },

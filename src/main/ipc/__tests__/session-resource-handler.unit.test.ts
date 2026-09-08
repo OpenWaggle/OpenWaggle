@@ -4,9 +4,11 @@ import {
   pendingChangeRequestOutput,
   pendingCommitOutput,
 } from '../../application/session-change-request-output-retry'
+import { SessionResourceRepositoryError } from '../../errors'
 import {
   getSessionResourceHandlerMocks,
   invokeSessionResourceHandler as invoke,
+  invokeSessionResourceOwnerHandler,
   resetSessionResourceHandlerHarness,
   sessionResourceBackfillPageSize,
 } from './session-resource-handler.test-harness'
@@ -35,6 +37,28 @@ describe('session resource IPC handlers', () => {
     ).rejects.toBeDefined()
     expect(handlerMocks.list).not.toHaveBeenCalled()
     expect(handlerMocks.getContentLocation).not.toHaveBeenCalled()
+  })
+
+  it('validates displayed-Session owner changes at the one-way IPC boundary', async () => {
+    await expect(
+      invokeSessionResourceOwnerHandler(SessionId('session-one')),
+    ).resolves.toBeUndefined()
+    await expect(invokeSessionResourceOwnerHandler('../another-session')).rejects.toBeDefined()
+    await expect(invokeSessionResourceOwnerHandler(undefined)).rejects.toBeDefined()
+  })
+
+  it('does not read full content or thumbnails for a Session the renderer no longer displays', async () => {
+    await invokeSessionResourceOwnerHandler(SessionId('session-two'))
+
+    await expect(
+      invoke('sessions:resources:read', SessionId('session-one'), 'resource-one'),
+    ).resolves.toBeNull()
+    await expect(
+      invoke('sessions:resources:thumbnail', SessionId('session-one'), 'resource-one'),
+    ).resolves.toBeNull()
+
+    expect(handlerMocks.getContentLocation).not.toHaveBeenCalled()
+    expect(handlerMocks.read).not.toHaveBeenCalled()
   })
 
   it('rejects arbitrary change-request Output recording without a main-process retry grant', async () => {
@@ -146,17 +170,6 @@ describe('session resource IPC handlers', () => {
     ).rejects.toBeDefined()
   })
 
-  it('passes validated identifiers to the session-scoped repository lookup', async () => {
-    await expect(
-      invoke('sessions:resources:read', SessionId('session-one'), 'resource-one'),
-    ).resolves.toBeNull()
-    expect(handlerMocks.getContentLocation).toHaveBeenCalledWith(
-      SessionId('session-one'),
-      'resource-one',
-    )
-    expect(handlerMocks.list).toHaveBeenCalledWith(SessionId('session-one'))
-  })
-
   it('backfills one persisted page instead of hydrating the complete session tree', async () => {
     handlerMocks.getBackfillCursor.mockReturnValue(23)
     handlerMocks.listResourceProjectionPage.mockReturnValue(emptyProjectionPage(false))
@@ -185,48 +198,49 @@ describe('session resource IPC handlers', () => {
     })
 
     expect(handlerMocks.advanceBackfillCursor).toHaveBeenCalledWith(SessionId('session-one'), 41)
-    handlerMocks.list.mockClear()
     await expect(invoke('sessions:resources:backfill', SessionId('session-one'))).resolves.toEqual({
       backfillComplete: false,
       progressed: true,
     })
-    expect(handlerMocks.list).toHaveBeenCalledOnce()
   })
 
   it('looks up retry provenance only inside the requested session', async () => {
-    handlerMocks.list.mockReturnValue([
-      {
-        id: 'resource-one',
-        sessionId: SessionId('session-one'),
-        canonicalKey: 'file:/input/missing.png',
-        kind: 'image',
-        title: 'missing.png',
-        mimeType: 'image/png',
-        locator: '/input/missing.png',
-        available: false,
-        isSource: true,
-        isOutput: false,
-        occurrences: [
-          {
-            id: 'occurrence-one',
-            nodeId: 'node-one',
-            branchId: null,
-            actor: 'user',
-            activity: 'provided',
-            label: null,
-            createdAt: 1,
-          },
-        ],
-        createdAt: 1,
-        updatedAt: 1,
-      },
-    ])
+    handlerMocks.findById.mockReturnValue({
+      id: 'resource-one',
+      sessionId: SessionId('session-one'),
+      canonicalKey: 'file:/input/missing.png',
+      kind: 'image',
+      title: 'missing.png',
+      mimeType: 'image/png',
+      locator: '/input/missing.png',
+      available: false,
+      isSource: true,
+      isOutput: false,
+      occurrences: [
+        {
+          id: 'occurrence-one',
+          nodeId: 'node-one',
+          branchId: null,
+          actor: 'user',
+          activity: 'provided',
+          label: null,
+          locator: '/input/missing.png',
+          createdAt: 1,
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 1,
+    })
 
     await expect(
       invoke('sessions:resources:retry', SessionId('session-one'), 'resource-one'),
     ).resolves.toBeUndefined()
 
-    expect(handlerMocks.list).toHaveBeenCalledWith(SessionId('session-one'))
+    expect(handlerMocks.findById).toHaveBeenCalledWith(
+      SessionId('session-one'),
+      'resource-one',
+      'all',
+    )
     expect(handlerMocks.getResourceProjectionNodes).toHaveBeenCalledOnce()
   })
 
@@ -278,11 +292,12 @@ describe('session resource IPC handlers', () => {
       throughCreatedOrder: 41,
       hasMore: false,
     })
-    handlerMocks.list
-      .mockImplementationOnce(() => {
-        throw new Error('database temporarily unavailable')
-      })
-      .mockReturnValue([])
+    handlerMocks.upsert.mockReturnValueOnce(
+      new SessionResourceRepositoryError({
+        operation: 'upsert',
+        cause: new Error('database temporarily unavailable'),
+      }),
+    )
 
     await expect(invoke('sessions:resources:list', SessionId('session-one'))).resolves.toEqual({
       resources: [],
@@ -291,30 +306,5 @@ describe('session resource IPC handlers', () => {
     })
 
     expect(handlerMocks.advanceBackfillCursor).not.toHaveBeenCalled()
-  })
-
-  it('returns a bounded thumbnail for managed content in the requested session', async () => {
-    handlerMocks.getContentLocation.mockReturnValue({
-      resourceId: 'resource-one',
-      sessionId: SessionId('session-one'),
-      fileName: 'image.png',
-      mimeType: 'image/png',
-      managedPath: '/managed/image.png',
-    })
-
-    await expect(
-      invoke('sessions:resources:thumbnail', SessionId('session-one'), 'resource-one'),
-    ).resolves.toEqual({
-      resourceId: 'resource-one',
-      fileName: 'resource-one-thumbnail.webp',
-      mimeType: 'image/webp',
-      dataBase64: Buffer.from('thumbnail').toString('base64'),
-    })
-    expect(handlerMocks.getContentLocation).toHaveBeenCalledWith(
-      SessionId('session-one'),
-      'resource-one',
-    )
-    expect(handlerMocks.read).toHaveBeenCalledWith('/managed/image.png')
-    expect(handlerMocks.thumbnail).toHaveBeenCalledWith(Buffer.from('full-image'), 'image/png')
   })
 })

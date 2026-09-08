@@ -23,7 +23,13 @@ import { defaultTaskServices } from '../openwaggle-mcp-task-runtime'
 describe('default hosted-task runtime services', () => {
   beforeEach(() => {
     taskRuntimeMocks.broadcast.mockReset()
-    taskRuntimeMocks.captureSuccessfulRunResources.mockReset().mockReturnValue(Effect.void)
+    taskRuntimeMocks.captureSuccessfulRunResources
+      .mockReset()
+      .mockImplementation(({ sessionId }: { readonly sessionId: SessionId }) =>
+        Effect.sync(() =>
+          taskRuntimeMocks.broadcast('sessions:resources-invalidated', { sessionId }),
+        ),
+      )
     taskRuntimeMocks.executeAgentRun.mockReset()
     taskRuntimeMocks.runAppEffect.mockReset().mockResolvedValue(undefined)
   })
@@ -92,5 +98,61 @@ describe('default hosted-task runtime services', () => {
     expect(taskRuntimeMocks.broadcast).toHaveBeenCalledWith('sessions:resources-invalidated', {
       sessionId: SessionId('reused-session'),
     })
+    expect(taskRuntimeMocks.broadcast).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    {
+      outcome: 'error' as const,
+      message: 'Provider stopped after partial output',
+      code: 'provider-error',
+      transportEmitted: true as const,
+    },
+    { outcome: 'aborted' as const },
+  ])('captures and invalidates resources after a hosted $outcome outcome', async (outcome) => {
+    const resourceMessages = [
+      {
+        id: 'persisted-partial-message',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, text: '[Partial docs](https://example.test/docs)' }],
+        createdAt: 2,
+      },
+    ]
+    const result = {
+      ...outcome,
+      resourceMessages,
+      resourceNodeIds: { 'persisted-partial-message': 'persisted-partial-node' },
+      resourceBranchIds: { 'persisted-partial-message': 'reused-session:main' },
+    }
+    taskRuntimeMocks.executeAgentRun.mockReturnValue(Effect.succeed(result))
+    taskRuntimeMocks.runAppEffect.mockImplementation((program) => Effect.runPromise(program))
+
+    await expect(
+      defaultTaskServices.execute({
+        sessionId: SessionId('reused-session'),
+        runId: 'hosted-partial-run',
+        objective: 'Create an architecture image',
+        thinkingLevel: 'medium',
+        model: 'provider/model',
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toBe(result)
+
+    expect(taskRuntimeMocks.captureSuccessfulRunResources).toHaveBeenCalledWith({
+      sessionId: SessionId('reused-session'),
+      runId: 'hosted-partial-run',
+      payload: {
+        text: 'Create an architecture image',
+        attachments: [],
+        thinkingLevel: 'medium',
+      },
+      messages: resourceMessages,
+      nodeIdByMessageId: { 'persisted-partial-message': 'persisted-partial-node' },
+      branchIdByMessageId: { 'persisted-partial-message': 'reused-session:main' },
+    })
+    expect(taskRuntimeMocks.broadcast).toHaveBeenCalledWith('sessions:resources-invalidated', {
+      sessionId: SessionId('reused-session'),
+    })
+    expect(taskRuntimeMocks.broadcast).toHaveBeenCalledTimes(1)
   })
 })

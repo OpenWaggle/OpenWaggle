@@ -133,15 +133,20 @@ export default {
   id: 'example-extension',
   name: 'Example Extension',
   version: '0.1.0',
-  sdk: { openwaggle: '>=0.2.0 <0.3.0' },
-  sourceFiles: ['package.json', 'src/settings.ts'],
-  builtArtifacts: ['dist/settings.js'],
+  sdk: { openwaggle: '>=0.1.0 <0.2.0' },
+  sourceFiles: ['package.json', 'src/settings.ts', 'src/results.ts'],
+  builtArtifacts: ['dist/settings.js', 'dist/results.js'],
   install: { source: 'prebuilt' },
   capabilities: [
     {
       id: 'openwaggle.storage',
       methods: ['get', 'set'],
       scopes: ['project'],
+    },
+    {
+      id: 'openwaggle.resources',
+      methods: ['list-resources', 'publish-resource'],
+      scopes: ['session'],
     },
   ],
   contributions: {
@@ -164,6 +169,17 @@ export default {
         methods: ['get', 'set'],
       },
     ],
+    sidePanels: [
+      {
+        id: 'example.results',
+        title: 'Example Results',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
+        entry: 'dist/results.js',
+        capability: 'openwaggle.resources',
+        methods: ['list-resources', 'publish-resource'],
+      },
+    ],
     sessionSummarySections: [
       {
         id: 'example.session-summary',
@@ -172,9 +188,9 @@ export default {
         rows: [
           { id: 'status', label: 'Status', value: 'Ready' },
           {
-            id: 'open-settings',
-            label: 'Open settings',
-            action: { family: 'commands', contributionId: 'example.refresh' },
+            id: 'open-results',
+            label: 'Open results',
+            action: { family: 'sidePanels', contributionId: 'example.results' },
           },
         ],
       },
@@ -182,6 +198,8 @@ export default {
   },
 } satisfies OpenWaggleExtensionManifest
 ```
+
+The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK and is accepted by extension discovery.
 
 ## Session resources
 

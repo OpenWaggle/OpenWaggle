@@ -1,3 +1,4 @@
+import type { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
 import { Data } from 'effect'
 
 export class ValidationIssuesError extends Data.TaggedError('ValidationIssuesError')<{
@@ -32,6 +33,12 @@ export class SessionResourceRepositoryError extends Data.TaggedError(
 )<{
   readonly operation: string
   readonly cause?: unknown
+}> {}
+
+export class SessionResourceCatalogCursorError extends Data.TaggedError(
+  'SessionResourceCatalogCursorError',
+)<{
+  readonly message: typeof SESSION_RESOURCE_CATALOG_STALE_MESSAGE
 }> {}
 
 export class SessionOutputRetryRepositoryError extends Data.TaggedError(

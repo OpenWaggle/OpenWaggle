@@ -3,9 +3,42 @@ import os from 'node:os'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
-import { withGitMutationLock } from '../mutation-lock'
+import {
+  runWithGitMutationLock,
+  runWithGitNetworkLock,
+  withGitMutationLock,
+} from '../mutation-lock'
 
 describe('withGitMutationLock', () => {
+  it('does not make a local mutation wait for a stalled background network operation', async () => {
+    const workingPath = process.cwd()
+    const events: string[] = []
+    let releaseNetwork: (() => void) | undefined
+    const networkGate = new Promise<void>((resolve) => {
+      releaseNetwork = resolve
+    })
+    let markStarted: (() => void) | undefined
+    const networkStarted = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+
+    const network = runWithGitNetworkLock(workingPath, async () => {
+      events.push('network:start')
+      markStarted?.()
+      await networkGate
+      events.push('network:end')
+    })
+    await networkStarted
+    await runWithGitMutationLock(workingPath, async () => {
+      events.push('mutation')
+    })
+
+    expect(events).toEqual(['network:start', 'mutation'])
+    releaseNetwork?.()
+    await network
+    expect(events).toEqual(['network:start', 'mutation', 'network:end'])
+  })
+
   it('serializes mutations of the same canonical working path', async () => {
     const events: string[] = []
     let releaseFirst: (() => void) | undefined
@@ -98,6 +131,49 @@ describe('withGitMutationLock', () => {
       expect(events).toEqual(['first:start', 'first:end', 'second'])
     } finally {
       await fs.rm(checkout, { recursive: true, force: true })
+    }
+  })
+
+  it('serializes mutations across linked worktrees through their common Git directory', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-linked-lock-'))
+    const repository = path.join(root, 'repository')
+    const linked = path.join(root, 'linked')
+    const linkedGitDir = path.join(repository, '.git', 'worktrees', 'linked')
+    await fs.mkdir(linkedGitDir, { recursive: true })
+    await fs.mkdir(linked, { recursive: true })
+    await fs.writeFile(path.join(linked, '.git'), `gitdir: ${linkedGitDir}\n`)
+    await fs.writeFile(path.join(linkedGitDir, 'commondir'), '../..\n')
+    const events: string[] = []
+    let releaseFirst: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    try {
+      const first = Effect.runPromise(
+        withGitMutationLock(
+          repository,
+          Effect.promise(async () => {
+            events.push('repository:start')
+            await gate
+            events.push('repository:end')
+          }),
+        ),
+      )
+      await vi.waitFor(() => expect(events).toEqual(['repository:start']))
+      const second = Effect.runPromise(
+        withGitMutationLock(
+          linked,
+          Effect.sync(() => events.push('linked')),
+        ),
+      )
+      await Promise.resolve()
+      expect(events).toEqual(['repository:start'])
+      releaseFirst?.()
+      await Promise.all([first, second])
+      expect(events).toEqual(['repository:start', 'repository:end', 'linked'])
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
     }
   })
 })

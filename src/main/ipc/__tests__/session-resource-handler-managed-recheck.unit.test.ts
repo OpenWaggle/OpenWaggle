@@ -17,11 +17,15 @@ import { registerSessionResourceHandlers } from '../session-resource-handler'
 
 const mocks = vi.hoisted(() => ({
   typedHandle: vi.fn(),
+  typedOn: vi.fn(),
   inspect: vi.fn(),
   getResourceProjectionNodes: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({ typedHandle: mocks.typedHandle }))
+vi.mock('../typed-ipc', () => ({
+  typedHandle: mocks.typedHandle,
+  typedOn: mocks.typedOn,
+}))
 
 const MANAGED_RESOURCE = {
   id: 'managed-attachment',
@@ -100,6 +104,17 @@ const TestLayer = Layer.mergeAll(
     SessionResourceRepository.of(
       fromPartial<SessionResourceRepositoryShape>({
         list: () => Effect.succeed([MANAGED_RESOURCE]),
+        listPage: () =>
+          Effect.succeed({
+            resources: [MANAGED_RESOURCE],
+            total: 1,
+            nextCursor: null,
+            orderRevision: 'test-revision',
+          }),
+        listByNodeIds: () => Effect.succeed([MANAGED_RESOURCE]),
+        listManagedNodeIds: () => Effect.succeed(['node-one']),
+        hasOccurrences: () =>
+          Effect.succeed(new Set(['session-one:node-one:provided:attachment:attachment-one:0'])),
         getContentLocation: () =>
           Effect.succeed({
             resourceId: MANAGED_RESOURCE.id,
@@ -133,6 +148,7 @@ function invokeList() {
 describe('completed session resource backfill', () => {
   beforeEach(() => {
     mocks.typedHandle.mockClear()
+    mocks.typedOn.mockClear()
     mocks.inspect.mockReset().mockReturnValue(undefined)
     mocks.getResourceProjectionNodes.mockReset().mockReturnValue([MANAGED_NODE])
     registerSessionResourceHandlers()

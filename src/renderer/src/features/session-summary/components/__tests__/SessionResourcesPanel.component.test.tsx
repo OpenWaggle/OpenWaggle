@@ -1,89 +1,28 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
+import {
+  SESSION_RESOURCE_CATALOG_STALE_MESSAGE,
+  type SessionResource,
+} from '@shared/types/session-resource'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  apiMocks,
+  LINK,
+  OUTPUT,
+  resetSessionResourcesPanelEnvironment,
+  resource,
+  restoreSessionResourcesPanelEnvironment,
+  scrollIntoView,
+} from '@/features/session-summary/components/__tests__/session-resources-panel.test-harness'
 import { createRendererQueryClient } from '@/queries/query-client'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { SessionResourcesPanel } from '../SessionResourcesPanel'
 
-const apiMocks = vi.hoisted(() => ({
-  list: vi.fn(),
-  openExternal: vi.fn(),
-  openPath: vi.fn(),
-  read: vi.fn(),
-  readThumbnail: vi.fn(),
-  retry: vi.fn(),
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    listSessionResources: apiMocks.list,
-    openExternal: apiMocks.openExternal,
-    openPath: apiMocks.openPath,
-    readSessionResource: apiMocks.read,
-    readSessionResourceThumbnail: apiMocks.readThumbnail,
-    retrySessionResource: apiMocks.retry,
-  },
-}))
-
-function resource(
-  id: string,
-  input: Pick<SessionResource, 'kind' | 'title' | 'isSource' | 'isOutput' | 'locator'> &
-    Partial<Pick<SessionResource, 'available' | 'occurrences'>>,
-): SessionResource {
-  return {
-    id,
-    sessionId: SessionId('session-one'),
-    canonicalKey: `resource:${id}`,
-    mimeType: input.kind === 'image' ? 'image/png' : null,
-    managed: input.locator?.startsWith('session-resource://') === true,
-    available: input.available ?? true,
-    occurrences: [],
-    createdAt: 1,
-    updatedAt: 1,
-    ...input,
-  }
-}
-
-const IMAGE = resource('image', {
-  kind: 'image',
-  title: 'reference.png',
-  isSource: true,
-  isOutput: false,
-  locator: 'session-resource://image',
-})
-const LINK = resource('link', {
-  kind: 'link',
-  title: 'Documentation',
-  isSource: true,
-  isOutput: false,
-  locator: 'https://example.com/docs',
-})
-const OUTPUT = resource('output', {
-  kind: 'change-request',
-  title: 'Created PR',
-  isSource: false,
-  isOutput: true,
-  locator: 'https://github.com/openwaggle/openwaggle/pull/1',
-})
-
 describe('SessionResourcesPanel', () => {
-  beforeEach(() => {
-    useUIStore.setState({ resourceViewer: null })
-    apiMocks.list.mockReset().mockResolvedValue([IMAGE, LINK, OUTPUT])
-    apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
-    apiMocks.openPath.mockReset().mockResolvedValue(undefined)
-    apiMocks.read.mockReset().mockResolvedValue(null)
-    apiMocks.retry.mockReset().mockResolvedValue(undefined)
-    apiMocks.readThumbnail.mockReset().mockResolvedValue({
-      resourceId: 'image',
-      fileName: 'image-thumbnail.webp',
-      mimeType: 'image/webp',
-      dataBase64: 'dGh1bWJuYWls',
-    })
-  })
+  afterEach(restoreSessionResourcesPanelEnvironment)
+  beforeEach(resetSessionResourcesPanelEnvironment)
 
   it('defaults to Sources and switches to Outputs', async () => {
     renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
@@ -91,11 +30,11 @@ describe('SessionResourcesPanel', () => {
     expect(screen.queryByText('Created PR')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Outputs' }))
-    expect(screen.getByText('Created PR')).toBeInTheDocument()
+    expect(await screen.findByText('Created PR')).toBeInTheDocument()
     expect(screen.queryByText('reference.png')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Sources' }))
-    expect(screen.getByText('reference.png')).toBeInTheDocument()
+    expect(await screen.findByText('reference.png')).toBeInTheDocument()
     expect(screen.getByText('Documentation')).toBeInTheDocument()
     await waitFor(() => {
       expect(apiMocks.readThumbnail).toHaveBeenCalledWith(SessionId('session-one'), 'image')
@@ -145,6 +84,71 @@ describe('SessionResourcesPanel', () => {
       'aria-current',
       'true',
     )
+    expect(screen.queryByRole('button', { name: /Output 40/u })).toBeNull()
+    expect(screen.getAllByRole('button', { name: /Output \d+/u })).toHaveLength(41)
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }))
+  })
+
+  it('keeps the initial resource DOM bounded and progressively loads the next page', async () => {
+    const sources = Array.from({ length: 45 }, (_, index) =>
+      resource(`source-${String(index)}`, {
+        kind: 'file',
+        title: `Source ${String(index)}`,
+        isSource: true,
+        isOutput: false,
+        locator: `session-resource://source-${String(index)}`,
+      }),
+    )
+    apiMocks.list.mockResolvedValue(sources)
+
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    expect(await screen.findByText('Source 39')).toBeInTheDocument()
+    expect(screen.queryByText('Source 40')).toBeNull()
+    expect(screen.getAllByRole('button', { name: /Source \d+/u })).toHaveLength(40)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more (5)' }))
+
+    expect(await screen.findByText('Source 44')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Source \d+/u })).toHaveLength(45)
+    expect(apiMocks.listPage).toHaveBeenNthCalledWith(1, SessionId('session-one'), {
+      view: 'sources',
+      cursor: null,
+      limit: 40,
+    })
+    expect(apiMocks.listPage).toHaveBeenNthCalledWith(2, SessionId('session-one'), {
+      view: 'sources',
+      cursor: '40',
+      limit: 40,
+    })
+  })
+
+  it('restarts from page one when a continuation cursor becomes stale', async () => {
+    apiMocks.listPage
+      .mockResolvedValueOnce({
+        resources: [LINK],
+        total: 2,
+        nextCursor: 'stale-cursor',
+        orderRevision: 'revision-one',
+      })
+      .mockRejectedValueOnce(new Error(SESSION_RESOURCE_CATALOG_STALE_MESSAGE))
+      .mockResolvedValue({
+        resources: [LINK],
+        total: 1,
+        nextCursor: null,
+        orderRevision: 'revision-two',
+      })
+
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+    expect(await screen.findByText('Documentation')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more (1)' }))
+
+    await waitFor(() => expect(apiMocks.listPage).toHaveBeenCalledTimes(3))
+    expect(apiMocks.listPage).toHaveBeenLastCalledWith(SessionId('session-one'), {
+      view: 'sources',
+      cursor: null,
+      limit: 40,
+    })
+    expect(screen.getAllByText('Documentation')).toHaveLength(1)
   })
 
   it('groups resources by category and shows their session provenance', async () => {
@@ -164,6 +168,7 @@ describe('SessionResourcesPanel', () => {
             actor: 'user',
             activity: 'provided',
             label: null,
+            locator: 'session-resource://source-file',
             createdAt: occurredAt,
           },
         ],
@@ -271,15 +276,14 @@ describe('SessionResourcesPanel', () => {
   })
 
   it('bounds automatic retries for a permanently unavailable thumbnail', async () => {
+    vi.useFakeTimers()
     apiMocks.readThumbnail.mockResolvedValue(null)
 
     renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
 
-    expect(await screen.findByText('reference.png')).toBeInTheDocument()
-    await waitFor(() => expect(apiMocks.readThumbnail).toHaveBeenCalledTimes(3), {
-      timeout: 3_500,
-    })
-    await new Promise((resolve) => setTimeout(resolve, 1_200))
+    await act(() => vi.advanceTimersByTimeAsync(5_000))
+    expect(apiMocks.readThumbnail).toHaveBeenCalledTimes(3)
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
     expect(apiMocks.readThumbnail).toHaveBeenCalledTimes(3)
   })
 

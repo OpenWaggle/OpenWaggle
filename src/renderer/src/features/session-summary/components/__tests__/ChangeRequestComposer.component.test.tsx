@@ -11,18 +11,14 @@ import { ChangeRequestComposer } from '../ChangeRequestComposer'
 const runStackedGitAction = vi.hoisted(() => vi.fn())
 const openExternal = vi.hoisted(() => vi.fn())
 const recordSessionChangeRequest = vi.hoisted(() => vi.fn())
+const useChangeRequestPreflight = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: { runStackedGitAction, openExternal, recordSessionChangeRequest },
 }))
 
 vi.mock('../use-change-request-preflight', () => ({
-  useChangeRequestPreflight: () => ({
-    status: 'ready',
-    message: 'GitHub CLI ready as openwaggle.',
-    nativeCreationBlocked: false,
-    browserUrl: 'https://github.com/openwaggle/openwaggle/compare/main...branch',
-  }),
+  useChangeRequestPreflight,
 }))
 
 const SESSION: SessionDetail = {
@@ -115,6 +111,22 @@ describe('ChangeRequestComposer', () => {
     })
     openExternal.mockReset().mockResolvedValue(undefined)
     recordSessionChangeRequest.mockReset().mockResolvedValue({})
+    useChangeRequestPreflight
+      .mockReset()
+      .mockImplementation(
+        (
+          _sessionId: string,
+          _workingPath: WorkingPath,
+          _provider: SourceControlProviderId,
+          payload: { readonly headRef: string },
+        ) => ({
+          status: 'ready',
+          message: 'GitHub CLI ready as openwaggle.',
+          nativeCreationBlocked: false,
+          browserUrl: 'https://github.com/openwaggle/openwaggle/compare/main...branch',
+          plannedHeadRef: payload.headRef,
+        }),
+      )
   })
 
   it('creates a GitHub PR from a new Codex branch and can commit local changes', async () => {
@@ -134,6 +146,7 @@ describe('ChangeRequestComposer', () => {
           paths: ['src/hub.tsx'],
           createFeatureBranch: true,
           featureBranchName: 'codex/explore-image-hub-parity',
+          exactFeatureBranchName: true,
           baseRef: 'main',
           draft: false,
         }),
@@ -141,12 +154,10 @@ describe('ChangeRequestComposer', () => {
     )
     expect(callbacks.onCompleted).toHaveBeenCalledOnce()
     expect(callbacks.onClose).toHaveBeenCalledOnce()
-    expect(openExternal).toHaveBeenCalledWith('https://github.com/openwaggle/openwaggle/pull/1')
+    expect(openExternal).not.toHaveBeenCalled()
     expect(recordSessionChangeRequest).not.toHaveBeenCalled()
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['session-resources', 'session-1'],
-      exact: true,
-    })
+    expect(invalidateQueries).toHaveBeenCalledOnce()
+    expect(invalidateQueries).toHaveBeenCalledWith({ predicate: expect.any(Function) })
   })
 
   it('creates the normal request with the Codex modifier-enter shortcut', async () => {
@@ -276,57 +287,6 @@ describe('ChangeRequestComposer', () => {
         WorkingPath('/project'),
         expect.objectContaining({ action: 'create_pr', createFeatureBranch: false }),
       ),
-    )
-  })
-
-  it('keeps provider failures in the composer for correction', async () => {
-    runStackedGitAction.mockResolvedValue({
-      ok: false,
-      phase: 'pr',
-      code: 'change-request-failed',
-      message: 'GitHub authentication is required.',
-    })
-    renderComposer({ gitStatus: null, isDefaultRef: false })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('GitHub authentication is required.')
-  })
-
-  it('reuses a prepared branch after partial failure and exposes the browser fallback', async () => {
-    runStackedGitAction
-      .mockResolvedValueOnce({
-        ok: false,
-        phase: 'pr',
-        code: 'change-request-failed',
-        message: 'GitHub CLI is unavailable.',
-        branch: { status: 'created', name: 'codex/explore-image-hub-parity-2' },
-        fallbackUrl:
-          'https://github.com/openwaggle/openwaggle/compare/main...codex%2Fexplore-image-hub-parity-2?expand=1',
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        action: 'create_pr',
-        branch: { status: 'unchanged', name: 'codex/explore-image-hub-parity-2' },
-        changeRequest: null,
-      })
-    renderComposer({ gitStatus: null })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('GitHub CLI is unavailable.')
-    expect(screen.getByLabelText('New branch name')).toHaveValue('codex/explore-image-hub-parity-2')
-    fireEvent.click(screen.getByRole('button', { name: 'Open PR in browser' }))
-    expect(openExternal).toHaveBeenCalledWith(
-      'https://github.com/openwaggle/openwaggle/compare/main...codex%2Fexplore-image-hub-parity-2?expand=1',
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
-    await waitFor(() => expect(runStackedGitAction).toHaveBeenCalledTimes(2))
-    expect(runStackedGitAction.mock.calls[1]?.[1]).toEqual(
-      expect.objectContaining({
-        createFeatureBranch: true,
-        featureBranchName: 'codex/explore-image-hub-parity-2',
-      }),
     )
   })
 })

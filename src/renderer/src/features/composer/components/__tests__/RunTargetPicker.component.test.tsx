@@ -87,6 +87,7 @@ describe('RunTargetPicker', () => {
         branches: [
           {
             name: 'main',
+            localName: 'main',
             fullName: 'main',
             isCurrent: true,
             isRemote: false,
@@ -96,6 +97,7 @@ describe('RunTargetPicker', () => {
           },
           {
             name: 'develop',
+            localName: 'develop',
             fullName: 'develop',
             isCurrent: false,
             isRemote: false,
@@ -105,6 +107,7 @@ describe('RunTargetPicker', () => {
           },
           {
             name: 'origin/main',
+            localName: 'main',
             fullName: 'origin/main',
             isCurrent: false,
             isRemote: true,

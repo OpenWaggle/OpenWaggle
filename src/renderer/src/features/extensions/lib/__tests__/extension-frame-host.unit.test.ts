@@ -24,6 +24,7 @@ const ENTRY: ExtensionContributionRegistryEntry = {
   packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
   manifestPath: '/tmp/project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
   contentHash: 'abcdef',
+  invocationBinding: 'host-issued-binding',
   projectPaths: ['/tmp/project'],
   appliesToAllRequestedProjects: true,
   family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,

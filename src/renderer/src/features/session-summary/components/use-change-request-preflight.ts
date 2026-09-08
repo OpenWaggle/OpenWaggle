@@ -1,9 +1,13 @@
 import type { WorkingPath } from '@shared/types/brand'
 import type {
+  ChangeRequestPreflightPayload,
   ChangeRequestPreflightResult,
-  OpenChangeRequestPayload,
   SourceControlProviderId,
 } from '@shared/types/git'
+import {
+  buildHostedChangeRequestUrl,
+  repositoryUrlFromChangeRequestUrl,
+} from '@shared/utils/change-request-browser-url'
 import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -15,7 +19,10 @@ const PREFLIGHT_STALE_TIME_MS = 10_000
 interface SettledPreflightInput {
   readonly sessionId: string
   readonly workingPath: WorkingPath
-  readonly payload: OpenChangeRequestPayload
+  readonly provider: SourceControlProviderId | null
+  readonly headRef: string
+  readonly baseRef: string | undefined
+  readonly createFeatureBranch: boolean | undefined
 }
 
 export interface ChangeRequestPreflightView {
@@ -23,66 +30,78 @@ export interface ChangeRequestPreflightView {
   readonly message: string
   readonly nativeCreationBlocked: boolean
   readonly browserUrl: string | null
+  readonly plannedHeadRef: string | null
 }
 
-function samePayload(left: OpenChangeRequestPayload, right: OpenChangeRequestPayload) {
+function sameCapabilityInput(
+  left: SettledPreflightInput,
+  sessionId: string,
+  workingPath: WorkingPath,
+  provider: SourceControlProviderId | null,
+  payload: ChangeRequestPreflightPayload,
+) {
   return (
-    left.headRef === right.headRef &&
-    left.baseRef === right.baseRef &&
-    left.title === right.title &&
-    left.body === right.body &&
-    left.draft === right.draft
+    left.sessionId === sessionId &&
+    String(left.workingPath) === String(workingPath) &&
+    left.provider === provider &&
+    left.headRef === payload.headRef &&
+    left.baseRef === payload.baseRef &&
+    left.createFeatureBranch === payload.createFeatureBranch
   )
 }
 
 function useSettledPreflightInput(
   sessionId: string,
   workingPath: WorkingPath,
-  payload: OpenChangeRequestPayload,
+  provider: SourceControlProviderId | null,
+  payload: ChangeRequestPreflightPayload,
 ) {
   const path = String(workingPath)
   const [settled, setSettled] = useState<SettledPreflightInput>(() => ({
     sessionId,
     workingPath,
-    payload,
+    provider,
+    headRef: payload.headRef,
+    baseRef: payload.baseRef,
+    createFeatureBranch: payload.createFeatureBranch,
   }))
   const scopeIsSettled = settled.sessionId === sessionId && String(settled.workingPath) === path
-  const payloadIsSettled = samePayload(settled.payload, payload)
+  const capabilityIsSettled = sameCapabilityInput(
+    settled,
+    sessionId,
+    workingPath,
+    provider,
+    payload,
+  )
   const headRef = payload.headRef
   const baseRef = payload.baseRef
-  const title = payload.title
-  const body = payload.body
-  const draft = payload.draft
+  const createFeatureBranch = payload.createFeatureBranch
 
   useEffect(() => {
     const next = {
       sessionId,
       workingPath,
-      payload: {
-        headRef,
-        baseRef,
-        title,
-        body,
-        draft,
-      },
+      provider,
+      headRef,
+      baseRef,
+      createFeatureBranch,
     } satisfies SettledPreflightInput
     if (!scopeIsSettled) {
       setSettled(next)
       return
     }
-    if (payloadIsSettled) return
+    if (capabilityIsSettled) return
     const timer = window.setTimeout(() => setSettled(next), PREFLIGHT_PAYLOAD_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [
     sessionId,
     workingPath,
+    provider,
     headRef,
     baseRef,
-    title,
-    body,
-    draft,
+    createFeatureBranch,
     scopeIsSettled,
-    payloadIsSettled,
+    capabilityIsSettled,
   ])
 
   return settled
@@ -91,11 +110,34 @@ function useSettledPreflightInput(
 function changeRequestPreflightQueryOptions(input: SettledPreflightInput, enabled: boolean) {
   return queryOptions({
     queryKey: ['change-request-preflight', input] as const,
-    queryFn: () => api.preflightChangeRequest(input.workingPath, input.payload),
+    queryFn: () =>
+      api.preflightChangeRequest(input.workingPath, {
+        headRef: input.headRef,
+        baseRef: input.baseRef,
+        createFeatureBranch: input.createFeatureBranch,
+        title: '',
+        body: '',
+        draft: false,
+      }),
     enabled,
     retry: false,
     staleTime: PREFLIGHT_STALE_TIME_MS,
   })
+}
+
+function browserUrlForCurrentPayload(
+  result: ChangeRequestPreflightResult,
+  payload: ChangeRequestPreflightPayload,
+) {
+  if (!result.provider || !result.browserUrl) return result.browserUrl
+  const repositoryUrl = repositoryUrlFromChangeRequestUrl(result.provider.id, result.browserUrl)
+  if (!repositoryUrl) return result.browserUrl
+  return buildHostedChangeRequestUrl(
+    result.provider.id,
+    repositoryUrl,
+    { ...payload, headRef: result.plannedHeadRef },
+    false,
+  )
 }
 
 function blockedMessage(result: ChangeRequestPreflightResult) {
@@ -118,16 +160,30 @@ export function useChangeRequestPreflight(
   sessionId: string,
   workingPath: WorkingPath,
   expectedProvider: SourceControlProviderId | null | undefined,
-  payload: OpenChangeRequestPayload,
+  payload: ChangeRequestPreflightPayload,
+  blockedReason: string | null = null,
 ): ChangeRequestPreflightView {
-  const settled = useSettledPreflightInput(sessionId, workingPath, payload)
+  const provider = expectedProvider ?? null
+  const settled = useSettledPreflightInput(sessionId, workingPath, provider, payload)
   const currentPath = String(workingPath)
   const currentInputIsSettled =
     settled.sessionId === sessionId &&
     String(settled.workingPath) === currentPath &&
-    samePayload(settled.payload, payload)
-  const preflight = useQuery(changeRequestPreflightQueryOptions(settled, currentInputIsSettled))
+    sameCapabilityInput(settled, sessionId, workingPath, provider, payload)
+  const preflight = useQuery(
+    changeRequestPreflightQueryOptions(settled, currentInputIsSettled && blockedReason === null),
+  )
   const expected = getChangeRequestTerminology(expectedProvider)
+
+  if (blockedReason) {
+    return {
+      status: 'blocked',
+      message: blockedReason,
+      nativeCreationBlocked: true,
+      browserUrl: null,
+      plannedHeadRef: null,
+    }
+  }
 
   if (!currentInputIsSettled || preflight.isPending) {
     return {
@@ -135,6 +191,7 @@ export function useChangeRequestPreflight(
       message: `Checking ${expected.providerName} CLI…`,
       nativeCreationBlocked: true,
       browserUrl: null,
+      plannedHeadRef: null,
     }
   }
   if (preflight.isError || !preflight.data) {
@@ -143,6 +200,7 @@ export function useChangeRequestPreflight(
       message: `Could not check ${expected.providerName} CLI readiness.`,
       nativeCreationBlocked: true,
       browserUrl: null,
+      plannedHeadRef: null,
     }
   }
   if (!preflight.data.readiness.ok || !preflight.data.readiness.status.authenticated) {
@@ -150,13 +208,15 @@ export function useChangeRequestPreflight(
       status: 'blocked',
       message: blockedMessage(preflight.data),
       nativeCreationBlocked: true,
-      browserUrl: preflight.data.browserUrl,
+      browserUrl: browserUrlForCurrentPayload(preflight.data, payload),
+      plannedHeadRef: preflight.data.plannedHeadRef,
     }
   }
   return {
     status: 'ready',
     message: readyMessage(preflight.data),
     nativeCreationBlocked: false,
-    browserUrl: preflight.data.browserUrl,
+    browserUrl: browserUrlForCurrentPayload(preflight.data, payload),
+    plannedHeadRef: preflight.data.plannedHeadRef,
   }
 }

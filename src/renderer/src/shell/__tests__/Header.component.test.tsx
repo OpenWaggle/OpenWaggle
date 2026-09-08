@@ -1,6 +1,6 @@
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
@@ -125,6 +125,7 @@ vi.mock('@/features/sessions/hooks', () => ({
 
 describe('Header', () => {
   beforeEach(() => {
+    localStorage.clear()
     useUIStore.setState({
       diffRefreshKey: 0,
       feedbackModalOpen: false,
@@ -133,7 +134,7 @@ describe('Header', () => {
       toastData: null,
       toastMessage: null,
     })
-    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.setState({ panels: {}, toggleFocusTargetSessionId: null })
     useSessionSummaryUIStore.getState().syncPanel('session-1', {
       available: true,
       autoHidden: false,
@@ -191,5 +192,101 @@ describe('Header', () => {
     render(<Header />)
 
     expect(screen.queryByRole('button', { name: /Session Summary/ })).toBeNull()
+  })
+
+  it('reports actual hidden state while a right sidebar temporarily suppresses the Summary', () => {
+    useSessionSummaryUIStore.getState().syncPanel('session-1', {
+      available: true,
+      autoHidden: false,
+      rightSidebarOpen: true,
+    })
+    render(<Header />)
+
+    const toggle = screen.getByRole('button', { name: 'Open Session Summary' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(toggle).toBeDisabled()
+    expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(true)
+  })
+
+  it('restores keyboard focus after Hive navigation reaches its target session', async () => {
+    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+
+    render(<Header />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveFocus(),
+    )
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
+  })
+
+  it('does not keep a focus request queued when the target has no Summary yet', async () => {
+    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+    render(<Header />)
+
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-1')
+    act(() => {
+      useSessionSummaryUIStore.getState().syncPanel('session-1', {
+        available: false,
+        autoHidden: false,
+        rightSidebarOpen: false,
+      })
+    })
+    await waitFor(() =>
+      expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull(),
+    )
+    act(() => {
+      useSessionSummaryUIStore.getState().syncPanel('session-1', {
+        available: true,
+        autoHidden: false,
+        rightSidebarOpen: false,
+      })
+    })
+    const toggle = await screen.findByRole('button', { name: 'Hide Session Summary' })
+    expect(toggle).not.toHaveFocus()
+  })
+
+  it('waits for a newly visited non-empty session before handing focus to its toggle', async () => {
+    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+    render(<Header />)
+
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-1')
+    act(() => {
+      useSessionSummaryUIStore.getState().syncPanel('session-1', {
+        available: true,
+        autoHidden: false,
+        rightSidebarOpen: false,
+      })
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveFocus(),
+    )
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
+  })
+
+  it('warns when a direct commit succeeds but its Session Output needs a retry', async () => {
+    headerMocks.commit.mockResolvedValueOnce({
+      ok: true,
+      commitHash: 'abc123',
+      summary: 'abc123',
+      commitOutput: {
+        ok: false,
+        retryPersisted: true,
+        message: 'The commit Output will be retried automatically.',
+      },
+    })
+    render(<Header />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open commit dialog' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm commit' }))
+
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData).toEqual({
+        message: 'The commit Output will be retried automatically.',
+        variant: 'error',
+      }),
+    )
   })
 })

@@ -7,10 +7,11 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
-import { sessionResourcesQueryKey } from '../hooks/useSessionResources'
+import { invalidateSessionResourceQueries } from '../hooks/useSessionResources'
 import {
   changeRequestActionInput,
   changeRequestPreflightPayload,
+  changeRequestStatusReadinessMessage,
   emptyFeatureBranchValidationMessage,
 } from './change-request-composer-model'
 import {
@@ -49,11 +50,7 @@ async function addCreatedRequestToOutputs(
   queryClient: QueryClient,
 ) {
   await api.recordSessionChangeRequest(props.session.id, request)
-  await queryClient.invalidateQueries({
-    queryKey: sessionResourcesQueryKey(String(props.session.id)),
-    exact: true,
-  })
-  void api.openExternal(request.url).catch(() => undefined)
+  await invalidateSessionResourceQueries(queryClient, String(props.session.id))
   props.onClose()
 }
 
@@ -134,12 +131,8 @@ function useChangeRequestActions(state: ChangeRequestActionState) {
       if (outcome.kind === 'created-request') {
         state.setFallbackUrl(outcome.request.url)
         state.props.onCompleted()
-        await queryClient.invalidateQueries({
-          queryKey: sessionResourcesQueryKey(String(state.props.session.id)),
-          exact: true,
-        })
+        await invalidateSessionResourceQueries(queryClient, String(state.props.session.id))
         showCreatedToast(showToast, state.terminology.shortLabel, outcome.commitOutputMessage)
-        void api.openExternal(outcome.request.url).catch(() => undefined)
         state.props.onClose()
         return
       }
@@ -171,7 +164,7 @@ export function useChangeRequestComposer(
   const [description, setDescription] = useState('')
   const [commitAndPush, setCommitAndPush] = useState((props.gitStatus?.filesChanged ?? 0) > 0)
   const [createFeatureBranch] = useState(() => startsOnDefaultRef(props.vcsStatus))
-  const [branchName, setBranchName] = useState(() =>
+  const [requestedBranchName, setBranchName] = useState(() =>
     sanitizeFeatureBranchName(`codex/${props.session.title}`),
   )
   const [running, setRunning] = useState(false)
@@ -180,10 +173,17 @@ export function useChangeRequestComposer(
   const [createdRequest, setCreatedRequest] = useState<CreatedRequest | null>(null)
   const [retryAuthorized, setRetryAuthorized] = useState(false)
   const pendingResourceRecord = retryAuthorized ? createdRequest : null
-  const validationError = emptyFeatureBranchValidationMessage(
-    { commitAndPush, createFeatureBranch, gitStatus: props.gitStatus, vcsStatus: props.vcsStatus },
+  const statusReadinessError = changeRequestStatusReadinessMessage(props, terminology.singular)
+  const fieldValidationError = emptyFeatureBranchValidationMessage(
+    {
+      commitAndPush,
+      createFeatureBranch,
+      gitStatus: props.gitStatus,
+      vcsStatus: props.vcsStatus,
+    },
     terminology.singular,
   )
+  const validationError = statusReadinessError ?? fieldValidationError
   const preflight = useChangeRequestPreflight(
     String(props.session.id),
     props.workingPath,
@@ -192,19 +192,21 @@ export function useChangeRequestComposer(
       ...props,
       title,
       description,
-      branchName,
+      branchName: requestedBranchName,
       commitAndPush,
       createFeatureBranch,
       draft: false,
     }),
+    statusReadinessError,
   )
+  const branchName = preflight.plannedHeadRef ?? requestedBranchName
   const creationBlocked =
     validationError !== null ||
     createdRequest !== null ||
     preflight.nativeCreationBlocked ||
     (createFeatureBranch && branchName.trim().length === 0)
   function updateField<T>(setter: (value: T) => void, value: T) {
-    if (createdRequest) return
+    if (running || createdRequest) return
     setFallbackUrl(null)
     setter(value)
   }
@@ -239,7 +241,7 @@ export function useChangeRequestComposer(
     branchName,
     setBranchName: (value: string) => updateField(setBranchName, value),
     running,
-    error: validationError ?? error,
+    error: fieldValidationError ?? error,
     creationBlocked,
     fallbackUrl,
     pendingResourceRecord,

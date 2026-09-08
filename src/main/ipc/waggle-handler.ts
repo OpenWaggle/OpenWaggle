@@ -25,25 +25,31 @@ import { activeWaggleRuns, cancelSessionRuns } from './active-agent-runs'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
-interface WaggleValidationErrorResult {
+interface WaggleResourceResult {
+  readonly resourceMessages?: readonly Message[]
+  readonly resourceNodeIds?: Readonly<Record<string, string>>
+  readonly resourceBranchIds?: Readonly<Record<string, string | null>>
+}
+
+interface WaggleValidationErrorResult extends WaggleResourceResult {
   readonly outcome: 'validation-error'
   readonly message: string
   readonly code: string
 }
 
-interface WaggleNotFoundResult {
+interface WaggleNotFoundResult extends WaggleResourceResult {
   readonly outcome: 'not-found'
   readonly message: string
   readonly code: string
 }
 
-interface WaggleNoProjectResult {
+interface WaggleNoProjectResult extends WaggleResourceResult {
   readonly outcome: 'no-project'
   readonly message: string
   readonly code: string
 }
 
-interface WaggleAbortedResult {
+interface WaggleAbortedResult extends WaggleResourceResult {
   readonly outcome: 'aborted'
 }
 
@@ -54,14 +60,14 @@ interface WaggleAbortedResult {
  * as opposed to a refusal raised before it. A caller holding work submitted with the message needs the two apart:
  * one means "keep it, it never arrived", the other means "the agent has it, do not offer it again".
  */
-interface WaggleErrorResult {
+interface WaggleErrorResult extends WaggleResourceResult {
   readonly outcome: 'error'
   readonly message: string
   readonly code: string
   readonly transportEmitted?: boolean
 }
 
-interface WaggleSuccessResult {
+interface WaggleSuccessResult extends WaggleResourceResult {
   readonly outcome: 'success'
   readonly newMessages: readonly Message[]
   readonly lastError?: string
@@ -150,7 +156,7 @@ function runRegisteredWaggleMessage(
   abortController: AbortController,
 ) {
   return Effect.gen(function* () {
-    const result = yield* executeWaggleRun({
+    const result: WaggleHandlerResult = yield* executeWaggleRun({
       sessionId,
       runId,
       payload,
@@ -168,14 +174,14 @@ function runRegisteredWaggleMessage(
         broadcastToWindows('sessions:title-updated', { sessionId, title }),
     })
 
-    if (result.outcome === 'success') {
+    if (result.resourceMessages !== undefined) {
       yield* captureSuccessfulRunResources({
         sessionId,
         runId,
         payload,
         messages: result.resourceMessages,
-        nodeIdByMessageId: result.resourceNodeIds,
-        branchIdByMessageId: result.resourceBranchIds,
+        nodeIdByMessageId: result.resourceNodeIds ?? {},
+        branchIdByMessageId: result.resourceBranchIds ?? {},
       }).pipe(Effect.catchAll(() => Effect.void))
     }
 

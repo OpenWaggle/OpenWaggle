@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { Fragment, type Key, type ReactNode, useId, useState } from 'react'
+import { Fragment, type Key, type ReactNode, type Ref, useId, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 
 const INITIAL_VISIBLE_ITEMS = 6
@@ -12,6 +12,8 @@ export function SessionSummarySection({
   expanded,
   onExpandedChange,
   actions,
+  sectionRef,
+  triggerRef,
   children,
 }: {
   readonly id: string
@@ -20,13 +22,16 @@ export function SessionSummarySection({
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
   readonly actions?: ReactNode
+  readonly sectionRef?: Ref<HTMLElement>
+  readonly triggerRef?: Ref<HTMLButtonElement>
   readonly children: ReactNode
 }) {
   const contentId = `session-summary-section-${id}`
   return (
-    <section className="border-t border-border first:border-t-0">
+    <section ref={sectionRef} className="border-t border-border first:border-t-0">
       <div className="sticky top-0 z-10 flex h-10 items-center bg-bg-secondary/95 backdrop-blur">
         <Button
+          ref={triggerRef}
           variant="unstyled"
           className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
           aria-label={count === undefined ? title : `${title} ${count}`}

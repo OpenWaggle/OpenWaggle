@@ -90,11 +90,46 @@ function useRestoreFocusWhenPanelHides(panelId: string, panelVisible: boolean) {
   }, [panelId, panelVisible])
 }
 
+function useDismissTransientPanel(input: {
+  readonly panelId: string
+  readonly sessionId: string
+  readonly transient: boolean
+}) {
+  const dismissTransientPanel = useSessionSummaryUIStore((state) => state.dismissTransientPanel)
+
+  useEffect(() => {
+    if (!input.transient) return
+
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      dismissTransientPanel(input.sessionId)
+    }
+    const dismissOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const panel = document.getElementById(input.panelId)
+      const toggle = document.getElementById(`${input.panelId}-toggle`)
+      if (panel?.contains(target) || toggle?.contains(target)) return
+      dismissTransientPanel(input.sessionId)
+    }
+
+    document.addEventListener('keydown', dismissOnEscape)
+    document.addEventListener('pointerdown', dismissOnOutsidePointer)
+    return () => {
+      document.removeEventListener('keydown', dismissOnEscape)
+      document.removeEventListener('pointerdown', dismissOnOutsidePointer)
+    }
+  }, [dismissTransientPanel, input.panelId, input.sessionId, input.transient])
+}
+
 export function useSessionSummaryPanelLifecycle(input: SessionSummaryHubInput, sessionId: string) {
   const panelId = `session-summary-${sessionId}`
   const panelState = useSessionSummaryUIStore((state) => state.panels[sessionId])
   useSyncSessionSummaryPanel(input, sessionId)
   const visible = resolvePanelVisibility(input, panelState, sessionId)
+  const transient = Boolean(visible && input.autoHidden && panelState?.forcedOpen)
   useRestoreFocusWhenPanelHides(panelId, visible)
-  return { id: panelId, visible }
+  useDismissTransientPanel({ panelId, sessionId, transient })
+  return { id: panelId, transient, visible }
 }

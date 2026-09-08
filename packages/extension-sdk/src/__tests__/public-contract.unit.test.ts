@@ -85,6 +85,40 @@ describe('extension SDK public schemas', () => {
     ).toMatchObject({ success: false })
   })
 
+  it('rejects Session Summary rows with both resource and action targets', () => {
+    const contribution = {
+      ...validManifest.contributions.sessionSummarySections[0],
+      rows: [
+        {
+          id: 'ambiguous-target',
+          label: 'Ambiguous target',
+          resourceId: 'preview',
+          action: { family: 'commands', contributionId: 'schema-smoke.command' },
+        },
+      ],
+    } as const
+    const validation = validateExtensionManifest({
+      ...validManifest,
+      contributions: {
+        ...validManifest.contributions,
+        sessionSummarySections: [contribution],
+      },
+    })
+
+    expect(validation).toMatchObject({ success: false })
+    if (!validation.success) {
+      expect(validation.issues.join('\n')).toContain(
+        'Session Summary rows cannot declare both resourceId and action.',
+      )
+    }
+    expect(() =>
+      Schema.decodeUnknownSync(extensionContributionRegistrationSchema)({
+        family: 'sessionSummarySections',
+        contribution,
+      }),
+    ).toThrow(/Session Summary rows cannot declare both resourceId and action/)
+  })
+
   it('exports direct schemas for broker, docs, runtime, and agent-loop boundaries', () => {
     expect(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES).toBe('openwaggle.resources')
     expect(() =>

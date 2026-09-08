@@ -1,161 +1,34 @@
 import { SessionId, WorkingPath } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
-import type { SessionResource } from '@shared/types/session-resource'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { Button } from '@/shared/ui/Button'
+import { useComposerActionStore, useComposerStore } from '@/features/composer/state'
+import { createRendererQueryClient } from '@/queries/query-client'
 import { useUIStore } from '@/shell/ui-store'
-import { renderWithQueryClient } from '@/test-utils/query-test-utils'
-import type { SessionResourceBrowserTarget } from '../../model/session-resource-browser'
 import { useSessionSummaryUIStore } from '../../state/session-summary-ui-store'
-import { SessionSummaryHub } from '../SessionSummaryHub'
-import { SESSION_SUMMARY_SECTION_ORDER } from '../SessionSummaryPanelSections'
-
-const listSessionResources = vi.hoisted(() => vi.fn())
-const listArchivedSessions = vi.hoisted(() => vi.fn())
-const listMcpEventSubscriptions = vi.hoisted(() => vi.fn())
-const useStackedGitActions = vi.hoisted(() => vi.fn())
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    listSessionResources,
-    listArchivedSessions,
-    listMcpEventSubscriptions,
-    openExternal: vi.fn(),
-  },
-}))
-
-vi.mock('@/features/git/hooks', () => ({
-  useGit: () => ({
-    workingPath: WorkingPath('/project'),
-    repositoryPath: '/project',
-    status: {
-      branch: 'codex/session-summary-resource-hub',
-      filesChanged: 2,
-      additions: 12,
-      deletions: 3,
-      changedFiles: [],
-    },
-    refreshStatus: vi.fn(),
-  }),
-}))
-
-vi.mock('@/features/git', () => ({
-  CommitMessageDialog: () => null,
-  resolveQuickAction: () => ({
-    label: 'Commit & push',
-    disabled: false,
-    kind: 'run_action',
-    action: 'commit_push',
-  }),
+import {
+  commitOrPushDialog,
+  hubElement,
+  listSessionResources,
+  renderHub,
+  resource,
+  session,
+  sessionSummarySectionOrder,
+  setupSessionSummaryHubHarness,
+  useCombinedVcsStatus,
   useStackedGitActions,
-  useCombinedVcsStatus: () => ({
-    status: {
-      repositoryRoot: '/project',
-      refName: 'codex/session-summary-resource-hub',
-      defaultRef: 'main',
-      hasUncommittedChanges: true,
-      hasUpstream: true,
-      aheadCount: 1,
-      behindCount: 0,
-      aheadOfDefaultCount: 1,
-      sourceControlProvider: { id: 'github', label: 'GitHub' },
-      changeRequest: null,
-    },
-    refresh: vi.fn(),
-  }),
-}))
-
-function session(id = 'session-1'): SessionDetail {
-  return {
-    id: SessionId(id),
-    title: `Session ${id}`,
-    projectPath: '/project',
-    messages: [],
-    environmentMode: 'local',
-    createdAt: 1000,
-    updatedAt: 1000,
-  }
-}
-
-function resource(overrides: Partial<SessionResource>): SessionResource {
-  return {
-    id: 'resource-1',
-    sessionId: SessionId('session-1'),
-    canonicalKey: 'sha256:image',
-    kind: 'image',
-    title: 'reference.png',
-    mimeType: 'image/png',
-    locator: 'session-resource://resource-1',
-    available: true,
-    isSource: true,
-    isOutput: false,
-    occurrences: [],
-    createdAt: 1000,
-    updatedAt: 1000,
-    ...overrides,
-    managed: overrides.managed ?? true,
-  }
-}
-
-type HubProps = {
-  readonly activeSession?: SessionDetail | null
-  readonly messageCount?: number
-  readonly autoHidden?: boolean
-  readonly rightSidebarOpen?: boolean
-  readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
-}
-
-function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
-  return (
-    <>
-      {includeHeaderToggle ? (
-        <Button
-          id="session-summary-session-1-toggle"
-          type="button"
-          onClick={() => useSessionSummaryUIStore.getState().togglePanel('session-1')}
-        >
-          Session Summary toggle
-        </Button>
-      ) : null}
-      <SessionSummaryHub
-        key={props.activeSession?.id ?? 'none'}
-        input={{
-          session: props.activeSession === undefined ? session() : props.activeSession,
-          messageCount: props.messageCount ?? 1,
-          autoHidden: props.autoHidden ?? false,
-          rightSidebarOpen: props.rightSidebarOpen ?? false,
-          onOpenDiff: vi.fn(),
-          onOpenResources: props.onOpenResources ?? vi.fn(),
-          onNavigateSession: vi.fn(),
-          extensionRegistry: null,
-          extensionProjectPaths: ['/project'],
-        }}
-      />
-    </>
-  )
-}
-
-function renderHub(props: HubProps = {}, includeHeaderToggle = false) {
-  return renderWithQueryClient(hubElement(props, includeHeaderToggle))
-}
+} from './session-summary-hub.test-harness'
 
 describe('SessionSummaryHub', () => {
   beforeEach(() => {
-    localStorage.clear()
-    useSessionSummaryUIStore.setState({ panels: {} })
-    useUIStore.setState({ resourceViewer: null })
-    listSessionResources.mockReset().mockResolvedValue([])
-    listArchivedSessions.mockReset().mockResolvedValue([])
-    listMcpEventSubscriptions.mockReset().mockResolvedValue([])
-    useStackedGitActions.mockReset().mockReturnValue({ isRunning: false, run: vi.fn() })
+    setupSessionSummaryHubHarness()
   })
 
   it('keeps core and extension slots in the agreed deterministic order', () => {
-    expect(SESSION_SUMMARY_SECTION_ORDER).toEqual([
+    expect(sessionSummarySectionOrder()).toEqual([
       'subscriptions',
       'environment',
+      'change-requests',
       'extensions-context',
       'hive',
       'extensions-coordination',
@@ -169,6 +42,8 @@ describe('SessionSummaryHub', () => {
   it('does not render before the opened session has its first message', () => {
     renderHub({ messageCount: 0 })
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(useStackedGitActions).not.toHaveBeenCalled()
+    expect(listSessionResources).not.toHaveBeenCalled()
   })
 
   it('appears after the first message with environment actions', async () => {
@@ -180,16 +55,36 @@ describe('SessionSummaryHub', () => {
     await waitFor(() => expect(listSessionResources).toHaveBeenCalledWith(SessionId('session-1')))
   })
 
+  it('retries the combined status after bounded local recovery fails', () => {
+    const refresh = vi.fn()
+    useCombinedVcsStatus.mockReturnValue({
+      local: null,
+      localState: 'error',
+      remote: null,
+      remoteState: 'error',
+      status: null,
+      refresh,
+    })
+
+    renderHub()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Git status' }))
+
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
   it('keeps a failed resource catalog visible and retryable in the Summary', async () => {
     listSessionResources
       .mockRejectedValueOnce(new Error('catalog unavailable'))
-      .mockResolvedValue([])
+      .mockResolvedValue({ resources: [], backfillComplete: true })
     renderHub()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load session resources.')
+    const callsBeforeRetry = listSessionResources.mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(listSessionResources.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2),
+    )
   })
 
   it('keeps long summary content inside a bounded, scrollable surface', () => {
@@ -210,16 +105,74 @@ describe('SessionSummaryHub', () => {
   it('lets the header state force the panel open when it is automatically hidden', () => {
     renderHub({ autoHidden: true })
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(null, '1:0')
 
     act(() => useSessionSummaryUIStore.getState().togglePanel('session-1'))
 
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toHaveAttribute(
+      'data-session-summary-mode',
+      'transient',
+    )
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(WorkingPath('/project'), '1:0')
+  })
+
+  it('dismisses a constrained-width transient panel with Escape and restores toggle focus', async () => {
+    renderHub({ autoHidden: true }, true)
+    const toggle = screen.getByText('Session Summary toggle')
+    fireEvent.click(toggle)
+    const summary = screen.getByRole('complementary', { name: 'Session Summary' })
+    const changes = screen.getByRole('button', { name: /Changes/ })
+    changes.focus()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(summary).not.toBeInTheDocument()
+    await waitFor(() => expect(toggle).toHaveFocus())
+  })
+
+  it('dismisses a constrained-width transient panel when focus moves outside it', () => {
+    renderHub({ autoHidden: true }, true)
+    const toggle = screen.getByText('Session Summary toggle')
+    fireEvent.click(toggle)
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
   })
 
   it('hard-hides the panel while a right sidebar is open', () => {
     renderHub({ rightSidebarOpen: true })
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(null, '1:0')
+  })
+
+  it('does not load VCS state while persisted hidden and reloads it when reopened', () => {
+    localStorage.setItem('openwaggle:session-summary:session-1:panel', 'false')
+    renderHub({}, true)
+
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(null, '1:0')
+    fireEvent.click(screen.getByText('Session Summary toggle'))
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(WorkingPath('/project'), '1:0')
+  })
+
+  it('keeps VCS state enabled while an opened Git dialog outlives panel suppression', () => {
+    const client = createRendererQueryClient()
+    const view = render(<QueryClientProvider client={client}>{hubElement()}</QueryClientProvider>)
+    const commitOrPush = screen.getByRole('button', { name: 'Commit or push' })
+    expect(commitOrPush).toBeEnabled()
+    fireEvent.click(commitOrPush)
+    expect(commitOrPushDialog).toHaveBeenCalled()
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(WorkingPath('/project'), '1:0')
+
+    view.rerender(
+      <QueryClientProvider client={client}>{hubElement({ autoHidden: true })}</QueryClientProvider>,
+    )
+
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+    expect(commitOrPushDialog.mock.calls.length).toBeGreaterThan(1)
+    expect(useCombinedVcsStatus).toHaveBeenLastCalledWith(WorkingPath('/project'), '1:0')
   })
 
   it('restores focus to the header toggle when suppression hides the focused panel', async () => {
@@ -238,11 +191,13 @@ describe('SessionSummaryHub', () => {
   })
 
   it('shows only resources returned for the opened session', async () => {
-    listSessionResources.mockImplementation(async (sessionId: SessionId) =>
-      sessionId === SessionId('session-2')
-        ? [resource({ id: 'resource-2', sessionId, title: 'session-two.png' })]
-        : [resource({ title: 'session-one.png' })],
-    )
+    listSessionResources.mockImplementation(async (sessionId: SessionId) => ({
+      resources:
+        sessionId === SessionId('session-2')
+          ? [resource({ id: 'resource-2', sessionId, title: 'session-two.png' })]
+          : [resource({ title: 'session-one.png' })],
+      backfillComplete: true,
+    }))
 
     const first = renderHub()
     fireEvent.click(await screen.findByRole('button', { name: /Sources/ }))
@@ -258,7 +213,10 @@ describe('SessionSummaryHub', () => {
   })
 
   it('opens a Summary image in the active session gallery', async () => {
-    listSessionResources.mockResolvedValue([resource({ title: 'reference.png' })])
+    listSessionResources.mockResolvedValue({
+      resources: [resource({ title: 'reference.png' })],
+      backfillComplete: true,
+    })
     renderHub()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sources 1' }))
@@ -270,17 +228,34 @@ describe('SessionSummaryHub', () => {
     })
   })
 
+  it('routes Add source actions to the matching session composer', async () => {
+    renderHub({ activeSession: session('session-owner') })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a source' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Attach files/ }))
+    expect(useComposerActionStore.getState().filePickerRequest).toMatchObject({
+      sessionId: 'session-owner',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a source' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Reference project file/ }))
+    expect(useComposerStore.getState().input).toBe('@')
+  })
+
   it('opens a non-image resource on its owning browser tab and selection', async () => {
     const onOpenResources = vi.fn()
-    listSessionResources.mockResolvedValue([
-      resource({
-        kind: 'file',
-        title: 'report.md',
-        mimeType: 'text/markdown',
-        isSource: false,
-        isOutput: true,
-      }),
-    ])
+    listSessionResources.mockResolvedValue({
+      resources: [
+        resource({
+          kind: 'file',
+          title: 'report.md',
+          mimeType: 'text/markdown',
+          isSource: false,
+          isOutput: true,
+        }),
+      ],
+      backfillComplete: true,
+    })
     renderHub({ onOpenResources })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Outputs 1' }))

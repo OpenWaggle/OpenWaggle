@@ -1,20 +1,26 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
+import type {
+  SessionResource,
+  SessionResourceNodePageRequest,
+} from '@shared/types/session-resource'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  sessionResourcesQueryKey,
   sessionResourcesQueryOptions,
+  useSessionImageResourcesByNodeIds,
+  useSessionResourceCatalog,
   useSessionResourceInvalidation,
   useSessionResources,
 } from '../useSessionResources'
+import { RESOURCE } from './session-resource-hook.test-fixtures'
 
 const resourceMocks = vi.hoisted(() => ({
   list: vi.fn(),
   advanceBackfill: vi.fn(),
   onResourcesInvalidated: vi.fn(),
+  nodePage: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -22,31 +28,21 @@ vi.mock('@/shared/lib/ipc', () => ({
     listSessionResources: resourceMocks.list,
     advanceSessionResourceBackfill: resourceMocks.advanceBackfill,
     onSessionResourcesInvalidated: resourceMocks.onResourcesInvalidated,
+    listSessionResourceNodePage: resourceMocks.nodePage,
   },
 }))
-
-const RESOURCE: SessionResource = {
-  id: 'resource-one',
-  sessionId: SessionId('session-one'),
-  canonicalKey: 'sha256:one',
-  kind: 'image',
-  title: 'output.png',
-  mimeType: 'image/png',
-  locator: 'session-resource://resource-one',
-  managed: true,
-  available: true,
-  isSource: false,
-  isOutput: true,
-  occurrences: [],
-  createdAt: 1,
-  updatedAt: 1,
-}
 
 describe('useSessionResources', () => {
   beforeEach(() => {
     resourceMocks.list.mockReset().mockResolvedValue([])
     resourceMocks.advanceBackfill.mockReset().mockResolvedValue({ backfillComplete: true })
     resourceMocks.onResourcesInvalidated.mockReset()
+    resourceMocks.nodePage.mockReset().mockResolvedValue({
+      resources: [],
+      total: 0,
+      nextCursor: null,
+      orderRevision: 'none',
+    })
   })
 
   it('refreshes only the opened Session catalog after resources change', async () => {
@@ -76,10 +72,7 @@ describe('useSessionResources', () => {
     act(() => listener?.({ sessionId: SessionId('session-one') }))
 
     await waitFor(() => expect(result.current.data).toEqual([RESOURCE]))
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionResourcesQueryKey('session-one'),
-      exact: true,
-    })
+    expect(invalidate).toHaveBeenCalledWith({ predicate: expect.any(Function) })
     expect(resourceMocks.list).toHaveBeenCalledTimes(2)
   })
 
@@ -122,6 +115,126 @@ describe('useSessionResources', () => {
 
     await waitFor(() => expect(resourceMocks.list).toHaveBeenCalledOnce())
     expect(resourceMocks.onResourcesInvalidated).not.toHaveBeenCalled()
+  })
+
+  it('filters the legacy catalog fallback to change-request resources', async () => {
+    const changeRequest: SessionResource = {
+      ...RESOURCE,
+      id: 'change-request-one',
+      canonicalKey: 'url:https://github.example/pull/42',
+      kind: 'change-request',
+      title: 'Pull request 42',
+      mimeType: null,
+      locator: 'https://github.example/pull/42',
+      managed: false,
+    }
+    const sourceChangeRequest: SessionResource = {
+      ...changeRequest,
+      id: 'source-change-request',
+      canonicalKey: 'url:https://github.example/pull/7',
+      isSource: true,
+      isOutput: false,
+    }
+    resourceMocks.list.mockResolvedValue({
+      resources: [RESOURCE, sourceChangeRequest, changeRequest],
+      backfillComplete: true,
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+
+    const { result } = renderHook(
+      () => useSessionResourceCatalog('session-one', 'change-requests'),
+      { wrapper },
+    )
+
+    await waitFor(() => expect(result.current.resources).toEqual([changeRequest]))
+    expect(result.current.total).toBe(1)
+  })
+
+  it('loads and deduplicates more than 512 node-scoped images in bounded pages', async () => {
+    const nodeIds = Array.from({ length: 600 }, (_, index) => `node-${String(index)}`)
+    let inFlight = 0
+    let maxInFlight = 0
+    const imageForNode = (nodeId: string, suffix: string): SessionResource => ({
+      ...RESOURCE,
+      id: `image-${nodeId}-${suffix}`,
+      canonicalKey: `sha256:${nodeId}-${suffix}`,
+      title: `${nodeId}-${suffix}.png`,
+      occurrences: [
+        {
+          id: `occurrence-${nodeId}-${suffix}`,
+          nodeId,
+          branchId: null,
+          actor: 'agent',
+          activity: 'created',
+          label: null,
+          locator: `/images/${nodeId}-${suffix}.png`,
+          createdAt: Number(nodeId.slice('node-'.length)),
+        },
+      ],
+    })
+    resourceMocks.nodePage.mockImplementation(
+      async (_sessionId: SessionId, input: SessionResourceNodePageRequest) => {
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        const shared: SessionResource = {
+          ...RESOURCE,
+          id: 'shared-image',
+          canonicalKey: 'sha256:shared-image',
+          title: 'shared.png',
+          occurrences: input.nodeIds.map((nodeId) => ({
+            id: `shared-${nodeId}`,
+            nodeId,
+            branchId: null,
+            actor: 'agent' as const,
+            activity: 'created' as const,
+            label: null,
+            locator: '/images/shared.png',
+            createdAt: Number(nodeId.slice('node-'.length)),
+          })),
+        }
+        const matching = [
+          ...input.nodeIds.flatMap((nodeId) => [
+            imageForNode(nodeId, 'a'),
+            imageForNode(nodeId, 'b'),
+          ]),
+          shared,
+        ]
+        const offset = input.cursor ? Number(input.cursor) : 0
+        const resources = matching.slice(offset, offset + input.limit)
+        const nextOffset = offset + resources.length
+        inFlight -= 1
+        return {
+          resources,
+          total: matching.length,
+          nextCursor: nextOffset < matching.length ? String(nextOffset) : null,
+          orderRevision: 'revision-one',
+        }
+      },
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+
+    const { result } = renderHook(() => useSessionImageResourcesByNodeIds('session-one', nodeIds), {
+      wrapper,
+    })
+
+    await waitFor(() => expect(result.current.data).toHaveLength(1_201))
+    expect(resourceMocks.nodePage).toHaveBeenCalledTimes(19)
+    expect(maxInFlight).toBe(4)
+    expect(
+      resourceMocks.nodePage.mock.calls.every(
+        ([, input]) => input.nodeIds.length <= 64 && input.limit === 128,
+      ),
+    ).toBe(true)
+    expect(result.current.data?.find(({ id }) => id === 'shared-image')?.occurrences).toHaveLength(
+      600,
+    )
   })
 
   it('continues bounded historical backfill until the session catalog is complete', async () => {

@@ -133,7 +133,7 @@ describe('runStackedGitAction change requests', () => {
     const deps = makeDeps()
     const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
     expect(result.ok).toBe(true)
-    expect(deps.resolveCurrentRef).toHaveBeenCalledWith('/repo')
+    expect(deps.resolveApprovedPushDestination).toHaveBeenCalledWith('/repo', null)
     expect(deps.openChangeRequest).toHaveBeenCalledWith(
       '/repo',
       expect.objectContaining({ headRef: 'feature/current', baseRef: 'main' }),
@@ -142,6 +142,15 @@ describe('runStackedGitAction change requests', () => {
 
   it('opens a GitHub fork PR from the branch and owner that actually received the push', async () => {
     const deps = makeDeps({
+      resolveApprovedPushDestination: vi.fn(
+        async () =>
+          ({
+            remote: 'fork',
+            branch: 'published-name',
+            remoteUrl: 'git@github.com:contributor/project.git',
+            multiplePushUrls: false,
+          }) as const,
+      ),
       push: vi.fn(
         async () =>
           ({
@@ -163,7 +172,16 @@ describe('runStackedGitAction change requests', () => {
     expect(result.ok).toBe(true)
     expect(deps.openChangeRequest).toHaveBeenCalledWith(
       '/repo',
-      expect.objectContaining({ headRef: 'published-name', headOwner: 'contributor' }),
+      expect.objectContaining({
+        headRef: 'published-name',
+        headOwner: 'contributor',
+        targetRepository: {
+          provider: 'github',
+          host: 'github.com',
+          owner: 'upstream',
+          repository: 'project',
+        },
+      }),
     )
   })
 
@@ -210,9 +228,74 @@ describe('runStackedGitAction change requests', () => {
   })
 
   it('fails the pr phase when no head ref is resolvable (instead of empty --head)', async () => {
-    const deps = makeDeps({ resolveCurrentRef: vi.fn(async () => null) })
+    const deps = makeDeps({ resolveApprovedPushDestination: vi.fn(async () => null) })
     const result = await runStackedGitAction(deps, '/repo', { action: 'create_pr' })
     expect(result).toMatchObject({ ok: false, phase: 'pr', code: 'change-request-failed' })
+    expect(deps.push).not.toHaveBeenCalled()
+    expect(deps.openChangeRequest).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'multiple push URLs',
+      destination: {
+        remote: 'origin',
+        branch: 'feature/session-summary',
+        remoteUrl: null,
+        multiplePushUrls: true,
+      },
+    },
+    {
+      name: 'a different provider or host',
+      destination: {
+        remote: 'fork',
+        branch: 'feature/session-summary',
+        remoteUrl: 'https://gitlab.com/contributor/project.git',
+        multiplePushUrls: false,
+      },
+    },
+  ])('rejects $name before any Git mutation', async ({ destination }) => {
+    const deps = makeDeps({
+      resolveApprovedPushDestination: vi.fn(async () => destination),
+    })
+
+    const result = await runStackedGitAction(deps, '/repo', {
+      action: 'commit_push_pr',
+      commitMessage: 'Ship it',
+      paths: ['src/a.ts'],
+      createFeatureBranch: true,
+      featureBranchName: 'feature/session-summary',
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: 'pr',
+      message: expect.stringContaining('not compatible'),
+    })
+    expect(deps.createBranch).not.toHaveBeenCalled()
+    expect(deps.commit).not.toHaveBeenCalled()
+    expect(deps.push).not.toHaveBeenCalled()
+    expect(deps.openChangeRequest).not.toHaveBeenCalled()
+  })
+
+  it('stops before commit when the exact preflighted branch becomes occupied', async () => {
+    const deps = makeDeps({
+      createBranch: vi.fn(async () => ({ ok: false, message: 'branch already exists' })),
+    })
+
+    const result = await runStackedGitAction(deps, '/repo', {
+      action: 'commit_push_pr',
+      commitMessage: 'Ship it',
+      paths: ['src/a.ts'],
+      createFeatureBranch: true,
+      featureBranchName: 'feature/session-summary',
+      exactFeatureBranchName: true,
+    })
+
+    expect(result).toMatchObject({ ok: false, phase: 'branch', code: 'branch-failed' })
+    expect(deps.createBranch).toHaveBeenCalledWith('/repo', 'feature/session-summary', 'HEAD')
+    expect(deps.commit).not.toHaveBeenCalled()
+    expect(deps.push).not.toHaveBeenCalled()
     expect(deps.openChangeRequest).not.toHaveBeenCalled()
   })
 })

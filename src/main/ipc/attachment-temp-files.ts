@@ -18,7 +18,8 @@ export const TEMP_PROMPT_MIME_TYPE = 'text/markdown'
 const TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES = 32 * BYTES_PER_KIBIBYTE
 export const TEXT_ATTACHMENT_MAX_SIZE_MB =
   ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
-const TEMP_PROMPT_FILENAME_PATTERN = /^prompt-\d+\.md$/
+const TEMP_ATTACHMENT_FILENAME_PATTERN =
+  /^(?:prompt-\d+\.md|resource-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+)$/u
 
 function describeUnknownError(error: unknown) {
   return error instanceof Error ? { message: error.message } : { message: String(error) }
@@ -40,7 +41,7 @@ export async function cleanupTempAttachments() {
 
   const staleBefore = Date.now() - TEMP_ATTACHMENT_RETENTION_MS
   for (const entry of entries) {
-    if (!TEMP_PROMPT_FILENAME_PATTERN.test(entry)) continue
+    if (!TEMP_ATTACHMENT_FILENAME_PATTERN.test(entry)) continue
 
     const filePath = path.join(tempAttachmentsDir, entry)
     try {

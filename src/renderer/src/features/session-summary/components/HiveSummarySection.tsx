@@ -1,10 +1,19 @@
-import type { SessionDelegationState, SessionLineage, SessionSummary } from '@shared/types/session'
+import { SessionId } from '@shared/types/brand'
+import type {
+  SessionDelegationState,
+  SessionHiveRelations,
+  SessionLineage,
+  SessionSummary,
+} from '@shared/types/session'
 import { useQuery } from '@tanstack/react-query'
 import { ChessQueen, ChevronDown, ChevronRight, Pickaxe } from 'lucide-react'
-import { useId, useState } from 'react'
-import { useSessionStore } from '@/features/sessions/state'
-import { archivedSessionsQueryOptions } from '@/queries/archived-sessions'
+import { useEffect, useId, useRef, useState } from 'react'
+import { sessionHiveRelationsQueryOptions } from '@/queries/session-hive-relations'
 import { Button } from '@/shared/ui/Button'
+import { useSessionSummaryUIStore } from '../state/session-summary-ui-store'
+import { SessionSummaryPaginatedList } from './SessionSummaryPrimitives'
+
+const HIVE_COMPLETION_COLLAPSE_DELAY_MS = 2_500
 
 const DELEGATION_LABELS: Readonly<Record<SessionDelegationState, string>> = {
   working: 'Working',
@@ -16,7 +25,7 @@ const DELEGATION_LABELS: Readonly<Record<SessionDelegationState, string>> = {
   cancelled: 'Cancelled',
 }
 
-function lineageOf(value: SessionSummary | undefined): SessionLineage | null {
+function lineageOf(value: SessionSummary | null | undefined): SessionLineage | null {
   return value?.lineage ?? null
 }
 
@@ -45,39 +54,67 @@ function stateNeedsAttention(state: SessionDelegationState | null) {
   return state === 'needs_attention' || state === 'revision_requested'
 }
 
-function hiveSummaryModel(
-  sessions: ReturnType<typeof useSessionStore.getState>['sessions'],
-  archivedSessions: ReturnType<typeof useSessionStore.getState>['sessions'],
-  sessionId: string,
-) {
-  const current =
-    sessions.find((session) => String(session.id) === sessionId) ??
-    archivedSessions.find((session) => String(session.id) === sessionId)
+function hiveSummaryModel(relations: SessionHiveRelations | undefined) {
+  const current = relations?.current
   const lineage = lineageOf(current)
   if (!current || !lineage || lineage.role === 'independent') return null
-  const workers = sessions.filter((session) => lineageOf(session)?.parentSessionId === sessionId)
-  const liveIds = new Set(sessions.map((session) => String(session.id)))
-  const archivedWorkers = archivedSessions.filter(
-    (session) =>
-      !liveIds.has(String(session.id)) && lineageOf(session)?.parentSessionId === sessionId,
-  )
-  const parent = lineage.parentSessionId
-    ? (sessions.find((session) => String(session.id) === lineage.parentSessionId) ??
-      archivedSessions.find((session) => String(session.id) === lineage.parentSessionId))
-    : undefined
+  const workers = relations.workers.filter((session) => !session.archived)
+  const archivedWorkers = relations.workers.filter((session) => session.archived)
   const attention = workers.some((worker) => needsAttention(lineageOf(worker)))
   return {
     current,
     lineage,
     workers,
     archivedWorkers,
-    parent,
+    parent: relations.parent,
     attention,
     defaultExpanded:
       attention ||
       workers.some((worker) => !isDone(lineageOf(worker))) ||
       lineage.role === 'worker',
   }
+}
+
+function useHiveExpansion(sessionId: string, shouldExpandAutomatically: boolean) {
+  const [expansionOverride, setExpansionOverride] = useState<boolean | null>(() =>
+    storedExpansion(sessionId),
+  )
+  const [automaticExpanded, setAutomaticExpanded] = useState(shouldExpandAutomatically)
+  const sectionRef = useRef<HTMLElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (expansionOverride !== null) return
+    if (shouldExpandAutomatically) {
+      setAutomaticExpanded(true)
+      return
+    }
+    if (!automaticExpanded) return
+    const timeout = window.setTimeout(() => {
+      const activeElement = document.activeElement
+      if (
+        activeElement instanceof HTMLElement &&
+        activeElement !== triggerRef.current &&
+        sectionRef.current?.contains(activeElement)
+      ) {
+        triggerRef.current?.focus()
+      }
+      setAutomaticExpanded(false)
+    }, HIVE_COMPLETION_COLLAPSE_DELAY_MS)
+    return () => window.clearTimeout(timeout)
+  }, [automaticExpanded, expansionOverride, shouldExpandAutomatically])
+
+  const expanded = expansionOverride ?? (shouldExpandAutomatically || automaticExpanded)
+  const toggleExpanded = () => {
+    const next = !expanded
+    setExpansionOverride(next)
+    try {
+      localStorage.setItem(expansionKey(sessionId), String(next))
+    } catch {
+      // Storage failure must not disable Hive navigation.
+    }
+  }
+  return { expanded, sectionRef, toggleExpanded, triggerRef }
 }
 
 export function HiveSummarySection({
@@ -87,25 +124,19 @@ export function HiveSummarySection({
   readonly sessionId: string
   readonly onNavigateSession: (sessionId: string) => void
 }) {
-  const sessions = useSessionStore((state) => state.sessions)
-  const archivedSessions = useQuery(archivedSessionsQueryOptions()).data ?? []
-  const model = hiveSummaryModel(sessions, archivedSessions, sessionId)
+  const relations = useQuery(sessionHiveRelationsQueryOptions(SessionId(sessionId))).data
+  const model = hiveSummaryModel(relations)
+  const requestToggleFocus = useSessionSummaryUIStore((state) => state.requestToggleFocus)
   const generatedContentId = useId()
   const contentId = `session-summary-hive-${generatedContentId.replaceAll(':', '')}`
-  const [expanded, setExpanded] = useState(
-    () => storedExpansion(sessionId) ?? model?.defaultExpanded ?? false,
-  )
+  const shouldExpandAutomatically = model?.defaultExpanded ?? false
+  const expansion = useHiveExpansion(sessionId, shouldExpandAutomatically)
 
   if (!model) return null
 
-  function toggleExpanded() {
-    const next = !expanded
-    setExpanded(next)
-    try {
-      localStorage.setItem(expansionKey(sessionId), String(next))
-    } catch {
-      // Storage failure must not disable Hive navigation.
-    }
+  function navigateSession(targetSessionId: string) {
+    requestToggleFocus(targetSessionId)
+    onNavigateSession(targetSessionId)
   }
 
   const Icon = model.lineage.role === 'queen' ? ChessQueen : Pickaxe
@@ -117,16 +148,17 @@ export function HiveSummarySection({
     model.workers.length + model.archivedWorkers.length,
   )
   return (
-    <section className="border-t border-border" aria-label="Hive">
+    <section ref={expansion.sectionRef} className="border-t border-border" aria-label="Hive">
       <div className="sticky top-0 z-10 bg-bg-secondary/95 backdrop-blur">
         <Button
+          ref={expansion.triggerRef}
           variant="unstyled"
           className="flex h-10 w-full items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
           aria-controls={contentId}
-          aria-expanded={expanded}
-          onClick={toggleExpanded}
+          aria-expanded={expansion.expanded}
+          onClick={expansion.toggleExpanded}
         >
-          {expanded ? (
+          {expansion.expanded ? (
             <ChevronDown aria-hidden="true" className="size-3.5" />
           ) : (
             <ChevronRight aria-hidden="true" className="size-3.5" />
@@ -144,10 +176,10 @@ export function HiveSummarySection({
       </div>
       <div
         id={contentId}
-        aria-hidden={!expanded}
-        inert={!expanded}
+        aria-hidden={!expansion.expanded}
+        inert={!expansion.expanded}
         className={
-          expanded
+          expansion.expanded
             ? 'grid grid-rows-[1fr] opacity-100 transition-[grid-template-rows,opacity] duration-150 ease-out motion-reduce:transition-none'
             : 'grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-150 ease-out motion-reduce:transition-none'
         }
@@ -164,26 +196,26 @@ export function HiveSummarySection({
                 label="Parent"
                 title={model.parent.title}
                 state={lineageOf(model.parent)?.delegationState ?? null}
-                onClick={() => onNavigateSession(String(model.parent?.id))}
+                onClick={() => navigateSession(String(model.parent?.id))}
               />
             ) : null}
             <HiveWorkerGroup
               label="Active"
               workers={activeWorkers}
               rowLabel="Worker"
-              onNavigateSession={onNavigateSession}
+              onNavigateSession={navigateSession}
             />
             <HiveWorkerGroup
               label="Done"
               workers={doneWorkers}
               rowLabel="Done"
-              onNavigateSession={onNavigateSession}
+              onNavigateSession={navigateSession}
             />
             <HiveWorkerGroup
               label="Archived"
               workers={model.archivedWorkers}
               rowLabel="Archived"
-              onNavigateSession={onNavigateSession}
+              onNavigateSession={navigateSession}
             />
           </div>
         </div>
@@ -199,7 +231,7 @@ function HiveWorkerGroup({
   onNavigateSession,
 }: {
   readonly label: string
-  readonly workers: ReturnType<typeof useSessionStore.getState>['sessions']
+  readonly workers: readonly SessionSummary[]
   readonly rowLabel: string
   readonly onNavigateSession: (sessionId: string) => void
 }) {
@@ -209,15 +241,18 @@ function HiveWorkerGroup({
       <div className="px-2 pb-0.5 pt-1 text-xs font-medium uppercase tracking-wide text-text-muted">
         {label}
       </div>
-      {workers.map((worker) => (
-        <HiveSessionRow
-          key={worker.id}
-          label={rowLabel}
-          title={worker.title}
-          state={lineageOf(worker)?.delegationState ?? null}
-          onClick={() => onNavigateSession(String(worker.id))}
-        />
-      ))}
+      <SessionSummaryPaginatedList
+        items={workers}
+        getKey={(worker) => worker.id}
+        renderItem={(worker) => (
+          <HiveSessionRow
+            label={rowLabel}
+            title={worker.title}
+            state={lineageOf(worker)?.delegationState ?? null}
+            onClick={() => onNavigateSession(String(worker.id))}
+          />
+        )}
+      />
     </fieldset>
   )
 }

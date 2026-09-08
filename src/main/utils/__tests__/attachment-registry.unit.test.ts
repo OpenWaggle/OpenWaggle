@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { hydrateAttachmentSources } from '../attachment-hydration'
 import {
   configurePreparedAttachmentRegistry,
@@ -40,6 +40,53 @@ afterEach(async () => {
 })
 
 describe('prepared attachment registry', () => {
+  it('hydrates prepared attachments with bounded filesystem concurrency', async () => {
+    const userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-attachments-'))
+    temporaryDirectories.push(userDataPath)
+    configurePreparedAttachmentRegistry(userDataPath)
+    const attachments: PreparedAttachment[] = []
+    for (let index = 0; index < 5; index += 1) {
+      const bytes = Buffer.from(`image-${String(index)}`)
+      const filePath = path.join(userDataPath, `image-${String(index)}.png`)
+      await fs.writeFile(filePath, bytes)
+      const attachment: PreparedAttachment = {
+        id: `attachment-${String(index)}`,
+        kind: 'image',
+        origin: 'user-file',
+        name: path.basename(filePath),
+        path: filePath,
+        mimeType: 'image/png',
+        sizeBytes: bytes.byteLength,
+        contentSha256: createHash('sha256').update(bytes).digest('hex'),
+        extractedText: 'prepared image',
+      }
+      attachments.push(attachment)
+      await rememberPreparedAttachment(attachment, filePath)
+    }
+
+    const stat = fs.stat.bind(fs)
+    let active = 0
+    let peak = 0
+    const statSpy = vi.spyOn(fs, 'stat').mockImplementation(async (filePath) => {
+      active += 1
+      peak = Math.max(peak, active)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      try {
+        return await stat(filePath)
+      } finally {
+        active -= 1
+      }
+    })
+
+    try {
+      const hydrated = await hydrateAttachmentSources(attachments)
+      expect(hydrated.map(({ id }) => id)).toEqual(attachments.map(({ id }) => id))
+      expect(peak).toBe(2)
+    } finally {
+      statSpy.mockRestore()
+    }
+  })
+
   it('rehydrates a compact capability after a full main-process restart', async () => {
     const { userDataPath, filePath, attachment } = await makeFixture()
     configurePreparedAttachmentRegistry(userDataPath)

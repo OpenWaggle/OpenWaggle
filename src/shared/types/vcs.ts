@@ -2,26 +2,11 @@
 // Split out of git.ts to keep each module focused.
 
 import type { SessionId } from './brand'
+import type { SourceControlProviderInfo, VcsChangeRequest } from './change-request'
+
+export * from './change-request'
 
 // --- VCS status: Local/Remote split (WS2, ADR 0012) ---
-
-export type SourceControlProviderId = 'github' | 'gitlab'
-
-export interface SourceControlProviderInfo {
-  readonly id: SourceControlProviderId
-  readonly host: string
-}
-
-export type ChangeRequestState = 'open' | 'merged' | 'closed' | 'draft'
-
-/** Provider-neutral change request (GitHub PR / GitLab MR). */
-export interface VcsChangeRequest {
-  readonly title: string
-  readonly url: string
-  readonly baseRef: string
-  readonly headRef: string
-  readonly state: ChangeRequestState
-}
 
 export interface VcsWorkingTreeFile {
   readonly path: string
@@ -47,10 +32,9 @@ export interface LocalVcsStatus {
   /**
    * The branch a push from here would update, which is not always the branch you are on.
    *
-   * A push follows the upstream mapping, so standing on `feature` with an upstream of `origin/main` writes
-   * `main`. Verified against real git: a bare `git push` in that state reported `feature -> main`. The
-   * default-branch confirmation has to judge the destination, not the source, or it waves through exactly the
-   * push it exists to catch.
+   * Git resolves this from branch pushRemote, remote pushDefault, push.default, and the upstream mapping.
+   * The default-branch confirmation has to judge that destination, not the source ref, or it can approve a
+   * different repository or branch from the one the push will update.
    */
   readonly pushTargetRef: string | null
   /** Whether {@link pushTargetRef} is the default branch. Unknown counts as yes, as with `isDefaultRef`. */
@@ -93,86 +77,6 @@ export interface VcsStatusFailure {
 export type LocalVcsStatusResult = LocalVcsStatusSuccess | VcsStatusFailure
 export type RemoteVcsStatusResult = RemoteVcsStatusSuccess | VcsStatusFailure
 
-// --- Source control provider (WS3, ADR 0012) ---
-
-export interface SourceControlAuthStatus {
-  readonly authenticated: boolean
-  readonly account: string | null
-  readonly host: string | null
-}
-
-export const SOURCE_CONTROL_ERROR_CODES = [
-  'cli-missing',
-  'not-authenticated',
-  'no-change-request',
-  'unknown',
-] as const
-
-export type SourceControlErrorCode = (typeof SOURCE_CONTROL_ERROR_CODES)[number]
-
-export interface SourceControlFailure {
-  readonly ok: false
-  readonly code: SourceControlErrorCode
-  readonly message: string
-}
-
-export interface SourceControlAuthSuccess {
-  readonly ok: true
-  readonly status: SourceControlAuthStatus
-}
-
-export type SourceControlAuthResult = SourceControlAuthSuccess | SourceControlFailure
-
-export interface OpenChangeRequestPayload {
-  readonly headRef: string
-  /**
-   * Repository owner/namespace that received the pushed head. GitHub requires
-   * `owner:branch` when the head lives in a fork; a bare branch can otherwise
-   * resolve to an unrelated same-named ref in the base repository.
-   */
-  readonly headOwner?: string
-  /**
-   * Full source repository path when the pushed head lives in a fork. GitLab
-   * uses it for `--head`; GitHub needs it for the REST fallback that supports
-   * organization-owned and renamed forks.
-   */
-  readonly headRepository?: string
-  /** Omitted when the provider should use the repository's configured default branch. */
-  readonly baseRef?: string
-  readonly title: string
-  readonly body?: string
-  readonly draft?: boolean
-}
-
-export interface ChangeRequestSuccess {
-  readonly ok: true
-  readonly changeRequest: VcsChangeRequest
-}
-
-export type ChangeRequestResult = ChangeRequestSuccess | SourceControlFailure
-
-export interface ChangeRequestListSuccess {
-  readonly ok: true
-  readonly changeRequests: readonly VcsChangeRequest[]
-}
-
-export type ChangeRequestListResult = ChangeRequestListSuccess | SourceControlFailure
-
-export interface ChangeRequestCheckoutSuccess {
-  readonly ok: true
-  readonly reference: string
-}
-
-/** Result of checking a change request out into a working tree / Session worktree. */
-export type ChangeRequestCheckoutResult = ChangeRequestCheckoutSuccess | SourceControlFailure
-
-/** Read-only provider and browser readiness for the change-request composer. */
-export interface ChangeRequestPreflightResult {
-  readonly provider: SourceControlProviderInfo | null
-  readonly readiness: SourceControlAuthResult
-  readonly browserUrl: string | null
-}
-
 // --- Stacked git actions (WS4, ADR 0012) ---
 
 export const GIT_STACKED_ACTIONS = [
@@ -196,11 +100,15 @@ export interface GitActionProgressEvent {
 
 export interface GitRunStackedActionOptions {
   readonly action: GitStackedAction
+  /** Renderer-generated id used to scope progress and cancellation to this invocation. */
+  readonly operationId?: string
   /** Session that initiated the action, used only to project created outputs. */
   readonly sessionId?: SessionId
   readonly commitMessage?: string
   readonly createFeatureBranch?: boolean
   readonly featureBranchName?: string
+  /** Preserve a validated user-entered ref verbatim instead of auto-sanitizing or suffixing it. */
+  readonly exactFeatureBranchName?: boolean
   readonly baseRef?: string
   readonly changeRequestTitle?: string
   readonly changeRequestBody?: string
@@ -213,6 +121,8 @@ export interface GitRunStackedActionOptions {
    * past the opened directory and swept the user's unrelated in-flight work into the commit.
    */
   readonly paths?: readonly string[]
+  /** False commits only the existing index and leaves unstaged changes untouched. */
+  readonly includeUnstaged?: boolean
 }
 
 export const GIT_STACKED_ACTION_ERROR_CODES = [
@@ -240,23 +150,26 @@ export interface GitStackedActionBranchOutcome {
   readonly name: string | null
 }
 
+/** Persistence outcome for a successful Git artifact projected into Session Outputs. */
+export type GitOutputRecordingResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
+
 export interface GitRunStackedActionSuccess {
   readonly ok: true
   readonly action: GitStackedAction
   readonly branch: GitStackedActionBranchOutcome
   readonly commit: {
-    readonly commitHash: string
+    readonly commitHash: string | null
     readonly summary: string
+    /** Present when Output creation was suppressed because the full hash was unavailable. */
+    readonly commitOutput?: GitOutputRecordingResult
   } | null
   /** Output projection outcome; failed projections say whether durable retry was authorized. */
-  readonly commitOutput?:
-    | { readonly ok: true }
-    | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
+  readonly commitOutput?: GitOutputRecordingResult
   readonly changeRequest: VcsChangeRequest | null
   /** Main-process projection outcome for the created request, when a Session initiated it. */
-  readonly changeRequestOutput?:
-    | { readonly ok: true }
-    | { readonly ok: false; readonly message: string; readonly retryPersisted: boolean }
+  readonly changeRequestOutput?: GitOutputRecordingResult
 }
 
 export interface GitRunStackedActionFailure {

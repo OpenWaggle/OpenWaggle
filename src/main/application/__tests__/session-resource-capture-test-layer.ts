@@ -1,17 +1,15 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionWorkspace } from '@shared/types/session'
-import type { SessionResource } from '@shared/types/session-resource'
-import { fromPartial } from '@total-typescript/shoehorn'
+import type { SessionResource, SessionResourceKind } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { validatedImageBuffer } from '../../domain/session-resource-image'
 import { SessionResourceRepositoryError, SessionResourceStoreError } from '../../errors'
-import { SessionRepository } from '../../ports/session-repository'
 import { SessionResourceImageFetcher } from '../../ports/session-resource-image-fetcher'
 import { SessionResourceImageValidator } from '../../ports/session-resource-image-validator'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import { SessionResourceStore } from '../../ports/session-resource-store'
+import { sessionResourceTestSessionLayer } from './session-resource-capture-test-session-layer'
 
 export const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
@@ -37,6 +35,7 @@ interface SessionResourceTestLayerOptions {
   readonly sessionWorkingPath?: string
   readonly storeFileFailsFor?: readonly string[]
   readonly upsertFails?: boolean
+  readonly upsertFailsForKinds?: readonly SessionResourceKind[]
 }
 
 export function sessionResourceTestLayer(
@@ -44,44 +43,7 @@ export function sessionResourceTestLayer(
   options: SessionResourceTestLayerOptions = {},
 ) {
   return Layer.mergeAll(
-    Layer.succeed(
-      SessionRepository,
-      SessionRepository.of({
-        list: () => Effect.succeed([]),
-        listArchivedBranches: () => Effect.succeed([]),
-        getTree: () => Effect.succeed(null),
-        listResourceProjectionPage: () =>
-          Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
-        getResourceProjectionNodes: () => Effect.succeed([]),
-        getWorkspace: () =>
-          Effect.succeed(
-            options.sessionWorkingPath
-              ? fromPartial<SessionWorkspace>({
-                  tree: {
-                    session: {
-                      projectPath: options.sessionWorkingPath,
-                      environmentMode: 'local',
-                    },
-                  },
-                  activeBranchId: null,
-                  activeNodeId: null,
-                  transcriptPath: [],
-                })
-              : null,
-          ),
-        persistSnapshot: () => Effect.void,
-        updateRuntime: () => Effect.void,
-        renameBranch: () => Effect.void,
-        archiveBranch: () => Effect.void,
-        restoreBranch: () => Effect.void,
-        updateTreeUiState: () => Effect.void,
-        recordActiveRun: () => Effect.void,
-        clearActiveRun: () => Effect.void,
-        clearInterruptedRuns: () => Effect.void,
-        listActiveRunsForRecovery: () => Effect.succeed([]),
-        markActiveRunInterrupted: () => Effect.void,
-      }),
-    ),
+    sessionResourceTestSessionLayer(options.sessionWorkingPath),
     Layer.succeed(
       SessionResourceImageValidator,
       SessionResourceImageValidator.of({
@@ -107,7 +69,7 @@ export function sessionResourceTestLayer(
       SessionResourceRepository.of({
         upsert: (input) => {
           upserts.push(input)
-          if (options.upsertFails) {
+          if (options.upsertFails || options.upsertFailsForKinds?.includes(input.kind)) {
             return Effect.fail(
               new SessionResourceRepositoryError({
                 operation: 'upsert',
@@ -129,6 +91,54 @@ export function sessionResourceTestLayer(
           })
         },
         list: () => Effect.succeed(options.listedResources ?? []),
+        listPage: (_sessionId, input) => {
+          const matching = (options.listedResources ?? []).filter(
+            (resource) =>
+              input.view === 'all' ||
+              (input.view === 'images' && resource.kind === 'image') ||
+              (input.view === 'sources' && resource.isSource) ||
+              (input.view === 'outputs' && resource.isOutput),
+          )
+          return Effect.succeed({
+            resources: matching.slice(0, input.limit),
+            total: matching.length,
+            nextCursor: null,
+            orderRevision: 'none',
+          })
+        },
+        findById: (_sessionId, resourceId) =>
+          Effect.succeed(
+            [
+              options.existingResource,
+              ...(options.existingResources ?? []),
+              ...(options.listedResources ?? []),
+            ]
+              .filter((resource) => resource !== undefined)
+              .find((resource) => resource.id === resourceId) ?? null,
+          ),
+        findByOccurrence: (_sessionId, occurrenceId) =>
+          Effect.succeed(
+            [
+              options.existingResource,
+              ...(options.existingResources ?? []),
+              ...(options.listedResources ?? []),
+            ]
+              .filter((resource) => resource !== undefined)
+              .find((resource) =>
+                resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+              ) ?? null,
+          ),
+        findByLocator: (_sessionId, kind, locator) =>
+          Effect.succeed(
+            [
+              options.existingResource,
+              ...(options.existingResources ?? []),
+              ...(options.listedResources ?? []),
+            ]
+              .filter((resource) => resource !== undefined)
+              .find((resource) => resource.kind === kind && resource.locator === locator) ?? null,
+          ),
+        locateImage: () => Effect.succeed(null),
         findByCanonicalKey: (_sessionId, canonicalKey) =>
           Effect.succeed(
             options.existingResources
@@ -152,6 +162,42 @@ export function sessionResourceTestLayer(
               (options.listedResources ?? []).some((resource) =>
                 resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
               ),
+          ),
+        hasOccurrences: (_sessionId, occurrenceIds) =>
+          Effect.succeed(
+            new Set(
+              occurrenceIds.filter((occurrenceId) =>
+                (options.listedResources ?? []).some((resource) =>
+                  resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+                ),
+              ),
+            ),
+          ),
+        listByNodeIds: (_sessionId, nodeIds, kind, limit) =>
+          Effect.succeed(
+            (options.listedResources ?? [])
+              .filter(
+                (resource) =>
+                  (kind === null || resource.kind === kind) &&
+                  resource.occurrences.some(
+                    (occurrence) =>
+                      occurrence.nodeId !== null && nodeIds.includes(occurrence.nodeId),
+                  ),
+              )
+              .slice(0, limit),
+          ),
+        listByNodeIdsPage: () =>
+          Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+        listManagedNodeIds: (_sessionId, limit) =>
+          Effect.succeed(
+            [
+              ...new Set(
+                (options.listedResources ?? [])
+                  .filter((resource) => resource.managed)
+                  .flatMap((resource) => resource.occurrences.map(({ nodeId }) => nodeId))
+                  .filter((nodeId): nodeId is string => nodeId !== null),
+              ),
+            ].slice(0, limit),
           ),
         getContentLocation: (_sessionId, resourceId) =>
           [options.existingResource, ...(options.listedResources ?? [])]
@@ -210,6 +256,7 @@ export function sessionResourceTestLayer(
                 : Effect.void,
             ),
           ),
+        openReadStream: () => Effect.succeed(new Blob([]).stream()),
         read: (managedPath) =>
           Effect.sync(() => options.readManagedPaths?.push(managedPath)).pipe(
             Effect.flatMap(() =>

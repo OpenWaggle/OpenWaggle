@@ -1,5 +1,6 @@
 import type { Message } from '@shared/types/agent'
-import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
+import type { SessionResourceKind } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
@@ -13,6 +14,10 @@ import {
   capturedResource,
   sessionResourceTestLayer,
 } from './session-resource-capture.fixtures'
+import {
+  failedOrchestrationMessages,
+  toolMessages,
+} from './session-resource-tool-backfill.fixtures'
 
 describe('production Session Resource tool projection', () => {
   it('reconstructs semantic tool and file resources from an existing projected transcript', async () => {
@@ -46,6 +51,7 @@ describe('production Session Resource tool projection', () => {
           kind: 'file',
           occurrence: expect.objectContaining({
             id: 'session-1:assistant-tool-message:read:file:tool-call-1',
+            locator: '/worktree/src/session-summary.ts',
           }),
         }),
       ]),
@@ -173,24 +179,115 @@ describe('production Session Resource tool projection', () => {
     expect(secondUpserts).toHaveLength(8)
     expect(secondPass.fullyProjected).toBe(true)
   })
-})
 
-function toolMessages(messagePrefix: string, toolPrefix: string): Message[] {
-  return Array.from({ length: SESSION_TOOL_CAPTURE_LIMIT + 8 }, (_, index) => ({
-    ...assistantToolResultMessage(),
-    id: MessageId(`${messagePrefix}-${String(index)}`),
-    parts: [
+  it('advances past bounded failed orchestrations whose completed children were persisted', async () => {
+    const messages = failedOrchestrationMessages()
+    const firstUpserts: UpsertSessionResourceInput[] = []
+
+    const firstPass = await Effect.runPromise(
+      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
+        Effect.provide(sessionResourceTestLayer(firstUpserts)),
+      ),
+    )
+    const secondUpserts: UpsertSessionResourceInput[] = []
+    const secondPass = await Effect.runPromise(
+      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
+        Effect.provide(
+          sessionResourceTestLayer(secondUpserts, {
+            listedResources: firstUpserts.map(capturedResource),
+          }),
+        ),
+      ),
+    )
+
+    expect(firstPass.fullyProjected).toBe(false)
+    expect(firstUpserts).toHaveLength(SESSION_TOOL_CAPTURE_LIMIT)
+    expect(secondUpserts).toHaveLength(8)
+    expect(secondPass.fullyProjected).toBe(true)
+  })
+
+  it('retries assistant metadata after tool, site, file, or web-search persistence fails', async () => {
+    const scenarios = [
       {
-        type: 'tool-result' as const,
-        toolResult: {
-          id: ToolCallId(`${toolPrefix}-${String(index)}`),
-          name: 'grep',
-          args: { pattern: String(index) },
-          result: '',
-          isError: false,
-          duration: 1,
-        },
+        kind: 'tool',
+        message: assistantToolResultMessage(false, { name: 'grep' }),
       },
-    ],
-  }))
-}
+      {
+        kind: 'file',
+        message: assistantToolResultMessage(false, {
+          name: 'read',
+          args: { path: 'src/session-summary.ts' },
+        }),
+      },
+      {
+        kind: 'web-search',
+        message: assistantToolResultMessage(false, {
+          name: 'web',
+          args: { search_query: [{ q: 'OpenWaggle Session Summary' }] },
+        }),
+      },
+      {
+        kind: 'site',
+        message: assistantToolResultMessage(false, {
+          name: 'publish_site',
+          result: {
+            content: [
+              {
+                type: 'site',
+                url: 'https://preview.example/session-summary',
+                title: 'Session Summary preview',
+                activity: 'created',
+              },
+            ],
+          },
+        }),
+      },
+    ] satisfies ReadonlyArray<{
+      readonly kind: SessionResourceKind
+      readonly message: Message
+    }>
+
+    for (const scenario of scenarios) {
+      const failedPassUpserts: UpsertSessionResourceInput[] = []
+      const failedPass = await Effect.runPromise(
+        captureProjectedSessionResources({
+          sessionId: SessionId('session-1'),
+          messages: [scenario.message],
+        }).pipe(
+          Effect.provide(
+            sessionResourceTestLayer(failedPassUpserts, {
+              sessionWorkingPath: '/worktree',
+              upsertFailsForKinds: [scenario.kind],
+            }),
+          ),
+        ),
+      )
+
+      expect(failedPass, scenario.kind).toEqual({ progressed: false, fullyProjected: false })
+
+      const persistedBeforeFailure = failedPassUpserts
+        .filter((resource) => resource.kind !== scenario.kind)
+        .map(capturedResource)
+      const retryUpserts: UpsertSessionResourceInput[] = []
+      const retry = await Effect.runPromise(
+        captureProjectedSessionResources({
+          sessionId: SessionId('session-1'),
+          messages: [scenario.message],
+        }).pipe(
+          Effect.provide(
+            sessionResourceTestLayer(retryUpserts, {
+              listedResources: persistedBeforeFailure,
+              sessionWorkingPath: '/worktree',
+            }),
+          ),
+        ),
+      )
+
+      expect(retry.fullyProjected, scenario.kind).toBe(true)
+      expect(
+        retryUpserts.some((resource) => resource.kind === scenario.kind),
+        scenario.kind,
+      ).toBe(true)
+    }
+  })
+})

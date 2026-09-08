@@ -6,8 +6,11 @@ import { AUTOMATION_IDENTITY_QUERY_PARAM } from '@shared/constants/electron-auto
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
+import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import { app, net, protocol } from 'electron'
 import { env } from './env'
+
+export { isTrustedRendererRequest } from './renderer-request-trust'
 
 export const RENDERER_PROTOCOL = 'openwaggle'
 export const RENDERER_PROTOCOL_HOST = 'app'
@@ -55,6 +58,15 @@ export function registerRendererScheme() {
     },
     {
       scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: false,
+      },
+    },
+    {
+      scheme: SESSION_RESOURCE_PROTOCOL.SCHEME,
       privileges: {
         standard: true,
         secure: true,
@@ -128,24 +140,6 @@ export function rendererUrlWithAutomationIdentity(url: string) {
     env.OPENWAGGLE_AUTOMATION_LEASE_TOKEN,
   )
   return rendererUrl.toString()
-}
-
-export function isTrustedRendererRequest(url: string) {
-  if (url.startsWith('file://')) return true
-
-  try {
-    const parsedUrl = new URL(url)
-    if (
-      parsedUrl.protocol === `${RENDERER_PROTOCOL}:` &&
-      parsedUrl.host === RENDERER_PROTOCOL_HOST
-    ) {
-      return true
-    }
-    if (!env.ELECTRON_RENDERER_URL) return false
-    return parsedUrl.origin === new URL(env.ELECTRON_RENDERER_URL).origin
-  } catch {
-    return false
-  }
 }
 
 async function fileResponse(filePath: string) {

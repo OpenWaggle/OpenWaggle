@@ -189,6 +189,7 @@ describe('extension image resource identity', () => {
           actor: 'extension',
           activity: 'created',
           label: CONTRIBUTION_ID,
+          locator: rawLocator,
           createdAt: 1000,
         },
       ],
@@ -222,6 +223,7 @@ describe('extension image resource identity', () => {
       actor: 'extension' as const,
       activity: 'created' as const,
       label: CONTRIBUTION_ID,
+      locator: rawLocator,
       createdAt: 1000,
     }
     const normalized = resource({
@@ -271,6 +273,7 @@ describe('extension image resource identity', () => {
           actor: 'extension',
           activity: 'created',
           label: CONTRIBUTION_ID,
+          locator: rawLocator,
           createdAt: 1000,
         },
       ],

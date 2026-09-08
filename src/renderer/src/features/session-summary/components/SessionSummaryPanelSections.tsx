@@ -4,7 +4,11 @@ import { ExtensionSessionSummarySections } from './ExtensionSessionSummarySectio
 import { HiveSummarySection } from './HiveSummarySection'
 import { SessionResourcesCatalogFailure } from './SessionResourcesCatalogFailure'
 import type { SessionSummaryPanelSection } from './SessionSummaryExpandedPanel'
-import { EnvironmentSummarySection, ResourceSummarySection } from './SessionSummarySections'
+import {
+  EnvironmentSummarySection,
+  ResourceSummarySection,
+  SessionChangeRequestsSection,
+} from './SessionSummarySections'
 import { SessionSummarySubscriptions } from './SessionSummarySubscriptions'
 import type { SessionSummaryHubInput } from './session-summary-hub-types'
 import type { SessionSummaryHubController } from './use-session-summary-hub-controller'
@@ -12,6 +16,7 @@ import type { SessionSummaryHubController } from './use-session-summary-hub-cont
 const SESSION_SUMMARY_SECTION_IDENTITIES = [
   { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'environment', label: 'Environment' },
+  { id: 'change-requests', label: 'Change requests' },
   { id: 'extensions-context', label: 'Extension context' },
   { id: 'hive', label: 'Hive' },
   { id: 'extensions-coordination', label: 'Extension coordination' },
@@ -83,6 +88,16 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
         }}
       />
     ),
+    'change-requests': (
+      <SessionChangeRequestsSection
+        resources={resources.changeRequests}
+        currentUrl={git.environment.vcsStatus?.changeRequest?.url ?? null}
+        provider={git.environment.vcsStatus?.sourceControlProvider?.id ?? null}
+        expanded={disclosures.changeRequests.expanded}
+        onExpandedChange={disclosures.changeRequests.setExpanded}
+        onOpen={input.onOpenChangeRequest ?? (() => {})}
+      />
+    ),
     'extensions-context': extensionSection(context, 'context'),
     hive: (
       <HiveSummarySection
@@ -99,23 +114,30 @@ export function createSessionSummaryPanelSections(context: SessionSummarySection
     ) : null,
     outputs: (
       <ResourceSummarySection
-        title="Outputs"
-        resources={resources.outputs}
-        expanded={disclosures.outputs.expanded}
-        onExpandedChange={disclosures.outputs.setExpanded}
-        onOpenResources={input.onOpenResources}
-        onOpenImage={resources.openImage}
+        input={{
+          title: 'Outputs',
+          resources: resources.outputs,
+          count: resources.outputCount,
+          expanded: disclosures.outputs.expanded,
+          onExpandedChange: disclosures.outputs.setExpanded,
+          onOpenResources: input.onOpenResources,
+          onOpenImage: resources.openImage,
+        }}
       />
     ),
     sources: (
       <ResourceSummarySection
-        title="Sources"
-        resources={resources.sources}
-        expanded={disclosures.sources.expanded}
-        onExpandedChange={disclosures.sources.setExpanded}
-        onOpenResources={input.onOpenResources}
-        onOpenImage={resources.openImage}
-        onAddSource={resources.addSource}
+        input={{
+          title: 'Sources',
+          resources: resources.sources,
+          count: resources.sourceCount,
+          expanded: disclosures.sources.expanded,
+          onExpandedChange: disclosures.sources.setExpanded,
+          onOpenResources: input.onOpenResources,
+          onOpenImage: resources.openImage,
+          onAttachSource: resources.attachSource,
+          onReferenceSource: resources.referenceSource,
+        }}
       />
     ),
     'extensions-details': extensionSection(context, 'details'),

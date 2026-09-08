@@ -22,4 +22,10 @@ describe('repositoryWebUrl', () => {
       'https://gitlab.com/group/project',
     )
   })
+
+  it('rejects local and unsupported URL transports instead of rewriting them as hosted repositories', () => {
+    expect(repositoryWebUrl('file://github.com/tmp/victim.git')).toBeNull()
+    expect(repositoryWebUrl('ext://git@github.com/team/project.git')).toBeNull()
+    expect(repositoryWebUrl('ftp://gitlab.com/team/project.git')).toBeNull()
+  })
 })

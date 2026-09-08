@@ -6,9 +6,12 @@ function repositoryUrl(remoteUrl: string) {
   }
 }
 
+const SUPPORTED_NETWORK_GIT_PROTOCOLS = new Set(['http:', 'https:', 'ssh:', 'git:'])
+
 export function repositoryWebUrl(remoteUrl: string) {
   const url = repositoryUrl(remoteUrl)
   if (url) {
+    if (!SUPPORTED_NETWORK_GIT_PROTOCOLS.has(url.protocol.toLowerCase())) return null
     const repositoryPath = url.pathname.replace(/^\/+|\.git$/gu, '')
     const webHost = url.protocol === 'http:' || url.protocol === 'https:' ? url.host : url.hostname
     return repositoryPath ? `https://${webHost}/${repositoryPath}` : null

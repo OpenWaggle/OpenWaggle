@@ -251,6 +251,46 @@ describe('registerWaggleHandlers', () => {
     })
   })
 
+  it('captures persisted resources from a partially aborted Waggle run', async () => {
+    const resourceMessages = [
+      {
+        id: 'persisted-partial-message',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, text: '[Partial docs](https://example.test/docs)' }],
+        createdAt: 2,
+      },
+    ]
+    executeWaggleRunMock.mockReturnValue(
+      Effect.succeed({
+        outcome: 'aborted',
+        resourceMessages,
+        resourceNodeIds: { 'persisted-partial-message': 'persisted-partial-node' },
+        resourceBranchIds: { 'persisted-partial-message': 'session-1:main' },
+      }),
+    )
+
+    registerWaggleHandlers()
+    const send = getSendHandler()
+    await Effect.runPromise(
+      send(
+        {},
+        SESSION_ID,
+        { text: 'Review this patch', thinkingLevel: 'medium', attachments: [] },
+        SELECTED_MODEL,
+        inheritedFirstAgentConfig(),
+      ),
+    )
+
+    expect(captureSuccessfulRunResourcesMock).toHaveBeenCalledWith({
+      sessionId: SESSION_ID,
+      runId: `waggle-${SESSION_ID}`,
+      payload: { text: 'Review this patch', thinkingLevel: 'medium', attachments: [] },
+      messages: resourceMessages,
+      nodeIdByMessageId: { 'persisted-partial-message': 'persisted-partial-node' },
+      branchIdByMessageId: { 'persisted-partial-message': 'session-1:main' },
+    })
+  })
+
   it('marks an in-progress Waggle worktree launch as failed when setup is refused', async () => {
     executeWaggleRunMock.mockReturnValue(
       Effect.succeed({

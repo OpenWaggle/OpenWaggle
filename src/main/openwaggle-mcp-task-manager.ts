@@ -10,11 +10,11 @@ import {
 } from './openwaggle-mcp-task-cancellation'
 import {
   cancelledTaskRecord,
-  hasLiveLease,
   isActiveTaskStatus,
   type OpenWaggleServerTaskLeaseOptions,
   OpenWaggleTaskLeaseCoordinator,
   terminalTaskRecord,
+  waitForOpenWaggleSessionTasks,
 } from './openwaggle-mcp-task-leases'
 import {
   establishTaskLineage,
@@ -34,8 +34,6 @@ import { OpenWaggleMcpTaskStore, type ServerTaskRecord } from './openwaggle-mcp-
 
 export type { OpenWaggleServerTaskLeaseOptions } from './openwaggle-mcp-task-leases'
 export type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
-
-const TASK_WAIT_POLL_INTERVAL_MS = 100
 
 export class OpenWaggleServerTaskManager {
   private readonly active = new Map<string, ActiveServerTask>()
@@ -75,11 +73,27 @@ export class OpenWaggleServerTaskManager {
 
   private reconcileProfileTasks() {
     return reconcileOpenWaggleProfileTasks({
+      ensureSessionMetadata: (task, sessionId) => this.ensureOwnedSessionMetadata(task, sessionId),
       now: this.leases.now(),
       profile: this.options.profile,
       services: this.services,
       store: this.store,
     })
+  }
+
+  private async ensureOwnedSessionMetadata(task: ServerTaskRecord, sessionId: SessionId) {
+    // parentSessionId implies ownership for task records written before ownsSession was added.
+    if (task.ownsSession !== true && !task.parentSessionId) return
+    await this.sessionMetadata.update(sessionId, (current) => ({
+      ...current,
+      depth: task.delegationDepth ?? 0,
+      ownedSession: {
+        profile: this.options.profile,
+        projectPath: task.projectPath,
+        createdAt: current.ownedSession?.createdAt ?? this.leases.now(),
+      },
+      updatedAt: this.leases.now(),
+    }))
   }
 
   private async projectTaskStateIfAuthoritative(
@@ -88,7 +102,12 @@ export class OpenWaggleServerTaskManager {
     state: Parameters<typeof projectTaskDelegationState>[2],
   ) {
     await projectTaskStateIfAuthoritative(
-      { services: this.services, store: this.store },
+      {
+        ensureSessionMetadata: (task, linkedSessionId) =>
+          this.ensureOwnedSessionMetadata(task, linkedSessionId),
+        services: this.services,
+        store: this.store,
+      },
       taskId,
       sessionId,
       state,
@@ -171,29 +190,27 @@ export class OpenWaggleServerTaskManager {
       linkedSessionId = sessionId
       const activeTask = this.active.get(task.id)
       if (activeTask) activeTask.sessionId = sessionId
-      if (created) {
-        await this.sessionMetadata.update(sessionId, (current) => ({
-          ...current,
-          depth: task.delegationDepth ?? 0,
-          ownedSession: {
-            profile: this.options.profile,
-            projectPath: task.projectPath,
-            createdAt: this.leases.now(),
-          },
-          updatedAt: this.leases.now(),
-        }))
-        await establishTaskLineage(this.services, task, sessionId)
+      const linked = await this.mutateOwned(task.id, (current) => ({
+        ...current,
+        sessionId,
+        ...(created ? { ownsSession: true } : {}),
+        updatedAt: this.leases.now(),
+      }))
+      if (!linked) {
+        abort.abort()
+        return
       }
+      await establishTaskLineage(this.services, linked, sessionId)
+      await this.ensureOwnedSessionMetadata(linked, sessionId)
       if (abort.signal.aborted) throw new Error('The hosted task was cancelled before execution.')
       const working = await this.mutateOwned(task.id, (current) => {
-        const linkedCurrent = { ...current, sessionId }
         return current.cancellationRequestedAt === undefined
           ? {
-              ...linkedCurrent,
+              ...current,
               status: 'working',
               updatedAt: this.leases.now(),
             }
-          : cancelledTaskRecord(linkedCurrent, this.leases.now())
+          : cancelledTaskRecord(current, this.leases.now())
       })
       if (working?.status !== 'working') {
         abort.abort()
@@ -278,22 +295,12 @@ export class OpenWaggleServerTaskManager {
   }
 
   waitForSession(sessionId: string, timeoutMs: number) {
-    return Effect.gen(this, function* () {
-      const deadline = this.leases.now() + timeoutMs
-      while (true) {
-        const tasks = yield* Effect.promise(() => this.reconcileProfileTasks())
-        const active = tasks.some(
-          (task) =>
-            task.callerProfile === this.options.profile &&
-            task.sessionId === sessionId &&
-            isActiveTaskStatus(task.status) &&
-            hasLiveLease(task, this.leases.now()),
-        )
-        if (!active) return true
-        const remaining = deadline - this.leases.now()
-        if (remaining <= 0) return false
-        yield* Effect.sleep(`${Math.min(TASK_WAIT_POLL_INTERVAL_MS, remaining)} millis`)
-      }
+    return waitForOpenWaggleSessionTasks({
+      now: this.leases.now,
+      profile: this.options.profile,
+      reconcile: () => this.reconcileProfileTasks(),
+      sessionId,
+      timeoutMs,
     })
   }
 

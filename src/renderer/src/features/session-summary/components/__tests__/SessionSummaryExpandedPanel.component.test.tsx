@@ -17,6 +17,7 @@ describe('SessionSummaryExpandedPanel', () => {
       <SessionSummaryExpandedPanel
         input={{
           panelId: 'session-summary-session-1',
+          transient: false,
           sections: [
             { id: 'environment', label: 'Environment', content: <div>Environment content</div> },
             { id: 'sources', label: 'Sources', content: <div>Sources content</div> },
@@ -40,6 +41,7 @@ describe('SessionSummaryExpandedPanel', () => {
       <SessionSummaryExpandedPanel
         input={{
           panelId: 'session-summary-session-1',
+          transient: false,
           sections: [
             { id: 'broken', label: 'Broken', content: <ExplodingSection /> },
             { id: 'sources', label: 'Sources', content: <div>Sources remain available</div> },

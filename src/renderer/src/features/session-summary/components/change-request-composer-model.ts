@@ -1,4 +1,4 @@
-import type { GitStatusSummary, OpenChangeRequestPayload, VcsStatus } from '@shared/types/git'
+import type { ChangeRequestPreflightPayload, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionDetail } from '@shared/types/session'
 import type { GitRunStackedActionOptions } from '@shared/types/vcs'
 
@@ -25,7 +25,7 @@ function generatedDescription(session: SessionDetail, status: GitStatusSummary |
 
 export function changeRequestPreflightPayload(
   input: ChangeRequestActionInput,
-): OpenChangeRequestPayload {
+): ChangeRequestPreflightPayload {
   return {
     headRef: input.createFeatureBranch
       ? input.branchName.trim()
@@ -36,6 +36,7 @@ export function changeRequestPreflightPayload(
       input.description.trim() ||
       generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
+    createFeatureBranch: input.createFeatureBranch,
   }
 }
 
@@ -65,6 +66,24 @@ export function emptyFeatureBranchValidationMessage(
   return `${action} before creating a ${requestLabel} from a new branch.`
 }
 
+export function changeRequestStatusReadinessMessage(
+  input: Pick<ChangeRequestActionInput, 'gitStatus' | 'vcsStatus'>,
+  requestLabel: string,
+) {
+  if (input.vcsStatus?.refName === null) {
+    return `Create or check out a branch before creating a ${requestLabel}.`
+  }
+  if (
+    input.vcsStatus?.defaultRef != null &&
+    input.vcsStatus.refName === input.vcsStatus.defaultRef &&
+    input.vcsStatus.hasWorkingTreeChanges &&
+    input.gitStatus === null
+  ) {
+    return `Waiting for local change details before creating a ${requestLabel}.`
+  }
+  return null
+}
+
 export function changeRequestActionInput(
   input: ChangeRequestActionInput,
 ): GitRunStackedActionOptions {
@@ -88,6 +107,9 @@ export function changeRequestActionInput(
     draft: input.draft,
     createFeatureBranch: input.createFeatureBranch,
     featureBranchName: input.createFeatureBranch ? input.branchName : undefined,
+    // Preflight already chose and validated this exact ref. Re-running automatic suffixing after
+    // the safety gate would make the mutation target differ from the branch that was approved.
+    exactFeatureBranchName: input.createFeatureBranch ? true : undefined,
     baseRef: input.vcsStatus?.defaultRef ?? undefined,
   }
 }

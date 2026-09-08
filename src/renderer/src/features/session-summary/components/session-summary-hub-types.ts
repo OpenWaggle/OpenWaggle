@@ -5,10 +5,13 @@ import type { SessionSummaryExtensionSidePanelTarget } from './session-summary-e
 
 export interface SessionSummaryHubInput {
   readonly session: SessionDetail | null
+  readonly activeBranchId?: string | null
+  readonly activePathNodeIds?: readonly string[]
   readonly messageCount: number
   readonly autoHidden: boolean
   readonly rightSidebarOpen: boolean
   readonly onOpenDiff: () => void
+  readonly onOpenChangeRequest?: (url: string) => void
   readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
   readonly onNavigateSession: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void

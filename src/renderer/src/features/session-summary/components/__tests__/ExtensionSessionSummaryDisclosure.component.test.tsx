@@ -79,7 +79,14 @@ describe('ExtensionSessionSummarySections disclosure', () => {
       sessionSummary: {
         placement: 'details',
         disclosure: { defaultExpanded: true, autoCollapseAfterMs: 1_000 },
-        rows: [{ id: 'status', label: 'Status', value: 'Complete' }],
+        rows: [
+          {
+            id: 'status',
+            label: 'Status',
+            value: 'Complete',
+            resourceId: 'resource-one',
+          },
+        ],
       },
     } satisfies ExtensionContributionRegistryEntry
 
@@ -96,13 +103,16 @@ describe('ExtensionSessionSummarySections disclosure', () => {
     )
 
     const toggle = screen.getByRole('button', { name: 'Timed status 1' })
+    const row = screen.getByRole('button', { name: 'Status' })
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    row.focus()
 
     act(() => vi.advanceTimersByTime(999))
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
     act(() => vi.advanceTimersByTime(1))
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveFocus()
   })
 
   it('persists disclosure choice for the owning Session without leaking it to another', () => {

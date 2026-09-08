@@ -16,6 +16,7 @@ function actions(): CoreCommandActions {
     selectProject: vi.fn().mockResolvedValue(undefined),
     setProjectPath: vi.fn().mockResolvedValue(undefined),
     toggleSidebar: vi.fn(),
+    toggleSessionSummary: vi.fn(),
     toggleTerminal: vi.fn(),
   }
 }
@@ -30,5 +31,16 @@ describe('global command core items', () => {
     expect(compact?.label).toBe('Compact session')
     compact?.action()
     expect(commandActions.compactSession).toHaveBeenCalledOnce()
+  })
+
+  it('offers Session Summary as a view command', () => {
+    const commandActions = actions()
+    const toggle = createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions).find(
+      (item) => item.id === 'toggle-session-summary',
+    )
+
+    expect(toggle?.label).toBe('Toggle Session Summary')
+    toggle?.action()
+    expect(commandActions.toggleSessionSummary).toHaveBeenCalledOnce()
   })
 })

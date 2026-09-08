@@ -63,10 +63,18 @@ function track(manager: OpenWaggleServerTaskManager) {
 
 describe('hosted MCP task session linkage', () => {
   it('links a newly created session when metadata setup fails', async () => {
-    const options = serveOptions(temporaryRoot)
+    const options = { ...serveOptions(temporaryRoot), originSessionId: 'parent-session' }
     const sessionMetadata = metadata(options.taskStorePath)
-    vi.spyOn(sessionMetadata, 'update').mockRejectedValue(new Error('metadata unavailable'))
-    const manager = track(new OpenWaggleServerTaskManager(options, sessionMetadata, services()))
+    const taskStore = new OpenWaggleMcpTaskStore(options.taskStorePath)
+    const taskServices = services()
+    let linkedBeforeMetadata = false
+    vi.spyOn(sessionMetadata, 'update').mockImplementation(async (sessionId) => {
+      linkedBeforeMetadata = (await taskStore.readTasks()).some(
+        (record) => record.sessionId === sessionId,
+      )
+      throw new Error('metadata unavailable')
+    })
+    const manager = track(new OpenWaggleServerTaskManager(options, sessionMetadata, taskServices))
     const task = await Effect.runPromise(
       manager.start({ projectPath: temporaryRoot, objective: 'fail after session creation' }),
     )
@@ -74,9 +82,44 @@ describe('hosted MCP task session linkage', () => {
     const failed = await waitForTaskStatus(manager, task.id, 'failed')
 
     expect(failed.sessionId).toBe(`created-${task.id}`)
+    expect(linkedBeforeMetadata).toBe(true)
+    expect(taskServices.establishLineage).toHaveBeenCalledWith({
+      sessionId: SessionId(`created-${task.id}`),
+      parentSessionId: SessionId('parent-session'),
+      agentDefinitionName: options.profile,
+      delegationState: 'working',
+    })
+    await expect(taskStore.readTasks()).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: task.id, ownsSession: true })]),
+    )
     await expect(Effect.runPromise(manager.listForSession(`created-${task.id}`))).resolves.toEqual([
       expect.objectContaining({ id: task.id, status: 'failed' }),
     ])
+
+    vi.restoreAllMocks()
+    const recoveryServices = services()
+    const recoveredMetadata = metadata(options.taskStorePath)
+    const restarted = track(
+      new OpenWaggleServerTaskManager(options, recoveredMetadata, recoveryServices, {
+        ownerId: 'restarted-owner',
+      }),
+    )
+    await Effect.runPromise(restarted.recoverInterruptedTasks())
+
+    expect(recoveryServices.establishLineage).toHaveBeenCalledWith({
+      sessionId: SessionId(`created-${task.id}`),
+      parentSessionId: SessionId('parent-session'),
+      agentDefinitionName: options.profile,
+      delegationState: 'working',
+    })
+    expect(recoveryServices.setDelegationState).toHaveBeenCalledWith(
+      SessionId(`created-${task.id}`),
+      'needs_attention',
+    )
+    await expect(recoveredMetadata.get(`created-${task.id}`)).resolves.toMatchObject({
+      depth: 1,
+      ownedSession: { profile: options.profile, projectPath: temporaryRoot },
+    })
   })
 
   it('links a newly created session when cancellation wins before execution', async () => {
@@ -109,14 +152,9 @@ describe('hosted MCP task session linkage', () => {
     expect(cancelled.sessionId).toBe(`created-${task.id}`)
   })
 
-  it('persists a working projection retry after immediate attempts are exhausted', async () => {
+  it('keeps an existing independent Session out of Hive projection and reconciliation retries', async () => {
     const options = serveOptions(temporaryRoot)
     const taskServices = services()
-    vi.mocked(taskServices.setDelegationState)
-      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
-      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
-      .mockRejectedValueOnce(new Error('session database temporarily unavailable'))
-      .mockResolvedValue(undefined)
     const manager = track(
       new OpenWaggleServerTaskManager(options, metadata(options.taskStorePath), taskServices),
     )
@@ -129,23 +167,18 @@ describe('hosted MCP task session linkage', () => {
       }),
     )
     await waitForTaskStatus(manager, task.id, 'working')
+    await Effect.runPromise(manager.list())
+    await Effect.runPromise(manager.list())
 
-    await vi.waitFor(() => {
-      expect(taskServices.setDelegationState).toHaveBeenNthCalledWith(
-        4,
-        SessionId('reused-session'),
-        'working',
-      )
-    })
-    await expect(new OpenWaggleMcpTaskStore(options.taskStorePath).readTasks()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: task.id, projectedDelegationState: 'working' }),
-      ]),
-    )
+    expect(taskServices.establishLineage).not.toHaveBeenCalled()
+    expect(taskServices.setDelegationState).not.toHaveBeenCalled()
+    const [stored] = await new OpenWaggleMcpTaskStore(options.taskStorePath).readTasks()
+    expect(stored).toMatchObject({ id: task.id })
+    expect(stored).not.toHaveProperty('projectedDelegationState')
   })
 
   it('restores the authoritative working state when an older terminal projection finishes late', async () => {
-    const options = serveOptions(temporaryRoot)
+    const options = { ...serveOptions(temporaryRoot), originSessionId: 'parent-session' }
     const projectedStates: string[] = []
     let releaseAccepted = () => {}
     let markAcceptedStarted = () => {}
@@ -156,6 +189,10 @@ describe('hosted MCP task session linkage', () => {
       releaseAccepted = resolve
     })
     const taskServices = services()
+    vi.mocked(taskServices.createOrReuseSession).mockResolvedValue({
+      sessionId: SessionId('shared-session'),
+      created: true,
+    })
     vi.mocked(taskServices.execute).mockImplementation(async ({ objective, signal }) => {
       if (objective === 'finish first') {
         return {
@@ -191,7 +228,6 @@ describe('hosted MCP task session linkage', () => {
     const original = await Effect.runPromise(
       first.start({
         projectPath: temporaryRoot,
-        sessionId: 'shared-session',
         objective: 'finish first',
       }),
     )
@@ -199,7 +235,6 @@ describe('hosted MCP task session linkage', () => {
     const replacement = await Effect.runPromise(
       second.start({
         projectPath: temporaryRoot,
-        sessionId: 'shared-session',
         objective: 'keep working',
       }),
     )

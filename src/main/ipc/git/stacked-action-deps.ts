@@ -5,7 +5,7 @@ import type {
   OpenChangeRequestPayload,
   SourceControlAuthResult,
 } from '@shared/types/git'
-import type { GitPullResult, GitPushResult } from './push-service'
+import type { GitPullResult, GitPushDestination, GitPushResult } from './push-service'
 
 /** Git capabilities injected into the stacked-action workflow. */
 export interface StackedActionDeps {
@@ -23,6 +23,7 @@ export interface StackedActionDeps {
     projectPath: string,
     message: string,
     paths?: readonly string[],
+    includeUnstaged?: boolean,
   ) => Promise<GitCommitResult>
   readonly push: (projectPath: string) => Promise<GitPushResult>
   readonly pull: (projectPath: string) => Promise<GitPullResult>
@@ -37,6 +38,11 @@ export interface StackedActionDeps {
   readonly resolvePrimaryRemoteUrl: (projectPath: string) => Promise<string | null>
   /** This read-only check must precede every mutating PR or MR phase. */
   readonly preflightChangeRequest: (projectPath: string) => Promise<SourceControlAuthResult>
+  /** Destination that the main-process safety gate pinned for this exact invocation. */
+  readonly resolveApprovedPushDestination: (
+    projectPath: string,
+    prospectiveHeadRef: string | null,
+  ) => Promise<GitPushDestination | null>
   readonly buildChangeRequestFallbackUrl: (
     projectPath: string,
     payload: OpenChangeRequestPayload,

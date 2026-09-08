@@ -66,7 +66,12 @@ describe('HeaderControls', () => {
     render(
       <>
         <TerminalButton open projectPath="/repo" onToggle={onToggleTerminal} />
-        <SessionSummaryButton open panelId="session-summary-session-1" onToggle={onToggleSummary} />
+        <SessionSummaryButton
+          open
+          panelId="session-summary-session-1"
+          suppressed={false}
+          onToggle={onToggleSummary}
+        />
         <SessionTreeButton hasSessionTree isChatRoute open={false} onToggle={onToggleTree} />
         <DiffToggleButton
           error={null}
@@ -95,6 +100,24 @@ describe('HeaderControls', () => {
     expect(onToggleSummary).toHaveBeenCalledOnce()
     expect(onToggleTree).toHaveBeenCalledOnce()
     expect(onToggleDiff).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the Summary control visible but disabled while another side panel owns the space', () => {
+    render(
+      <SessionSummaryButton
+        open={false}
+        panelId="session-summary-session-1"
+        suppressed
+        onToggle={vi.fn()}
+      />,
+    )
+
+    const button = screen.getByRole('button', { name: 'Open Session Summary' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute(
+      'title',
+      'Session Summary is hidden while the side panel is open',
+    )
   })
 
   it('shows non-status diff text for loading and error states', () => {

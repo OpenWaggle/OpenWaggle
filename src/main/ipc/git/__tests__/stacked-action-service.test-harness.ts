@@ -32,6 +32,12 @@ export function makeDeps(overrides: Partial<StackedActionDeps> = {}): StackedAct
           status: { authenticated: true, account: 'octocat', host: 'github.com' },
         }) as const,
     ),
+    resolveApprovedPushDestination: vi.fn(async (_projectPath, prospectiveHeadRef) => ({
+      remote: 'origin',
+      branch: prospectiveHeadRef ?? 'feature/current',
+      remoteUrl: 'https://github.com/upstream/project.git',
+      multiplePushUrls: false,
+    })),
     buildChangeRequestFallbackUrl: vi.fn(async () => 'https://example.test/new-change-request'),
     ...overrides,
   }

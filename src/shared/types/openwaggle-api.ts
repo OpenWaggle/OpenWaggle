@@ -43,6 +43,7 @@ import type {
   PinnedSessionMove,
   SessionCopyToNewResult,
   SessionDetail,
+  SessionHiveRelations,
   SessionNavigateTreeOptions,
   SessionSummary,
   SessionTree,
@@ -132,6 +133,7 @@ export interface OpenWaggleApi
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  getSessionHiveRelations(id: SessionId): Promise<SessionHiveRelations>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
@@ -193,6 +195,7 @@ export interface OpenWaggleApi
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
   prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment>
+  discardPreparedAttachment(attachment: PreparedAttachment): Promise<void>
   onPrepareAttachmentFromTextProgress(
     callback: (payload: IpcEventPayload<'attachments:prepare-from-text-progress'>) => void,
   ): () => void

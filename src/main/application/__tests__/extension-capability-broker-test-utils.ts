@@ -9,6 +9,7 @@ import type { ExtensionStorageItem } from '../../ports/extension-storage-reposit
 import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
 import { clearExtensionContributionRegistryCacheForTests } from '../extension-contribution-registry-cache'
+import { listExtensionContributionRegistryView } from '../extension-contribution-registry-service'
 import type { CapturedLog } from './broker-log-test-utils'
 import {
   BROKER_BRANCH_ID,
@@ -83,6 +84,7 @@ interface BrokerHarnessInput {
   readonly lifecycles?: readonly ExtensionLifecycleState[]
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
+  readonly sessionDetails?: readonly SessionDetail[]
   readonly sessionTree?: SessionTree
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
@@ -110,6 +112,7 @@ export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>)
     lifecycles: input.lifecycles ?? [],
     projectOverrides: input.projectOverrides,
     sessionDetail: input.sessionDetail,
+    sessionDetails: input.sessionDetails,
     sessionTree: input.sessionTree,
     storageItems,
     capturedLogs,
@@ -120,8 +123,54 @@ export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>)
     resourceUpserts,
   })
 
+  function loadInvocationBinding(invocation: ExtensionInvokeInput) {
+    const projectPaths = invocation.scope.kind === 'app' ? [] : [invocation.scope.projectPath]
+    const sessionId =
+      invocation.scope.kind === 'session' || invocation.scope.kind === 'branch'
+        ? invocation.scope.sessionId
+        : undefined
+    return listExtensionContributionRegistryView({
+      projectPaths,
+      ...(sessionId !== undefined ? { sessionId } : {}),
+    }).pipe(
+      Effect.map(
+        (registry) =>
+          registry.entries.find(
+            (candidate) =>
+              candidate.extensionId === invocation.extensionId &&
+              candidate.contributionId === invocation.contributionId,
+          )?.invocationBinding,
+      ),
+    )
+  }
+
+  function runWithBinding(invocation: ExtensionInvokeInput, invocationBinding: string | undefined) {
+    return Effect.runPromise(
+      invokeExtensionCapability(invocation, {
+        now: () => TIMESTAMP,
+        invocationBinding,
+      }).pipe(Effect.provide(layer)),
+    )
+  }
+
+  function runBound(invocation: ExtensionInvokeInput) {
+    return Effect.runPromise(loadInvocationBinding(invocation).pipe(Effect.provide(layer))).then(
+      (invocationBinding) => runWithBinding(invocation, invocationBinding),
+    )
+  }
+
   return {
-    run: (invocation: ExtensionInvokeInput) =>
+    run: runBound,
+    runBoundAs: async (
+      bindingInvocation: ExtensionInvokeInput,
+      invocation: ExtensionInvokeInput,
+    ) => {
+      const invocationBinding = await Effect.runPromise(
+        loadInvocationBinding(bindingInvocation).pipe(Effect.provide(layer)),
+      )
+      return runWithBinding(invocation, invocationBinding)
+    },
+    runRaw: (invocation: ExtensionInvokeInput) =>
       Effect.runPromise(
         invokeExtensionCapability(invocation, { now: () => TIMESTAMP }).pipe(Effect.provide(layer)),
       ),

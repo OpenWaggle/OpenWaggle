@@ -29,6 +29,8 @@ export function readResourceById(
         locator,
         managed_path,
         available,
+        is_source,
+        is_output,
         created_at,
         updated_at
       FROM session_resources
@@ -39,7 +41,7 @@ export function readResourceById(
     const row = rows[0]
     if (!row) return null
     const occurrenceRows = yield* sql<SessionResourceOccurrenceRow>`
-      SELECT id, resource_id, node_id, branch_id, actor, activity, label, created_at
+      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
       FROM session_resource_occurrences
       WHERE resource_id = ${resourceId}
       ORDER BY created_at ASC, id ASC
@@ -61,6 +63,8 @@ export function listResources(sql: SqlClient.SqlClient, sessionId: SessionId) {
         locator,
         managed_path,
         available,
+        is_source,
+        is_output,
         created_at,
         updated_at
       FROM session_resources
@@ -77,6 +81,7 @@ export function listResources(sql: SqlClient.SqlClient, sessionId: SessionId) {
         occurrence.actor,
         occurrence.activity,
         occurrence.label,
+        occurrence.locator,
         occurrence.created_at
       FROM session_resource_occurrences occurrence
       INNER JOIN session_resources resource ON resource.id = occurrence.resource_id

@@ -4,6 +4,7 @@ import { type KeyboardEvent, useEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { ModalDialog } from '@/shared/ui/ModalDialog'
+import { useUIStore } from '@/shell/ui-store'
 import { ChangeRequestComposerActions } from './ChangeRequestComposerActions'
 import { ChangeRequestFields } from './ChangeRequestFields'
 import { resolveBrowserUrl } from './change-request-composer-outcome'
@@ -39,9 +40,21 @@ function changeRequestOrigin(props: ChangeRequestComposerProps, createFeatureBra
   return `${head} → ${base}`
 }
 
+function changeRequestStatus(composer: ChangeRequestComposerModel, shortLabel: string) {
+  if (composer.running && composer.pendingResourceRecord) {
+    return `Adding ${shortLabel} to Outputs…`
+  }
+  if (composer.running) return `Creating ${shortLabel}…`
+  if (composer.requestCreated) {
+    return `${shortLabel} created. Add it to Outputs to complete the session record.`
+  }
+  return composer.preflight.message
+}
+
 export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
   const terminology = getChangeRequestTerminology(props.vcsStatus?.sourceControlProvider?.id)
   const composer = useChangeRequestComposer(props, terminology)
+  const showToast = useUIStore((state) => state.showToast)
   const browserUrl =
     resolveBrowserUrl(composer.fallbackUrl, props.vcsStatus) ?? composer.preflight.browserUrl
   const retryButtonRef = useRef<HTMLButtonElement>(null)
@@ -78,7 +91,7 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
             variant="ghost"
             size="icon-sm"
             aria-label="Close change request composer"
-            disabled={composer.running}
+            aria-disabled={composer.running}
             onClick={close}
           >
             <X className="size-4" />
@@ -93,20 +106,16 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
             commitAndPush: composer.commitAndPush,
             gitStatus: props.gitStatus,
             error: composer.error,
-            disabled: composer.requestCreated,
+            disabled: composer.running || composer.requestCreated,
             onBranchNameChange: composer.setBranchName,
             onTitleChange: composer.setTitle,
             onDescriptionChange: composer.setDescription,
             onCommitAndPushChange: composer.setCommitAndPush,
           }}
         />
-        {composer.running ? (
-          <p className="sr-only" role="status" aria-live="polite">
-            {composer.pendingResourceRecord
-              ? `Adding ${terminology.shortLabel} to Outputs…`
-              : `Creating ${terminology.shortLabel}…`}
-          </p>
-        ) : null}
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {changeRequestStatus(composer, terminology.shortLabel)}
+        </p>
         <ChangeRequestComposerActions
           model={{
             terminology,
@@ -122,7 +131,16 @@ export function ChangeRequestComposer(props: ChangeRequestComposerProps) {
             browserUrl,
             preflight: composer.preflight,
             onOpenBrowser: () => {
-              if (browserUrl) void api.openExternal(browserUrl).catch(() => undefined)
+              if (browserUrl) {
+                void api.openExternal(browserUrl).catch((cause: unknown) => {
+                  showToast(
+                    cause instanceof Error
+                      ? cause.message
+                      : `Could not open this ${terminology.singular}.`,
+                    'error',
+                  )
+                })
+              }
             },
           }}
         />

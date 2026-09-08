@@ -1,7 +1,10 @@
 import type {
   ChangeRequestCheckoutResult,
+  ChangeRequestDetailsResult,
   ChangeRequestListResult,
+  ChangeRequestMergeMethod,
   ChangeRequestResult,
+  MergeChangeRequestResult,
   OpenChangeRequestPayload,
   SourceControlAuthResult,
   SourceControlProviderId,
@@ -14,7 +17,7 @@ import type {
  */
 export interface SourceControlProvider {
   readonly id: SourceControlProviderId
-  readonly authStatus: (projectPath: string, host?: string) => Promise<SourceControlAuthResult>
+  readonly authStatus: (projectPath: string) => Promise<SourceControlAuthResult>
   readonly openChangeRequest: (
     projectPath: string,
     payload: OpenChangeRequestPayload,
@@ -24,6 +27,16 @@ export interface SourceControlProvider {
     headRef: string,
   ) => Promise<ChangeRequestResult>
   readonly listChangeRequests: (projectPath: string) => Promise<ChangeRequestListResult>
+  readonly getChangeRequestDetails: (
+    projectPath: string,
+    reference: string,
+  ) => Promise<ChangeRequestDetailsResult>
+  readonly mergeChangeRequest: (
+    projectPath: string,
+    reference: string,
+    method: ChangeRequestMergeMethod,
+    expectedHeadCommit: string,
+  ) => Promise<MergeChangeRequestResult>
   /**
    * Check a change request out into the working tree at `projectPath` (used to
    * seed a Session worktree). `reference` is a number, URL, or branch name.

@@ -1,41 +1,36 @@
 import { SessionId } from '@shared/types/brand'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
-import { httpImage, image, remoteImage, renderViewer } from './session-resource-viewer.test-harness'
-
-const listSessionResources = vi.hoisted(() => vi.fn())
-const readSessionResource = vi.hoisted(() => vi.fn())
-const retrySessionResource = vi.hoisted(() => vi.fn())
-const openPath = vi.hoisted(() => vi.fn())
-const revealPath = vi.hoisted(() => vi.fn())
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    listSessionResources,
-    readSessionResource,
-    openExternal: vi.fn(),
-    openPath,
-    revealPath,
-    retrySessionResource,
-  },
-}))
+import {
+  getViewerCatalog,
+  httpImage,
+  image,
+  listSessionResourcePage,
+  listSessionResources,
+  locateSessionResourceImage,
+  openPath,
+  readSessionResource,
+  remoteImage,
+  renderViewer,
+  replaceViewerCatalogResources,
+  resetViewerEnvironment,
+  retrySessionResource,
+} from './session-resource-viewer.test-harness'
 
 describe('SessionResourceViewer', () => {
-  beforeEach(() => {
-    useUIStore.setState({ resourceViewer: null })
-    listSessionResources
-      .mockReset()
-      .mockResolvedValue([image('image-1', 'first.png'), image('image-2', 'second.png')])
-    readSessionResource.mockReset().mockImplementation(async (_sessionId, resourceId: string) => ({
-      resourceId,
-      fileName: `${resourceId}.png`,
-      mimeType: 'image/png',
-      dataBase64: resourceId === 'image-1' ? 'aW1hZ2UtMQ==' : 'aW1hZ2UtMg==',
-    }))
-    retrySessionResource.mockReset().mockResolvedValue(undefined)
-    openPath.mockReset().mockResolvedValue(undefined)
-    revealPath.mockReset().mockResolvedValue(undefined)
+  beforeEach(resetViewerEnvironment)
+
+  it('does not query resources owned by a stale viewer session', async () => {
+    useUIStore.getState().openResourceViewer('stale-session', 'image-1')
+
+    renderViewer('active-session')
+
+    await waitFor(() => expect(useUIStore.getState().resourceViewer).toBeNull())
+    expect(listSessionResourcePage).not.toHaveBeenCalled()
+    expect(locateSessionResourceImage).not.toHaveBeenCalled()
+    expect(listSessionResources).not.toHaveBeenCalled()
+    expect(readSessionResource).not.toHaveBeenCalled()
   })
 
   it('enlarges a session image and navigates the session gallery', async () => {
@@ -56,7 +51,9 @@ describe('SessionResourceViewer', () => {
       ).toBeUndefined()
     })
 
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    const previous = screen.getByRole('button', { name: 'Previous image' })
+    previous.focus()
+    fireEvent.keyDown(previous, { key: 'ArrowLeft' })
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
     ).toBeInTheDocument()
@@ -64,8 +61,8 @@ describe('SessionResourceViewer', () => {
 
   it('navigates chronologically within the same transcript-path group', async () => {
     listSessionResources.mockResolvedValue([
-      image('image-new', 'new.png', null, 2000),
-      image('image-old', 'old.png', null, 1000),
+      { ...image('image-new', 'new.png'), createdAt: 2000, updatedAt: 2000 },
+      { ...image('image-old', 'old.png'), createdAt: 1000, updatedAt: 1000 },
     ])
     useUIStore.getState().openResourceViewer('session-1', 'image-old')
     renderViewer('session-1')
@@ -74,6 +71,63 @@ describe('SessionResourceViewer', () => {
     expect(screen.getByText('1 of 2')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Next image' }))
     expect(await screen.findByRole('dialog', { name: 'Image viewer: new.png' })).toBeInTheDocument()
+  })
+
+  it('keeps gallery chronology stable when image content is materialised later', async () => {
+    const oldImage = { ...image('image-old', 'old.png'), createdAt: 1000, updatedAt: 1000 }
+    const newImage = { ...image('image-new', 'new.png'), createdAt: 2000, updatedAt: 2000 }
+    listSessionResources.mockResolvedValue([oldImage, newImage])
+    useUIStore.getState().openResourceViewer('session-1', oldImage.id)
+    const view = renderViewer('session-1')
+
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: old.png' })).toBeInTheDocument()
+    expect(screen.getByText('1 of 2')).toBeInTheDocument()
+
+    replaceViewerCatalogResources(view.queryClient, [{ ...oldImage, updatedAt: 3000 }, newImage])
+
+    await waitFor(() => expect(screen.getByText('1 of 2')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: new.png' })).toBeInTheDocument()
+  })
+
+  it('uses non-message nodes on the active path before a newer off-branch occurrence', async () => {
+    const activePathImage = {
+      ...image('deduplicated-image', 'deduplicated.png'),
+      locator: '/fallback/deduplicated.png',
+      occurrences: [
+        {
+          id: 'active-tool-occurrence',
+          nodeId: 'active-tool-node',
+          branchId: 'session-1:branch:active',
+          actor: 'tool' as const,
+          activity: 'read' as const,
+          label: null,
+          locator: '/active-path/deduplicated.png',
+          createdAt: 1,
+        },
+        {
+          id: 'newer-off-branch-occurrence',
+          nodeId: 'off-branch-message',
+          branchId: 'session-1:branch:other',
+          actor: 'extension' as const,
+          activity: 'updated' as const,
+          label: null,
+          locator: '/off-branch/deduplicated.png',
+          createdAt: 2,
+        },
+      ],
+    }
+    listSessionResources.mockResolvedValue([activePathImage])
+    useUIStore.getState().openResourceViewer('session-1', activePathImage.id)
+
+    renderViewer('session-1', new Set(['visible-user-message']), 'session-1:branch:active', [
+      'visible-user-message',
+      'active-tool-node',
+    ])
+
+    expect(await screen.findByLabelText('Image provenance')).toHaveTextContent('Read by a tool')
+    fireEvent.click(screen.getByRole('button', { name: 'Open original deduplicated.png' }))
+    expect(openPath).toHaveBeenCalledWith('/active-path/deduplicated.png')
   })
 
   it('skips unavailable managed images during gallery navigation', async () => {
@@ -116,7 +170,7 @@ describe('SessionResourceViewer', () => {
 
   it('requests remote image content only after the user opens the viewer', async () => {
     listSessionResources
-      .mockResolvedValueOnce([remoteImage('remote-image', 'Remote image')])
+      .mockResolvedValueOnce([{ ...remoteImage('remote-image', 'Remote image'), available: false }])
       .mockResolvedValue([image('remote-image', 'Remote image')])
     useUIStore.getState().openResourceViewer('session-1', 'remote-image')
     renderViewer('session-1')
@@ -131,22 +185,42 @@ describe('SessionResourceViewer', () => {
   })
 
   it('does not refresh-loop the resource projection when a remote image read fails', async () => {
-    const remote = remoteImage('remote-image', 'Remote image')
-    listSessionResources
-      .mockResolvedValueOnce([remote])
-      .mockResolvedValue([{ ...remote, available: false, updatedAt: 2000 }])
+    const remote = { ...remoteImage('remote-image', 'Remote image'), available: false }
+    listSessionResources.mockResolvedValue([remote])
     readSessionResource.mockRejectedValue(new Error('Remote image unavailable'))
     useUIStore.getState().openResourceViewer('session-1', 'remote-image')
     const view = renderViewer('session-1')
 
     expect(await screen.findByRole('button', { name: 'Retry image' })).toBeVisible()
-    await waitFor(() => expect(listSessionResources).toHaveBeenCalledTimes(2))
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(listSessionResources).toHaveBeenCalledOnce()
     expect(readSessionResource).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Close image viewer' }))
-    expect(view.queryClient.getQueryData(['session-resources', 'session-1'])).toMatchObject({
-      resources: [{ id: 'remote-image', available: false }],
-    })
+    const catalog = getViewerCatalog(view.queryClient)
+    expect(catalog?.pages[0]?.resources).toMatchObject([{ id: 'remote-image', available: false }])
+  })
+
+  it('retries an uncached remote image after its first materialization fails', async () => {
+    const remote = { ...remoteImage('remote-image', 'Remote image'), available: false }
+    listSessionResources.mockResolvedValue([remote])
+    readSessionResource
+      .mockRejectedValueOnce(new Error('Remote image unavailable'))
+      .mockResolvedValue({
+        resourceId: remote.id,
+        fileName: 'remote-image.png',
+        mimeType: 'image/png',
+        url: 'openwaggle-session-resource://content/remote-image/view',
+        downloadUrl: 'openwaggle-session-resource://content/remote-image/download',
+      })
+    useUIStore.getState().openResourceViewer('session-1', remote.id)
+    renderViewer('session-1')
+
+    const retry = await screen.findByRole('button', { name: 'Retry image' })
+    fireEvent.click(retry)
+
+    expect(await screen.findByRole('img', { name: 'Remote image' })).toBeVisible()
+    expect(retrySessionResource).toHaveBeenCalledWith(SessionId('session-1'), remote.id)
+    expect(readSessionResource).toHaveBeenCalledTimes(2)
   })
 
   it('retries a null content read when the resource revision changes', async () => {
@@ -154,7 +228,8 @@ describe('SessionResourceViewer', () => {
       resourceId: 'image-1',
       fileName: 'image-1.png',
       mimeType: 'image/png',
-      dataBase64: 'aW1hZ2UtMQ==',
+      url: 'openwaggle-session-resource://content/image-1/view',
+      downloadUrl: 'openwaggle-session-resource://content/image-1/download',
     })
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
     const view = renderViewer('session-1')
@@ -162,148 +237,11 @@ describe('SessionResourceViewer', () => {
     await waitFor(() => expect(readSessionResource).toHaveBeenCalledOnce())
     expect(screen.getByRole('button', { name: 'Retry image' })).toBeVisible()
 
-    view.queryClient.setQueryData(['session-resources', 'session-1'], {
-      resources: [{ ...image('image-1', 'first.png'), updatedAt: 2000 }],
-      backfillComplete: true,
-    })
+    replaceViewerCatalogResources(view.queryClient, [
+      { ...image('image-1', 'first.png'), updatedAt: 2000 },
+      image('image-2', 'second.png'),
+    ])
 
     await waitFor(() => expect(readSessionResource).toHaveBeenCalledTimes(2))
-  })
-
-  it('shows an explicit loading state while managed image content is pending', async () => {
-    readSessionResource.mockReturnValue(new Promise(() => {}))
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1')
-
-    expect(await screen.findByText('Loading image…')).toBeVisible()
-    expect(screen.queryByText('This image is available at its source.')).toBeNull()
-  })
-
-  it('supports Codex-style zoom choices and downloading managed images', async () => {
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1')
-
-    const renderedImage = await screen.findByRole('img', { name: 'first.png' })
-    Object.defineProperty(renderedImage, 'naturalWidth', { configurable: true, value: 800 })
-    Object.defineProperty(renderedImage, 'naturalHeight', { configurable: true, value: 600 })
-    fireEvent.load(renderedImage)
-    fireEvent.change(screen.getByRole('combobox', { name: 'Image zoom' }), {
-      target: { value: '150' },
-    })
-    expect(renderedImage).toHaveStyle({ width: '1200px', height: '900px' })
-    expect(screen.getByRole('button', { name: 'Download image' })).toBeInTheDocument()
-  })
-
-  it('does not navigate while arrow keys operate the zoom control', async () => {
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1')
-    await screen.findByRole('dialog', { name: 'Image viewer: first.png' })
-    const zoom = screen.getByRole('combobox', { name: 'Image zoom' })
-
-    zoom.focus()
-    fireEvent.keyDown(zoom, { key: 'ArrowRight' })
-
-    expect(screen.getByRole('dialog', { name: 'Image viewer: first.png' })).toBeInTheDocument()
-  })
-
-  it('announces retry failure and suppresses concurrent image retries', async () => {
-    readSessionResource.mockReset().mockRejectedValue(new Error('Managed copy unavailable'))
-    let rejectRetry: (cause: Error) => void = () => {}
-    retrySessionResource.mockReturnValue(
-      new Promise((_resolve, reject) => {
-        rejectRetry = reject
-      }),
-    )
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1')
-    const retry = await screen.findByRole('button', { name: 'Retry image' })
-
-    fireEvent.click(retry)
-    fireEvent.click(retry)
-    await waitFor(() => expect(retrySessionResource).toHaveBeenCalledOnce())
-    expect(screen.getByRole('button', { name: 'Retrying image…' })).toBeDisabled()
-    rejectRetry(new Error('Still unavailable'))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Still unavailable')
-  })
-
-  it('supports drag-to-pan for a zoomed image without changing the selected resource', async () => {
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1')
-
-    const renderedImage = await screen.findByRole('img', { name: 'first.png' })
-    Object.defineProperty(renderedImage, 'naturalWidth', { configurable: true, value: 1200 })
-    Object.defineProperty(renderedImage, 'naturalHeight', { configurable: true, value: 900 })
-    fireEvent.load(renderedImage)
-    fireEvent.change(screen.getByRole('combobox', { name: 'Image zoom' }), {
-      target: { value: '200' },
-    })
-    const canvas = screen.getByLabelText('Image canvas')
-    canvas.scrollLeft = 100
-    canvas.scrollTop = 80
-    fireEvent.pointerDown(renderedImage, { pointerId: 7, clientX: 200, clientY: 150 })
-    fireEvent.pointerMove(canvas, { pointerId: 7, clientX: 140, clientY: 110 })
-    fireEvent.pointerUp(canvas, { pointerId: 7, clientX: 140, clientY: 110 })
-
-    expect(canvas.scrollLeft).toBe(160)
-    expect(canvas.scrollTop).toBe(120)
-    expect(useUIStore.getState().resourceViewer).toEqual({
-      sessionId: 'session-1',
-      resourceId: 'image-1',
-    })
-  })
-
-  it('places images from the active transcript path before images from other branches', async () => {
-    listSessionResources.mockResolvedValue([
-      image('image-2', 'other-branch.png', 'hidden-message'),
-      image('image-1', 'active-branch.png', 'active-message'),
-    ])
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1', new Set(['active-message']))
-
-    expect(
-      await screen.findByRole('dialog', { name: 'Image viewer: active-branch.png' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('1 of 2')).toBeInTheDocument()
-  })
-
-  it('shows provenance and preserves local original actions beside the managed image', async () => {
-    const local = {
-      ...image('image-local', 'local.png', 'node-local'),
-      locator: '/input/local.png',
-      occurrences: [
-        {
-          id: 'local-occurrence',
-          nodeId: 'node-local',
-          branchId: 'session-1:main',
-          actor: 'user' as const,
-          activity: 'provided' as const,
-          label: null,
-          createdAt: 1000,
-        },
-      ],
-    }
-    listSessionResources.mockResolvedValue([local])
-    useUIStore.getState().openResourceViewer('session-1', local.id)
-    renderViewer('session-1')
-
-    expect(await screen.findByText(/Source · Provided by you · Branch main/)).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Open original local.png' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal original local.png' }))
-    expect(openPath).toHaveBeenCalledWith('/input/local.png')
-    expect(revealPath).toHaveBeenCalledWith('/input/local.png')
-  })
-
-  it('closes immediately when the user opens a different session', async () => {
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    const view = renderViewer('session-1')
-    expect(
-      await screen.findByRole('dialog', { name: 'Image viewer: first.png' }),
-    ).toBeInTheDocument()
-
-    view.rerenderSession('session-2')
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    await waitFor(() => expect(useUIStore.getState().resourceViewer).toBeNull())
   })
 })

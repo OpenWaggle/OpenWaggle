@@ -1,3 +1,4 @@
+import type { SourceControlRepositoryIdentity } from '@shared/types/git'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CliResult } from '../cli-runner'
 import { getSourceControlProvider } from '../index'
@@ -8,6 +9,17 @@ vi.mock('../cli-runner', () => ({ runCli: runCliMock }))
 
 function cli(partial: Partial<CliResult>): CliResult {
   return { stdout: '', stderr: '', code: 0, missing: false, ...partial }
+}
+
+const GITHUB_UPSTREAM = {
+  provider: 'github',
+  host: 'github.com',
+  owner: 'upstream',
+  repository: 'r',
+} satisfies SourceControlRepositoryIdentity
+
+function githubProvider(repository: SourceControlRepositoryIdentity = GITHUB_UPSTREAM) {
+  return getSourceControlProvider('github', repository)
 }
 
 describe('GitHub fork pull requests', () => {
@@ -52,7 +64,7 @@ describe('GitHub fork pull requests', () => {
       )
 
     await expect(
-      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+      githubProvider()?.openChangeRequest('/repo', {
         headRef: 'feature/current',
         headOwner: 'contributor',
         baseRef: 'main',
@@ -65,13 +77,25 @@ describe('GitHub fork pull requests', () => {
     expect(runCliMock).toHaveBeenNthCalledWith(
       3,
       'gh',
-      expect.arrayContaining(['--head', 'contributor:feature/current']),
+      expect.arrayContaining([
+        '--head',
+        'contributor:feature/current',
+        '--repo',
+        'github.com/upstream/r',
+      ]),
       '/repo',
     )
     expect(runCliMock).toHaveBeenNthCalledWith(
       4,
       'gh',
-      expect.arrayContaining(['--head', 'feature/current', '--state', 'open']),
+      expect.arrayContaining([
+        '--head',
+        'feature/current',
+        '--state',
+        'open',
+        '--repo',
+        'github.com/upstream/r',
+      ]),
       '/repo',
     )
   })
@@ -89,12 +113,20 @@ describe('GitHub fork pull requests', () => {
       )
       .mockResolvedValueOnce(cli({ stdout: JSON.stringify({ type: 'Organization' }) }))
       .mockResolvedValueOnce(
-        cli({ stdout: JSON.stringify({ html_url: 'https://github.com/upstream/project/pull/4' }) }),
+        cli({
+          stdout: JSON.stringify({
+            html_url: 'https://github.example.test/upstream/project/pull/4',
+          }),
+        }),
       )
       .mockResolvedValueOnce(cli({ stdout: '[]' }))
 
     await expect(
-      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+      githubProvider({
+        ...GITHUB_UPSTREAM,
+        host: 'github.example.test',
+        repository: 'project',
+      })?.openChangeRequest('/repo', {
         headRef: 'feature/current',
         headOwner: 'contributors-org',
         headRepository: 'contributors-org/project-fork',
@@ -104,8 +136,20 @@ describe('GitHub fork pull requests', () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      changeRequest: { url: 'https://github.com/upstream/project/pull/4' },
+      changeRequest: { url: 'https://github.example.test/upstream/project/pull/4' },
     })
+    expect(runCliMock).toHaveBeenNthCalledWith(
+      1,
+      'gh',
+      [
+        'repo',
+        'view',
+        'github.example.test/upstream/project',
+        '--json',
+        'nameWithOwner,defaultBranchRef,url',
+      ],
+      '/repo',
+    )
     expect(runCliMock).toHaveBeenNthCalledWith(
       3,
       'gh',
@@ -165,7 +209,7 @@ describe('GitHub fork pull requests', () => {
       )
 
     await expect(
-      getSourceControlProvider('github')?.openChangeRequest('/repo', {
+      githubProvider()?.openChangeRequest('/repo', {
         headRef: 'feature/current',
         headOwner: 'contributor',
         baseRef: 'main',

@@ -4,8 +4,9 @@ import type { SessionWorkspace } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { sessionResourceTestLayer } from '../../../application/__tests__/session-resource-capture.fixtures'
+import { subscribeToSessionResourceInvalidations } from '../../../application/session-resource-invalidation'
 import { SessionOutputRetryRepositoryError } from '../../../errors'
 import {
   type PendingSessionOutput,
@@ -13,10 +14,6 @@ import {
 } from '../../../ports/session-output-retry-repository'
 import { SessionRepository, type SessionRepositoryShape } from '../../../ports/session-repository'
 import { recordStackedActionOutputs } from '../stacked-action-output-recording'
-
-const broadcastToWindows = vi.hoisted(() => vi.fn())
-
-vi.mock('../../../utils/broadcast', () => ({ broadcastToWindows }))
 
 describe('stacked action Output recording', () => {
   it('records the commit and created request only in the originating session', async () => {
@@ -63,6 +60,10 @@ describe('stacked action Output recording', () => {
         state: 'open',
       },
     }
+    const invalidations: SessionId[] = []
+    const unsubscribe = subscribeToSessionResourceInvalidations(({ sessionId: invalidated }) => {
+      invalidations.push(invalidated)
+    })
 
     const recorded = await Effect.runPromise(
       recordStackedActionOutputs(result, sessionId, {
@@ -70,7 +71,7 @@ describe('stacked action Output recording', () => {
         branchId: 'branch-at-action',
         createdAt: 1000,
       }).pipe(Effect.provide(layer)),
-    )
+    ).finally(unsubscribe)
 
     expect(recorded).toMatchObject({
       commitOutput: { ok: true },
@@ -82,7 +83,7 @@ describe('stacked action Output recording', () => {
       ['commit', sessionId],
       ['change-request', sessionId],
     ])
-    expect(broadcastToWindows).toHaveBeenCalledTimes(2)
+    expect(invalidations).toEqual([sessionId, sessionId])
     expect(pendingOutputs).toEqual([])
   })
 
@@ -197,6 +198,10 @@ describe('stacked action Output recording', () => {
           ),
         ),
       )
+      const invalidations: SessionId[] = []
+      const unsubscribe = subscribeToSessionResourceInvalidations(({ sessionId: invalidated }) => {
+        invalidations.push(invalidated)
+      })
 
       const recorded = await Effect.runPromise(
         recordStackedActionOutputs(result, sessionId, {
@@ -204,11 +209,12 @@ describe('stacked action Output recording', () => {
           branchId: 'branch-at-action',
           createdAt: 1000,
         }).pipe(Effect.provide(layer)),
-      )
+      ).finally(unsubscribe)
 
       expect(recorded.ok).toBe(true)
       if (!recorded.ok) throw new Error('Expected the change request to be created.')
       expect(recorded.changeRequestOutput).toMatchObject({ ok: false, retryPersisted })
+      expect(invalidations).toEqual(retryPersisted ? [sessionId] : [])
     },
   )
 

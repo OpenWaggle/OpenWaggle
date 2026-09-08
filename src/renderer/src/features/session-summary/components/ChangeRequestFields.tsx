@@ -31,8 +31,11 @@ export function ChangeRequestFields({ model }: { readonly model: ChangeRequestFi
             aria-label="New branch name"
             className="h-9 w-full rounded-md border border-border bg-bg px-3 font-mono text-sm outline-none"
             value={model.branchName}
-            disabled={model.disabled}
-            onChange={(event) => model.onBranchNameChange(event.target.value)}
+            readOnly={model.disabled}
+            aria-disabled={model.disabled}
+            onChange={(event) => {
+              if (!model.disabled) model.onBranchNameChange(event.target.value)
+            }}
           />
         </label>
       ) : null}
@@ -41,8 +44,11 @@ export function ChangeRequestFields({ model }: { readonly model: ChangeRequestFi
         <input
           className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm outline-none"
           value={model.title}
-          disabled={model.disabled}
-          onChange={(event) => model.onTitleChange(event.target.value)}
+          readOnly={model.disabled}
+          aria-disabled={model.disabled}
+          onChange={(event) => {
+            if (!model.disabled) model.onTitleChange(event.target.value)
+          }}
         />
       </label>
       <div>
@@ -54,15 +60,20 @@ export function ChangeRequestFields({ model }: { readonly model: ChangeRequestFi
           rows={DESCRIPTION_ROWS}
           resize="none"
           value={model.description}
-          disabled={model.disabled}
-          onChange={(event) => model.onDescriptionChange(event.target.value)}
+          readOnly={model.disabled}
+          aria-disabled={model.disabled}
+          onChange={(event) => {
+            if (!model.disabled) model.onDescriptionChange(event.target.value)
+          }}
         />
       </div>
       {model.gitStatus && model.gitStatus.filesChanged > 0 ? (
         <Checkbox
           checked={model.commitAndPush}
-          disabled={model.disabled}
-          onChange={(event) => model.onCommitAndPushChange(event.target.checked)}
+          aria-disabled={model.disabled}
+          onChange={(event) => {
+            if (!model.disabled) model.onCommitAndPushChange(event.target.checked)
+          }}
           label={
             <span className="flex w-full items-center justify-between gap-3">
               <span>Commit and push local changes</span>

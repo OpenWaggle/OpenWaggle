@@ -15,6 +15,18 @@ export function respondWith(
         callback(null, canned, '')
         return
       }
+      if (joined === 'config --get-all push.default') {
+        callback(null, 'current\n', '')
+        return
+      }
+      if (joined.startsWith('config --get-all ')) {
+        callback(
+          Object.assign(new Error('Config key is not set'), { code: 1, stdout: '', stderr: '' }),
+          '',
+          '',
+        )
+        return
+      }
       onUnexpected?.(joined)
       callback(new Error(`Unexpected Git arguments: ${joined}`), '', '')
     },

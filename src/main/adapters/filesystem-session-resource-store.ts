@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { isEnoent } from '@shared/utils/node-error'
@@ -11,12 +11,20 @@ import {
   type SessionResourceStoreShape,
   type StoreSessionResourceBytesInput,
 } from '../ports/session-resource-store'
+import { removeManagedSessionResource } from './filesystem-session-resource-deletion'
+import {
+  openManagedSessionResourceFile,
+  openManagedSessionResourceStream,
+} from './filesystem-session-resource-stream'
+import {
+  createSessionResourceTemporaryPathManager,
+  SESSION_RESOURCE_TEMPORARY_SUFFIX,
+} from './filesystem-session-resource-temporary-files'
 
 const RESOURCE_DIRECTORY = 'session-resources'
 const MAX_DIRECTORY_ENTRY_BYTES = 255
 const MAX_RESOURCE_ID_BYTES = 64
 const MAX_EXTENSION_BYTES = 32
-const TEMPORARY_SUFFIX = '.tmp'
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u
 
 function storeError(operation: string, cause: unknown) {
@@ -54,34 +62,15 @@ function managedFileName(resourceId: string, fileName: string) {
   const safeResourceId = truncateUtf8(safeFileName(resourceId), MAX_RESOURCE_ID_BYTES)
   const prefix = `${safeResourceId}-`
   const availableNameBytes =
-    MAX_DIRECTORY_ENTRY_BYTES - Buffer.byteLength(prefix) - Buffer.byteLength(TEMPORARY_SUFFIX)
+    MAX_DIRECTORY_ENTRY_BYTES -
+    Buffer.byteLength(prefix) -
+    Buffer.byteLength(SESSION_RESOURCE_TEMPORARY_SUFFIX)
   return `${prefix}${truncateFileName(safeFileName(fileName), availableNameBytes)}`
-}
-
-async function temporaryPathFor(targetPath: string) {
-  await fs.rm(`${targetPath}${TEMPORARY_SUFFIX}`, { force: true })
-  return path.join(path.dirname(targetPath), `.${randomUUID()}${TEMPORARY_SUFFIX}`)
 }
 
 function isWithinRoot(root: string, candidate: string) {
   const relative = path.relative(root, candidate)
   return relative.length > 0 && !relative.startsWith(`..${path.sep}`) && relative !== '..'
-}
-
-async function inspectManagedPath(root: string, managedPath: string) {
-  const [realRoot, realPath] = await Promise.all([fs.realpath(root), fs.realpath(managedPath)])
-  if (!isWithinRoot(realRoot, realPath)) {
-    throw new Error('Session resource path escapes the managed resource directory.')
-  }
-  const handle = await fs.open(realPath, 'r')
-  try {
-    if (!(await handle.stat()).isFile()) {
-      throw new Error('Session resource path is not a regular file.')
-    }
-  } finally {
-    await handle.close()
-  }
-  return realPath
 }
 
 function digest(bytes: Uint8Array) {
@@ -207,6 +196,8 @@ async function copyBoundedFile(input: {
 }
 
 function makeStore(root: string): SessionResourceStoreShape {
+  const prepareTemporaryPath = createSessionResourceTemporaryPathManager()
+
   function storeBytes(input: StoreSessionResourceBytesInput) {
     return Effect.tryPromise({
       try: async () => {
@@ -215,7 +206,7 @@ function makeStore(root: string): SessionResourceStoreShape {
           sessionDirectory,
           managedFileName(input.resourceId, input.fileName),
         )
-        const temporary = await temporaryPathFor(target)
+        const temporary = await prepareTemporaryPath(sessionDirectory, target)
         await writeBytesAtomically(temporary, target, input.bytes)
         return {
           path: target,
@@ -237,7 +228,7 @@ function makeStore(root: string): SessionResourceStoreShape {
             sessionDirectory,
             managedFileName(input.resourceId, input.fileName),
           )
-          const temporary = await temporaryPathFor(target)
+          const temporary = await prepareTemporaryPath(sessionDirectory, target)
           const copied = await copyBoundedFile({
             sourcePath: input.sourcePath,
             temporaryPath: temporary,
@@ -257,24 +248,30 @@ function makeStore(root: string): SessionResourceStoreShape {
       }),
     inspect: (managedPath) =>
       Effect.tryPromise({
-        try: async () => void (await inspectManagedPath(root, managedPath)),
+        try: () =>
+          openManagedSessionResourceFile(root, managedPath).then((handle) => handle.close()),
         catch: (cause) => storeError('inspect', cause),
+      }),
+    openReadStream: (managedPath) =>
+      Effect.tryPromise({
+        try: () => openManagedSessionResourceStream(root, managedPath),
+        catch: (cause) => storeError('openReadStream', cause),
       }),
     read: (managedPath) =>
       Effect.tryPromise({
-        try: async () => await fs.readFile(await inspectManagedPath(root, managedPath)),
+        try: async () => {
+          const handle = await openManagedSessionResourceFile(root, managedPath)
+          try {
+            return await handle.readFile()
+          } finally {
+            await handle.close()
+          }
+        },
         catch: (cause) => storeError('read', cause),
       }),
     remove: (managedPath) =>
       Effect.tryPromise({
-        try: async () => {
-          const resolvedRoot = path.resolve(root)
-          const resolvedPath = path.resolve(managedPath)
-          if (!isWithinRoot(resolvedRoot, resolvedPath)) {
-            throw new Error('Session resource cleanup path escapes the managed resource directory.')
-          }
-          await fs.rm(resolvedPath, { force: true })
-        },
+        try: () => removeManagedSessionResource(root, managedPath),
         catch: (cause) => storeError('remove', cause),
       }),
     removeSession: (sessionId) =>

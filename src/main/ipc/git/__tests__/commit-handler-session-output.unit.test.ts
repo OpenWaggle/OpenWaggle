@@ -8,6 +8,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { sessionResourceTestLayer } from '../../../application/__tests__/session-resource-capture.fixtures'
+import { SessionOutputRetryRepositoryError } from '../../../errors'
 import {
   type PendingSessionOutput,
   SessionOutputRetryRepository,
@@ -26,6 +27,7 @@ import {
 } from '../../__tests__/git-handler.test-harness'
 
 type GitCallback = (error: Error | null, stdout: string, stderr: string) => void
+const COMMIT_HASH = '0123456789abcdef0123456789abcdef01234567'
 
 function commandWorkingDirectory(options: unknown) {
   if (typeof options !== 'object' || options === null) {
@@ -40,7 +42,7 @@ function installSuccessfulCommitGit(mutations: string[]) {
   execFileMock.mockImplementation(
     (_command: string, args: string[], options: unknown, callback: GitCallback) => {
       const joined = args.join(' ')
-      if (args.includes('add') || args.includes('commit')) mutations.push(joined)
+      if (args.includes('update-index') || args.includes('commit')) mutations.push(joined)
       if (joined === 'rev-parse --show-toplevel') {
         callback(null, `${commandWorkingDirectory(options)}\n`, '')
         return
@@ -49,7 +51,11 @@ function installSuccessfulCommitGit(mutations: string[]) {
         callback(null, 'true\n', '')
         return
       }
-      if (joined === 'ls-files --unmerged' || args.includes('status') || args.includes('add')) {
+      if (
+        joined === 'ls-files --unmerged' ||
+        args.includes('status') ||
+        args.includes('update-index')
+      ) {
         callback(null, '', '')
         return
       }
@@ -58,7 +64,7 @@ function installSuccessfulCommitGit(mutations: string[]) {
         return
       }
       if (joined === 'rev-parse HEAD') {
-        callback(null, 'abc123\n', '')
+        callback(null, `${COMMIT_HASH}\n`, '')
         return
       }
       callback(new Error(`Unexpected Git arguments: ${joined}`), '', '')
@@ -70,7 +76,7 @@ function sessionLayer(
   expectedWorkingPath: string,
   upserts: UpsertSessionResourceInput[],
   pendingOutputs: PendingSessionOutput[],
-  options: { readonly upsertFails?: boolean } = {},
+  options: { readonly retryPersistFails?: boolean; readonly upsertFails?: boolean } = {},
 ) {
   return Layer.mergeAll(
     sessionResourceTestLayer(upserts, options),
@@ -93,10 +99,17 @@ function sessionLayer(
       SessionOutputRetryRepository,
       SessionOutputRetryRepository.of({
         put: (output) =>
-          Effect.sync(() => {
-            pendingOutputs.push(output)
-            return output
-          }),
+          options.retryPersistFails
+            ? Effect.fail(
+                new SessionOutputRetryRepositoryError({
+                  operation: 'put',
+                  cause: 'retry store unavailable',
+                }),
+              )
+            : Effect.sync(() => {
+                pendingOutputs.push(output)
+                return output
+              }),
         list: () => Effect.succeed(pendingOutputs),
         remove: (output) =>
           Effect.sync(() => {
@@ -158,14 +171,15 @@ describe('direct commit session Output recording', () => {
 
     expect(result).toEqual({
       ok: true,
-      commitHash: 'abc123',
+      commitHash: COMMIT_HASH,
       summary: '[feature abc123] Record direct commit',
+      commitOutput: { ok: true },
     })
     expect(mutations.filter((command) => command.includes(' commit '))).toHaveLength(1)
     expect(upserts).toHaveLength(1)
     expect(upserts[0]).toMatchObject({
       sessionId: SessionId('originating-session'),
-      canonicalKey: 'commit:abc123',
+      canonicalKey: `commit:${COMMIT_HASH}`,
       kind: 'commit',
     })
     expect(pendingOutputs).toEqual([])
@@ -211,7 +225,7 @@ describe('direct commit session Output recording', () => {
 
     expect(result).toEqual({
       ok: true,
-      commitHash: 'abc123',
+      commitHash: COMMIT_HASH,
       summary: '[feature abc123] Record direct commit',
     })
     expect(mutations.filter((command) => command.includes(' commit '))).toHaveLength(1)
@@ -236,14 +250,53 @@ describe('direct commit session Output recording', () => {
 
     expect(result).toEqual({
       ok: true,
-      commitHash: 'abc123',
+      commitHash: COMMIT_HASH,
       summary: '[feature abc123] Record direct commit',
+      commitOutput: {
+        ok: false,
+        retryPersisted: true,
+        message:
+          'The commit succeeded, but it could not be added to this session Outputs yet. Summary will retry it automatically.',
+      },
     })
     expect(pendingOutputs).toHaveLength(1)
     expect(pendingOutputs[0]).toMatchObject({
       sessionId: SessionId('originating-session'),
       kind: 'commit',
-      commitHash: 'abc123',
+      commitHash: COMMIT_HASH,
     })
+  })
+
+  it('reports when neither the commit Output nor its durable retry can be persisted', async () => {
+    const mutations: string[] = []
+    const upserts: UpsertSessionResourceInput[] = []
+    const pendingOutputs: PendingSessionOutput[] = []
+    installSuccessfulCommitGit(mutations)
+
+    const result = await invokeCommitWithLayer(
+      repositoryPath,
+      {
+        sessionId: SessionId('originating-session'),
+        message: 'Record direct commit',
+        amend: false,
+        paths: ['src/direct.ts'],
+      },
+      sessionLayer(repositoryPath, upserts, pendingOutputs, {
+        retryPersistFails: true,
+        upsertFails: true,
+      }),
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      commitHash: COMMIT_HASH,
+      commitOutput: {
+        ok: false,
+        retryPersisted: false,
+        message: 'The commit succeeded, but its Output and durable retry could not be recorded.',
+      },
+    })
+    expect(mutations.filter((command) => command.includes(' commit '))).toHaveLength(1)
+    expect(pendingOutputs).toEqual([])
   })
 })

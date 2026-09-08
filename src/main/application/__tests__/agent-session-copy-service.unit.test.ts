@@ -34,6 +34,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       return id === forkedSession.id ? forkedSession : session
     }),
   getOptional: () => Effect.succeed(session),
+  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: (input) =>
@@ -41,6 +42,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       createProjectionMock(input)
       return forkedSession
     }),
+  hasDirectWorkers: () => Effect.succeed(false),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,

@@ -63,6 +63,7 @@ function linkedTask(input: {
     projectPath: temporaryRoot,
     model: 'provider/model',
     objective: `${input.id} objective`,
+    parentSessionId: 'parent-session',
     sessionId: input.sessionId ?? 'reused-worker',
     status: input.status,
     createdAt: input.createdAt,

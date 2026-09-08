@@ -1,12 +1,16 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
 import { useQueryClient } from '@tanstack/react-query'
 import { Image, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { useSessionResourceBranchNames } from '../hooks/useSessionResourceBranchNames'
-import { sessionResourceThumbnailQueryKey, useSessionResources } from '../hooks/useSessionResources'
+import {
+  invalidateSessionResourceQueries,
+  sessionResourceThumbnailQueryKey,
+  useSessionResource,
+  useSessionResourceCatalog,
+} from '../hooks/useSessionResources'
 import {
   DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
   groupSessionResources,
@@ -15,16 +19,7 @@ import {
 } from '../model/session-resource-browser'
 import { SessionResourcesPanelBody } from './SessionResourcesPanelBody'
 
-const RESOURCE_PAGE_SIZE = 40
-
-function filteredResources(
-  resources: readonly SessionResource[],
-  view: SessionResourceBrowserView,
-) {
-  return view === 'sources'
-    ? resources.filter((resource) => resource.isSource)
-    : resources.filter((resource) => resource.isOutput)
-}
+const EMPTY_PATH_NODE_IDS: ReadonlySet<string> = new Set()
 
 const FILTERS: readonly { readonly id: SessionResourceBrowserView; readonly label: string }[] = [
   { id: 'sources', label: 'Sources' },
@@ -74,6 +69,8 @@ function ResourceFilters({
 
 interface SessionResourcesPanelProps {
   readonly sessionId: string | null
+  readonly activeBranchId?: string | null
+  readonly activePathNodeIds?: ReadonlySet<string>
   readonly target?: SessionResourceBrowserTarget
   readonly onClose: () => void
   readonly onTargetChange?: (target: SessionResourceBrowserTarget) => void
@@ -81,6 +78,8 @@ interface SessionResourcesPanelProps {
 
 interface BoundSessionResourcesPanelProps {
   readonly sessionId: string | null
+  readonly activeBranchId: string | null
+  readonly activePathNodeIds: ReadonlySet<string>
   readonly target: SessionResourceBrowserTarget
   readonly onClose: () => void
   readonly onTargetChange?: (target: SessionResourceBrowserTarget) => void
@@ -88,24 +87,35 @@ interface BoundSessionResourcesPanelProps {
 
 function BoundSessionResourcesPanel({
   sessionId,
+  activeBranchId,
   target,
   onClose,
   onTargetChange,
+  activePathNodeIds,
 }: BoundSessionResourcesPanelProps) {
   const [filter, setFilter] = useState<SessionResourceBrowserView>(target.view)
-  const [visibleCount, setVisibleCount] = useState(RESOURCE_PAGE_SIZE)
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [retryError, setRetryError] = useState<string | null>(null)
   const retryingRef = useRef(false)
   const queryClient = useQueryClient()
-  const query = useSessionResources(sessionId)
+  const pathNodeIds = [...activePathNodeIds]
+  const query = useSessionResourceCatalog(sessionId, filter, { activeBranchId, pathNodeIds })
+  const resources = query.resources
+  const targetLoaded = target.resourceId
+    ? resources.some((resource) => resource.id === target.resourceId)
+    : true
+  const exactTarget = useSessionResource(
+    sessionId,
+    query.isSuccess && !targetLoaded ? (target.resourceId ?? null) : null,
+    filter,
+    activeBranchId,
+    pathNodeIds,
+  )
   const branchNames = useSessionResourceBranchNames(sessionId)
-  const resources = filteredResources(query.data ?? [], filter)
-  const targetIndex = target.resourceId
-    ? resources.findIndex((resource) => resource.id === target.resourceId)
-    : -1
-  const effectiveVisibleCount = Math.max(visibleCount, targetIndex + 1)
-  const visibleResources = resources.slice(0, effectiveVisibleCount)
+  const deepTarget = targetLoaded ? null : exactTarget.data
+  // Keep exact links cheap even for very large catalogs. The selected item is appended to the
+  // current page instead of mounting every preceding row merely to make it reachable.
+  const visibleResources = deepTarget ? [...resources, deepTarget] : resources
   const resourceGroups = groupSessionResources(visibleResources, filter)
 
   async function retryResource(resourceId: string) {
@@ -118,7 +128,7 @@ function BoundSessionResourcesPanel({
       await queryClient.invalidateQueries({
         queryKey: sessionResourceThumbnailQueryKey(sessionId, resourceId),
       })
-      await query.refetch()
+      await invalidateSessionResourceQueries(queryClient, sessionId)
     } catch (cause) {
       setRetryError(cause instanceof Error ? cause.message : 'Could not retry this resource.')
     } finally {
@@ -129,7 +139,6 @@ function BoundSessionResourcesPanel({
 
   function selectFilter(view: SessionResourceBrowserView) {
     setFilter(view)
-    setVisibleCount(RESOURCE_PAGE_SIZE)
     onTargetChange?.({ view })
   }
 
@@ -142,19 +151,26 @@ function BoundSessionResourcesPanel({
           sessionId,
           target,
           filter,
-          loading: query.isLoading,
-          failed: query.isError,
-          errorMessage: query.error?.message ?? null,
+          loading: query.isLoading || (Boolean(target.resourceId) && exactTarget.isLoading),
+          loadingMore: query.isFetchingNextPage,
+          failed: query.isError || exactTarget.isError,
+          errorMessage: query.error?.message ?? exactTarget.error?.message ?? null,
           retryError,
           retryingId,
           resources,
+          total: query.total,
+          hasMore: query.hasNextPage,
           visibleResources,
           resourceGroups,
           branchNames,
+          activePathNodeIds,
         }}
         onRetryResource={(resourceId) => void retryResource(resourceId)}
-        onRetryCatalog={() => void query.refetch()}
-        onShowMore={() => setVisibleCount((count) => count + RESOURCE_PAGE_SIZE)}
+        onRetryCatalog={() => {
+          void query.refetch()
+          void exactTarget.refetch()
+        }}
+        onShowMore={() => void query.loadNextPage()}
       />
     </section>
   )
@@ -162,15 +178,19 @@ function BoundSessionResourcesPanel({
 
 export function SessionResourcesPanel({
   sessionId,
+  activeBranchId = null,
   target = DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
   onClose,
   onTargetChange,
+  activePathNodeIds = EMPTY_PATH_NODE_IDS,
 }: SessionResourcesPanelProps) {
-  const bindingKey = `${sessionId ?? 'none'}:${target.view}:${target.resourceId ?? ''}`
+  const bindingKey = `${sessionId ?? 'none'}:${activeBranchId ?? 'none'}:${target.view}:${target.resourceId ?? ''}`
   return (
     <BoundSessionResourcesPanel
       key={bindingKey}
       sessionId={sessionId}
+      activeBranchId={activeBranchId}
+      activePathNodeIds={activePathNodeIds}
       target={target}
       onClose={onClose}
       onTargetChange={onTargetChange}

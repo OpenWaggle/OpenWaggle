@@ -203,10 +203,7 @@ export function AssistantMessageBubble({
           </div>
         ) : null}
 
-        <SessionMessageImages
-          sessionId={runtime.sessionId}
-          messageId={message.metadata?.sessionNodeId ?? message.id}
-        />
+        <SessionMessageImages messageId={message.metadata?.sessionNodeId ?? message.id} />
 
         {message.parts.map((part, i) => {
           const divider =

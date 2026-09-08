@@ -1,11 +1,16 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionDelegationState } from '@shared/types/session'
 import { isActiveTaskStatus, recoverStaleTask } from './openwaggle-mcp-task-leases'
-import { projectTaskDelegationState, terminalDelegationState } from './openwaggle-mcp-task-lineage'
+import {
+  establishTaskLineage,
+  projectTaskDelegationState,
+  terminalDelegationState,
+} from './openwaggle-mcp-task-lineage'
 import type { OpenWaggleServerTaskServices } from './openwaggle-mcp-task-runtime'
 import type { OpenWaggleMcpTaskStore, ServerTaskRecord } from './openwaggle-mcp-task-store'
 
 interface ReconcileProfileTasksInput {
+  readonly ensureSessionMetadata?: (task: ServerTaskRecord, sessionId: SessionId) => Promise<void>
   readonly now: number
   readonly profile: string
   readonly services: OpenWaggleServerTaskServices
@@ -43,6 +48,10 @@ function delegationStateForTask(task: ServerTaskRecord) {
   return isActiveTaskStatus(task.status) ? 'working' : terminalDelegationState(task.status)
 }
 
+function requiresSessionLinkageProjection(task: ServerTaskRecord) {
+  return task.ownsSession === true || task.parentSessionId !== undefined
+}
+
 function invalidateProjectedState(task: ServerTaskRecord) {
   const { projectedDelegationState: _projectedDelegationState, ...unacknowledged } = task
   return unacknowledged
@@ -76,18 +85,48 @@ function acknowledgeProjectedState(
   })
 }
 
+async function ensureTaskSessionLinkage(
+  input: Pick<ReconcileProfileTasksInput, 'ensureSessionMetadata' | 'services'>,
+  task: ServerTaskRecord,
+  sessionId: SessionId,
+) {
+  try {
+    // Parentage is the durable Hive identity and must survive metadata setup failures. Both
+    // operations are idempotent, so an interrupted process can safely retry them on recovery.
+    await establishTaskLineage(input.services, task, sessionId)
+    await input.ensureSessionMetadata?.(task, sessionId)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function projectTaskStateIfAuthoritativeUnlocked(
-  input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
+  input: Pick<ReconcileProfileTasksInput, 'ensureSessionMetadata' | 'services' | 'store'>,
   taskId: string,
   sessionId: SessionId,
   state: SessionDelegationState,
 ) {
   const initial = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
-  if (initial?.id !== taskId || delegationStateForTask(initial) !== state) return false
+  if (
+    initial?.id !== taskId ||
+    delegationStateForTask(initial) !== state ||
+    !requiresSessionLinkageProjection(initial)
+  ) {
+    return false
+  }
   for (let attempt = 0; attempt < TASK_PROJECTION_MAX_ATTEMPTS; attempt += 1) {
     const before = authoritativeTaskForSession(await input.store.readTasks(), sessionId)
     if (!before) return false
     const projectedState = delegationStateForTask(before)
+    if (!(await ensureTaskSessionLinkage(input, before, sessionId))) continue
+    if (!before.parentSessionId) {
+      const projectedRequestedState = before.id === taskId && projectedState === state
+      if (await acknowledgeProjectedState(input, before.id, sessionId, projectedState)) {
+        return projectedRequestedState
+      }
+      continue
+    }
     const succeeded = await projectTaskDelegationState(input.services, sessionId, projectedState)
     if (!succeeded) continue
     const projectedRequestedState = before.id === taskId && projectedState === state
@@ -99,7 +138,7 @@ async function projectTaskStateIfAuthoritativeUnlocked(
 }
 
 export function projectTaskStateIfAuthoritative(
-  input: Pick<ReconcileProfileTasksInput, 'services' | 'store'>,
+  input: Pick<ReconcileProfileTasksInput, 'ensureSessionMetadata' | 'services' | 'store'>,
   taskId: string,
   sessionId: SessionId,
   state: SessionDelegationState,
@@ -117,6 +156,7 @@ async function reconcileOpenWaggleProfileTasksUnlocked(input: ReconcileProfileTa
     })
     const pending = [...authoritativeTasksBySession(reconciled)].flatMap((task) => {
       if (task.callerProfile !== input.profile || !task.sessionId) return []
+      if (!requiresSessionLinkageProjection(task)) return []
       const state = delegationStateForTask(task)
       return task.projectedDelegationState === state
         ? []

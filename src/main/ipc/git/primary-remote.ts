@@ -27,7 +27,16 @@ export async function resolvePrimaryRemoteResult(
   if (listResult.code !== 0) {
     return { ok: false, message: remoteReadFailure(listResult.stderr) }
   }
-  const firstRemote = listResult.stdout.trim().split('\n')[0]?.trim()
+  const remoteNames = listResult.stdout
+    .split('\n')
+    .map((name) => name.trim())
+    .filter(Boolean)
+  // If origin still exists, its URL probe failed; choosing another remote would silently retarget
+  // provider/default-branch decisions. Listing distinguishes absence without parsing localized stderr.
+  if (remoteNames.includes('origin')) {
+    return { ok: false, message: remoteReadFailure(originResult.stderr) }
+  }
+  const firstRemote = remoteNames[0]
   if (!firstRemote) return { ok: true, remote: null }
   const urlResult = await runGit(projectPath, ['remote', 'get-url', firstRemote])
   if (urlResult.code !== 0 || !urlResult.stdout.trim()) {

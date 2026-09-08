@@ -18,6 +18,7 @@
     "src/interaction.js",
     "src/status.js",
     "src/resources.js",
+    "src/session-summary-dialog.js",
     "pi/extensions/github-issues-tool.js"
   ],
   "builtArtifacts": [
@@ -31,6 +32,7 @@
     "modules/interaction.js",
     "modules/status.js",
     "modules/resources.js",
+    "modules/session-summary-dialog.js",
     "pi/extensions/github-issues-tool.js"
   ],
   "install": {
@@ -81,6 +83,17 @@
         "entry": "modules/resources.js",
         "capability": "openwaggle.resources",
         "methods": ["list-resources", "publish-resource"]
+      }
+    ],
+    "dialogs": [
+      {
+        "id": "github.session-context",
+        "title": "GitHub Session Context",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/session-summary-dialog.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
       }
     ],
     "transcriptRenderers": [
@@ -168,6 +181,15 @@
             "action": {
               "family": "sidePanels",
               "contributionId": "github.overview"
+            }
+          },
+          {
+            "id": "github.inspect-session",
+            "label": "Inspect session context",
+            "badge": "Dialog",
+            "action": {
+              "family": "dialogs",
+              "contributionId": "github.session-context"
             }
           }
         ]

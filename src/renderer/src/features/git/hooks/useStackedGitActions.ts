@@ -1,6 +1,11 @@
 import type { SessionId, WorkingPath } from '@shared/types/brand'
-import type { GitRunStackedActionOptions, GitStackedAction } from '@shared/types/git'
-import { useState } from 'react'
+import type {
+  GitActionProgressEvent,
+  GitRunStackedActionOptions,
+  GitRunStackedActionResult,
+  GitStackedAction,
+} from '@shared/types/git'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
@@ -48,23 +53,60 @@ export function useStackedGitActions({
   onCompleted,
 }: UseStackedGitActionsOptions) {
   const [isRunning, setIsRunning] = useState(false)
+  const [progress, setProgress] = useState<GitActionProgressEvent | null>(null)
+  const activeOperationId = useRef<string | null>(null)
+  const runningRef = useRef(false)
   const showToast = useUIStore((state) => state.showToast)
 
-  async function run(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
-    if (!workingPath || isRunning || typeof api.runStackedGitAction !== 'function') return
+  useEffect(() => {
+    if (typeof api.onGitStackedActionProgress !== 'function') return
+    return api.onGitStackedActionProgress((payload) => {
+      if (
+        payload.operationId === activeOperationId.current &&
+        payload.workingPath === workingPath
+      ) {
+        setProgress(payload.progress)
+      }
+    })
+  }, [workingPath])
+
+  async function run(
+    action: GitStackedAction,
+    options?: Partial<GitRunStackedActionOptions>,
+  ): Promise<GitRunStackedActionResult | undefined> {
+    if (!workingPath || runningRef.current || typeof api.runStackedGitAction !== 'function') return
+    const operationId = crypto.randomUUID()
+    runningRef.current = true
+    activeOperationId.current = operationId
     setIsRunning(true)
+    setProgress(null)
     try {
-      const result = await api.runStackedGitAction(workingPath, { action, sessionId, ...options })
+      const result = await api.runStackedGitAction(workingPath, {
+        action,
+        sessionId,
+        ...options,
+        operationId,
+      })
       const toast = stackedActionToast(result)
       showToast(toast.message, toast.variant)
       onCompleted?.()
+      return result
     } catch (error) {
       logger.warn('Stacked git action failed', { error: String(error) })
       showToast('Git action failed.', 'error')
+      return undefined
     } finally {
+      runningRef.current = false
+      activeOperationId.current = null
       setIsRunning(false)
     }
   }
 
-  return { isRunning, run }
+  async function cancel() {
+    const operationId = activeOperationId.current
+    if (!operationId || typeof api.cancelStackedGitAction !== 'function') return false
+    return api.cancelStackedGitAction(operationId)
+  }
+
+  return { isRunning, progress, run, cancel }
 }

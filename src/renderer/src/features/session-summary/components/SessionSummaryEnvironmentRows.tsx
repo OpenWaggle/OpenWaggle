@@ -1,4 +1,5 @@
 import type { GitBranchInfo, SessionEnvironmentMode } from '@shared/types/git'
+import { formatWorktreePathForDisplay } from '@shared/utils/worktree'
 import {
   Check,
   ChevronDown,
@@ -11,11 +12,12 @@ import {
   Plus,
   Search,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS, MENU_SECTION_LABEL_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
+import { useUIStore } from '@/shell/ui-store'
 import { SessionSummaryBranchOption } from './SessionSummaryBranchOption'
 
 const SUMMARY_POPOVER_CLASS = 'w-72 overflow-hidden p-1.5'
@@ -25,6 +27,10 @@ const SUMMARY_TRIGGER_CLASS =
 const ENVIRONMENT_LABEL: Record<SessionEnvironmentMode, string> = {
   local: 'Local',
   worktree: 'Worktree',
+}
+
+async function copyTextToClipboard(value: string) {
+  await navigator.clipboard.writeText(value)
 }
 
 export function SessionEnvironmentRow({
@@ -37,6 +43,7 @@ export function SessionEnvironmentRow({
   const [open, setOpen] = useState(false)
   const Icon = environmentMode === 'worktree' ? GitFork : Laptop
   const label = ENVIRONMENT_LABEL[environmentMode]
+  const displayWorkingPath = workingPath ? formatWorktreePathForDisplay(workingPath) : null
 
   return (
     <Popover
@@ -73,12 +80,9 @@ export function SessionEnvironmentRow({
           session.
         </p>
       </div>
-      {workingPath ? (
-        <p
-          className="truncate px-2.5 py-2 font-mono text-xs text-text-tertiary"
-          title={workingPath}
-        >
-          {workingPath}
+      {displayWorkingPath ? (
+        <p className="truncate px-2.5 py-2 font-mono text-xs text-text-tertiary">
+          {displayWorkingPath}
         </p>
       ) : null}
     </Popover>
@@ -93,6 +97,10 @@ export function SessionEnvironmentActions({
   readonly onToggleTerminal: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const showToast = useUIStore((state) => state.showToast)
+  const reportFailure = (cause: unknown, fallback: string) => {
+    showToast(cause instanceof Error ? cause.message : fallback, 'error')
+  }
 
   return (
     <Popover
@@ -137,7 +145,11 @@ export function SessionEnvironmentActions({
             className={DENSE_MENU_ITEM_CLASS}
             onClick={() => {
               setOpen(false)
-              void api.openPath(workingPath)
+              void api
+                .openPath(workingPath)
+                .catch((cause: unknown) =>
+                  reportFailure(cause, 'Could not open the working folder.'),
+                )
             }}
           >
             <FolderOpen aria-hidden="true" className="size-4 shrink-0" />
@@ -149,7 +161,9 @@ export function SessionEnvironmentActions({
             className={DENSE_MENU_ITEM_CLASS}
             onClick={() => {
               setOpen(false)
-              void navigator.clipboard.writeText(workingPath)
+              void copyTextToClipboard(workingPath).catch((cause: unknown) =>
+                reportFailure(cause, 'Could not copy the working path.'),
+              )
             }}
           >
             <Copy aria-hidden="true" className="size-4 shrink-0" />
@@ -171,6 +185,12 @@ interface SessionBranchRowProps {
   readonly onCreate: (branch: string) => Promise<boolean>
 }
 
+function matchingBranches(branches: readonly GitBranchInfo[], normalizedQuery: string) {
+  return normalizedQuery.length === 0
+    ? branches
+    : branches.filter((candidate) => candidate.name.toLowerCase().includes(normalizedQuery))
+}
+
 export function SessionBranchRow({
   branch,
   branches,
@@ -182,16 +202,10 @@ export function SessionBranchRow({
 }: SessionBranchRowProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const showToast = useUIStore((state) => state.showToast)
   const normalizedQuery = query.trim().toLowerCase()
-  const filteredBranches = useMemo(
-    () =>
-      normalizedQuery.length === 0
-        ? branches
-        : branches.filter((candidate) => candidate.name.toLowerCase().includes(normalizedQuery)),
-    [branches, normalizedQuery],
-  )
+  const filteredBranches = matchingBranches(branches, normalizedQuery)
   const exactMatch = branches.some((candidate) => candidate.name.toLowerCase() === normalizedQuery)
-
   function changeOpen(next: boolean) {
     setOpen(next)
     if (next) onRefresh()
@@ -236,8 +250,11 @@ export function SessionBranchRow({
           aria-label="Search branches"
           className="min-w-0 flex-1 bg-transparent text-sm text-text-primary outline-none"
           value={query}
-          disabled={busy}
-          onChange={(event) => setQuery(event.target.value)}
+          readOnly={busy}
+          aria-disabled={busy}
+          onChange={(event) => {
+            if (!busy) setQuery(event.target.value)
+          }}
         />
       </label>
       {error ? <p className="px-2.5 py-2 text-xs text-error-text">{error}</p> : null}
@@ -258,9 +275,11 @@ export function SessionBranchRow({
           <Button
             variant="unstyled"
             type="button"
-            disabled={busy}
+            aria-disabled={busy}
             className={DENSE_MENU_ITEM_CLASS}
-            onClick={() => void finish(onCreate(query.trim()))}
+            onClick={() => {
+              if (!busy) void finish(onCreate(query.trim()))
+            }}
           >
             <Plus aria-hidden="true" className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">Create {query.trim()}</span>
@@ -273,11 +292,15 @@ export function SessionBranchRow({
       {branch ? (
         <Button
           variant="unstyled"
-          type="button"
           className={DENSE_MENU_ITEM_CLASS}
           onClick={() => {
             changeOpen(false)
-            void navigator.clipboard.writeText(branch)
+            void copyTextToClipboard(branch).catch((cause: unknown) => {
+              showToast(
+                cause instanceof Error ? cause.message : 'Could not copy the branch name.',
+                'error',
+              )
+            })
           }}
         >
           <Copy aria-hidden="true" className="size-4 shrink-0" />

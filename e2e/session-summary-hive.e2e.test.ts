@@ -82,14 +82,14 @@ test('Session Summary Hive shows only the opened session direct lineage and rema
     ])
 
     await app.restart()
-    await app.resizeMainWindow(1_400, 850)
+    await app.resizeMainWindow(1_800, 850)
     const page = app.window()
     await app.mainWindow().openThread(QUEEN_TITLE)
 
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
     const hive = summary.getByRole('region', { name: 'Hive' })
     await expect(hive).toBeVisible()
-    await expect(hive.getByRole('button', { name: /Hive/ })).toHaveAttribute(
+    await expect(hive.getByRole('button', { name: /^Hive \d/ })).toHaveAttribute(
       'aria-expanded',
       'true',
     )
@@ -117,6 +117,19 @@ test('Session Summary Hive shows only the opened session direct lineage and rema
 
     await workerHive.getByRole('button', { name: new RegExp(QUEEN_TITLE) }).click()
     await expect(page.locator('[data-qa="header-session-title"]')).toHaveText(QUEEN_TITLE)
+
+    await app.confirmNativeDialogs(1)
+    const queenRow = page
+      .locator('[data-qa="sidebar-session-row"]')
+      .filter({ hasText: QUEEN_TITLE })
+    await queenRow.getByRole('button', { name: `Open session actions for ${QUEEN_TITLE}` }).click()
+    await page.getByRole('button', { name: 'Delete session' }).click()
+
+    await expect(page.getByText(/Failed to delete session:.*Workers.*Queen session/u)).toBeVisible()
+    await expect(page.locator('[data-qa="header-session-title"]')).toHaveText(QUEEN_TITLE)
+    await expect(queenRow).toBeVisible()
+    await expect(hive).toContainText('1 active · 3 total')
+    await app.captureEvidence('session-summary-hive-queen-delete-blocked')
   } finally {
     await app.cleanup()
   }

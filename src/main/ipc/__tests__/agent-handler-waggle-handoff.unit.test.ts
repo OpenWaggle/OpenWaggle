@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   emitErrorAndFinish: vi.fn(),
   emitRunCompleted: vi.fn(),
   emitTransportEvent: vi.fn(),
+  emitWorktreeLaunchFailure: vi.fn(),
   emitWaggleTransportEvent: vi.fn(),
   emitWaggleTurnEvent: vi.fn(),
   executeAgentRun: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('../../utils/stream-bridge', () => ({
   clearStreamBuffer: mocks.clearStreamBuffer,
   emitRunCompleted: mocks.emitRunCompleted,
   emitTransportEvent: mocks.emitTransportEvent,
+  emitWorktreeLaunchFailure: mocks.emitWorktreeLaunchFailure,
   emitWaggleTransportEvent: mocks.emitWaggleTransportEvent,
   emitWaggleTurnEvent: mocks.emitWaggleTurnEvent,
   getStreamBuffer: vi.fn(),
@@ -153,6 +155,73 @@ describe('agent handler Waggle handoff lifecycle', () => {
 
     expect(mocks.executeWaggleRun).not.toHaveBeenCalled()
     expect(activeRuns.has(SESSION_ID)).toBe(false)
+  })
+
+  it('captures persisted resources from a terminally failed standard run', async () => {
+    const resourceMessages = [
+      {
+        id: MessageId('failed-run-resource-message'),
+        role: 'assistant' as const,
+        createdAt: 2,
+        parts: [{ type: 'text' as const, text: '[Partial docs](https://example.test/docs)' }],
+      },
+    ]
+    mocks.executeAgentRun.mockReturnValue(
+      Effect.succeed({
+        outcome: 'error',
+        message: 'Provider stopped after partial output',
+        code: 'provider-error',
+        transportEmitted: true,
+        resourceMessages,
+        resourceNodeIds: { 'failed-run-resource-message': 'persisted-resource-node' },
+        resourceBranchIds: { 'failed-run-resource-message': 'agent-handoff-session:main' },
+      }),
+    )
+    const { send } = registerHandlers()
+
+    await Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+
+    expect(mocks.captureSuccessfulRunResources).toHaveBeenCalledWith({
+      sessionId: SESSION_ID,
+      runId: expect.any(String),
+      payload: PAYLOAD,
+      messages: resourceMessages,
+      nodeIdByMessageId: { 'failed-run-resource-message': 'persisted-resource-node' },
+      branchIdByMessageId: { 'failed-run-resource-message': 'agent-handoff-session:main' },
+    })
+    expect(mocks.executeWaggleRun).not.toHaveBeenCalled()
+  })
+
+  it('captures persisted resources from a partially aborted standard run', async () => {
+    const resourceMessages = [
+      {
+        id: MessageId('aborted-run-resource-message'),
+        role: 'assistant' as const,
+        createdAt: 2,
+        parts: [{ type: 'text' as const, text: '[Partial docs](https://example.test/docs)' }],
+      },
+    ]
+    mocks.executeAgentRun.mockReturnValue(
+      Effect.succeed({
+        outcome: 'aborted',
+        resourceMessages,
+        resourceNodeIds: { 'aborted-run-resource-message': 'persisted-resource-node' },
+        resourceBranchIds: { 'aborted-run-resource-message': 'agent-handoff-session:main' },
+      }),
+    )
+    const { send } = registerHandlers()
+
+    await Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+
+    expect(mocks.captureSuccessfulRunResources).toHaveBeenCalledWith({
+      sessionId: SESSION_ID,
+      runId: expect.any(String),
+      payload: PAYLOAD,
+      messages: resourceMessages,
+      nodeIdByMessageId: { 'aborted-run-resource-message': 'persisted-resource-node' },
+      branchIdByMessageId: { 'aborted-run-resource-message': 'agent-handoff-session:main' },
+    })
+    expect(mocks.executeWaggleRun).not.toHaveBeenCalled()
   })
 
   it('surfaces Waggle validation failures and still completes cleanup', async () => {

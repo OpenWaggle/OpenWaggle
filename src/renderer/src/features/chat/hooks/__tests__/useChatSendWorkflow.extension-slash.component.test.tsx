@@ -60,6 +60,7 @@ function extensionSlashEntry(
     },
     diagnostics: [],
     contentHash: 'content-hash-1',
+    invocationBinding: 'host-issued-binding',
     ...overrides,
   }
 }
@@ -145,18 +146,21 @@ describe('useChatSendWorkflow extension slash commands', () => {
 
     await act(() => result.current.sendWithWaggle(payload('/sample.run use current diff')))
 
-    expect(invokeExtensionMock).toHaveBeenCalledWith({
-      extensionId: 'sample-extension',
-      contributionId: 'sample.run',
-      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
-      scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId: SESSION_ID },
-      payload: {
-        command: '/sample.run',
-        args: 'use current diff',
-        rawText: '/sample.run use current diff',
+    expect(invokeExtensionMock).toHaveBeenCalledWith(
+      {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.run',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+        scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId: SESSION_ID },
+        payload: {
+          command: '/sample.run',
+          args: 'use current diff',
+          rawText: '/sample.run use current diff',
+        },
       },
-    })
+      'host-issued-binding',
+    )
     expect(params.handleSend).not.toHaveBeenCalled()
     expect(params.branchSummary.materializeDraftBranchForSend).not.toHaveBeenCalled()
   })

@@ -34,6 +34,10 @@ export interface SessionResourceStoreShape {
   ) => Effect.Effect<StoredSessionResourceFile, SessionResourceStoreError>
   /** Verifies that a managed path is a readable regular file without loading its payload. */
   readonly inspect: (managedPath: string) => Effect.Effect<void, SessionResourceStoreError>
+  /** Opens a confined managed file for incremental protocol delivery. */
+  readonly openReadStream: (
+    managedPath: string,
+  ) => Effect.Effect<ReadableStream<Uint8Array>, SessionResourceStoreError>
   readonly read: (managedPath: string) => Effect.Effect<Uint8Array, SessionResourceStoreError>
   readonly remove: (managedPath: string) => Effect.Effect<void, SessionResourceStoreError>
   readonly removeSession: (sessionId: SessionId) => Effect.Effect<void, SessionResourceStoreError>

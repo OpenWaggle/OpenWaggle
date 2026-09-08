@@ -98,7 +98,14 @@ export const extensionSessionSummaryRowSchema = Schema.Struct({
   count: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
   resourceId: Schema.optional(extensionContributionIdSchema),
   action: Schema.optional(extensionSessionSummaryActionSchema),
-})
+}).pipe(
+  Schema.filter(
+    (row) =>
+      row.resourceId === undefined ||
+      row.action === undefined ||
+      'Session Summary rows cannot declare both resourceId and action.',
+  ),
+)
 
 const SESSION_SUMMARY_AUTO_COLLAPSE_MIN_MS = 1_000
 const SESSION_SUMMARY_AUTO_COLLAPSE_MAX_MS = 300_000

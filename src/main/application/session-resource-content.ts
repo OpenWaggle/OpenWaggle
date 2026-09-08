@@ -1,5 +1,8 @@
 import type { SessionId } from '@shared/types/brand'
-import type { SessionResource, SessionResourceContent } from '@shared/types/session-resource'
+import type {
+  SessionResource,
+  SessionResourceThumbnailPreview,
+} from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceImageFetcher } from '../ports/session-resource-image-fetcher'
 import {
@@ -12,12 +15,12 @@ import { removeReplacedCopy } from './session-resource-capture-shared'
 import { withSessionResourceInvalidation } from './session-resource-invalidation'
 import { withSessionResourceLock } from './session-resource-lock'
 
-function contentFromBytes(
+function thumbnailFromBytes(
   resourceId: string,
   fileName: string,
   mimeType: string,
   bytes: Uint8Array,
-): SessionResourceContent {
+): SessionResourceThumbnailPreview {
   return {
     resourceId,
     fileName,
@@ -36,12 +39,10 @@ function remoteImageUrl(resource: SessionResource) {
   return null
 }
 
-function readManagedContent(location: SessionResourceContentLocation) {
+function inspectManagedContent(location: SessionResourceContentLocation) {
   return SessionResourceStore.pipe(
-    Effect.flatMap((store) => store.read(location.managedPath)),
-    Effect.map((bytes) =>
-      contentFromBytes(location.resourceId, location.fileName, location.mimeType, bytes),
-    ),
+    Effect.flatMap((store) => store.inspect(location.managedPath)),
+    Effect.as(location),
     Effect.catchAll(() => Effect.succeed(null)),
   )
 }
@@ -55,7 +56,7 @@ function readManagedThumbnail(location: SessionResourceContentLocation) {
     const thumbnail = yield* SessionResourceThumbnailer.pipe(
       Effect.flatMap((thumbnailer) => thumbnailer.create(bytes, location.mimeType)),
     )
-    return contentFromBytes(
+    return thumbnailFromBytes(
       location.resourceId,
       `${location.resourceId}-thumbnail.webp`,
       thumbnail.mimeType,
@@ -103,27 +104,85 @@ function materializeRemoteImage(
       Effect.tapError(() => store.remove(stored.path).pipe(Effect.catchAll(() => Effect.void))),
     )
     yield* removeReplacedCopy(store, previousLocation?.managedPath, stored.path)
-    return contentFromBytes(resource.id, fetched.fileName, fetched.mimeType, fetched.bytes)
+    return {
+      resourceId: resource.id,
+      sessionId,
+      fileName: fetched.fileName,
+      mimeType: fetched.mimeType,
+      managedPath: stored.path,
+    } satisfies SessionResourceContentLocation
   })
 }
 
-export function readSessionResourceContent(sessionId: SessionId, resourceId: string) {
+function prepareSessionResourceContentUnlocked(sessionId: SessionId, resourceId: string) {
+  return withSessionResourceInvalidation(
+    sessionId,
+    Effect.gen(function* () {
+      const repository = yield* SessionResourceRepository
+      const location = yield* repository.getContentLocation(sessionId, resourceId)
+      if (location) {
+        const content = yield* inspectManagedContent(location)
+        if (content) return content
+      }
+      const resource = yield* repository.findById(sessionId, resourceId, 'images')
+      if (resource?.kind !== 'image') return null
+      const url = remoteImageUrl(resource)
+      if (!url) return null
+      return yield* materializeRemoteImage(sessionId, resource, location, url)
+    }),
+  )
+}
+
+/** Ensures an explicitly requested resource has a readable managed copy without returning bytes. */
+export function prepareSessionResourceContent(sessionId: SessionId, resourceId: string) {
+  return withSessionResourceLock(
+    sessionId,
+    prepareSessionResourceContentUnlocked(sessionId, resourceId),
+  )
+}
+
+/** Binary-only main-process read for native actions and protocol responses. */
+export function readSessionResourceContentBytes(sessionId: SessionId, resourceId: string) {
+  return withSessionResourceLock(
+    sessionId,
+    Effect.gen(function* () {
+      const location = yield* prepareSessionResourceContentUnlocked(sessionId, resourceId)
+      if (!location) return null
+      const bytes = yield* SessionResourceStore.pipe(
+        Effect.flatMap((store) => store.read(location.managedPath)),
+        Effect.catchAll(() => Effect.succeed(null)),
+      )
+      return bytes ? { ...location, bytes } : null
+    }),
+  )
+}
+
+/** Opens a fresh confined stream for Electron's Session resource protocol. */
+export function openSessionResourceContentStream(sessionId: SessionId, resourceId: string) {
   return withSessionResourceLock(
     sessionId,
     withSessionResourceInvalidation(
       sessionId,
       Effect.gen(function* () {
         const repository = yield* SessionResourceRepository
-        const location = yield* repository.getContentLocation(sessionId, resourceId)
-        if (location) {
-          const content = yield* readManagedContent(location)
-          if (content) return content
+        const store = yield* SessionResourceStore
+        const existing = yield* repository.getContentLocation(sessionId, resourceId)
+        if (existing) {
+          const body = yield* store
+            .openReadStream(existing.managedPath)
+            .pipe(Effect.catchAll(() => Effect.succeed(null)))
+          if (body) return { ...existing, body }
         }
-        const resource = (yield* repository.list(sessionId)).find((item) => item.id === resourceId)
+        const resource = yield* repository.findById(sessionId, resourceId, 'images')
         if (resource?.kind !== 'image') return null
         const url = remoteImageUrl(resource)
         if (!url) return null
-        return yield* materializeRemoteImage(sessionId, resource, location, url)
+        const materialized = yield* materializeRemoteImage(sessionId, resource, existing, url)
+        if (!materialized) return null
+        const body = yield* store
+          .openReadStream(materialized.managedPath)
+          .pipe(Effect.catchAll(() => Effect.succeed(null)))
+        return body ? { ...materialized, body } : null
       }),
     ),
   )

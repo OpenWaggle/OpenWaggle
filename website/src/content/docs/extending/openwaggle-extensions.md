@@ -182,18 +182,35 @@ Choose the surface by the job the extension is doing, not by the framework used 
 
 The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
 
-## Session Summary Sections And Resources
+## Session Summary sections and resources
 
-`sessionSummarySections` are declarative. OpenWaggle renders their title, state, disclosure, rows, resource links, and actions so the floating layout, keyboard behavior, and failure isolation stay consistent with core sections.
+`sessionSummarySections` are declarative. OpenWaggle renders their title, state, disclosure, rows, resource links, and actions so the floating layout, keyboard behavior, and failure isolation stay consistent with core sections. Read [Session Summary and Resources](/docs/using-openwaggle/session-summary) before choosing this surface. The Summary does not render until the opened session has at least one message, and it never reserves chat width.
 
 A section can declare:
 
 - `placement`: `context`, `coordination`, or `details`;
 - `state`: `ready`, `loading`, `live`, or `failure`, with an optional status message;
-- `disclosure`: the initial expanded state, whether the section is collapsible, and an optional auto-collapse delay;
-- rows with a value, badge, count, resource id, or action targeting a command, dialog, or side panel from the same package.
+- `disclosure`: the initial expanded state, whether the section is collapsible, and an optional auto-collapse delay from 1,000 to 300,000 milliseconds;
+- rows with a value, badge, count, resource id, or action targeting a command, dialog, or side panel from the same package. A row can target one resource or one action, but not both; use separate rows when both destinations matter.
 
-The host hides an empty `ready` section. Expansion is remembered per session, transient dialogs and actions are reset when the opened session changes, and one extension failure does not affect the rest of the Summary.
+Choose placement by the information's relationship to the session. `context` sections appear after Environment and change-request information but before Hive. `coordination` sections follow Hive. `details`, the default, appear after Sources. OpenWaggle controls the order inside each placement and does not let extensions move or replace core sections.
+
+The host hides an empty `ready` section. A `loading`, `live`, or `failure` state remains visible without rows so the user can understand what the extension is doing. Expansion is remembered per session and installed package content. Transient dialogs and pending actions reset when the opened session changes, and one extension failure does not affect the rest of the Summary.
+
+An action must point to a `commands`, `dialogs`, or `sidePanels` contribution declared by the same package under the exact family and id. A command also needs an executable capability and method binding. OpenWaggle rejects a Summary section with a missing, mis-typed, ineligible, or out-of-scope action target and reports a contribution diagnostic instead of leaving a dead row in the panel.
+
+Commands run through the broker using the narrowest eligible declared scope. The host prefers session, then project, then app scope. A dialog launched from a Summary row receives `context.sessionId` and this `context.surface.payload`:
+
+```json
+{
+  "surface": "session-summary",
+  "sessionId": "the-opened-session-id",
+  "projectPaths": ["/path/to/project"],
+  "messageCount": 12
+}
+```
+
+Treat these host values as context, not as reusable authority. The broker still validates the contribution, package identity, project, session, capability, and method for each call. A side panel resolves again against the opened session when the right sidebar mounts.
 
 An executable contribution can also publish durable Sources or Outputs through `context.sdk.openWaggle.resources`. Declare the capability on the package and on that executable contribution:
 
@@ -265,7 +282,13 @@ export async function publishCoverage(context: OpenWaggleExtensionMountContext) 
 }
 ```
 
-Reuse a stable `key` within the extension contribution. Publishing the same key, kind, role, and normalized locator is idempotent. Version one accepts only credential-free HTTPS `image` and `link` locators with a `source` or `output` role. `list` returns an operation result whose `value.resources` contains display metadata only: resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. The broker binds both methods to the mounted contribution's project and session, so changing the scope payload cannot expose another open or archived session.
+Reuse a stable `key` within the extension contribution. Publishing the same key, kind, role, and normalized locator is idempotent. Version one accepts only credential-free HTTPS `image` and `link` locators with a `source` or `output` role. `list(scope, { limit, cursor })` accepts a limit from 1 to 100 and returns a bounded operation result. `value.resources` contains display metadata only, `value.total` is the exact session total, and `value.nextCursor` continues the stable page. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. The broker binds both methods to the mounted contribution's project and session, so changing the scope payload cannot expose another open or archived session.
+
+Use the resource id returned by `publish` or `list` in a Summary row's `resourceId`. The host opens a viewable image in the session gallery and other resources in their owning Sources or Outputs view. An id from another session, a deleted resource, or an invented id stays unavailable. List or publish again and replace the dynamic section instead of caching resource ids across sessions.
+
+For changing status, register a runtime `sessionSummarySections` contribution in session scope. Registering the same family, contribution id, and scope replaces the previous dynamic value, so a Worker count or check state can change without restarting OpenWaggle. Unregister it during cleanup when the information no longer applies. The host pins session-scoped registrations to the invoking project and session even if the contribution omits `target`; attempts to name another target fail. Branch-scoped runtime registration is not supported yet.
+
+Resource publishing does not fetch an image just because the extension lists it or the Summary becomes visible. The user authorizes the guarded HTTPS fetch by opening the image. If the fetch or managed copy fails, OpenWaggle presents a retry state in its own resource UI. Extensions should keep the same stable key and locator for a retry rather than publishing duplicates.
 
 ## Visual Runtimes, SDK Context, And Theme
 
@@ -471,7 +494,7 @@ The state model is:
 - OpenWaggle state is read-only through typed capabilities such as `openWaggle.state.get(scope)`.
 - OpenWaggle mutations use typed action capabilities such as `openWaggle.actions.selectProject(scope, projectPath)`.
 - Settings access uses typed settings capabilities such as `openWaggle.settings.get(scope)` and `openWaggle.settings.update(scope, settings)`.
-- Session resource access uses `openWaggle.resources.list(scope)` and `openWaggle.resources.publish(scope, resource)` for the mounted Session only.
+- Session resource access uses bounded `openWaggle.resources.list(scope, { limit, cursor })` pages and `openWaggle.resources.publish(scope, resource)` for the mounted Session only.
 - Extension package state is extension-owned and can be shared by every contribution from the same package.
 - `storage.packageState.global` and `storage.packageState.project` are for persistent package state.
 - `storage.packageConfig.global` and `storage.packageConfig.project` are for persistent package configuration.

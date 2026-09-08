@@ -109,6 +109,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
 - A provider CLI can create a PR/MR remotely and still exit non-zero if its response is interrupted. Before surfacing create failure, resolve the exact head ref and adopt an existing request; after a successful create, retain the CLI's returned URL if the metadata lookup is transiently unavailable. This prevents duplicate requests on retry.
 - Change-request creation follows the destination that actually received the push, including `pushurl`, remote branch, and repository owner. Require one compatible provider/authority/repository destination; GitHub fork creation uses `owner:branch`, recovery verifies owner/head/base, and browser fallback is withheld because it cannot verify the fork relationship. A bare local ref can target or adopt an unrelated same-named branch in the base repository.
+- Hosted change-request identity accepts only network Git transports that preserve a meaningful provider authority (`http`, `https`, `ssh`, `git`, or SCP-like syntax). Never rewrite `file:` or an unknown remote-helper URL into a GitHub/GitLab web identity. A pinned push that uses command-scope `remote.<name>.pushurl` overrides must fail closed when the configured remote name contains `=`, because `git -c` would parse a different config key and silently stop pinning the approved destination.
 - Main-process Git mutations are serialized by canonical checkout root, not the caller's opened subfolder. Worktree create/remove owns that same low-level boundary so IPC, first-send birth, and Session prune cannot race each other; linked worktrees remain distinct checkout identities.
 - A successful commit or change request can still fail Session Output projection. The result contract exposes whether durable retry authorization was persisted; renderer actions must surface every projection failure and offer manual retry only for an authorized queued request, while retaining the remote request's browser URL.
 - Session-resource run-completion invalidation is keyed by the event's Session id, not the currently opened Session. Background Sessions otherwise retain a fresh-looking cached catalog and omit newly captured resources when reopened.
@@ -405,7 +406,9 @@ The consequence that outlives the ring: anything hidden behind `group-focus-with
 Images, links, files, and change-request outputs are indexed in `session_resources`; their uses are
 separate `session_resource_occurrences` keyed to transcript node and branch ids. The resource row is
 deduplicated by `(session_id, canonical_key)`, so the same image may be both a source and an output
-without losing either provenance. Never query or read one by resource id alone: every repository and
+without losing either provenance. Every occurrence retains the path or URL observed for that exact use;
+the resource-level locator is only a current fallback. Resource actions prefer the occurrence on the
+visible transcript path and otherwise use the latest matching occurrence. Never query or read one by resource id alone: every repository and
 IPC read includes the opened `SessionId` to prevent resources leaking across sessions.
 
 Managed bytes live below Electron user data in `session-resources/<session-id>/`, not in the project.
@@ -416,9 +419,38 @@ bounded per lazy pass and resumes by skipping cataloged occurrence ids; do not t
 an unbounded sweep over historical files. Explicit links from both actors share one per-run or per-pass
 budget, and backfill resumes by skipping cataloged link occurrence ids. Prepared local attachments carry a SHA-256 content identity
 through hydration and managed-file capture, so a same-size replacement at the original path is rejected.
+Every managed-content read must stay behind `SessionResourceStore` confinement and consume the already
+opened, validated file handle. When a gallery image is added back to the composer, copy those validated
+bytes into a private registered attachment first; never pass a persisted managed path directly into the
+generic attachment preparer, because that would bypass resource-root validation and reopen a path after
+the ownership check. Full viewer and download content never crosses IPC or lives in renderer state as
+base64. An explicit read returns short-lived, opaque protocol URLs bound to the renderer owner and active
+Session; every protocol request revalidates the Session/resource pair and streams a freshly confined
+managed-file handle. Owner teardown revokes its capabilities, registrations remain bounded, and
+granting content for a new active Session revokes every prior-Session capability owned by that renderer.
+The active renderer announces route changes independently of resource reads, including a transition to
+no Session. Once announced, that route is authoritative: a delayed read for the previous Session cannot
+reactivate its capability, and switching to a Session that never opens a resource still revokes the old
+URLs and in-flight grant.
+Only the transient main-rasterized WebP thumbnail bounded to 256 pixels may cross IPC as base64.
+Chromium omits referrers on custom-scheme image requests. Authenticate their actual Electron frame and
+owner in the existing `webRequest` guard, and reject nonempty untrusted referrers in the protocol handler.
+An authorized attachment download also fires `did-start-navigation` before `will-navigate`; it must not
+revoke its own capability or route to the external browser. Only the validated owning-window download
+action bypasses document-replacement revocation. Verify actual `naturalWidth`, Fit overflow geometry,
+and downloaded bytes in native E2E, not merely the presence of an image element.
 A transcript occurrence's `nodeId` is what connects an inline thumbnail to the exact user or assistant
 message and lets the viewer prioritise images on the visible branch before images from other branches in
-the same session.
+the same session. The transcript owns one session-resource query observer and builds one node-id image
+index around only its currently mounted window; loading earlier rows expands that lookup on demand.
+Individual message bubbles must not observe and rescan the full catalog, and opening a 100k-message
+Session must not create a query observer per historical chunk.
+
+Session resource catalog reads are bounded at the repository boundary: Summary uses small Source and
+Output previews with exact denormalized-role counts, while the browser and gallery use keyset pages and
+targeted exact reads. Occurrences remain classification truth; `is_source`/`is_output` are materialized
+projections only. Every resource or occurrence mutation advances a per-Session catalog revision so a
+continuation cursor cannot mix snapshots; the renderer restarts page one on a stale revision.
 
 Remote Markdown images are metadata-only during run settlement and thumbnail rendering. The main
 process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,
@@ -426,7 +458,8 @@ then stores the validated bytes as the resource's managed copy. Do not reintrodu
 thumbnail prefetching: it leaks network timing and can turn one agent response into unbounded download
 work before run completion. Managed previews use the thumbnail IPC path, which rasterizes at most a
 256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
-transcript thumbnails. Full bytes are reserved for an explicit viewer or download action.
+transcript thumbnails. Full bytes are reserved for an explicit viewer or download action and reach the
+renderer only through the managed streaming protocol, never through an IPC base64 payload.
 
 ### Hive state comes from the session projection
 
@@ -435,4 +468,6 @@ profile and current delegation state. The detail-side session summary query deri
 and direct/active Worker counts from that table for both live and archived lists. The hosted task manager
 is the production writer: a new task-created Session establishes lineage once, while success, failure,
 and cancellation update only an existing lineage row. Do not reconstruct Hive state from task JSON in
-the renderer or reparent an existing Session when a task merely targets it.
+the renderer or reparent an existing Session when a task merely targets it. Permanent deletion blocks
+while a Session still owns any direct Worker, including completed and archived Workers; project-wide
+deletion removes Hive leaves before their parents so no surviving Worker silently loses its lineage.

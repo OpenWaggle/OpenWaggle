@@ -1,10 +1,12 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
-import { image, renderViewer } from './session-resource-viewer.test-harness'
+import {
+  readSessionResource,
+  renderViewer,
+  resetViewerEnvironment,
+} from './session-resource-viewer.test-harness'
 
-const listSessionResources = vi.hoisted(() => vi.fn())
-const readSessionResource = vi.hoisted(() => vi.fn())
 let notifyResize: (() => void) | undefined
 
 class TestResizeObserver implements ResizeObserver {
@@ -17,30 +19,17 @@ class TestResizeObserver implements ResizeObserver {
   disconnect() {}
 }
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    listSessionResources,
-    readSessionResource,
-    openExternal: vi.fn(),
-    openPath: vi.fn(),
-    revealPath: vi.fn(),
-    retrySessionResource: vi.fn().mockResolvedValue(undefined),
-  },
-}))
-
 describe('SessionResourceViewer parity', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     notifyResize = undefined
-    useUIStore.setState({ resourceViewer: null })
-    listSessionResources
-      .mockReset()
-      .mockResolvedValue([image('image-1', 'first.png'), image('image-2', 'second.png')])
+    resetViewerEnvironment()
     readSessionResource.mockReset().mockImplementation(async (_sessionId, resourceId: string) => ({
       resourceId,
       fileName: `${resourceId}.png`,
       mimeType: 'image/png',
-      dataBase64: 'aW1hZ2U=',
+      url: `openwaggle-session-resource://content/${resourceId}/view`,
+      downloadUrl: `openwaggle-session-resource://content/${resourceId}/download`,
     }))
   })
 

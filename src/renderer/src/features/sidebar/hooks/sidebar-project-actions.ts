@@ -1,9 +1,12 @@
 import type { RepositoryPath } from '@shared/types/brand'
 import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
+import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
 import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
+import { deleteProjectSessionsChildrenFirst } from './sidebar-project-session-deletion'
 
 type Navigate = ReturnType<typeof useNavigate>
 
@@ -15,6 +18,7 @@ interface SidebarProjectActionDeps {
   readonly loadSessionTrees: () => Promise<void>
   readonly navigate: Navigate
   readonly projectPath: string | null
+  readonly queryClient: QueryClient
   readonly refreshGit: (path: RepositoryPath | null) => void
   readonly removeProjectReferences: (path: string) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
@@ -70,7 +74,11 @@ async function archiveProjectSessions(
 
   await Promise.all(projectSessions.map((session) => api.archiveSession(session.id)))
   clearComposerDraftsForSessions(projectSessions)
-  await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
+  await Promise.all([
+    deps.loadChatSessions(),
+    deps.loadSessionTrees(),
+    refreshArchivedSessions(deps.queryClient),
+  ])
 
   const archivedActiveSession =
     deps.activeSessionId !== null &&
@@ -95,7 +103,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
     ),
   )
-  await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
+  await deleteProjectSessionsChildrenFirst(projectSessions, api.deleteSession)
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])

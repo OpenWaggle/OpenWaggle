@@ -236,13 +236,13 @@ export function createOpenWaggleSdk(
         ),
     },
     resources: {
-      list: async (scope) =>
+      list: async (scope, input = {}) =>
         toDecodedOperationResult(
           await invoke({
             capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
             method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
             scope,
-            payload: {},
+            payload: input,
           }),
           sessionResultGuard(isSessionResourcesListResult, scope.sessionId),
           RESOURCE_RESULT_ERROR,

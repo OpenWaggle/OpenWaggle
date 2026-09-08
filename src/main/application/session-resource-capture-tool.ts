@@ -130,6 +130,26 @@ export function toolResultOccurrenceId(input: {
   })
 }
 
+/**
+ * Occurrences that prove a tool result's useful metadata reached durable storage.
+ * Failed orchestrations intentionally omit the failed wrapper, so their completed
+ * children are the durable completion record used by resumable backfill.
+ */
+export function toolResultCompletionOccurrenceIds(input: {
+  readonly sessionId: SessionId
+  readonly nodeId: string
+  readonly toolResult: ToolCallResult
+}) {
+  if (!input.toolResult.isError) return [toolResultOccurrenceId(input)]
+  return capturedOrchestrationTools(input.toolResult).map((child) =>
+    occurrenceId({
+      sessionId: input.sessionId,
+      nodeId: input.nodeId,
+      suffix: child.occurrenceKey,
+    }),
+  )
+}
+
 function fileToolActivity(toolName: string) {
   return match(toolName)
     .with('read', () => 'read' as const)
@@ -157,7 +177,7 @@ function captureToolIdentityMetadata(
     activity: 'read',
     label: identity.title,
     createdAt: input.createdAt,
-  }).pipe(Effect.catchAll(() => Effect.void))
+  })
 }
 
 function captureExplicitSites(
@@ -183,7 +203,7 @@ function captureExplicitSites(
         activity: site.activity,
         label: group.label,
         createdAt: input.createdAt,
-      }).pipe(Effect.catchAll(() => Effect.void))
+      })
     }
   })
 }
@@ -209,9 +229,21 @@ function captureWebSearches(input: ToolMetadataCaptureInput, toolName: string) {
         activity: 'read',
         label: toolName,
         createdAt: input.createdAt,
-      }).pipe(Effect.catchAll(() => Effect.void))
+      })
     }
   })
+}
+
+function capturedFileTitle(normalizedPath: string, workingPath: string | null) {
+  if (workingPath) {
+    const relativePath = path.relative(path.resolve(workingPath), normalizedPath)
+    const outsideWorkingPath =
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    if (relativePath && !outsideWorkingPath) return relativePath
+  }
+  return path.basename(normalizedPath)
 }
 
 function captureFileResource(input: ToolMetadataCaptureInput, toolName: string) {
@@ -231,7 +263,7 @@ function captureFileResource(input: ToolMetadataCaptureInput, toolName: string) 
     occurrenceKey: `${activity}:file:${String(input.toolResult.id)}`,
     canonicalKey: `file:${normalizedPath}`,
     kind: 'file',
-    title: normalizedPath,
+    title: capturedFileTitle(normalizedPath, input.workingPath),
     mimeType: null,
     locator: normalizedPath,
     available: true,
@@ -239,7 +271,7 @@ function captureFileResource(input: ToolMetadataCaptureInput, toolName: string) 
     activity,
     label: toolName,
     createdAt: input.createdAt,
-  }).pipe(Effect.catchAll(() => Effect.void))
+  })
 }
 
 export function captureToolResultMetadata(input: ToolMetadataCaptureInput) {

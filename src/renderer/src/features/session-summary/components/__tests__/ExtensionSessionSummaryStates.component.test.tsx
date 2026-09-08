@@ -165,4 +165,56 @@ describe('ExtensionSessionSummarySections states', () => {
     )
     expect(screen.queryByText('Transitioning status')).toBeNull()
   })
+
+  it('keeps its live region mounted before an empty ready section starts loading', () => {
+    const readyEntry = {
+      ...summaryEntry(),
+      contributionId: 'stable-announcer',
+      title: 'Stable status',
+      sessionSummary: {
+        placement: 'details',
+        state: { status: 'ready' },
+        rows: [],
+      },
+    } satisfies ExtensionContributionRegistryEntry
+    const rendered = render(
+      <ExtensionSessionSummarySections
+        registry={registry([readyEntry])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
+      />,
+    )
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+    expect(screen.queryByText('Stable status')).toBeNull()
+
+    rendered.rerender(
+      <ExtensionSessionSummarySections
+        registry={registry([
+          {
+            ...readyEntry,
+            sessionSummary: {
+              placement: 'details',
+              state: { status: 'loading', message: 'Loading the latest status' },
+              rows: [],
+            },
+          },
+        ])}
+        projectPaths={[PROJECT_PATH]}
+        sessionId="session-one"
+        messageCount={1}
+        placement="details"
+        resources={[]}
+        onOpenResources={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('Loading the latest status')
+    expect(screen.getByText('Stable status')).toBeInTheDocument()
+  })
 })

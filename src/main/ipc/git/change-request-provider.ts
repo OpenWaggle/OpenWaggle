@@ -1,8 +1,13 @@
-import type { OpenChangeRequestPayload } from '@shared/types/git'
+import type { OpenChangeRequestPayload, SourceControlRepositoryIdentity } from '@shared/types/git'
+import { buildHostedChangeRequestUrl } from '@shared/utils/change-request-browser-url'
 import { getSourceControlProvider } from '../../adapters/source-control'
-import { resolvePrimaryRemoteUrl } from './primary-remote'
+import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
 import { repositoryWebUrl } from './repository-web-url'
-import { detectSourceControlProvider } from './vcs-status-parse'
+import { detectSourceControlProvider, parseRemoteRepositoryIdentity } from './vcs-status-parse'
+
+function repositoryIdentityWebUrl(repository: SourceControlRepositoryIdentity) {
+  return `https://${repository.host}/${repository.owner}/${repository.repository}`
+}
 
 export async function buildChangeRequestFallbackUrl(
   projectPath: string,
@@ -10,42 +15,38 @@ export async function buildChangeRequestFallbackUrl(
   headRefAvailableRemotely: boolean,
   resolvedRemoteUrl?: string,
 ) {
+  if (payload.targetRepository) {
+    return buildHostedChangeRequestUrl(
+      payload.targetRepository.provider,
+      repositoryIdentityWebUrl(payload.targetRepository),
+      payload,
+      headRefAvailableRemotely,
+    )
+  }
   const remoteUrl = resolvedRemoteUrl ?? (await resolvePrimaryRemoteUrl(projectPath))
   if (!remoteUrl) return null
   const provider = detectSourceControlProvider(remoteUrl)
   const webUrl = repositoryWebUrl(remoteUrl)
   if (!provider || !webUrl) return null
-  if (provider.id === 'github') {
-    // Native creation can verify a fork relationship. A browser URL cannot safely
-    // assume that an owner-qualified head belongs to the target repository.
-    if (payload.headOwner) return null
-    const comparison = payload.baseRef
-      ? `${encodeURIComponent(payload.baseRef)}...${encodeURIComponent(payload.headRef)}`
-      : encodeURIComponent(payload.headRef)
-    const url = new URL(
-      headRefAvailableRemotely ? `${webUrl}/compare/${comparison}` : `${webUrl}/compare`,
-    )
-    url.searchParams.set('expand', '1')
-    url.searchParams.set('title', payload.title)
-    if (payload.body) url.searchParams.set('body', payload.body)
-    return url.toString()
-  }
-  if (payload.headRepository) return null
-  const url = new URL(`${webUrl}/-/merge_requests/new`)
-  if (headRefAvailableRemotely) {
-    url.searchParams.set('merge_request[source_branch]', payload.headRef)
-  }
-  if (payload.baseRef) url.searchParams.set('merge_request[target_branch]', payload.baseRef)
-  url.searchParams.set('merge_request[title]', payload.title)
-  if (payload.body) url.searchParams.set('merge_request[description]', payload.body)
-  if (payload.draft) url.searchParams.set('merge_request[draft]', 'true')
-  return url.toString()
+  return buildHostedChangeRequestUrl(provider.id, webUrl, payload, headRefAvailableRemotely)
+}
+
+export function sourceControlProviderForRepository(repository: SourceControlRepositoryIdentity) {
+  const provider = getSourceControlProvider(repository.provider, repository)
+  return provider
+    ? {
+        provider,
+        info: { id: repository.provider, host: repository.host },
+        repository,
+      }
+    : null
 }
 
 export async function resolveSourceControlProvider(projectPath: string) {
-  const remoteUrl = await resolvePrimaryRemoteUrl(projectPath)
-  const info = detectSourceControlProvider(remoteUrl)
-  if (!info) return null
-  const provider = getSourceControlProvider(info.id)
-  return provider && remoteUrl ? { provider, info, remoteUrl } : null
+  const remote = await resolvePrimaryRemote(projectPath)
+  if (!remote) return null
+  const repository = parseRemoteRepositoryIdentity(remote.url)
+  if (!repository) return null
+  const resolved = sourceControlProviderForRepository(repository)
+  return resolved ? { ...resolved, remoteName: remote.name, remoteUrl: remote.url } : null
 }

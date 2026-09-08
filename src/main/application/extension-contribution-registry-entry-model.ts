@@ -20,6 +20,7 @@ import {
   type ContributionTargetResolution,
   resolveContributionTarget,
 } from './extension-contribution-target-model'
+import { issueExtensionInvocationBinding } from './extension-invocation-binding'
 
 function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
@@ -84,7 +85,7 @@ function contributionBaseEntry(
   const { contribution, eligibility, extensionPackage } = input
   const manifest = extensionPackage.manifest
 
-  return {
+  const entry = {
     extensionId: extensionPackage.id,
     extensionName: manifest?.name ?? extensionPackage.id,
     extensionVersion: manifest?.version ?? '',
@@ -107,6 +108,7 @@ function contributionBaseEntry(
     eligibility: eligibility.eligibility,
     diagnostics: eligibility.diagnostics,
   }
+  return { ...entry, invocationBinding: issueExtensionInvocationBinding(entry) }
 }
 
 function sessionSummaryEntry(

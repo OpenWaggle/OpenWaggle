@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  changeRequestUrlFromSearch,
   extensionSidePanelTargetFromSearch,
   isSettingsTab,
   parseChatRouteSearch,
@@ -29,6 +30,17 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'session-tree' })).toEqual({ panel: 'session-tree' })
     expect(parseChatRouteSearch({ panel: 'diff' })).toEqual({ panel: 'diff' })
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
+  })
+
+  it('binds a change-request route to the Session that opened it', () => {
+    const search = parseChatRouteSearch({
+      panel: 'change-request',
+      changeRequestUrl: 'https://github.com/o/r/pull/7',
+      changeRequestSessionId: 'session-a',
+    })
+    expect(changeRequestUrlFromSearch(search, 'session-a')).toBe('https://github.com/o/r/pull/7')
+    expect(changeRequestUrlFromSearch(search, 'session-b')).toBeNull()
+    expect(parseChatRouteSearch({ panel: 'change-request', changeRequestUrl: 'x' })).toEqual({})
   })
 
   it('preserves the selected resource view and item only for the resources panel', () => {

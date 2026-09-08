@@ -1,5 +1,7 @@
 import { match } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SessionId } from '@shared/types/brand'
+import type { ExtensionInvokeScope } from '@shared/types/extension-broker'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
@@ -7,14 +9,15 @@ import type {
 } from '@shared/types/extensions'
 import type { JsonObject } from '@shared/types/json'
 import type { SessionResource } from '@shared/types/session-resource'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { resolveExtensionCommandInvocationScope } from '@/features/command-palette'
-import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
+import { isInvokableExtensionContributionCommand } from '@/features/composer/commands'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
 import type { SessionResourceBrowserTarget } from '../model/session-resource-browser'
 import { isViewableSessionImage } from '../model/session-resource-viewability'
+import { invokeSessionSummaryExtensionCommand } from './session-summary-extension-command'
 
 const logger = createRendererLogger('extension-session-summary')
 
@@ -81,6 +84,144 @@ export function matchingSessionSummaryAction(input: {
   )
 }
 
+type SessionSummaryActionResolution =
+  | {
+      readonly kind: 'command'
+      readonly entry: ExtensionContributionRegistryEntry & {
+        readonly capability: string
+        readonly method: string
+      }
+      readonly scope: ExtensionInvokeScope
+    }
+  | {
+      readonly kind: 'disabled-command'
+      readonly entry: ExtensionContributionRegistryEntry
+      readonly disabledReason: string
+    }
+  | {
+      readonly kind: 'surface'
+      readonly entry: ExtensionContributionRegistryEntry
+    }
+
+interface SessionSummaryActionOperation {
+  readonly controller: AbortController
+  readonly sessionId: string
+}
+
+export function resolveSessionSummaryAction(input: {
+  readonly registry: ExtensionContributionRegistryView
+  readonly section: ExtensionContributionRegistryEntry
+  readonly row: ExtensionSessionSummaryRowView
+  readonly projectPath: string | null
+  readonly sessionId: string
+}): SessionSummaryActionResolution | null {
+  const entry = matchingSessionSummaryAction(input)
+  if (!entry || !input.row.action) return null
+  if (input.row.action.family !== OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS) {
+    return { kind: 'surface', entry }
+  }
+  if (
+    !isInvokableExtensionContributionCommand(
+      entry,
+      OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS,
+    )
+  ) {
+    return {
+      kind: 'disabled-command',
+      entry,
+      disabledReason:
+        entry.capability && entry.method
+          ? 'This extension command is disabled for the current project.'
+          : 'This extension command has no executable capability binding.',
+    }
+  }
+  const scope = resolveExtensionCommandInvocationScope({
+    entry,
+    projectPath: input.projectPath,
+    sessionId: input.sessionId,
+  })
+  return scope
+    ? { kind: 'command', entry, scope }
+    : {
+        kind: 'disabled-command',
+        entry,
+        disabledReason: 'This extension command is unavailable in the current Session.',
+      }
+}
+
+async function activateExtensionResourceRow(input: {
+  readonly resources: readonly SessionResource[]
+  readonly resourceId: string | undefined
+  readonly sessionId: string
+  readonly signal: AbortSignal
+  readonly openResourceViewer: (sessionId: string, resourceId: string) => void
+  readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
+  readonly showToast: (message: string, tone: 'error') => void
+}) {
+  if (!input.resourceId || input.signal.aborted) return false
+  try {
+    const cached = input.resources.find(({ id }) => id === input.resourceId)
+    if (cached) {
+      if (input.signal.aborted) return true
+      await activateResourceRow({
+        resource: cached,
+        resourceId: input.resourceId,
+        sessionId: input.sessionId,
+        openResourceViewer: input.openResourceViewer,
+        onOpenResources: input.onOpenResources,
+      })
+      return true
+    }
+    if (typeof api.getSessionResource !== 'function') return false
+    const resource = await api.getSessionResource(
+      SessionId(input.sessionId),
+      input.resourceId,
+      'all',
+    )
+    if (input.signal.aborted) return true
+    if (!resource) return false
+    await activateResourceRow({
+      resource,
+      resourceId: input.resourceId,
+      sessionId: input.sessionId,
+      openResourceViewer: input.openResourceViewer,
+      onOpenResources: input.onOpenResources,
+    })
+    return true
+  } catch (error) {
+    if (input.signal.aborted) return true
+    logger.warn('Session Summary extension resource action failed', { error: String(error) })
+    input.showToast(
+      error instanceof Error ? error.message : 'Extension resource action failed.',
+      'error',
+    )
+    return true
+  }
+}
+
+function activateResolvedExtensionSurface(input: {
+  readonly resolution: SessionSummaryActionResolution
+  readonly family: string
+  readonly onOpenSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
+  readonly setDialogEntry: (entry: ExtensionContributionRegistryEntry) => void
+}) {
+  const { entry } = input.resolution
+  if (input.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS) {
+    input.onOpenSidePanel?.({
+      extensionId: entry.extensionId,
+      sidePanelId: entry.contributionId,
+      packagePath: entry.packagePath,
+      contentHash: entry.contentHash,
+    })
+    return true
+  }
+  if (input.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS) {
+    input.setDialogEntry(entry)
+    return true
+  }
+  return false
+}
+
 export function useSessionSummaryExtensionActions(input: {
   readonly registry: ExtensionContributionRegistryView
   readonly projectPaths: readonly string[]
@@ -93,6 +234,16 @@ export function useSessionSummaryExtensionActions(input: {
   const openResourceViewer = useUIStore((state) => state.openResourceViewer)
   const showToast = useUIStore((state) => state.showToast)
   const [dialogEntry, setDialogEntry] = useState<ExtensionContributionRegistryEntry | null>(null)
+  const activeOperation = useRef<SessionSummaryActionOperation | null>(null)
+  useEffect(() => {
+    const owningSessionId = input.sessionId
+    return () => {
+      const operation = activeOperation.current
+      if (!operation || operation.sessionId !== owningSessionId) return
+      operation.controller.abort()
+      activeOperation.current = null
+    }
+  }, [input.sessionId])
   const payload = {
     surface: 'session-summary',
     sessionId: input.sessionId,
@@ -104,57 +255,46 @@ export function useSessionSummaryExtensionActions(input: {
     section: ExtensionContributionRegistryEntry,
     row: ExtensionSessionSummaryRowView,
   ) {
+    activeOperation.current?.controller.abort()
+    const controller = new AbortController()
+    activeOperation.current = { controller, sessionId: input.sessionId }
     if (row.resourceId) {
-      const resource = input.resources.find(({ id }) => id === row.resourceId)
-      await activateResourceRow({
-        resource,
+      const resourceHandled = await activateExtensionResourceRow({
+        resources: input.resources,
         resourceId: row.resourceId,
         sessionId: input.sessionId,
+        signal: controller.signal,
         openResourceViewer,
         onOpenResources: input.onOpenResources,
+        showToast,
       })
-      return
+      if (controller.signal.aborted) return
+      if (resourceHandled) return
     }
-    const entry = matchingSessionSummaryAction({ registry: input.registry, section, row })
-    if (!entry || !row.action) return
-    if (row.action.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS) {
-      input.onOpenSidePanel?.({
-        extensionId: entry.extensionId,
-        sidePanelId: entry.contributionId,
-        packagePath: entry.packagePath,
-        contentHash: entry.contentHash,
-      })
-      return
-    }
-    if (row.action.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS) {
-      setDialogEntry(entry)
-      return
-    }
-    if (!entry.capability || !entry.method) return
-    const scope = resolveExtensionCommandInvocationScope({
-      entry,
+    const resolution = resolveSessionSummaryAction({
+      registry: input.registry,
+      section,
+      row,
       projectPath: input.projectPaths[0] ?? null,
       sessionId: input.sessionId,
     })
-    if (!scope) return
-    try {
-      const result = await api.invokeExtension({
-        extensionId: entry.extensionId,
-        contributionId: entry.contributionId,
-        capability: entry.capability,
-        method: entry.method,
-        scope,
-        payload: {},
+    if (!resolution || resolution.kind === 'disabled-command' || !row.action) return
+    if (
+      activateResolvedExtensionSurface({
+        resolution,
+        family: row.action.family,
+        onOpenSidePanel: input.onOpenSidePanel,
+        setDialogEntry,
       })
-      if (!result.ok) {
-        showToast(result.error.message, 'error')
-        return
-      }
-      await refreshPreferencesAfterExtensionInvoke(result)
-    } catch (error) {
-      logger.warn('Session Summary extension command failed', { error: String(error) })
-      showToast('Extension command failed.', 'error')
-    }
+    )
+      return
+    if (resolution.kind !== 'command') return
+    await invokeSessionSummaryExtensionCommand({
+      entry: resolution.entry,
+      scope: resolution.scope,
+      signal: controller.signal,
+      showToast,
+    })
   }
 
   return { activateRow, dialogEntry, setDialogEntry, payload }

@@ -112,6 +112,11 @@ export interface ExtensionSessionResourcePublishPayload {
   readonly locator: string
 }
 
+export interface ExtensionSessionResourcesListPayload {
+  readonly cursor?: string | null
+  readonly limit?: number
+}
+
 export interface ExtensionSessionResourcesListResult {
   readonly extensionId: string
   readonly contributionId: string
@@ -119,6 +124,8 @@ export interface ExtensionSessionResourcesListResult {
   readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES
   readonly sessionId: string
   readonly resources: readonly ExtensionSessionResourceView[]
+  readonly total: number
+  readonly nextCursor: string | null
 }
 
 export interface ExtensionSessionResourcePublishResult {

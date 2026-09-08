@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   archiveSession,
   createSession,
+  deleteSession,
   establishSessionLineage,
+  getSessionHiveRelations,
+  hasDirectSessionWorkers,
   listArchivedSessions,
   setSessionDelegationState,
 } from '../session-details'
@@ -42,6 +45,80 @@ afterEach(async () => {
 })
 
 describe('session Hive lineage projection', () => {
+  it('returns only the opened Session and its immediate Hive relatives', async () => {
+    const queen = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'bounded-hive-queen',
+    })
+    const activeWorker = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'bounded-hive-active-worker',
+    })
+    const archivedWorker = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'bounded-hive-archived-worker',
+    })
+    for (const [worker, state] of [
+      [activeWorker, 'working'],
+      [archivedWorker, 'accepted'],
+    ] as const) {
+      await establishSessionLineage({
+        sessionId: worker.id,
+        parentSessionId: queen.id,
+        agentDefinitionName: 'reviewer',
+        delegationState: state,
+      })
+    }
+    await archiveSession(archivedWorker.id)
+
+    const unrelatedArchivedIds: SessionId[] = []
+    for (let index = 0; index < 12; index += 1) {
+      const unrelated = await createSession({
+        projectPath: '/tmp/unrelated',
+        piSessionId: `unrelated-archived-${String(index)}`,
+      })
+      unrelatedArchivedIds.push(unrelated.id)
+      await archiveSession(unrelated.id)
+    }
+
+    const relations = await getSessionHiveRelations(queen.id)
+    expect(relations.current?.id).toBe(queen.id)
+    expect(relations.parent).toBeNull()
+    expect(relations.workers.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([activeWorker.id, archivedWorker.id]),
+    )
+    expect(relations.workers).toHaveLength(2)
+    expect(relations.workers.find(({ id }) => id === archivedWorker.id)?.archived).toBe(true)
+
+    const transferredIds = new Set([
+      relations.current?.id,
+      relations.parent?.id,
+      ...relations.workers.map(({ id }) => id),
+    ])
+    for (const unrelatedId of unrelatedArchivedIds) {
+      expect(transferredIds.has(unrelatedId)).toBe(false)
+    }
+
+    const workerRelations = await getSessionHiveRelations(activeWorker.id)
+    expect(workerRelations.current?.id).toBe(activeWorker.id)
+    expect(workerRelations.parent?.id).toBe(queen.id)
+    expect(workerRelations.workers).toEqual([])
+  })
+
+  it('fails closed when delegation state is projected before worker lineage exists', async () => {
+    const independent = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'independent-session',
+    })
+
+    await expect(setSessionDelegationState(independent.id, 'accepted')).rejects.toThrow(
+      'before Session lineage is established',
+    )
+    expect((await listSessions()).find(({ id }) => id === independent.id)?.lineage?.role).not.toBe(
+      'worker',
+    )
+  })
+
   it('projects parent, worker, state, counts, and archived lineage from SQLite', async () => {
     const parent = await createSession({
       projectPath: '/tmp/hive',
@@ -88,5 +165,60 @@ describe('session Hive lineage projection', () => {
       parentSessionId: parent.id,
       delegationState: 'accepted',
     })
+  })
+
+  it('keeps a Queen until all direct Workers, including archived Workers, are deleted', async () => {
+    const queen = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'deletion-queen',
+    })
+    const activeWorker = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'active-worker',
+    })
+    const doneWorker = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'done-worker',
+    })
+    const archivedWorker = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'archived-worker',
+    })
+
+    for (const [worker, state] of [
+      [activeWorker, 'working'],
+      [doneWorker, 'accepted'],
+      [archivedWorker, 'accepted'],
+    ] as const) {
+      await establishSessionLineage({
+        sessionId: worker.id,
+        parentSessionId: queen.id,
+        agentDefinitionName: 'reviewer',
+        delegationState: state,
+      })
+    }
+    await archiveSession(archivedWorker.id)
+
+    expect(await hasDirectSessionWorkers(queen.id)).toBe(true)
+    await expect(deleteSession(queen.id)).rejects.toThrow(
+      "Delete this session's Workers before deleting their Queen session.",
+    )
+
+    const activeAfterBlockedDelete = await listSessions()
+    expect(activeAfterBlockedDelete.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([queen.id, activeWorker.id, doneWorker.id]),
+    )
+    expect((await listArchivedSessions()).map(({ id }) => id)).toContain(archivedWorker.id)
+
+    await expect(deleteSession(activeWorker.id)).rejects.toThrow(
+      'Stop this active Worker task before deleting its Session.',
+    )
+    expect((await listSessions()).map(({ id }) => id)).toContain(activeWorker.id)
+    await setSessionDelegationState(activeWorker.id, 'accepted')
+    await deleteSession(activeWorker.id)
+    await deleteSession(doneWorker.id)
+    await deleteSession(archivedWorker.id)
+    expect(await hasDirectSessionWorkers(queen.id)).toBe(false)
+    await expect(deleteSession(queen.id)).resolves.toBeUndefined()
   })
 })

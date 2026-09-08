@@ -66,10 +66,7 @@ export function SessionScopedExtensionSummarySections({
     (entry) =>
       entry.family === OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS &&
       entry.sessionSummary?.placement === placement &&
-      isEligibleSessionSummaryEntry(entry) &&
-      (entry.sessionSummary.rows.length > 0 ||
-        (entry.sessionSummary.state !== undefined &&
-          entry.sessionSummary.state.status !== 'ready')),
+      isEligibleSessionSummaryEntry(entry),
   )
   if (contributions.length === 0) return null
 
@@ -83,8 +80,8 @@ export function SessionScopedExtensionSummarySections({
           <ExtensionSessionSummarySection
             contribution={contribution}
             sessionId={sessionId}
+            projectPath={projectPaths[0] ?? null}
             registry={sessionRegistry}
-            resources={sessionResources}
             onActivate={(row) => void actions.activateRow(contribution, row)}
           />
         </PanelErrorBoundary>

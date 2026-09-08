@@ -116,12 +116,12 @@ function registerAgentRunHandlers() {
             },
           })
 
-          if (result.outcome === 'success') {
+          if (result.resourceMessages !== undefined) {
             yield* captureSuccessfulRunResources({
               sessionId,
               runId,
               payload: validatedPayload,
-              messages: result.resourceMessages ?? result.newMessages,
+              messages: result.resourceMessages,
               nodeIdByMessageId: result.resourceNodeIds ?? {},
               branchIdByMessageId: result.resourceBranchIds ?? {},
             }).pipe(Effect.catchAll(() => Effect.void))

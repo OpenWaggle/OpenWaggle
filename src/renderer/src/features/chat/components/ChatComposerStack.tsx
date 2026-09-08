@@ -231,6 +231,7 @@ export function ChatComposerStack({
         <div>
           <ComposerSessionSetupDock section={section} strip={strip} />
           <Composer
+            sessionId={activeSessionId}
             accessControl={
               <SessionAuthorizationModeMenu
                 projectPath={section.projectPath ?? null}

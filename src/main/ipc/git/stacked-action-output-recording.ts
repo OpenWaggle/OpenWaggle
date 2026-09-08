@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import type { GitRunStackedActionResult } from '@shared/types/git'
+import type { GitOutputRecordingResult, GitRunStackedActionResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import {
   type PendingCommitOutput,
@@ -8,6 +8,7 @@ import {
   putPendingSessionOutput,
   removePendingSessionOutput,
 } from '../../application/session-change-request-output-retry'
+import { beginPendingSessionOutputRetry } from '../../application/session-output-retry-backoff'
 import { withSessionResourceLock } from '../../application/session-resource-lock'
 import {
   recordSessionChangeRequest,
@@ -15,9 +16,21 @@ import {
   type SessionOutputOccurrenceContext,
 } from '../../application/session-resource-recording'
 import { createLogger } from '../../logger'
-import { broadcastToWindows } from '../../utils/broadcast'
 
 const logger = createLogger('ipc/git-stacked-action')
+
+function retryWasPersisted(output: GitOutputRecordingResult | undefined) {
+  return output?.ok === false && output.retryPersisted
+}
+
+function wakePendingOutputRetry(
+  sessionId: SessionId,
+  outputs: readonly (GitOutputRecordingResult | undefined)[],
+) {
+  return outputs.some(retryWasPersisted)
+    ? Effect.sync(() => beginPendingSessionOutputRetry(sessionId))
+    : Effect.void
+}
 
 function recordCommitOutputUnlocked(
   commit: PendingCommitOutput,
@@ -52,11 +65,7 @@ function recordCommitOutputUnlocked(
       yield* removePendingSessionOutput(winningPending).pipe(Effect.catchAll(() => Effect.void))
     }
     return { ok: true as const }
-  }).pipe(
-    Effect.tap(() =>
-      Effect.sync(() => broadcastToWindows('sessions:resources-invalidated', { sessionId })),
-    ),
-  )
+  })
 }
 
 /** Record one successful commit as a durable, retryable Session Output. */
@@ -68,7 +77,7 @@ export function recordSessionCommitOutput(
   return withSessionResourceLock(
     sessionId,
     recordCommitOutputUnlocked(commit, sessionId, occurrenceContext),
-  )
+  ).pipe(Effect.tap((output) => wakePendingOutputRetry(sessionId, [output])))
 }
 
 function attachCommitOutput(
@@ -78,8 +87,21 @@ function attachCommitOutput(
 ) {
   return Effect.gen(function* () {
     if (!result.commit) return result
+    if (result.commit.commitHash === null) {
+      return {
+        ...result,
+        commitOutput:
+          result.commit.commitOutput ??
+          ({
+            ok: false,
+            retryPersisted: false,
+            message:
+              'The commit was created without a resolvable full hash, so its Output was not recorded.',
+          } as const),
+      }
+    }
     const commitOutput = yield* recordCommitOutputUnlocked(
-      result.commit,
+      { commitHash: result.commit.commitHash, summary: result.commit.summary },
       sessionId,
       occurrenceContext,
     )
@@ -129,7 +151,6 @@ function recordChangeRequestOutput(
     if (queued._tag === 'Right') {
       yield* removePendingSessionOutput(winningPending).pipe(Effect.catchAll(() => Effect.void))
     }
-    broadcastToWindows('sessions:resources-invalidated', { sessionId })
     return { ...result, changeRequestOutput: { ok: true as const } }
   })
 }
@@ -145,5 +166,12 @@ export function recordStackedActionOutputs(
       const withCommit = yield* attachCommitOutput(result, sessionId, occurrenceContext)
       return yield* recordChangeRequestOutput(withCommit, sessionId, occurrenceContext)
     }),
+  ).pipe(
+    Effect.tap((recorded) =>
+      wakePendingOutputRetry(sessionId, [
+        recorded.commitOutput,
+        recorded.ok ? recorded.changeRequestOutput : undefined,
+      ]),
+    ),
   )
 }

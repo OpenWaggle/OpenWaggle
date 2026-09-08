@@ -14,6 +14,7 @@ import type {
   PinnedSessionMove,
   SessionDelegationState,
   SessionDetail,
+  SessionHiveRelations,
   SessionSummary,
   SessionWorktreePlan,
 } from '@shared/types/session'
@@ -26,6 +27,9 @@ export interface SessionProjectionRepositoryShape {
   readonly getOptional: (
     id: SessionId,
   ) => Effect.Effect<SessionDetail | null, SessionProjectionRepositoryError>
+  readonly getHiveRelations: (
+    id: SessionId,
+  ) => Effect.Effect<SessionHiveRelations, SessionProjectionRepositoryError>
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
@@ -40,6 +44,10 @@ export interface SessionProjectionRepositoryShape {
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
+  /** True while this Queen owns any direct Worker, archived Workers included. */
+  readonly hasDirectWorkers: (
+    id: SessionId,
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>

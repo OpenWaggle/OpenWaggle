@@ -78,20 +78,15 @@ export const defaultTaskServices: OpenWaggleServerTaskServices = {
           signal: input.signal,
           onEvent: () => undefined,
         })
-        if (result.outcome === 'success') {
+        if (result.resourceMessages !== undefined) {
           yield* captureSuccessfulRunResources({
             sessionId: input.sessionId,
             runId: input.runId,
             payload,
             messages: result.resourceMessages,
-            nodeIdByMessageId: result.resourceNodeIds,
-            branchIdByMessageId: result.resourceBranchIds,
+            nodeIdByMessageId: result.resourceNodeIds ?? {},
+            branchIdByMessageId: result.resourceBranchIds ?? {},
           }).pipe(Effect.catchAll(() => Effect.void))
-          yield* Effect.sync(() =>
-            broadcastToWindows('sessions:resources-invalidated', {
-              sessionId: input.sessionId,
-            }),
-          )
         }
         return result
       }),

@@ -7,6 +7,7 @@ interface SessionResourceViewerContentProps {
   readonly resource: SessionResource
   readonly zoom: ImageViewerZoom
   readonly canvasRef: RefObject<HTMLElement | null>
+  readonly onZoomChange: (zoom: ImageViewerZoom) => void
   readonly model: {
     readonly source: string | null
     readonly loading: boolean
@@ -15,6 +16,7 @@ interface SessionResourceViewerContentProps {
     readonly retryError: string | null
     readonly retrying: boolean
     readonly retry: () => Promise<void>
+    readonly onImageError: () => void
   }
 }
 
@@ -22,6 +24,7 @@ export function SessionResourceViewerContent({
   resource,
   zoom,
   canvasRef,
+  onZoomChange,
   model,
 }: SessionResourceViewerContentProps) {
   if (model.loading) {
@@ -44,9 +47,10 @@ export function SessionResourceViewerContent({
         {model.retryError ? <p className="text-sm text-error">{model.retryError}</p> : null}
         <Button
           variant="secondary"
-          disabled={model.retrying}
           aria-disabled={model.retrying}
-          onClick={() => void model.retry()}
+          onClick={() => {
+            if (!model.retrying) void model.retry()
+          }}
         >
           {model.retrying ? 'Retrying image…' : 'Retry image'}
         </Button>
@@ -59,6 +63,8 @@ export function SessionResourceViewerContent({
       source={model.source}
       zoom={zoom}
       canvasRef={canvasRef}
+      onZoomChange={onZoomChange}
+      onImageError={model.onImageError}
     />
   )
 }

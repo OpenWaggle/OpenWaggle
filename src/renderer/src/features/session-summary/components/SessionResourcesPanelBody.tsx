@@ -1,5 +1,6 @@
 import type { SessionResource } from '@shared/types/session-resource'
 import { CircleAlert, LoaderCircle } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type {
@@ -16,14 +17,18 @@ interface SessionResourcesPanelBodyProps {
     readonly target: SessionResourceBrowserTarget
     readonly filter: SessionResourceBrowserView
     readonly loading: boolean
+    readonly loadingMore: boolean
     readonly failed: boolean
     readonly errorMessage: string | null
     readonly retryError: string | null
     readonly retryingId: string | null
     readonly resources: readonly SessionResource[]
+    readonly total: number
+    readonly hasMore: boolean
     readonly visibleResources: readonly SessionResource[]
     readonly resourceGroups: readonly SessionResourceGroup[]
     readonly branchNames: SessionResourceBranchNames
+    readonly activePathNodeIds: ReadonlySet<string>
   }
   readonly onRetryResource: (resourceId: string) => void
   readonly onRetryCatalog: () => void
@@ -36,6 +41,16 @@ export function SessionResourcesPanelBody({
   onRetryCatalog,
   onShowMore,
 }: SessionResourcesPanelBodyProps) {
+  const selectedRowRef = useRef<HTMLDivElement>(null)
+  const selectedResourceVisible = model.visibleResources.some(
+    (resource) => resource.id === model.target.resourceId,
+  )
+
+  useEffect(() => {
+    if (!model.target.resourceId || !selectedResourceVisible) return
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [model.target.resourceId, selectedResourceVisible])
+
   return (
     <div
       className={cn('min-h-0 flex-1 space-y-2 overflow-y-auto p-3', model.loading && 'opacity-60')}
@@ -91,24 +106,38 @@ export function SessionResourcesPanelBody({
               </span>
             </h3>
             <div className="space-y-2">
-              {group.resources.map((resource) => (
-                <SessionResourceRow
-                  key={resource.id}
-                  resource={resource}
-                  sessionId={model.sessionId ?? ''}
-                  onRetry={() => onRetryResource(resource.id)}
-                  retrying={model.retryingId === resource.id}
-                  selected={resource.id === model.target.resourceId}
-                  view={model.filter}
-                  branchNames={model.branchNames}
-                />
-              ))}
+              {group.resources.map((resource) => {
+                const selected = resource.id === model.target.resourceId
+                return (
+                  <div key={resource.id} ref={selected ? selectedRowRef : undefined}>
+                    <SessionResourceRow
+                      resource={resource}
+                      sessionId={model.sessionId ?? ''}
+                      onRetry={() => onRetryResource(resource.id)}
+                      retrying={model.retryingId === resource.id}
+                      selected={selected}
+                      view={model.filter}
+                      branchNames={model.branchNames}
+                      activePathNodeIds={model.activePathNodeIds}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </section>
         ))}
-      {!model.failed && model.visibleResources.length < model.resources.length ? (
-        <Button variant="ghost" className="w-full" onClick={onShowMore}>
-          Show more ({model.resources.length - model.visibleResources.length})
+      {!model.failed && model.hasMore ? (
+        <Button
+          variant="ghost"
+          className="w-full"
+          aria-disabled={model.loadingMore}
+          onClick={() => {
+            if (!model.loadingMore) onShowMore()
+          }}
+        >
+          {model.loadingMore
+            ? 'Loading more…'
+            : `Show more (${String(Math.max(0, model.total - model.resources.length))})`}
         </Button>
       ) : null}
       {!model.loading && !model.failed && model.resources.length === 0 ? (

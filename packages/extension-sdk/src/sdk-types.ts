@@ -17,6 +17,7 @@ import type {
   ExtensionRuntimeUnregisterContributionResult,
   ExtensionSessionResourcePublishPayload,
   ExtensionSessionResourcePublishResult,
+  ExtensionSessionResourcesListPayload,
   ExtensionSessionResourcesListResult,
   ExtensionSettingsGetResult,
   ExtensionSettingsGetSettingResult,
@@ -227,6 +228,7 @@ export type ExtensionSessionInvokeScope = Extract<
 export interface ExtensionOpenWaggleResourcesSdk {
   readonly list: (
     scope: ExtensionSessionInvokeScope,
+    input?: ExtensionSessionResourcesListPayload,
   ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>
   readonly publish: (
     scope: ExtensionSessionInvokeScope,

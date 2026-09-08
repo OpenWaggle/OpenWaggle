@@ -118,12 +118,34 @@ export function latestResourceOccurrence(
   resource: SessionResource,
   view: SessionResourceBrowserView,
 ): SessionResourceOccurrence | null {
+  return preferredResourceOccurrence(resource, new Set(), view)
+}
+
+function laterOccurrence(
+  current: SessionResourceOccurrence | null,
+  candidate: SessionResourceOccurrence,
+) {
+  if (!current || candidate.createdAt > current.createdAt) return candidate
+  if (candidate.createdAt < current.createdAt) return current
+  return candidate.id.localeCompare(current.id) > 0 ? candidate : current
+}
+
+/** Selects provenance for the visible transcript path before falling back to session history. */
+export function preferredResourceOccurrence(
+  resource: SessionResource,
+  activePathNodeIds: ReadonlySet<string>,
+  view: SessionResourceBrowserView | null,
+): SessionResourceOccurrence | null {
   let latest: SessionResourceOccurrence | null = null
+  let latestOnActivePath: SessionResourceOccurrence | null = null
   for (const occurrence of resource.occurrences) {
-    if (!occurrenceMatchesView(occurrence, view)) continue
-    if (!latest || occurrence.createdAt > latest.createdAt) latest = occurrence
+    if (view && !occurrenceMatchesView(occurrence, view)) continue
+    latest = laterOccurrence(latest, occurrence)
+    if (occurrence.nodeId && activePathNodeIds.has(occurrence.nodeId)) {
+      latestOnActivePath = laterOccurrence(latestOnActivePath, occurrence)
+    }
   }
-  return latest
+  return latestOnActivePath ?? latest
 }
 
 function actorLabel(actor: SessionResourceActor, suppliedLabel: string | null) {

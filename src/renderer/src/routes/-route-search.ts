@@ -2,7 +2,12 @@ import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
-export type ChatBuiltInRightPanel = 'diff' | 'file' | 'resources' | 'session-tree'
+export type ChatBuiltInRightPanel =
+  | 'change-request'
+  | 'diff'
+  | 'file'
+  | 'resources'
+  | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -24,6 +29,8 @@ export interface ChatRouteSearch {
   readonly sidePanelId?: string
   readonly sidePanelPackagePath?: string
   readonly sidePanelContentHash?: string
+  readonly changeRequestUrl?: string
+  readonly changeRequestSessionId?: string
 }
 
 export interface ChatBuiltInRouteSearch extends ChatRouteSearch {
@@ -57,7 +64,14 @@ function parseSearchToken(value: unknown) {
 
 function parseRightPanel(value: unknown) {
   return isMatching(
-    P.union('diff', 'file', 'resources', 'session-tree', EXTENSION_SIDE_PANEL_ROUTE_PANEL),
+    P.union(
+      'change-request',
+      'diff',
+      'file',
+      'resources',
+      'session-tree',
+      EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+    ),
     value,
   )
     ? value
@@ -130,10 +144,34 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
     }
   }
 
+  if (panel === 'change-request') {
+    const changeRequestUrl = parseSearchToken(search.changeRequestUrl)
+    const changeRequestSessionId = parseSearchToken(search.changeRequestSessionId)
+    return changeRequestUrl && changeRequestSessionId
+      ? { ...base, panel, changeRequestUrl, changeRequestSessionId }
+      : base
+  }
+
   return {
     ...base,
     ...(panel ? { panel } : {}),
   }
+}
+
+/** Prevent a request route retained during navigation from binding to another opened Session. */
+export function changeRequestUrlFromSearch(
+  search: ChatRouteSearch,
+  openedSessionId: string | null,
+): string | null {
+  if (
+    search.panel !== 'change-request' ||
+    !search.changeRequestUrl ||
+    !search.changeRequestSessionId ||
+    search.changeRequestSessionId !== openedSessionId
+  ) {
+    return null
+  }
+  return search.changeRequestUrl
 }
 
 export function resourceBrowserTargetFromSearch(

@@ -1,9 +1,9 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { PreparedAttachment } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
@@ -13,6 +13,11 @@ import {
   rememberPreparedAttachment,
 } from '../utils/attachment-registry'
 import {
+  contentSha256,
+  discardRegisteredImageAttachment,
+  prepareRegisteredAttachment,
+} from './attachment-preparation'
+import {
   buildTempPromptFilename,
   cleanupTempAttachments,
   ensureTempAttachmentsDirectory,
@@ -20,20 +25,16 @@ import {
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
-import {
-  DOCX_MIME_TYPE,
-  extractAttachmentText,
-  ODT_MIME_TYPE,
-  RTF_MIME_TYPE,
-} from './attachment-text-extraction'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
-const logger = createLogger('ipc/attachments')
+export {
+  discardRegisteredImageAttachment,
+  prepareRegisteredAttachment,
+  prepareRegisteredImageAttachmentFromBytes,
+} from './attachment-preparation'
 
-function contentSha256(bytes: Uint8Array) {
-  return createHash('sha256').update(bytes).digest('hex')
-}
+const logger = createLogger('ipc/attachments')
 
 const prepareArgsSchema = Schema.Struct({
   projectPath: Schema.String.pipe(Schema.minLength(1)),
@@ -50,91 +51,6 @@ function describeUnknownError(error: unknown) {
   }
 
   return { message: String(error) }
-}
-
-function resolveAttachmentKind(mimeType: string) {
-  if (mimeType === 'application/pdf') return 'pdf'
-  if (mimeType.startsWith('image/')) return 'image'
-  return 'text'
-}
-
-function guessMimeType(filePath: string) {
-  const ext = path.extname(filePath).toLowerCase()
-  return match(ext)
-    .with('.pdf', () => 'application/pdf')
-    .with('.png', () => 'image/png')
-    .with('.jpg', () => 'image/jpeg')
-    .with('.jpeg', () => 'image/jpeg')
-    .with('.webp', () => 'image/webp')
-    .with('.gif', () => 'image/gif')
-    .with('.bmp', () => 'image/bmp')
-    .with('.svg', () => 'image/svg+xml')
-    .with('.md', () => 'text/markdown')
-    .with('.json', () => 'application/json')
-    .with('.yaml', () => 'application/yaml')
-    .with('.yml', () => 'application/yaml')
-    .with('.xml', () => 'application/xml')
-    .with('.csv', () => 'text/csv')
-    .with('.log', () => 'text/plain')
-    .with('.docx', () => DOCX_MIME_TYPE)
-    .with('.rtf', () => RTF_MIME_TYPE)
-    .with('.odt', () => ODT_MIME_TYPE)
-    .with('.ts', () => 'text/plain')
-    .with('.tsx', () => 'text/plain')
-    .with('.js', () => 'text/plain')
-    .with('.jsx', () => 'text/plain')
-    .with('.mjs', () => 'text/plain')
-    .with('.cjs', () => 'text/plain')
-    .with('.py', () => 'text/plain')
-    .with('.java', () => 'text/plain')
-    .with('.go', () => 'text/plain')
-    .with('.rs', () => 'text/plain')
-    .with('.swift', () => 'text/plain')
-    .with('.kt', () => 'text/plain')
-    .with('.css', () => 'text/plain')
-    .with('.scss', () => 'text/plain')
-    .with('.sass', () => 'text/plain')
-    .with('.less', () => 'text/plain')
-    .with('.html', () => 'text/plain')
-    .with('.htm', () => 'text/plain')
-    .with('.txt', () => 'text/plain')
-    .otherwise(() => null)
-}
-
-async function prepareAttachment(filePath: string): Promise<PreparedAttachment> {
-  const stats = await fs.stat(filePath)
-  if (!stats.isFile()) {
-    throw new Error(`Not a file: ${filePath}`)
-  }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-    )
-  }
-
-  const mimeType = guessMimeType(filePath)
-  if (!mimeType) {
-    throw new Error(
-      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images, PDFs.`,
-    )
-  }
-  const buffer = await fs.readFile(filePath)
-  const kind = resolveAttachmentKind(mimeType)
-  const attachmentName = path.basename(filePath)
-
-  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
-
-  return {
-    id: randomUUID(),
-    kind,
-    origin: 'user-file',
-    name: path.basename(filePath),
-    path: filePath,
-    mimeType,
-    sizeBytes: stats.size,
-    contentSha256: contentSha256(buffer),
-    extractedText,
-  }
 }
 
 export { hydrateAttachmentSources } from '../utils/attachment-hydration'
@@ -180,8 +96,7 @@ function registerPrepareAttachmentHandler() {
 
       const prepared: PreparedAttachment[] = []
       for (const filePath of resolvedPaths) {
-        const attachment = yield* Effect.promise(() => prepareAttachment(filePath))
-        yield* Effect.promise(() => rememberPreparedAttachment(attachment, filePath))
+        const attachment = yield* Effect.promise(() => prepareRegisteredAttachment(filePath))
         prepared.push(attachment)
       }
       return prepared
@@ -234,6 +149,15 @@ function registerPrepareFromTextAttachmentHandler() {
   )
 }
 
+function registerDiscardAttachmentHandler() {
+  typedHandle('attachments:discard', (_event, rawAttachment: unknown) =>
+    Effect.gen(function* () {
+      const attachment = decodeUnknownOrThrow(preparedAttachmentSchema, rawAttachment)
+      yield* Effect.promise(() => discardRegisteredImageAttachment(attachment))
+    }),
+  )
+}
+
 export function registerAttachmentHandlers(): void {
   configurePreparedAttachmentRegistry(app.getPath('userData'))
   void cleanupTempAttachments().catch((error: unknown) => {
@@ -242,4 +166,5 @@ export function registerAttachmentHandlers(): void {
 
   registerPrepareAttachmentHandler()
   registerPrepareFromTextAttachmentHandler()
+  registerDiscardAttachmentHandler()
 }

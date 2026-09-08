@@ -68,6 +68,7 @@ describe('SqliteSessionResourceRepositoryLive repair state', () => {
       actor: 'user',
       activity: 'provided',
       label: null,
+      locator: '/input/image.png',
       createdAt: 1000,
     } as const
 

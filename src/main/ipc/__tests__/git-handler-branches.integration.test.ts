@@ -154,11 +154,20 @@ describe('registerGitHandlers branches', () => {
           cb(null, '', '')
           return
         }
+        if (key === 'remote') {
+          cb(null, 'origin\n', '')
+          return
+        }
         if (key === 'show-ref --verify --quiet refs/heads/feature') {
           cb({ name: 'GitError', message: 'missing', code: 1, stdout: '', stderr: '' }, '', '')
           return
         }
-        if (key === 'checkout --track origin/feature') {
+        if (
+          key === 'branch --no-track feature origin/feature' ||
+          key === 'config branch.feature.remote origin' ||
+          key === 'config branch.feature.merge refs/heads/feature' ||
+          key === 'checkout feature'
+        ) {
           cb(null, "branch 'feature' set up to track 'origin/feature'\n", '')
           return
         }
@@ -179,8 +188,12 @@ describe('registerGitHandlers branches', () => {
     expect(gitCommands).toEqual([
       'rev-parse --is-inside-work-tree',
       'show-ref --verify --quiet refs/remotes/origin/feature',
+      'remote',
       'show-ref --verify --quiet refs/heads/feature',
-      'checkout --track origin/feature',
+      'branch --no-track feature origin/feature',
+      'config branch.feature.remote origin',
+      'config branch.feature.merge refs/heads/feature',
+      'checkout feature',
     ])
   })
 
@@ -206,6 +219,10 @@ describe('registerGitHandlers branches', () => {
           cb(null, '', '')
           return
         }
+        if (key === 'remote') {
+          cb(null, 'upstream\n', '')
+          return
+        }
         if (key === 'show-ref --verify --quiet refs/heads/main') {
           cb(null, '', '')
           return
@@ -228,6 +245,38 @@ describe('registerGitHandlers branches', () => {
       ok: false,
       code: 'branch-exists',
       message: 'Local branch "main" already exists and is not tracking "upstream/main".',
+    })
+  })
+
+  it('rejects ancestor and descendant ref collisions during read-only branch validation', async () => {
+    execFileMock.mockImplementation(
+      (
+        _cmd: string,
+        args: string[],
+        _opts: unknown,
+        cb: (err: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const key = args.join(' ')
+        if (key === 'rev-parse --is-inside-work-tree') return cb(null, 'true\n', '')
+        if (key === 'check-ref-format --branch feature/current/child') return cb(null, '', '')
+        if (key === 'for-each-ref --format=%(refname) refs/heads refs/remotes') {
+          return cb(null, 'refs/heads/feature/current\nrefs/remotes/origin/release/v1\n', '')
+        }
+        return cb(new Error(`Unexpected git command: ${key}`), '', '')
+      },
+    )
+
+    registerGitHandlers()
+    const result = await registeredHandler('git:branches:validate-name')?.(
+      {},
+      '/tmp/repo',
+      'feature/current/child',
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'branch-exists',
+      message: 'Branch "feature/current/child" conflicts with existing ref "feature/current".',
     })
   })
 })

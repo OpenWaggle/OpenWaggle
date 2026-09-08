@@ -139,6 +139,7 @@ export function setupChangeRequestComposerMocks() {
     },
     browserUrl:
       'https://github.com/openwaggle/openwaggle/compare?expand=1&title=Explore+image+hub+parity',
+    plannedHeadRef: 'codex/explore-image-hub-parity',
   })
   openExternal.mockReset().mockResolvedValue(undefined)
   recordSessionChangeRequest.mockReset().mockResolvedValue(

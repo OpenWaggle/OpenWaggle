@@ -8,7 +8,12 @@ interface ExtensionRightSidebarPanel {
   readonly extensionId: string
   readonly sidePanelId: string
 }
-type RightSidebarPanel = 'diff' | 'resources' | 'session-tree' | ExtensionRightSidebarPanel
+type RightSidebarPanel =
+  | 'change-request'
+  | 'diff'
+  | 'resources'
+  | 'session-tree'
+  | ExtensionRightSidebarPanel
 interface ShellState {
   readonly lastRightSidebarPanel: RightSidebarPanel
   readonly setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
@@ -74,6 +79,20 @@ vi.mock('@/features/session-tree/components', () => ({
 }))
 
 vi.mock('@/features/session-summary', () => ({
+  ChangeRequestPanel: ({
+    requestUrl,
+    onClose,
+  }: {
+    readonly requestUrl: string | null
+    readonly onClose: () => void
+  }) => (
+    <aside>
+      Change request panel: {requestUrl}
+      <Button variant="unstyled" type="button" onClick={onClose}>
+        Close change request
+      </Button>
+    </aside>
+  ),
   SessionResourcesPanel: ({
     target,
     onClose,
@@ -222,6 +241,21 @@ describe('route surfaces', () => {
     expect(routeSurfaceMocks.setLastRightSidebarPanel).toHaveBeenCalledWith('diff')
     expect(onDiffOpenChange).toHaveBeenCalledWith(false)
     expect(onSessionTreeOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('routes a bound change request to the in-app sidebar and clears it on close', () => {
+    const onChangeRequestOpenChange = vi.fn()
+    renderChatRoute({
+      rightSidebar: { changeRequestUrl: 'https://github.com/o/r/pull/7' },
+      actions: { onChangeRequestOpenChange },
+    })
+
+    expect(
+      screen.getByText('Change request panel: https://github.com/o/r/pull/7'),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close change request' }))
+    expect(routeSurfaceMocks.setLastRightSidebarPanel).toHaveBeenCalledWith('change-request')
+    expect(onChangeRequestOpenChange).toHaveBeenCalledWith(false, undefined)
   })
 
   it('renders Session Tree when that panel is open and routes close events to the tree toggle', async () => {

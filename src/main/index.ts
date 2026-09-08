@@ -4,7 +4,9 @@ import { app } from 'electron'
 import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { cleanupPendingSessionResourcesSafely } from './application/session-resource-cleanup'
+import { openSessionResourceContentStream } from './application/session-resource-content'
 import { installDevToolsShortcut } from './application-menu'
+import { registerApplicationProtocols } from './application-protocols'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import {
   configureDesktopUiAfterReady,
@@ -14,11 +16,8 @@ import {
 } from './desktop-window-policy'
 import { env } from './env'
 import { describeError } from './error-description'
-import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
-import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
-import { openExternalFromRenderer } from './external-navigation'
+import { installExternalNavigationGuard } from './external-navigation'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
-import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import {
@@ -27,7 +26,6 @@ import {
   INDEX_HTML,
   isTrustedRendererRequest,
   RENDERER_PROTOCOL_ORIGIN,
-  registerRendererProtocolOnce,
   registerRendererScheme,
   rendererUrlWithAutomationIdentity,
 } from './renderer-protocol'
@@ -168,11 +166,13 @@ async function bootstrapServicesAndWindow() {
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')
 
-  registerRendererProtocolOnce()
-  registerExtensionFrameProtocolOnce()
-  registerExtensionRuntimeProtocolOnce()
-  registerInlineVisualizationProtocolOnce({
-    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  registerApplicationProtocols({
+    readInlineVisualizationSource: (input) =>
+      runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+    readSessionResourceContent: (input) =>
+      runtimeModule.runAppEffect(
+        openSessionResourceContentStream(input.sessionId, input.resourceId),
+      ),
   })
   startupMark('protocol-handlers-registered')
 
@@ -221,20 +221,10 @@ function createWindow() {
     mainWindow.webContents.send('window:fullscreen-changed', false)
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    openExternalFromRenderer(details.url)
-    return { action: 'deny' }
-  })
-
   // Prevent in-app navigation — all external URLs open in the user's default browser
   const rendererOrigin =
     is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : RENDERER_PROTOCOL_ORIGIN
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(rendererOrigin)) {
-      event.preventDefault()
-      openExternalFromRenderer(url)
-    }
-  })
+  installExternalNavigationGuard(mainWindow.webContents, rendererOrigin)
   installInlineVisualizationNavigationGuard(mainWindow.webContents)
 
   const mediaPermissions = new Set(['media', 'microphone'])

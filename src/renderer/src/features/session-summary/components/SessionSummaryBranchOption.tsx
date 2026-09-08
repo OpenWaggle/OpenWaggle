@@ -20,9 +20,12 @@ export function SessionSummaryBranchOption({
     <Button
       variant="unstyled"
       type="button"
-      disabled={busy || selected}
+      disabled={selected}
+      aria-disabled={busy || selected}
       className={DENSE_MENU_ITEM_CLASS}
-      onClick={() => onFinish(onSelect(candidate.name))}
+      onClick={() => {
+        if (!busy && !selected) onFinish(onSelect(candidate.name))
+      }}
     >
       <GitBranch aria-hidden="true" className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{candidate.name}</span>

@@ -1,15 +1,17 @@
-import type { SourceControlProviderId } from '@shared/types/git'
+import type { SourceControlProviderId, SourceControlRepositoryIdentity } from '@shared/types/git'
 import type { SourceControlProvider } from '../../ports/source-control-provider'
-import { githubProvider } from './gh-cli-adapter'
-import { gitlabProvider } from './glab-cli-adapter'
+import { createGithubProvider } from './gh-cli-adapter'
+import { createGitlabProvider } from './glab-cli-adapter'
 
 /** Select the CLI-backed source control provider adapter for a provider id. */
 export function getSourceControlProvider(
   id: SourceControlProviderId | null | undefined,
+  repository: SourceControlRepositoryIdentity | null,
 ): SourceControlProvider | null {
-  if (id === 'github') return githubProvider
-  if (id === 'gitlab') return gitlabProvider
+  if (!repository || repository.provider !== id) return null
+  if (id === 'github') return createGithubProvider(repository)
+  if (id === 'gitlab') return createGitlabProvider(repository)
   return null
 }
 
-export { githubProvider, gitlabProvider }
+export { createGithubProvider, createGitlabProvider }

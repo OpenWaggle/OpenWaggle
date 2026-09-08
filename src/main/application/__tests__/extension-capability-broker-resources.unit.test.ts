@@ -95,6 +95,7 @@ function privateResource(sessionId: string, id: string): SessionResource {
         actor: 'user',
         activity: 'provided',
         label: 'private-label',
+        locator: `/private/${id}.png`,
         createdAt: 1,
       },
       {
@@ -104,6 +105,7 @@ function privateResource(sessionId: string, id: string): SessionResource {
         actor: 'agent',
         activity: 'updated',
         label: null,
+        locator: `/private/${id}.png`,
         createdAt: 2,
       },
     ],
@@ -183,6 +185,7 @@ describe('extension session resource capability', () => {
     expect(publications).toHaveLength(1)
     expect(publications.every(({ sessionId }) => sessionId === SessionId(SESSION_ID))).toBe(true)
     expect(publications.every(({ occurrence }) => occurrence.actor === 'extension')).toBe(true)
+    expect(publications[0]?.occurrence.locator).toBe('https://example.com/releases/1')
     expect(
       test.resources().find(({ title }) => title === 'Release notes')?.occurrences,
     ).toHaveLength(1)

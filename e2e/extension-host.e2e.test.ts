@@ -119,7 +119,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
       projectPath,
       messages: [seededProjectMessage()],
     })
-    const otherSessionId = await seedSingleSession(app.userDataDir, {
+    await seedSingleSession(app.userDataDir, {
       title: OTHER_SESSION_TITLE,
       updatedAt: Date.now() - 1,
       projectPath,
@@ -134,7 +134,8 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await setActiveProjectForExtensionQa(app.window(), projectPath)
     await app.restart()
 
-    const page = app.window()
+    const mainWindow = app.mainWindow()
+    const page = mainWindow.page
     const consoleErrors: string[] = []
     const pageErrors: string[] = []
     page.on('console', (message) => {
@@ -175,11 +176,35 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
       page.getByRole('heading', { name: GITHUB_ISSUES_SETTINGS_TITLE }),
     ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
 
-    await app.mainWindow().openThread(SEEDED_SESSION_TITLE)
+    const sessionUrl = new URL(page.url())
+    sessionUrl.hash = `#/sessions/${seededSessionId}`
+    await page.goto(sessionUrl.toString())
+    await expect(
+      page
+        .locator('[data-qa="header-session-title"]')
+        .getByText(SEEDED_SESSION_TITLE, { exact: true }),
+    ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
+    await expect(mainWindow.messageInput()).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
     await expect(summary).toBeVisible()
-    await expect(summary.getByRole('button', { name: 'GitHub Issues 1' })).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'GitHub Issues 2' })).toBeVisible()
     await expect(summary.getByRole('status')).toContainText('Extension data is available')
+    await summary.getByRole('button', { name: 'Inspect session context' }).click()
+    const extensionDialog = page.getByRole('dialog', { name: 'GitHub Session Context' })
+    await expect(extensionDialog).toBeVisible()
+    const dialogFrame = page.frameLocator(
+      'iframe[title="Extension module: GitHub Session Context"]',
+    )
+    await expect(dialogFrame.getByRole('heading', { name: 'Session Summary context' })).toBeVisible({
+      timeout: EXTENSION_MOUNT_TIMEOUT,
+    })
+    await expect(dialogFrame.getByText('Surface: session-summary', { exact: true })).toBeVisible()
+    await expect(dialogFrame.getByText(`Session: ${seededSessionId}`, { exact: true })).toBeVisible()
+    await expect(dialogFrame.getByText(`Project: ${projectPath}`, { exact: true })).toBeVisible()
+    await expect(dialogFrame.getByText('Messages: 1', { exact: true })).toBeVisible()
+    await extensionDialog.getByRole('button', { name: 'Close extension dialog' }).click()
+    await expect(extensionDialog).toHaveCount(0)
+    await expect(summary).toBeVisible()
     await summary.getByRole('button', { name: 'Open issues overview' }).click()
     const extensionSidePanel = page.getByRole('region', { name: 'Extension side panel' })
     await expect(extensionSidePanel).toBeVisible()
@@ -263,12 +288,11 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await expect(page).not.toHaveURL(/panel=extension-side-panel/u)
     await expectRightSidebarClosed(page)
 
-    const summary = await openSessionSummary(page)
+    await openSessionSummary(page)
     await dispatchButtonClick(summary.getByRole('button', { name: /Outputs/ }))
     await expect(summary.getByText('GitHub session report')).toBeVisible()
-    const [baseUrl] = page.url().split('#')
-    await page.goto(`${baseUrl}#/sessions/${otherSessionId}`)
-    await expect(page.getByText(OTHER_SESSION_TITLE).first()).toBeVisible()
+    await mainWindow.openThread(OTHER_SESSION_TITLE)
+    await expect(page.getByRole('complementary', { name: 'Session Summary' })).toBeVisible()
     await expect(
       page.getByRole('complementary', { name: 'Session Summary' }).getByText('GitHub session report'),
     ).toHaveCount(0)

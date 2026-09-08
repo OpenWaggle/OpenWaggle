@@ -9,6 +9,7 @@ import { runStackedGitAction, type StackedActionDeps } from '../stacked-action-s
 
 const execFileAsync = promisify(execFile)
 const IDENTITY = ['-c', 'user.name=OpenWaggle Test', '-c', 'user.email=test@openwaggle.local']
+const PROVIDER_REPOSITORY_URL = 'https://github.com/openwaggle/openwaggle.git'
 
 async function git(cwd: string, args: readonly string[]) {
   const result = await execFileAsync('git', [...IDENTITY, ...args], { cwd })
@@ -77,10 +78,18 @@ describe('stacked change-request workflow integration', () => {
       openChangeRequest,
       resolveCurrentRef: () => git(repository, ['branch', '--show-current']),
       resolveDefaultBaseRef: async () => 'main',
-      resolvePrimaryRemoteUrl: async () => remote,
+      // The real push stays local, while the provider boundary receives the repository identity
+      // that production resolves from the configured host remote.
+      resolvePrimaryRemoteUrl: async () => PROVIDER_REPOSITORY_URL,
       preflightChangeRequest: async () => ({
         ok: true,
         status: { authenticated: true, account: 'test', host: 'github.test' },
+      }),
+      resolveApprovedPushDestination: async () => ({
+        remote: 'origin',
+        branch: 'codex/review-ready',
+        remoteUrl: PROVIDER_REPOSITORY_URL,
+        multiplePushUrls: false,
       }),
       buildChangeRequestFallbackUrl: async () => null,
     }

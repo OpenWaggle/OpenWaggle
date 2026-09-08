@@ -3,7 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import sharp from 'sharp'
 import { buildSafeElectronEnvironment } from '../scripts/safe-electron-environment'
 import { OpenWaggleApp } from './support/openwaggle-app'
@@ -95,6 +95,7 @@ async function createFakeSourceControlCliBin() {
   }
 
   const gh = `#!/bin/sh
+merged_state="$(dirname "$0")/gh-merged"
 if [ "$1" = "auth" ]; then
   case "$(pwd -P)" in
     *browser-fallback*) echo "authentication required" >&2; exit 1 ;;
@@ -103,19 +104,37 @@ if [ "$1" = "auth" ]; then
   exit 0
 fi
 if [ "$1" = "pr" ] && [ "$2" = "create" ]; then echo "https://github.com/openwaggle/e2e/pull/42"; exit 0; fi
-if [ "$1" = "pr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
+if [ "$1" = "pr" ] && [ "$2" = "merge" ]; then printf '%s\n' "$*" > "$merged_state"; exit 0; fi
+if [ "$1" = "pr" ] && [ "$2" = "view" ] && [ "$3" != "main" ]; then
+  if [ -f "$merged_state" ]; then
+    echo '{"number":42,"title":"Session Summary GitHub change request","url":"https://github.com/openwaggle/e2e/pull/42","baseRefName":"main","headRefName":"codex/session-summary-github-change-request-2","headRefOid":"abcdef1234567890","state":"MERGED","isDraft":false,"author":{"login":"openwaggle-e2e"},"changedFiles":1,"additions":4,"deletions":1,"files":[{"path":"README.md","additions":4,"deletions":1}],"statusCheckRollup":[{"name":"Unit","status":"COMPLETED","conclusion":"SUCCESS"}],"latestReviews":[{"id":"review-1"}],"comments":[{"id":"comment-1"}],"reviewDecision":"APPROVED","mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}'
+    exit 0
+  fi
+  echo '{"number":42,"title":"Session Summary GitHub change request","url":"https://github.com/openwaggle/e2e/pull/42","baseRefName":"main","headRefName":"codex/session-summary-github-change-request-2","headRefOid":"abcdef1234567890","state":"OPEN","isDraft":false,"author":{"login":"openwaggle-e2e"},"changedFiles":1,"additions":4,"deletions":1,"files":[{"path":"README.md","additions":4,"deletions":1}],"statusCheckRollup":[{"name":"Unit","status":"COMPLETED","conclusion":"SUCCESS"}],"latestReviews":[{"id":"review-1"}],"comments":[{"id":"comment-1"}],"reviewDecision":"APPROVED","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}'
+  exit 0
+fi
+if [ "$1" = "pr" ] && [ "$2" = "list" ]; then echo '[{"title":"Session Summary GitHub change request","url":"https://github.com/openwaggle/e2e/pull/42","baseRefName":"main","headRefName":"codex/session-summary-github-change-request-2","state":"OPEN","isDraft":false}]'; exit 0; fi
 echo "no pull requests found" >&2
 exit 1
 `
   const glab = `#!/bin/sh
 if [ "$1" = "auth" ]; then echo "Logged in to gitlab.com as openwaggle-e2e"; exit 0; fi
 if [ "$1" = "mr" ] && [ "$2" = "create" ]; then echo "https://gitlab.com/openwaggle/e2e/-/merge_requests/42"; exit 0; fi
-if [ "$1" = "mr" ] && [ "$2" = "list" ]; then echo "[]"; exit 0; fi
+if [ "$1" = "mr" ] && [ "$2" = "view" ] && [ "$3" != "main" ]; then
+  echo '{"iid":42,"title":"Session Summary GitLab change request","web_url":"https://gitlab.com/openwaggle/e2e/-/merge_requests/42","target_branch":"main","source_branch":"codex/session-summary-gitlab-change-request","sha":"abcdef1234567890","state":"opened","draft":true,"author":{"username":"openwaggle-e2e"},"changes_count":"1","diff_stats":[{"path":"README.md","additions":4,"deletions":1}],"head_pipeline":{"name":"Pipeline","status":"success"},"user_notes_count":1,"approvals_left":0,"merge_status":"can_be_merged"}'
+  exit 0
+fi
+if [ "$1" = "mr" ] && [ "$2" = "list" ]; then echo '[{"title":"Session Summary GitLab change request","web_url":"https://gitlab.com/openwaggle/e2e/-/merge_requests/42","target_branch":"main","source_branch":"codex/session-summary-gitlab-change-request","state":"opened","draft":true}]'; exit 0; fi
 echo "no merge request found" >&2
 exit 1
 `
   const git = `#!/bin/sh
 if [ "$1" = "fetch" ]; then exit 0; fi
+# Preserve production's invocation-only URL pin while mapping the hosted fixture to its bare repo.
+case "$GIT_CONFIG_KEY_0" in
+  url.https://github.com/openwaggle/e2e.git.insteadOf|url.https://gitlab.com/openwaggle/e2e.git.insteadOf)
+    export GIT_CONFIG_KEY_0="url.$(pwd -P)-remote.git.insteadOf" ;;
+esac
 if [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "--push" ] && [ "$4" = "--all" ]; then
   exec ${JSON.stringify(realGitPath)} config --get "remote.$5.url"
 fi
@@ -156,6 +175,8 @@ using System.Text;
 public static class Program {
   public static int Main(string[] args) {
     var command = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
+    var executableDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+    var mergedStatePath = Path.Combine(executableDirectory, "gh-merged");
     if (command == "git") return RunGit(args);
     if (args.Length > 0 && args[0] == "auth") {
       if (command == "gh" && Directory.GetCurrentDirectory().Contains("browser-fallback")) {
@@ -169,12 +190,28 @@ public static class Program {
       Console.WriteLine("https://github.com/openwaggle/e2e/pull/42");
       return 0;
     }
+    if (command == "gh" && args.Length > 1 && args[0] == "pr" && args[1] == "merge") {
+      File.WriteAllText(mergedStatePath, String.Join(" ", args));
+      return 0;
+    }
+    if (command == "gh" && args.Length > 2 && args[0] == "pr" && args[1] == "view" && args[2] != "main") {
+      var details = "{\"number\":42,\"title\":\"Session Summary GitHub change request\",\"url\":\"https://github.com/openwaggle/e2e/pull/42\",\"baseRefName\":\"main\",\"headRefName\":\"codex/session-summary-github-change-request-2\",\"headRefOid\":\"abcdef1234567890\",\"state\":\"OPEN\",\"isDraft\":false,\"author\":{\"login\":\"openwaggle-e2e\"},\"changedFiles\":1,\"additions\":4,\"deletions\":1,\"files\":[{\"path\":\"README.md\",\"additions\":4,\"deletions\":1}],\"statusCheckRollup\":[{\"name\":\"Unit\",\"status\":\"COMPLETED\",\"conclusion\":\"SUCCESS\"}],\"latestReviews\":[{\"id\":\"review-1\"}],\"comments\":[{\"id\":\"comment-1\"}],\"reviewDecision\":\"APPROVED\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\"}";
+      if (File.Exists(mergedStatePath)) {
+        details = details.Replace("\"state\":\"OPEN\"", "\"state\":\"MERGED\"");
+      }
+      Console.WriteLine(details);
+      return 0;
+    }
     if (command == "glab" && args.Length > 1 && args[0] == "mr" && args[1] == "create") {
       Console.WriteLine("https://gitlab.com/openwaggle/e2e/-/merge_requests/42");
       return 0;
     }
+    if (command == "glab" && args.Length > 2 && args[0] == "mr" && args[1] == "view" && args[2] != "main") {
+      Console.WriteLine("{\"iid\":42,\"title\":\"Session Summary GitLab change request\",\"web_url\":\"https://gitlab.com/openwaggle/e2e/-/merge_requests/42\",\"target_branch\":\"main\",\"source_branch\":\"codex/session-summary-gitlab-change-request\",\"sha\":\"abcdef1234567890\",\"state\":\"opened\",\"draft\":true,\"author\":{\"username\":\"openwaggle-e2e\"},\"changes_count\":\"1\",\"diff_stats\":[{\"path\":\"README.md\",\"additions\":4,\"deletions\":1}],\"head_pipeline\":{\"name\":\"Pipeline\",\"status\":\"success\"},\"user_notes_count\":1,\"approvals_left\":0,\"merge_status\":\"can_be_merged\"}");
+      return 0;
+    }
     if (args.Length > 1 && (args[1] == "list")) {
-      Console.WriteLine("[]");
+      Console.WriteLine(command == "gh" ? "[{\"title\":\"Session Summary GitHub change request\",\"url\":\"https://github.com/openwaggle/e2e/pull/42\",\"baseRefName\":\"main\",\"headRefName\":\"codex/session-summary-github-change-request-2\",\"state\":\"OPEN\",\"isDraft\":false}]" : "[{\"title\":\"Session Summary GitLab change request\",\"web_url\":\"https://gitlab.com/openwaggle/e2e/-/merge_requests/42\",\"target_branch\":\"main\",\"source_branch\":\"codex/session-summary-gitlab-change-request\",\"state\":\"opened\",\"draft\":true}]");
       return 0;
     }
     Console.Error.WriteLine(command == "gh" ? "no pull requests found" : "no merge request found");
@@ -194,6 +231,10 @@ public static class Program {
       RedirectStandardOutput = true,
       RedirectStandardError = true,
     };
+    var pinnedKey = Environment.GetEnvironmentVariable("GIT_CONFIG_KEY_0");
+    if (pinnedKey == "url.https://github.com/openwaggle/e2e.git.insteadOf" || pinnedKey == "url.https://gitlab.com/openwaggle/e2e.git.insteadOf") {
+      startInfo.EnvironmentVariables["GIT_CONFIG_KEY_0"] = "url." + Directory.GetCurrentDirectory() + "-remote.git.insteadOf";
+    }
     using (var process = Process.Start(startInfo)) {
       var stdout = process.StandardOutput.ReadToEnd();
       var stderr = process.StandardError.ReadToEnd();
@@ -280,7 +321,7 @@ async function launchChangeRequestFixture(input: ChangeRequestFixtureInput) {
       messages: [message(input.messageId, 'user', input.messageText, now)],
     })
     await app.restart()
-    await app.resizeMainWindow(1_400, 850)
+    await app.resizeMainWindow(1_800, 850)
     return { app, cliBinPath, projectPath }
   } catch (error) {
     await app.cleanup({ forceProcessTermination: true })
@@ -296,12 +337,21 @@ async function cleanupChangeRequestFixture(
   await fs.rm(fixture.cliBinPath, { recursive: true, force: true })
 }
 
+async function openSessionSummary(page: Page) {
+  const summary = page.getByRole('complementary', { name: 'Session Summary' })
+  if ((await summary.count()) === 0) {
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
+  }
+  await expect(summary).toBeVisible()
+  return summary
+}
+
 test('Session Summary follows first-message, dock, and sidebar behavior', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-session-summary-lifecycle-')
   const projectPath = path.join(app.userDataDir, 'github-project')
   try {
     await createGitProject(projectPath)
-    await seedSingleSession(app.userDataDir, {
+    const emptySessionId = await seedSingleSession(app.userDataDir, {
       title: EMPTY_TITLE,
       projectPath,
       updatedAt: Date.now(),
@@ -314,14 +364,58 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
       messages: [message(ALPHA_USER_MESSAGE_ID, 'user', 'Start the populated session.', Date.now())],
     })
     await app.restart()
-    await app.resizeMainWindow(1_400, 800)
+    await app.resizeMainWindow(1_800, 800)
+    await app.installAgentSendProbe()
 
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
     const setupDock = page.locator('fieldset[aria-label="Session setup"]')
     await mainWindow.openThread(EMPTY_TITLE)
     await expect(page.getByRole('complementary', { name: 'Session Summary' })).toHaveCount(0)
+    await expect(
+      page.locator('header').getByRole('button', { name: /Session Summary/ }),
+    ).toHaveCount(0)
     await expect(setupDock).toHaveAttribute('aria-hidden', 'false')
+    const emptySessionDetail = (await page.evaluate(() => window.api.listSessionDetails())).find(
+      (session) => String(session.id) === emptySessionId,
+    )
+    if (!emptySessionDetail) throw new Error('Expected the empty Session detail')
+    await app.installSessionDetailSnapshotProbe({
+      sessionId: emptySessionId,
+      detail: {
+        ...emptySessionDetail,
+        messages: [
+          message(
+            'summary-empty-user',
+            'user',
+            'Start the empty session live.',
+            Date.now(),
+          ),
+        ],
+      },
+    })
+
+    await mainWindow.pasteIntoComposer('Start the empty session live.')
+    await mainWindow.submitComposer()
+    await expect(mainWindow.lastUserMessage()).toContainText('Start the empty session live.')
+    await expect
+      .poll(() => app.readAgentSendProbe())
+      .toMatchObject({ sessionId: emptySessionId })
+    await expect
+      .poll(async () => {
+        const detail = await page.evaluate(
+          (sessionId) => window.api.getSessionDetail(sessionId),
+          emptySessionDetail.id,
+        )
+        return detail?.messages.length ?? 0
+      })
+      .toBe(1)
+    const liveSummary = page.getByRole('complementary', { name: 'Session Summary' })
+    await expect(liveSummary).toBeVisible({ timeout: 30_000 })
+    await expect(
+      page.locator('header').getByRole('button', { name: 'Hide Session Summary' }),
+    ).toBeVisible()
+    await expect(setupDock).toHaveAttribute('aria-hidden', 'true')
 
     await mainWindow.openThread(ALPHA_TITLE)
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
@@ -335,7 +429,7 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await summary.getByRole('button', { name: 'Environment: Local' }).click()
     const environmentDetails = page.getByRole('dialog', { name: 'Session environment details' })
     await expect(environmentDetails).toContainText('fixed after the first message')
-    await expect(environmentDetails).toContainText(projectPath)
+    await expect(environmentDetails).toContainText(path.basename(projectPath))
     await page.keyboard.press('Escape')
 
     await summary.getByRole('button', { name: 'Branch: main' }).click()
@@ -348,11 +442,18 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await expect(page.getByRole('menuitem', { name: 'Open working folder' })).toBeVisible()
     await page.keyboard.press('Escape')
 
+    await summary.getByRole('button', { name: 'Add a source' }).click()
+    await expect(page.getByRole('menuitem', { name: /Attach files/ })).toBeVisible()
+    await page.getByRole('menuitem', { name: /Reference project file/ }).click()
+    await mainWindow.expectComposerValue('@')
+    await mainWindow.messageInput().press('Backspace')
+    await mainWindow.expectComposerValue('')
+
     const commitOrPush = summary.getByRole('button', { name: 'Commit or push' })
     await expect(commitOrPush).toBeEnabled({ timeout: 30_000 })
     await commitOrPush.click()
-    await expect(page.getByRole('heading', { name: 'Commit message' })).toBeVisible()
-    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByRole('dialog', { name: 'Commit or push' })).toBeVisible()
+    await page.getByRole('button', { name: 'Close commit or push' }).click()
     await expect(summary.getByRole('button', { name: 'Create PR' })).toHaveCount(0)
     const transcript = page.getByRole('log', { name: 'Chat messages' })
     const expandedTranscriptWidth = await transcript.evaluate(
@@ -382,7 +483,8 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await expect(summary).toHaveCount(0)
     const suppressedSummaryToggle = page
       .locator('header')
-      .getByRole('button', { name: 'Hide Session Summary' })
+      .getByRole('button', { name: 'Open Session Summary' })
+    await expect(suppressedSummaryToggle).toBeDisabled()
     await expect
       .poll(() =>
         page.evaluate(() => {
@@ -403,8 +505,9 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
         }),
       )
       .toBe(true)
-    await suppressedSummaryToggle.click()
     await page.getByRole('button', { name: 'Close diff sidebar' }).click()
+    await expect(summary).toBeVisible()
+    await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
     await expect(summary).toHaveCount(0)
     await expect
       .poll(() =>
@@ -506,7 +609,7 @@ test('session resources stay scoped while inline images and the gallery navigate
     const betaSourceBytes = await pngBytes('#a855f7')
     const betaSourcePath = path.join(app.userDataDir, 'beta-only.png')
     await fs.writeFile(betaSourcePath, betaSourceBytes)
-    await seedSingleSession(app.userDataDir, {
+    const betaSessionId = await seedSingleSession(app.userDataDir, {
       title: BETA_TITLE,
       updatedAt: now - 10,
       messages: [
@@ -535,7 +638,7 @@ test('session resources stay scoped while inline images and the gallery navigate
       ],
     })
     await app.restart()
-    await app.resizeMainWindow(1_400, 800)
+    await app.resizeMainWindow(1_800, 800)
 
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
@@ -559,7 +662,7 @@ test('session resources stay scoped while inline images and the gallery navigate
     await summary.getByRole('button', { name: 'user-reference.png' }).click()
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
     await page.keyboard.press('Escape')
-    await summary.getByRole('button', { name: 'Show all' }).click()
+    await summary.locator('#session-summary-section-sources').getByRole('button', { name: 'Show all' }).click()
 
     const resources = page.getByRole('region', { name: 'Session resources' })
     await expect(resources).toBeVisible()
@@ -581,8 +684,8 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(viewer.getByLabel('Image provenance')).toContainText(
       'Source · Provided by you · Branch main',
     )
-    await viewer.getByLabel('Image zoom').selectOption('200')
-    await expect(viewer.getByLabel('Image zoom')).toHaveValue('200')
+    await viewer.getByLabel('Image zoom', { exact: true }).selectOption('200')
+    await expect(viewer.getByLabel('Image zoom', { exact: true })).toHaveValue('200')
     const imageCanvas = viewer.getByLabel('Image canvas')
     await expect
       .poll(() =>
@@ -599,6 +702,10 @@ test('session resources stay scoped while inline images and the gallery navigate
     })
     const viewedImage = viewer.getByRole('img', { name: 'user-reference.png' })
     await expect(viewedImage).toBeVisible()
+    const alphaContentUrl = await viewedImage.getAttribute('src')
+    if (!alphaContentUrl?.startsWith('openwaggle-session-resource://')) {
+      throw new Error('Expected the viewer to use an opaque Session resource URL')
+    }
     const canvasBox = await imageCanvas.boundingBox()
     if (!canvasBox) throw new Error('Expected the image canvas to have a bounding box')
     const dragStart = {
@@ -622,9 +729,33 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(page.getByRole('dialog', { name: 'Image viewer: agent-output.png' })).toBeVisible()
     await page.keyboard.press('ArrowLeft')
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
-    await page.getByRole('button', { name: 'Close image viewer' }).click()
+    await expect(viewedImage).toHaveJSProperty('naturalWidth', 1_200)
+    const activeAlphaContentUrl = await viewedImage.getAttribute('src')
+    if (!activeAlphaContentUrl) throw new Error('The current gallery image has no capability.')
 
-    await mainWindow.openThread(BETA_TITLE)
+    await page.evaluate((sessionId) => {
+      const query = window.location.hash.includes('?')
+        ? window.location.hash.slice(window.location.hash.indexOf('?'))
+        : ''
+      window.location.hash = `/sessions/${sessionId}${query}`
+    }, String(betaSessionId))
+    await expect(
+      page.locator('[data-qa="header-session-title"]').getByText(BETA_TITLE, { exact: true }),
+    ).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('dialog', { name: /Image viewer:/ })).toHaveCount(0)
+    await expect
+      .poll(() =>
+        page.evaluate(async (url) => {
+          return new Promise<boolean>((resolve) => {
+            const image = new Image()
+            image.onload = () => resolve(false)
+            image.onerror = () => resolve(true)
+            // Use the unread download URL to bypass Chromium's decoded-image memory cache.
+            image.src = url.replace(/\/view$/u, '/download')
+          })
+        }, activeAlphaContentUrl),
+      )
+      .toBe(true)
     await expect(resources).toBeVisible()
     await expect(resources.getByText('beta-only.png')).toBeVisible()
     await expect(resources.getByText('user-reference.png')).toHaveCount(0)
@@ -659,10 +790,15 @@ test('Session Summary creates a complete GitHub pull request', async () => {
   })
 
   try {
+    execFileSync(
+      'git',
+      ['branch', 'codex/session-summary-github-change-request'],
+      { cwd: fixture.projectPath, stdio: 'ignore' },
+    )
     const mainWindow = fixture.app.mainWindow()
     const page = mainWindow.page
     await mainWindow.openThread(GITHUB_CHANGE_REQUEST_TITLE)
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    const summary = await openSessionSummary(page)
     await expect(summary.getByRole('button', { name: 'Commit or push' })).toBeEnabled({
       timeout: 30_000,
     })
@@ -675,15 +811,20 @@ test('Session Summary creates a complete GitHub pull request', async () => {
     await expect(composer).toBeVisible()
     await expect(composer.getByText('New branch → main')).toBeVisible()
     await expect(composer.getByLabel('New branch name')).toHaveValue(
-      'codex/session-summary-github-change-request',
+      'codex/session-summary-github-change-request-2',
+      { timeout: 30_000 },
     )
     await expect(composer.getByLabel('Title')).toHaveValue(GITHUB_CHANGE_REQUEST_TITLE)
     await expect(composer.getByText('Description (leave empty to generate)')).toBeVisible()
     await expect(
       composer.getByRole('checkbox', { name: /Commit and push local changes/ }),
     ).toBeChecked()
-    await expect(composer.getByRole('button', { name: 'Create draft PR' })).toBeEnabled()
-    await expect(composer.getByText('GitHub CLI ready as openwaggle-e2e.')).toBeVisible()
+    await expect(composer.getByRole('button', { name: 'Create draft PR' })).toBeEnabled({
+      timeout: 30_000,
+    })
+    await expect(
+      composer.getByRole('contentinfo').getByText('GitHub CLI ready as openwaggle-e2e.'),
+    ).toBeVisible()
     await expect(composer.getByRole('button', { name: 'Create PR' })).toHaveAttribute(
       'aria-keyshortcuts',
       'Control+Enter Meta+Enter',
@@ -700,13 +841,50 @@ test('Session Summary creates a complete GitHub pull request', async () => {
           encoding: 'utf8',
         }).trim(),
       )
-      .toBe('codex/session-summary-github-change-request')
+      .toBe('codex/session-summary-github-change-request-2')
+    await openSessionSummary(page)
     const outputs = summary.getByRole('button', { name: /Outputs/ })
     if ((await outputs.getAttribute('aria-expanded')) !== 'true') await outputs.click()
     await expect(outputs).toContainText('2')
     await expect(
-      summary.getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE, exact: true }),
+      summary
+        .locator('#session-summary-section-change-requests')
+        .getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
+    const viewRequest = summary.getByRole('button', { name: 'View PR' })
+    await expect(viewRequest).toBeVisible({ timeout: 30_000 })
+    await viewRequest.click()
+    const requestPanel = page.getByRole('region', { name: 'Change request' })
+    await expect(requestPanel).toBeVisible()
+    await expect(
+      requestPanel.getByRole('heading', { name: GITHUB_CHANGE_REQUEST_TITLE }),
+    ).toBeVisible({ timeout: 30_000 })
+    await expect(requestPanel.getByText('README.md')).toBeVisible()
+    await expect(requestPanel.getByText('Unit')).toBeVisible()
+    await expect(requestPanel.getByText('passed')).toBeVisible()
+    await requestPanel.getByRole('button', { name: 'Refresh change request' }).click()
+    await expect(requestPanel.getByRole('button', { name: 'Merge' })).toBeEnabled()
+    await requestPanel.getByLabel('Merge method').selectOption('squash')
+    await app.confirmNativeDialogs(0)
+    await requestPanel.getByRole('button', { name: 'Merge' }).click()
+    await expect(requestPanel.getByText('Merge cancelled.')).toBeVisible()
+    await expect(requestPanel.getByRole('button', { name: 'Merge' })).toBeEnabled()
+    await app.confirmNativeDialogs(1)
+    await requestPanel.getByRole('button', { name: 'Merge' }).click()
+    await expect(requestPanel.getByText('Merge completed.')).toBeVisible({ timeout: 30_000 })
+    await expect(requestPanel.getByText('merged', { exact: true })).toBeVisible()
+    await expect
+      .poll(async () => {
+        try {
+          return await fs.readFile(path.join(fixture.cliBinPath, 'gh-merged'), 'utf8')
+        } catch {
+          return ''
+        }
+      })
+      .toContain('--squash')
+    await requestPanel.getByRole('button', { name: 'Close change request' }).click()
+    await expect(requestPanel).toBeHidden()
+    await expect(summary).toBeVisible()
   } finally {
     await cleanupChangeRequestFixture(fixture)
   }
@@ -727,7 +905,7 @@ test('Session Summary creates a complete GitLab draft merge request', async () =
     const mainWindow = fixture.app.mainWindow()
     const page = mainWindow.page
     await mainWindow.openThread(GITLAB_CHANGE_REQUEST_TITLE)
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    const summary = await openSessionSummary(page)
     await expect(summary.getByRole('button', { name: 'Commit or push' })).toBeEnabled({
       timeout: 30_000,
     })
@@ -742,9 +920,13 @@ test('Session Summary creates a complete GitLab draft merge request', async () =
     await expect(composer.getByLabel('New branch name')).toHaveValue(
       'codex/session-summary-gitlab-change-request',
     )
-    await expect(composer.getByRole('button', { name: 'Create draft MR' })).toBeEnabled()
+    await expect(composer.getByRole('button', { name: 'Create draft MR' })).toBeEnabled({
+      timeout: 30_000,
+    })
     await expect(composer.getByRole('button', { name: 'Create MR' })).toBeEnabled()
-    await expect(composer.getByText('GitLab CLI ready as openwaggle-e2e.')).toBeVisible()
+    await expect(
+      composer.getByRole('contentinfo').getByText('GitLab CLI ready as openwaggle-e2e.'),
+    ).toBeVisible()
     await expect(composer.getByRole('button', { name: 'Open MR in browser' })).toBeEnabled()
     await composer.getByRole('button', { name: 'Create draft MR' }).click()
     await expect(composer).toHaveCount(0, { timeout: NATIVE_CHANGE_REQUEST_TIMEOUT_MS })
@@ -756,12 +938,27 @@ test('Session Summary creates a complete GitLab draft merge request', async () =
         }).trim(),
       )
       .toBe('codex/session-summary-gitlab-change-request')
+    await openSessionSummary(page)
     const outputs = summary.getByRole('button', { name: /Outputs/ })
     if ((await outputs.getAttribute('aria-expanded')) !== 'true') await outputs.click()
     await expect(outputs).toContainText('2')
     await expect(
-      summary.getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
+      summary
+        .locator('#session-summary-section-change-requests')
+        .getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
+    const viewRequest = summary.getByRole('button', { name: 'View MR' })
+    await expect(viewRequest).toBeVisible({ timeout: 30_000 })
+    await viewRequest.click()
+    const requestPanel = page.getByRole('region', { name: 'Change request' })
+    await expect(requestPanel).toBeVisible()
+    await expect(requestPanel.getByRole('heading', { name: 'Merge request' })).toBeVisible()
+    await expect(
+      requestPanel.getByRole('heading', { name: GITLAB_CHANGE_REQUEST_TITLE }),
+    ).toBeVisible()
+    await expect(requestPanel.getByText('Pipeline')).toBeVisible()
+    await expect(requestPanel.getByText('Mark this merge request ready for review before merging.')).toBeVisible()
+    await expect(requestPanel.getByRole('button', { name: 'Merge' })).toBeDisabled()
   } finally {
     await cleanupChangeRequestFixture(fixture)
   }
@@ -782,7 +979,7 @@ test('Session Summary offers browser fallback when GitHub CLI authentication is 
     const mainWindow = fixture.app.mainWindow()
     const page = mainWindow.page
     await mainWindow.openThread(GITHUB_FALLBACK_TITLE)
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    const summary = await openSessionSummary(page)
     await expect(summary.getByRole('button', { name: 'Commit or push' })).toBeEnabled({
       timeout: 30_000,
     })
@@ -790,7 +987,7 @@ test('Session Summary offers browser fallback when GitHub CLI authentication is 
 
     const composer = page.getByRole('dialog', { name: 'Create pull request' })
     await expect(composer).toBeVisible()
-    await expect(composer.getByText('GitHub CLI is not authenticated for github.com.')).toBeVisible()
+    await expect(composer.getByRole('alert')).toContainText('GitHub CLI is not authenticated for github.com.')
     await expect(composer.getByRole('button', { name: 'Create draft PR' })).toBeDisabled()
     await expect(composer.getByRole('button', { name: 'Create PR' })).toBeDisabled()
     await expect(composer.getByRole('button', { name: 'Open PR in browser' })).toBeEnabled()

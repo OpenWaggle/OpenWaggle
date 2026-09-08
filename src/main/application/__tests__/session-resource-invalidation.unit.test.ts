@@ -34,6 +34,7 @@ function input(id: string): UpsertSessionResourceInput {
       actor: 'agent',
       activity: 'read',
       label: null,
+      locator: `https://example.test/${id}`,
       createdAt: 1,
     },
     createdAt: 1,

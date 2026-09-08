@@ -34,6 +34,7 @@ interface SessionTreeButtonProps {
 interface SessionSummaryButtonProps {
   readonly open: boolean
   readonly panelId: string
+  readonly suppressed: boolean
   readonly onToggle: () => void
 }
 
@@ -180,8 +181,14 @@ export function SessionTreeButton({
   )
 }
 
-export function SessionSummaryButton({ open, panelId, onToggle }: SessionSummaryButtonProps) {
+export function SessionSummaryButton({
+  open,
+  panelId,
+  suppressed,
+  onToggle,
+}: SessionSummaryButtonProps) {
   const label = open ? 'Hide Session Summary' : 'Open Session Summary'
+  const title = suppressed ? 'Session Summary is hidden while the side panel is open' : label
   return (
     <Button
       variant={open ? 'subtle' : 'secondary'}
@@ -192,8 +199,9 @@ export function SessionSummaryButton({ open, panelId, onToggle }: SessionSummary
       aria-controls={panelId}
       aria-label={label}
       onClick={onToggle}
-      className="no-drag h-7 border-button-border px-2"
-      title={label}
+      disabled={suppressed}
+      className="no-drag h-7 border-button-border px-2 disabled:opacity-40"
+      title={title}
     >
       <LayoutList className="size-3.5 text-text-secondary" />
     </Button>

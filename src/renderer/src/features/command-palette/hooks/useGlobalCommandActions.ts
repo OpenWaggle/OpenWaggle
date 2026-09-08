@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useChat } from '@/features/chat/hooks'
+import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
@@ -20,6 +21,7 @@ export function useGlobalCommandActions() {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
   const toggleTerminal = useUIStore((state) => state.toggleTerminal)
   const showToast = useUIStore((state) => state.showToast)
+  const toggleSessionSummaryPanel = useSessionSummaryUIStore((state) => state.togglePanel)
   const settings = usePreferencesStore((state) => state.settings)
   const sessionId = activeSessionId ? String(activeSessionId) : null
 
@@ -82,6 +84,19 @@ export function useGlobalCommandActions() {
     routeToSession(sessionId)
   }
 
+  function toggleSessionSummary() {
+    if (!sessionId) {
+      showToast('Open a session with at least one message first.', 'error')
+      return
+    }
+    const panel = useSessionSummaryUIStore.getState().panels[sessionId]
+    if (!panel?.available) {
+      showToast('Send the first message before opening Session Summary.', 'error')
+      return
+    }
+    toggleSessionSummaryPanel(sessionId)
+  }
+
   async function compactSession() {
     if (!activeSessionId) {
       showToast('Open a session first.', 'error')
@@ -124,6 +139,7 @@ export function useGlobalCommandActions() {
     selectProject,
     setProjectPath,
     toggleSidebar,
+    toggleSessionSummary,
     toggleTerminal,
   }
   return { actions, close, projectPath, sessionId, sessions, settings }

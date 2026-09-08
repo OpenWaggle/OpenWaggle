@@ -143,6 +143,18 @@ describe('StreamingText', () => {
     expect(container.querySelector('script')).toBeNull()
   })
 
+  it.each([
+    'https://images.example/session.png',
+    'http://127.0.0.1/private.png',
+    'http://169.254.169.254/latest/meta-data.png',
+  ])('never mounts a network-backed Markdown image for %s', (url) => {
+    const { container } = render(<StreamingText text={`![Architecture](${url})`} />)
+
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector(`[src="${url}"]`)).toBeNull()
+    expect(screen.getByText('[Image: Architecture]')).toBeInTheDocument()
+  })
+
   it('preserves language metadata and a safe fallback for fenced code blocks', () => {
     const { container } = render(<StreamingText text={'```ts\nconst value = 1\n```'} />)
 

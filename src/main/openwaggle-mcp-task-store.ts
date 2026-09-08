@@ -37,6 +37,8 @@ export interface ServerTaskRecord {
   readonly lease?: ServerTaskLease | null
   readonly cancellationRequestedAt?: number
   readonly projectedDelegationState?: SessionDelegationState
+  /** True when the hosted task created this Session and therefore owns its MCP metadata. */
+  readonly ownsSession?: boolean
 }
 
 interface ServerTaskFile {
@@ -91,6 +93,7 @@ function optionalTaskFields(value: Record<string, unknown>) {
     ...(isDelegationState(value.projectedDelegationState)
       ? { projectedDelegationState: value.projectedDelegationState }
       : {}),
+    ...(value.ownsSession === true ? { ownsSession: true } : {}),
   }
 }
 

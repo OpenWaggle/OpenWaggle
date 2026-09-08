@@ -47,6 +47,7 @@ describe('vcs-status-parse', () => {
         id: 'github',
         host: 'github.enterprise.com',
       })
+      expect(detectSourceControlProvider('file://github.com/tmp/victim.git')).toBeNull()
     })
   })
 
@@ -65,6 +66,7 @@ describe('vcs-status-parse', () => {
 
     it('does not invent an owner for a local bare remote', () => {
       expect(parseRemoteRepositoryIdentity('/tmp/project.git')).toBeNull()
+      expect(parseRemoteRepositoryIdentity('file://github.com/tmp/victim.git')).toBeNull()
     })
 
     it('preserves a non-default enterprise URL port in the authority', () => {

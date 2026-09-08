@@ -1,5 +1,5 @@
 import type { SessionDetail } from '@shared/types/session'
-import { CommitMessageDialog } from '@/features/git'
+import { CommitOrPushDialog, CommitOrPushStatusDialog } from '@/features/git'
 import { ChangeRequestComposer } from './ChangeRequestComposer'
 import type { SessionSummaryHubController } from './use-session-summary-hub-controller'
 
@@ -23,12 +23,33 @@ export function SessionSummaryHubDialogs({
           onCompleted={dialogs.completeChangeRequest}
         />
       ) : null}
-      <CommitMessageDialog
-        open={dialogs.commitOpen}
-        fileCount={dialogs.commitFileCount}
-        onCancel={dialogs.cancelCommit}
-        onConfirm={dialogs.confirmCommit}
-      />
+      {dialogs.commitCommandOpen && dialogs.workingPath ? (
+        dialogs.gitStatus ? (
+          <CommitOrPushDialog
+            repository={{
+              sessionTitle: session.title,
+              workingPath: dialogs.workingPath,
+              gitStatus: dialogs.gitStatus,
+              vcsStatus: dialogs.vcsStatus,
+              remoteState: dialogs.remoteVcsState,
+              branches: dialogs.branches,
+            }}
+            operation={{
+              running: dialogs.commitCommandRunning,
+              progress: dialogs.commitCommandProgress,
+              run: dialogs.runCommitCommand,
+              stop: dialogs.cancelCommitCommand,
+            }}
+            onClose={dialogs.closeCommitCommand}
+          />
+        ) : (
+          <CommitOrPushStatusDialog
+            error={dialogs.gitStatusError}
+            onClose={dialogs.closeCommitCommand}
+            onRetry={dialogs.refreshGitStatus}
+          />
+        )
+      ) : null}
     </>
   )
 }

@@ -1,11 +1,17 @@
 import type { SessionId } from '@shared/types/brand'
 import type {
   SessionResource,
+  SessionResourceCatalogPage,
+  SessionResourceCatalogPageRequest,
+  SessionResourceCatalogView,
+  SessionResourceImageLocation,
   SessionResourceKind,
+  SessionResourceNodePageRequest,
   SessionResourceOccurrence,
+  SessionResourceRouteSelection,
 } from '@shared/types/session-resource'
 import { Context, type Effect } from 'effect'
-import type { SessionResourceRepositoryError } from '../errors'
+import type { SessionResourceCatalogCursorError, SessionResourceRepositoryError } from '../errors'
 
 export interface UpsertSessionResourceInput {
   readonly id: string
@@ -44,6 +50,34 @@ export interface SessionResourceRepositoryShape {
   readonly list: (
     sessionId: SessionId,
   ) => Effect.Effect<readonly SessionResource[], SessionResourceRepositoryError>
+  readonly listPage: (
+    sessionId: SessionId,
+    input: SessionResourceCatalogPageRequest,
+  ) => Effect.Effect<
+    SessionResourceCatalogPage,
+    SessionResourceCatalogCursorError | SessionResourceRepositoryError
+  >
+  readonly findById: (
+    sessionId: SessionId,
+    resourceId: string,
+    view: SessionResourceCatalogView,
+    selection?: SessionResourceRouteSelection | null,
+  ) => Effect.Effect<SessionResource | null, SessionResourceRepositoryError>
+  readonly findByOccurrence: (
+    sessionId: SessionId,
+    occurrenceId: string,
+    view: SessionResourceCatalogView,
+  ) => Effect.Effect<SessionResource | null, SessionResourceRepositoryError>
+  readonly findByLocator: (
+    sessionId: SessionId,
+    kind: SessionResourceKind,
+    locator: string,
+  ) => Effect.Effect<SessionResource | null, SessionResourceRepositoryError>
+  readonly locateImage: (
+    sessionId: SessionId,
+    resourceId: string,
+    selection?: SessionResourceRouteSelection | null,
+  ) => Effect.Effect<SessionResourceImageLocation | null, SessionResourceRepositoryError>
   readonly findByCanonicalKey: (
     sessionId: SessionId,
     canonicalKey: string,
@@ -56,6 +90,27 @@ export interface SessionResourceRepositoryShape {
     sessionId: SessionId,
     occurrenceId: string,
   ) => Effect.Effect<boolean, SessionResourceRepositoryError>
+  readonly hasOccurrences: (
+    sessionId: SessionId,
+    occurrenceIds: readonly string[],
+  ) => Effect.Effect<ReadonlySet<string>, SessionResourceRepositoryError>
+  readonly listByNodeIds: (
+    sessionId: SessionId,
+    nodeIds: readonly string[],
+    kind: SessionResourceKind | null,
+    limit: number,
+  ) => Effect.Effect<readonly SessionResource[], SessionResourceRepositoryError>
+  readonly listByNodeIdsPage: (
+    sessionId: SessionId,
+    input: SessionResourceNodePageRequest,
+  ) => Effect.Effect<
+    SessionResourceCatalogPage,
+    SessionResourceCatalogCursorError | SessionResourceRepositoryError
+  >
+  readonly listManagedNodeIds: (
+    sessionId: SessionId,
+    limit: number,
+  ) => Effect.Effect<readonly string[], SessionResourceRepositoryError>
   readonly getContentLocation: (
     sessionId: SessionId,
     resourceId: string,

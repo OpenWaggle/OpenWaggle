@@ -5,11 +5,10 @@ import type {
   ExtensionSessionSummaryRowView,
   ExtensionSessionSummaryView,
 } from '@shared/types/extensions'
-import type { SessionResource } from '@shared/types/session-resource'
 import { AlertCircle, LoaderCircle, Radio } from 'lucide-react'
-import { type ReactNode, useEffect, useId, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { SessionSummaryRow, SessionSummarySection } from './SessionSummaryPrimitives'
-import { matchingSessionSummaryAction } from './session-summary-extension-actions'
+import { resolveSessionSummaryAction } from './session-summary-extension-actions'
 
 function expansionStorageKey(input: {
   readonly contribution: ExtensionContributionRegistryEntry
@@ -66,8 +65,7 @@ function stateView(state: ExtensionSessionSummaryView['state']): ReactNode {
     .with({ status: 'ready' }, () => null)
     .with({ status: 'loading' }, ({ message }) => (
       <div
-        role="status"
-        aria-live="polite"
+        aria-hidden="true"
         className="flex min-h-7 items-center gap-2 px-1.5 text-xs text-text-tertiary"
       >
         <LoaderCircle
@@ -79,8 +77,7 @@ function stateView(state: ExtensionSessionSummaryView['state']): ReactNode {
     ))
     .with({ status: 'live' }, ({ message }) => (
       <div
-        role="status"
-        aria-live="polite"
+        aria-hidden="true"
         className="flex min-h-7 items-center gap-2 px-1.5 text-xs text-text-secondary"
       >
         <Radio aria-hidden="true" className="size-3.5 shrink-0 text-progress" />
@@ -96,17 +93,23 @@ function stateView(state: ExtensionSessionSummaryView['state']): ReactNode {
     .exhaustive()
 }
 
+function stateAnnouncement(state: ExtensionSessionSummaryView['state']) {
+  if (state?.status === 'loading') return state.message ?? 'Loading extension data'
+  if (state?.status === 'live') return state.message ?? 'Live'
+  return ''
+}
+
 export function ExtensionSessionSummarySection({
   contribution,
   sessionId,
+  projectPath,
   registry,
-  resources,
   onActivate,
 }: {
   readonly contribution: ExtensionContributionRegistryEntry
   readonly sessionId: string
+  readonly projectPath: string | null
   readonly registry: ExtensionContributionRegistryView
-  readonly resources: readonly SessionResource[]
   readonly onActivate: (row: ExtensionSessionSummaryRowView) => void
 }) {
   const sectionId = useId()
@@ -115,33 +118,61 @@ export function ExtensionSessionSummarySection({
   const [expanded, setExpanded] = useState(
     () => storedExpansion(storageKey) ?? summary?.disclosure?.defaultExpanded ?? true,
   )
+  const sectionRef = useRef<HTMLElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const collapsible = summary?.disclosure?.collapsible ?? true
   const autoCollapseAfterMs = summary?.disclosure?.autoCollapseAfterMs
-  const resolvedExpanded = collapsible ? expanded : true
+  const visuallyEmpty =
+    summary?.rows.length === 0 && (summary.state === undefined || summary.state.status === 'ready')
 
   useEffect(() => {
-    if (!collapsible || !resolvedExpanded || autoCollapseAfterMs === undefined) return
+    if (!collapsible || !expanded || autoCollapseAfterMs === undefined || visuallyEmpty) {
+      return
+    }
     const timeout = window.setTimeout(() => {
+      const activeElement = document.activeElement
+      if (
+        activeElement instanceof HTMLElement &&
+        activeElement !== triggerRef.current &&
+        sectionRef.current?.contains(activeElement)
+      ) {
+        triggerRef.current?.focus()
+      }
       setExpanded(false)
       storeExpansion(storageKey, false)
     }, autoCollapseAfterMs)
     return () => window.clearTimeout(timeout)
-  }, [autoCollapseAfterMs, collapsible, resolvedExpanded, storageKey])
+  }, [autoCollapseAfterMs, collapsible, expanded, storageKey, visuallyEmpty])
 
   if (!summary) return null
+  const announcer = (
+    <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {stateAnnouncement(summary.state)}
+    </p>
+  )
+  if (visuallyEmpty) return announcer
   const content = (
     <div className="space-y-0.5">
       {stateView(summary.state)}
       {summary.rows.map((row) => {
-        const actionable =
-          Boolean(row.resourceId && resources.some((resource) => resource.id === row.resourceId)) ||
-          matchingSessionSummaryAction({ registry, section: contribution, row }) !== null
+        const hasResource = Boolean(row.resourceId)
+        const action = hasResource
+          ? null
+          : resolveSessionSummaryAction({
+              registry,
+              section: contribution,
+              row,
+              projectPath,
+              sessionId,
+            })
+        const actionable = hasResource || action !== null
         return (
           <SessionSummaryRow
             key={row.id}
             label={row.label}
             value={rowValue(row)}
             ariaLabel={actionable ? row.label : undefined}
+            disabledReason={action?.kind === 'disabled-command' ? action.disabledReason : undefined}
             onClick={actionable ? () => onActivate(row) : undefined}
           />
         )
@@ -152,35 +183,43 @@ export function ExtensionSessionSummarySection({
   if (!collapsible) {
     const titleId = `session-summary-extension-title-${sectionId}`
     return (
-      <section className="border-t border-border" aria-labelledby={titleId}>
-        <div className="sticky top-0 z-10 flex h-10 items-center gap-2 bg-bg-secondary/95 px-3 backdrop-blur">
-          <h3
-            id={titleId}
-            className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary"
-          >
-            {contribution.title}
-          </h3>
-          {summary.rows.length > 0 ? (
-            <span className="shrink-0 text-xs text-text-tertiary">{summary.rows.length}</span>
-          ) : null}
-        </div>
-        <div className="space-y-1 px-2 pb-2">{content}</div>
-      </section>
+      <>
+        {announcer}
+        <section className="border-t border-border" aria-labelledby={titleId}>
+          <div className="sticky top-0 z-10 flex h-10 items-center gap-2 bg-bg-secondary/95 px-3 backdrop-blur">
+            <h3
+              id={titleId}
+              className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary"
+            >
+              {contribution.title}
+            </h3>
+            {summary.rows.length > 0 ? (
+              <span className="shrink-0 text-xs text-text-tertiary">{summary.rows.length}</span>
+            ) : null}
+          </div>
+          <div className="space-y-1 px-2 pb-2">{content}</div>
+        </section>
+      </>
     )
   }
 
   return (
-    <SessionSummarySection
-      id={sectionId}
-      title={contribution.title}
-      count={summary.rows.length > 0 ? summary.rows.length : undefined}
-      expanded={resolvedExpanded}
-      onExpandedChange={(nextExpanded) => {
-        setExpanded(nextExpanded)
-        storeExpansion(storageKey, nextExpanded)
-      }}
-    >
-      {content}
-    </SessionSummarySection>
+    <>
+      {announcer}
+      <SessionSummarySection
+        id={sectionId}
+        title={contribution.title}
+        count={summary.rows.length > 0 ? summary.rows.length : undefined}
+        expanded={expanded}
+        sectionRef={sectionRef}
+        triggerRef={triggerRef}
+        onExpandedChange={(nextExpanded) => {
+          setExpanded(nextExpanded)
+          storeExpansion(storageKey, nextExpanded)
+        }}
+      >
+        {content}
+      </SessionSummarySection>
+    </>
   )
 }

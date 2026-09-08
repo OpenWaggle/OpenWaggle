@@ -17,6 +17,7 @@ import {
   deleteVisualizationSessionMock,
   emitRunCompletedMock,
   forkRuntimeSessionMock,
+  getHiveRelationsMock,
   getInvokeHandler,
   getSessionDetailMock,
   listSessionDetailsMock,
@@ -45,6 +46,7 @@ describe('registerSessionDetailsHandlers', () => {
     expect(channels).toEqual([
       'sessions:list-details',
       'sessions:get-detail',
+      'sessions:get-hive-relations',
       'sessions:turn-checkpoints:list',
       'sessions:turn-diff:get',
       'sessions:pins:list',
@@ -75,6 +77,22 @@ describe('registerSessionDetailsHandlers', () => {
     const result = await handler?.({}, 10)
     expect(result).toEqual(sessionDetails)
     expect(listSessionDetailsMock).toHaveBeenCalledWith(10)
+  })
+
+  it('reads only the opened Session Hive relations through the projection repository', async () => {
+    const sessionId = SessionId('session-1')
+    const relations = {
+      current: null,
+      parent: null,
+      workers: [],
+    }
+    getHiveRelationsMock.mockResolvedValue(relations)
+
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:get-hive-relations')
+
+    await expect(handler?.({}, sessionId)).resolves.toEqual(relations)
+    expect(getHiveRelationsMock).toHaveBeenCalledExactlyOnceWith(sessionId)
   })
 
   it('creates a session with the requested project path', async () => {

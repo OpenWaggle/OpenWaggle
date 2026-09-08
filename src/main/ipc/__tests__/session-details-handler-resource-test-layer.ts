@@ -13,6 +13,7 @@ const TestSessionResourceStoreLayer = Layer.succeed(SessionResourceStore, {
   storeBytes: () => Effect.dieMessage('storeBytes is not used'),
   storeFile: () => Effect.dieMessage('storeFile is not used'),
   inspect: () => Effect.dieMessage('inspect is not used'),
+  openReadStream: () => Effect.dieMessage('openReadStream is not used'),
   read: () => Effect.dieMessage('read is not used'),
   remove: () => Effect.dieMessage('remove is not used'),
   removeSession: (sessionId) =>

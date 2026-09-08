@@ -59,6 +59,14 @@ describe('change-request pushed-head compatibility', () => {
     )
 
     expect(payload).toMatchObject({ headRef: 'feature/current', baseRef: 'main' })
+    expect(payload).toMatchObject({
+      targetRepository: {
+        provider: 'gitlab',
+        host: 'gitlab.com',
+        owner: 'team',
+        repository: 'project',
+      },
+    })
     expect(payload).not.toHaveProperty('headOwner')
     expect(payload).not.toHaveProperty('headRepository')
   })
@@ -76,6 +84,12 @@ describe('change-request pushed-head compatibility', () => {
       headRef: 'feature/current',
       baseRef: 'main',
       headRepository: 'contributors/alex/project',
+      targetRepository: {
+        provider: 'gitlab',
+        host: 'gitlab.com',
+        owner: 'upstream/team',
+        repository: 'project',
+      },
     })
     expect(payload).not.toHaveProperty('headOwner')
   })
@@ -104,6 +118,12 @@ describe('change-request pushed-head compatibility', () => {
     expect(payload).toMatchObject({
       headOwner: 'contributor',
       headRepository: 'contributor/project-fork',
+      targetRepository: {
+        provider: 'github',
+        host: 'github.com',
+        owner: 'upstream',
+        repository: 'project',
+      },
     })
   })
 })

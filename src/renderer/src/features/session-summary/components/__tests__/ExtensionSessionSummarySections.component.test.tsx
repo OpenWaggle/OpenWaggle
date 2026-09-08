@@ -1,5 +1,9 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import type {
+  ExtensionContributionRegistryEntry,
+  ExtensionContributionRegistryView,
+} from '@shared/types/extensions'
+import type { JsonValue } from '@shared/types/json'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -12,10 +16,37 @@ import {
   summaryEntry,
 } from './extension-session-summary-test-fixtures'
 
+const getSessionResource = vi.hoisted(() => vi.fn())
+const renderExtensionDialog = vi.hoisted(() => vi.fn())
+
+interface ExtensionDialogProbeProps {
+  readonly target: {
+    readonly extensionId: string
+    readonly dialogId: string
+    readonly packagePath: string
+    readonly contentHash: string
+  }
+  readonly projectPaths: readonly string[]
+  readonly registry: ExtensionContributionRegistryView | null
+  readonly surfacePayload?: JsonValue
+  readonly onClose: () => void
+}
+
+vi.mock('@/shared/lib/ipc', () => ({ api: { getSessionResource } }))
+vi.mock('@/features/extensions', () => ({
+  ExtensionDialogSurface: (props: ExtensionDialogProbeProps) => {
+    renderExtensionDialog(props)
+    return <input type="button" value="Close extension dialog probe" onClick={props.onClose} />
+  },
+  invokeBoundExtension: vi.fn(),
+}))
+
 describe('ExtensionSessionSummarySections', () => {
   beforeEach(() => {
     localStorage.clear()
     useUIStore.setState({ resourceViewer: null })
+    getSessionResource.mockReset().mockResolvedValue(null)
+    renderExtensionDialog.mockReset()
   })
 
   it('renders declarative rows only in their declared placement', () => {
@@ -118,101 +149,70 @@ describe('ExtensionSessionSummarySections', () => {
     })
   })
 
-  it('opens non-image extension resources in the Session Resource Browser', () => {
-    const onOpenResources = vi.fn()
-    render(
-      <ExtensionSessionSummarySections
-        registry={registry([summaryEntry()])}
-        projectPaths={[PROJECT_PATH]}
-        sessionId="session-one"
-        messageCount={1}
-        placement="details"
-        resources={[sessionResource('file')]}
-        onOpenResources={onOpenResources}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
-    expect(onOpenResources).toHaveBeenCalledWith({
-      view: 'outputs',
-      resourceId: 'resource-one',
-    })
-    expect(useUIStore.getState().resourceViewer).toBeNull()
-  })
-
-  it('opens unavailable extension images in resources instead of an empty viewer', () => {
-    const onOpenResources = vi.fn()
-    render(
-      <ExtensionSessionSummarySections
-        registry={registry([summaryEntry()])}
-        projectPaths={[PROJECT_PATH]}
-        sessionId="session-one"
-        messageCount={1}
-        placement="details"
-        resources={[{ ...sessionResource('image'), available: false }]}
-        onOpenResources={onOpenResources}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
-    expect(onOpenResources).toHaveBeenCalledWith({
-      view: 'outputs',
-      resourceId: 'resource-one',
-    })
-    expect(useUIStore.getState().resourceViewer).toBeNull()
-  })
-
-  it('never activates a resource that belongs to another Session', () => {
-    const onOpenResources = vi.fn()
-    render(
-      <ExtensionSessionSummarySections
-        registry={registry([summaryEntry()])}
-        projectPaths={[PROJECT_PATH]}
-        sessionId="session-one"
-        messageCount={1}
-        placement="details"
-        resources={[sessionResource('image', 'session-two')]}
-        onOpenResources={onOpenResources}
-      />,
-    )
-
-    expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull()
-    fireEvent.click(screen.getByText('Preview'))
-    expect(onOpenResources).not.toHaveBeenCalled()
-    expect(useUIStore.getState().resourceViewer).toBeNull()
-  })
-
-  it('rejects actions from another package or Session', () => {
-    const openSidePanel = vi.fn()
-    const foreignPanel = {
-      ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS, 'details-panel'),
-      extensionId: 'foreign-extension',
+  it('opens a declarative dialog with the owning Session payload and closes it', () => {
+    const summary = summaryEntry()
+    if (!summary.sessionSummary) throw new Error('Expected a Session Summary fixture')
+    const dialog = {
+      ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS, 'session-context'),
+      title: 'Session context',
       runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
       execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
-      entryPath: 'dist/panel.js',
+      entryPath: 'dist/session-context.js',
     } satisfies ExtensionContributionRegistryEntry
-    const otherSessionPanel = {
-      ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS, 'details-panel'),
-      sessionId: 'session-two',
-      target: { sessionIds: ['session-two'] },
-      runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
-      execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
-      entryPath: 'dist/panel.js',
+    const declarativeSummary = {
+      ...summary,
+      sessionSummary: {
+        ...summary.sessionSummary,
+        rows: [
+          {
+            id: 'inspect-session',
+            label: 'Inspect session context',
+            action: {
+              family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS,
+              contributionId: dialog.contributionId,
+            },
+          },
+        ],
+      },
     } satisfies ExtensionContributionRegistryEntry
+    const view = registry([declarativeSummary, dialog])
+
     render(
       <ExtensionSessionSummarySections
-        registry={registry([summaryEntry(), foreignPanel, otherSessionPanel])}
+        registry={view}
         projectPaths={[PROJECT_PATH]}
         sessionId="session-one"
-        messageCount={1}
+        messageCount={7}
         placement="details"
         resources={[]}
         onOpenResources={vi.fn()}
-        onOpenSidePanel={openSidePanel}
       />,
     )
 
-    expect(screen.queryByRole('button', { name: 'Open details' })).toBeNull()
-    expect(openSidePanel).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect session context' }))
+    expect(renderExtensionDialog).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target: {
+          extensionId: dialog.extensionId,
+          dialogId: dialog.contributionId,
+          packagePath: dialog.packagePath,
+          contentHash: dialog.contentHash,
+        },
+        projectPaths: [PROJECT_PATH],
+        registry: expect.objectContaining({
+          projectPaths: [PROJECT_PATH],
+          entries: [declarativeSummary, dialog],
+        }),
+        surfacePayload: {
+          surface: 'session-summary',
+          sessionId: 'session-one',
+          projectPaths: [PROJECT_PATH],
+          messageCount: 7,
+        },
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close extension dialog probe' }))
+    expect(screen.queryByRole('button', { name: 'Close extension dialog probe' })).toBeNull()
   })
 })

@@ -45,6 +45,7 @@ import type {
 import type {
   SessionCopyToNewResult,
   SessionDetail,
+  SessionHiveRelations,
   SessionNavigateTreeOptions,
   SessionSummary,
   SessionTree,
@@ -138,7 +139,7 @@ export interface IpcCoreInvokeChannelMap extends SessionResourceIpcInvokeChannel
     return: ExtensionManagerView
   }
   'extensions:invoke': {
-    args: [input: ExtensionInvokeInput]
+    args: [input: ExtensionInvokeInput, invocationBinding?: string]
     return: ExtensionInvokeResult
   }
   'extensions:register-frame': {
@@ -200,6 +201,10 @@ export interface IpcCoreInvokeChannelMap extends SessionResourceIpcInvokeChannel
   'sessions:get-detail': {
     args: [id: SessionId]
     return: SessionDetail | null
+  }
+  'sessions:get-hive-relations': {
+    args: [id: SessionId]
+    return: SessionHiveRelations
   }
   'sessions:create': {
     args: [projectPath: string]

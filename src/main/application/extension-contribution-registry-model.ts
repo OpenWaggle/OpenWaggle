@@ -23,6 +23,7 @@ import type {
   ContributionRegistryBuildResult,
   ExtensionContributionProjectOverrideLookup,
 } from './extension-contribution-registry-types'
+import { validateSessionSummaryActionEntries } from './extension-session-summary-action-validation'
 
 export type { ExtensionContributionProjectOverrideLookup } from './extension-contribution-registry-types'
 
@@ -156,16 +157,22 @@ export function packageToContributionEntriesWithRegistrationResolver(input: {
   }
 
   const registrationResult = input.getRegistrationResult(input.extensionPackage)
+  const entries = contributionRegistrationsToEntries({
+    extensionPackage: input.extensionPackage,
+    eligibility,
+    requestedProjectPaths: input.requestedProjectPaths,
+    requestedSessionId: input.requestedSessionId,
+    registrations: registrationResult.registrations,
+  })
+  const validated = validateSessionSummaryActionEntries({
+    extensionPackage: input.extensionPackage,
+    registrations: registrationResult.registrations,
+    entries,
+  })
 
   return {
-    entries: contributionRegistrationsToEntries({
-      extensionPackage: input.extensionPackage,
-      eligibility,
-      requestedProjectPaths: input.requestedProjectPaths,
-      requestedSessionId: input.requestedSessionId,
-      registrations: registrationResult.registrations,
-    }),
-    diagnostics: registrationResult.diagnostics,
+    entries: validated.entries,
+    diagnostics: [...registrationResult.diagnostics, ...validated.diagnostics],
   } satisfies ContributionRegistryBuildResult
 }
 

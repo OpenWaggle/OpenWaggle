@@ -2,12 +2,13 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import sharp from 'sharp'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessionResources, seedSessions } from './support/session-fixtures'
 
 const VIEWPORT = { width: 1200, height: 800 }
+const WIDE_SUMMARY_VIEWPORT = { width: 1800, height: 800 }
 const FIXED_NOW = Date.UTC(2026, 6, 14, 12)
 const PRIMARY_UPDATED_AT = FIXED_NOW - 2 * 60_000
 const SECONDARY_UPDATED_AT = FIXED_NOW - 4 * 60 * 60_000
@@ -111,12 +112,12 @@ async function installVisualGhClient() {
     executablePath,
     `#!/bin/sh
 if [ "$1" = "auth" ]; then
-  if [ "$2" != "status" ] || [ "$3" != "--active" ] || [ "$4" != "--hostname" ] || [ "$5" != "github.localhost" ] || [ -n "$6" ]; then
+  if [ "$2" != "status" ] || [ "$3" != "--active" ] || [ "$4" != "--hostname" ] || [ "$5" != "github.localhost:1" ] || [ -n "$6" ]; then
     echo "unexpected gh auth arguments: $*" >&2
     exit 64
   fi
-  echo "github.localhost"
-  echo "  Logged in to github.localhost account visual-bot"
+  echo "github.localhost:1"
+  echo "  Logged in to github.localhost:1 account visual-bot"
   exit 0
 fi
 exit 1
@@ -133,6 +134,25 @@ async function waitForVisualReadiness(page: Page) {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
     })
   })
+}
+
+interface ElementGeometry {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
+async function readGeometry(locator: Locator): Promise<ElementGeometry> {
+  const geometry = await locator.boundingBox()
+  if (!geometry) throw new Error('Expected a visible element with measurable geometry')
+  return geometry
+}
+
+function expectGeometryUnchanged(actual: ElementGeometry, expected: ElementGeometry) {
+  for (const key of ['x', 'y', 'width', 'height'] as const) {
+    expect(Math.abs(actual[key] - expected[key]), `${key} changed`).toBeLessThan(1)
+  }
 }
 
 test('Session Summary and primary surfaces match their visual baselines', { tag: '@visual' }, async () => {
@@ -237,6 +257,16 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
       },
     ])
     await app.restart()
+    await app.installRemoteVcsStatusProbe({
+      ok: true,
+      status: {
+        hasUpstream: false,
+        aheadCount: 0,
+        behindCount: 0,
+        aheadOfDefaultCount: null,
+        changeRequest: null,
+      },
+    })
 
     const { page } = app.mainWindow()
     await page.setViewportSize(VIEWPORT)
@@ -258,6 +288,7 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
     const composer = page.getByRole('region', { name: 'Composer file drop zone' })
     const transcript = page.getByRole('log', { name: 'Chat messages' })
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
+    const chatPanel = page.locator('[data-chat-panel-main="true"]')
 
     await expect(sidebar.getByText(PRIMARY_TITLE)).toBeVisible()
     await expect(sidebar.getByText(SECONDARY_TITLE)).toBeVisible()
@@ -271,16 +302,7 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
         'All covered surfaces now use stable semantic locators and fixed rendering inputs.',
       ),
     ).toBeVisible()
-    await expect(summary).toBeVisible()
-    await expect(summary.getByRole('button', { name: 'Create PR' })).toBeVisible({
-      timeout: 30_000,
-    })
-    await expect(summary.getByRole('button', { name: 'Branch: main' })).toBeVisible({
-      timeout: 30_000,
-    })
-    await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+3', {
-      timeout: 30_000,
-    })
+    await expect(summary).toHaveCount(0)
     await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2)
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -292,10 +314,55 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
 
     await expect(composer).toHaveScreenshot('composer.png', SCREENSHOT_OPTIONS)
     await expect(sidebar).toHaveScreenshot('sidebar.png', SCREENSHOT_OPTIONS)
+
+    await page.setViewportSize(WIDE_SUMMARY_VIEWPORT)
+    await expect(chatPanel).toHaveAttribute('data-session-summary-space', 'available')
+    await expect(summary).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'Create PR' })).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(summary.getByRole('button', { name: 'Branch: main' })).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(summary.getByRole('button', { name: /Changes/ })).toContainText('+3', {
+      timeout: 30_000,
+    })
+    const wideOpenTranscriptGeometry = await readGeometry(transcript)
+    const wideOpenComposerGeometry = await readGeometry(composer)
+    await expect(chatPanel).toHaveScreenshot(
+      'session-summary-wide-overlay.png',
+      SCREENSHOT_OPTIONS,
+    )
+    await app.captureEvidence('session-summary-wide-overlay')
     await page.locator('header').getByRole('button', { name: 'Hide Session Summary' }).click()
     await expect(summary).toHaveCount(0)
+    expectGeometryUnchanged(await readGeometry(transcript), wideOpenTranscriptGeometry)
+    expectGeometryUnchanged(await readGeometry(composer), wideOpenComposerGeometry)
+    await page.setViewportSize(VIEWPORT)
     await expect(transcript).toHaveScreenshot('transcript.png', SCREENSHOT_OPTIONS)
+    await page.setViewportSize(WIDE_SUMMARY_VIEWPORT)
     await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
+    await expect(summary).toBeVisible()
+    await expect(summary.getByRole('button', { name: 'Branch: main' })).toBeVisible({
+      timeout: 30_000,
+    })
+
+    await page.setViewportSize({ width: 720, height: 700 })
+    await expect(summary).toHaveCount(0)
+    const narrowTranscriptGeometry = await readGeometry(transcript)
+    const narrowComposerGeometry = await readGeometry(composer)
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
+    await expect(summary).toBeVisible()
+    expectGeometryUnchanged(await readGeometry(transcript), narrowTranscriptGeometry)
+    expectGeometryUnchanged(await readGeometry(composer), narrowComposerGeometry)
+    await page.mouse.move(10, 10)
+    await waitForVisualReadiness(page)
+    await expect(chatPanel).toHaveScreenshot(
+      'session-summary-narrow-overlay.png',
+      SCREENSHOT_OPTIONS,
+    )
+    await app.captureEvidence('session-summary-narrow-overlay')
+    await page.setViewportSize(WIDE_SUMMARY_VIEWPORT)
     await expect(summary).toBeVisible()
     await expect(summary.getByRole('button', { name: 'Branch: main' })).toBeVisible({
       timeout: 30_000,
@@ -312,36 +379,55 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
       name: 'Image viewer: session-summary-output.png',
     })
     await expect(imageViewer).toBeVisible()
+    await expect(
+      imageViewer.getByRole('img', { name: 'session-summary-output.png' }),
+    ).toHaveJSProperty('naturalWidth', 1_200)
+    const canvas = imageViewer.getByRole('region', { name: 'Image canvas' })
+    await expect.poll(() => canvas.evaluate((element) => ({
+      verticalOverflow: element.scrollHeight - element.clientHeight,
+      horizontalOverflow: element.scrollWidth - element.clientWidth,
+    }))).toEqual({ verticalOverflow: 0, horizontalOverflow: 0 })
     await waitForVisualReadiness(page)
     await expect(imageViewer).toHaveScreenshot('session-image-viewer.png', SCREENSHOT_OPTIONS)
+    await app.captureEvidence('session-summary-image-viewer')
     await imageViewer.getByRole('button', { name: 'Close image viewer' }).click()
+    await expect(summary).toBeVisible()
 
     await summary.getByRole('button', { name: 'Sources 1' }).click()
-    await summary.getByRole('button', { name: 'Show all' }).click()
+    await summary
+      .locator('#session-summary-section-sources')
+      .getByRole('button', { name: 'Show all' })
+      .click()
     const resourcesPanel = page.getByRole('region', { name: 'Session resources' })
+    await expect(summary).toHaveCount(0)
     await expect(resourcesPanel.getByText('OpenWaggle session resources')).toBeVisible()
     await page.mouse.move(10, 10)
     await waitForVisualReadiness(page)
     await expect(resourcesPanel).toHaveScreenshot('session-resources-panel.png', SCREENSHOT_OPTIONS)
+    await app.captureEvidence('session-summary-resource-browser')
     await resourcesPanel.getByRole('button', { name: 'Close resources' }).click()
 
     await expect(summary).toBeVisible()
     await summary.getByRole('button', { name: 'Create PR' }).click()
     const changeRequestComposer = page.getByRole('dialog', { name: 'Create pull request' })
-    await expect(changeRequestComposer.getByText('GitHub CLI ready as visual-bot.')).toBeVisible({
-      timeout: 30_000,
-    })
+    await expect(
+      changeRequestComposer
+        .getByRole('contentinfo')
+        .getByText('GitHub CLI ready as visual-bot.'),
+    ).toBeVisible({ timeout: 30_000 })
     await page.mouse.move(10, 10)
     await waitForVisualReadiness(page)
     await expect(changeRequestComposer).toHaveScreenshot(
       'change-request-composer.png',
       SCREENSHOT_OPTIONS,
     )
+    await app.captureEvidence('session-summary-change-request-composer')
     await changeRequestComposer.getByRole('button', { name: 'Close change request composer' }).click()
 
     const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
     await diffToggle.click()
     const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
+    await expect(summary).toHaveCount(0)
     await expect(diffPanel).not.toHaveAttribute('inert', '')
     await expect(
       diffPanel.getByText('visual-regression.ts', { exact: true }).first(),
@@ -355,8 +441,12 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
     await page.mouse.move(10, 10)
     await waitForVisualReadiness(page)
     await expect(diffPanel).toHaveScreenshot('diff-panel.png', SCREENSHOT_OPTIONS)
+    await app.captureEvidence('session-summary-sidebar-yield')
 
     await page.getByRole('button', { name: 'Close diff sidebar' }).click()
+    await expect(summary).toBeVisible()
+    await page.setViewportSize(VIEWPORT)
+    await expect(summary).toHaveCount(0)
     await page.getByRole('button', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Appearance' }).click()
 

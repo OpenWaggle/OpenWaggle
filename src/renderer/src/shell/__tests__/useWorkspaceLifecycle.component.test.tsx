@@ -204,6 +204,9 @@ describe('useWorkspaceLifecycle', () => {
       SessionId('session-1'),
       'New title',
     )
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.sessionHives,
+    })
 
     const invalidatedHandler = lifecycleMocks.getSessionListInvalidatedHandler()
     if (!invalidatedHandler) throw new Error('Expected session-list invalidation subscription')
@@ -213,6 +216,9 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: queryKeys.archivedSessions,
       exact: true,
+    })
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.sessionHives,
     })
 
     act(() => runHotkey('Mod+J'))

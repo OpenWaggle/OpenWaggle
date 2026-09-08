@@ -19,6 +19,7 @@ export interface ExtensionRightSidebarPanel {
 
 export type RightSidebarPanel =
   | 'diff'
+  | 'change-request'
   | 'file'
   | 'resources'
   | 'session-tree'

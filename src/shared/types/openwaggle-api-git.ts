@@ -1,12 +1,15 @@
-import type { RepositoryPath, WorkingPath } from './brand'
+import type { RepositoryPath, SessionId, WorkingPath } from './brand'
 import type {
   ChangeRequestCheckoutResult,
   ChangeRequestListResult,
+  ChangeRequestPanelResult,
+  ChangeRequestPreflightPayload,
   ChangeRequestPreflightResult,
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
   GitBranchListResult,
   GitBranchMutationResult,
+  GitBranchValidationResult,
   GitCommitPayload,
   GitCommitResult,
   GitDiffResult,
@@ -19,7 +22,8 @@ import type {
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
   LocalVcsStatusResult,
-  OpenChangeRequestPayload,
+  MergeChangeRequestPayload,
+  MergeChangeRequestResult,
   RemoteVcsStatusResult,
   SessionWorktreeCheck,
 } from './git'
@@ -29,6 +33,9 @@ import type { ChangeRequestAdoption } from './ipc-invoke-git'
 export interface OpenWaggleGitApi {
   onGitWorkingTreeChanged(
     callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
+  ): () => void
+  onGitStackedActionProgress(
+    callback: (payload: IpcEventPayload<'git:stacked-action:progress'>) => void,
   ): () => void
   getGitStatus(workingPath: WorkingPath): Promise<GitStatusSummary>
   commitGit(workingPath: WorkingPath, payload: GitCommitPayload): Promise<GitCommitResult>
@@ -45,6 +52,7 @@ export interface OpenWaggleGitApi {
     workingPath: WorkingPath,
     payload: GitBranchCreatePayload,
   ): Promise<GitBranchMutationResult>
+  validateGitBranchName(workingPath: WorkingPath, name: string): Promise<GitBranchValidationResult>
   checkSessionWorktree(worktreePath: string | null): Promise<SessionWorktreeCheck>
   listGitWorktrees(repositoryPath: RepositoryPath): Promise<GitWorktreeListResult>
   createGitWorktree(
@@ -61,9 +69,10 @@ export interface OpenWaggleGitApi {
     workingPath: WorkingPath,
     options: GitRunStackedActionOptions,
   ): Promise<GitRunStackedActionResult>
+  cancelStackedGitAction(operationId: string): Promise<boolean>
   preflightChangeRequest(
     workingPath: WorkingPath,
-    payload: OpenChangeRequestPayload,
+    payload: ChangeRequestPreflightPayload,
   ): Promise<ChangeRequestPreflightResult>
   listChangeRequests(repositoryPath: RepositoryPath): Promise<ChangeRequestListResult>
   checkoutChangeRequest(
@@ -71,4 +80,14 @@ export interface OpenWaggleGitApi {
     reference: string,
     adoption: ChangeRequestAdoption,
   ): Promise<ChangeRequestCheckoutResult>
+  getChangeRequestPanel(
+    sessionId: SessionId,
+    workingPath: WorkingPath,
+    requestUrl: string,
+  ): Promise<ChangeRequestPanelResult>
+  mergeChangeRequest(
+    sessionId: SessionId,
+    workingPath: WorkingPath,
+    payload: MergeChangeRequestPayload,
+  ): Promise<MergeChangeRequestResult>
 }

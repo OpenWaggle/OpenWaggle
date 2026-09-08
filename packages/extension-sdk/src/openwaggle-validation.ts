@@ -51,7 +51,11 @@ export function isSessionResourcesListResult(
     isRecord(value) &&
     isSessionResourceResultBase(value, OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES) &&
     Array.isArray(value.resources) &&
-    value.resources.every(isSessionResourceView)
+    value.resources.every(isSessionResourceView) &&
+    typeof value.total === 'number' &&
+    Number.isInteger(value.total) &&
+    value.total >= 0 &&
+    (value.nextCursor === null || typeof value.nextCursor === 'string')
   )
 }
 

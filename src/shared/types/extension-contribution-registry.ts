@@ -79,6 +79,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly packagePath: string
   readonly manifestPath: string
   readonly contentHash: string
+  /** Opaque host-issued authority binding. Never expose this value to extension frame code. */
+  readonly invocationBinding?: string
   readonly projectPaths: readonly string[]
   readonly sessionId?: string
   readonly appliesToAllRequestedProjects: boolean

@@ -6,11 +6,13 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('git')
 // A status load fans out to several short-lived Git processes after the initial repository probe.
-// Under process pressure the probe can fail before any repository command runs. Give that transient
-// state time to clear, but stop after 15.25 seconds so a genuinely non-Git folder is never polled.
+// Under process pressure the probe can fail before any repository command runs. Retry that transient
+// state, but stop immediately when Git confirms that the folder is not a repository.
 const LOCAL_STATUS_RETRY_DELAYS_MS = [250, 1_000, 4_000, 10_000] as const
 
-type LocalLoadOutcome = 'loaded' | 'failed' | 'stale'
+type LocalLoadOutcome = 'loaded' | 'retryable-failure' | 'settled-failure' | 'stale'
+export type RemoteVcsLoadState = 'loading' | 'loaded' | 'error' | 'unavailable'
+export type LocalVcsLoadState = 'loading' | 'loaded' | 'error' | 'unavailable'
 
 /**
  * Shared bookkeeping for one status load.
@@ -44,7 +46,7 @@ async function loadLocalStatus(
     if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return 'stale'
     if (!result.ok) {
       input.setLocal(null)
-      return 'failed'
+      return result.code === 'not-a-repo' ? 'settled-failure' : 'retryable-failure'
     }
     input.setLocal(result.status)
     input.loadedPath.current = workingPath
@@ -53,7 +55,7 @@ async function loadLocalStatus(
     logger.warn('Failed to load local VCS status', { error: String(error) })
     if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return 'stale'
     input.setLocal(null)
-    return 'failed'
+    return 'retryable-failure'
   }
 }
 
@@ -69,7 +71,7 @@ async function loadLocalStatusWithRetry(
 ) {
   let outcome = await loadLocalStatus(input)
   for (const retryDelay of LOCAL_STATUS_RETRY_DELAYS_MS) {
-    if (outcome !== 'failed') return outcome
+    if (outcome !== 'retryable-failure') return outcome
     await delay(retryDelay)
     if (
       input.requestedPath.current !== input.workingPath ||
@@ -83,17 +85,22 @@ async function loadLocalStatusWithRetry(
 }
 
 async function loadRemoteStatus(
-  input: LoadGuard & { readonly setRemote: (status: RemoteVcsStatus | null) => void },
+  input: LoadGuard & {
+    readonly setRemote: (status: RemoteVcsStatus | null) => void
+    readonly setRemoteState: (state: RemoteVcsLoadState) => void
+  },
 ) {
   const { workingPath, requestedPath, requestId, thisRequest } = input
   try {
     const result = await api.getRemoteVcsStatus(workingPath)
     if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
     input.setRemote(result.ok ? result.status : null)
+    input.setRemoteState(result.ok ? 'loaded' : 'error')
   } catch (error) {
     logger.warn('Failed to load remote VCS status', { error: String(error) })
     if (requestedPath.current !== workingPath || requestId.current !== thisRequest) return
     input.setRemote(null)
+    input.setRemoteState('error')
   }
 }
 
@@ -111,10 +118,16 @@ export function useCombinedVcsStatus(
    * "Git status is unavailable." - with no way back: the only other trigger was completing a stacked
    * action, which is exactly what the disabled button prevents. "Refresh diff" now reaches here too.
    */
-  refreshToken = 0,
+  refreshToken: string | number = 0,
 ) {
   const [local, setLocal] = useState<LocalVcsStatus | null>(null)
+  const [localState, setLocalState] = useState<LocalVcsLoadState>(
+    workingPath ? 'loading' : 'unavailable',
+  )
   const [remote, setRemote] = useState<RemoteVcsStatus | null>(null)
+  const [remoteState, setRemoteState] = useState<RemoteVcsLoadState>(
+    workingPath ? 'loading' : 'unavailable',
+  )
   const requestedPath = useRef(workingPath)
   /** The path the values currently in state were actually loaded from. */
   const loadedPath = useRef<WorkingPath | null>(null)
@@ -140,8 +153,10 @@ export function useCombinedVcsStatus(
      */
     if (workingPath !== previousPath || workingPath !== loadedPath.current) {
       setLocal(null)
-      setRemote(null)
     }
+    setLocalState(workingPath ? 'loading' : 'unavailable')
+    setRemote(null)
+    setRemoteState(workingPath ? 'loading' : 'unavailable')
     if (!workingPath || typeof api.getLocalVcsStatus !== 'function') {
       loadedPath.current = null
       return
@@ -156,8 +171,30 @@ export function useCombinedVcsStatus(
       setLocal,
       loadedPath,
     })
-    if (localOutcome !== 'loaded' || !canReadRemote) return
-    await loadRemoteStatus({ workingPath, requestedPath, requestId, thisRequest, setRemote })
+    if (localOutcome === 'stale') return
+    setLocalState(
+      localOutcome === 'loaded'
+        ? 'loaded'
+        : localOutcome === 'settled-failure'
+          ? 'unavailable'
+          : 'error',
+    )
+    if (localOutcome !== 'loaded') {
+      setRemoteState(localOutcome === 'settled-failure' ? 'unavailable' : 'error')
+      return
+    }
+    if (!canReadRemote) {
+      setRemoteState('unavailable')
+      return
+    }
+    await loadRemoteStatus({
+      workingPath,
+      requestedPath,
+      requestId,
+      thisRequest,
+      setRemote,
+      setRemoteState,
+    })
   }, [workingPath])
 
   useEffect(() => {
@@ -170,7 +207,7 @@ export function useCombinedVcsStatus(
 
   const status: VcsStatus | null = local ? { ...local, ...(remote ?? EMPTY_REMOTE) } : null
 
-  return { status, local, remote, refresh }
+  return { status, local, localState, remote, remoteState, refresh }
 }
 
 const EMPTY_REMOTE: RemoteVcsStatus = {

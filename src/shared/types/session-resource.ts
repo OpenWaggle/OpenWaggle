@@ -21,6 +21,8 @@ export interface SessionResourceOccurrence {
   readonly actor: SessionResourceActor
   readonly activity: SessionResourceActivity
   readonly label: string | null
+  /** Original path or URL observed for this exact use, before resource-level deduplication. */
+  readonly locator: string | null
   readonly createdAt: number
 }
 
@@ -47,6 +49,55 @@ export interface SessionResourceList {
   readonly backfillComplete: boolean
 }
 
+export type SessionResourceCatalogView =
+  | 'all'
+  | 'sources'
+  | 'outputs'
+  | 'images'
+  | 'change-requests'
+
+export const SESSION_RESOURCE_CATALOG_STALE_MESSAGE =
+  'Session resource catalog changed; restart pagination.'
+
+/** The Session workspace path currently rendered in chat. */
+export interface SessionResourceRouteSelection {
+  readonly branchId: string | null
+  readonly pathNodeIds: readonly string[]
+}
+
+export interface SessionResourceCatalogPageRequest {
+  readonly view: SessionResourceCatalogView
+  readonly cursor?: string | null
+  readonly limit: number
+  readonly selection?: SessionResourceRouteSelection | null
+}
+
+export interface SessionResourceCatalogPage {
+  readonly resources: readonly SessionResource[]
+  /** Exact number of resources matching this view in the owning session. */
+  readonly total: number
+  readonly nextCursor: string | null
+  /** Monotonic session catalog identity; changes after resources, occurrences, or branch order. */
+  readonly orderRevision: string
+}
+
+export interface SessionResourceImageLocation {
+  readonly resource: SessionResource
+  readonly previous: SessionResource | null
+  readonly next: SessionResource | null
+  /** Zero-based position in the stable Session image ordering. */
+  readonly index: number
+  readonly total: number
+  readonly orderRevision: string
+}
+
+export interface SessionResourceNodePageRequest {
+  readonly nodeIds: readonly string[]
+  readonly kind: SessionResourceKind | null
+  readonly cursor?: string | null
+  readonly limit: number
+}
+
 export interface SessionResourceBackfillStatus {
   readonly backfillComplete: boolean
   /** Whether this page durably advanced the historical projection cursor. */
@@ -54,6 +105,15 @@ export interface SessionResourceBackfillStatus {
 }
 
 export interface SessionResourceContent {
+  readonly resourceId: string
+  readonly fileName: string
+  readonly mimeType: string
+  readonly url: string
+  readonly downloadUrl: string
+}
+
+/** A bounded renderer preview. Full Session resource bytes never cross IPC. */
+export interface SessionResourceThumbnailPreview {
   readonly resourceId: string
   readonly fileName: string
   readonly mimeType: string

@@ -37,6 +37,7 @@ function linkOccurrence(input: LinkCaptureInput, id: string) {
     actor: input.actor,
     activity: input.activity,
     label: input.label,
+    locator: input.link.url,
     createdAt: input.createdAt,
   })
 }
@@ -56,16 +57,7 @@ function findExistingLinkResource(
         : ({ _tag: 'Blocked' as const } as const)
     }
     if (!input.link.image) return { _tag: 'Missing' as const }
-    const existing = (yield* repository.list(input.sessionId)).find((candidate) => {
-      if (candidate.kind !== 'image') return false
-      const prefix = 'image-url:'
-      if (!candidate.canonicalKey.startsWith(prefix)) return false
-      try {
-        return new URL(candidate.canonicalKey.slice(prefix.length)).href === input.link.url
-      } catch {
-        return false
-      }
-    })
+    const existing = yield* repository.findByLocator(input.sessionId, 'image', input.link.url)
     return existing
       ? ({ _tag: 'Existing' as const, resource: existing } as const)
       : ({ _tag: 'Missing' as const } as const)

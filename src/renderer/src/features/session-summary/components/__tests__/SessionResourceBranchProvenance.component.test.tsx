@@ -77,6 +77,7 @@ function resource(kind: 'file' | 'image'): SessionResource {
         actor: 'user',
         activity: 'provided',
         label: null,
+        locator: `session-resource://resource-${kind}`,
         createdAt: 1,
       },
     ],
@@ -94,7 +95,8 @@ describe('session resource friendly branch provenance', () => {
       resourceId: 'resource-image',
       fileName: 'branch-image.png',
       mimeType: 'image/png',
-      dataBase64: 'aW1hZ2U=',
+      url: 'openwaggle-session-resource://content/resource-image/view',
+      downloadUrl: 'openwaggle-session-resource://content/resource-image/download',
     })
   })
 

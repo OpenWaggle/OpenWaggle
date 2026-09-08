@@ -1,13 +1,15 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type {
   ChangeRequestCheckoutResult,
+  ChangeRequestPreflightPayload,
   ChangeRequestPreflightResult,
-  OpenChangeRequestPayload,
 } from '@shared/types/git'
+import { resolveAutoFeatureBranchName } from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
 import { networkGitOptions } from '../../adapters/git/run-git'
-import { getSourceControlProvider } from '../../adapters/source-control'
 import { typedHandle } from '../typed-ipc'
+import { listGitBranches } from './branch-list'
+import { resolveChangeRequestIdentity } from './change-request-identity'
 import {
   buildChangeRequestFallbackUrl,
   resolveSourceControlProvider,
@@ -16,13 +18,6 @@ import { planChangeRequestFetch } from './change-request-refs'
 import { adoptionSchema, referenceSchema } from './change-request-schemas'
 import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema, runGit } from './shared'
-import { detectSourceControlProvider } from './vcs-status-parse'
-
-async function resolveProvider(projectPath: string) {
-  const remote = await runGit(projectPath, ['remote', 'get-url', 'origin'])
-  const remoteUrl = remote.code === 0 ? remote.stdout.trim() || null : null
-  return getSourceControlProvider(detectSourceControlProvider(remoteUrl)?.id)
-}
 
 const NO_PROVIDER = {
   ok: false,
@@ -30,8 +25,6 @@ const NO_PROVIDER = {
   message: 'No supported source control provider.',
 } as const
 
-/** The remote change-request branches are fetched from, matching the rest of the git module. */
-const CHANGE_REQUEST_REMOTE = 'origin'
 /** Longer than a ref advertisement, because this transfers objects. */
 const CHANGE_REQUEST_FETCH_TIMEOUT_MS = 30_000
 
@@ -41,7 +34,20 @@ const openChangeRequestPayloadSchema = Schema.Struct({
   title: Schema.String,
   body: Schema.optional(Schema.String),
   draft: Schema.optional(Schema.Boolean),
+  createFeatureBranch: Schema.optional(Schema.Boolean),
 })
+
+async function planChangeRequestHead(projectPath: string, payload: ChangeRequestPreflightPayload) {
+  if (!payload.createFeatureBranch) return payload.headRef
+  const branchList = await listGitBranches(projectPath)
+  const preferred = resolveAutoFeatureBranchName([], payload.headRef)
+  // A later provider step may fail after the stacked action has already created and checked out
+  // this exact branch. Treat that current ref as prepared work: suffixing it here would make a
+  // retry branch again from the base and strand the commit that was already pushed.
+  if (branchList.currentBranch === preferred) return preferred
+  const existing = branchList.branches.map((branch) => branch.localName)
+  return resolveAutoFeatureBranchName(existing, payload.headRef)
+}
 
 /**
  * Make a change request's head commit available locally without touching any working tree.
@@ -58,6 +64,7 @@ const openChangeRequestPayloadSchema = Schema.Struct({
  */
 async function fetchChangeRequestRef(
   repositoryPath: string,
+  remoteName: string,
   changeRequestUrl: string,
 ): Promise<ChangeRequestCheckoutResult> {
   const plan = planChangeRequestFetch(changeRequestUrl)
@@ -72,7 +79,7 @@ async function fetchChangeRequestRef(
   const refspec = `+${plan.remoteRef}:${plan.localRef}`
   const result = await runGit(
     repositoryPath,
-    ['fetch', CHANGE_REQUEST_REMOTE, refspec],
+    ['fetch', remoteName, refspec],
     // A fetch reaches the network on an interactive path, so it is bounded and never prompts.
     networkGitOptions(CHANGE_REQUEST_FETCH_TIMEOUT_MS),
   )
@@ -94,11 +101,15 @@ export function registerGitChangeRequestHandlers(): void {
       const payload = decodeUnknownOrThrow(
         openChangeRequestPayloadSchema,
         rawPayload,
-      ) satisfies OpenChangeRequestPayload
+      ) satisfies ChangeRequestPreflightPayload
+      const plannedHeadRef = yield* Effect.promise(() =>
+        planChangeRequestHead(projectPath, payload),
+      )
+      const plannedPayload = { ...payload, headRef: plannedHeadRef }
       const sourceControl = yield* Effect.promise(() => resolveSourceControlProvider(projectPath))
       if (!sourceControl) {
         const browserUrl = yield* Effect.promise(() =>
-          buildChangeRequestFallbackUrl(projectPath, payload, false),
+          buildChangeRequestFallbackUrl(projectPath, plannedPayload, false),
         )
         return {
           provider: null,
@@ -108,18 +119,25 @@ export function registerGitChangeRequestHandlers(): void {
             message: 'No supported source control provider.',
           },
           browserUrl,
+          plannedHeadRef,
         } satisfies ChangeRequestPreflightResult
       }
       const [readiness, browserUrl] = yield* Effect.promise(() =>
         Promise.all([
-          sourceControl.provider.authStatus(projectPath, sourceControl.info.host),
-          buildChangeRequestFallbackUrl(projectPath, payload, false, sourceControl.remoteUrl),
+          sourceControl.provider.authStatus(projectPath),
+          buildChangeRequestFallbackUrl(
+            projectPath,
+            plannedPayload,
+            false,
+            sourceControl.remoteUrl,
+          ),
         ]),
       )
       return {
         provider: sourceControl.info,
         readiness,
         browserUrl,
+        plannedHeadRef,
       } satisfies ChangeRequestPreflightResult
     }),
   )
@@ -127,9 +145,9 @@ export function registerGitChangeRequestHandlers(): void {
   typedHandle('git:change-request:list', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const provider = yield* Effect.promise(() => resolveProvider(projectPath))
-      if (!provider) return NO_PROVIDER
-      return yield* Effect.promise(() => provider.listChangeRequests(projectPath))
+      const sourceControl = yield* Effect.promise(() => resolveSourceControlProvider(projectPath))
+      if (!sourceControl) return NO_PROVIDER
+      return yield* Effect.promise(() => sourceControl.provider.listChangeRequests(projectPath))
     }),
   )
 
@@ -143,13 +161,29 @@ export function registerGitChangeRequestHandlers(): void {
         return yield* withGitMutationLock(
           repositoryPath,
           Effect.gen(function* () {
+            const sourceControl = yield* Effect.promise(() =>
+              resolveSourceControlProvider(repositoryPath),
+            )
+            if (!sourceControl) return NO_PROVIDER
             if (adoption === 'fetch') {
-              return yield* Effect.promise(() => fetchChangeRequestRef(repositoryPath, reference))
+              const identity = resolveChangeRequestIdentity(
+                sourceControl.remoteUrl,
+                sourceControl.info.id,
+                reference,
+              )
+              if (!identity) {
+                return {
+                  ok: false,
+                  code: 'unknown',
+                  message: `The change request does not belong to this repository.`,
+                } as const
+              }
+              return yield* Effect.promise(() =>
+                fetchChangeRequestRef(repositoryPath, sourceControl.remoteName, identity.url),
+              )
             }
-            const provider = yield* Effect.promise(() => resolveProvider(repositoryPath))
-            if (!provider) return NO_PROVIDER
             return yield* Effect.promise(() =>
-              provider.checkoutChangeRequest(repositoryPath, reference),
+              sourceControl.provider.checkoutChangeRequest(repositoryPath, reference),
             )
           }),
         )

@@ -166,6 +166,7 @@ describe('buildContentSecurityPolicy', () => {
     )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
+    expect(CONTENT_SECURITY_POLICY).toContain('openwaggle-session-resource:')
     expect(CONTENT_SECURITY_POLICY).toContain("frame-src 'self' blob: openwaggle-extension-frame:")
     expect(CONTENT_SECURITY_POLICY).toContain(
       "connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:* https://api.github.com",

@@ -7,7 +7,7 @@ import type {
   GitWorktreeMutationResult,
   GitWorktreeRemovePayload,
 } from '@shared/types/git'
-import { runWithGitMutationLock } from '../../services/git/mutation-lock'
+import { runWithGitMutationLock, runWithGitMutationLocks } from '../../services/git/mutation-lock'
 import { isGitRepository, runGit } from './run-git'
 
 function runWorktreeGit(projectPath: string, args: string[], signal?: AbortSignal) {
@@ -268,5 +268,9 @@ export function removeGitWorktree(
   projectPath: string,
   payload: GitWorktreeRemovePayload,
 ): Promise<GitWorktreeMutationResult> {
-  return runWithGitMutationLock(projectPath, () => removeGitWorktreeUnlocked(projectPath, payload))
+  const worktreePath = payload.path.trim()
+  const mutationPaths = worktreePath ? [projectPath, worktreePath] : [projectPath]
+  return runWithGitMutationLocks(mutationPaths, () =>
+    removeGitWorktreeUnlocked(projectPath, payload),
+  )
 }

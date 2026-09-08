@@ -1,4 +1,4 @@
-import { decodeUnknownOrThrow, type Schema } from '@shared/schema'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -7,7 +7,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
-import { checkoutGitBranch, createGitBranch } from './branch-mutations'
+import { checkoutGitBranch, createGitBranch, validateGitBranchName } from './branch-mutations'
 import { branchCheckoutPayloadSchema, branchCreatePayloadSchema } from './branch-schemas'
 import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema } from './shared'
@@ -47,6 +47,14 @@ export function registerGitBranchHandlers(): void {
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       return yield* Effect.promise(() => listGitBranches(projectPath))
+    }),
+  )
+
+  typedHandle('git:branches:validate-name', (_event, rawPath: unknown, rawName: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const name = decodeUnknownOrThrow(Schema.String, rawName)
+      return yield* Effect.promise(() => validateGitBranchName(projectPath, name))
     }),
   )
 

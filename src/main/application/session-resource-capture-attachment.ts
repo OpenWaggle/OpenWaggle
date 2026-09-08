@@ -8,7 +8,6 @@ import type {
   SessionResourceOccurrence,
 } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
-import { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import {
   SessionResourceRepository,
   type SessionResourceRepositoryShape,
@@ -18,6 +17,7 @@ import {
   type SessionResourceStoreShape,
   type StoredSessionResourceFile,
 } from '../ports/session-resource-store'
+import { classifyStoredAttachment } from './session-resource-capture-attachment-classification'
 import { repairManagedAttachment } from './session-resource-capture-attachment-repair'
 import { findUnavailableAttachment } from './session-resource-capture-attachment-unavailable'
 import {
@@ -53,21 +53,6 @@ function attachmentKind(
   return input.attachment.kind === 'image' && imageBytesValidated ? 'image' : 'file'
 }
 
-function classifyStoredAttachment(
-  input: CaptureAttachmentInput,
-  stored: StoredSessionResourceFile,
-  store: SessionResourceStoreShape,
-) {
-  if (input.attachment.kind !== 'image') return Effect.succeed('file' as const)
-  return Effect.gen(function* () {
-    const validator = yield* SessionResourceImageValidator
-    const bytes = yield* store.read(stored.path)
-    return (yield* validator.validate(bytes, input.attachment.mimeType))
-      ? ('image' as const)
-      : ('file' as const)
-  }).pipe(Effect.catchAll(() => Effect.succeed('file' as const)))
-}
-
 function attachmentOccurrence(
   input: CaptureAttachmentInput,
   id: string,
@@ -78,6 +63,7 @@ function attachmentOccurrence(
     branchId: input.branchId,
     actor: 'user',
     activity: 'provided',
+    locator: input.attachment.path,
     createdAt: input.createdAt,
   })
 }
@@ -292,7 +278,7 @@ export function captureAttachment(input: CaptureAttachmentInput) {
     )
     if (storedResult._tag === 'Unavailable') return false
     const { stored } = storedResult
-    const kind = yield* classifyStoredAttachment(input, stored, store)
+    const kind = yield* classifyStoredAttachment(input.attachment, stored, store)
     if (unavailableResource?.available === false) {
       yield* restoreUnavailableAttachment(
         input,

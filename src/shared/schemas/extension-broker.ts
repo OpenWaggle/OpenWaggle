@@ -28,6 +28,8 @@ import {
   extensionIdSchema,
 } from './extensions'
 
+const EXTENSION_INVOCATION_BINDING_MAX_LENGTH = 128
+
 export * from './extension-broker-core'
 export * from './extension-broker-openwaggle'
 export * from './extension-broker-resources'
@@ -48,6 +50,11 @@ export const extensionInvokeInputSchema = Schema.Struct({
   scope: extensionInvokeScopeSchema,
   payload: Schema.optional(Schema.Unknown),
 })
+
+export const extensionInvocationBindingSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.maxLength(EXTENSION_INVOCATION_BINDING_MAX_LENGTH),
+)
 
 export const extensionInvokeFailureCodeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODES,

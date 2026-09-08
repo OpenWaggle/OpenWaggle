@@ -44,8 +44,6 @@ describe('git-stacked-action pure logic', () => {
         'Preparing feature ref...',
         'Committing...',
         'Pushing...',
-        'Preparing PR...',
-        'Generating PR content...',
         'Creating pull request...',
       ])
     })
@@ -65,6 +63,28 @@ describe('git-stacked-action pure logic', () => {
           hasWorkingTreeChanges: false,
         }),
       ).toEqual(['Pulling...'])
+    })
+
+    it('counts branch creation as a real push stage', () => {
+      expect(
+        buildGitActionProgressStages({
+          action: 'push',
+          hasCustomCommitMessage: false,
+          hasWorkingTreeChanges: false,
+          featureBranch: true,
+        }),
+      ).toEqual(['Preparing feature ref...', 'Pushing...'])
+    })
+
+    it('counts branch creation for a change request without a commit', () => {
+      expect(
+        buildGitActionProgressStages({
+          action: 'create_pr',
+          hasCustomCommitMessage: false,
+          hasWorkingTreeChanges: false,
+          featureBranch: true,
+        }),
+      ).toEqual(['Preparing feature ref...', 'Pushing...', 'Creating pull request...'])
     })
   })
 
@@ -99,9 +119,8 @@ describe('git-stacked-action pure logic', () => {
 
   describe('targetsDefaultRef', () => {
     /*
-     * A push follows the upstream mapping, so standing on `feature` with an upstream of `origin/main` writes
-     * `main` - verified against real git, which reported `feature -> main`. Judging only the ref you are on waved
-     * that straight through, which is exactly the push this confirmation exists to catch.
+     * Git's configured push ref can differ from the checked-out ref. Judging only the source can
+     * wave through a write to the default branch.
      */
     it('is true when a push would write the default branch from another ref', () => {
       expect(targetsDefaultRef({ isDefaultRef: false, pushTargetIsDefaultRef: true })).toBe(true)
@@ -117,6 +136,17 @@ describe('git-stacked-action pure logic', () => {
   })
 
   describe('defaultBranchActionLabel', () => {
+    it('does not describe a destination as coming from itself', () => {
+      expect(
+        defaultBranchActionLabel({
+          isDefaultRef: false,
+          pushTargetIsDefaultRef: true,
+          pushTargetRef: 'develop',
+          refName: 'develop',
+        }),
+      ).toBe('develop')
+    })
+
     it('names the destination when a push would write elsewhere', () => {
       // "You are on feature" while the push updates main invites confirming the wrong thing.
       expect(
@@ -126,7 +156,7 @@ describe('git-stacked-action pure logic', () => {
           pushTargetRef: 'main',
           refName: 'feature',
         }),
-      ).toBe('main (tracked by feature)')
+      ).toBe('main (from feature)')
     })
 
     it('names the current ref when that is what would be written', () => {

@@ -58,6 +58,7 @@ describe('captureSuccessfulRunResources', () => {
             branchId: 'branch-user',
             actor: 'user',
             activity: 'provided',
+            locator: '/input/reference.png',
           }),
         }),
         expect.objectContaining({
@@ -67,6 +68,7 @@ describe('captureSuccessfulRunResources', () => {
             branchId: 'branch-assistant',
             actor: 'tool',
             activity: 'created',
+            locator: null,
           }),
         }),
       ]),
@@ -134,6 +136,7 @@ describe('captureSuccessfulRunResources', () => {
           actor: 'user',
           activity: 'provided',
           label: null,
+          locator: '/input/missing.png',
           createdAt: 1000,
         },
       ],
@@ -202,11 +205,19 @@ describe('captureSuccessfulRunResources', () => {
       expect.arrayContaining([
         expect.objectContaining({
           canonicalKey: 'url:https://user.example/reference',
-          occurrence: expect.objectContaining({ nodeId: 'user-message', activity: 'provided' }),
+          occurrence: expect.objectContaining({
+            nodeId: 'user-message',
+            activity: 'provided',
+            locator: 'https://user.example/reference',
+          }),
         }),
         expect.objectContaining({
           canonicalKey: 'url:https://agent.example/source',
-          occurrence: expect.objectContaining({ nodeId: 'assistant-message', activity: 'read' }),
+          occurrence: expect.objectContaining({
+            nodeId: 'assistant-message',
+            activity: 'read',
+            locator: 'https://agent.example/source',
+          }),
         }),
       ]),
     )

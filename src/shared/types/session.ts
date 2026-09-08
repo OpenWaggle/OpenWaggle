@@ -67,6 +67,13 @@ export interface SessionSummary {
   readonly lineage?: SessionLineage
 }
 
+/** The opened Session plus only the immediate Hive relatives its Summary can render. */
+export interface SessionHiveRelations {
+  readonly current: SessionSummary | null
+  readonly parent: SessionSummary | null
+  readonly workers: readonly SessionSummary[]
+}
+
 export interface SessionInterruptedRun {
   readonly runId: string
   readonly sessionId: SessionId

@@ -73,14 +73,14 @@ describe('production Session Resource tool capture', () => {
         ],
         nodeIdByMessageId: { 'assistant-tool-message': 'persisted-read-node' },
         branchIdByMessageId: { 'assistant-tool-message': 'branch-read' },
-      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { sessionWorkingPath: '/repo' }))),
     )
 
     expect(upserts).toContainEqual(
       expect.objectContaining({
         canonicalKey: 'file:/repo/src/session-summary.ts',
         kind: 'file',
-        title: '/repo/src/session-summary.ts',
+        title: 'src/session-summary.ts',
         locator: '/repo/src/session-summary.ts',
         occurrence: expect.objectContaining({
           id: 'session-1:persisted-read-node:read:file:tool-call-1',
@@ -117,6 +117,7 @@ describe('production Session Resource tool capture', () => {
       expect.objectContaining({
         canonicalKey: 'file:/worktree/src/session-summary.ts',
         kind: 'file',
+        title: 'src/session-summary.ts',
         locator: '/worktree/src/session-summary.ts',
       }),
     )
@@ -147,7 +148,7 @@ describe('production Session Resource tool capture', () => {
       expect.objectContaining({
         canonicalKey: 'file:/worktree/dist/report.html',
         kind: 'file',
-        title: '/worktree/dist/report.html',
+        title: 'dist/report.html',
         locator: '/worktree/dist/report.html',
         occurrence: expect.objectContaining({
           id: 'session-1:persisted-write-node:updated:file:tool-call-1',
@@ -156,6 +157,35 @@ describe('production Session Resource tool capture', () => {
           activity: 'updated',
           label: 'write',
         }),
+      }),
+    )
+  })
+
+  it('uses only the basename when a tool reads outside the Session working tree', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-external-read',
+        payload: { text: '', thinkingLevel: 'medium', attachments: [] },
+        messages: [
+          assistantToolResultMessage(false, {
+            name: 'read',
+            args: { path: '/Users/person/private/notes.txt' },
+          }),
+        ],
+      }).pipe(
+        Effect.provide(sessionResourceTestLayer(upserts, { sessionWorkingPath: '/worktree' })),
+      ),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        canonicalKey: 'file:/Users/person/private/notes.txt',
+        kind: 'file',
+        title: 'notes.txt',
+        locator: '/Users/person/private/notes.txt',
       }),
     )
   })

@@ -83,6 +83,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
             actor: 'user',
             activity: 'provided',
             label: null,
+            locator: '/project/report.png',
             createdAt: 1000,
           },
           createdAt: 1000,
@@ -105,6 +106,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
             actor: 'agent',
             activity: 'created',
             label: null,
+            locator: '/worktree/report.png',
             createdAt: 2000,
           },
           createdAt: 2000,
@@ -127,6 +129,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
             actor: 'agent',
             activity: 'read',
             label: null,
+            locator: 'https://example.invalid/stale',
             createdAt: 500,
           },
           createdAt: 500,
@@ -160,6 +163,11 @@ describe('SqliteSessionResourceRepositoryLive', () => {
       'read',
       'provided',
       'created',
+    ])
+    expect(resources[0]?.occurrences.map((occurrence) => occurrence.locator)).toEqual([
+      'https://example.invalid/stale',
+      '/project/report.png',
+      '/worktree/report.png',
     ])
     expect(result.found).toMatchObject({ id: 'resource-1' })
     expect(result.location).toMatchObject({
@@ -195,6 +203,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
               actor: 'user',
               activity: 'provided',
               label: null,
+              locator: `session-resource://resource-${sessionId}`,
               createdAt: 1000,
             },
             createdAt: 1000,
@@ -240,6 +249,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
             actor: 'user',
             activity: 'provided',
             label: null,
+            locator: 'session-resource://digest-resource',
             createdAt: 500,
           },
           createdAt: 500,
@@ -262,6 +272,7 @@ describe('SqliteSessionResourceRepositoryLive', () => {
             actor: 'user',
             activity: 'provided',
             label: null,
+            locator: '/input/missing.png',
             createdAt: 1000,
           },
           createdAt: 1000,

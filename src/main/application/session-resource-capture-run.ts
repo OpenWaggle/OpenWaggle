@@ -147,7 +147,7 @@ function captureCompletedToolResult(input: {
       branchId: input.context.branchId,
       workingPath: input.workingPath,
       createdAt: input.context.message.createdAt,
-    })
+    }).pipe(Effect.catchAll(() => Effect.void))
     for (const group of groups) {
       const resources = collectExplicitResources(group.result)
       yield* captureImages({
@@ -238,7 +238,7 @@ export function captureSuccessfulRunResources(input: SuccessfulRunResourceInput)
       input.sessionId,
       Effect.gen(function* () {
         const links: LinkCaptureState = { count: 0 }
-        yield* captureUserResources(input, Date.now(), links)
+        yield* captureUserResources(input, input.messages[0]?.createdAt ?? 0, links)
         yield* captureAssistantResources(input, links)
       }),
     ),

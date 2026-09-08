@@ -31,7 +31,9 @@ const mocks = vi.hoisted(() => ({
   persistSnapshotMock: vi.fn(),
   listSessionDetailsMock: vi.fn(),
   getSessionDetailMock: vi.fn(),
+  getHiveRelationsMock: vi.fn(),
   createSessionMock: vi.fn(),
+  hasDirectWorkersMock: vi.fn(async () => false),
   deleteSessionMock: vi.fn(),
   archiveSessionMock: vi.fn(),
   unarchiveSessionMock: vi.fn(),
@@ -57,7 +59,9 @@ export const forkRuntimeSessionMock: TestMock = mocks.forkRuntimeSessionMock
 export const persistSnapshotMock: TestMock = mocks.persistSnapshotMock
 export const listSessionDetailsMock: TestMock = mocks.listSessionDetailsMock
 export const getSessionDetailMock: TestMock = mocks.getSessionDetailMock
+export const getHiveRelationsMock: TestMock = mocks.getHiveRelationsMock
 export const createSessionMock: TestMock = mocks.createSessionMock
+export const hasDirectWorkersMock: TestMock = mocks.hasDirectWorkersMock
 export const deleteSessionMock: TestMock = mocks.deleteSessionMock
 export const archiveSessionMock: TestMock = mocks.archiveSessionMock
 export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
@@ -94,105 +98,48 @@ vi.mock('../../utils/stream-bridge', () => ({
   emitRunCompleted: emitRunCompletedMock,
 }))
 
+function projectionOperation<A>(operation: string, task: () => Promise<A>) {
+  return Effect.tryPromise({
+    try: task,
+    catch: (cause) => new SessionProjectionRepositoryError({ operation, cause }),
+  })
+}
+
 const TestSessionProjectionRepoLayer = Layer.succeed(
   SessionProjectionRepository,
   SessionProjectionRepository.of({
-    get: (id) =>
-      Effect.tryPromise({
-        try: async () => getSessionDetailMock(id),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
-      }),
-    getOptional: (id) =>
-      Effect.tryPromise({
-        try: async () => getSessionDetailMock(id),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
-      }),
-    list: (limit) =>
-      Effect.tryPromise({
-        try: async () => listArchivedSessionsMock(limit),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'list', cause }),
-      }),
+    get: (id) => projectionOperation('get', async () => getSessionDetailMock(id)),
+    getOptional: (id) => projectionOperation('getOptional', async () => getSessionDetailMock(id)),
+    getHiveRelations: (id) =>
+      projectionOperation('getHiveRelations', async () => getHiveRelationsMock(id)),
+    list: (limit) => projectionOperation('list', async () => listArchivedSessionsMock(limit)),
     listDetails: (limit) =>
-      Effect.tryPromise({
-        try: async () => listSessionDetailsMock(limit),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'listDetails', cause }),
-      }),
-    create: (input) =>
-      Effect.tryPromise({
-        try: async () => createSessionMock(input),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'create', cause }),
-      }),
-    delete: (id) =>
-      Effect.tryPromise({
-        try: async () => {
-          await deleteSessionMock(id)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
-      }),
-    archive: (id) =>
-      Effect.tryPromise({
-        try: async () => {
-          await archiveSessionMock(id)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'archive', cause }),
-      }),
-    unarchive: (id) =>
-      Effect.tryPromise({
-        try: async () => {
-          await unarchiveSessionMock(id)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'unarchive', cause }),
-      }),
-    listArchived: () =>
-      Effect.tryPromise({
-        try: async () => listArchivedSessionsMock(),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'listArchived', cause }),
-      }),
+      projectionOperation('listDetails', async () => listSessionDetailsMock(limit)),
+    create: (input) => projectionOperation('create', async () => createSessionMock(input)),
+    hasDirectWorkers: (id) =>
+      projectionOperation('hasDirectWorkers', async () => hasDirectWorkersMock(id)),
+    delete: (id) => projectionOperation('delete', async () => deleteSessionMock(id)),
+    archive: (id) => projectionOperation('archive', async () => archiveSessionMock(id)),
+    unarchive: (id) => projectionOperation('unarchive', async () => unarchiveSessionMock(id)),
+    listArchived: () => projectionOperation('listArchived', async () => listArchivedSessionsMock()),
     updateTitle: (id, title) =>
-      Effect.tryPromise({
-        try: async () => {
-          await updateSessionTitleMock(id, title)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
-      }),
+      projectionOperation('updateTitle', async () => updateSessionTitleMock(id, title)),
     setWorktreePlan: () => Effect.void,
     setAuthorizationMode: (id, authorizationMode) =>
-      Effect.tryPromise({
-        try: async () => {
-          await setAuthorizationModeMock(id, authorizationMode)
-        },
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
-      }),
+      projectionOperation('setAuthorizationMode', async () =>
+        setAuthorizationModeMock(id, authorizationMode),
+      ),
     establishLineage: () => Effect.void,
     setDelegationState: () => Effect.void,
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,
     listPinnedSessions: () =>
-      Effect.tryPromise({
-        try: () => listPinnedSessionsMock(),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'listPinnedSessions', cause }),
-      }),
-    pinSession: (id) =>
-      Effect.tryPromise({
-        try: () => pinSessionMock(id),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'pinSession', cause }),
-      }),
-    unpinSession: (id) =>
-      Effect.tryPromise({
-        try: () => unpinSessionMock(id),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'unpinSession', cause }),
-      }),
+      projectionOperation('listPinnedSessions', async () => listPinnedSessionsMock()),
+    pinSession: (id) => projectionOperation('pinSession', async () => pinSessionMock(id)),
+    unpinSession: (id) => projectionOperation('unpinSession', async () => unpinSessionMock(id)),
     movePinnedSession: (move) =>
-      Effect.tryPromise({
-        try: () => movePinnedSessionMock(move),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'movePinnedSession', cause }),
-      }),
+      projectionOperation('movePinnedSession', async () => movePinnedSessionMock(move)),
   }),
 )
 
@@ -310,6 +257,7 @@ export function resetSessionDetailsHandlerMocks() {
   pinSessionMock.mockResolvedValue(undefined)
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
+  hasDirectWorkersMock.mockResolvedValue(false)
   cancelSessionRunsMock.mockReturnValue(false)
   SessionResourceTest.resetSessionResourceTestMocks()
 }

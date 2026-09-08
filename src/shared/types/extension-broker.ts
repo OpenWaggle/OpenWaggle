@@ -25,6 +25,7 @@ import type {
   extensionRuntimeUnregisterContributionResultSchema,
   extensionSessionResourcePublishPayloadSchema,
   extensionSessionResourcePublishResultSchema,
+  extensionSessionResourcesListPayloadSchema,
   extensionSessionResourcesListResultSchema,
   extensionSessionResourceViewSchema,
   extensionSessionViewSchema,
@@ -99,6 +100,9 @@ export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>
 export type ExtensionSessionResourcePublishPayload = SchemaType<
   typeof extensionSessionResourcePublishPayloadSchema
+>
+export type ExtensionSessionResourcesListPayload = SchemaType<
+  typeof extensionSessionResourcesListPayloadSchema
 >
 export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>
 export type ExtensionSessionResourcesListResult = SchemaType<

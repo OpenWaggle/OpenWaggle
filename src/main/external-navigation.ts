@@ -1,8 +1,24 @@
+import type { WebContents } from 'electron'
 import { openExternal } from './desktop-ui'
 import { describeError } from './error-description'
 import { createLogger } from './logger'
+import { isSessionResourceDownloadNavigation } from './session-resource-protocol'
 
 const logger = createLogger('main/external-navigation')
+
+export function installExternalNavigationGuard(webContents: WebContents, rendererOrigin: string) {
+  webContents.setWindowOpenHandler((details) => {
+    openExternalFromRenderer(details.url)
+    return { action: 'deny' }
+  })
+  webContents.on('will-navigate', (event, url) => {
+    if (isSessionResourceDownloadNavigation(url, webContents.id, webContents.getURL())) return
+    if (!url.startsWith(rendererOrigin)) {
+      event.preventDefault()
+      openExternalFromRenderer(url)
+    }
+  })
+}
 
 export function externalNavigationProtocol(url: string) {
   try {

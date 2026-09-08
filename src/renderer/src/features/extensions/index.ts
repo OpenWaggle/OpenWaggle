@@ -48,6 +48,7 @@ export {
   surfaceTarget,
 } from './lib/extension-agent-loop-surface-model'
 export { refreshPreferencesAfterExtensionInvoke } from './lib/extension-broker-preferences'
+export { invokeBoundExtension } from './lib/extension-contribution-invocation'
 export type {
   ExtensionDialogResolution,
   ExtensionDialogTarget,

@@ -56,7 +56,7 @@ function imageResource(
 
 describe('SessionResourcesPanel source actions', () => {
   beforeEach(() => {
-    useUIStore.setState({ resourceViewer: null })
+    useUIStore.setState({ resourceViewer: null, toastMessage: null, toastData: null })
     apiMocks.list.mockReset()
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
     apiMocks.openPath.mockReset().mockResolvedValue(undefined)
@@ -143,6 +143,30 @@ describe('SessionResourcesPanel source actions', () => {
     expect(screen.queryByRole('button', { name: 'Retry invalid-generated.png' })).toBeNull()
   })
 
+  it('opens an available local file from its primary row and reports failures', async () => {
+    const localFile: SessionResource = {
+      ...imageResource('local-file', 'report.txt', '/output/report.txt'),
+      kind: 'file',
+      mimeType: 'text/plain',
+      managed: false,
+      isSource: true,
+      isOutput: true,
+    }
+    apiMocks.list.mockResolvedValue([localFile])
+    apiMocks.openPath.mockRejectedValueOnce(new Error('The original file is unavailable.'))
+    renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByText('report.txt'))
+
+    await waitFor(() => expect(apiMocks.openPath).toHaveBeenCalledWith('/output/report.txt'))
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData).toMatchObject({
+        message: 'The original file is unavailable.',
+        variant: 'error',
+      }),
+    )
+  })
+
   it('keeps open and reveal actions for an original path beside a managed copy', async () => {
     apiMocks.list.mockResolvedValue([
       imageResource('managed-local', 'managed-local.png', '/input/managed-local.png', true, true),
@@ -157,6 +181,52 @@ describe('SessionResourcesPanel source actions', () => {
     expect(screen.getByText('Managed copy · Original available')).toBeInTheDocument()
   })
 
+  it('prefers the active transcript occurrence locator for deduplicated resources', async () => {
+    apiMocks.list.mockResolvedValue([
+      {
+        ...imageResource('deduplicated', 'deduplicated.png', '/fallback/deduplicated.png'),
+        occurrences: [
+          {
+            id: 'active-occurrence',
+            nodeId: 'active-node',
+            branchId: null,
+            actor: 'user',
+            activity: 'provided',
+            label: null,
+            locator: '/active/deduplicated.png',
+            createdAt: 1,
+          },
+          {
+            id: 'hidden-occurrence',
+            nodeId: 'hidden-node',
+            branchId: null,
+            actor: 'extension',
+            activity: 'provided',
+            label: 'a hidden extension',
+            locator: '/hidden/deduplicated.png',
+            createdAt: 2,
+          },
+        ],
+      },
+    ])
+    renderWithQueryClient(
+      <SessionResourcesPanel
+        sessionId="session-one"
+        activePathNodeIds={new Set(['active-node'])}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const row = (await screen.findByText('deduplicated.png')).closest('button')
+    expect(row).not.toBeNull()
+    expect(row).toHaveTextContent('Provided by you')
+    fireEvent.click(screen.getByRole('button', { name: 'Open original deduplicated.png' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal original deduplicated.png' }))
+
+    expect(apiMocks.openPath).toHaveBeenCalledWith('/active/deduplicated.png')
+    expect(apiMocks.revealPath).toHaveBeenCalledWith('/active/deduplicated.png')
+  })
+
   it('announces retry failure and suppresses concurrent resource retries', async () => {
     apiMocks.list.mockResolvedValue([
       imageResource('missing-image', 'missing.png', '/input/missing.png', false),
@@ -166,10 +236,15 @@ describe('SessionResourcesPanel source actions', () => {
     renderWithQueryClient(<SessionResourcesPanel sessionId="session-one" onClose={vi.fn()} />)
     const retry = await screen.findByRole('button', { name: 'Retry missing.png' })
 
+    retry.focus()
     fireEvent.click(retry)
     fireEvent.click(retry)
     await waitFor(() => expect(apiMocks.retry).toHaveBeenCalledOnce())
-    expect(screen.getByRole('button', { name: 'Retry missing.png' })).toBeDisabled()
+    const retrying = screen.getByRole('button', { name: 'Retry missing.png' })
+    expect(retrying).toBe(retry)
+    expect(retrying).toBeEnabled()
+    expect(retrying).toHaveAttribute('aria-disabled', 'true')
+    expect(retrying).toHaveFocus()
     retryResult.reject(new Error('Original is still missing'))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Original is still missing')

@@ -22,7 +22,9 @@ import {
   type SessionResourceThumbnailerShape,
 } from '../../ports/session-resource-thumbnailer'
 import {
-  readSessionResourceContent,
+  openSessionResourceContentStream,
+  prepareSessionResourceContent,
+  readSessionResourceContentBytes,
   readSessionResourceThumbnail,
 } from '../session-resource-content'
 import { PNG_BASE64 } from './session-resource-capture.fixtures'
@@ -48,6 +50,7 @@ const REMOTE_RESOURCE: SessionResource = {
       actor: 'agent',
       activity: 'read',
       label: null,
+      locator: 'https://images.example/architecture.png',
       createdAt: 1000,
     },
   ],
@@ -66,6 +69,8 @@ function contentLayer(input: {
   } | null
   readonly fetch?: ReturnType<typeof vi.fn>
   readonly read?: ReturnType<typeof vi.fn>
+  readonly inspect?: ReturnType<typeof vi.fn>
+  readonly openReadStream?: ReturnType<typeof vi.fn>
   readonly storeBytes?: ReturnType<typeof vi.fn>
   readonly upsert?: ReturnType<typeof vi.fn>
   readonly thumbnail?: ReturnType<typeof vi.fn>
@@ -81,6 +86,10 @@ function contentLayer(input: {
       }),
     )
   const read = input.read ?? vi.fn(() => Effect.succeed(Buffer.from(PNG_BASE64, 'base64')))
+  const inspect = input.inspect ?? vi.fn(() => Effect.void)
+  const openReadStream =
+    input.openReadStream ??
+    vi.fn(() => Effect.succeed(new Blob([Buffer.from(PNG_BASE64, 'base64')]).stream()))
   const storeBytes =
     input.storeBytes ??
     vi.fn(() =>
@@ -113,7 +122,8 @@ function contentLayer(input: {
       SessionResourceRepository.of(
         fromPartial<SessionResourceRepositoryShape>({
           getContentLocation: () => Effect.succeed(input.location ?? null),
-          list: () => Effect.succeed([resource]),
+          findById: (_sessionId: SessionId, resourceId: string) =>
+            Effect.succeed(resourceId === resource.id ? resource : null),
           upsert,
         }),
       ),
@@ -122,6 +132,8 @@ function contentLayer(input: {
       SessionResourceStore,
       SessionResourceStore.of(
         fromPartial<SessionResourceStoreShape>({
+          inspect,
+          openReadStream,
           read,
           storeBytes,
           remove: () => Effect.void,
@@ -135,10 +147,10 @@ function contentLayer(input: {
       ),
     ),
   )
-  return { fetch, layer, read, storeBytes, thumbnail, upsert }
+  return { fetch, inspect, layer, openReadStream, read, storeBytes, thumbnail, upsert }
 }
 
-describe('readSessionResourceContent', () => {
+describe('Session resource content', () => {
   it('materializes an image-specific canonical URL when the legacy locator is absent', async () => {
     const resource = {
       ...REMOTE_RESOURCE,
@@ -148,7 +160,7 @@ describe('readSessionResourceContent', () => {
     const test = contentLayer({ resource })
 
     await Effect.runPromise(
-      readSessionResourceContent(SESSION_ID, resource.id).pipe(Effect.provide(test.layer)),
+      prepareSessionResourceContent(SESSION_ID, resource.id).pipe(Effect.provide(test.layer)),
     )
 
     expect(test.fetch).toHaveBeenCalledWith('https://images.example/architecture.png')
@@ -158,14 +170,17 @@ describe('readSessionResourceContent', () => {
     const test = contentLayer({})
 
     const content = await Effect.runPromise(
-      readSessionResourceContent(SESSION_ID, REMOTE_RESOURCE.id).pipe(Effect.provide(test.layer)),
+      prepareSessionResourceContent(SESSION_ID, REMOTE_RESOURCE.id).pipe(
+        Effect.provide(test.layer),
+      ),
     )
 
     expect(content).toEqual({
       resourceId: REMOTE_RESOURCE.id,
+      sessionId: SESSION_ID,
       fileName: 'architecture.png',
       mimeType: 'image/png',
-      dataBase64: PNG_BASE64,
+      managedPath: '/managed/remote-image-architecture.png',
     })
     expect(test.fetch).toHaveBeenCalledWith('https://images.example/architecture.png')
     expect(test.storeBytes).toHaveBeenCalledOnce()
@@ -190,13 +205,68 @@ describe('readSessionResourceContent', () => {
     })
 
     await Effect.runPromise(
-      readSessionResourceContent(SESSION_ID, REMOTE_RESOURCE.id).pipe(Effect.provide(test.layer)),
+      prepareSessionResourceContent(SESSION_ID, REMOTE_RESOURCE.id).pipe(
+        Effect.provide(test.layer),
+      ),
     )
 
-    expect(test.read).toHaveBeenCalledWith('/managed/remote-image-architecture.png')
+    expect(test.inspect).toHaveBeenCalledWith('/managed/remote-image-architecture.png')
+    expect(test.read).not.toHaveBeenCalled()
     expect(test.fetch).not.toHaveBeenCalled()
     expect(test.storeBytes).not.toHaveBeenCalled()
     expect(test.upsert).not.toHaveBeenCalled()
+  })
+
+  it('reads binary content without encoding a full resource as base64', async () => {
+    const location = {
+      resourceId: REMOTE_RESOURCE.id,
+      sessionId: SESSION_ID,
+      fileName: 'architecture.png',
+      mimeType: 'image/png',
+      managedPath: '/managed/remote-image-architecture.png',
+    } as const
+    const test = contentLayer({ location })
+
+    const content = await Effect.runPromise(
+      readSessionResourceContentBytes(SESSION_ID, REMOTE_RESOURCE.id).pipe(
+        Effect.provide(test.layer),
+      ),
+    )
+
+    expect(content).toMatchObject({
+      resourceId: REMOTE_RESOURCE.id,
+      fileName: 'architecture.png',
+      mimeType: 'image/png',
+      bytes: Buffer.from(PNG_BASE64, 'base64'),
+    })
+    expect(content).not.toHaveProperty('dataBase64')
+  })
+
+  it('opens protocol content as a managed stream without a buffered store read', async () => {
+    const location = {
+      resourceId: REMOTE_RESOURCE.id,
+      sessionId: SESSION_ID,
+      fileName: 'architecture.png',
+      mimeType: 'image/png',
+      managedPath: '/managed/remote-image-architecture.png',
+    } as const
+    const test = contentLayer({ location })
+
+    const content = await Effect.runPromise(
+      openSessionResourceContentStream(SESSION_ID, REMOTE_RESOURCE.id).pipe(
+        Effect.provide(test.layer),
+      ),
+    )
+
+    expect(content).toMatchObject({
+      resourceId: REMOTE_RESOURCE.id,
+      fileName: 'architecture.png',
+      mimeType: 'image/png',
+    })
+    const streamed = new Uint8Array(await new Response(content?.body).arrayBuffer())
+    expect([...streamed]).toEqual([...Buffer.from(PNG_BASE64, 'base64')])
+    expect(test.openReadStream).toHaveBeenCalledWith(location.managedPath)
+    expect(test.read).not.toHaveBeenCalled()
   })
 
   it('returns only the thumbnailer output for a managed preview', async () => {

@@ -1,5 +1,8 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
+import type {
+  SessionResource,
+  SessionResourceCatalogPageRequest,
+} from '@shared/types/session-resource'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +11,8 @@ import { SessionResourceViewer } from '../SessionResourceViewer'
 
 const apiMocks = vi.hoisted(() => ({
   list: vi.fn(),
+  listPage: vi.fn(),
+  locateImage: vi.fn(),
   openExternal: vi.fn(),
   openPath: vi.fn(),
   revealPath: vi.fn(),
@@ -18,6 +23,8 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     listSessionResources: apiMocks.list,
+    listSessionResourcePage: apiMocks.listPage,
+    locateSessionResourceImage: apiMocks.locateImage,
     openExternal: apiMocks.openExternal,
     openPath: apiMocks.openPath,
     revealPath: apiMocks.revealPath,
@@ -62,16 +69,51 @@ describe('SessionResourceViewer recovery and source actions', () => {
   beforeEach(() => {
     useUIStore.setState({ resourceViewer: null })
     apiMocks.list.mockReset().mockResolvedValue([image()])
+    apiMocks.listPage
+      .mockReset()
+      .mockImplementation(
+        async (sessionId: SessionId, input: SessionResourceCatalogPageRequest) => {
+          const resources: readonly SessionResource[] = await apiMocks.list(sessionId)
+          return {
+            resources: resources.slice(0, input.limit),
+            total: resources.length,
+            nextCursor: null,
+            orderRevision: 'test',
+          }
+        },
+      )
+    apiMocks.locateImage.mockReset().mockResolvedValue(null)
     apiMocks.read.mockReset().mockResolvedValue({
       resourceId: 'image-1',
       fileName: 'image-1.png',
       mimeType: 'image/png',
-      dataBase64: 'aW1hZ2UtMQ==',
+      url: 'openwaggle-session-resource://content/image-1/view',
+      downloadUrl: 'openwaggle-session-resource://content/image-1/download',
     })
     apiMocks.openExternal.mockReset().mockResolvedValue(undefined)
     apiMocks.openPath.mockReset().mockResolvedValue(undefined)
     apiMocks.revealPath.mockReset().mockResolvedValue(undefined)
     apiMocks.retry.mockReset().mockResolvedValue(image())
+  })
+
+  it('shows a retry action when the browser cannot decode the image and requests a fresh URL', async () => {
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer()
+    fireEvent.error(await screen.findByRole('img', { name: 'first.png' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load this image.')
+    apiMocks.read.mockResolvedValue({
+      resourceId: 'image-1',
+      fileName: 'image-1.png',
+      mimeType: 'image/png',
+      url: 'openwaggle-session-resource://content/fresh/view',
+      downloadUrl: 'openwaggle-session-resource://content/fresh/download',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry image' }))
+    expect(await screen.findByRole('img', { name: 'first.png' })).toHaveAttribute(
+      'src',
+      'openwaggle-session-resource://content/fresh/view',
+    )
+    expect(apiMocks.retry).toHaveBeenCalledWith(SessionId('session-1'), 'image-1')
   })
 
   it('does not steal arrow keys from controls inside the viewer', async () => {
@@ -95,7 +137,8 @@ describe('SessionResourceViewer recovery and source actions', () => {
         resourceId: 'image-1',
         fileName: 'image-1.png',
         mimeType: 'image/png',
-        dataBase64: 'aW1hZ2UtMQ==',
+        url: 'openwaggle-session-resource://content/image-1/view',
+        downloadUrl: 'openwaggle-session-resource://content/image-1/download',
       })
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
     renderViewer()

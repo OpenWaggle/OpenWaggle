@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { safeDecodeUnknown } from '@shared/schema'
-import { extensionSessionResourcePublishPayloadSchema } from '@shared/schemas/extension-broker'
+import {
+  extensionSessionResourcePublishPayloadSchema,
+  extensionSessionResourcesListPayloadSchema,
+} from '@shared/schemas/extension-broker'
 import { SessionId } from '@shared/types/brand'
 import type {
   ExtensionSessionResourcePublishPayload,
@@ -18,14 +21,15 @@ import { broadcastToWindows } from '../utils/broadcast'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
 import type { BrokerRouteInput } from './extension-capability-broker-openwaggle-common'
 import {
-  invalidPayload,
   payloadDecodeFailure,
   unsupportedMethod,
 } from './extension-capability-broker-openwaggle-common'
-import { emptyObjectPayload, unsupportedPayloadIssues } from './extension-capability-broker-payload'
+import { unsupportedPayloadIssues } from './extension-capability-broker-payload'
 import { withSessionResourceLock } from './session-resource-lock'
 
 const PUBLISH_PAYLOAD_KEYS = new Set(['key', 'title', 'kind', 'role', 'locator'])
+const LIST_PAYLOAD_KEYS = new Set(['cursor', 'limit'])
+const EXTENSION_RESOURCE_PAGE_SIZE = 100
 
 function sessionIdFromScope(input: BrokerRouteInput) {
   return input.invocation.scope.kind === 'session'
@@ -93,18 +97,7 @@ function findExistingResource(
     }
     const canonicalPrefix = kind === 'image' ? 'image-url:' : 'url:'
     const normalizedLocator = normalizedCanonicalKey.slice(canonicalPrefix.length)
-    const legacy = (yield* repository.list(sessionId)).find((candidate) => {
-      if (!compatibleResourceKind(candidate, kind)) return false
-      const currentPrefix = candidate.canonicalKey.startsWith(canonicalPrefix)
-      if (!currentPrefix) return false
-      try {
-        return (
-          new URL(candidate.canonicalKey.slice(canonicalPrefix.length)).href === normalizedLocator
-        )
-      } catch {
-        return false
-      }
-    })
+    const legacy = yield* repository.findByLocator(sessionId, kind, normalizedLocator)
     if (legacy) return { _tag: 'Existing' as const, resource: legacy, legacy: true }
     return blocked ? { _tag: 'Blocked' as const } : { _tag: 'Missing' as const }
   })
@@ -118,9 +111,9 @@ function findReplayResource(
   kind: ExtensionSessionResourcePublishPayload['kind'],
 ) {
   return Effect.gen(function* () {
-    let resources: readonly SessionResource[] | null = null
+    const captured = yield* repository.hasOccurrences(sessionId, occurrenceIds)
     for (const occurrenceId of occurrenceIds) {
-      if (!(yield* repository.hasOccurrence(sessionId, occurrenceId))) continue
+      if (!captured.has(occurrenceId)) continue
       if (
         existingResource &&
         compatibleResourceKind(existingResource, kind) &&
@@ -128,13 +121,8 @@ function findReplayResource(
       ) {
         return existingResource
       }
-      resources ??= yield* repository.list(sessionId)
-      const owner = resources.find(
-        (candidate) =>
-          compatibleResourceKind(candidate, kind) &&
-          candidate.occurrences.some((occurrence) => occurrence.id === occurrenceId),
-      )
-      if (owner) return owner
+      const owner = yield* repository.findByOccurrence(sessionId, occurrenceId, 'all')
+      if (owner && compatibleResourceKind(owner, kind)) return owner
     }
     return null
   })
@@ -156,6 +144,18 @@ function publishPayload(input: BrokerRouteInput) {
   if (unsupportedIssues.length > 0) return { ok: false as const, issues: unsupportedIssues }
   const decoded = safeDecodeUnknown(
     extensionSessionResourcePublishPayloadSchema,
+    input.invocation.payload,
+  )
+  return decoded.success
+    ? { ok: true as const, payload: decoded.data }
+    : { ok: false as const, issues: decoded.issues }
+}
+
+function listPayload(input: BrokerRouteInput) {
+  const unsupportedIssues = unsupportedPayloadIssues(input.invocation.payload, LIST_PAYLOAD_KEYS)
+  if (unsupportedIssues.length > 0) return { ok: false as const, issues: unsupportedIssues }
+  const decoded = safeDecodeUnknown(
+    extensionSessionResourcesListPayloadSchema,
     input.invocation.payload,
   )
   return decoded.success
@@ -249,6 +249,7 @@ function publishResource(
           actor: 'extension',
           activity: payload.role === 'output' ? 'created' : 'read',
           label: input.invocation.contributionId,
+          locator: normalizedLocator,
           createdAt,
         },
         createdAt,
@@ -272,10 +273,15 @@ export function routeSessionResourceCapability(input: BrokerRouteInput) {
   }
 
   if (input.invocation.method === OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES) {
-    if (!emptyObjectPayload(input.invocation.payload)) return invalidPayload(input)
+    const decoded = listPayload(input)
+    if (!decoded.ok) return payloadDecodeFailure(input, decoded.issues)
     return Effect.gen(function* () {
       const repository = yield* SessionResourceRepository
-      const resources = yield* repository.list(sessionId)
+      const page = yield* repository.listPage(sessionId, {
+        view: 'all',
+        cursor: decoded.payload.cursor ?? null,
+        limit: decoded.payload.limit ?? EXTENSION_RESOURCE_PAGE_SIZE,
+      })
       return yield* auditedSuccess({
         invocation: input.invocation,
         timestamp: input.timestamp,
@@ -285,7 +291,9 @@ export function routeSessionResourceCapability(input: BrokerRouteInput) {
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
           method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
           sessionId,
-          resources: resources.map((resource) => resourceView(resource)),
+          resources: page.resources.map((resource) => resourceView(resource)),
+          total: page.total,
+          nextCursor: page.nextCursor,
         },
       })
     })

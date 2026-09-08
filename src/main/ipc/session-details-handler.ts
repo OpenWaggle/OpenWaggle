@@ -1,3 +1,4 @@
+import { SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE } from '@shared/constants/session-lifecycle'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -56,6 +57,13 @@ function registerSessionDetailsReadHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       return yield* repo.getOptional(id)
+    }),
+  )
+
+  typedHandle('sessions:get-hive-relations', (_event, id: SessionId) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return yield* repo.getHiveRelations(id)
     }),
   )
 
@@ -148,26 +156,27 @@ function registerSessionCreationHandlers() {
 
 function registerSessionMutationHandlers() {
   typedHandle('sessions:delete', (_event, id: SessionId) =>
-    Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
-      Effect.zipRight(
-        Effect.gen(function* () {
-          const visualizations = yield* InlineVisualizationService
-          const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
-          const repo = yield* SessionProjectionRepository
-          yield* repo.delete(id).pipe(Effect.tapError(() => stagedDeletion.rollback))
-          yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
-          yield* stagedDeletion.commit.pipe(
-            Effect.catchAll((error) => {
-              logger.warn('Deferred visualization tombstone cleanup after session deletion', {
-                sessionId: String(id),
-                error: String(error),
-              })
-              return Effect.void
-            }),
-          )
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      if (yield* repo.hasDirectWorkers(id)) {
+        return yield* Effect.fail(new Error(SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE))
+      }
+
+      yield* Effect.sync(() => cleanupBeforeSessionRemoval(id))
+      const visualizations = yield* InlineVisualizationService
+      const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
+      yield* repo.delete(id).pipe(Effect.tapError(() => stagedDeletion.rollback))
+      yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
+      yield* stagedDeletion.commit.pipe(
+        Effect.catchAll((error) => {
+          logger.warn('Deferred visualization tombstone cleanup after session deletion', {
+            sessionId: String(id),
+            error: String(error),
+          })
+          return Effect.void
         }),
-      ),
-    ),
+      )
+    }),
   )
 
   typedHandle('sessions:archive', (_event, id: SessionId) =>

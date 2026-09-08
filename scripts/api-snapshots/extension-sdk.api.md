@@ -376,7 +376,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListPayload, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -458,7 +458,7 @@ export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
     readonly kind: 'session';
 }>;
 export interface ExtensionOpenWaggleResourcesSdk {
-    readonly list: (scope: ExtensionSessionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourcesListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
     readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
 }
 /** @deprecated Use {@link ExtensionOpenWaggleResourcesSdk}. */
@@ -1012,7 +1012,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 status: Schema.Literal<["failure"]>;
                 message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             }>]>>;
-            rows: Schema.Array$<Schema.Struct<{
+            rows: Schema.Array$<Schema.filter<Schema.Struct<{
                 id: Schema.filter<Schema.filter<typeof Schema.String>>;
                 label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
                 value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1023,7 +1023,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
                 }>>;
-            }>>;
+            }>>>;
         }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
@@ -1138,7 +1138,7 @@ export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
-export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+export declare const extensionSessionSummaryRowSchema: Schema.filter<Schema.Struct<{
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1149,7 +1149,7 @@ export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
         family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     }>>;
-}>;
+}>>;
 export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
     defaultExpanded: Schema.optional<typeof Schema.Boolean>;
     collapsible: Schema.optional<typeof Schema.Boolean>;
@@ -1186,7 +1186,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
         status: Schema.Literal<["failure"]>;
         message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     }>]>>;
-    rows: Schema.Array$<Schema.Struct<{
+    rows: Schema.Array$<Schema.filter<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1197,7 +1197,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
             family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
             contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         }>>;
-    }>>;
+    }>>>;
 }>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
@@ -1417,7 +1417,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1428,7 +1428,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
@@ -1514,7 +1514,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1525,7 +1525,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
@@ -1608,7 +1608,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -1619,7 +1619,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
@@ -1807,6 +1807,10 @@ export interface ExtensionSessionResourcePublishPayload {
     /** A credential-free HTTPS locator is required and retained only by the host. */
     readonly locator: string;
 }
+export interface ExtensionSessionResourcesListPayload {
+    readonly cursor?: string | null;
+    readonly limit?: number;
+}
 export interface ExtensionSessionResourcesListResult {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -1814,6 +1818,8 @@ export interface ExtensionSessionResourcesListResult {
     readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
     readonly sessionId: string;
     readonly resources: readonly ExtensionSessionResourceView[];
+    readonly total: number;
+    readonly nextCursor: string | null;
 }
 export interface ExtensionSessionResourcePublishResult {
     readonly extensionId: string;
@@ -3175,7 +3181,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListPayload, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -3257,7 +3263,7 @@ export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
     readonly kind: 'session';
 }>;
 export interface ExtensionOpenWaggleResourcesSdk {
-    readonly list: (scope: ExtensionSessionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourcesListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
     readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
 }
 /** @deprecated Use {@link ExtensionOpenWaggleResourcesSdk}. */
@@ -3825,7 +3831,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 status: Schema.Literal<["failure"]>;
                 message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             }>]>>;
-            rows: Schema.Array$<Schema.Struct<{
+            rows: Schema.Array$<Schema.filter<Schema.Struct<{
                 id: Schema.filter<Schema.filter<typeof Schema.String>>;
                 label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
                 value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3836,7 +3842,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
                 }>>;
-            }>>;
+            }>>>;
         }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
@@ -3951,7 +3957,7 @@ export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
-export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+export declare const extensionSessionSummaryRowSchema: Schema.filter<Schema.Struct<{
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -3962,7 +3968,7 @@ export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
         family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     }>>;
-}>;
+}>>;
 export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
     defaultExpanded: Schema.optional<typeof Schema.Boolean>;
     collapsible: Schema.optional<typeof Schema.Boolean>;
@@ -3999,7 +4005,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
         status: Schema.Literal<["failure"]>;
         message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     }>]>>;
-    rows: Schema.Array$<Schema.Struct<{
+    rows: Schema.Array$<Schema.filter<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -4010,7 +4016,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
             family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
             contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         }>>;
-    }>>;
+    }>>>;
 }>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
@@ -4230,7 +4236,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -4241,7 +4247,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
@@ -4327,7 +4333,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -4338,7 +4344,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
@@ -4421,7 +4427,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -4432,7 +4438,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
@@ -4620,6 +4626,10 @@ export interface ExtensionSessionResourcePublishPayload {
     /** A credential-free HTTPS locator is required and retained only by the host. */
     readonly locator: string;
 }
+export interface ExtensionSessionResourcesListPayload {
+    readonly cursor?: string | null;
+    readonly limit?: number;
+}
 export interface ExtensionSessionResourcesListResult {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -4627,6 +4637,8 @@ export interface ExtensionSessionResourcesListResult {
     readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
     readonly sessionId: string;
     readonly resources: readonly ExtensionSessionResourceView[];
+    readonly total: number;
+    readonly nextCursor: string | null;
 }
 export interface ExtensionSessionResourcePublishResult {
     readonly extensionId: string;
@@ -5540,7 +5552,7 @@ export declare function createExtensionBrokerSdk(transport: ExtensionBrokerTrans
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListPayload, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -5622,7 +5634,7 @@ export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
     readonly kind: 'session';
 }>;
 export interface ExtensionOpenWaggleResourcesSdk {
-    readonly list: (scope: ExtensionSessionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourcesListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
     readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
 }
 /** @deprecated Use {@link ExtensionOpenWaggleResourcesSdk}. */
@@ -6190,7 +6202,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 status: Schema.Literal<["failure"]>;
                 message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             }>]>>;
-            rows: Schema.Array$<Schema.Struct<{
+            rows: Schema.Array$<Schema.filter<Schema.Struct<{
                 id: Schema.filter<Schema.filter<typeof Schema.String>>;
                 label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
                 value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6201,7 +6213,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
                 }>>;
-            }>>;
+            }>>>;
         }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
@@ -6316,7 +6328,7 @@ export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
-export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+export declare const extensionSessionSummaryRowSchema: Schema.filter<Schema.Struct<{
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6327,7 +6339,7 @@ export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
         family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     }>>;
-}>;
+}>>;
 export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
     defaultExpanded: Schema.optional<typeof Schema.Boolean>;
     collapsible: Schema.optional<typeof Schema.Boolean>;
@@ -6364,7 +6376,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
         status: Schema.Literal<["failure"]>;
         message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     }>]>>;
-    rows: Schema.Array$<Schema.Struct<{
+    rows: Schema.Array$<Schema.filter<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6375,7 +6387,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
             family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
             contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         }>>;
-    }>>;
+    }>>>;
 }>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
@@ -6595,7 +6607,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6606,7 +6618,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
@@ -6692,7 +6704,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6703,7 +6715,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
@@ -6786,7 +6798,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -6797,7 +6809,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
@@ -6985,6 +6997,10 @@ export interface ExtensionSessionResourcePublishPayload {
     /** A credential-free HTTPS locator is required and retained only by the host. */
     readonly locator: string;
 }
+export interface ExtensionSessionResourcesListPayload {
+    readonly cursor?: string | null;
+    readonly limit?: number;
+}
 export interface ExtensionSessionResourcesListResult {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -6992,6 +7008,8 @@ export interface ExtensionSessionResourcesListResult {
     readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
     readonly sessionId: string;
     readonly resources: readonly ExtensionSessionResourceView[];
+    readonly total: number;
+    readonly nextCursor: string | null;
 }
 export interface ExtensionSessionResourcePublishResult {
     readonly extensionId: string;
@@ -8466,7 +8484,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 status: Schema.Literal<["failure"]>;
                 message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             }>]>>;
-            rows: Schema.Array$<Schema.Struct<{
+            rows: Schema.Array$<Schema.filter<Schema.Struct<{
                 id: Schema.filter<Schema.filter<typeof Schema.String>>;
                 label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
                 value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8477,7 +8495,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
                 }>>;
-            }>>;
+            }>>>;
         }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
@@ -8787,7 +8805,7 @@ export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
-export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+export declare const extensionSessionSummaryRowSchema: Schema.filter<Schema.Struct<{
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8798,7 +8816,7 @@ export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
         family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     }>>;
-}>;
+}>>;
 export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
     defaultExpanded: Schema.optional<typeof Schema.Boolean>;
     collapsible: Schema.optional<typeof Schema.Boolean>;
@@ -8835,7 +8853,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
         status: Schema.Literal<["failure"]>;
         message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     }>]>>;
-    rows: Schema.Array$<Schema.Struct<{
+    rows: Schema.Array$<Schema.filter<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -8846,7 +8864,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
             family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
             contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         }>>;
-    }>>;
+    }>>>;
 }>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
@@ -9066,7 +9084,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -9077,7 +9095,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
@@ -9163,7 +9181,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -9174,7 +9192,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
@@ -9257,7 +9275,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -9268,7 +9286,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
@@ -9639,7 +9657,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 status: Schema.Literal<["failure"]>;
                 message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             }>]>>;
-            rows: Schema.Array$<Schema.Struct<{
+            rows: Schema.Array$<Schema.filter<Schema.Struct<{
                 id: Schema.filter<Schema.filter<typeof Schema.String>>;
                 label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
                 value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -9650,7 +9668,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
                 }>>;
-            }>>;
+            }>>>;
         }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
@@ -9960,7 +9978,7 @@ export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
-export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+export declare const extensionSessionSummaryRowSchema: Schema.filter<Schema.Struct<{
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -9971,7 +9989,7 @@ export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
         family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     }>>;
-}>;
+}>>;
 export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
     defaultExpanded: Schema.optional<typeof Schema.Boolean>;
     collapsible: Schema.optional<typeof Schema.Boolean>;
@@ -10008,7 +10026,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
         status: Schema.Literal<["failure"]>;
         message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     }>]>>;
-    rows: Schema.Array$<Schema.Struct<{
+    rows: Schema.Array$<Schema.filter<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10019,7 +10037,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
             family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
             contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         }>>;
-    }>>;
+    }>>>;
 }>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
@@ -10239,7 +10257,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10250,7 +10268,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
@@ -10336,7 +10354,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10347,7 +10365,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
@@ -10430,7 +10448,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -10441,7 +10459,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
@@ -10493,7 +10511,7 @@ export declare function createRuntimeContributionSdk(invoke: ExtensionSdkInvoke)
 
 ```ts
 import type { JsonValue } from './json.js';
-import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
+import type { ExtensionActionSelectProjectResult, ExtensionDocsDiscoverPayload, ExtensionDocsDiscoverResult, ExtensionDocsResolveTopicPayload, ExtensionDocsResolveTopicResult, ExtensionInvokeFailure, ExtensionInvokeInput, ExtensionInvokeResult, ExtensionInvokeScope, ExtensionInvokeSuccess, ExtensionModelPreferencesSettingsPatch, ExtensionRuntimeRegisterContributionPayload, ExtensionRuntimeRegisterContributionResult, ExtensionRuntimeUnregisterContributionPayload, ExtensionRuntimeUnregisterContributionResult, ExtensionSessionResourcePublishPayload, ExtensionSessionResourcePublishResult, ExtensionSessionResourcesListPayload, ExtensionSessionResourcesListResult, ExtensionSettingsGetResult, ExtensionSettingsGetSettingResult, ExtensionSettingsUpdatePayload, ExtensionSettingsUpdateResult, ExtensionSettingsUpdateSettingResult, ExtensionStateCurrentBranchReadResult, ExtensionStateCurrentProjectReadResult, ExtensionStateCurrentSessionReadResult, ExtensionStateModelPreferencesReadResult, ExtensionStateReadResult, ExtensionStateRecentProjectsReadResult, ExtensionStorageDeleteResult, ExtensionStorageGetResult, ExtensionStorageListResult, ExtensionStorageSetResult } from './types.js';
 export type ExtensionOperationSuccess<TValue> = ExtensionInvokeSuccess<TValue>;
 export type ExtensionStorageGetOperationResult = ExtensionOperationSuccess<ExtensionStorageGetResult> | ExtensionInvokeFailure;
 export type ExtensionStorageSetOperationResult = ExtensionOperationSuccess<ExtensionStorageSetResult> | ExtensionInvokeFailure;
@@ -10575,7 +10593,7 @@ export type ExtensionSessionInvokeScope = Extract<ExtensionInvokeScope, {
     readonly kind: 'session';
 }>;
 export interface ExtensionOpenWaggleResourcesSdk {
-    readonly list: (scope: ExtensionSessionInvokeScope) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
+    readonly list: (scope: ExtensionSessionInvokeScope, input?: ExtensionSessionResourcesListPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>;
     readonly publish: (scope: ExtensionSessionInvokeScope, resource: ExtensionSessionResourcePublishPayload) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>;
 }
 /** @deprecated Use {@link ExtensionOpenWaggleResourcesSdk}. */
@@ -10796,6 +10814,10 @@ export interface ExtensionSessionResourcePublishPayload {
     /** A credential-free HTTPS locator is required and retained only by the host. */
     readonly locator: string;
 }
+export interface ExtensionSessionResourcesListPayload {
+    readonly cursor?: string | null;
+    readonly limit?: number;
+}
 export interface ExtensionSessionResourcesListResult {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -10803,6 +10825,8 @@ export interface ExtensionSessionResourcesListResult {
     readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
     readonly sessionId: string;
     readonly resources: readonly ExtensionSessionResourceView[];
+    readonly total: number;
+    readonly nextCursor: string | null;
 }
 export interface ExtensionSessionResourcePublishResult {
     readonly extensionId: string;
@@ -12186,7 +12210,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                 status: Schema.Literal<["failure"]>;
                 message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             }>]>>;
-            rows: Schema.Array$<Schema.Struct<{
+            rows: Schema.Array$<Schema.filter<Schema.Struct<{
                 id: Schema.filter<Schema.filter<typeof Schema.String>>;
                 label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
                 value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -12197,7 +12221,7 @@ export declare const openWaggleExtensionManifestSchema: Schema.filter<Schema.Str
                     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
                 }>>;
-            }>>;
+            }>>>;
         }>>>;
     }>>;
     pi: Schema.optional<Schema.Struct<{
@@ -12312,7 +12336,7 @@ export declare const extensionSessionSummaryActionSchema: Schema.Struct<{
     family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
     contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
 }>;
-export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
+export declare const extensionSessionSummaryRowSchema: Schema.filter<Schema.Struct<{
     id: Schema.filter<Schema.filter<typeof Schema.String>>;
     label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -12323,7 +12347,7 @@ export declare const extensionSessionSummaryRowSchema: Schema.Struct<{
         family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
         contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
     }>>;
-}>;
+}>>;
 export declare const extensionSessionSummaryDisclosureSchema: Schema.Struct<{
     defaultExpanded: Schema.optional<typeof Schema.Boolean>;
     collapsible: Schema.optional<typeof Schema.Boolean>;
@@ -12360,7 +12384,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
         status: Schema.Literal<["failure"]>;
         message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
     }>]>>;
-    rows: Schema.Array$<Schema.Struct<{
+    rows: Schema.Array$<Schema.filter<Schema.Struct<{
         id: Schema.filter<Schema.filter<typeof Schema.String>>;
         label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -12371,7 +12395,7 @@ export declare const extensionSessionSummaryContributionSchema: Schema.Struct<{
             family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
             contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
         }>>;
-    }>>;
+    }>>>;
 }>;
 export declare const extensionContributionsSchema: Schema.Struct<{
     commands: Schema.optional<Schema.Array$<Schema.Struct<{
@@ -12591,7 +12615,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -12602,7 +12626,7 @@ export declare const extensionContributionsSchema: Schema.Struct<{
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>>>;
 }>;
 export declare const extensionCommandContributionRegistrationSchema: Schema.Struct<{
@@ -12688,7 +12712,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -12699,7 +12723,7 @@ export declare const extensionSessionSummaryContributionRegistrationSchema: Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>;
 export declare const extensionContributionRegistrationSchema: Schema.Union<[Schema.Struct<{
@@ -12782,7 +12806,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
             status: Schema.Literal<["failure"]>;
             message: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
         }>]>>;
-        rows: Schema.Array$<Schema.Struct<{
+        rows: Schema.Array$<Schema.filter<Schema.Struct<{
             id: Schema.filter<Schema.filter<typeof Schema.String>>;
             label: Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>;
             value: Schema.optional<Schema.filter<Schema.filter<Schema.filter<typeof Schema.String>>>>;
@@ -12793,7 +12817,7 @@ export declare const extensionContributionRegistrationSchema: Schema.Union<[Sche
                 family: Schema.Literal<["commands", "sidePanels", "dialogs"]>;
                 contributionId: Schema.filter<Schema.filter<typeof Schema.String>>;
             }>>;
-        }>>;
+        }>>>;
     }>;
 }>]>;
 export declare const extensionContributionUnregistrationSchema: Schema.Struct<{
@@ -12981,6 +13005,10 @@ export interface ExtensionSessionResourcePublishPayload {
     /** A credential-free HTTPS locator is required and retained only by the host. */
     readonly locator: string;
 }
+export interface ExtensionSessionResourcesListPayload {
+    readonly cursor?: string | null;
+    readonly limit?: number;
+}
 export interface ExtensionSessionResourcesListResult {
     readonly extensionId: string;
     readonly contributionId: string;
@@ -12988,6 +13016,8 @@ export interface ExtensionSessionResourcesListResult {
     readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES;
     readonly sessionId: string;
     readonly resources: readonly ExtensionSessionResourceView[];
+    readonly total: number;
+    readonly nextCursor: string | null;
 }
 export interface ExtensionSessionResourcePublishResult {
     readonly extensionId: string;

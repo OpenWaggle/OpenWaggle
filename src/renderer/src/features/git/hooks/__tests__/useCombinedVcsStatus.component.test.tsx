@@ -7,7 +7,9 @@ import { useCombinedVcsStatus } from '../useCombinedVcsStatus'
 const getLocalVcsStatus = vi.hoisted(() => vi.fn())
 const getRemoteVcsStatus = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({ api: { getLocalVcsStatus, getRemoteVcsStatus } }))
+vi.mock('@/shared/lib/ipc', () => ({
+  api: { getLocalVcsStatus, getRemoteVcsStatus },
+}))
 
 const LOCAL_STATUS: LocalVcsStatus = {
   isRepo: true,
@@ -45,22 +47,22 @@ describe('useCombinedVcsStatus', () => {
     getLocalVcsStatus
       .mockResolvedValueOnce({
         ok: false,
-        code: 'not-a-repo',
+        code: 'unknown',
         message: 'Git was temporarily unavailable.',
       })
       .mockResolvedValueOnce({
         ok: false,
-        code: 'not-a-repo',
+        code: 'unknown',
         message: 'Git was temporarily unavailable.',
       })
       .mockResolvedValueOnce({
         ok: false,
-        code: 'not-a-repo',
+        code: 'unknown',
         message: 'Git was temporarily unavailable.',
       })
       .mockResolvedValueOnce({
         ok: false,
-        code: 'not-a-repo',
+        code: 'unknown',
         message: 'Git was temporarily unavailable.',
       })
       .mockResolvedValueOnce({ ok: true, status: LOCAL_STATUS })
@@ -74,6 +76,25 @@ describe('useCombinedVcsStatus', () => {
     expect(getLocalVcsStatus).toHaveBeenCalledTimes(5)
     expect(getRemoteVcsStatus).toHaveBeenCalledOnce()
     expect(result.current.status).toEqual({ ...LOCAL_STATUS, ...REMOTE_STATUS })
+  })
+
+  it('does not retry when the selected folder is not a repository', async () => {
+    getLocalVcsStatus.mockResolvedValue({
+      ok: false,
+      code: 'not-a-repo',
+      message: 'Selected folder is not a Git repository.',
+    })
+
+    const { result } = renderHook(() => useCombinedVcsStatus(WorkingPath('/project')))
+
+    await act(async () => {
+      await vi.runAllTimersAsync()
+    })
+
+    expect(getLocalVcsStatus).toHaveBeenCalledOnce()
+    expect(getRemoteVcsStatus).not.toHaveBeenCalled()
+    expect(result.current.status).toBeNull()
+    expect(result.current.localState).toBe('unavailable')
   })
 
   it('stops retrying after the bounded local retry budget is exhausted', async () => {
@@ -92,6 +113,8 @@ describe('useCombinedVcsStatus', () => {
     expect(getLocalVcsStatus).toHaveBeenCalledTimes(5)
     expect(getRemoteVcsStatus).not.toHaveBeenCalled()
     expect(result.current.status).toBeNull()
+    expect(result.current.localState).toBe('error')
+    expect(result.current.remoteState).toBe('error')
   })
 
   it('cancels an old path retry when the opened session changes', async () => {
@@ -121,5 +144,67 @@ describe('useCombinedVcsStatus', () => {
     expect(getRemoteVcsStatus).toHaveBeenCalledOnce()
     expect(getRemoteVcsStatus).toHaveBeenCalledWith(WorkingPath('/project-b'))
     expect(result.current.status).toEqual({ ...LOCAL_STATUS, ...REMOTE_STATUS })
+  })
+
+  it('keeps remote discovery distinct from a confirmed missing change request', async () => {
+    const remote = Promise.withResolvers<{
+      readonly ok: true
+      readonly status: RemoteVcsStatus
+    }>()
+    getLocalVcsStatus.mockResolvedValue({ ok: true, status: LOCAL_STATUS })
+    getRemoteVcsStatus.mockReturnValue(remote.promise)
+    const { result } = renderHook(() => useCombinedVcsStatus(WorkingPath('/project')))
+
+    await act(async () => Promise.resolve())
+    expect(result.current.remoteState).toBe('loading')
+
+    remote.resolve({ ok: true, status: REMOTE_STATUS })
+    await act(async () => Promise.resolve())
+    expect(result.current.remoteState).toBe('loaded')
+    expect(result.current.status?.changeRequest).toBeNull()
+  })
+
+  it('reports a remote discovery failure without treating it as no change request', async () => {
+    getLocalVcsStatus.mockResolvedValue({ ok: true, status: LOCAL_STATUS })
+    getRemoteVcsStatus.mockResolvedValue({
+      ok: false,
+      code: 'remote-unreachable',
+      message: 'Remote unavailable.',
+    })
+    const { result } = renderHook(() => useCombinedVcsStatus(WorkingPath('/project')))
+
+    await act(async () => Promise.resolve())
+    expect(result.current.remoteState).toBe('error')
+    expect(result.current.remote).toBeNull()
+  })
+
+  it('retires an in-flight snapshot when the shared Git refresh token advances', async () => {
+    const stale = Promise.withResolvers<{
+      readonly ok: true
+      readonly status: LocalVcsStatus
+    }>()
+    const fresh = { ...LOCAL_STATUS, refName: 'feature/fresh', isDefaultRef: false }
+    getLocalVcsStatus
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce({ ok: true, status: fresh })
+
+    const { result, rerender } = renderHook(
+      ({ refreshToken }: { readonly refreshToken: number }) =>
+        useCombinedVcsStatus(WorkingPath('/project'), refreshToken),
+      { initialProps: { refreshToken: 0 } },
+    )
+
+    await act(async () => {
+      rerender({ refreshToken: 1 })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.local?.refName).toBe('feature/fresh')
+
+    stale.resolve({ ok: true, status: LOCAL_STATUS })
+    await act(async () => Promise.resolve())
+
+    expect(result.current.local?.refName).toBe('feature/fresh')
+    expect(getLocalVcsStatus).toHaveBeenCalledTimes(2)
   })
 })

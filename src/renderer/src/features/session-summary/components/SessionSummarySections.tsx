@@ -1,21 +1,11 @@
 import type { GitBranchInfo, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionResource } from '@shared/types/session-resource'
-import { getChangeRequestTerminology } from '@shared/utils/source-control-presentation'
-import {
-  ChevronRight,
-  ExternalLink,
-  FileOutput,
-  FolderOpen,
-  GitCommit,
-  GitPullRequest,
-  Images,
-  Plus,
-} from 'lucide-react'
-import { api } from '@/shared/lib/ipc'
-import { Button } from '@/shared/ui/Button'
+import { ChevronRight, FileOutput, FolderOpen, GitCommit, Images } from 'lucide-react'
 import type { SessionResourceBrowserTarget } from '../model/session-resource-browser'
 import { isViewableSessionImage } from '../model/session-resource-viewability'
 import type { SessionSummaryGitAction } from '../model/session-summary-git-action'
+import { ChangeRequestSummaryRow } from './SessionChangeRequestSections'
+import { SessionSourceAddMenu } from './SessionSourceAddMenu'
 import {
   SessionBranchRow,
   SessionEnvironmentActions,
@@ -29,20 +19,26 @@ import {
 
 const SUMMARY_RESOURCE_LIMIT = 3
 
+export { SessionChangeRequestsSection } from './SessionChangeRequestSections'
+
 interface EnvironmentSummarySectionInput {
   readonly expanded: boolean
   readonly environmentMode: 'local' | 'worktree'
   readonly workingPath: string | null
   readonly gitStatus: GitStatusSummary | null
   readonly vcsStatus: VcsStatus | null
+  readonly remoteVcsState: 'loading' | 'loaded' | 'error' | 'unavailable'
+  readonly localVcsState: 'loading' | 'loaded' | 'error' | 'unavailable'
   readonly branches: readonly GitBranchInfo[]
   readonly branchBusy: boolean
   readonly branchError: string | null
   readonly onExpandedChange: (expanded: boolean) => void
   readonly onOpenDiff: () => void
   readonly onCreateChangeRequest: () => void
+  readonly onViewChangeRequest: (url: string) => void
   readonly onToggleTerminal: () => void
   readonly onRefreshBranches: () => void
+  readonly onRefreshVcsStatus: () => void
   readonly onSelectBranch: (branch: string) => Promise<boolean>
   readonly onCreateBranch: (branch: string) => Promise<boolean>
   readonly quickAction: SessionSummaryGitAction
@@ -60,21 +56,28 @@ export function EnvironmentSummarySection({
     workingPath,
     gitStatus,
     vcsStatus,
+    remoteVcsState,
+    localVcsState,
     branches,
     branchBusy,
     branchError,
     onExpandedChange,
     onOpenDiff,
     onCreateChangeRequest,
+    onViewChangeRequest,
     onToggleTerminal,
     onRefreshBranches,
+    onRefreshVcsStatus,
     onSelectBranch,
     onCreateBranch,
     quickAction,
     onQuickAction,
   } = input
-  const terminology = getChangeRequestTerminology(vcsStatus?.sourceControlProvider?.id)
-  const existing = vcsStatus?.changeRequest
+  const gitAvailable =
+    gitStatus !== null ||
+    vcsStatus?.isRepo === true ||
+    localVcsState === 'loading' ||
+    localVcsState === 'error'
   return (
     <SessionSummarySection
       id="environment"
@@ -85,72 +88,79 @@ export function EnvironmentSummarySection({
         <SessionEnvironmentActions workingPath={workingPath} onToggleTerminal={onToggleTerminal} />
       }
     >
-      <SessionSummaryRow
-        icon={<FolderOpen className="size-4" />}
-        label="Changes"
-        value={
-          gitStatus ? (
+      {gitStatus ? (
+        <SessionSummaryRow
+          icon={<FolderOpen className="size-4" />}
+          label="Changes"
+          value={
             <span>
               <span className="text-success">+{gitStatus.additions}</span>{' '}
               <span className="text-error">-{gitStatus.deletions}</span>
             </span>
-          ) : (
-            <span className="text-text-tertiary">—</span>
-          )
-        }
-        onClick={onOpenDiff}
-      />
-      <SessionEnvironmentRow environmentMode={environmentMode} workingPath={workingPath} />
-      <SessionBranchRow
-        branch={gitStatus?.branch ?? vcsStatus?.refName ?? null}
-        branches={branches}
-        busy={branchBusy}
-        error={branchError}
-        onRefresh={onRefreshBranches}
-        onSelect={onSelectBranch}
-        onCreate={onCreateBranch}
-      />
-      <SessionSummaryRow
-        icon={<GitCommit className="size-4" />}
-        label={quickAction.label}
-        disabledReason={quickAction.disabled ? quickAction.hint : undefined}
-        onClick={onQuickAction}
-      />
-      {existing ? (
-        <SessionSummaryRow
-          icon={<ExternalLink className="size-4" />}
-          label={`Open ${terminology.shortLabel}`}
-          onClick={() => void api.openExternal(existing.url)}
-        />
-      ) : vcsStatus?.sourceControlProvider ? (
-        <SessionSummaryRow
-          icon={<GitPullRequest className="size-4" />}
-          label={`Create ${terminology.shortLabel}`}
-          onClick={onCreateChangeRequest}
+          }
+          onClick={onOpenDiff}
         />
       ) : null}
+      <SessionEnvironmentRow environmentMode={environmentMode} workingPath={workingPath} />
+      {gitAvailable ? (
+        <>
+          <SessionBranchRow
+            branch={gitStatus?.branch ?? vcsStatus?.refName ?? null}
+            branches={branches}
+            busy={branchBusy}
+            error={branchError}
+            onRefresh={onRefreshBranches}
+            onSelect={onSelectBranch}
+            onCreate={onCreateBranch}
+          />
+          <SessionSummaryRow
+            icon={<GitCommit className="size-4" />}
+            label={quickAction.label}
+            disabledReason={quickAction.disabled ? quickAction.hint : undefined}
+            onClick={onQuickAction}
+          />
+        </>
+      ) : null}
+      <ChangeRequestSummaryRow
+        gitStatus={gitStatus}
+        vcsStatus={vcsStatus}
+        remoteVcsState={remoteVcsState}
+        onCreate={onCreateChangeRequest}
+        onView={onViewChangeRequest}
+        onRefresh={onRefreshVcsStatus}
+      />
     </SessionSummarySection>
   )
 }
 
-export function ResourceSummarySection({
-  title,
-  resources,
-  expanded,
-  onExpandedChange,
-  onOpenResources,
-  onOpenImage,
-  onAddSource,
-}: {
+export interface ResourceSummarySectionInput {
   readonly title: 'Outputs' | 'Sources'
   readonly resources: readonly SessionResource[]
+  readonly count?: number
   readonly expanded: boolean
   readonly onExpandedChange: (expanded: boolean) => void
   readonly onOpenResources: (target: SessionResourceBrowserTarget) => void
   readonly onOpenImage: (resourceId: string) => void
-  readonly onAddSource?: () => void
+  readonly onAttachSource?: () => void
+  readonly onReferenceSource?: () => void
+}
+
+export function ResourceSummarySection({
+  input: {
+    title,
+    resources,
+    count,
+    expanded,
+    onExpandedChange,
+    onOpenResources,
+    onOpenImage,
+    onAttachSource,
+    onReferenceSource,
+  },
+}: {
+  readonly input: ResourceSummarySectionInput
 }) {
-  if (resources.length === 0) return null
+  if (title === 'Outputs' && (count ?? resources.length) === 0) return null
   const view = title === 'Outputs' ? 'outputs' : 'sources'
   const openResource = (resource: SessionResource) => {
     if (isViewableSessionImage(resource)) {
@@ -163,20 +173,15 @@ export function ResourceSummarySection({
     <SessionSummarySection
       id={title.toLowerCase()}
       title={title}
-      count={resources.length}
+      count={count ?? resources.length}
       expanded={expanded}
       onExpandedChange={onExpandedChange}
       actions={
-        title === 'Sources' && onAddSource ? (
-          <Button
-            variant="unstyled"
-            type="button"
-            aria-label="Add a source"
-            className="grid size-7 place-items-center rounded-md text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            onClick={onAddSource}
-          >
-            <Plus aria-hidden="true" className="size-4" />
-          </Button>
+        title === 'Sources' && onAttachSource && onReferenceSource ? (
+          <SessionSourceAddMenu
+            onAttachFiles={onAttachSource}
+            onReferenceProjectFile={onReferenceSource}
+          />
         ) : undefined
       }
     >
@@ -218,13 +223,11 @@ export function ResourceSummarySection({
             />
           ))
       )}
-      {title === 'Sources' ? (
-        <SessionSummaryRow
-          icon={<ChevronRight className="size-4" />}
-          label="Show all"
-          onClick={() => onOpenResources({ view })}
-        />
-      ) : null}
+      <SessionSummaryRow
+        icon={<ChevronRight className="size-4" />}
+        label="Show all"
+        onClick={() => onOpenResources({ view })}
+      />
     </SessionSummarySection>
   )
 }

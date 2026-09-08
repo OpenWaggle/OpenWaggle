@@ -69,8 +69,9 @@ export function useWorkspaceLifecycle(): void {
   useEffect(() => {
     return api.onSessionTitleUpdated(({ sessionId, title }) => {
       updateSessionTitle(sessionId, title)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives })
     })
-  }, [updateSessionTitle])
+  }, [queryClient, updateSessionTitle])
 
   useEffect(() => {
     return api.onSessionListInvalidated(() => {
@@ -80,6 +81,7 @@ export function useWorkspaceLifecycle(): void {
         queryKey: queryKeys.archivedSessions,
         exact: true,
       })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives })
     })
   }, [loadChatSessions, loadSessionTrees, queryClient])
 

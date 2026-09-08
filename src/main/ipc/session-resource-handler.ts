@@ -5,63 +5,28 @@ import {
   sessionResourceSessionIdSchema,
 } from '@shared/schemas/session-resource'
 import { SessionId } from '@shared/types/brand'
-import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import {
   listPendingSessionOutputs,
   removePendingSessionOutput,
 } from '../application/session-change-request-output-retry'
+import { drainPendingSessionOutputs } from '../application/session-output-retry-drain'
 import { captureProjectedSessionResources } from '../application/session-resource-backfill'
-import {
-  readSessionResourceContent,
-  readSessionResourceThumbnail,
-} from '../application/session-resource-content'
+import { prepareSessionResourceContent } from '../application/session-resource-content'
 import { withSessionResourceLock } from '../application/session-resource-lock'
-import {
-  recordSessionChangeRequest,
-  recordSessionCommit,
-} from '../application/session-resource-recording'
+import { recordSessionChangeRequest } from '../application/session-resource-recording'
 import { SessionRepository, type SessionRepositoryShape } from '../ports/session-repository'
 import {
   SessionResourceRepository,
   type SessionResourceRepositoryShape,
 } from '../ports/session-resource-repository'
+import { registerSessionResourceCatalogHandlers } from './session-resource-catalog-handlers'
+import { registerSessionResourceImageHandlers } from './session-resource-image-handlers'
 import { typedHandle } from './typed-ipc'
 
 export const SESSION_RESOURCE_BACKFILL_PAGE_SIZE = 64
-
-function retryPendingOutputs(sessionId: SessionId) {
-  return withSessionResourceLock(
-    sessionId,
-    listPendingSessionOutputs(sessionId).pipe(
-      Effect.flatMap((outputs) =>
-        Effect.forEach(outputs, (output) => {
-          const recording =
-            output.kind === 'commit'
-              ? recordSessionCommit(sessionId, output, output)
-              : recordSessionChangeRequest(sessionId, output, output)
-          return recording.pipe(
-            Effect.flatMap(() => removePendingSessionOutput(output)),
-            Effect.catchAll(() => Effect.void),
-          )
-        }),
-      ),
-      Effect.catchAll(() => Effect.void),
-      Effect.asVoid,
-    ),
-  )
-}
-
-function managedResourceNodeIds(resources: readonly SessionResource[]) {
-  const nodeIds = new Set<string>()
-  for (const resource of resources) {
-    if (!resource.available || !resource.managed) continue
-    for (const occurrence of resource.occurrences) {
-      if (occurrence.nodeId) nodeIds.add(occurrence.nodeId)
-    }
-  }
-  return nodeIds
-}
+const SESSION_RESOURCE_RECHECK_NODE_LIMIT = 64
+const SESSION_RESOURCE_LEGACY_PAGE_SIZE = 100
 
 function recheckCompletedManagedResources(
   sessionId: SessionId,
@@ -69,7 +34,9 @@ function recheckCompletedManagedResources(
   sessions: SessionRepositoryShape,
 ) {
   return Effect.gen(function* () {
-    const nodeIds = managedResourceNodeIds(yield* repository.list(sessionId))
+    const nodeIds = new Set(
+      yield* repository.listManagedNodeIds(sessionId, SESSION_RESOURCE_RECHECK_NODE_LIMIT),
+    )
     if (nodeIds.size === 0) return
     const nodes = yield* sessions.getResourceProjectionNodes(sessionId, [...nodeIds])
     if (nodes.length === 0) return
@@ -112,44 +79,32 @@ function advanceSessionResourceBackfillPage(sessionId: SessionId) {
 }
 
 export function registerSessionResourceHandlers(): void {
+  registerSessionResourceCatalogHandlers()
+  registerSessionResourceImageHandlers()
   typedHandle('sessions:resources:list', (_event, rawSessionId: unknown) =>
     Effect.gen(function* () {
       const sessionId = SessionId(
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
-      yield* retryPendingOutputs(sessionId)
+      yield* drainPendingSessionOutputs(sessionId)
       const repository = yield* SessionResourceRepository
       const status = yield* advanceSessionResourceBackfillPage(sessionId)
-      return { resources: [...(yield* repository.list(sessionId))], ...status }
+      const page = yield* repository.listPage(sessionId, {
+        view: 'all',
+        limit: SESSION_RESOURCE_LEGACY_PAGE_SIZE,
+      })
+      return { resources: [...page.resources], ...status }
     }),
   )
 
   typedHandle('sessions:resources:backfill', (_event, rawSessionId: unknown) =>
-    advanceSessionResourceBackfillPage(
-      SessionId(decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId)),
-    ),
-  )
-
-  typedHandle('sessions:resources:read', (_event, rawSessionId: unknown, rawResourceId: unknown) =>
     Effect.gen(function* () {
       const sessionId = SessionId(
         decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
       )
-      const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
-      return yield* readSessionResourceContent(sessionId, resourceId)
+      yield* drainPendingSessionOutputs(sessionId)
+      return yield* advanceSessionResourceBackfillPage(sessionId)
     }),
-  )
-
-  typedHandle(
-    'sessions:resources:thumbnail',
-    (_event, rawSessionId: unknown, rawResourceId: unknown) =>
-      Effect.gen(function* () {
-        const sessionId = SessionId(
-          decodeUnknownOrThrow(sessionResourceSessionIdSchema, rawSessionId),
-        )
-        const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
-        return yield* readSessionResourceThumbnail(sessionId, resourceId)
-      }),
   )
 
   typedHandle('sessions:resources:retry', (_event, rawSessionId: unknown, rawResourceId: unknown) =>
@@ -159,14 +114,14 @@ export function registerSessionResourceHandlers(): void {
       )
       const resourceId = decodeUnknownOrThrow(sessionResourceIdSchema, rawResourceId)
       const repository = yield* SessionResourceRepository
-      const resource = (yield* repository.list(sessionId)).find(({ id }) => id === resourceId)
+      const resource = yield* repository.findById(sessionId, resourceId, 'all')
       if (!resource) return undefined
       if (
         !resource.available &&
         resource.kind === 'image' &&
         resource.locator?.startsWith('https://')
       ) {
-        yield* readSessionResourceContent(sessionId, resourceId)
+        yield* prepareSessionResourceContent(sessionId, resourceId)
         return undefined
       }
       if (resource.available && !resource.managed) return undefined
@@ -204,8 +159,10 @@ export function registerSessionResourceHandlers(): void {
             )
             if (!pending) {
               const repository = yield* SessionResourceRepository
-              const existing = (yield* repository.list(sessionId)).find(
-                (resource) => resource.kind === 'change-request' && resource.locator === input.url,
+              const existing = yield* repository.findByLocator(
+                sessionId,
+                'change-request',
+                input.url,
               )
               if (existing) return existing
               return yield* Effect.fail(

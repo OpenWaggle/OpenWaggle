@@ -18,6 +18,8 @@ export interface SessionResourceRow {
   readonly locator: string | null
   readonly managed_path: string | null
   readonly available: number
+  readonly is_source: number
+  readonly is_output: number
   readonly created_at: number
   readonly updated_at: number
 }
@@ -30,6 +32,7 @@ export interface SessionResourceOccurrenceRow {
   readonly actor: string
   readonly activity: string
   readonly label: string | null
+  readonly locator: string | null
   readonly created_at: number
 }
 
@@ -75,6 +78,7 @@ function rowToOccurrence(row: SessionResourceOccurrenceRow): SessionResourceOccu
     actor: decodeActor(row.actor),
     activity: decodeActivity(row.activity),
     label: row.label,
+    locator: normalizedLocator(row.locator),
     createdAt: row.created_at,
   }
 }
@@ -106,12 +110,8 @@ export function rowToResource(
     locator: normalizedLocator(row.locator),
     managed: row.managed_path !== null,
     available: row.available === 1,
-    isSource: occurrences.some(
-      (occurrence) => occurrence.activity === 'provided' || occurrence.activity === 'read',
-    ),
-    isOutput: occurrences.some(
-      (occurrence) => occurrence.activity === 'created' || occurrence.activity === 'updated',
-    ),
+    isSource: row.is_source === 1,
+    isOutput: row.is_output === 1,
     occurrences,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

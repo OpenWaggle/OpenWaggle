@@ -1,14 +1,18 @@
 import type { SessionId } from '@shared/types/brand'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
+  SessionMessageResourcesProvider,
   type SessionResourceBrowserTarget,
   SessionResourceViewer,
   type SessionSummaryExtensionSidePanelTarget,
   SessionSummaryHub,
+  useSessionResourceBackfill,
   useSessionResourceInvalidation,
+  useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
+import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
 import type { ChatPanelSections } from '../model'
 import { useAgentLoopEventStore } from '../state/agent-loop-event-store'
 import { AgentNotificationStack } from './AgentNotificationStack'
@@ -16,12 +20,18 @@ import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDisplayPathProvider } from './ChatDisplayPathContext'
 import { ChatTranscript } from './ChatTranscript'
 
-const SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX = 840
+const SESSION_SUMMARY_WIDTH_PX = 300
+const SESSION_SUMMARY_RIGHT_INSET_PX = 16
+const SESSION_SUMMARY_CONTENT_GAP_PX = 16
+const SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX =
+  CHAT_CONTENT_MAX_WIDTH_PX +
+  2 * (SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX)
 
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
   readonly onOpenSessionTree?: () => void
   readonly onOpenDiff?: () => void
+  readonly onOpenChangeRequest?: (url: string) => void
   readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
   readonly onNavigateSession?: (sessionId: string) => void
   readonly onOpenExtensionSidePanel?: (target: SessionSummaryExtensionSidePanelTarget) => void
@@ -32,24 +42,41 @@ function useSessionSummarySpace(rightSidebarOpen: boolean) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [hasSpace, setHasSpace] = useState(true)
 
-  useLayoutEffect(() => {
+  const measure = useCallback(() => {
     if (rightSidebarOpen) return
-    const element = panelRef.current
-    if (!element) return
-    const width = element.clientWidth
-    setHasSpace(width === 0 || width >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
+    const container = panelRef.current
+    if (!container) return
+    const width = container.clientWidth
+    if (width === 0) {
+      setHasSpace(true)
+      return
+    }
+
+    const contentFrame = container.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
+    const containerRect = container.getBoundingClientRect()
+    const contentRect = contentFrame?.getBoundingClientRect()
+    const hasMeasuredGeometry =
+      containerRect.width > 0 && contentRect !== undefined && contentRect.width > 0
+    const roomForSummary = hasMeasuredGeometry
+      ? containerRect.right - contentRect.right >=
+        SESSION_SUMMARY_WIDTH_PX + SESSION_SUMMARY_RIGHT_INSET_PX + SESSION_SUMMARY_CONTENT_GAP_PX
+      : width >= SESSION_SUMMARY_AUTO_OPEN_FALLBACK_WIDTH_PX
+    setHasSpace(roomForSummary)
   }, [rightSidebarOpen])
+
+  useLayoutEffect(() => {
+    measure()
+  }, [measure])
 
   useEffect(() => {
     const element = panelRef.current
     if (!element || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => {
-      if (rightSidebarOpen) return
-      setHasSpace(element.clientWidth >= SESSION_SUMMARY_AUTO_OPEN_MIN_WIDTH_PX)
-    })
+    const observer = new ResizeObserver(measure)
     observer.observe(element)
+    const contentFrame = element.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
+    if (contentFrame) observer.observe(contentFrame)
     return () => observer.disconnect()
-  }, [rightSidebarOpen])
+  }, [measure])
 
   return { panelRef, hasSpace }
 }
@@ -71,10 +98,16 @@ function SessionNotificationStack({
   return <AgentNotificationStack events={events} onDismiss={handleDismiss} />
 }
 
+function transcriptPathNodeIds(section: ChatPanelSections['transcript']) {
+  if (section.activePathNodeIds) return section.activePathNodeIds
+  return section.messages.map((message) => message.metadata?.sessionNodeId ?? message.id)
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
   onOpenDiff = () => {},
+  onOpenChangeRequest = () => {},
   onOpenResources = () => {},
   onNavigateSession = () => {},
   onOpenExtensionSidePanel = () => {},
@@ -83,15 +116,20 @@ export function ChatPanelContent({
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
-  useSessionResourceInvalidation(activeSessionId)
+  useSessionResourceOwnerActivation(sections.transcript.activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
     sections.transcript.chatRows.length,
   )
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
-  const activeMessageIds = new Set(
-    sections.transcript.messages.map((message) => message.metadata?.sessionNodeId ?? message.id),
+  const resourceSessionId = summaryMessageCount > 0 ? activeSessionId : null
+  useSessionResourceInvalidation(resourceSessionId)
+  useSessionResourceBackfill(resourceSessionId)
+  const activeMessageNodeIds = sections.transcript.messages.map(
+    (message) => message.metadata?.sessionNodeId ?? message.id,
   )
+  const activeMessageIds = new Set(activeMessageNodeIds)
+  const activePathNodeIds = transcriptPathNodeIds(sections.transcript)
   const summarySpace = useSessionSummarySpace(rightSidebarOpen)
   return (
     <div className="flex size-full overflow-hidden">
@@ -109,12 +147,15 @@ export function ChatPanelContent({
             key={activeSessionId ?? 'no-session-summary'}
             input={{
               session: sections.composer.session,
+              activeBranchId: sections.transcript.activeBranchId ?? null,
+              activePathNodeIds,
               messageCount: summaryMessageCount,
               autoHidden: !summarySpace.hasSpace,
               rightSidebarOpen,
               extensionRegistry: sections.extensionRegistry,
               extensionProjectPaths: sections.extensionProjectPaths,
               onOpenDiff,
+              onOpenChangeRequest,
               onOpenResources,
               onNavigateSession,
               onOpenExtensionSidePanel,
@@ -132,14 +173,26 @@ export function ChatPanelContent({
           </PanelErrorBoundary>
           <SessionResourceViewer
             activeSessionId={activeSessionId}
+            activeBranchId={sections.transcript.activeBranchId ?? null}
             activeMessageIds={activeMessageIds}
+            activePathNodeIds={activePathNodeIds}
           />
 
           <PanelErrorBoundary
             name="Chat transcript"
             className="flex flex-1 flex-col overflow-hidden"
           >
-            <ChatTranscript section={sections.transcript} />
+            <ChatTranscript
+              section={sections.transcript}
+              renderVisibleMessageRows={(nodeIds, rows) => (
+                <SessionMessageResourcesProvider
+                  sessionId={sections.transcript.activeSessionId}
+                  nodeIds={nodeIds}
+                >
+                  {rows}
+                </SessionMessageResourcesProvider>
+              )}
+            />
           </PanelErrorBoundary>
 
           <PanelErrorBoundary name="Composer">

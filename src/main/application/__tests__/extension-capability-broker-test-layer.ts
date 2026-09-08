@@ -75,6 +75,7 @@ export function makeBrokerLayer(input: {
   readonly lifecycles: readonly ExtensionLifecycleState[]
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
+  readonly sessionDetails?: readonly SessionDetail[]
   readonly sessionTree?: SessionTree
   readonly resources: SessionResource[]
   readonly resourceUpserts: UpsertSessionResourceInput[]
@@ -85,6 +86,7 @@ export function makeBrokerLayer(input: {
   readonly reconcileFailure?: Error
 }) {
   const projectOverrides = input.projectOverrides ?? []
+  const sessionDetails = input.sessionDetails ?? (input.sessionDetail ? [input.sessionDetail] : [])
 
   return Layer.mergeAll(
     makeLoggerLayer(input.capturedLogs),
@@ -144,12 +146,12 @@ export function makeBrokerLayer(input: {
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.sync(() => makeSessionDetail(PROJECT_PATH)),
       getOptional: (id) =>
-        Effect.succeed(
-          input.sessionDetail && input.sessionDetail.id === id ? input.sessionDetail : null,
-        ),
+        Effect.succeed(sessionDetails.find((session) => session.id === id) ?? null),
+      getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
+      hasDirectWorkers: () => Effect.succeed(false),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,

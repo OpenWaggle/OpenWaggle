@@ -1,3 +1,4 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { Message, PreparedAttachment } from '@shared/types/agent'
 import { MessageId, SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
@@ -40,9 +41,11 @@ const makeTestSessionProjectionLayer = () =>
         try: async () => makeSessionDetail({ id }),
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
       }),
+    getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
     list: () => Effect.succeed([]),
     listDetails: () => Effect.succeed([]),
     create: () => Effect.succeed(makeSessionDetail()),
+    hasDirectWorkers: () => Effect.succeed(false),
     delete: () => Effect.void,
     archive: () => Effect.void,
     unarchive: () => Effect.void,
@@ -150,6 +153,43 @@ describe('hydratePayloadAttachments', () => {
 
     expect(hydrateAttachmentSourcesMock).toHaveBeenCalledWith(attachments)
     expect(result).toBe(hydratedResult)
+  })
+
+  it('rejects more than the send-boundary attachment count before hydration', async () => {
+    const attachments = Array.from({ length: ATTACHMENT.MAX_COUNT + 1 }, (_, index) =>
+      makeAttachment({ id: `attachment-${String(index)}` }),
+    )
+
+    await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
+      `A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments`,
+    )
+    expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate prepared attachment capability ids before hydration', async () => {
+    const attachments = [
+      makeAttachment({ id: 'duplicate', name: 'first.txt' }),
+      makeAttachment({ id: 'duplicate', name: 'second.txt' }),
+    ]
+
+    await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
+      'Duplicate prepared attachment capability',
+    )
+    expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an excessive aggregate attachment size before hydration', async () => {
+    const attachments = Array.from({ length: 3 }, (_, index) =>
+      makeAttachment({
+        id: `attachment-${String(index)}`,
+        sizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
+      }),
+    )
+
+    await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
+      'Total attachment size exceeds',
+    )
+    expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
   })
 })
 

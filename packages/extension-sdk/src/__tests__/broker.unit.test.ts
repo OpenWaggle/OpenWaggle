@@ -42,6 +42,8 @@ describe('createExtensionBrokerSdk', () => {
               method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
               sessionId: SESSION_SCOPE.sessionId,
               resources: [],
+              total: 0,
+              nextCursor: null,
             }
           : {
               extensionId: input.extensionId,
@@ -66,7 +68,7 @@ describe('createExtensionBrokerSdk', () => {
       contributionId: 'sample.resources',
     })
 
-    await sdk.openWaggle.resources.list(SESSION_SCOPE)
+    await sdk.openWaggle.resources.list(SESSION_SCOPE, { cursor: 'next-page', limit: 25 })
     const published = await sdk.openWaggle.resources.publish(SESSION_SCOPE, {
       key: 'reference',
       title: 'Reference',
@@ -81,7 +83,7 @@ describe('createExtensionBrokerSdk', () => {
         capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES,
         method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
         scope: SESSION_SCOPE,
-        payload: {},
+        payload: { cursor: 'next-page', limit: 25 },
       }),
     )
     expect(transport).toHaveBeenNthCalledWith(
@@ -133,6 +135,8 @@ describe('createExtensionBrokerSdk', () => {
         method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
         sessionId: 'session-2',
         resources: [],
+        total: 0,
+        nextCursor: null,
       },
       audit: auditFor(input),
     }))

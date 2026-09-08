@@ -44,9 +44,11 @@ function makeSessionLayers() {
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.succeed(makeSessionDetail(PROJECT_PATH)),
       getOptional: () => Effect.succeed(null),
+      getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
+      hasDirectWorkers: () => Effect.succeed(false),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,
@@ -82,9 +84,20 @@ function makeSessionLayers() {
     Layer.succeed(SessionResourceRepository, {
       upsert: () => Effect.dieMessage('resource upsert is not configured for this test'),
       list: () => Effect.succeed([]),
+      listPage: () =>
+        Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+      findById: () => Effect.succeed(null),
+      findByOccurrence: () => Effect.succeed(null),
+      findByLocator: () => Effect.succeed(null),
+      locateImage: () => Effect.succeed(null),
       findByCanonicalKey: () => Effect.succeed(null),
       rekey: () => Effect.dieMessage('resource rekey is not configured for this test'),
       hasOccurrence: () => Effect.succeed(false),
+      hasOccurrences: () => Effect.succeed(new Set()),
+      listByNodeIds: () => Effect.succeed([]),
+      listByNodeIdsPage: () =>
+        Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+      listManagedNodeIds: () => Effect.succeed([]),
       getContentLocation: () => Effect.succeed(null),
       getBackfillCursor: () => Effect.succeed(-1),
       advanceBackfillCursor: () => Effect.void,

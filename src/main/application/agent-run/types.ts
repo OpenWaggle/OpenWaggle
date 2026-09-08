@@ -3,6 +3,7 @@ import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 
 export interface AgentRunInput {
   readonly sessionId: SessionId
@@ -17,19 +18,17 @@ export interface AgentRunInput {
 
 interface AgentRunResultBase {
   readonly assignedTitle?: string
+  readonly resourceMessages?: PersistedRunResourceNodes['resourceMessages']
+  readonly resourceNodeIds?: PersistedRunResourceNodes['resourceNodeIds']
+  readonly resourceBranchIds?: PersistedRunResourceNodes['resourceBranchIds']
 }
 
 export type AgentRunResult =
-  | (AgentRunResultBase & {
-      readonly outcome: 'success'
-      readonly newMessages: readonly Message[]
-      /** Messages reloaded from the persisted session tree after snapshot persistence. */
-      readonly resourceMessages: readonly Message[]
-      /** Persisted session-node id keyed by the runtime message id. */
-      readonly resourceNodeIds: Readonly<Record<string, string>>
-      /** Persisted branch id keyed by the runtime message id. */
-      readonly resourceBranchIds: Readonly<Record<string, string | null>>
-    })
+  | (AgentRunResultBase &
+      PersistedRunResourceNodes & {
+        readonly outcome: 'success'
+        readonly newMessages: readonly Message[]
+      })
   | (AgentRunResultBase & { readonly outcome: 'aborted' })
   | (AgentRunResultBase & {
       readonly outcome: 'invalid-model'

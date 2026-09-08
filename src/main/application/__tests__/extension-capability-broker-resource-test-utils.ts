@@ -50,6 +50,46 @@ export function makeSessionResourceRepositoryTestLayer(
       }),
     list: (sessionId) =>
       Effect.succeed(resources.filter((resource) => resource.sessionId === sessionId)),
+    listPage: (sessionId, input) => {
+      const matching = resources.filter(
+        (resource) =>
+          resource.sessionId === sessionId &&
+          (input.view === 'all' ||
+            (input.view === 'images' && resource.kind === 'image') ||
+            (input.view === 'sources' && resource.isSource) ||
+            (input.view === 'outputs' && resource.isOutput)),
+      )
+      return Effect.succeed({
+        resources: matching.slice(0, input.limit),
+        total: matching.length,
+        nextCursor: null,
+        orderRevision: 'none',
+      })
+    },
+    findById: (sessionId, resourceId) =>
+      Effect.succeed(
+        resources.find(
+          (resource) => resource.sessionId === sessionId && resource.id === resourceId,
+        ) ?? null,
+      ),
+    findByOccurrence: (sessionId, occurrenceId) =>
+      Effect.succeed(
+        resources.find(
+          (resource) =>
+            resource.sessionId === sessionId &&
+            resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+        ) ?? null,
+      ),
+    findByLocator: (sessionId, kind, locator) =>
+      Effect.succeed(
+        resources.find(
+          (resource) =>
+            resource.sessionId === sessionId &&
+            resource.kind === kind &&
+            resource.locator === locator,
+        ) ?? null,
+      ),
+    locateImage: () => Effect.succeed(null),
     findByCanonicalKey: (sessionId, canonicalKey) =>
       Effect.succeed(
         resources.find(
@@ -64,6 +104,44 @@ export function makeSessionResourceRepositoryTestLayer(
             resource.sessionId === sessionId &&
             resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
         ),
+      ),
+    hasOccurrences: (sessionId, occurrenceIds) =>
+      Effect.succeed(
+        new Set(
+          occurrenceIds.filter((occurrenceId) =>
+            resources.some(
+              (resource) =>
+                resource.sessionId === sessionId &&
+                resource.occurrences.some((occurrence) => occurrence.id === occurrenceId),
+            ),
+          ),
+        ),
+      ),
+    listByNodeIds: (sessionId, nodeIds, kind, limit) =>
+      Effect.succeed(
+        resources
+          .filter(
+            (resource) =>
+              resource.sessionId === sessionId &&
+              (kind === null || resource.kind === kind) &&
+              resource.occurrences.some(
+                (occurrence) => occurrence.nodeId !== null && nodeIds.includes(occurrence.nodeId),
+              ),
+          )
+          .slice(0, limit),
+      ),
+    listByNodeIdsPage: () =>
+      Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+    listManagedNodeIds: (sessionId, limit) =>
+      Effect.succeed(
+        [
+          ...new Set(
+            resources
+              .filter((resource) => resource.sessionId === sessionId && resource.managed)
+              .flatMap((resource) => resource.occurrences.map(({ nodeId }) => nodeId))
+              .filter((nodeId): nodeId is string => nodeId !== null),
+          ),
+        ].slice(0, limit),
       ),
     getContentLocation: () => Effect.succeed(null),
     getBackfillCursor: () => Effect.succeed(-1),

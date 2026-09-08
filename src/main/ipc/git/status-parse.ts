@@ -8,7 +8,7 @@ import {
   GIT_STATUS_PATH_OFFSET,
 } from './status-constants'
 
-interface ParsedPorcelainEntry {
+export interface ParsedPorcelainEntry {
   readonly path: string
   readonly status: GitFileStatus
   readonly staged: boolean
@@ -17,7 +17,7 @@ interface ParsedPorcelainEntry {
   readonly renamedFrom?: string
 }
 
-interface LineStats {
+export interface LineStats {
   readonly additions: number
   readonly deletions: number
 }
@@ -67,6 +67,8 @@ export function normalizeGitPath(rawPath: string) {
 }
 
 export function parsePorcelain(stdout: string) {
+  if (stdout.includes('\0')) return parseNullDelimitedPorcelain(stdout)
+
   const entries: ParsedPorcelainEntry[] = []
 
   for (const line of nonEmptyTrimmedLines(stdout)) {
@@ -78,6 +80,8 @@ export function parsePorcelain(stdout: string) {
 }
 
 export function parseNumstat(stdout: string) {
+  if (stdout.includes('\0')) return parseNullDelimitedNumstat(stdout)
+
   const result = new Map<string, LineStats>()
 
   for (const line of nonEmptyTrimmedLines(stdout)) {
@@ -135,6 +139,79 @@ function nonEmptyTrimmedLines(stdout: string) {
     .filter(Boolean)
 }
 
+function parseNullDelimitedPorcelain(stdout: string) {
+  const entries: ParsedPorcelainEntry[] = []
+  const records = stdout.split('\0')
+
+  let index = 0
+  while (index < records.length) {
+    const record = records[index] ?? ''
+    index += 1
+    if (!record) continue
+
+    const isRenameOrCopy = porcelainRecordIsRenameOrCopy(record)
+    const renamedFrom = isRenameOrCopy ? (records[index] ?? '') : ''
+    if (isRenameOrCopy) index += 1
+
+    const entry = parseNullDelimitedPorcelainRecord(record, renamedFrom)
+    if (entry) entries.push(entry)
+  }
+
+  return entries
+}
+
+function parseNullDelimitedPorcelainRecord(record: string, renamedFrom: string) {
+  if (record.length < GIT_STATUS_CODE_WIDTH) return null
+  const x = record[0] ?? ' '
+  const y = record[1] ?? ' '
+  const rawPath = record.slice(GIT_STATUS_PATH_OFFSET)
+  if (!rawPath) return null
+
+  return buildPorcelainEntry(x, y, rawPath, renamedFrom || null)
+}
+
+function parseNullDelimitedNumstat(stdout: string) {
+  const result = new Map<string, LineStats>()
+  const records = stdout.split('\0')
+
+  let index = 0
+  while (index < records.length) {
+    const record = records[index] ?? ''
+    index += 1
+    if (!record) continue
+
+    const parsed = parseNullDelimitedNumstatRecord(record)
+    if (!parsed) continue
+
+    if (parsed.path) {
+      result.set(parsed.path, parsed.stats)
+      continue
+    }
+
+    // With `--numstat -z`, a rename is `<counts>\0<source>\0<destination>\0`.
+    index += 1
+    const target = records[index] ?? ''
+    index += 1
+    if (target) result.set(target, parsed.stats)
+  }
+
+  return result
+}
+
+function parseNullDelimitedNumstatRecord(record: string) {
+  const firstTab = record.indexOf('\t')
+  const secondTab = record.indexOf('\t', firstTab + 1)
+  if (firstTab === -1 || secondTab === -1) return null
+
+  return {
+    path: record.slice(secondTab + 1),
+    stats: {
+      additions: parseLineCount(record.slice(0, firstTab)),
+      deletions: parseLineCount(record.slice(firstTab + 1, secondTab)),
+    },
+  }
+}
+
 function findPlainRenameTarget(trimmed: string) {
   for (const delimiter of [' => ', ' -> ']) {
     if (!trimmed.includes(delimiter)) continue
@@ -155,6 +232,22 @@ function mapStatusCode(code: string): GitFileStatus {
     .otherwise(() => 'unknown' as const)
 }
 
+function porcelainRecordIsRenameOrCopy(record: string) {
+  const x = record[0] ?? ' '
+  const y = record[1] ?? ' '
+  return x === 'R' || x === 'C' || y === 'R' || y === 'C'
+}
+
+function buildPorcelainEntry(x: string, y: string, path: string, renamedFrom: string | null) {
+  return {
+    path,
+    status: mapStatusCode(x === '?' && y === '?' ? '?' : y !== ' ' ? y : x),
+    staged: x !== ' ' && x !== '?',
+    unstaged: y !== ' ',
+    ...(renamedFrom === null ? {} : { renamedFrom }),
+  }
+}
+
 function parsePorcelainLine(line: string) {
   if (line.length < GIT_STATUS_CODE_WIDTH) return null
   const x = line[0] ?? ' '
@@ -167,14 +260,9 @@ function parsePorcelainLine(line: string) {
    */
   const isRenameOrCopy = x === 'R' || x === 'C' || y === 'R' || y === 'C'
   const renamedFrom = isRenameOrCopy ? renameSourcePath(rawPath) : null
-  return {
-    // Only a rename or copy has the `old -> new` form to strip; anything else is a literal path.
-    path: isRenameOrCopy ? normalizeGitPath(rawPath) : stripSurroundingQuotes(rawPath),
-    status: mapStatusCode(x === '?' && y === '?' ? '?' : y !== ' ' ? y : x),
-    staged: x !== ' ' && x !== '?',
-    unstaged: y !== ' ',
-    ...(renamedFrom === null ? {} : { renamedFrom }),
-  }
+  // Only a rename or copy has the `old -> new` form to strip; anything else is a literal path.
+  const path = isRenameOrCopy ? normalizeGitPath(rawPath) : stripSurroundingQuotes(rawPath)
+  return buildPorcelainEntry(x, y, path, renamedFrom)
 }
 
 function parseNumstatLine(line: string) {
