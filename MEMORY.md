@@ -97,6 +97,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Every completed agent-run Electron QA captures representative screenshots from the hidden window, stores the evidence outside the repository, and renders the images in the final user response. QA evidence is never committed; intentional visual-regression baselines remain a separate test asset.
 - CI runs hidden-window functional Electron E2E on macOS, Linux under Xvfb, and Windows. Xvfb requires both `DISPLAY` and `XAUTHORITY` in the safe Electron child environment. Native pixel baselines stay Darwin-only and are selected with the `@visual` tag; do not copy them across operating systems.
 - Linux launches forward an explicit parent `--no-sandbox` switch to the detached Session Host without disabling the sandbox by default. Electron retains runtime switches in `process.argv`; normalize only recognized leading runtime switches before the development app path or canonical command. Never search payloads for command words or remove application options. Startup QA records a bounded tail from the existing GUI stderr pipe and detaches on settlement, leaving detached Host stdio and lifetime independent.
+- Linux Electron 43.2 can pass client control pipes and Chromium sockets to detached children despite `stdio: 'ignore'`; explicit ignored entries for descriptors 3 and 4 also failed real Ubuntu QA. Detached launch maps descriptors 3 through a validated `/proc/self/fd` snapshot maximum to an owned null-device handle, including holes. Reserve the null source at or above that maximum: mapping a low source repeatedly makes libuv allocate temporary duplicates and fails with `EMFILE` for a valid sparse descriptor set under a low file limit. Close only the owned reservation after synchronous spawn, including failure paths. Missing or invalid snapshots fail closed, macOS and Windows retain their existing policy. The synchronous snapshot does not prevent native threads opening higher descriptors before spawn. A pending Playwright close is not proof that the GUI process remains alive; the detached Host can retain its control and CDP sockets after GUI exit.
 - Renderer project labels receive native filesystem paths. Derive their final segment through the shared `projectName` formatter, which handles both `/` and `\\`; splitting only on `/` exposes full Windows paths and breaks project-scoped controls.
 - Playwright pointer delivery into a sandboxed iframe is not portable when the Electron window is hidden: macOS can activate a framed button while Linux/Windows silently leave its handler untouched. For framed controls, dispatch the DOM activation inside the frame, assert synchronously that the handler entered its busy state, then poll a durable boundary such as the project-scoped extension-storage row. Main-renderer controls should keep using normal Playwright pointer actions, and the fixture unit test should cover transient banner text.
 - Electron 43 can stall a secure custom-protocol iframe indefinitely when its document response includes `Origin-Agent-Cluster: ?1`. Inline visualizations isolate siblings with a fresh UUID custom-protocol host per frame instead; do not restore the header without proving navigation in real Electron.
@@ -477,6 +478,13 @@ documents. An inner join let SQLite scan all 100,000 documents for every 512-nod
 left join also catches missing documents explicitly. Keep a temporary covering index on grouped
 terms `(session_id, occurrences)` so per-Session token totals do not rescan every batch term.
 Production-query plan regressions protect both boundaries without relaxing integrity checks.
+
+Stage transcript terms by grouping FTS occurrences before looking up their previous persistent
+counts. Joining the persistent term table first performed the same primary-key lookup once per
+occurrence instead of once per distinct term/Session pair. Preserve the earliest node/Run evidence
+and cumulative counts across batch boundaries; production-query instrumentation and a multi-batch
+cutover fixture cover both. The paired production trial retained identical term, document, and
+node-search rows with every cutover validation enabled.
 
 Unscoped transcript-term ranking excludes the archived Session id set instead of looking up
 the full Session row for every posting. Project and working-path filters still require that join;
