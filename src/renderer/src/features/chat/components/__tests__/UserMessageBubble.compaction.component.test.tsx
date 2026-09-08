@@ -1,6 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
-import { it, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 vi.mock('@/features/session-summary', () => ({
   SessionMessageImages: () => null,
