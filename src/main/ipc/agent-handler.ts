@@ -46,10 +46,11 @@ import {
   activeCompactions,
   activeRuns,
   activeWaggleRuns,
-  cancelAllSessionRuns,
   cancelSessionRuns,
+  getAllActiveRunSessionIds,
   hasAnyActiveRun,
   listActiveCompactions,
+  requestSessionRunCancellation,
 } from './active-agent-runs'
 import { captureRunResultResources } from './agent-run-resources'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
@@ -64,9 +65,10 @@ function clearSessionTransportState(sessionId: SessionId) {
   cleanupSessionRun(sessionId)
 }
 
-function emitCancelledCompletion(sessionId: SessionId) {
-  clearSessionTransportState(sessionId)
-  emitRunCompleted(sessionId)
+function requestCancellation(sessionId: SessionId) {
+  if (!hasAnyActiveRun(sessionId)) return
+  requestSessionRunCancellation(sessionId)
+  cleanupSessionRun(sessionId)
 }
 
 /**
@@ -190,14 +192,9 @@ function registerAgentRunHandlers() {
   typedHandle('agent:cancel', (_event, sessionId?: SessionId) =>
     Effect.sync(() => {
       if (sessionId) {
-        if (cancelSessionRuns(sessionId)) {
-          emitCancelledCompletion(sessionId)
-        }
+        requestCancellation(sessionId)
       } else {
-        const cancelledSessionIds = cancelAllSessionRuns()
-        for (const id of cancelledSessionIds) {
-          emitCancelledCompletion(id)
-        }
+        for (const id of getAllActiveRunSessionIds()) requestCancellation(id)
       }
     }),
   )

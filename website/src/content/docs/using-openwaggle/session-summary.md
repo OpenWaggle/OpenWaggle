@@ -77,6 +77,8 @@ Hive opens automatically when a Worker needs attention, while work is active, or
 
 Resources produced by a background session refresh that session's catalog even while you are viewing another session or Settings. Switching sessions never mixes their resources. Rapid switching also keeps resource loading bounded while earlier requests finish.
 
+Stopping an agent or Waggle run lets it finish saving and indexing any partial outputs before reporting completion. Those persisted outputs remain available in the session's catalog.
+
 The Resource Browser shares the right sidebar with Diff, Session Tree, and other inspectors. It has separate **Sources** and **Outputs** views, groups related resource kinds, and shows provenance such as who provided, read, created, or updated an item and on which session branch it occurred.
 
 Large catalogs load in stable, bounded pages while retaining an exact total. **Show more** requests the next page; opening an exact resource link does not load all earlier rows. If the catalog changes between pages, OpenWaggle restarts at the first page so an item cannot be silently skipped or duplicated.

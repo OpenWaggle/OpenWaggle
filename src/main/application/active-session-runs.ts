@@ -40,6 +40,16 @@ export function cancelSessionRuns(sessionId: SessionId): boolean {
   return cancelledAgent || cancelledCompaction || cancelledWaggle
 }
 
+/** Keep ownership until the handler persists partial results and runs its finalizer. */
+export function requestSessionRunCancellation(sessionId: SessionId): void {
+  const controllers = new Set([
+    activeRuns.get(sessionId)?.controller,
+    activeCompactions.get(sessionId)?.controller,
+    activeWaggleRuns.get(sessionId)?.controller,
+  ])
+  for (const controller of controllers) controller?.abort()
+}
+
 export function getAllActiveRunSessionIds(): SessionId[] {
   return [
     ...new Set([...activeRuns.keys(), ...activeCompactions.keys(), ...activeWaggleRuns.keys()]),

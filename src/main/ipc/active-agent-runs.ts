@@ -7,4 +7,5 @@ export {
   getAllActiveRunSessionIds,
   hasAnyActiveRun,
   listActiveCompactions,
+  requestSessionRunCancellation,
 } from '../application/active-session-runs'

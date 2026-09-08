@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
 import type { NativeImage } from 'electron'
 import type { RemoteVcsStatusResult } from '../../src/shared/types/git'
+import type { SessionWorkspace } from '../../src/shared/types/session'
 import { closeElectronApplication, forceCloseElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
@@ -532,6 +533,25 @@ export class OpenWaggleApp {
         String(sessionId) === probeInput.sessionId ? probeInput.detail : null,
       )
     }, input)
+  }
+
+  async holdSessionWorkspace(workspace: SessionWorkspace): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, snapshot) => {
+      const probeGlobal: typeof globalThis & { __openWaggleReleaseWorkspace?: () => void } = globalThis
+      const released = new Promise<void>(resolve => { probeGlobal.__openWaggleReleaseWorkspace = resolve })
+      ipcMain.removeHandler('sessions:get-workspace')
+      ipcMain.handle('sessions:get-workspace', async (_event, sessionId) => {
+        await released
+        return String(sessionId) === snapshot.tree.session.id ? snapshot : null
+      })
+    }, workspace)
+  }
+
+  async releaseSessionWorkspace(): Promise<void> {
+    await this.app.evaluate(() => {
+      const probeGlobal: typeof globalThis & { __openWaggleReleaseWorkspace?: () => void } = globalThis
+      probeGlobal.__openWaggleReleaseWorkspace?.()
+    })
   }
 
   mainWindow(): MainWindowPage {

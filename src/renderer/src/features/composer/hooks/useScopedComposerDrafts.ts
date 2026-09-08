@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSessionStore } from '@/features/sessions/state'
@@ -37,23 +37,39 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
-  const contextKey = buildScopedComposerContextKey(
-    projectPath,
-    activeSessionId,
-    activeWorkspace,
-    draftBranch,
-  )
+  const pendingContextKey = `${buildComposerDraftContextKey({ projectPath, sessionId: activeSessionId })}:pending`
+  const contextKey =
+    buildScopedComposerContextKey(projectPath, activeSessionId, activeWorkspace, draftBranch) ??
+    pendingContextKey
 
-  useEffect(() => {
-    if (!contextKey) {
+  useLayoutEffect(() => {
+    const store = useComposerStore.getState()
+    if (store.activeDraftContextKey === contextKey) return
+
+    // Hydration assigns the pending draft to its resolved branch without rebuilding
+    // Lexical content, which would discard command chips and the selection.
+    if (
+      store.activeDraftContextKey === pendingContextKey &&
+      (store.input.length > 0 || store.attachments.length > 0 || store.selectedWagglePreset)
+    ) {
+      store.setActiveDraftContextKey(contextKey)
+      store.clearScopedDraft(pendingContextKey)
       return
     }
 
-    const appliedDraft = useComposerStore
-      .getState()
-      .switchScopedDraftContext(contextKey, undefined, currentDraftOverride())
+    const appliedDraft = store.switchScopedDraftContext(
+      contextKey,
+      store.activeDraftContextKey === null
+        ? {
+            input: store.input,
+            attachments: store.attachments,
+            wagglePreset: store.selectedWagglePreset,
+          }
+        : undefined,
+      currentDraftOverride(),
+    )
     syncEditorDraft(appliedDraft)
-  }, [contextKey])
+  }, [contextKey, pendingContextKey])
 
   useEffect(() => {
     return () => {

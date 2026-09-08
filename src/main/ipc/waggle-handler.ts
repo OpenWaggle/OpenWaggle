@@ -103,9 +103,10 @@ function registerSendWaggleMessageHandler() {
 function registerCancelWaggleHandler() {
   typedOn('agent:cancel-waggle', (_event, sessionId: SessionId) =>
     Effect.sync(() => {
-      if (activeWaggleRuns.cancel(sessionId)) {
+      const run = activeWaggleRuns.get(sessionId)
+      if (run) {
+        run.controller.abort()
         cancelAgentLoopInteractionsForRun({ sessionId, runId: waggleRunId(sessionId) })
-        finishWaggleRun(sessionId)
       }
     }),
   )

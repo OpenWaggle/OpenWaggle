@@ -83,4 +83,52 @@ describe('agent-triggered Waggle resource capture', () => {
     expect(activeRuns.has(SESSION_ID)).toBe(false)
     expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
   })
+
+  it.each([
+    { mode: 'handoff', cancelSessionId: SESSION_ID },
+    { mode: 'handoff', cancelSessionId: undefined },
+    { mode: 'classic', cancelSessionId: SESSION_ID },
+    { mode: 'classic', cancelSessionId: undefined },
+  ])(
+    'waits for partial resource capture when cancelling $mode / $cancelSessionId',
+    async ({ mode, cancelSessionId }) => {
+      const { send, cancel } = prepareHandoff('aborted')
+      const executeRun = mode === 'handoff' ? mocks.executeWaggleRun : mocks.executeAgentRun
+      executeRun.mockImplementation((input) =>
+        Effect.async((resume) => {
+          input.signal.addEventListener(
+            'abort',
+            () =>
+              resume(
+                Effect.succeed({
+                  outcome: 'aborted',
+                  resourceMessages: RESOURCE_MESSAGES,
+                }),
+              ),
+            { once: true },
+          )
+        }),
+      )
+      let releaseCapture = () => {}
+      mocks.captureSuccessfulRunResources.mockReturnValue(
+        Effect.async((resume) => {
+          releaseCapture = () => resume(Effect.void)
+        }),
+      )
+      const running = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+      await expect.poll(() => executeRun.mock.calls.length).toBe(1)
+      await Effect.runPromise(cancel({}, cancelSessionId))
+      await expect.poll(() => mocks.captureSuccessfulRunResources.mock.calls.length).toBe(1)
+      try {
+        expect(mocks.emitRunCompleted).not.toHaveBeenCalled()
+        expect(activeRuns.has(SESSION_ID)).toBe(true)
+      } finally {
+        releaseCapture()
+        await running
+      }
+      expect(mocks.emitRunCompleted).toHaveBeenCalledOnce()
+      expect(activeRuns.has(SESSION_ID)).toBe(false)
+      expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
+    },
+  )
 })
