@@ -29,18 +29,23 @@ export function sessionHostLaunchCommand(input: {
   readonly executablePath: string
   readonly appPath: string
   readonly appImagePath?: string
+  readonly parentNoSandbox?: boolean
 }) {
+  // Restricted Linux environments may launch the GUI with this explicit Electron switch.
+  // Its detached authority needs the same policy; never disable the sandbox by default.
+  const electronArguments =
+    input.platform === 'linux' && input.parentNoSandbox ? ['--no-sandbox'] : []
   if (
     input.platform === 'linux' &&
     input.isPackaged &&
     input.appImagePath &&
     path.isAbsolute(input.appImagePath)
   ) {
-    return { command: input.appImagePath, args: ['session-host-internal'] }
+    return { command: input.appImagePath, args: [...electronArguments, 'session-host-internal'] }
   }
   return {
     command: input.executablePath,
-    args: sessionHostLaunchArguments({ isPackaged: input.isPackaged, appPath: input.appPath }),
+    args: [...electronArguments, ...sessionHostLaunchArguments(input)],
   }
 }
 
@@ -136,6 +141,7 @@ const defaultDependencies: LocalSessionHostLauncherDependencies = {
       isPackaged: app.isPackaged,
       executablePath: process.execPath,
       appPath: app.getAppPath(),
+      parentNoSandbox: app.commandLine.hasSwitch('no-sandbox'),
       ...(env.APPIMAGE ? { appImagePath: env.APPIMAGE } : {}),
     })
     return launchHeadlessBackgroundProcess({

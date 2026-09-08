@@ -9,6 +9,10 @@ import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { applicationCliStdout } from '../../scripts/electron-cli-stdout'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import {
+  captureElectronStartupDiagnostics,
+  electronStartupErrorMessage,
+} from '../../scripts/qa/electron-startup-diagnostics'
+import {
   prepareQaProfileRemoval,
   shutdownSessionHostForQa,
 } from '../../scripts/qa/session-host-shutdown'
@@ -115,8 +119,10 @@ export class OpenWaggleApp {
     const piAgentDir = options.isolatedPiAgent ? path.join(userDataDir, 'pi-agent') : undefined
     let app: ElectronApplication | null = null
     let window: Page | null = null
+    let startupDiagnostics: ReturnType<typeof captureElectronStartupDiagnostics> | null = null
     try {
       app = await launchOpenWaggleElectron({ userDataDir, hidden, piAgentDir })
+      startupDiagnostics = captureElectronStartupDiagnostics(app.process())
       window = await app.firstWindow()
       const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix, piAgentDir)
       await instance.mainWindow().waitUntilReady()
@@ -145,7 +151,10 @@ export class OpenWaggleApp {
           secondaryErrors.push(diagnosticsError)
         }
       } else {
-        console.error('[electron-qa] launch failed before Electron created a page')
+        console.error(
+          '[electron-qa] launch failed before Electron created a page',
+          startupDiagnostics?.snapshot(error) ?? { error: electronStartupErrorMessage(error) },
+        )
       }
       let closeSucceeded = true
       try {
@@ -177,6 +186,8 @@ export class OpenWaggleApp {
         )
       }
       throw error
+    } finally {
+      startupDiagnostics?.stop()
     }
   }
 
