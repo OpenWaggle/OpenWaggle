@@ -6,6 +6,7 @@ const {
   createClientInputMock,
   discardMock,
   executeCommandMock,
+  removeCredentialMock,
   stageCredentialMock,
 } = vi.hoisted(() => {
   class ProfileCredentialCommitError extends Error {
@@ -22,6 +23,7 @@ const {
     createClientInputMock: vi.fn(),
     discardMock: vi.fn(),
     executeCommandMock: vi.fn(),
+    removeCredentialMock: vi.fn(),
     stageCredentialMock: vi.fn(),
   }
 })
@@ -38,7 +40,7 @@ vi.mock('../session-host/profile-credential', () => ({
 }))
 vi.mock('../session-host/profile-credential-destination', () => ({
   ProfileCredentialCommitError,
-  removeStoredProfileCredential: vi.fn(),
+  removeStoredProfileCredential: removeCredentialMock,
   stageProfileCredential: stageCredentialMock,
 }))
 
@@ -113,6 +115,7 @@ describe('Access CLI credential recovery', () => {
     })
     discardMock.mockReset().mockResolvedValue(undefined)
     executeCommandMock.mockReset()
+    removeCredentialMock.mockReset().mockResolvedValue(undefined)
     stageCredentialMock.mockReset().mockResolvedValue({
       credential: 'generated-credential',
       metadata: { kind: 'file', path: '/tmp/reviewer.secret' },
@@ -127,6 +130,35 @@ describe('Access CLI credential recovery', () => {
   })
 
   afterEach(() => vi.restoreAllMocks())
+
+  it('reports retained-credential cleanup failure after revocation without printing success', async () => {
+    executeCommandMock.mockResolvedValue({
+      ...PROFILE_RESPONSE,
+      response: {
+        ...PROFILE_RESPONSE.response,
+        outcome: {
+          operation: 'revoke',
+          effect: 'profile-revoked',
+          profile: { ...PROFILE_RESPONSE.response.outcome.profile, revokedAt: 2 },
+          interruptedRuns: [],
+        },
+      },
+    })
+    removeCredentialMock.mockRejectedValue(
+      Object.assign(new Error('EACCES: unlink /state/profile-credentials/retained.credential'), {
+        code: 'EACCES',
+      }),
+    )
+
+    await expect(runAccessCli(['profiles', 'revoke', 'reviewer', '--json'])).resolves.not.toBe(0)
+
+    expect(process.stdout.write).not.toHaveBeenCalled()
+    expect(process.stderr.write).toHaveBeenCalledWith(
+      expect.stringContaining('/state/profile-credentials/retained.credential'),
+    )
+    expect(executeCommandMock).toHaveBeenCalledOnce()
+    expect(discardMock).not.toHaveBeenCalled()
+  })
 
   it('replays the same operation after an ambiguous committed response', async () => {
     executeCommandMock

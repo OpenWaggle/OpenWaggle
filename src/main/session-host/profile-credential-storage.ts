@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { constants as FS_CONSTANTS, type Stats } from 'node:fs'
 import { lstat, open, readdir, readFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
+import { isEnoent } from '@shared/utils/node-error'
 import { safeStorage } from 'electron'
 
 const PROFILE_CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{43}$/
@@ -101,6 +102,10 @@ export async function readProfileCredentialFile(filePath: string) {
   }
 }
 
+function ignoreMissingCredentialFile(error: unknown) {
+  if (!isEnoent(error)) throw error
+}
+
 export function removeStoredProfileCredential(input: {
   readonly stateRoot: string
   readonly profileName: string
@@ -108,15 +113,17 @@ export function removeStoredProfileCredential(input: {
   const profileIdentity = createHash('sha256').update(input.profileName).digest('hex')
   const receipts = path.join(input.stateRoot, 'profile-credential-receipts')
   return Promise.all([
-    unlink(storedProfileCredentialPath(input.stateRoot, input.profileName)).catch(() => undefined),
+    unlink(storedProfileCredentialPath(input.stateRoot, input.profileName)).catch(
+      ignoreMissingCredentialFile,
+    ),
     readdir(receipts)
       .then((entries) =>
         Promise.all(
           entries
             .filter((entry) => entry.startsWith(`${profileIdentity}.`))
-            .map((entry) => unlink(path.join(receipts, entry)).catch(() => undefined)),
+            .map((entry) => unlink(path.join(receipts, entry)).catch(ignoreMissingCredentialFile)),
         ),
       )
-      .catch(() => undefined),
+      .catch(ignoreMissingCredentialFile),
   ]).then(() => undefined)
 }

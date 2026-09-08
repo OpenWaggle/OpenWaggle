@@ -25,6 +25,12 @@ or accept their success without the selected gate dependency and result check.
 
 ### The commit policy was invisible to agents
 
+Manual CI has no pull-request base SHA. Resolve its exact candidate's merge base
+with the fetched `origin/main` before invoking Commit Policy, and fail on missing
+or ambiguous ancestry. Queue runs use their event `merge_group.base_sha`. An empty
+`--from` falls back to bootstrap history and loses
+the ancestry needed to recognize already-released upstream package syncs.
+
 `scripts/check-conventional-commits.ts` rejected a `mockup:` subject in CI after the agent pushed — the check was deterministic, ~1s, and documented nowhere agents read. Now `pnpm verify` (commit policy vs the `origin/main` merge base + typecheck + lint + unit tests) runs in the husky pre-push hook for feature branches; `prepush:main` still guards pushes to `main`.
 
 - OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
@@ -482,8 +488,14 @@ Everyone read access and lets another account occupy a duplex server's read-only
 Session Host pipe names therefore rotate after canonical database ownership is acquired, clients
 reread the protected endpoint capability while attaching, and the Host applies and verifies a
 protected current-user-SID DACL before opening admission. Keep the Windows CI integration test for
-this boundary. Unit tests on Unix cannot prove that `SetNamedSecurityInfoW` accepts the live pipe
-object path or that Windows returns the expected DACL.
+this boundary. Named pipes require handle-based `SetSecurityInfo`/`GetSecurityInfo`, using
+`CreateFile` with security-metadata rights only. Keep pre-admission rejection active while the
+helper runs. Bounded stage diagnostics distinguish helper startup, input, and native API stalls;
+Unix unit tests cannot prove live Windows handle behavior or DACL readback.
+
+After profile revocation, stored credential and receipt cleanup may ignore only `ENOENT`.
+Permission, locked-file, and directory-read failures must reach the CLI/GUI so retained files
+can be removed. Cleanup failure does not undo revocation or prevent admission disconnection.
 
 Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
 project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that
