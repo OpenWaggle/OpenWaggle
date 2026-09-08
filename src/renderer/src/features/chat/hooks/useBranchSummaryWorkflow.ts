@@ -42,13 +42,20 @@ interface DraftBranchComposerInput {
   readonly projectPath: string | null
 }
 
+function branchSummaryProjectPath(params: BranchSummaryWorkflowParams, sessionId: SessionId) {
+  const workspace = params.activeWorkspace
+  return workspace?.tree.session.id === sessionId
+    ? workspace.tree.session.projectPath
+    : params.projectPath
+}
+
 function draftBranchComposerContextKey(
   params: BranchSummaryWorkflowParams,
   sessionId: SessionId,
   sourceNodeId: SessionNodeId,
 ) {
   return buildComposerDraftContextKey({
-    projectPath: params.activeWorkspace?.tree.session.projectPath ?? params.projectPath,
+    projectPath: branchSummaryProjectPath(params, sessionId),
     sessionId,
     draftSourceNodeId: sourceNodeId,
   })
@@ -239,7 +246,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
       const prompt = useBranchSummaryStore.getState().prompt
       if (!prompt) return
       const restoreContextKey = buildComposerDraftContextKey({
-        projectPath: params.activeWorkspace?.tree.session.projectPath ?? params.projectPath,
+        projectPath: branchSummaryProjectPath(params, prompt.sessionId),
         sessionId: prompt.sessionId,
         activeBranchId: prompt.restoreSelection.branchId,
         activeNodeId: prompt.restoreSelection.nodeId,

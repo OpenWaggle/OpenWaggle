@@ -86,7 +86,11 @@ function buildScopedComposerContextKey(
   if (!workspaceBelongsToSession(activeWorkspace, scopedSessionId)) return null
 
   return buildComposerDraftContextKey({
-    projectPath,
+    // Route preferences can hydrate after the workspace has enabled editing.
+    // Persisted Sessions own this path, including an explicit no-project value.
+    projectPath: scopedSessionId
+      ? (activeWorkspace?.tree.session.projectPath ?? null)
+      : projectPath,
     sessionId: scopedSessionId,
     activeBranchId: activeWorkspace?.activeBranchId ?? null,
     activeNodeId: activeWorkspace?.activeNodeId ?? null,
