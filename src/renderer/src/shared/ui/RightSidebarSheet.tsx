@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, type RefObject, useEffect, useRef } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from './Button'
 import { SHEET_MAX_WIDTH_PX, SHEET_VIEWPORT_WIDTH } from './right-sidebar-layout-sizing'
@@ -7,12 +7,18 @@ interface RightSidebarSheetProps {
   readonly children: ReactNode
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
+  readonly focusFallback?: RefObject<HTMLElement | null>
 }
 
 const FOCUSABLE_SELECTOR =
   '[data-right-sidebar-focus-target="true"], button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
-export function RightSidebarSheet({ children, open, onOpenChange }: RightSidebarSheetProps) {
+export function RightSidebarSheet({
+  children,
+  open,
+  onOpenChange,
+  focusFallback,
+}: RightSidebarSheetProps) {
   const asideRef = useRef<HTMLDialogElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const fallbackFocusIdRef = useRef<string | null>(null)
@@ -23,7 +29,12 @@ export function RightSidebarSheet({ children, open, onOpenChange }: RightSidebar
   useEffect(() => {
     const aside = asideRef.current
     if (!open || !aside) return
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const opener =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement !== document.body &&
+      !aside.contains(document.activeElement)
+        ? document.activeElement
+        : null
     openerRef.current = opener
     const summaryPanel = opener?.closest<HTMLElement>('[id^="session-summary-"]')
     fallbackFocusIdRef.current = summaryPanel ? `${summaryPanel.id}-toggle` : null
@@ -72,10 +83,10 @@ export function RightSidebarSheet({ children, open, onOpenChange }: RightSidebar
         const fallbackTarget = fallbackFocusIdRef.current
           ? document.getElementById(fallbackFocusIdRef.current)
           : null
-        ;(openerTarget ?? fallbackTarget)?.focus({ preventScroll: true })
+        ;(openerTarget ?? fallbackTarget ?? focusFallback?.current)?.focus({ preventScroll: true })
       })
     }
-  }, [open])
+  }, [focusFallback, open])
 
   return (
     <div

@@ -127,7 +127,7 @@ export function RightSidebarLayout({
       shell={{ isSheet, mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
       sheet={
         isSheet && shouldRenderSidebar ? (
-          <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
+          <RightSidebarSheet open={open} onOpenChange={onOpenChange} focusFallback={mainRef}>
             {sidebar}
           </RightSidebarSheet>
         ) : null

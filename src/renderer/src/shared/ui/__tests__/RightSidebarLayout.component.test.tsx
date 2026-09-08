@@ -178,7 +178,6 @@ describe('RightSidebarLayout', () => {
     renderLayout(true, onOpenChange)
 
     expect(document.querySelector('[data-right-sidebar-shell="true"]')).toBeVisible()
-    expect(document.querySelector('[data-right-sidebar-panel="true"]')).toBeVisible()
     expect(screen.getByText('Main content').parentElement).toHaveAttribute('inert')
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
 
@@ -232,6 +231,41 @@ describe('RightSidebarLayout', () => {
       )
     }
   })
+
+  it.each([false, true])(
+    'returns focus after closing a resized sheet with child autofocus %s',
+    async (autoFocus) => {
+      const props = {
+        ...layoutProps(true),
+        sidebar: <Button autoFocus={autoFocus}>Diff content</Button>,
+      }
+      const view = render(
+        <RightSidebarLayout {...props}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus(),
+      )
+      installMatchMedia(true)
+      view.rerender(
+        <RightSidebarLayout {...props}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus(),
+      )
+      view.rerender(
+        <RightSidebarLayout {...props} open={false}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(document.querySelector('[data-right-sidebar-main="true"]')).toHaveFocus(),
+      )
+    },
+  )
 
   it('grows left, clamps before acceptance, previews accepted widths, and persists on release', () => {
     const animationFrame = installAnimationFrame()

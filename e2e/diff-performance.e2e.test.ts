@@ -351,17 +351,24 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     // The responsive sidebar is docked on wide viewports and a sheet on narrower/DPI-scaled
     // ones. Assert against their shared visible panel contract rather than one layout shell.
     const diffPanel = page.locator('[data-right-sidebar-panel="true"]')
+    // Locator expect diagnostics build a full ARIA snapshot on failed polls. The hosted Windows
+    // CPU profile traced multi-second "renderer" tasks to that injected traversal, not the app.
+    // Poll the same visibility/completion contracts without including diagnostic snapshots in
+    // the measured renderer work. Keep all feedback, ready, and long-task budgets unchanged.
     if (process.platform !== 'darwin') {
-      await expect(
-        diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first(),
-      ).toBeVisible({ timeout: FIRST_DIFF_BUDGET_MS })
+      await expect.poll(
+        () => diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first().isVisible(),
+        { timeout: FIRST_DIFF_BUDGET_MS },
+      ).toBe(true)
     }
-    await expect(diffPanel.locator('.diff-scroll code').first()).toBeVisible({
-      timeout: HIGHLIGHT_TIMEOUT_MS,
-    })
-    await expect(diffPanel.locator('[data-diff-preparation-complete="true"]')).toBeAttached({
-      timeout: HIGHLIGHT_TIMEOUT_MS,
-    })
+    await expect.poll(
+      () => diffPanel.locator('.diff-scroll code').first().isVisible(),
+      { timeout: HIGHLIGHT_TIMEOUT_MS },
+    ).toBe(true)
+    await expect.poll(
+      () => diffPanel.locator('[data-diff-preparation-complete="true"]').count(),
+      { timeout: HIGHLIGHT_TIMEOUT_MS },
+    ).toBe(1)
     const measurements = await readDiffRenderMeasurements(page)
     await test.info().attach('diff-render-measurements', {
       body: JSON.stringify(measurements, null, 2),
