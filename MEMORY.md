@@ -17,6 +17,12 @@ A 2026-09-01 audit of ~300 CI runs (~36h) found 51% green / 21% failed / 27% can
 
 Fixes shipped: Fast gate per push (static checks split into Unit / Integration & Component / MCP Conformance jobs + macOS E2E with `retries: 2` and `PLAYWRIGHT_WORKERS: '2'`), Full gate on `merge_group` results (adds Windows/Linux E2E plus path-scoped rehearsals: package consumer smoke when `packages/**`/lockfile/release tooling changed; website/docs rehearsal when website/docs **or package** surfaces changed). `scripts/package-release-gate.ts` encodes tier semantics (`full|fast|fast-no-e2e|visual`); required-but-skipped is an error, skipped-conditional is fine. `e2e/support/electron-process-tree.ts` bounds `app.close()` at 10s, names surviving descendants into `$GITHUB_STEP_SUMMARY`, and force-kills the tree (`taskkill /T /F` on Windows) — a safety net whose forensics feed the root-cause hunt for non-clean Windows exits. The settings-side half (enable merge queue + update the required-check list to the new job names) is a maintainer runbook step in `docs/release-and-versioning.md`. It must be applied in the same admin window as the merge: the rename retires the `Unit & Component Tests` context, so between merge and ruleset swap open PRs show a forever-pending required check until an admin applies the swap or merges with the routine bypass.
 
+Adding a reusable CI job requires a deliberate update to the stable job-name list,
+caller AST contract, and exact local-workflow reference allowlist. Validate the callee's
+AST through the production file validator too, including its immutable SHA preflight,
+checkout, permissions, and required commands. Do not exempt reusable jobs generically
+or accept their success without the selected gate dependency and result check.
+
 ### The commit policy was invisible to agents
 
 `scripts/check-conventional-commits.ts` rejected a `mockup:` subject in CI after the agent pushed — the check was deterministic, ~1s, and documented nowhere agents read. Now `pnpm verify` (commit policy vs the `origin/main` merge base + typecheck + lint + unit tests) runs in the husky pre-push hook for feature branches; `prepush:main` still guards pushes to `main`.
