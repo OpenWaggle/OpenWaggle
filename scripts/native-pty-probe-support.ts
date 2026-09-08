@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { constants } from 'node:os'
-import { stripVTControlCharacters } from 'node:util'
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { Terminal } from '@xterm/xterm'
 
 export const PROBE_TIMEOUT_MS = 10_000
 export const DESCENDANT_SETTLE_MS = 650
@@ -176,13 +176,30 @@ export function assertTreeFirst(label: string, stages: readonly string[]) {
   }
 }
 
-export function assertFinalPayload(label: string, output: string, platform: NodeJS.Platform) {
-  // Windows console hosts serialize screen updates as VT, including cursor
-  // movement and wrapped rows. These are not bytes in the child's payload.
-  // Keep Unix byte-exact and require every Windows payload character exactly once.
-  const text = platform === 'win32'
-    ? stripVTControlCharacters(output).replaceAll('\r', '').replaceAll('\n', '')
-    : output
+async function renderConsoleOutput(output: string) {
+  const terminal = new Terminal({
+    cols: INITIAL_COLUMNS,
+    rows: INITIAL_ROWS,
+    scrollback: Math.ceil((FINAL_PAYLOAD_BYTES + FINAL_PREFIX.length + FINAL_SUFFIX.length) / INITIAL_COLUMNS) + INITIAL_ROWS,
+  })
+  try {
+    await new Promise<void>((resolve) => terminal.write(output, resolve))
+    const lines: string[] = []
+    for (let row = 0; row < terminal.buffer.active.length; row += 1) {
+      lines.push(terminal.buffer.active.getLine(row)?.translateToString(true) ?? '')
+    }
+    return lines.join('')
+  } finally {
+    terminal.dispose()
+  }
+}
+
+export async function assertFinalPayload(label: string, output: string, platform: NodeJS.Platform) {
+  // ConPTY/WinPTY serialize a screen, not raw stdout. Cursor redraws repeat
+  // bytes without adding cells; OSC titles can contain arbitrary file paths.
+  // Interpret the VT stream with the shipped parser and retain the entire
+  // payload in bounded scrollback. Unix remains byte-exact.
+  const text = platform === 'win32' ? await renderConsoleOutput(output) : output
   const start = text.indexOf(FINAL_PREFIX)
   const end = text.indexOf(FINAL_SUFFIX, start + FINAL_PREFIX.length)
   if (start === -1 || end === -1) throw new Error(`${label} dropped final output markers.`)
