@@ -77,9 +77,11 @@ export async function runPiSession(
       ? { runAuthorizationOverride: input.runAuthorizationOverride }
       : {}),
     ...(input.authorityCallerId ? { authorityCallerId: input.authorityCallerId } : {}),
+    compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: input.onEvent,
+    ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
     skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
@@ -91,8 +93,26 @@ export async function runPiSession(
     ...(extensionFactories.length > 0 ? { extensionFactories } : {}),
   })
 
-  const unregisterLiveRun = registerPiLiveRun({ runId: input.runId, session, model })
-  const unsubscribe = session.subscribe(createSessionListener(input, input.runId))
+  const unregisterLiveRun = registerPiLiveRun({
+    runId: input.runId,
+    session,
+    model,
+    signal: input.signal,
+  })
+  const unsubscribe = session.subscribe(
+    createSessionListener(
+      {
+        ...input,
+        getContextWindow: (provider, modelId) => {
+          const activeModel = session.model
+          return activeModel?.provider === provider && activeModel.id === modelId
+            ? activeModel.contextWindow
+            : undefined
+        },
+      },
+      input.runId,
+    ),
+  )
   const result = await runSubscribedPiOperation({
     runInput: input,
     session,

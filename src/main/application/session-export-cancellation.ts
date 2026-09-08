@@ -22,7 +22,10 @@ export function cancelSessionExport(input: {
     if (result.operation.status === 'cancelling') {
       cancelActiveSessionExport(result.operation.exportOperationId)
     }
-    if (result.operation.status === 'cancelled') yield* artifacts.discard(result.operation)
+    if (result.operation.status === 'cancelled') {
+      yield* artifacts.discard(result.operation)
+      yield* repository.completeCleanup(result.operation.exportOperationId, Date.now())
+    }
     publishSessionHostEvent({
       kind: 'session-export-changed',
       sessionId: result.operation.sessionId,

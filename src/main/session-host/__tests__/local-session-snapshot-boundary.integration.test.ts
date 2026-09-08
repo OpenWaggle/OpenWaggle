@@ -68,6 +68,8 @@ describe('Local Session snapshot boundary', () => {
         {
           sessionId: SessionId('session-running'),
           model: SupportedModelId('provider/model'),
+          activity: 'agent-run',
+          activityEvents: [],
           mode: 'classic',
           startedAt: 1,
           messageId: 'message-running',
@@ -136,6 +138,8 @@ describe('Local Session snapshot boundary', () => {
         {
           sessionId: SessionId('session-boundary'),
           model: SupportedModelId('provider/model'),
+          activity: 'agent-run' as const,
+          activityEvents: [],
           mode: 'classic' as const,
           startedAt: 1,
           messageId: 'message-boundary',

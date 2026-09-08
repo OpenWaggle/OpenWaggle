@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { api } from '@/shared/lib/ipc'
+import { acknowledgeCompactionStatus } from '../lib/compaction-lifecycle'
 import {
   appendMissingOptimisticUserMessages,
   appendUnpersistedAssistantTail,
@@ -79,6 +80,7 @@ function resetSessionChangedState(keys: SessionHydrationKeys, context: SessionHy
   context.setBackgroundStreaming(false)
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
+  context.compactionSummaryCountAtStartRef.current = 0
   context.setCompactionStatus(null)
 }
 
@@ -182,6 +184,18 @@ function hydrateActiveRunSession(
   context.backgroundReconnectSessionIdRef.current = input.sessionId
   context.setBackgroundStreaming(true)
   context.setStatus('streaming')
+  const durableSummaryIds = nextMessages.flatMap((message) =>
+    message.metadata?.compactionSummary === undefined ? [] : [message.id],
+  )
+  const acknowledgedStatus = acknowledgeCompactionStatus(
+    input.cachedCompactionStatus,
+    durableSummaryIds,
+  )
+  if (acknowledgedStatus && acknowledgedStatus.type !== 'retrying') {
+    context.compactionSummaryCountAtStartRef.current = acknowledgedStatus.summaryCountAtStart
+  }
+  context.setCompactionStatus(acknowledgedStatus)
+  context.setRunCompactionStatus(input.sessionId, acknowledgedStatus)
   void reconnectToBackgroundRun(input.sessionId, input.session, input.optimisticUserMessages)
     .then((nextReconnectMessages) =>
       handleActiveRunReconnectResult(input.sessionId, nextReconnectMessages, context),
@@ -210,14 +224,25 @@ function hydrateIdleSession(
   )
   const existingMessages = getMessagesForSession(context.messagesBySessionIdRef, input.sessionId)
   const reconciledMessages = reconcileSnapshotUserMessages(snapshotMessages, existingMessages)
+  const nextMessages = appendUnpersistedAssistantTail(reconciledMessages, existingMessages)
   setMessagesForSession(
     context.messagesBySessionIdRef,
     context.setMessagesBySessionId,
     context.setRunRenderMessages,
     input.sessionId,
-    appendUnpersistedAssistantTail(reconciledMessages, existingMessages),
+    nextMessages,
   )
   updateHydrationKeys(input.sessionId, keys, context)
+
+  const durableSummaryIds = nextMessages.flatMap((message) =>
+    message.metadata?.compactionSummary === undefined ? [] : [message.id],
+  )
+  const acknowledgedStatus = acknowledgeCompactionStatus(
+    input.cachedCompactionStatus,
+    durableSummaryIds,
+  )
+  context.setCompactionStatus(acknowledgedStatus)
+  context.setRunCompactionStatus(input.sessionId, acknowledgedStatus)
 
   if (keys.sessionChanged) {
     context.setStatus('ready')

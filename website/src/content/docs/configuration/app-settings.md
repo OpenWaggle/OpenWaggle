@@ -17,7 +17,7 @@ filter that hides sessions should not outlive the reason you applied it.
 
 | Section | Description |
 |---------|-------------|
-| **General** | General application settings. |
+| **General** | General application settings and automatic context-compaction threshold. |
 | **Agent Access** | Agent authorization, model-created Workers, concurrent Run limits, restricted CLI profiles, and CLI installation. |
 | **Appearance** | Diff view (unified or split), wrap long lines, and the diff syntax theme, with a live preview. |
 | **Waggle Mode** | Multi-agent Waggle configuration and presets. |
@@ -49,6 +49,10 @@ Agent definitions are authored under General because they are optional reusable 
 authorization identities or Hive roles. See [Agent Definitions](/docs/extending/agent-definitions).
 
 Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
+
+## General
+
+**Context compaction** sets the percentage of the active model's context window at which Pi compacts before another model request. It defaults to **80%** and is one app-global preference for every model, project, and session. Provider capability decides whether Pi uses Native Responses Compaction or the Portable fallback; there is no provider-specific setting.
 
 ## Appearance
 

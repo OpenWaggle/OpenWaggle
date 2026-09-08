@@ -78,6 +78,7 @@ describe('Pi run orchestration', () => {
       expect.objectContaining({
         projectPath: '/repo',
         modelReference: PRIMARY_MODEL,
+        compactionThresholdPercent: 80,
         extensionFactories: expect.any(Array),
       }),
     )

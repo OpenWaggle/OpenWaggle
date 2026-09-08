@@ -68,7 +68,9 @@ export function exportRepository(overrides: Partial<SessionExportOperationReposi
     fail: () => Effect.void,
     cancel: () => Effect.void,
     completeCleanup: () => Effect.void,
-    listPendingCleanup: Effect.succeed([]),
+    beginRecovery: Effect.void,
+    recoveryPending: Effect.succeed(false),
+    completeRecoveryPage: Effect.void,
     recoverAfterHostLoss: () => Effect.succeed([]),
     ...overrides,
   } satisfies SessionExportOperationRepositoryShape

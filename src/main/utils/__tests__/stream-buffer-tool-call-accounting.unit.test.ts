@@ -117,6 +117,8 @@ describe('stream-buffer cumulative tool-call accounting', () => {
     )
     replaceStreamBufferSnapshots([
       {
+        activity: 'agent-run',
+        activityEvents: [],
         sessionId: SESSION_ID,
         model: MODEL,
         mode: 'classic',
@@ -145,6 +147,8 @@ describe('stream-buffer cumulative tool-call accounting', () => {
     )
     replaceStreamBufferSnapshots([
       {
+        activity: 'agent-run',
+        activityEvents: [],
         sessionId: SESSION_ID,
         model: MODEL,
         mode: 'classic',

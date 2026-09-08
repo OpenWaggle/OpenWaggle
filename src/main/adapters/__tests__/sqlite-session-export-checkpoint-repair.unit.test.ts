@@ -3,8 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
+import * as Fiber from 'effect/Fiber'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SESSION_EXPORT_PATH_CHECKPOINT_STRIDE } from '../../services/session-host-export-schema'
+import { ensureCurrentExportPathCheckpoints } from '../sqlite-session-export-checkpoint-repair'
 import { readExportNodes } from '../sqlite-session-export-node-reader'
 import { makeSessionQueryRuntime as makeRuntime } from './sqlite-session-query-test-layer'
 
@@ -44,6 +46,85 @@ describe('SQLite Session export path checkpoint repair', () => {
     )
 
     expect(exit._tag).toBe('Failure')
+  })
+
+  it('commits bounded repair progress before interruption and resumes without rebuilding it', async () => {
+    const filename = path.join(temporaryRoot, 'cancelled-repair.sqlite')
+    const runtime = makeRuntime(filename)
+    runtimes.push(runtime)
+    const result = await runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`DROP TRIGGER session_node_search_insert`
+        yield* sql`DROP TRIGGER session_export_path_checkpoint_node_insert`
+        yield* sql`DROP TRIGGER session_nodes_mutation_revision_historical_insert`
+        yield* sql`DROP TRIGGER session_export_path_index_historical_insert`
+        yield* sql.unsafe(`
+        WITH RECURSIVE sequence(value) AS (
+          VALUES(1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 8192
+        )
+        INSERT INTO session_nodes (
+          id, session_id, parent_id, kind, role, timestamp_ms,
+          content_json, metadata_json, path_depth, created_order
+        ) SELECT 'cancel-' || printf('%05d', value), 'worker',
+          CASE WHEN value = 1 THEN 'node-worker-1'
+            ELSE 'cancel-' || printf('%05d', value - 1) END,
+          'message', 'assistant', value + 1, '{"text":"repair"}', '{}', value, value + 1
+        FROM sequence
+      `)
+        yield* sql`
+        UPDATE session_export_path_index_states SET topology_revision = 1
+        WHERE session_id = ${'worker'}
+      `
+        const repair = yield* Effect.fork(ensureCurrentExportPathCheckpoints(sql, 'worker'))
+        let progress = { building_created_order: -1, indexed_topology_revision: 0 }
+        while (progress.building_created_order < 0) {
+          const states = yield* sql<typeof progress>`
+          SELECT building_created_order, indexed_topology_revision
+          FROM session_export_path_index_states WHERE session_id = ${'worker'}
+        `
+          progress = states[0] ?? progress
+          if (progress.building_created_order < 0) yield* Effect.yieldNow()
+        }
+        const interrupted = yield* Fiber.interrupt(repair)
+        const checkpointsBefore = yield* sql<{ readonly count: number }>`
+        SELECT COUNT(*) AS count FROM session_export_path_checkpoints
+        WHERE session_id = ${'worker'} AND topology_revision = 1
+      `
+        yield* sql`
+        CREATE TRIGGER prevent_repair_rewrite BEFORE INSERT ON session_export_path_checkpoints
+        WHEN NEW.topology_revision = 1 AND EXISTS (
+          SELECT 1 FROM session_export_path_checkpoints
+          WHERE node_id = NEW.node_id AND topology_revision = NEW.topology_revision
+        )
+        BEGIN SELECT RAISE(ABORT, 'resumed checkpoint was rebuilt'); END
+      `
+        const page = yield* readExportNodes(sql, {
+          sessionId: 'worker',
+          headNodeId: 'cancel-08192',
+          tree: false,
+          indexedBranchId: null,
+          afterCreatedOrder: -1,
+          throughCreatedOrder: 8193,
+          limit: 64,
+        })
+        const completed = yield* sql<{ readonly indexed_topology_revision: number }>`
+        SELECT indexed_topology_revision FROM session_export_path_index_states
+        WHERE session_id = ${'worker'}
+      `
+        return { progress, interrupted, checkpointsBefore, page, completed }
+      }),
+    )
+
+    expect(result.progress.indexed_topology_revision).toBe(0)
+    expect(result.progress.building_created_order).toBeGreaterThan(0)
+    expect(result.progress.building_created_order).toBeLessThan(8193)
+    expect(result.interrupted._tag).toBe('Failure')
+    expect(result.checkpointsBefore[0]?.count).toBeGreaterThan(0)
+    expect(result.checkpointsBefore[0]?.count).toBeLessThan(33)
+    expect(result.completed[0]?.indexed_topology_revision).toBe(1)
+    expect(result.page.rows[0]?.id).toBe('node-worker-1')
+    expect(result.page.pathReadSteps).toBeLessThan(SESSION_EXPORT_PATH_CHECKPOINT_STRIDE * 4)
   })
 
   it('atomically rebuilds sparse checkpoints after a topology mutation', async () => {
@@ -204,16 +285,16 @@ describe('SQLite Session export path checkpoint repair', () => {
       checkpoint_count: expectedCheckpointCount,
       current_checkpoint_count: 0,
       indexed_topology_revision: 0,
-      topology_revision: sideNodeCount + 1,
+      topology_revision: sideNodeCount + 2,
     })
     expect(result.state).toEqual({
       checkpoint_count: expectedCheckpointCount,
       current_checkpoint_count: expectedCheckpointCount,
-      indexed_topology_revision: sideNodeCount + 1,
-      topology_revision: sideNodeCount + 1,
+      indexed_topology_revision: sideNodeCount + 2,
+      topology_revision: sideNodeCount + 2,
     })
-    // One staged row per new checkpoint, one atomic publication, then one delete per old row.
-    expect(result.firstPageWrites).toBe(expectedCheckpointCount * 2 + 1)
+    // Staged checkpoints and cleanup remain sparse; cursor commits add one write per source batch.
+    expect(result.firstPageWrites).toBeLessThan(expectedCheckpointCount * 3)
     expect(result.repairedPageWrites).toBe(0)
     expect(result.firstPage.rows[0]?.id).toBe('node-worker-1')
     expect(result.firstPage.pathReadSteps).toBeLessThan(SESSION_EXPORT_PATH_CHECKPOINT_STRIDE * 4)

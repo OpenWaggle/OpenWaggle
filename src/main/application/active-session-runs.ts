@@ -1,3 +1,4 @@
+import type { ActiveCompactionInfo } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { ActiveRunManager } from './active-run-manager'
@@ -18,6 +19,8 @@ interface WaggleRunMetadata {
 
 interface CompactionMetadata {
   readonly model: SupportedModelId
+  readonly reason: 'manual'
+  readonly startedAt: number
 }
 
 export type SessionWriterKind = 'classic' | 'waggle' | 'compaction' | 'tree-mutation'
@@ -121,7 +124,11 @@ export function reserveCompactionSessionWriter(
   model: SupportedModelId,
 ) {
   const writer = reserveSessionWriter({ sessionId, kind: 'compaction', controller })
-  activeCompactions.register(sessionId, controller, { model })
+  activeCompactions.register(sessionId, controller, {
+    model,
+    reason: 'manual',
+    startedAt: Date.now(),
+  })
   return {
     controller,
     release: () => {
@@ -301,6 +308,22 @@ export function getAllActiveRunSessionIds(): SessionId[] {
       ...preAdmissionWaggleSessionIds(),
     ]),
   ]
+}
+
+export function listActiveCompactions(): ActiveCompactionInfo[] {
+  const result: ActiveCompactionInfo[] = []
+  for (const sessionId of activeCompactions.keys()) {
+    const entry = activeCompactions.get(sessionId)
+    if (!entry) continue
+    result.push({
+      activity: 'compaction',
+      sessionId,
+      model: entry.metadata.model,
+      reason: entry.metadata.reason,
+      startedAt: entry.metadata.startedAt,
+    })
+  }
+  return result
 }
 
 export function cancelAllSessionRuns(): SessionId[] {

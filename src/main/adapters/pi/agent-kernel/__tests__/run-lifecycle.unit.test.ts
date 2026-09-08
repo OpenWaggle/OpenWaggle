@@ -1,4 +1,4 @@
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { getMessageText, type HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
@@ -32,6 +32,7 @@ interface FakeSession {
   }
   readonly sessionManager: {
     readonly getEntries: () => readonly unknown[]
+    readonly getBranch: () => readonly SessionEntry[]
     readonly getLeafId: () => string | null
   }
   readonly abort: () => Promise<void>
@@ -114,6 +115,7 @@ describe('run lifecycle settlement', () => {
       },
       sessionManager: {
         getEntries: vi.fn(() => []),
+        getBranch: vi.fn(() => []),
         getLeafId: vi.fn(() => null),
       },
       abort: vi.fn(async () => undefined),
@@ -170,6 +172,76 @@ describe('run lifecycle settlement', () => {
     expect(lifecycleMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })
 
+  it('keeps new terminal messages when pre-turn compaction shortens the context', async () => {
+    const oldUser: PiAgentMessage = { role: 'user', content: 'old user', timestamp: 1 }
+    const oldAssistant = assistantMessage({ text: 'old answer', stopReason: 'stop' })
+    const state: FakeAgentState = {
+      messages: [oldUser, oldAssistant, oldUser, oldAssistant],
+    }
+    const branch: SessionEntry[] = [
+      {
+        type: 'message',
+        id: 'old-user',
+        parentId: null,
+        timestamp: '2026-09-04T00:00:00.000Z',
+        message: oldUser,
+      },
+      {
+        type: 'message',
+        id: 'old-assistant',
+        parentId: 'old-user',
+        timestamp: '2026-09-04T00:00:01.000Z',
+        message: oldAssistant,
+      },
+    ]
+    const session: FakeSession = {
+      sessionId: 'pi-session-run-lifecycle',
+      sessionFile: '/repo/.pi/session.jsonl',
+      agent: {
+        state,
+        waitForIdle: vi.fn(async () => undefined),
+        hasQueuedMessages: vi.fn(() => false),
+      },
+      sessionManager: {
+        getEntries: vi.fn(() => branch),
+        getBranch: vi.fn(() => branch),
+        getLeafId: vi.fn(() => branch.at(-1)?.id ?? null),
+      },
+      abort: vi.fn(async () => undefined),
+      isCompacting: false,
+      isStreaming: false,
+    }
+    const terminalError = assistantMessage({
+      text: '',
+      stopReason: 'error',
+      errorMessage: 'request failed after compaction',
+    })
+
+    const result = await runSubscribedPiOperation({
+      runInput: runInput({ text: 'Continue', thinkingLevel: 'high', attachments: [] }),
+      session: fromPartial<AgentSession>(session),
+      unsubscribe: vi.fn(),
+      abortWarning: 'abort failed',
+      preAbortWarning: 'pre-abort failed',
+      operation: async () => {
+        branch.push({
+          type: 'message',
+          id: 'new-terminal-error',
+          parentId: 'old-assistant',
+          timestamp: '2026-09-04T00:00:02.000Z',
+          message: terminalError,
+        })
+        state.messages = [terminalError]
+      },
+      buildErrorMessages: () => [],
+    })
+
+    expect('terminalError' in result ? result.terminalError : undefined).toBe(
+      'request failed after compaction',
+    )
+    expect(result.newMessages).toHaveLength(2)
+  })
+
   it('calls Pi agent settlement methods with their original receiver', async () => {
     const state: FakeAgentState = { messages: [] }
     const agent = {
@@ -190,6 +262,7 @@ describe('run lifecycle settlement', () => {
       agent,
       sessionManager: {
         getEntries: vi.fn(() => []),
+        getBranch: vi.fn(() => []),
         getLeafId: vi.fn(() => null),
       },
       abort: vi.fn(async () => undefined),

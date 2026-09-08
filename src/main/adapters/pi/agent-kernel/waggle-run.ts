@@ -237,10 +237,12 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       ? { runAuthorizationOverride: input.runAuthorizationOverride }
       : {}),
     ...(input.authorityCallerId ? { authorityCallerId: input.authorityCallerId } : {}),
+    compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
+    ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
     skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
@@ -249,6 +251,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    steeringInputHook: true,
     extensionFactories: [
       createRunAttributionExtension(input.runId),
       peerReports.factory,
@@ -269,12 +272,24 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     ],
   })
 
-  const unregisterLiveRun = registerPiLiveRun({ runId: input.runId, session, model })
+  const unregisterLiveRun = registerPiLiveRun({
+    runId: input.runId,
+    session,
+    model,
+    signal: input.signal,
+    routeThroughInputHook: true,
+  })
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
         ...input,
         model: initialRuntimeModel,
+        getContextWindow: (provider, modelId) => {
+          const activeModel = session.model
+          return activeModel?.provider === provider && activeModel.id === modelId
+            ? activeModel.contextWindow
+            : undefined
+        },
         onEvent: (event) =>
           input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
       },

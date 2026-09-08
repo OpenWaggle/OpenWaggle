@@ -1,6 +1,7 @@
 import type { Settings } from '@shared/types/settings'
 import {
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
+  SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -204,6 +205,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendGeneralSettingsWrites(writes, partial, next)
   appendDiffSettingsWrites(writes, partial, next)
   appendSessionHostSettingsWrites(writes, partial, next)
+  appendChangedSetting(
+    writes,
+    partial.compactionThresholdPercent !== undefined,
+    SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
+    next.compactionThresholdPercent,
+  )
   appendChangedSetting(
     writes,
     partial.appearancePreferences !== undefined,

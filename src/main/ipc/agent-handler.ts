@@ -23,7 +23,7 @@ import {
   getStreamBuffer,
   listStreamBuffers,
 } from '../utils/stream-bridge'
-import { cancelAllSessionRuns } from './active-agent-runs'
+import { cancelAllSessionRuns, listActiveCompactions } from './active-agent-runs'
 import { hostHandle, typedHandle } from './typed-ipc'
 
 function clearSessionTransportState(sessionId: SessionId) {
@@ -248,7 +248,9 @@ function registerAgentStateHandlers() {
     Effect.sync(() => getStreamBuffer(sessionId)),
   )
 
-  typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
+  typedHandle('agent:list-active-runs', () =>
+    Effect.sync(() => [...listStreamBuffers(), ...listActiveCompactions()]),
+  )
 
   hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),

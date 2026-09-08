@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessagePart } from '@shared/types/agent'
 import type {
   ActiveRunInfo,
+  BackgroundRunActivityEvent,
   BackgroundRunSnapshot,
   RunMode,
   WorktreeLaunchSnapshot,
@@ -40,7 +41,10 @@ let totalRetainedBytes = 0
 function resetBufferedParts(sessionId: SessionId) {
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return
-  totalRetainedBytes = Math.max(0, totalRetainedBytes - retainedStreamBufferBytes(buffer))
+  totalRetainedBytes = Math.max(
+    0,
+    totalRetainedBytes - buffer.retainedBytes - buffer.degradedToolCallIdsBytes,
+  )
   activeBuffers.set(sessionId, withoutRetainedStreamContent(buffer))
 }
 
@@ -140,6 +144,29 @@ function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: strin
   })
 }
 
+function updateBufferedActivityEvents(
+  sessionId: SessionId,
+  update: (events: readonly BackgroundRunActivityEvent[]) => readonly BackgroundRunActivityEvent[],
+) {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  const activityEvents = update(buffer.activityEvents ?? [])
+  const activityEventsBytes =
+    activityEvents.length > 0 ? Buffer.byteLength(JSON.stringify(activityEvents), 'utf8') : 0
+  const retainedDelta = activityEventsBytes - (buffer.activityEventsBytes ?? 0)
+  if (
+    retainedStreamBufferBytes(buffer) + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  )
+    return
+  totalRetainedBytes += retainedDelta
+  activeBuffers.set(sessionId, {
+    ...buffer,
+    activityEvents,
+    activityEventsBytes,
+  })
+}
+
 function applyMessageUpdateToStreamBuffer(
   sessionId: SessionId,
   value: Extract<AgentTransportEvent, { type: 'message_update' }>,
@@ -197,7 +224,7 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       }
     })
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))
-    .with('message_end', () => undefined)
+    .with('message_end', 'context_usage', () => undefined)
     .with('tool_execution_start', 'tool_execution_update', (value) => {
       if (activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)) return
       updateBufferedParts(sessionId, (parts) =>
@@ -215,12 +242,29 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
         applyToolExecutionEndToParts(parts, value, preserveArgs),
       )
     })
+    .with('compaction_start', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [
+        ...events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+        value,
+      ])
+    })
+    .with('compaction_end', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
+    })
+    .with('auto_retry_start', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
+    })
+    .with('auto_retry_end', () => {
+      updateBufferedActivityEvents(sessionId, (events) =>
+        events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+      )
+    })
     .with(
       'queue_update',
-      'compaction_start',
-      'compaction_end',
-      'auto_retry_start',
-      'auto_retry_end',
       'custom',
       'agent_interaction_request',
       'agent_interaction_resolved',
@@ -240,6 +284,7 @@ export function startStreamBuffer(sessionId: SessionId, model: SupportedModelId,
     omittedBytes: 0,
     degradedToolCallIds: new Set(),
     degradedToolCallIdsBytes: 0,
+    activityEvents: [],
   })
 }
 
@@ -293,10 +338,12 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   const result: ActiveRunInfo[] = []
   for (const [sessionId, buffer] of activeBuffers) {
     result.push({
+      activity: 'agent-run',
       sessionId,
       model: buffer.model,
       mode: buffer.mode,
       startedAt: buffer.startedAt,
+      activityEvents: [...(buffer.activityEvents ?? [])],
     })
   }
   return result

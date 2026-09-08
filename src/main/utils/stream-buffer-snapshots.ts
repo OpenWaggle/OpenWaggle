@@ -1,5 +1,6 @@
 import type { MessagePart } from '@shared/types/agent'
 import type {
+  BackgroundRunActivityEvent,
   BackgroundRunSnapshot,
   RunMode,
   WorktreeLaunchSnapshot,
@@ -13,6 +14,8 @@ export interface ActiveStreamBuffer {
   readonly startedAt: number
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
+  readonly activityEvents?: readonly BackgroundRunActivityEvent[]
+  readonly activityEventsBytes?: number
   readonly retainedBytes: number
   readonly omittedBytes: number
   readonly degradedToolCallIds: ReadonlySet<string>
@@ -40,7 +43,7 @@ export function degradedToolCallIdRetainedDelta(
 }
 
 export function retainedStreamBufferBytes(buffer: ActiveStreamBuffer) {
-  return buffer.retainedBytes + buffer.degradedToolCallIdsBytes
+  return buffer.retainedBytes + buffer.degradedToolCallIdsBytes + (buffer.activityEventsBytes ?? 0)
 }
 
 export function withoutRetainedStreamContent(buffer: ActiveStreamBuffer): ActiveStreamBuffer {
@@ -60,7 +63,8 @@ export function exceedsStreamBufferLimit(
   retainedDelta: number,
 ) {
   return (
-    retainedPartsBytes + buffer.degradedToolCallIdsBytes > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
+    retainedPartsBytes + buffer.degradedToolCallIdsBytes + (buffer.activityEventsBytes ?? 0) >
+      MAX_ACTIVE_STREAM_BUFFER_BYTES ||
     totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
   )
 }
@@ -118,12 +122,14 @@ export function toStreamBufferSnapshot(
 ): BackgroundRunSnapshot | null {
   if (!buffer) return null
   return {
+    activity: 'agent-run',
     sessionId,
     model: buffer.model,
     mode: buffer.mode,
     startedAt: buffer.startedAt,
     ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
     parts: [...buffer.parts],
+    activityEvents: [...(buffer.activityEvents ?? [])],
     ...(buffer.omittedBytes > 0
       ? {
           degraded: {
@@ -162,9 +168,17 @@ export function restoreStreamBufferSnapshots(
       retainedBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
       totalRetainedBytes + retainedBytes <= MAX_TOTAL_STREAM_BUFFER_BYTES
     const acceptedRetainedBytes = accepted ? retainedBytes : 0
+    const activityEvents = snapshot.activityEvents ?? []
+    const activityEventsBytes =
+      activityEvents.length > 0 ? Buffer.byteLength(JSON.stringify(activityEvents), 'utf8') : 0
+    const acceptActivity =
+      acceptedRetainedBytes + activityEventsBytes <= MAX_ACTIVE_STREAM_BUFFER_BYTES &&
+      totalRetainedBytes + acceptedRetainedBytes + activityEventsBytes <=
+        MAX_TOTAL_STREAM_BUFFER_BYTES
+    const acceptedActivityBytes = acceptActivity ? activityEventsBytes : 0
     const degradedToolCallIds = restoreDegradedToolCallIds({
       toolCallIds: snapshot.degraded?.toolCallIds ?? [],
-      retainedPartsBytes: acceptedRetainedBytes,
+      retainedPartsBytes: acceptedRetainedBytes + acceptedActivityBytes,
       totalRetainedBytes,
     })
     buffers.set(snapshot.sessionId, {
@@ -173,13 +187,16 @@ export function restoreStreamBufferSnapshots(
       startedAt: snapshot.startedAt,
       ...(snapshot.messageId ? { messageId: snapshot.messageId } : {}),
       parts: accepted ? [...snapshot.parts] : [],
+      activityEvents: acceptActivity ? [...activityEvents] : [],
+      activityEventsBytes: acceptedActivityBytes,
       retainedBytes: acceptedRetainedBytes,
       omittedBytes: (snapshot.degraded?.omittedBytes ?? 0) + (accepted ? 0 : retainedBytes),
       degradedToolCallIds: degradedToolCallIds.toolCallIds,
       degradedToolCallIdsBytes: degradedToolCallIds.retainedBytes,
       ...(snapshot.worktreeLaunch ? { worktreeLaunch: snapshot.worktreeLaunch } : {}),
     })
-    totalRetainedBytes += acceptedRetainedBytes + degradedToolCallIds.retainedBytes
+    totalRetainedBytes +=
+      acceptedRetainedBytes + degradedToolCallIds.retainedBytes + acceptedActivityBytes
   }
   return { previousSessionIds, totalRetainedBytes }
 }

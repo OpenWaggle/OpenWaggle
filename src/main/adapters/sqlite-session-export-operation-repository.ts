@@ -7,6 +7,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionExportOperationRepositoryError } from '../errors'
 import {
+  type SessionExportExecutionClaim,
   SessionExportOperationRepository,
   type SessionExportOperationRepositoryShape,
 } from '../ports/session-export-operation-repository'
@@ -24,7 +25,7 @@ import {
   sessionExportManifestWithoutQueueBodies,
   sessionExportOperationRecord,
 } from './sqlite-session-export-operation-row'
-import { recoverExportOperationsAfterHostLoss } from './sqlite-session-export-recovery'
+import { makeExportHostLossRecovery } from './sqlite-session-export-recovery'
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionExportOperationRepositoryError({ operation, cause })
@@ -124,7 +125,8 @@ function requestCancellation(
       if (existing.status === 'queued') {
         yield* sql`
           UPDATE session_export_operations
-          SET status = ${'cancelled'}, cancel_requested = ${1}, updated_at = ${input.now},
+          SET status = ${'cancelled'}, cancel_requested = ${1}, cleanup_pending = ${1},
+            updated_at = ${input.now},
             completed_at = ${input.now}
           WHERE id = ${input.exportOperationId}
         `
@@ -206,6 +208,7 @@ function finish(
 }
 
 function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationRepositoryShape {
+  const recovery = makeExportHostLossRecovery(sql)
   return {
     create: (input) => withRepositoryError('create-export', createOperation(sql, input)),
     requestCancellation: (input) =>
@@ -213,9 +216,23 @@ function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationReposit
     read: (sessionId, operationId) =>
       withRepositoryError('read-export', readById(sql, sessionId, operationId)),
     claimExecution: (operationId, now) =>
-      withRepositoryError('claim-export', claimExportExecution(sql, operationId, now)),
+      withRepositoryError(
+        'claim-export',
+        Effect.suspend(() =>
+          recovery.isPending()
+            ? Effect.succeed<SessionExportExecutionClaim>({ status: 'not-claimable' })
+            : claimExportExecution(sql, operationId, now),
+        ),
+      ),
     claimNextExecution: (now) =>
-      withRepositoryError('claim-next-export', claimNextExportExecution(sql, now)),
+      withRepositoryError(
+        'claim-next-export',
+        Effect.suspend(() =>
+          recovery.isPending()
+            ? Effect.succeed<SessionExportExecutionClaim>({ status: 'not-claimable' })
+            : claimNextExportExecution(sql, now),
+        ),
+      ),
     persistSnapshot: (operationId, manifest, now) =>
       withRepositoryError(
         'persist-export-snapshot',
@@ -279,16 +296,10 @@ function makeRepository(sql: SqlClient.SqlClient): SessionExportOperationReposit
           WHERE id = ${operationId} AND cleanup_pending = ${1}
         `.pipe(Effect.asVoid),
       ),
-    listPendingCleanup: withRepositoryError(
-      'list-pending-export-cleanup',
-      sql<SessionExportOperationRow>`
-        SELECT * FROM session_export_operations
-        WHERE cleanup_pending = ${1}
-        ORDER BY updated_at, id
-      `.pipe(Effect.map((rows) => rows.map(sessionExportOperationRecord))),
-    ),
-    recoverAfterHostLoss: (now) =>
-      withRepositoryError('recover-exports', recoverExportOperationsAfterHostLoss(sql, now)),
+    beginRecovery: withRepositoryError('begin-export-recovery', recovery.begin),
+    recoveryPending: Effect.sync(recovery.isPending),
+    recoverAfterHostLoss: (now) => withRepositoryError('recover-exports', recovery.readPage(now)),
+    completeRecoveryPage: recovery.completePage,
   }
 }
 

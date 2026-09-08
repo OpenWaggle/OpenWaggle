@@ -176,7 +176,10 @@ describe('executeAgentRun', () => {
       runMode: 'classic',
       model,
     })
-    expect(runMock.mock.calls[0]?.[0]).toMatchObject({ runId: 'run-standard-1' })
+    expect(runMock.mock.calls[0]?.[0]).toMatchObject({
+      runId: 'run-standard-1',
+      compactionThresholdPercent: 80,
+    })
     expect(persistSnapshotMock).toHaveBeenCalledOnce()
     expect(clearActiveRunMock).toHaveBeenCalledWith({
       sessionId,

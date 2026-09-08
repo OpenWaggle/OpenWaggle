@@ -55,6 +55,8 @@ describe('Session Host renderer bridge', () => {
       expect.objectContaining({
         sessionId: SESSION_ID,
         model: 'openai/gpt-5.5',
+        activity: 'agent-run',
+        activityEvents: [],
         mode: 'classic',
       }),
     ])
@@ -82,6 +84,8 @@ describe('Session Host renderer bridge', () => {
       {
         sessionId: SESSION_ID,
         model: SupportedModelId('openai/gpt-5.5'),
+        activity: 'agent-run',
+        activityEvents: [],
         mode: 'classic',
         startedAt: 10,
         messageId: 'message-live',
@@ -92,6 +96,8 @@ describe('Session Host renderer bridge', () => {
     expect(getStreamBuffer(SESSION_ID)).toEqual({
       sessionId: SESSION_ID,
       model: SupportedModelId('openai/gpt-5.5'),
+      activity: 'agent-run',
+      activityEvents: [],
       mode: 'classic',
       startedAt: 10,
       messageId: 'message-live',

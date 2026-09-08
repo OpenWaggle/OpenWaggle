@@ -37,10 +37,10 @@ import { SessionLifecycleIdentityServiceLive } from './adapters/session-lifecycl
 import { SessionLifecyclePreparationServiceLive } from './adapters/session-lifecycle-preparation-service'
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
-import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteLocalSessionProfileRepositoryLive } from './adapters/sqlite-local-session-profile-repository'
 import { SqliteSessionAuthorizationTargetRepositoryLive } from './adapters/sqlite-session-authorization-target-repository'
 import { SqliteSessionControlOperationJournalLive } from './adapters/sqlite-session-control-operation-journal'
@@ -63,6 +63,7 @@ import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
 import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { activateTrustedMainExtensionsForActiveProjectSafely } from './application/extension-trusted-main-activation-service'
+import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { OperationAdapterLive } from './operation-adapter-layer'
 import { AppDatabaseLive } from './services/database-service'
@@ -228,11 +229,7 @@ const AppLayer = Layer.mergeAll(
   FilesystemInlineVisualizationLive,
 )
 
-function makeAppRuntime() {
-  return ManagedRuntime.make(AppLayer)
-}
-
-let currentRuntime = makeAppRuntime()
+let currentRuntime = ManagedRuntime.make(AppLayer)
 let stopHostOwnedServices: (() => Promise<void>) | null = null
 
 installStoreEffectRunner()
@@ -272,6 +269,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
     Effect.scoped(
       Effect.gen(function* () {
         yield* installAppSessionToolGateway
+        yield* runSessionExportRecoveryBackground
         yield* runSessionSemanticDiscoveryBackground
         yield* activateTrustedMainExtensionsForActiveProjectSafely()
         yield* Effect.sync(() => {
@@ -301,7 +299,7 @@ export async function stopSessionHostOwnedServices(): Promise<void> {
 
 export async function resetAppRuntimeForTests(): Promise<void> {
   await disposeAppRuntime()
-  currentRuntime = makeAppRuntime()
+  currentRuntime = ManagedRuntime.make(AppLayer)
   installStoreEffectRunner()
 }
 

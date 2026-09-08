@@ -47,6 +47,8 @@ describe('Local Session targeted watch', () => {
         ['session-target', 'session-unrelated'].map((sessionId) => ({
           sessionId: SessionId(sessionId),
           model: SupportedModelId('provider/model'),
+          activity: 'agent-run' as const,
+          activityEvents: [],
           mode: 'classic' as const,
           startedAt: 1,
           parts: [],

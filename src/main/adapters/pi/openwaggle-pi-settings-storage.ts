@@ -29,6 +29,7 @@ interface SettingsStorageLike {
 }
 
 interface OpenWagglePiSettingsManagerOptions extends OpenWaggleResourcePrecedenceOptions {
+  readonly compactionThresholdPercent?: number
   readonly excludedGlobalPackageSources?: readonly string[]
   readonly excludedProjectPackageSources?: readonly string[]
   readonly runtimeExcludedNpmPackageNames?: readonly string[]
@@ -104,6 +105,31 @@ function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
+function withOpenWaggleCompactionThreshold(
+  settings: JsonObject,
+  thresholdPercent: number | undefined,
+): JsonObject {
+  if (thresholdPercent === undefined) return settings
+  const compaction = isJsonObject(settings.compaction) ? settings.compaction : {}
+  return {
+    ...settings,
+    compaction: {
+      ...compaction,
+      thresholdPercent,
+    },
+  }
+}
+
+function withoutOpenWaggleCompactionThreshold(settings: JsonObject): JsonObject {
+  if (!isJsonObject(settings.compaction)) return settings
+  const { compaction: _currentCompaction, ...otherSettings } = settings
+  const { thresholdPercent: _thresholdPercent, ...compaction } = settings.compaction
+  return {
+    ...otherSettings,
+    ...(Object.keys(compaction).length > 0 ? { compaction } : {}),
+  }
+}
+
 function removeExcludedPackagesFromOpenWaggleProjectSettings(
   projectPath: string,
   excludedSources: readonly string[] | undefined,
@@ -134,7 +160,10 @@ function readProjectPiSettings(projectPath: string, options: OpenWagglePiSetting
   const mergedSettings = isJsonObject(openWagglePiSettings)
     ? mergeJsonObjects(piProjectSettings, openWagglePiSettings)
     : piProjectSettings
-  return withOpenWaggleResourcePrecedence(projectPath, mergedSettings, options)
+  return withOpenWaggleCompactionThreshold(
+    withOpenWaggleResourcePrecedence(projectPath, mergedSettings, options),
+    options.compactionThresholdPercent,
+  )
 }
 
 function writeProjectPiSettings(
@@ -142,10 +171,12 @@ function writeProjectPiSettings(
   nextPiSettings: string,
   options: OpenWagglePiSettingsManagerOptions,
 ) {
-  const nextPi = withoutImplicitOpenWaggleResourcePrecedence(
-    projectPath,
-    parseJsonObject(nextPiSettings),
-    options,
+  const nextPi = withoutOpenWaggleCompactionThreshold(
+    withoutImplicitOpenWaggleResourcePrecedence(
+      projectPath,
+      parseJsonObject(nextPiSettings),
+      options,
+    ),
   )
   const settingsPath = getOpenWaggleProjectSettingsPath(projectPath)
   const currentOpenWaggleSettings = parseOpenWaggleSettings(readFileIfPresent(settingsPath))

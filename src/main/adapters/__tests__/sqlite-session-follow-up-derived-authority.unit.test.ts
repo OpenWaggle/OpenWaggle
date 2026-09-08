@@ -25,9 +25,6 @@ describe('SQLite queued Follow-up derived authority', () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* sql.unsafe(`CREATE TABLE settings_store (
-          key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL
-        )`)
         yield* sql`INSERT INTO sessions (id, project_path) VALUES
           (${'queen'}, ${'/project'}), (${'worker-parent'}, ${'/project'})`
         yield* sql`
@@ -127,9 +124,6 @@ describe('SQLite queued Follow-up derived authority', () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        yield* sql.unsafe(`CREATE TABLE settings_store (
-          key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at INTEGER NOT NULL
-        )`)
         yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'queen'}, ${'/project'})`
         yield* sql`
           INSERT INTO session_runs (id, session_id, status, created_at, updated_at)

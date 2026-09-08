@@ -177,8 +177,17 @@ export function readCheckpointedExportNodeSizes(
   input: ExportPathNodeReadInput,
 ) {
   return Effect.gen(function* () {
-    yield* ensureCurrentExportPathCheckpoints(sql, input.sessionId)
-    return yield* sql<ExportPathNodeSizeRow>`
+    while (true) {
+      yield* ensureCurrentExportPathCheckpoints(sql, input.sessionId)
+      const rows = yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const current = yield* sql<{ readonly ready: number }>`
+          SELECT 1 AS ready FROM session_export_path_index_states
+          WHERE session_id = ${input.sessionId}
+            AND topology_revision = indexed_topology_revision
+        `
+          if (current.length === 0) return undefined
+          return yield* sql<ExportPathNodeSizeRow>`
       WITH RECURSIVE
         ${checkpointBoundaryCtes(sql, input)},
         ${checkpointPageCtes(sql, input)}
@@ -192,6 +201,11 @@ export function readCheckpointedExportNodeSizes(
       JOIN read_work
       ORDER BY nodes.created_order ASC
       LIMIT ${input.limit + 1}
-    `
+        `
+        }),
+      )
+      if (rows !== undefined) return rows
+      yield* Effect.yieldNow()
+    }
   })
 }

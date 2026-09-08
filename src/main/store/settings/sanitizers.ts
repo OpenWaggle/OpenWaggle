@@ -4,6 +4,7 @@ import { SupportedModelId } from '@shared/types/brand'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { parseModelRef } from '@shared/types/llm'
 import {
+  DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   DEFAULT_SETTINGS,
   DIFF_SYNTAX_THEMES,
   DIFF_VIEWS,
@@ -148,6 +149,14 @@ export function sanitizeBooleanByProject(raw: unknown) {
     if (projectPath && typeof value === 'boolean') result[projectPath] = value
   }
   return result
+}
+
+export function isValidCompactionThresholdPercent(value: unknown): value is number {
+  return Number.isInteger(value) && typeof value === 'number' && value >= 1 && value <= PERCENT_BASE
+}
+
+export function resolveCompactionThresholdPercent(raw: unknown) {
+  return isValidCompactionThresholdPercent(raw) ? raw : DEFAULT_COMPACTION_THRESHOLD_PERCENT
 }
 
 export function normalizeStoredModelRef(raw: string) {

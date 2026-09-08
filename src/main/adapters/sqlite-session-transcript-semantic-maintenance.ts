@@ -58,7 +58,7 @@ export function transcriptSemanticStorageUsage(sql: SqlClient.SqlClient) {
   `
 }
 
-function evictScopes(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+function evictScopes(sql: SqlClient.SqlClient, sessionIds: readonly string[], now: number) {
   if (sessionIds.length === 0) return Effect.void
   return Effect.gen(function* () {
     yield* sql`
@@ -75,6 +75,7 @@ function evictScopes(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
         AND NOT EXISTS (
           SELECT 1 FROM session_transcript_semantic_leases AS leases
           WHERE leases.session_id = session_transcript_semantic_scopes.session_id
+            AND leases.expires_at > ${now}
         )
     `
   })
@@ -97,6 +98,7 @@ export function reclaimExpiredTranscriptSemanticScopesInTransaction(
     yield* evictScopes(
       sql,
       expired.map((scope) => scope.session_id),
+      now,
     )
   })
 }
@@ -179,6 +181,7 @@ export function enforceTranscriptSemanticScopeLimit(
     yield* evictScopes(
       sql,
       candidates.map((candidate) => candidate.session_id),
+      now,
     )
   })
 }
@@ -253,7 +256,7 @@ export function maintainTranscriptSemanticStorageInTransaction(
         usage.queued_count -= candidate.queued_count
         usage.reserved_bytes -= candidate.reserved_bytes
       }
-      yield* evictScopes(sql, evictions)
+      yield* evictScopes(sql, evictions, now)
     }
     yield* updateGlobalStateCounts(sql, now)
   })

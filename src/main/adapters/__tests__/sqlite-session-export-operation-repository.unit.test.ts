@@ -165,6 +165,7 @@ describe('SQLite Session export operation repository', () => {
           exportOperationId: second.operation.exportOperationId,
           now: 4,
         })
+        yield* repository.beginRecovery
         const recoverable = yield* repository.recoverAfterHostLoss(5)
         const resumed = yield* repository.read('session-1', first.operation.exportOperationId)
         const cancelled = yield* repository.read('session-1', second.operation.exportOperationId)
@@ -172,7 +173,7 @@ describe('SQLite Session export operation repository', () => {
       }),
     )
 
-    expect(result.recoverable).toHaveLength(1)
+    expect(result.recoverable).toHaveLength(2)
     expect(result.recoverable[0]?.exportOperationId).toBe(result.resumed?.exportOperationId)
     expect(result.resumed?.status).toBe('queued')
     expect(result.cancelled).toMatchObject({ status: 'cancelled', completedAt: 5 })
@@ -204,6 +205,7 @@ describe('SQLite Session export operation repository', () => {
           3,
         )
         const installationClaimed = yield* repository.beginArtifactInstallation(operationId, 4)
+        yield* repository.beginRecovery
         const recovered = yield* repository.recoverAfterHostLoss(5)
         const recoveredOperation = recovered[0]
         if (!recoveredOperation) return yield* Effect.die('installed export was not recovered')

@@ -39,6 +39,8 @@ The Pi adapter passes only the nested `pi` object to Pi's `SettingsManager`. Pi'
 
 `sessionHost.multiAgentEnabled` controls whether hosted agents may launch or spawn Sessions in this project. `sessionHost.parentConcurrencyLimit` is a positive integer that limits active direct Worker Runs beneath one parent; it does not limit saved Sessions. Project-file values take precedence over per-project user overrides in Settings, which take precedence over app-global defaults. The app-wide active Run ceiling and Host idle grace remain global safety/runtime settings.
 
+The automatic compaction percentage is intentionally not project-scoped. OpenWaggle injects the app-global value from **Settings > General** after Pi merges project settings, so a project `pi.compaction.thresholdPercent` value does not override it. The other Pi compaction fields shown above remain low-level runtime settings.
+
 ## Resource Precedence
 
 OpenWaggle injects project resource roots into Pi in this order:

@@ -269,6 +269,8 @@ export function createPreferencesActions(
     setSyntaxTheme: (variant, themeId) => persistSyntaxThemeSelection(variant, themeId, set, get),
     setDiffView: (view: DiffView) => persistSetting('diffView', view, set),
     setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set),
+    setCompactionThresholdPercent: (percent: number) =>
+      persistSetting('compactionThresholdPercent', percent, set),
     setAppearanceTypography: (typography) => persistAppearanceTypography(typography, set, get),
     setAppearanceMotion: (motion) => persistAppearanceMotion(motion, set, get),
     setEnabledModels: (models) => setEnabledModels(models, set, get),

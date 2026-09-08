@@ -5,7 +5,10 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionCapability } from '@shared/types/session-capability'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import type { PeerAgentReportContext } from '../../ports/agent-kernel-service'
+import type {
+  AgentKernelRunControl,
+  PeerAgentReportContext,
+} from '../../ports/agent-kernel-service'
 import type {
   PendingDelegationSpecificationUpdate,
   PendingSessionOrchestrationUpdate,
@@ -34,6 +37,7 @@ export interface AgentRunInput {
   readonly modelMultiAgentEnabled?: boolean
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
   readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly onTitleAssigned?: (title: string) => void
 }

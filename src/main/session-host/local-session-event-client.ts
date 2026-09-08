@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Socket } from 'node:net'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { backgroundRunActivityEventsSchema } from '@shared/schemas/background-run'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
@@ -86,6 +87,7 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
   return value.map((candidate) => {
     if (
       !isRecord(candidate) ||
+      candidate.activity !== 'agent-run' ||
       typeof candidate.sessionId !== 'string' ||
       typeof candidate.model !== 'string' ||
       (candidate.mode !== 'classic' && candidate.mode !== 'waggle') ||
@@ -98,6 +100,11 @@ function decodeActiveRunSnapshots(value: unknown): BackgroundRunSnapshot[] {
     const degraded = decodeDegradedSnapshot(candidate.degraded)
     const worktreeLaunch = decodeWorktreeLaunchSnapshot(candidate.worktreeLaunch)
     return {
+      activity: 'agent-run',
+      activityEvents: decodeUnknownExactOrThrow(
+        backgroundRunActivityEventsSchema,
+        candidate.activityEvents,
+      ),
       sessionId: SessionId(candidate.sessionId),
       model: SupportedModelId(candidate.model),
       mode: candidate.mode,

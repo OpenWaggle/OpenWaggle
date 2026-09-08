@@ -29,7 +29,10 @@ export const SESSION_EXPORT_PATH_CHECKPOINT_SCHEMA_STATEMENTS = [
     topology_revision INTEGER NOT NULL DEFAULT 0 CHECK (topology_revision >= 0),
     indexed_topology_revision INTEGER NOT NULL DEFAULT 0 CHECK (
       indexed_topology_revision >= 0 AND indexed_topology_revision <= topology_revision
-    )
+    ),
+    building_topology_revision INTEGER NOT NULL DEFAULT 0,
+    building_created_order INTEGER NOT NULL DEFAULT -1,
+    building_node_id TEXT NOT NULL DEFAULT ''
   ) WITHOUT ROWID
   `,
   `
@@ -156,10 +159,11 @@ export const SESSION_EXPORT_PATH_CHECKPOINT_SCHEMA_STATEMENTS = [
   `,
   `
   CREATE TRIGGER IF NOT EXISTS session_export_path_index_topology_update
-  AFTER UPDATE OF session_id, parent_id, path_depth ON session_nodes
+  AFTER UPDATE OF session_id, parent_id, path_depth, created_order ON session_nodes
   WHEN OLD.session_id <> NEW.session_id
     OR OLD.parent_id IS NOT NEW.parent_id
     OR OLD.path_depth <> NEW.path_depth
+    OR OLD.created_order <> NEW.created_order
   BEGIN
     UPDATE session_export_path_index_states
     SET topology_revision = topology_revision + 1
@@ -167,6 +171,20 @@ export const SESSION_EXPORT_PATH_CHECKPOINT_SCHEMA_STATEMENTS = [
     UPDATE session_export_path_index_states
     SET topology_revision = topology_revision + 1
     WHERE session_id = NEW.session_id AND NEW.session_id <> OLD.session_id;
+  END
+  `,
+  `
+  CREATE TRIGGER IF NOT EXISTS session_export_path_index_historical_insert
+  AFTER INSERT ON session_nodes
+  WHEN EXISTS (
+    SELECT 1 FROM session_nodes AS existing
+    WHERE existing.session_id = NEW.session_id
+      AND existing.created_order >= NEW.created_order AND existing.id <> NEW.id
+  )
+  BEGIN
+    UPDATE session_export_path_index_states
+    SET topology_revision = topology_revision + 1
+    WHERE session_id = NEW.session_id;
   END
   `,
 ] as const

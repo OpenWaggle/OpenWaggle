@@ -42,6 +42,7 @@ export const DEFAULT_MODEL_REF = SupportedModelId('')
 export const DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT = 4
 export const DEFAULT_SESSION_HOST_RUN_CEILING = 16
 export const DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS = 300_000
+export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 
 export interface Settings {
   readonly selectedModel: SupportedModelId
@@ -78,6 +79,8 @@ export interface Settings {
   readonly multiAgentEnabled: boolean
   /** Optional project overrides for model-initiated launch and spawn capability. */
   readonly multiAgentEnabledByProject: Readonly<Record<string, boolean>>
+  /** Context-window usage percentage at which Pi automatically compacts. */
+  readonly compactionThresholdPercent: number
   /** User overrides layered above the active Appearance package defaults. */
   readonly appearancePreferences: AppearancePreferences
 }
@@ -104,5 +107,6 @@ export const DEFAULT_SETTINGS: Settings = {
   sessionHostIdleGracePeriodMs: DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
   multiAgentEnabled: true,
   multiAgentEnabledByProject: {},
+  compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
 }

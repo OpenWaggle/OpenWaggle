@@ -168,19 +168,18 @@ describe('QueuedMessages', () => {
     expect(noOpSteer).toHaveBeenCalledWith('follow-up-1')
   })
 
-  it('uses compaction copy and hides steering during compaction', () => {
+  it('keeps the queue available when its active Run accepts steering', () => {
     queue({ id: 'follow-up-1', text: 'wait for compact' })
     render(
       <QueuedMessages
         sessionId={CONV_A}
         onSteer={noOpSteer}
         isStreaming={true}
-        isCompacting={true}
         onToast={noOpToast}
       />,
     )
-    expect(screen.getByText('Queued until compaction finishes')).toBeInTheDocument()
-    expect(screen.queryByText('Steer')).not.toBeInTheDocument()
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Steer')).toBeInTheDocument()
   })
 
   it('makes a paused queue visible and resumes it through the revision-aware hook', () => {

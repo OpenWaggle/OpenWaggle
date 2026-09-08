@@ -18,6 +18,7 @@ import {
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../model'
+import type { AgentCompactionStatus } from './useAgentChat.types'
 import { useChatRows } from './useChatRows'
 
 function resolveLastUserMessage(messages: UIMessage[]) {
@@ -70,6 +71,7 @@ export interface TranscriptSectionParams {
   readonly turnAnchorMessageIds: ReadonlySet<string>
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
+  readonly compactionStatus: AgentCompactionStatus | null
 }
 
 export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {
@@ -98,6 +100,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     handleForkFromMessage,
     userDidSend,
     onUserDidSendConsumed,
+    compactionStatus,
   } = params
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -155,6 +158,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     phase,
     interruptedRun,
     worktreeLaunch,
+    compactionStatus,
   })
 
   // Compute lastUserMessageId for session-restore identity gating, not send anchoring.

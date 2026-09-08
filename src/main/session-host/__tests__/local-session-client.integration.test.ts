@@ -144,6 +144,8 @@ describe('Local Session client', () => {
         {
           sessionId: SessionId('session-already-running'),
           model: SupportedModelId('provider/model'),
+          activity: 'agent-run',
+          activityEvents: [{ type: 'compaction_start', reason: 'threshold', timestamp: 2 }],
           mode: 'classic',
           startedAt: 1,
           parts: [{ type: 'text', text: 'already streamed' }],
@@ -236,6 +238,8 @@ describe('Local Session client', () => {
         {
           sessionId: SessionId('session-already-running'),
           model: SupportedModelId('provider/model'),
+          activity: 'agent-run',
+          activityEvents: [{ type: 'compaction_start', reason: 'threshold', timestamp: 2 }],
           mode: 'classic',
           startedAt: 1,
           parts: [{ type: 'text', text: 'already streamed' }],

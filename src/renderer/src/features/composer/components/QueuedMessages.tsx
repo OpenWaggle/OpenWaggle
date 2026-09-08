@@ -11,7 +11,6 @@ interface QueuedMessagesProps {
   readonly sessionId: SessionId | null
   readonly onSteer: (messageId: string) => Promise<void>
   readonly isStreaming: boolean
-  readonly isCompacting?: boolean
   readonly onToast: (message: string) => void
 }
 
@@ -34,14 +33,12 @@ function attentionCopy(item: SessionFollowUpQueueItem) {
 function QueueHeader({
   count,
   headNeedsAttention,
-  isCompacting,
   isResuming,
   queueState,
   onResume,
 }: {
   readonly count: number
   readonly headNeedsAttention: boolean
-  readonly isCompacting: boolean
   readonly isResuming: boolean
   readonly queueState: 'running' | 'paused'
   readonly onResume: () => void
@@ -50,11 +47,7 @@ function QueueHeader({
     <div className="flex items-center gap-1.5 px-1">
       <Timer className="size-3 text-text-tertiary" />
       <span className="text-xs font-semibold text-text-tertiary">
-        {isCompacting
-          ? 'Queued until compaction finishes'
-          : queueState === 'paused'
-            ? 'Queue paused'
-            : 'Queued'}
+        {queueState === 'paused' ? 'Queue paused' : 'Queued'}
       </span>
       <span className="flex size-4.5 items-center justify-center rounded-full bg-text-tertiary/12 text-xs font-semibold text-text-tertiary">
         {count}
@@ -83,7 +76,6 @@ function QueueHeader({
 }
 
 interface QueueItemsProps {
-  readonly isCompacting: boolean
   readonly isStreaming: boolean
   readonly items: readonly SessionFollowUpQueueItem[]
   readonly resolvingId: string | null
@@ -93,7 +85,6 @@ interface QueueItemsProps {
 }
 
 function QueueItems({
-  isCompacting,
   isStreaming,
   items,
   resolvingId,
@@ -145,7 +136,7 @@ function QueueItems({
                   </span>
                 </Button>
               ) : null}
-              {isStreaming && !isCompacting && (
+              {isStreaming && (
                 <Button
                   variant="unstyled"
                   type="button"
@@ -182,13 +173,7 @@ function QueueItems({
  * inside the composer's rounded shoulders so it reads like a docked tab rather
  * than a separate full-width panel.
  */
-export function QueuedMessages({
-  sessionId,
-  onSteer,
-  isStreaming,
-  isCompacting = false,
-  onToast,
-}: QueuedMessagesProps) {
+export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: QueuedMessagesProps) {
   const { snapshot, error, refresh, resubmitWithCurrentAccess, setPaused, withdraw } =
     useSessionFollowUpQueue(sessionId)
   const [resolvingId, setResolvingId] = useState<string | null>(null)
@@ -247,14 +232,12 @@ export function QueuedMessages({
               <QueueHeader
                 count={queue.length}
                 headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
-                isCompacting={isCompacting}
                 isResuming={isResuming}
                 queueState={snapshot.state}
                 onResume={() => void resumeQueue()}
               />
 
               <QueueItems
-                isCompacting={isCompacting}
                 isStreaming={isStreaming}
                 items={queue}
                 resolvingId={resolvingId}

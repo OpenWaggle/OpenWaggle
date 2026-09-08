@@ -75,7 +75,7 @@ function runManualSessionCompaction(input: {
     )
     input.signal?.addEventListener('abort', abort, { once: true })
     if (input.signal?.aborted) abort()
-    let delayedSuccessfulEnd: AgentTransportEvent | null = null
+    let delayedSuccessfulEnd: Extract<AgentTransportEvent, { type: 'compaction_end' }> | null = null
     const compact = compactAgentSession({
       sessionId,
       model: SupportedModelId(request.model),
@@ -91,6 +91,19 @@ function runManualSessionCompaction(input: {
         publishCompactionEvent(sessionId, event)
       },
     }).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          if (!delayedSuccessfulEnd) return
+          publishCompactionEvent(sessionId, {
+            ...delayedSuccessfulEnd,
+            aborted: true,
+            willRetry: false,
+            errorMessage: error instanceof Error ? error.message : String(error),
+            timestamp: Date.now(),
+          })
+          delayedSuccessfulEnd = null
+        }),
+      ),
       Effect.tap(() =>
         Effect.sync(() => {
           if (delayedSuccessfulEnd) publishCompactionEvent(sessionId, delayedSuccessfulEnd)

@@ -21,10 +21,12 @@ describe('useAgentChat background reconnect', () => {
   it('reconnects to an active background run snapshot', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue({
+      activity: 'agent-run',
       sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'classic',
       startedAt: 1,
+      activityEvents: [],
       parts: [{ type: 'text', text: 'Partial answer' }],
     })
 
@@ -103,10 +105,12 @@ describe('useAgentChat background reconnect', () => {
 
     await act(async () => {
       backgroundRun.resolve({
+        activity: 'agent-run',
         sessionId: SessionId('session-1'),
         model: SupportedModelId('claude-sonnet-4-5'),
         mode: 'classic',
         startedAt: 1,
+        activityEvents: [],
         messageId: 'assistant-1',
         parts: [
           {

@@ -9,6 +9,7 @@ export {
   getAllActiveRunSessionIds,
   hasAnyActiveRun,
   interruptSessionWriterAndWait,
+  listActiveCompactions,
   releaseClaimedSessionWriterSuccessor,
   reserveActiveSessionRun,
   reserveCompactionSessionWriter,

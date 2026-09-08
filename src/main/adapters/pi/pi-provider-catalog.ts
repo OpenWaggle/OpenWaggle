@@ -164,6 +164,9 @@ export async function createPiRuntimeServices(
   const agentDir = getPiAgentDir()
   const visualizeSkillPaths = await resolvePiVisualizeSkillPaths(agentDir)
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
+    ...(options.compactionThresholdPercent !== undefined
+      ? { compactionThresholdPercent: options.compactionThresholdPercent }
+      : {}),
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
     excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
@@ -268,6 +271,7 @@ export function findPiToolCapableModel(
 export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
@@ -276,6 +280,9 @@ export async function createPiProjectModelRuntime(input: {
   readonly visualizationDirectory?: string
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
+    ...(input.compactionThresholdPercent !== undefined
+      ? { compactionThresholdPercent: input.compactionThresholdPercent }
+      : {}),
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
     ...(input.enabledOpenWaggleExtensionPackagePaths

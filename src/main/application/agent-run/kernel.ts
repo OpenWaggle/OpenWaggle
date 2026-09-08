@@ -7,6 +7,7 @@ import type { AgentRunInput } from './types'
 
 interface AgentRunKernelPreflight {
   readonly session: SessionDetail
+  readonly compactionThresholdPercent: number
   readonly skillToggles?: Record<string, boolean>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
@@ -103,8 +104,10 @@ export function runAgentKernel(
       payload,
       model: input.model,
       ...runContextOptions(input),
+      compactionThresholdPercent: preflight.compactionThresholdPercent,
       signal: input.signal,
       onEvent: input.onEvent,
+      ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
       ...(input.onWorktreeLaunch ? { onWorktreeLaunch: input.onWorktreeLaunch } : {}),
       ...preflightOptions(preflight),
     }

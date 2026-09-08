@@ -10,7 +10,7 @@ describe('Pi live Run registry', () => {
   afterEach(() => unregister?.())
 
   it('delivers steering to the exact registered Pi Run', async () => {
-    const steer = vi.fn(async (_text: string) => undefined)
+    const steer = vi.fn(async (text: string) => text)
     const session = fromPartial<AgentSession>({ isStreaming: true, steer })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-active', session, model })
@@ -26,7 +26,10 @@ describe('Pi live Run registry', () => {
   })
 
   it('wraps untrusted visualization state into the exact steering message', async () => {
-    const steer = vi.fn(async (_text: string) => undefined)
+    const steer = vi.fn(
+      async (text: string, _images?: unknown[], transformExpandedText?: (text: string) => string) =>
+        transformExpandedText?.(text) ?? text,
+    )
     const session = fromPartial<AgentSession>({ isStreaming: true, steer })
     const model = fromPartial<PiModel>({ input: ['text'] })
     unregister = registerPiLiveRun({ runId: 'run-visualization', session, model })
@@ -42,10 +45,28 @@ describe('Pi live Run registry', () => {
       },
     })
 
-    const steeringText = steer.mock.calls[0]?.[0]
+    const steeringText = await steer.mock.results[0]?.value
     expect(steeringText).toContain('[OpenWaggle inline visualization context]')
     expect(steeringText).toContain('untrusted data')
     expect(steeringText).toContain('"selectedService":"api"')
     expect(steeringText).toContain('Explain this selection.')
+  })
+
+  it('cancels steering waiting behind compaction when its exact Run unregisters', async () => {
+    const steer = vi.fn(async (text: string) => text)
+    const session = fromPartial<AgentSession>({ isStreaming: true, isCompacting: true, steer })
+    const model = fromPartial<PiModel>({ input: ['text'] })
+    unregister = registerPiLiveRun({ runId: 'run-compacting', session, model })
+
+    const pending = steerPiLiveRun({
+      runId: 'run-compacting',
+      text: 'Continue safely.',
+      attachments: [],
+    })
+    await Promise.resolve()
+    unregister()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(steer).not.toHaveBeenCalled()
   })
 })

@@ -105,13 +105,15 @@ export interface SessionExportOperationRepositoryShape {
     exportOperationId: string,
     now: number,
   ) => Effect.Effect<void, SessionExportOperationRepositoryError>
-  readonly listPendingCleanup: Effect.Effect<
-    readonly SessionExportOperationRecord[],
-    SessionExportOperationRepositoryError
-  >
+  /** Fence execution before capturing the bounded startup recovery snapshot. */
+  readonly beginRecovery: Effect.Effect<void, SessionExportOperationRepositoryError>
+  readonly recoveryPending: Effect.Effect<boolean>
+  /** Read and transition one bounded page; repeat the same page until it is acknowledged. */
   readonly recoverAfterHostLoss: (
     now: number,
   ) => Effect.Effect<readonly SessionExportOperationRecord[], SessionExportOperationRepositoryError>
+  /** Release execution only after every recovery page has settled. */
+  readonly completeRecoveryPage: Effect.Effect<void>
 }
 
 export class SessionExportOperationRepository extends Context.Tag(

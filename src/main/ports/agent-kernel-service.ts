@@ -1,4 +1,8 @@
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type {
+  AgentSteerDeliveryResult,
+  HydratedAgentSendPayload,
+  Message,
+} from '@shared/types/agent'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
@@ -35,6 +39,10 @@ export interface AgentKernelSessionSnapshot {
   readonly activeNodeId: string | null
 }
 
+export interface AgentKernelRunControl {
+  readonly steer: (payload: HydratedAgentSendPayload) => Promise<AgentSteerDeliveryResult>
+}
+
 export interface AgentKernelRunInput {
   readonly session: SessionDetail
   readonly runId: string
@@ -55,10 +63,12 @@ export interface AgentKernelRunInput {
   readonly mcpServerAllowlist?: readonly string[]
   readonly sessionCapabilities?: readonly SessionCapability[]
   readonly modelMultiAgentEnabled?: boolean
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
   readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly waggle?: AgentKernelWaggleRunOptions
 }
@@ -115,6 +125,7 @@ export interface CreateAgentKernelSessionResult {
 export interface AgentKernelSessionInput {
   readonly session: SessionDetail
   readonly model: SupportedModelId
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }

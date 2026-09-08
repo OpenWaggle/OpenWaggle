@@ -23,7 +23,7 @@ export function applyAgentTransportEvent(
         : cloneMessages(),
     )
     .with('message_update', (value) => applyAssistantMessageEvent(messages, value))
-    .with('message_end', cloneMessages)
+    .with('message_end', 'context_usage', cloneMessages)
     .with('tool_execution_start', (value) => startToolExecution(messages, value))
     .with('tool_execution_update', (value) => updateToolExecution(messages, value))
     .with('tool_execution_end', (value) => finishToolExecution(messages, value))

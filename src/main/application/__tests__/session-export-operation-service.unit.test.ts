@@ -4,7 +4,7 @@ import { SessionExportArtifactError, SessionExportOperationRepositoryError } fro
 import type { SessionExportArtifactWriterShape } from '../../ports/session-export-artifact-writer'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
 import { runSessionExportOperation } from '../session-export-operation-service'
-import { recoverSessionExportsAfterHostLoss } from '../session-export-recovery'
+import { continueSessionExportRecovery } from '../session-export-recovery'
 import { forkSupervisedSessionExport } from '../session-export-supervision'
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
@@ -265,12 +265,17 @@ describe('Session export operation service', () => {
   it('quarantines one stale artifact cleanup failure without blocking later export recovery', async () => {
     const broken = { ...operation, exportOperationId: 'export-broken', status: 'queued' as const }
     const healthy = { ...operation, exportOperationId: 'export-healthy', status: 'queued' as const }
+    let recoveryPending = true
     const fail = vi.fn(() => Effect.void)
     const claimNextExecution = vi
       .fn()
       .mockReturnValueOnce(Effect.succeed({ status: 'claimed' as const, operation: healthy }))
       .mockReturnValue(Effect.succeed({ status: 'not-claimable' as const }))
     const operations = repository({
+      recoveryPending: Effect.sync(() => recoveryPending),
+      completeRecoveryPage: Effect.sync(() => {
+        recoveryPending = false
+      }),
       recoverAfterHostLoss: () => Effect.succeed([broken, healthy]),
       claimNextExecution,
       fail,
@@ -296,7 +301,7 @@ describe('Session export operation service', () => {
     }
 
     await Effect.runPromise(
-      recoverSessionExportsAfterHostLoss().pipe(Effect.provide(testLayer(operations, artifacts))),
+      continueSessionExportRecovery().pipe(Effect.provide(testLayer(operations, artifacts))),
     )
 
     expect(fail).toHaveBeenCalledWith(

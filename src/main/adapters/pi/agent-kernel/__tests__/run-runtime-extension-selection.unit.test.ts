@@ -137,6 +137,7 @@ describe('Pi run OpenWaggle extension selection', () => {
       expect.objectContaining({
         projectPath: '/repo',
         modelReference: PRIMARY_MODEL,
+        compactionThresholdPercent: 80,
         enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
         enabledOpenWaggleExtensionResourceRoots: [
           { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },

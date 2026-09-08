@@ -65,6 +65,8 @@ describe('Local Session active-run subscriptions', () => {
         {
           sessionId: SessionId('session-running'),
           model: SupportedModelId('provider/model'),
+          activity: 'agent-run',
+          activityEvents: [],
           mode: 'classic',
           startedAt: 1,
           messageId: 'message-running',

@@ -18,20 +18,20 @@ interface SteerWorkflowReturn {
 }
 
 export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
-  const [isSteering, setIsSteering] = useState(false)
+  const [inFlightSteerCount, setInFlightSteerCount] = useState(0)
   const { activeSessionId, promoteFollowUp, withDeferredSnapshotRefresh, showToast } = deps
 
   async function handleSteer(messageId: string) {
     if (!activeSessionId) return
-    setIsSteering(true)
+    setInFlightSteerCount((count) => count + 1)
     try {
       await withDeferredSnapshotRefresh(() => promoteFollowUp(messageId))
     } catch (error) {
       reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
     } finally {
-      setIsSteering(false)
+      setInFlightSteerCount((count) => Math.max(0, count - 1))
     }
   }
 
-  return { isSteering, handleSteer }
+  return { isSteering: inFlightSteerCount > 0, handleSteer }
 }

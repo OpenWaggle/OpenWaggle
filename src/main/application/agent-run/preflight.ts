@@ -11,6 +11,7 @@ import type { AgentRunInput, AgentRunResult } from './types'
 interface AgentRunPreflightSuccess {
   readonly ok: true
   readonly session: SessionDetail
+  readonly compactionThresholdPercent: number
   readonly assignedTitle?: string
   readonly skillToggles?: Record<string, boolean>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
@@ -48,6 +49,7 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     return {
       ok: true,
       session,
+      compactionThresholdPercent: settings.compactionThresholdPercent,
       ...(assignedTitle ? { assignedTitle } : {}),
       ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
       ...(session.projectPath && settings.skillTogglesByProject[session.projectPath]

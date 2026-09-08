@@ -22,7 +22,7 @@ import {
 import * as Effect from 'effect/Effect'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
 import { createLogger } from '../logger'
-import { AgentKernelService } from '../ports/agent-kernel-service'
+import { type AgentKernelRunControl, AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
@@ -69,6 +69,7 @@ export interface WaggleRunInput extends Partial<WaggleExecutionContext> {
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
   readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly onRunPrepared?: (runtimeModel: SupportedModelId) => void
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
   readonly onTitleAssigned?: (title: string) => void
 }
 
@@ -77,6 +78,7 @@ interface PreparedWaggleRun {
   readonly hydratedPayload: HydratedAgentSendPayload
   readonly inheritedModel: SupportedModelId
   readonly runtimeModel: SupportedModelId
+  readonly compactionThresholdPercent: number
   readonly session: SessionDetail
   readonly skillToggles: Record<string, boolean> | undefined
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
@@ -132,6 +134,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
           config: input.config,
           selectedModel: input.model,
         }),
+        compactionThresholdPercent: settings.compactionThresholdPercent,
         session,
         skillToggles: settings.skillTogglesByProject[session.projectPath],
         enabledOpenWaggleExtensionPackagePaths,
@@ -183,7 +186,9 @@ function runPreparedWaggle(
       payload: prepared.hydratedPayload,
       model: prepared.runtimeModel,
       ...toWaggleKernelExecutionContext(input),
+      compactionThresholdPercent: prepared.compactionThresholdPercent,
       signal: input.signal,
+      ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
       skillToggles: prepared.skillToggles,
       enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,
       onEvent: () => undefined,

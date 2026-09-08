@@ -22,6 +22,18 @@ describe('Session Host cutover search indexes', () => {
     const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
     const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
     seedLegacyDatabase(sourceDatabasePath)
+    const source = new DatabaseSync(sourceDatabasePath)
+    try {
+      source.exec(`
+        INSERT INTO session_nodes (
+          id, session_id, parent_id, pi_entry_type, kind, timestamp_ms,
+          content_json, metadata_json, path_depth, created_order
+        ) VALUES ('node-summary', 'session-root', 'node-1', 'compaction',
+          'compaction_summary', 12, '{"summary":"searchable summary"}', '{}', 1, 1)
+      `)
+    } finally {
+      source.close()
+    }
 
     await expect(
       runSessionHostCutover(
@@ -48,6 +60,24 @@ describe('Session Host cutover search indexes', () => {
           `)
           .get(),
       ).toEqual({ node_id: 'node-1', initial_objective: '', current_preview: '' })
+      expect(
+        target
+          .prepare(`
+        SELECT search_rows.created_order, search_rows.searchable,
+          stats.searchable_node_count
+        FROM session_node_search_rows AS search_rows
+        JOIN session_transcript_search_stats AS stats ON stats.session_id = search_rows.session_id
+        WHERE search_rows.node_id = 'node-1'
+      `)
+          .get(),
+      ).toEqual({ created_order: 0, searchable: 0, searchable_node_count: 1 })
+      expect(
+        target
+          .prepare(`
+        SELECT created_order, searchable FROM session_node_search_rows WHERE node_id = 'node-summary'
+      `)
+          .get(),
+      ).toEqual({ created_order: 1, searchable: 1 })
       expect(
         target
           .prepare(`

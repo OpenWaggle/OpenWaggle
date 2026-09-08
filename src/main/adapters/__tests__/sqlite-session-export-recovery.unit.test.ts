@@ -5,7 +5,10 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { recoverSessionExportsAfterHostLoss } from '../../application/session-export-recovery'
+import {
+  continueSessionExportRecovery,
+  recoverSessionExportsAfterHostLoss,
+} from '../../application/session-export-recovery'
 import { SessionExportArtifactError } from '../../errors'
 import {
   SessionExportArtifactWriter,
@@ -77,6 +80,7 @@ describe('SQLite Session export recovery', () => {
 
     await active.runPromise(
       recoverSessionExportsAfterHostLoss().pipe(
+        Effect.zipRight(continueSessionExportRecovery()),
         Effect.provide(
           Layer.mergeAll(
             Layer.succeed(SessionExportArtifactWriter, artifacts),
@@ -92,8 +96,7 @@ describe('SQLite Session export recovery', () => {
       Effect.gen(function* () {
         const completed = yield* repository.read('session-1', operationId)
         const nextClaim = yield* repository.claimNextExecution(6)
-        const pendingCleanup = yield* repository.listPendingCleanup
-        return { completed, nextClaim, pendingCleanup }
+        return { completed, nextClaim }
       }),
     )
 
@@ -105,8 +108,5 @@ describe('SQLite Session export recovery', () => {
       artifactReceipt: { sha256: 'verified-installed-digest', sizeBytes: 30 },
     })
     expect(result.nextClaim).toEqual({ status: 'not-claimable' })
-    expect(result.pendingCleanup.map((operation) => operation.exportOperationId)).toContain(
-      operationId,
-    )
   })
 })
