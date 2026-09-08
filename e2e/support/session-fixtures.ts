@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import type { SupportedModelId } from '../../src/shared/types/llm'
 
 const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
 const DB_WAIT_RETRY_DELAY_MS = 100
@@ -34,6 +35,7 @@ export interface SeedSessionInput {
   readonly updatedAt: number
   readonly messages: readonly unknown[]
   readonly projectPath?: string | null
+  readonly executionModel?: SupportedModelId
   readonly waggleConfig?: unknown
   readonly archived?: boolean
   /**
@@ -258,7 +260,10 @@ function seedSessionRow(
       )
       .run(
         row.id,
-        JSON.stringify({ modelId: 'openai/gpt-5.4', thinkingLevel: 'medium' }),
+        JSON.stringify({
+          modelId: sessionInput.executionModel ?? 'openai/gpt-5.4',
+          thinkingLevel: 'medium',
+        }),
         row.createdAt,
         sessionInput.updatedAt,
       )
@@ -512,7 +517,7 @@ export async function seedHive(
             )
             .run(
               JSON.stringify({
-                modelId: 'openai/gpt-5.4',
+                modelId: input.executionModel ?? 'openai/gpt-5.4',
                 thinkingLevel: 'medium',
                 agentDefinitionName: input.agentDefinitionName,
               }),

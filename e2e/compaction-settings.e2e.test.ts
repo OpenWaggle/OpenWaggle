@@ -105,17 +105,19 @@ test('composer context meter updates from usage reported before the run settles'
     await app.mainWindow().openThread(LIVE_USAGE_THREAD_TITLE)
 
     const runtime = await app.mainWindow().page.evaluate(async (title) => {
-      const [settings, sessions] = await Promise.all([
-        window.api.getSettings(),
-        window.api.listSessionCatalogPage(false, 100),
-      ])
+      const sessions = await window.api.listSessionCatalogPage(false, 100)
       const session = sessions.sessions.find((candidate) => candidate.title === title)
       if (!session) {
         throw new Error('Expected seeded session')
       }
+      const detail = await window.api.getSessionDetail(session.id)
+      if (!detail?.executionModel) {
+        throw new Error('Expected the seeded Session to have an immutable execution model.')
+      }
       return {
         sessionId: session.id,
-        model: settings.selectedModel,
+        // The meter follows the existing Session's profile, not the new-Session preference.
+        model: detail.executionModel,
       }
     }, LIVE_USAGE_THREAD_TITLE)
 
@@ -163,6 +165,7 @@ test('automatic compaction stays in the transcript and defers explicit steering 
       {
         title: COMPACTION_TIMELINE_THREAD_TITLE,
         projectPath: app.userDataDir,
+        executionModel: COMPACTION_PROBE_MODEL,
         updatedAt: Date.now(),
         messages: [
           {
@@ -190,14 +193,13 @@ test('automatic compaction stays in the transcript and defers explicit steering 
     await app.mainWindow().openThread(COMPACTION_TIMELINE_THREAD_TITLE)
 
     const runtime = await app.mainWindow().page.evaluate(async (title) => {
-      const [settings, sessions] = await Promise.all([
-        window.api.getSettings(),
-        window.api.listSessionCatalogPage(false, 100),
-      ])
+      const sessions = await window.api.listSessionCatalogPage(false, 100)
       const session = sessions.sessions.find((candidate) => candidate.title === title)
       if (!session) throw new Error('Expected seeded compaction session')
-      return { sessionId: session.id, model: settings.selectedModel }
+      const detail = await window.api.getSessionDetail(session.id)
+      return { sessionId: session.id, model: detail?.executionModel }
     }, COMPACTION_TIMELINE_THREAD_TITLE)
+    expect(runtime.model).toBe(COMPACTION_PROBE_MODEL)
 
     const page = app.mainWindow().page
     await page
