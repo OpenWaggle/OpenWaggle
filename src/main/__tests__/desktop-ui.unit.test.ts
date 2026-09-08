@@ -134,4 +134,15 @@ describe('automation desktop UI policy', () => {
       response: 1,
     })
   })
+
+  it('keeps hidden automation rendering at foreground rate without losing secure preferences', () => {
+    const window = createBrowserWindow({
+      webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: true },
+    })
+
+    expect(Reflect.get(window, 'options')).toMatchObject({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false },
+    })
+  })
 })

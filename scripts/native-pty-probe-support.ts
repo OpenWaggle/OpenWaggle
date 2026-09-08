@@ -197,12 +197,13 @@ export function resizePty(pty: ProbedPty) {
   pty.resize(RESIZED_COLUMNS, RESIZED_ROWS)
 }
 
-export function activeCloseScript(sentinelPath: string) {
+export function activeCloseScript(sentinelPath: string, startupPath: string) {
   const descendantScript = [
     "const fs=require('node:fs')",
     `setTimeout(()=>fs.writeFileSync(${JSON.stringify(sentinelPath)},'survived'),${DESCENDANT_SENTINEL_DELAY_MS})`,
   ].join(';')
   return [
+    `require('node:fs').writeFileSync(${JSON.stringify(startupPath)},JSON.stringify({pid:process.pid,stdinTty:process.stdin.isTTY,stdoutTty:process.stdout.isTTY,runAsNode:process.env.ELECTRON_RUN_AS_NODE}))`,
     "const cp=require('node:child_process')",
     `const descendant=cp.spawn(process.execPath,['-e',${JSON.stringify(descendantScript)}],{stdio:'ignore'})`,
     'descendant.unref()',

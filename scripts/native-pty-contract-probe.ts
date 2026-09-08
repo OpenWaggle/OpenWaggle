@@ -94,8 +94,9 @@ async function probeActiveClose(
 ) {
   const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pty-probe-'))
   const sentinelPath = path.join(temporaryDirectory, 'descendant-survived')
+  const startupPath = path.join(temporaryDirectory, 'startup-state')
   const pty = assertPatchedPty(
-    nodePty.spawn(executablePath, ['-e', activeCloseScript(sentinelPath)], spawnOptions(backend)),
+    nodePty.spawn(executablePath, ['-e', activeCloseScript(sentinelPath, startupPath)], spawnOptions(backend)),
     backend,
     platform,
   )
@@ -107,10 +108,15 @@ async function probeActiveClose(
     : undefined
   let descriptorClosed = false
   try {
-    await withTimeout(`${backend.label} identity`, output.waitFor('\n')).catch((error: unknown) => {
+    await withTimeout(`${backend.label} identity`, output.waitFor('\n')).catch(async (error: unknown) => {
+      const startup = await fs.readFile(startupPath, 'utf8').catch(() => 'not reached')
+      const socket: unknown = Reflect.get(pty, '_socket')
+      const socketState = typeof socket === 'object' && socket !== null
+        ? Object.fromEntries(['connecting', 'destroyed', 'readableFlowing', 'readyState', 'bytesRead'].map(key => [key, Reflect.get(socket, key)]))
+        : null
       throw new Error(
         `${error instanceof Error ? error.message : String(error)} ` +
-          `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
+          `[DEBUG-pr189-pty] PTY ${pty.pid}; startup ${startup}; socket ${JSON.stringify(socketState)}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
       )
     })
     const identity = parseIdentity(output.read())

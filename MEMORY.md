@@ -127,6 +127,8 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 ### Session-bound terminals (ADR 0030, September 2026)
 
+Hidden automation windows disable background throttling while preserving their secure web preferences and `show: false`. Otherwise Linux Chromium schedules animation frames at roughly 1 Hz, making a two-frame terminal geometry check take three seconds. Normal app windows retain their requested throttling policy; performance budgets remain unchanged.
+
 Responsive sidebar layout must retain the main subtree across docked/sheet breakpoints. Replacing the docked wrapper with a fragment remounts ChatPanel and Lexical; the new editor's autofocus steals terminal input during native window resizing. Keep the docked main container mounted and switch only the sidebar presentation. The regression checks DOM identity/focus/selection plus 18 native key events during delayed zsh startup and repeated breakpoint crossings. Clearing DOM selection does not fix a remount.
 
 node-pty 1.1.0 leaves its master-side tty.ReadStream paused in Electron. The runner now pauses deliberately before listeners attach; the service resumes only after attachment, preserving the first prompt without an output race. Integration probes must resume after installing listeners too. xterm's WebGL path failed real-Electron visible-ink checks despite correct canvas geometry, so the DOM renderer remains the release path. Do not restore another renderer without the same in-app evidence.

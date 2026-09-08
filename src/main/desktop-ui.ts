@@ -122,7 +122,14 @@ export function createBaseWindow(options: BaseWindowConstructorOptions) {
 export function createBrowserWindow(options: BrowserWindowConstructorOptions) {
   return new Electron.BrowserWindow({
     ...options,
-    ...(isAutomationMode() ? { show: false } : {}),
+    ...(isAutomationMode()
+      ? {
+          show: false,
+          // Exercise foreground rendering without revealing an OS window.
+          // Hidden Chromium otherwise reduces animation frames to 1 Hz on Linux.
+          webPreferences: { ...options.webPreferences, backgroundThrottling: false },
+        }
+      : {}),
   })
 }
 

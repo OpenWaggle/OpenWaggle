@@ -280,7 +280,12 @@ function captureUntil(pty: IPty, marker: string) {
     let output = ''
     const timeout = setTimeout(() => {
       dataSubscription.dispose()
-      reject(new Error(`Timed out waiting for terminal output marker ${JSON.stringify(marker)}.`))
+      reject(
+        new Error(
+          `Timed out waiting for terminal output marker ${JSON.stringify(marker)}. ` +
+            `Captured output: ${JSON.stringify(output.slice(-4_096))}`,
+        ),
+      )
     }, CAPTURE_TIMEOUT_MS)
     const dataSubscription = pty.onData((data) => {
       output += data
