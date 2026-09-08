@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   observeTerminalSelectionActions,
   resolveTerminalSelectionActionPosition,
@@ -19,8 +19,10 @@ export function useTerminalSelectionToolbar(options: TerminalSelectionToolbarOpt
   const observerRef = useRef<ReturnType<typeof observeTerminalSelectionActions> | null>(null)
   const selectionTextRef = useRef(options.selectionText)
   const getSelectionEndRectRef = useRef(options.getSelectionEndRect)
-  selectionTextRef.current = options.selectionText
-  getSelectionEndRectRef.current = options.getSelectionEndRect
+  useLayoutEffect(() => {
+    selectionTextRef.current = options.selectionText
+    getSelectionEndRectRef.current = options.getSelectionEndRect
+  }, [options.selectionText, options.getSelectionEndRect])
 
   useEffect(() => {
     const surface = options.surfaceRef.current

@@ -176,6 +176,12 @@ jobs:
 
       - uses: ./.github/actions/pnpm-install
 
+      - name: Install terminal integration shells
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+          /bin/zsh --version
+
       - run: pnpm test:integration && pnpm test:component
 
   test-mcp-conformance:
@@ -350,6 +356,11 @@ jobs:
 
       - name: Install Linux Electron dependencies
         run: pnpm exec playwright install-deps chromium
+
+      - name: Install terminal integration shells
+        run: |
+          sudo apt-get install --yes zsh
+          /bin/zsh --version
 
       - run: xvfb-run --auto-servernum pnpm test:e2e:functional
 

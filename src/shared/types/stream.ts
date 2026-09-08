@@ -154,6 +154,13 @@ export interface AgentTransportMessageEndEvent extends TransportEventBase {
   readonly role: 'user' | 'assistant' | 'system' | 'tool'
 }
 
+/** Authoritative context usage reported after a completed model response. */
+export interface AgentTransportContextUsageEvent extends TransportEventBase {
+  readonly type: 'context_usage'
+  readonly tokens: number
+  readonly contextWindow: number
+}
+
 export interface AgentTransportToolExecutionStartEvent extends TransportEventBase {
   readonly type: 'tool_execution_start'
   readonly toolCallId: string
@@ -243,6 +250,7 @@ export type AgentTransportEvent =
   | AgentTransportMessageStartEvent
   | AgentTransportMessageUpdateEvent
   | AgentTransportMessageEndEvent
+  | AgentTransportContextUsageEvent
   | AgentTransportToolExecutionStartEvent
   | AgentTransportToolExecutionUpdateEvent
   | AgentTransportToolExecutionEndEvent

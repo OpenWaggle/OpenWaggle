@@ -20,7 +20,11 @@ describe('active session run settlement', () => {
     vi.useFakeTimers()
     const sessionId = SessionId('settling-session')
     const controller = new AbortController()
-    activeRuns.register(sessionId, controller, { model: SupportedModelId('openai/gpt-5.4') })
+    activeRuns.register(sessionId, controller, {
+      model: SupportedModelId('openai/gpt-5.4'),
+      controlRef: { current: null },
+      steerTailRef: { current: Promise.resolve() },
+    })
 
     expect(cancelSessionRuns(sessionId)).toBe(true)
     expect(hasAnyActiveRun(sessionId)).toBe(true)
@@ -41,7 +45,11 @@ describe('active session run settlement', () => {
   it('times out while a cancelled run remains unsettled', async () => {
     const sessionId = SessionId('stuck-session')
     const controller = new AbortController()
-    activeRuns.register(sessionId, controller, { model: SupportedModelId('openai/gpt-5.4') })
+    activeRuns.register(sessionId, controller, {
+      model: SupportedModelId('openai/gpt-5.4'),
+      controlRef: { current: null },
+      steerTailRef: { current: Promise.resolve() },
+    })
     cancelSessionRuns(sessionId)
 
     await expect(waitForSessionRuns(sessionId, 0)).resolves.toBe(false)

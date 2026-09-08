@@ -9,6 +9,7 @@ type BrowserAndScalarActions = Pick<
   | 'setDiffSyntaxTheme'
   | 'setDiffView'
   | 'setDiffWrapLines'
+  | 'setCompactionThresholdPercent'
   | 'setBrowserLinkTarget'
   | 'setBrowserProfiles'
   | 'setBrowserDefaultProfileId'
@@ -56,6 +57,8 @@ export function createBrowserAndScalarPreferencesActions(
     setDiffSyntaxTheme: (value) => persistSetting('diffSyntaxTheme', value, set),
     setDiffView: (value) => persistSetting('diffView', value, set),
     setDiffWrapLines: (value) => persistSetting('diffWrapLines', value, set),
+    setCompactionThresholdPercent: (value) =>
+      persistSetting('compactionThresholdPercent', value, set),
     setBrowserLinkTarget: (value) => persistSetting('browserLinkTarget', value, set),
     setBrowserProfiles: (profiles) => persistBrowserProfiles(profiles, set),
     setBrowserDefaultProfileId: (value) => persistSetting('browserDefaultProfileId', value, set),

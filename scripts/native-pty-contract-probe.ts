@@ -27,6 +27,8 @@ import {
   spawnOptions,
 } from './native-pty-probe-support'
 
+const OUTPUT_DIAGNOSTIC_LIMIT = 2_048
+
 function withTimeout<T>(label: string, operation: Promise<T>) {
   let timeout: NodeJS.Timeout | undefined
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -105,7 +107,12 @@ async function probeActiveClose(
     : undefined
   let descriptorClosed = false
   try {
-    await withTimeout(`${backend.label} identity`, output.waitFor('\n'))
+    await withTimeout(`${backend.label} identity`, output.waitFor('\n')).catch((error: unknown) => {
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)} ` +
+          `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
+      )
+    })
     const identity = parseIdentity(output.read())
     if (identity.pid !== pty.pid) {
       throw new Error(`${backend.label} reported PID ${pty.pid}, but spawned PID ${identity.pid}.`)

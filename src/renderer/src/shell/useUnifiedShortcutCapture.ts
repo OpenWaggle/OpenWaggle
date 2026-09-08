@@ -10,7 +10,7 @@ import {
   orderedProjectActionShortcuts,
   projectActionWhenMatches,
 } from '@shared/utils/project-action-shortcuts'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import {
@@ -77,16 +77,19 @@ export function useUnifiedShortcutCapture(options: UnifiedShortcutCaptureOptions
   const builtInRulesRef = useRef(options.builtInRules)
   const actionsRef = useRef(options.actions)
   const terminalOpenRef = useRef(options.terminalOpen)
-  const hasModifierFreeRef = useRef(
-    hasModifierFreeUnifiedShortcut(options.builtInRules, options.actions),
-  )
-  handlersRef.current = options.handlers
-  onRunProjectActionRef.current = options.onRunProjectAction
-  shouldHandleBuiltInRef.current = options.shouldHandleBuiltIn
-  builtInRulesRef.current = options.builtInRules
-  actionsRef.current = options.actions
-  terminalOpenRef.current = options.terminalOpen
-  hasModifierFreeRef.current = hasModifierFreeUnifiedShortcut(options.builtInRules, options.actions)
+  const hasModifierFreeRef = useRef(false)
+  useLayoutEffect(() => {
+    handlersRef.current = options.handlers
+    onRunProjectActionRef.current = options.onRunProjectAction
+    shouldHandleBuiltInRef.current = options.shouldHandleBuiltIn
+    builtInRulesRef.current = options.builtInRules
+    actionsRef.current = options.actions
+    terminalOpenRef.current = options.terminalOpen
+    hasModifierFreeRef.current = hasModifierFreeUnifiedShortcut(
+      options.builtInRules,
+      options.actions,
+    )
+  })
 
   useEffect(() => {
     const bindings = browserPreviewShortcutBindings(

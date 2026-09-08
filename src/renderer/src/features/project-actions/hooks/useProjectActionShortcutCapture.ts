@@ -7,7 +7,7 @@ import {
   projectActionShortcutMatches,
   projectActionWhenMatches,
 } from '@shared/utils/project-action-shortcuts'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { usesAppleShortcuts } from '@/shared/lib/shortcut-display'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -77,7 +77,9 @@ function resolveMatchingAction(
 export function useProjectActionShortcutCapture(options: ProjectActionShortcutCaptureOptions) {
   const suppressedKeyUpsRef = useRef(new Set<string>())
   const onRunRef = useRef(options.onRun)
-  onRunRef.current = options.onRun
+  useLayoutEffect(() => {
+    onRunRef.current = options.onRun
+  }, [options.onRun])
 
   useEffect(() => {
     const ordered = orderedProjectActionShortcuts(options.actions)

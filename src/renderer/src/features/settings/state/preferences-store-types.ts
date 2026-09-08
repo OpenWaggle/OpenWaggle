@@ -53,6 +53,7 @@ export interface PreferencesState {
   setBrowserRecordingFrameRate: (frameRate: BrowserPreviewRecordingFrameRate) => Promise<void>
   setBrowserAutoShowFloatingPreview: (enabled: boolean) => Promise<void>
   setEnableAgentBrowserAccess: (enabled: boolean) => Promise<void>
+  setCompactionThresholdPercent: (percent: number) => Promise<void>
   setAppearanceTypography: (typography: Partial<AppearanceTypographyPreferences>) => Promise<void>
   setAppearanceTerminalPalette: (
     palette: Partial<AppearanceTerminalPalettePreferences>,

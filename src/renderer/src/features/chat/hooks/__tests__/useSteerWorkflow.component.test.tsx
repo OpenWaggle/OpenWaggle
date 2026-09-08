@@ -1,0 +1,271 @@
+// @vitest-environment jsdom
+
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
+import { SessionId } from '@shared/types/brand'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useMessageQueueStore } from '@/features/chat/state'
+import { useSteerWorkflow } from '../useSteerWorkflow'
+
+const SESSION_ID = SessionId('session-1')
+const PAYLOAD: AgentSendPayload = {
+  text: 'Continue with the implementation',
+  thinkingLevel: 'medium',
+  attachments: [],
+}
+
+const EXTENSION_CONTRIBUTIONS: ExtensionContributionRegistryView = {
+  projectPaths: ['/tmp/project'],
+  entries: [
+    {
+      extensionId: 'sample.extension',
+      extensionName: 'Sample Extension',
+      extensionVersion: '1.0.0',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
+      packagePath: '/tmp/sample-extension',
+      manifestPath: '/tmp/sample-extension/openwaggle.extension.json',
+      projectPaths: ['/tmp/project'],
+      appliesToAllRequestedProjects: true,
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+      contributionId: 'sample.run',
+      title: 'Run sample slash command',
+      label: 'Run sample slash command',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+      eligibility: {
+        runtimeEnabled: true,
+        enabled: true,
+        trusted: true,
+        sdkCompatible: true,
+        updateAvailable: false,
+        disabledProjectPaths: [],
+      },
+      diagnostics: [],
+      contentHash: 'content-hash-1',
+    },
+  ],
+}
+
+function createDeps(isCompacting: boolean) {
+  const preview = {
+    clear: vi.fn(),
+    setDurableContent: vi.fn(),
+    setDeliveryState: vi.fn(),
+  }
+  async function withDeferredSnapshotRefresh<T>(operation: () => Promise<T>): Promise<T> {
+    return operation()
+  }
+  return {
+    deps: {
+      activeSessionId: SESSION_ID,
+      extensionContributions: EXTENSION_CONTRIBUTIONS,
+      isCompacting,
+      steer: vi
+        .fn()
+        .mockResolvedValue({ delivery: 'queued', durableText: 'Continue with the implementation' }),
+      previewSteeredUserTurn: vi.fn().mockReturnValue(preview),
+      withDeferredSnapshotRefresh,
+      showToast: vi.fn(),
+    },
+    preview,
+  }
+}
+
+function deferredPromise() {
+  let resolve!: () => void
+  const promise = new Promise<AgentSteerDeliveryResult>((settle) => {
+    resolve = () => settle({ delivery: 'queued', durableText: 'Continue with the implementation' })
+  })
+  return { promise, resolve }
+}
+
+describe('useSteerWorkflow', () => {
+  beforeEach(() => {
+    useMessageQueueStore.setState({ queues: new Map() })
+  })
+
+  it('hands an explicit steer to main during compaction and keeps its preview pending', async () => {
+    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(true)
+    const delivery = deferredPromise()
+    setup.deps.steer.mockReturnValueOnce(delivery.promise)
+    const { result, rerender } = renderHook(
+      ({ isCompacting }) =>
+        useSteerWorkflow({
+          ...setup.deps,
+          isCompacting,
+        }),
+      { initialProps: { isCompacting: true } },
+    )
+
+    let steerPromise!: Promise<void>
+    act(() => {
+      steerPromise = result.current.handleSteer(queued.id)
+    })
+
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
+    expect(setup.deps.previewSteeredUserTurn).toHaveBeenCalledWith(
+      PAYLOAD,
+      'waiting-for-compaction',
+    )
+    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
+    expect(result.current.isSteering).toBe(true)
+
+    rerender({ isCompacting: false })
+
+    await act(async () => {
+      delivery.resolve()
+      await steerPromise
+    })
+    await waitFor(() => expect(setup.preview.setDeliveryState).toHaveBeenCalledWith('sending'))
+    expect(result.current.isSteering).toBe(false)
+  })
+
+  it('does not lose an in-flight steer when the chat surface unmounts', async () => {
+    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(true)
+    const delivery = deferredPromise()
+    setup.deps.steer.mockReturnValueOnce(delivery.promise)
+    const { result, unmount } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    let steerPromise!: Promise<void>
+    act(() => {
+      steerPromise = result.current.handleSteer(queued.id)
+    })
+    unmount()
+
+    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
+    await act(async () => {
+      delivery.resolve()
+      await steerPromise
+    })
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
+  })
+
+  it('delivers an explicit steer immediately when compaction is not running', async () => {
+    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(false)
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.deps.previewSteeredUserTurn).toHaveBeenCalledWith(PAYLOAD, 'sending')
+    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
+  })
+
+  it('reconciles an expanded slash command with Pi canonical queued text', async () => {
+    const slashPayload = { ...PAYLOAD, text: '/skill:review-pr' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, slashPayload)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(false)
+    setup.deps.steer.mockResolvedValueOnce({
+      delivery: 'queued',
+      durableText: 'Expanded review skill',
+    })
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.preview.setDurableContent).toHaveBeenCalledWith('Expanded review skill')
+  })
+
+  it('clears a command preview when Pi handles it before the steering queue', async () => {
+    const commandPayload = { ...PAYLOAD, text: '/registered-command' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
+    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
+    if (!queued) throw new Error('Expected queued command')
+    const setup = createDeps(false)
+    setup.deps.steer.mockResolvedValueOnce({ delivery: 'handled' })
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.preview.clear).toHaveBeenCalledOnce()
+    expect(setup.preview.setDurableContent).not.toHaveBeenCalled()
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
+    expect(setup.deps.showToast).not.toHaveBeenCalled()
+  })
+
+  it.each(['/compact focus on decisions', '/fork', '/clone'])(
+    'keeps renderer-owned command %s queued instead of steering it as model text',
+    async (text) => {
+      const commandPayload = { ...PAYLOAD, text }
+      useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
+      const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
+      const queued = original?.[0]
+      if (!queued) throw new Error('Expected queued command')
+      const setup = createDeps(false)
+      const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+      await act(async () => {
+        await result.current.handleSteer(queued.id)
+      })
+
+      expect(setup.deps.steer).not.toHaveBeenCalled()
+      expect(setup.deps.previewSteeredUserTurn).not.toHaveBeenCalled()
+      expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
+      expect(setup.deps.showToast).toHaveBeenCalledWith(
+        'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
+      )
+    },
+  )
+
+  it('keeps an extension command queued instead of steering it as model text', async () => {
+    const commandPayload = { ...PAYLOAD, text: '/sample.run with arguments' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
+    const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
+    const queued = original?.[0]
+    if (!queued) throw new Error('Expected queued extension command')
+    const setup = createDeps(false)
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.deps.steer).not.toHaveBeenCalled()
+    expect(setup.deps.previewSteeredUserTurn).not.toHaveBeenCalled()
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
+    expect(setup.deps.showToast).toHaveBeenCalledWith(
+      'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
+    )
+  })
+
+  it('restores the exact queued message at its original position when native steer fails', async () => {
+    const before = { ...PAYLOAD, text: 'before' }
+    const after = { ...PAYLOAD, text: 'after' }
+    useMessageQueueStore.getState().enqueue(SESSION_ID, before)
+    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
+    useMessageQueueStore.getState().enqueue(SESSION_ID, after)
+    const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
+    const queued = original?.[1]
+    if (!queued) throw new Error('Expected queued message')
+    const setup = createDeps(false)
+    setup.deps.steer.mockRejectedValueOnce(new Error('steer unavailable'))
+    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
+
+    await act(async () => {
+      await result.current.handleSteer(queued.id)
+    })
+
+    expect(setup.preview.clear).toHaveBeenCalledOnce()
+    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
+    expect(setup.deps.showToast).toHaveBeenCalled()
+  })
+})

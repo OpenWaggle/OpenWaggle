@@ -76,6 +76,62 @@ _Avoid_: MCP-owned sessions, loopback MCP orchestration
 A caller-, operation-, workspace-, ancestry-, and target-bound authorization to use Session Control without inheriting another session's permissions.
 _Avoid_: desktop session permission inheritance
 
+**Compaction policy**:
+The user-configured rule that decides whether and when an active Pi session compacts across models. The active model's declared capabilities select the Compaction mechanism used to satisfy the policy.
+_Avoid_: OpenWaggle compactor, universal native compaction
+
+**Automatic compaction threshold**:
+The global user preference for the percentage of the active model's advertised context window at which Pi starts automatic compaction. It defaults to 80 percent, applies to every project and session without an override, and may take effect earlier only when required by a safe model or transport limit.
+_Avoid_: fixed reserve-token trigger, composer warning threshold, provider-specific threshold, project compaction threshold, session compaction threshold
+
+**Automatic compaction boundary**:
+The Codex-compatible safe point at which Pi evaluates the Automatic compaction threshold: before a new turn records its context updates and user message, or after a completed sampling step when tool, model, or queued-input follow-up requires another sampling request. A completed turn does not compact while idle; its next turn performs the pre-turn check. Compaction never interrupts an active model stream.
+_Avoid_: background compaction, eager post-turn compaction, mid-stream compaction, incoming-prompt preflight
+
+**Compaction mechanism**:
+The Pi-owned strategy used for one compaction: Native compaction when the active model's transport declares Responses Compaction protocol support, or Portable compaction otherwise.
+_Avoid_: user-selected provider implementation, hidden quality equivalence
+
+**Compaction projection**:
+The replaceable, model-compatible active context produced by a Compaction mechanism from the authoritative append-only Pi session branch. It never deletes or becomes the only representation of the original session entries.
+_Avoid_: canonical session record, destructive transcript rewrite
+
+**Compaction compatibility identity**:
+The model-runtime and transport declaration that determines whether an opaque Native compaction projection can be replayed by the active model. Equality permits replay; a missing or different identity requires Target-model reconstruction.
+_Avoid_: model name comparison, provider name comparison, generic Responses support
+
+**Target-model reconstruction**:
+The replacement of an incompatible Compaction projection using only the newly selected model and the authoritative Pi session branch. If the target cannot fit the full reconstruction input, Pi removes the oldest complete units from the model-facing attempt until it fits while leaving every source entry durable. Pi installs the replacement only after successful compaction.
+_Avoid_: previous-model bridge, destructive branch trimming, incompatible opaque replay
+
+**Native compaction**:
+A provider-backed Compaction mechanism that uses the Responses Compaction protocol to preserve model state in an opaque provider item which can be replayed only by a declared compatible model runtime.
+_Avoid_: model-independent checkpoint, readable summary, lossless transcript
+
+**Responses Compaction protocol**:
+The single native compaction wire contract OpenWaggle supports: a compatible Responses transport accepts the current context window and returns a canonical replacement window containing an opaque compaction item for verbatim replay.
+_Avoid_: provider-name allowlist, generic Responses API support, provider-specific compaction protocol
+
+**Portable compaction**:
+The provider-independent fallback Compaction mechanism that replaces older active context with a versioned structured handoff plus a recent verbatim tail when the Responses Compaction protocol is unavailable.
+_Avoid_: arbitrary prose summary, provider-specific fallback, opaque checkpoint, lossless compaction
+
+**Portable handoff**:
+The model-authored part of Portable compaction, using Codex's local handoff contract: current progress and key decisions; important context, constraints, and user preferences; remaining work and clear next steps; and critical data, examples, or references needed to continue. Pi stores it in a versioned provider-independent envelope.
+_Avoid_: transcript recap, chain of thought, provider-native summary block, unversioned summary string
+
+**Recent conversation tail**:
+The newest provider-independent session entries Pi retains verbatim beside a Portable handoff. Its target is Codex's 20,000 tokens and it has no separate post-compaction percentage target. Pi clamps it lower only when required to fit the active model's hard input allowance beside mandatory context and the Portable handoff. Pi selects complete chronological units newest-first; user and assistant messages remain whole, and each tool call with its result is an indivisible unit that is retained or omitted together.
+_Avoid_: model-generated tail, user-message-only tail, independently truncated message, independently truncated tool result, fixed unsafe tail, post-compaction percentage target
+
+**Composer context meter**:
+The existing composer indicator of current context usage and the active model's context window. Compaction settings and mechanism details do not add information to this surface.
+_Avoid_: compaction configuration control, mechanism badge, automatic compaction threshold marker
+
+**Compaction status strip**:
+The existing transient composer surface that reports generic manual, threshold, overflow, or retry activity and offers its current stop action. It does not identify the Compaction mechanism or restate policy settings.
+_Avoid_: provider status, mechanism diagnostics, settings summary
+
 **OpenWaggle extension package**:
 A first-class local package that can add OpenWaggle desktop contributions and optionally Pi runtime resources.
 _Avoid_: plugin, addon

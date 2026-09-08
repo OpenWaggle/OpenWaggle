@@ -1,4 +1,4 @@
-import type { AgentSendPayload, AgentSendReport } from './agent'
+import type { AgentSendPayload, AgentSendReport, AgentSteerDeliveryResult } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
@@ -69,8 +69,8 @@ export interface IpcCoreInvokeChannelMap {
     return: undefined
   }
   'agent:steer': {
-    args: [sessionId: SessionId]
-    return: { preserved: boolean }
+    args: [sessionId: SessionId, payload: AgentSendPayload]
+    return: { preserved: boolean; delivery: AgentSteerDeliveryResult }
   }
   'agent:respond-interaction': {
     args: [input: AgentLoopInteractionResponseInput]

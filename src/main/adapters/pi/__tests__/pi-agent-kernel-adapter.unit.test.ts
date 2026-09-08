@@ -181,9 +181,14 @@ describe('createSessionListener', () => {
       type: 'compaction_end',
       reason: 'threshold',
       result: {
+        entryId: 'compaction-entry-1',
         summary: 'Kept the latest task context.',
         firstKeptEntryId: 'node-2',
         tokensBefore: 10,
+        details: {
+          mechanism: 'native',
+          items: [{ type: 'compaction', encrypted_content: 'opaque-checkpoint-ciphertext' }],
+        },
       },
       aborted: false,
       willRetry: true,
@@ -203,11 +208,7 @@ describe('createSessionListener', () => {
       {
         type: 'compaction_end',
         reason: 'threshold',
-        result: {
-          summary: 'Kept the latest task context.',
-          firstKeptEntryId: 'node-2',
-          tokensBefore: 10,
-        },
+        result: { entryId: 'compaction-entry-1' },
         aborted: false,
         willRetry: true,
       },
@@ -220,6 +221,9 @@ describe('createSessionListener', () => {
       },
       { type: 'auto_retry_end', success: false, attempt: 1, finalError: 'still failed' },
     ])
+    const compactionEnd = emitted.find((event) => event.type === 'compaction_end')
+    expect(compactionEnd?.result).toEqual({ entryId: 'compaction-entry-1' })
+    expect(JSON.stringify(compactionEnd)).not.toContain('opaque-checkpoint-ciphertext')
   })
 
   it('forwards Pi tool-call and tool-execution lifecycle events without losing result state', () => {

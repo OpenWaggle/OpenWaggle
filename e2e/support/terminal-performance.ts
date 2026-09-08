@@ -763,6 +763,11 @@ export async function runTerminalPaneUsableGate(options: {
       completedAt: 0,
       elapsedMs: 0,
       frameId: 0,
+      frameCount: 0,
+      firstPaneMs: -1,
+      firstScreenMs: -1,
+      maxFrameGapMs: 0,
+      lastFrameAt: 0,
       previousHeight: 0,
       previousWidth: 0,
       screenHeight: 0,
@@ -771,9 +776,15 @@ export async function runTerminalPaneUsableGate(options: {
       status: 'armed',
     }
     const sample = () => {
+      const now = performance.now()
+      state.frameCount += 1
+      state.maxFrameGapMs = Math.max(state.maxFrameGapMs, now - state.lastFrameAt)
+      state.lastFrameAt = now
       const pane = document.querySelector('[data-terminal-pane]')
       const screen = pane?.querySelector('.xterm-screen')
       const textarea = pane?.querySelector('textarea.xterm-helper-textarea')
+      if (pane && state.firstPaneMs < 0) state.firstPaneMs = now - state.startedAt
+      if (screen && state.firstScreenMs < 0) state.firstScreenMs = now - state.startedAt
       if (screen instanceof HTMLElement && textarea instanceof HTMLTextAreaElement) {
         const bounds = screen.getBoundingClientRect()
         const stable =
@@ -798,6 +809,7 @@ export async function runTerminalPaneUsableGate(options: {
       'click',
       () => {
         state.startedAt = performance.now()
+        state.lastFrameAt = state.startedAt
         state.status = 'measuring'
         state.frameId = requestAnimationFrame(sample)
       },
@@ -842,8 +854,18 @@ export async function runTerminalPaneUsableGate(options: {
       throw new Error('Terminal pane usability measurement did not produce a finite duration.')
     }
     if (result.elapsedMs > TERMINAL_PANE_USABLE_BUDGET_MS) {
+      const diagnostics = await page.evaluate((stateKey) => {
+        const screen = document.querySelector('.xterm-screen')
+        return {
+          measurement: Reflect.get(window, stateKey),
+          visibility: document.visibilityState,
+          fonts: document.fonts.status,
+          fontFamily: screen instanceof HTMLElement ? getComputedStyle(screen).fontFamily : null,
+        }
+      }, PANE_USABLE_STATE_KEY)
       throw new Error(
-        `Terminal pane took ${result.elapsedMs.toFixed(1)}ms to become usable (budget ${TERMINAL_PANE_USABLE_BUDGET_MS}ms).`,
+        `Terminal pane took ${result.elapsedMs.toFixed(1)}ms to become usable (budget ${TERMINAL_PANE_USABLE_BUDGET_MS}ms). ` +
+          `Diagnostics: ${JSON.stringify(diagnostics)}`,
       )
     }
     return result

@@ -9,7 +9,7 @@ import { useBackgroundRunStore } from '@/features/chat/state/background-run-stor
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
-import { flushDraftWorktreePlanToSession } from '@/features/git'
+import { flushDraftWorktreePlanToSession, snapshotDraftWorktreePlan } from '@/features/git'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -55,8 +55,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
+      const worktreePlan = snapshotDraftWorktreePlan(projectPath)
       const sessionId = await createSession(projectPath)
-      await flushDraftWorktreePlanToSession(projectPath, sessionId)
+      await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
@@ -78,8 +79,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
+      const worktreePlan = snapshotDraftWorktreePlan(projectPath)
       const sessionId = await createSession(projectPath)
-      await flushDraftWorktreePlanToSession(projectPath, sessionId)
+      await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
       startWaggleCollaboration(sessionId, config)
       /*

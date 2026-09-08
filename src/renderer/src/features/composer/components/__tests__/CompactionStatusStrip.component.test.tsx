@@ -2,24 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CompactionStatusStrip } from '../CompactionStatusStrip'
 
-const COMPACTION_CASES = [
-  ['manual', 'Compacting context…'],
-  ['threshold', 'Auto-compacting…'],
-  ['overflow', 'Context overflow detected, auto-compacting…'],
-] as const
-
 describe('CompactionStatusStrip', () => {
-  it.each(COMPACTION_CASES)(
-    'renders Pi-style compaction copy for %s compaction',
-    (reason, label) => {
-      render(<CompactionStatusStrip state={{ type: 'compacting', reason }} onCancel={vi.fn()} />)
-
-      expect(screen.getByText(label)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Cancel compaction' })).toBeInTheDocument()
-    },
-  )
-
-  it('renders retry feedback and cancels through the same stop action', () => {
+  it('renders retry feedback and cancels through the stop action', () => {
     const cancel = vi.fn()
     render(
       <CompactionStatusStrip

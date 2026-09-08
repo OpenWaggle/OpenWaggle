@@ -6,6 +6,7 @@ import type { SessionInterruptedRun } from '@shared/types/session'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import type { ChatRow } from '../lib/types-chat-row'
+import type { AgentCompactionStatus } from './useAgentChat.types'
 import { buildChatRows } from './useBuildChatRows'
 
 export function useChatRows(inputs: {
@@ -22,6 +23,7 @@ export function useChatRows(inputs: {
   phase: ReturnType<typeof useStreamingPhase>
   interruptedRun?: SessionInterruptedRun
   worktreeLaunch?: WorktreeLaunchSnapshot | null
+  compactionStatus?: AgentCompactionStatus | null
 }): ChatRow[] {
   return buildChatRows({
     messages: inputs.messages,
@@ -36,5 +38,6 @@ export function useChatRows(inputs: {
     phase: inputs.phase,
     interruptedRun: inputs.interruptedRun,
     worktreeLaunch: inputs.worktreeLaunch,
+    compactionStatus: inputs.compactionStatus,
   })
 }

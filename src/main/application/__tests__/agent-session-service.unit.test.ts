@@ -146,6 +146,9 @@ describe('agent session commands', () => {
       { type: 'compaction_start', reason: 'manual' },
       { type: 'compaction_end', reason: 'manual', aborted: false },
     ])
+    expect(compactMock).toHaveBeenCalledWith(
+      expect.objectContaining({ compactionThresholdPercent: 80 }),
+    )
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('session-1'),
       nodes: [],

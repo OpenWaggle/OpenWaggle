@@ -58,6 +58,7 @@ export const BROWSER_LINK_TARGETS = ['system', 'app'] as const
 export type BrowserLinkTarget = (typeof BROWSER_LINK_TARGETS)[number]
 
 export const DEFAULT_MODEL_REF = SupportedModelId('')
+export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 
 export interface Settings {
   readonly selectedModel: SupportedModelId
@@ -103,6 +104,8 @@ export interface Settings {
   readonly browserAutoShowFloatingPreview: boolean
   /** Whether Pi sessions receive the collaborative browser tools and instructions. */
   readonly enableAgentBrowserAccess: boolean
+  /** Context-window usage percentage at which Pi automatically compacts. */
+  readonly compactionThresholdPercent: number
   /** User overrides layered above the active Appearance package defaults. */
   readonly appearancePreferences: AppearancePreferences
 }
@@ -133,5 +136,6 @@ export const DEFAULT_SETTINGS: Settings = {
   browserRecordingFrameRate: DEFAULT_BROWSER_PREVIEW_RECORDING_FRAME_RATE,
   browserAutoShowFloatingPreview: DEFAULT_BROWSER_PREVIEW_AUTO_SHOW_FLOATING,
   enableAgentBrowserAccess: true,
+  compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
 }

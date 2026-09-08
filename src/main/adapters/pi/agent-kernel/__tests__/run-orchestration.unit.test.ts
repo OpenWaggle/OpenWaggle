@@ -68,7 +68,6 @@ describe('Pi run orchestration', () => {
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
     const result = await runPiSession({
       session: sessionDetail(),
-      // The kernel resolves (and births) this before calling the run functions.
       workingPath: '/repo',
       runId: 'run-1',
       payload: payload('Run tests'),
@@ -79,6 +78,7 @@ describe('Pi run orchestration', () => {
     expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
       projectPath: '/repo',
       modelReference: PRIMARY_MODEL,
+      compactionThresholdPercent: 80,
     })
     expect(session.subscribe).toHaveBeenCalledOnce()
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)

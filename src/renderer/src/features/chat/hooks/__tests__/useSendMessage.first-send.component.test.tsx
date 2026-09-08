@@ -2,9 +2,17 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import { describe, expect, it, vi } from 'vitest'
 
-const { flushDraftAuthorizationModeMock, flushDraftWorktreePlanMock } = vi.hoisted(() => ({
+const {
+  flushDraftAuthorizationModeMock,
+  flushDraftWorktreePlanMock,
+  snapshotDraftWorktreePlanMock,
+} = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
   flushDraftWorktreePlanMock: vi.fn(async () => {}),
+  snapshotDraftWorktreePlanMock: vi.fn(() => ({
+    projectPath: '/repo',
+    plan: { envMode: 'worktree' as const, baseRef: 'main' },
+  })),
 }))
 
 vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
@@ -13,6 +21,7 @@ vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
 
 vi.mock('@/features/git', () => ({
   flushDraftWorktreePlanToSession: flushDraftWorktreePlanMock,
+  snapshotDraftWorktreePlan: snapshotDraftWorktreePlanMock,
 }))
 
 const { createSendHandlers } = await import('../useSendMessage')
@@ -35,6 +44,16 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
+    expect(snapshotDraftWorktreePlanMock.mock.invocationCallOrder[0]).toBeLessThan(
+      flushDraftWorktreePlanMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
+    expect(flushDraftWorktreePlanMock).toHaveBeenCalledWith(
+      {
+        projectPath: '/repo',
+        plan: { envMode: 'worktree', baseRef: 'main' },
+      },
+      SessionId('session-a'),
+    )
     expect(flushDraftAuthorizationModeMock).toHaveBeenCalledWith('/repo', SessionId('session-a'))
     expect(flushDraftAuthorizationModeMock.mock.invocationCallOrder[0]).toBeLessThan(
       sendMessageToSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,

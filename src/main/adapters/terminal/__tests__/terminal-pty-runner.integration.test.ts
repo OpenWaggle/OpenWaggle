@@ -112,6 +112,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       })
       if (!outcome.ok) throw outcome.error
       spawnedPty = outcome.pty
+      expect(outcome.shell).toBe('bash')
       const promptOutput = await captureUntil(outcome.pty, readinessMarker)
 
       expect(promptOutput.indexOf('OPENWAGGLE_BASH_PROMPT> ')).toBeGreaterThanOrEqual(0)
@@ -174,6 +175,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       })
       if (!outcome.ok) throw outcome.error
       spawnedPty = outcome.pty
+      expect(outcome.shell).toBe('zsh')
       const promptOutput = await captureUntil(outcome.pty, readinessMarker)
 
       expect(promptOutput).toContain('\u001b]633;B;stale-generation\u0007')
@@ -222,6 +224,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       })
       if (!outcome.ok) throw outcome.error
       spawnedPty = outcome.pty
+      expect(outcome.shell).toBe('zsh')
       const promptOutput = await captureUntil(outcome.pty, readinessMarker)
       expect(promptOutput.indexOf(readinessMarker)).toBeGreaterThan(
         promptOutput.indexOf('OPENWAGGLE_ZSH_RCS_OFF> '),

@@ -24,22 +24,63 @@
     }
     return () => false;
   })();
+  const hasCurrentTrustedFrameInput = (() => {
+    const getPrototypeOf = Object.getPrototypeOf;
+    const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+    const apply = Reflect.apply;
+    const findGetter = (value, property) => {
+      let owner = value;
+      while (owner) {
+        const getter = getOwnPropertyDescriptor(owner, property)?.get;
+        if (typeof getter === 'function') return getter;
+        owner = getPrototypeOf(owner);
+      }
+      return null;
+    };
+    const currentEventGetter = findGetter(window, 'event');
+    let trustedGetter = null;
+    let typeGetter = null;
+    if (typeof Event === 'function') {
+      try {
+        const probe = new Event('openwaggle-visualization-probe');
+        trustedGetter = findGetter(probe, 'isTrusted');
+        typeGetter = findGetter(probe, 'type');
+      } catch {
+        // Missing native event primitives fail closed below.
+      }
+    }
+    if (!currentEventGetter || !trustedGetter || !typeGetter) return () => false;
+    return () => {
+      try {
+        const event = apply(currentEventGetter, window, []);
+        if (!event || apply(trustedGetter, event, []) !== true) return false;
+        return apply(typeGetter, event, []) === 'click';
+      } catch {
+        return false;
+      }
+    };
+  })();
   const enqueueMicrotask = queueMicrotask;
-  let trustedFrameInputActive = false;
-  const markTrustedFrameInput = (event) => {
-    if (!event.isTrusted) return;
-    trustedFrameInputActive = true;
-    enqueueMicrotask(() => {
-      trustedFrameInputActive = false;
-    });
-  };
-  for (const type of ['click', 'keydown', 'pointerdown', 'pointerup']) {
-    document.addEventListener(type, markTrustedFrameInput, true);
-  }
   const post = (type, payload = {}) => {
     parentPostMessage({ type, capability, ...payload }, '*');
   };
   post('openwaggle:inline-visualization:bootstrap');
+  let fragmentReady = false;
+  let lucideReady = false;
+  const initializeLucide = () => {
+    if (!fragmentReady || !lucideReady) return;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+  };
+  const lucideScript = document.createElement('script');
+  lucideScript.async = true;
+  lucideScript.src = '__OPENWAGGLE_LUCIDE_ASSET_URL__';
+  lucideScript.addEventListener('load', () => {
+    lucideReady = true;
+    initializeLucide();
+  }, { once: true });
+  document.head.append(lucideScript);
   const RESOURCE_BUDGET_WINDOW_MS = 5000;
   const MAX_LONG_TASK_BUDGET_MS = 1000;
   const longTaskSamples = [];
@@ -117,6 +158,99 @@
     });
   };
 
+  const nativeMatchMedia = window.matchMedia.bind(window);
+  const reducedMotionQuery = nativeMatchMedia('(prefers-reduced-motion: reduce)');
+  let hostReducedMotion = document.documentElement.dataset.motion === 'reduced';
+  let reducedMotionOnChange = null;
+  let lastReducedMotionMatch = hostReducedMotion || reducedMotionQuery.matches;
+  const reducedMotionMedia = reducedMotionQuery.media || '(prefers-reduced-motion: reduce)';
+  const createReducedMotionChangeEvent = (matches) => {
+    if (typeof MediaQueryListEvent === 'function') {
+      return new MediaQueryListEvent('change', { matches, media: reducedMotionMedia });
+    }
+    const event = new Event('change');
+    Object.defineProperties(event, {
+      matches: { configurable: false, enumerable: true, value: matches },
+      media: { configurable: false, enumerable: true, value: reducedMotionMedia },
+    });
+    return event;
+  };
+  const eventTargetAddEventListener = EventTarget.prototype.addEventListener;
+  const eventTargetRemoveEventListener = EventTarget.prototype.removeEventListener;
+  const eventTargetDispatchEvent = EventTarget.prototype.dispatchEvent;
+  const reducedMotionMediaQuery = new EventTarget();
+  Object.defineProperties(reducedMotionMediaQuery, {
+    matches: {
+      enumerable: true,
+      get: () => hostReducedMotion || reducedMotionQuery.matches,
+    },
+    media: { enumerable: true, get: () => reducedMotionMedia },
+    onchange: {
+      enumerable: true,
+      get: () => reducedMotionOnChange,
+      set: (listener) => {
+        reducedMotionOnChange = typeof listener === 'function' ? listener : null;
+      },
+    },
+    addEventListener: {
+      value: (type, listener, options) =>
+        applyIntrinsic(eventTargetAddEventListener, reducedMotionMediaQuery, [
+          type,
+          listener,
+          options,
+        ]),
+    },
+    removeEventListener: {
+      value: (type, listener, options) =>
+        applyIntrinsic(eventTargetRemoveEventListener, reducedMotionMediaQuery, [
+          type,
+          listener,
+          options,
+        ]),
+    },
+    addListener: {
+      value: (listener) =>
+        applyIntrinsic(eventTargetAddEventListener, reducedMotionMediaQuery, ['change', listener]),
+    },
+    removeListener: {
+      value: (listener) =>
+        applyIntrinsic(eventTargetRemoveEventListener, reducedMotionMediaQuery, [
+          'change',
+          listener,
+        ]),
+    },
+    dispatchEvent: {
+      value: (event) => {
+        const accepted = applyIntrinsic(eventTargetDispatchEvent, reducedMotionMediaQuery, [event]);
+        if (event?.type === 'change' && typeof reducedMotionOnChange === 'function') {
+          reducedMotionOnChange.call(reducedMotionMediaQuery, event);
+        }
+        return accepted;
+      },
+    },
+  });
+  const notifyReducedMotionListeners = () => {
+    const matches = hostReducedMotion || reducedMotionQuery.matches;
+    if (matches === lastReducedMotionMatch) return;
+    lastReducedMotionMatch = matches;
+    reducedMotionMediaQuery.dispatchEvent(createReducedMotionChangeEvent(matches));
+  };
+  reducedMotionQuery.addEventListener?.('change', notifyReducedMotionListeners);
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: (query) =>
+      String(query).replace(/\s+/g, ' ').trim().toLowerCase() ===
+      '(prefers-reduced-motion: reduce)'
+        ? reducedMotionMediaQuery
+        : nativeMatchMedia(query),
+  });
+  const setHostReducedMotion = (reduced) => {
+    hostReducedMotion = reduced;
+    notifyReducedMotionListeners();
+  };
+
   const applyTheme = (theme) => {
     if (!theme || typeof theme !== 'object') return;
     const root = document.documentElement;
@@ -124,6 +258,10 @@
       root.style.colorScheme = theme.colorScheme;
       root.dataset.theme = theme.colorScheme;
     }
+    const reducedMotion = theme.reducedMotion === true;
+    setHostReducedMotion(reducedMotion);
+    if (reducedMotion) root.dataset.motion = 'reduced';
+    else delete root.dataset.motion;
     if (!theme.variables || typeof theme.variables !== 'object') return;
     for (const [name, value] of Object.entries(theme.variables)) {
       if (/^--[a-z0-9-]+$/.test(name) && typeof value === 'string') {
@@ -133,7 +271,7 @@
   };
 
   addEventListener('message', (event) => {
-    if (event.source !== parent) return;
+    if (!event.isTrusted || event.source !== parent) return;
     const data = event.data;
     if (data && data.type === 'openwaggle:inline-visualization:health-check') {
       post('openwaggle:inline-visualization:ready');
@@ -158,15 +296,27 @@
 
   let tooltip = null;
   let tooltipTarget = null;
+  let lastPointerWasTouch = false;
+  let tooltipPinnedByTouch = false;
+  const setTooltipDescribedBy = (target, id, described) => {
+    const ids = new Set(
+      (target.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean),
+    );
+    if (described) ids.add(id);
+    else ids.delete(id);
+    if (ids.size === 0) target.removeAttribute('aria-describedby');
+    else target.setAttribute('aria-describedby', Array.from(ids).join(' '));
+  };
   const hideTooltip = () => {
+    if (tooltipTarget && tooltip) setTooltipDescribedBy(tooltipTarget, tooltip.id, false);
     tooltip?.remove();
     tooltip = null;
-    if (tooltipTarget) tooltipTarget.removeAttribute('aria-describedby');
     tooltipTarget = null;
+    tooltipPinnedByTouch = false;
   };
   const showTooltip = (target) => {
     const label = target.getAttribute('data-tooltip');
-    if (!label) return;
+    if (!target.isConnected || !label) return;
     hideTooltip();
     const id = 'openwaggle-tooltip-' + crypto.randomUUID();
     tooltip = document.createElement('div');
@@ -175,7 +325,7 @@
     tooltip.setAttribute('role', 'tooltip');
     tooltip.textContent = label;
     document.body.append(tooltip);
-    target.setAttribute('aria-describedby', id);
+    setTooltipDescribedBy(target, id, true);
     tooltipTarget = target;
     const targetRect = target.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
@@ -195,11 +345,16 @@
     tooltip.style.top = Math.max(5, Math.min(innerHeight - tooltipRect.height - 5, top)) + 'px';
   };
   document.addEventListener('pointerover', (event) => {
+    if (event.pointerType === 'touch') return;
     const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
-    if (target) showTooltip(target);
+    if (
+      target &&
+      (!(event.relatedTarget instanceof Node) || !target.contains(event.relatedTarget))
+    ) showTooltip(target);
   });
   document.addEventListener('pointerout', (event) => {
     if (
+      !tooltipPinnedByTouch &&
       tooltipTarget &&
       (!(event.relatedTarget instanceof Node) || !tooltipTarget.contains(event.relatedTarget))
     ) hideTooltip();
@@ -209,16 +364,88 @@
     if (target) showTooltip(target);
   });
   document.addEventListener('focusout', hideTooltip);
+  document.addEventListener('pointerdown', (event) => {
+    lastPointerWasTouch = event.pointerType === 'touch';
+  });
+  document.addEventListener('pointercancel', () => {
+    lastPointerWasTouch = false;
+  });
   document.addEventListener('click', (event) => {
-    if (!matchMedia('(pointer: coarse)').matches) return;
+    const isTouch = event.pointerType === 'touch' || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) return;
     const target = event.target instanceof Element ? event.target.closest('[data-tooltip]') : null;
-    if (!target) {
-      hideTooltip();
+    if (!target || (tooltipPinnedByTouch && tooltipTarget === target)) {
+      if (tooltipPinnedByTouch) hideTooltip();
       return;
     }
-    if (tooltipTarget === target) hideTooltip();
-    else showTooltip(target);
+    showTooltip(target);
+    tooltipPinnedByTouch = tooltipTarget === target;
+    setTimeout(() => {
+      if (tooltipTarget === target && !target.isConnected) hideTooltip();
+    }, 0);
   });
+
+  const TAB_SELECTOR = '.nav[role="tablist"] [role="tab"]';
+  const DISABLED_TAB_SELECTOR = ':disabled,[aria-disabled="true"]';
+  const selectTab = (selected) => {
+    const tabList = selected.closest('[role="tablist"]');
+    if (!tabList) return;
+    const panelId = selected.getAttribute('aria-controls');
+    for (const tab of tabList.querySelectorAll('[role="tab"]')) {
+      const active = tab === selected;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      const controlledId = tab.getAttribute('aria-controls');
+      const panel = controlledId ? document.getElementById(controlledId) : null;
+      if (!panel) continue;
+      panel.hidden = controlledId !== panelId;
+      if (!panel.hidden && selected.id) panel.setAttribute('aria-labelledby', selected.id);
+    }
+    scheduleSizeReport();
+  };
+  const tabFromEvent = (event) =>
+    event.target instanceof Element ? event.target.closest(TAB_SELECTOR) : null;
+  const handleTabInteraction = (event) => {
+    const tab = tabFromEvent(event);
+    if (event.defaultPrevented || !tab || tab.matches(DISABLED_TAB_SELECTOR)) return;
+    if (event.type === 'click') {
+      selectTab(tab);
+      return;
+    }
+    const tabList = tab.closest('[role="tablist"]');
+    if (!tabList) return;
+    const tabs = Array.from(tabList.querySelectorAll('[role="tab"]')).filter(
+      (candidate) => !candidate.matches(DISABLED_TAB_SELECTOR),
+    );
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else if (event.key === 'End') {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next]?.focus();
+    if (tabs[next]) selectTab(tabs[next]);
+  };
+  const initializeTabs = () => {
+    for (const tabList of document.querySelectorAll('.nav[role="tablist"]')) {
+      const selected =
+        tabList.querySelector('[role="tab"][aria-selected="true"]') ||
+        tabList.querySelector('[role="tab"].active') ||
+        tabList.querySelector('[role="tab"]');
+      if (selected) selectTab(selected);
+    }
+  };
+  document.addEventListener('click', handleTabInteraction);
+  document.addEventListener('keydown', handleTabInteraction);
 
   const downloadAnchor = async (anchor) => {
     try {
@@ -262,8 +489,7 @@
     if (
       typeof prompt !== 'string' ||
       prompt.trim().length === 0 ||
-      !trustedFrameInputActive ||
-      !hasTrustedUserActivation()
+      !hasCurrentTrustedFrameInput()
     ) {
       return Promise.resolve(false);
     }
@@ -397,10 +623,10 @@
   }
 
   addEventListener('DOMContentLoaded', () => {
+    fragmentReady = true;
+    initializeTabs();
     post('openwaggle:inline-visualization:ready');
-    if (window.lucide && typeof window.lucide.createIcons === 'function') {
-      window.lucide.createIcons();
-    }
+    initializeLucide();
     reportSize();
     if (typeof ResizeObserver === 'function') {
       new ResizeObserver(scheduleSizeReport).observe(document.body);

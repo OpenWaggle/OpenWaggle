@@ -8,6 +8,7 @@ import type {
 export const inlineVisualizationFrameRegisterInputSchema: Schema.Schema<InlineVisualizationFrameRegisterInput> =
   Schema.Struct({
     frameId: Schema.String,
+    reducedMotion: Schema.Boolean,
     sessionId: Schema.String,
     sourcePath: Schema.String,
   })

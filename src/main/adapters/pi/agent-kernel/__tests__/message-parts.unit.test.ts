@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { buildAtomicVisualizationPrompt } from '../../pi-runtime-input'
 import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
@@ -8,6 +9,38 @@ import {
 } from '../message-parts'
 
 describe('Pi message part projection helpers', () => {
+  it('hides atomic visualization context from the durable user transcript', () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'current selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+
+    expect(
+      piTextAndImageContentToParts([
+        { type: 'text', text: buildAtomicVisualizationPrompt(context, 'inspect the selection') },
+        { type: 'image', mimeType: 'image/png', data: 'base64-image' },
+      ]),
+    ).toEqual([
+      { type: 'text', text: 'inspect the selection' },
+      { type: 'text', text: '[Image input: image/png]' },
+    ])
+  })
+
+  it('keeps delimiter-like ordinary user text intact', () => {
+    const ordinaryPrompt = [
+      '[OpenWaggle inline visualization context]',
+      'This is ordinary user-authored text.',
+      '[/OpenWaggle inline visualization context]',
+      '',
+      'Do not strip any of it.',
+    ].join('\n')
+
+    expect(piTextAndImageContentToParts([{ type: 'text', text: ordinaryPrompt }])).toEqual([
+      { type: 'text', text: ordinaryPrompt },
+    ])
+  })
+
   it('projects Pi user text and image content into renderer-safe text parts', () => {
     expect(piTextAndImageContentToParts('hello')).toEqual([{ type: 'text', text: 'hello' }])
     expect(

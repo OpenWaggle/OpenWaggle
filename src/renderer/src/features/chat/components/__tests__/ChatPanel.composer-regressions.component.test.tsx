@@ -2,7 +2,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/features/chat/state'
@@ -73,6 +73,109 @@ describe('ChatPanel composer regressions', () => {
     expect(document.querySelector('[data-extension-run-status-host="true"]')).toBeInTheDocument()
   })
 
+  it('shows active compaction in the transcript instead of docking it to the composer', () => {
+    renderSections(
+      createSections(
+        {
+          chatRows: [
+            {
+              type: 'compaction-status',
+              id: 'compaction-1',
+              anchorMessageCount: 0,
+              announce: true,
+              state: 'automatic-running',
+            },
+          ],
+          isLoading: true,
+        },
+        {
+          isLoading: true,
+          status: 'compacting',
+          compactionStatus: {
+            type: 'compacting',
+            reason: 'threshold',
+            summaryCountAtStart: 0,
+            timeline: [],
+          },
+        },
+      ),
+    )
+
+    expect(screen.getAllByText('Context automatically compacting')).toHaveLength(2)
+    expect(screen.queryByText('Auto-compacting…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel compaction' })).not.toBeInTheDocument()
+  })
+
+  it('does not announce an earlier completion after a later compaction fails', () => {
+    renderSections(
+      createSections({
+        chatRows: [
+          {
+            type: 'compaction-status',
+            id: 'earlier-compaction',
+            anchorMessageCount: 0,
+            announce: false,
+            state: 'automatic-complete',
+          },
+        ],
+      }),
+    )
+
+    expect(screen.getAllByText('Context automatically compacted')).toHaveLength(1)
+    expect(
+      screen.queryByText('Context automatically compacted', { selector: '.sr-only' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps hydrated compaction history accessible without announcing it as new activity', () => {
+    renderSections(
+      createSections({
+        chatRows: [
+          {
+            type: 'compaction-summary',
+            id: 'summary-1',
+            summary: 'Preserved context',
+            tokensBefore: 100,
+            reason: 'threshold',
+          },
+        ],
+      }),
+    )
+
+    expect(
+      screen.queryByText('Context automatically compacted', { selector: '.sr-only' }),
+    ).not.toBeInTheDocument()
+    const durableLabel = screen
+      .getAllByText('Context automatically compacted')
+      .find((element) => !element.closest('.sr-only'))
+    expect(durableLabel?.closest('div')).not.toHaveAttribute('aria-hidden')
+  })
+
+  it('keeps the full project-first setup dock usable when no project is selected', () => {
+    usePreferencesStore.setState({
+      settings: { ...DEFAULT_SETTINGS, projectPath: null },
+      isLoaded: true,
+    })
+    renderSections(
+      createSections(
+        { activeSessionId: null, projectPath: null, recentProjects: ['/test/other-project'] },
+        { activeSessionId: null, isFirstMessage: true, projectPath: null },
+      ),
+    )
+
+    expect(screen.getByRole('button', { name: 'Project: Select project' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Session environment mode: Current checkout' }),
+    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Run target: Select project first' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project: Select project' }))
+
+    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'other-project' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select folder…' })).toBeInTheDocument()
+  })
+
   it('brings the setup dock back when an established session worktree is missing', async () => {
     const session = fromPartial<SessionDetail>({
       id: SessionId('session-1'),
@@ -97,7 +200,7 @@ describe('ChatPanel composer regressions', () => {
     const environmentTrigger = screen.getByRole('button', {
       name: 'Session environment mode: Current checkout',
     })
-    const branchTrigger = screen.getByRole('button', { name: 'Run target: branch' })
+    const branchTrigger = screen.getByRole('button', { name: /^Run target:/ })
 
     expect(projectTrigger.closest('.rounded-t-xl')).toHaveClass('@container/session-dock')
     expect(screen.getByTestId('session-setup-dock-row')).toHaveClass(

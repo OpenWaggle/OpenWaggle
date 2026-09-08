@@ -94,6 +94,89 @@ describe('message-queue-store', () => {
     })
   })
 
+  describe('take and restore', () => {
+    it('restores a failed promoted steer at the front of the queue', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
+      const original = useMessageQueueStore.getState().queues.get(CONV_A)
+      const second = original?.[1]
+      if (!second) throw new Error('Expected second queued message')
+
+      useMessageQueueStore.getState().promoteToFront(CONV_A, second.id)
+      const promoted = useMessageQueueStore.getState().take(CONV_A, second.id)
+      if (!promoted) throw new Error('Expected promoted queue removal')
+      useMessageQueueStore.getState().restore(CONV_A, promoted)
+
+      expect(
+        useMessageQueueStore
+          .getState()
+          .queues.get(CONV_A)
+          ?.map((item) => item.payload.text),
+      ).toEqual(['second', 'first'])
+    })
+
+    it('restores the exact queue item at its original position', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('third'))
+      const original = useMessageQueueStore.getState().queues.get(CONV_A)
+      const second = original?.[1]
+      if (!second) throw new Error('Expected second queued message')
+
+      const taken = useMessageQueueStore.getState().take(CONV_A, second.id)
+      if (!taken) throw new Error('Expected queue removal')
+      expect(taken).toEqual({
+        item: second,
+        index: 1,
+        previousId: original?.[0]?.id,
+        nextId: original?.[2]?.id,
+      })
+      useMessageQueueStore.getState().restore(CONV_A, taken)
+
+      expect(useMessageQueueStore.getState().queues.get(CONV_A)).toEqual(original)
+    })
+
+    it('uses surviving neighbors when concurrent removals make the numeric index stale', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('third'))
+      const original = useMessageQueueStore.getState().queues.get(CONV_A)
+      const first = original?.[0]
+      const second = original?.[1]
+      if (!first || !second) throw new Error('Expected queued messages')
+
+      const takenSecond = useMessageQueueStore.getState().take(CONV_A, second.id)
+      useMessageQueueStore.getState().take(CONV_A, first.id)
+      if (!takenSecond) throw new Error('Expected second removal')
+      useMessageQueueStore.getState().restore(CONV_A, takenSecond)
+
+      expect(
+        useMessageQueueStore
+          .getState()
+          .queues.get(CONV_A)
+          ?.map((item) => item.payload.text),
+      ).toEqual(['second', 'third'])
+    })
+
+    it('restores concurrent failures in original order regardless of completion order', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
+      useMessageQueueStore.getState().enqueue(CONV_A, makePayload('third'))
+      const original = useMessageQueueStore.getState().queues.get(CONV_A)
+      const first = original?.[0]
+      const second = original?.[1]
+      if (!first || !second) throw new Error('Expected queued messages')
+
+      const takenSecond = useMessageQueueStore.getState().take(CONV_A, second.id)
+      const takenFirst = useMessageQueueStore.getState().take(CONV_A, first.id)
+      if (!takenFirst || !takenSecond) throw new Error('Expected queue removals')
+      useMessageQueueStore.getState().restore(CONV_A, takenSecond)
+      useMessageQueueStore.getState().restore(CONV_A, takenFirst)
+
+      expect(useMessageQueueStore.getState().queues.get(CONV_A)).toEqual(original)
+    })
+  })
+
   describe('clearQueue', () => {
     it('removes all items for a session', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('a'))

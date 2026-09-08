@@ -14,6 +14,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
     enabledModels: nextSetting(current.enabledModels, partial.enabledModels),
     projectPath: nextSetting(current.projectPath, partial.projectPath),
     thinkingLevel: nextSetting(current.thinkingLevel, partial.thinkingLevel),
+    compactionThresholdPercent: nextSetting(
+      current.compactionThresholdPercent,
+      partial.compactionThresholdPercent,
+    ),
     recentProjects: nextSetting(current.recentProjects, partial.recentProjects),
     skillTogglesByProject: nextSetting(
       current.skillTogglesByProject,

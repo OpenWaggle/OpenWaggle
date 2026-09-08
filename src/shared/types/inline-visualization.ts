@@ -6,6 +6,7 @@ export interface InlineVisualizationReference {
 
 export interface InlineVisualizationFrameRegisterInput {
   readonly frameId: string
+  readonly reducedMotion: boolean
   readonly sessionId: string
   readonly sourcePath: string
 }

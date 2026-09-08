@@ -5,6 +5,7 @@ import type { JsonObject, JsonValue } from '@shared/types/json'
 import { isRecord } from '@shared/utils/validation'
 import { toJsonObject, toJsonValue } from '../pi-message-mapper'
 import type { PiPromptInput } from '../pi-runtime-input'
+import { stripAtomicVisualizationContext } from '../pi-runtime-input'
 
 function textMessagePart(text: string): MessagePart {
   return { type: 'text', text }
@@ -20,7 +21,9 @@ function imageInputMessagePart(mimeType: string): MessagePart {
 
 function piTextOrImageBlockToPart(block: unknown): MessagePart | null {
   return match(block)
-    .with({ type: 'text', text: P.select('text', P.string) }, ({ text }) => textMessagePart(text))
+    .with({ type: 'text', text: P.select('text', P.string) }, ({ text }) =>
+      textMessagePart(stripAtomicVisualizationContext(text)),
+    )
     .with({ type: 'image', mimeType: P.select('mimeType', P.optional(P.string)) }, ({ mimeType }) =>
       imageInputMessagePart(mimeType ?? 'image'),
     )

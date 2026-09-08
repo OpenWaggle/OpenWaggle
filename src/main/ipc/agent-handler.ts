@@ -29,6 +29,7 @@ import {
 import { executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
+import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   clearAgentPhase,
@@ -49,8 +50,10 @@ import {
   cancelSessionRuns,
   ensureSessionRunStartAllowed,
   hasAnyActiveRun,
+  listActiveCompactions,
 } from './active-agent-runs'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
+import { registerAgentSteeringHandler } from './agent-steering-handler'
 import { runAgentRequestedWaggle } from './agent-waggle-handoff'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle } from './typed-ipc'
@@ -91,8 +94,12 @@ function registerAgentRunHandlers() {
 
         const abortController = new AbortController()
         const runId = randomUUID()
+        const controlRef: { current: AgentKernelRunControl | null } = { current: null }
+        const steerTailRef: { current: Promise<void> } = { current: Promise.resolve() }
         activeRuns.register(sessionId, abortController, {
           model,
+          controlRef,
+          steerTailRef,
         })
 
         startStreamBuffer(sessionId, model, 'classic')
@@ -111,6 +118,11 @@ function registerAgentRunHandlers() {
             model,
             signal: abortController.signal,
             onEvent: onEventWithUsageCapture,
+            onControlAvailable: (control) => {
+              if (activeRuns.isCurrent(sessionId, abortController)) {
+                controlRef.current = control
+              }
+            },
             onWorktreeLaunch: (progress) => emitWorktreeLaunchProgress(sessionId, progress),
             onTitleAssigned: (title) => {
               broadcastToWindows('sessions:title-updated', { sessionId, title })
@@ -121,13 +133,17 @@ function registerAgentRunHandlers() {
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
           if (handoff && !abortController.signal.aborted) {
             yield* ensureSessionRunStartAllowed(sessionId)
-            activeWaggleRuns.register(sessionId, abortController, {})
+            controlRef.current = null
+            activeWaggleRuns.register(sessionId, abortController, { controlRef, steerTailRef })
             yield* runAgentRequestedWaggle({
               sessionId,
               handoff,
               model,
               thinkingLevel: validatedPayload.thinkingLevel,
               abortController,
+              onControlAvailable: (control) => {
+                if (activeRuns.isCurrent(sessionId, abortController)) controlRef.current = control
+              },
             }).pipe(
               Effect.tapError((error) =>
                 Effect.sync(() => {
@@ -205,7 +221,9 @@ function registerAgentStateHandlers() {
     Effect.sync(() => getStreamBuffer(sessionId)),
   )
 
-  typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
+  typedHandle('agent:list-active-runs', () =>
+    Effect.sync(() => [...listStreamBuffers(), ...listActiveCompactions()]),
+  )
 
   typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
@@ -225,8 +243,15 @@ function registerAgentCompactionHandlers() {
         }
 
         const abortController = new AbortController()
-        activeCompactions.register(sessionId, abortController, { model })
-        let delayedSuccessfulCompactionEnd: AgentTransportEvent | null = null
+        activeCompactions.register(sessionId, abortController, {
+          model,
+          reason: 'manual',
+          startedAt: Date.now(),
+        })
+        let delayedSuccessfulCompactionEnd: Extract<
+          AgentTransportEvent,
+          { type: 'compaction_end' }
+        > | null = null
 
         return yield* compactAgentSession({
           sessionId,
@@ -241,6 +266,19 @@ function registerAgentCompactionHandlers() {
             emitTransportEvent(sessionId, event)
           },
         }).pipe(
+          Effect.tapError((error) =>
+            Effect.sync(() => {
+              if (!delayedSuccessfulCompactionEnd) return
+              emitTransportEvent(sessionId, {
+                ...delayedSuccessfulCompactionEnd,
+                aborted: true,
+                willRetry: false,
+                errorMessage: error instanceof Error ? error.message : String(error),
+                timestamp: Date.now(),
+              })
+              delayedSuccessfulCompactionEnd = null
+            }),
+          ),
           Effect.tap(() =>
             Effect.sync(() => {
               if (delayedSuccessfulCompactionEnd) {
@@ -250,23 +288,13 @@ function registerAgentCompactionHandlers() {
           ),
           Effect.ensuring(
             Effect.sync(() => {
-              activeCompactions.deleteIfCurrent(sessionId, abortController)
+              if (activeCompactions.deleteIfCurrent(sessionId, abortController)) {
+                emitRunCompleted(sessionId)
+              }
             }),
           ),
         )
       }),
-  )
-}
-
-function registerAgentSteeringHandlers() {
-  typedHandle('agent:steer', (_event, sessionId: SessionId) =>
-    Effect.sync(() => {
-      if (cancelSessionRuns(sessionId)) {
-        emitCancelledCompletion(sessionId)
-      }
-
-      return { preserved: false }
-    }),
   )
 }
 
@@ -275,7 +303,7 @@ export function registerAgentHandlers(): void {
   registerAgentInteractionHandlers()
   registerAgentStateHandlers()
   registerAgentCompactionHandlers()
-  registerAgentSteeringHandlers()
+  registerAgentSteeringHandler()
 }
 
 /** Exposed for tests: the reporting rule decides whether a caller keeps a submitted review. */

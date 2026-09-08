@@ -1,18 +1,32 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useState } from 'react'
 import { useMessageQueueStore } from '@/features/chat/state'
+import {
+  parseCompactCommand,
+  parseExtensionSlashCommand,
+  parseSessionCopyCommand,
+} from '@/features/composer/commands'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportQueuedSteerFailure } from '../lib/queue-failure-feedback'
+import type {
+  OptimisticSteerPreviewController,
+  SteerDeliveryState,
+} from './useOptimisticSteeredTurn'
 
 const logger = createRendererLogger('chat-panel')
 
 interface SteerWorkflowDeps {
   readonly activeSessionId: SessionId | null
-  readonly steer: () => Promise<void>
-  readonly previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
+  readonly extensionContributions: ExtensionContributionRegistryView | null
+  readonly isCompacting: boolean
+  readonly steer: (payload: AgentSendPayload) => Promise<AgentSteerDeliveryResult>
+  readonly previewSteeredUserTurn: (
+    payload: AgentSendPayload,
+    deliveryState: SteerDeliveryState,
+  ) => OptimisticSteerPreviewController
   readonly withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
-  readonly handleSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
   readonly showToast: (message: string) => void
 }
 
@@ -22,37 +36,56 @@ interface SteerWorkflowReturn {
 }
 
 export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
-  const [isSteering, setIsSteering] = useState(false)
+  const [inFlightSteerCount, setInFlightSteerCount] = useState(0)
   const {
     activeSessionId,
+    extensionContributions,
+    isCompacting,
     steer,
     previewSteeredUserTurn,
     withDeferredSnapshotRefresh,
-    handleSendWithWaggle,
     showToast,
   } = deps
 
   async function handleSteer(messageId: string) {
     if (!activeSessionId) return
-    const queue = useMessageQueueStore.getState().queues.get(activeSessionId)
-    const item = queue?.find((i) => i.id === messageId)
-    if (!item) return
-    setIsSteering(true)
-    useMessageQueueStore.getState().dismiss(activeSessionId, messageId)
-    const clearOptimisticSteeredTurn = previewSteeredUserTurn(item.payload)
+    const queued = useMessageQueueStore
+      .getState()
+      .queues.get(activeSessionId)
+      ?.find((item) => item.id === messageId)
+    if (
+      queued &&
+      (parseCompactCommand(queued.payload.text) ||
+        parseSessionCopyCommand(queued.payload.text) ||
+        parseExtensionSlashCommand(queued.payload.text, extensionContributions))
+    ) {
+      showToast(
+        'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
+      )
+      return
+    }
+    const taken = useMessageQueueStore.getState().take(activeSessionId, messageId)
+    if (!taken) return
+    const { item } = taken
+    const deliveryState = isCompacting ? 'waiting-for-compaction' : 'sending'
+    const preview = previewSteeredUserTurn(item.payload, deliveryState)
+    setInFlightSteerCount((count) => count + 1)
     try {
-      await withDeferredSnapshotRefresh(async () => {
-        await steer()
-        await handleSendWithWaggle(item.payload)
-      })
+      const delivery = await withDeferredSnapshotRefresh(() => steer(item.payload))
+      if (delivery.delivery === 'handled') {
+        preview.clear()
+        return
+      }
+      preview.setDurableContent(delivery.durableText)
+      preview.setDeliveryState('sending')
     } catch (error) {
-      clearOptimisticSteeredTurn()
-      useMessageQueueStore.getState().enqueue(activeSessionId, item.payload)
-      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
+      preview.clear()
+      useMessageQueueStore.getState().restore(activeSessionId, taken)
+      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, item.id, error)
     } finally {
-      setIsSteering(false)
+      setInFlightSteerCount((count) => Math.max(0, count - 1))
     }
   }
 
-  return { isSteering, handleSteer }
+  return { isSteering: inFlightSteerCount > 0, handleSteer }
 }

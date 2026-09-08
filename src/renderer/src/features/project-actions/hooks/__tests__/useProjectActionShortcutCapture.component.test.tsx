@@ -1,6 +1,7 @@
 import type { ProjectAction } from '@shared/types/project-actions'
 import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { act, renderHook } from '@testing-library/react'
+import { Suspense } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
 import { useProjectActionShortcutCapture } from '../useProjectActionShortcutCapture'
@@ -21,6 +22,34 @@ function keyboardEvent(type: 'keydown' | 'keyup', options: KeyboardEventInit) {
 describe('useProjectActionShortcutCapture', () => {
   beforeEach(() => {
     useUIStore.setState({ commandSurface: null })
+  })
+
+  it('keeps the committed handler when a replacement render suspends', () => {
+    const committed = vi.fn()
+    const pending = vi.fn()
+    const gate = new Promise<void>(() => {})
+    const { rerender } = renderHook(
+      ({ onRun, suspend }) => {
+        useProjectActionShortcutCapture({
+          actions: [ACTION],
+          builtInBindings: DEFAULT_SHORTCUT_BINDINGS,
+          onRun,
+        })
+        if (suspend) throw gate
+      },
+      {
+        initialProps: { onRun: committed, suspend: false },
+        wrapper: ({ children }) => <Suspense fallback={null}>{children}</Suspense>,
+      },
+    )
+
+    rerender({ onRun: pending, suspend: true })
+    act(() => {
+      window.dispatchEvent(keyboardEvent('keydown', { key: 'r', code: 'KeyR', ctrlKey: true }))
+    })
+
+    expect(committed).toHaveBeenCalledExactlyOnceWith(ACTION)
+    expect(pending).not.toHaveBeenCalled()
   })
 
   it('claims a real terminal-focused chord before xterm and consumes its modifier-free keyup', () => {

@@ -9,6 +9,7 @@ import {
   SETTINGS_KEY_BROWSER_LINK_TARGET,
   SETTINGS_KEY_BROWSER_PROFILES,
   SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE,
+  SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -214,6 +215,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     partial.diffWrapLines !== undefined,
     SETTINGS_KEY_DIFF_WRAP_LINES,
     next.diffWrapLines,
+  )
+  appendChangedSetting(
+    writes,
+    partial.compactionThresholdPercent !== undefined,
+    SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
+    next.compactionThresholdPercent,
   )
   appendChangedSetting(
     writes,

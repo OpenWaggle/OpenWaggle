@@ -1,3 +1,4 @@
+import { RepositoryPath } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -48,6 +49,30 @@ describe('useGitStore branch action behavior', () => {
       expect(apiMock.getGitStatus).not.toHaveBeenCalled()
       expect(apiMock.listGitBranches).not.toHaveBeenCalled()
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
+    })
+
+    it('does not replace a newly selected repository after an older checkout completes', async () => {
+      let resolveCheckout: ((result: { ok: true }) => void) | undefined
+      apiMock.checkoutGitBranch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCheckout = resolve
+          }),
+      )
+      apiMock.getGitStatus.mockResolvedValue(null)
+      apiMock.listGitBranches.mockResolvedValue({ currentBranch: 'repo-b', branches: [] })
+      useGitStore.setState({ branchesRepositoryPath: REPOSITORY_PATH })
+
+      const checkout = useGitStore
+        .getState()
+        .checkoutBranch(WORKING_PATH, REPOSITORY_PATH, { name: 'feature' })
+      await useGitStore.getState().refreshBranches(RepositoryPath('/repo-b'))
+      resolveCheckout?.({ ok: true })
+      await checkout
+
+      expect(apiMock.listGitBranches).toHaveBeenCalledTimes(1)
+      expect(useGitStore.getState().branchesRepositoryPath).toBe('/repo-b')
+      expect(useGitStore.getState().branches?.currentBranch).toBe('repo-b')
     })
   })
 })

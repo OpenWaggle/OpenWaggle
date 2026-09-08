@@ -52,15 +52,18 @@ interface DiffCodeViewProps {
   readonly fileNavigation?: DiffFileNavigation | null
 }
 
-function DiffCodeViewReadiness({ children }: { readonly children: ReactNode }) {
+type DiffCodeViewReadinessProps = Readonly<{ children: ReactNode; complete: boolean }>
+
+function DiffCodeViewReadiness(props: DiffCodeViewReadinessProps) {
   const codeViewReady = useDiffCodeViewReady()
   return (
     <div
       ref={codeViewReady.rootRef}
       data-diff-code-ready={codeViewReady.ready ? 'true' : 'false'}
+      data-diff-preparation-complete={props.complete ? 'true' : 'false'}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
     >
-      {children}
+      {props.children}
       {!codeViewReady.ready ? (
         <div className="absolute inset-0 flex items-center justify-center bg-diff-bg">
           <Spinner />
@@ -259,6 +262,7 @@ export function DiffCodeView({
   const {
     items,
     preparedPaths,
+    preparationComplete,
     error: preparationError,
   } = useProgressiveCodeViewItems(files, annotationsByPath)
   usePreparedDiffFileNavigation(viewerRef, fileNavigation, preparedPaths)
@@ -295,7 +299,7 @@ export function DiffCodeView({
 
   registerPendingPierreSyntaxResources()
   return (
-    <DiffCodeViewReadiness>
+    <DiffCodeViewReadiness complete={preparationComplete}>
       <WorkerPoolContextProvider
         poolOptions={{
           workerFactory: createPierreWorker,

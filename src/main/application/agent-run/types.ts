@@ -3,6 +3,7 @@ import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { AgentKernelRunControl } from '../../ports/agent-kernel-service'
 
 export interface AgentRunInput {
   readonly sessionId: SessionId
@@ -11,6 +12,7 @@ export interface AgentRunInput {
   readonly model: SupportedModelId
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
   readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly onTitleAssigned?: (title: string) => void
 }

@@ -139,6 +139,15 @@ const e2eReportArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
           retention-days: 7`
 const LINUX_ELECTRON_DEPENDENCIES_STEP = `      - name: Install Linux Electron dependencies
         run: pnpm exec playwright install-deps chromium`
+const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+          /bin/zsh --version`
+const LINUX_E2E_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
+        run: |
+          sudo apt-get install --yes zsh
+          /bin/zsh --version`
 /*
  * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release
@@ -205,6 +214,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
+      TERMINAL_SHELLS_INSTALL_STEP,
       '      - run: pnpm test:integration && pnpm test:component',
     ],
   ],
@@ -243,6 +253,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
       LINUX_ELECTRON_DEPENDENCIES_STEP,
+      LINUX_E2E_SHELLS_INSTALL_STEP,
       '      - run: xvfb-run --auto-servernum pnpm test:e2e:functional',
       e2eFailureArtifactStep('linux'),
       e2eReportArtifactStep('linux'),

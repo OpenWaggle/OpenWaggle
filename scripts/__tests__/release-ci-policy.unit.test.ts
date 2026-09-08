@@ -23,6 +23,17 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it('rejects removal of the real zsh dependency from either Linux test job', () => {
+    const installCommand = '          sudo apt-get install --yes zsh\n'
+    const positions = [...compliantWorkflow.matchAll(/          sudo apt-get install --yes zsh\n/gu)]
+    expect(positions).toHaveLength(2)
+    for (const match of positions) {
+      const index = match.index
+      const withoutShell = compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
+      expect(validateReleaseCiPolicy(withoutShell)).not.toEqual([])
+    }
+  })
+
   it('rejects a workflow that skips release commits or omits dispatched-ref checkout', () => {
     const violations = validateReleaseCiPolicy(
       compliantWorkflow

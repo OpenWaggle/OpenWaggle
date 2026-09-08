@@ -6,6 +6,7 @@ import type { WaggleHandoffRequest, WaggleInvocation } from '@shared/types/waggl
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { executeWaggleRun } from '../application/waggle-run-service'
+import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   emitTransportEvent,
@@ -34,6 +35,7 @@ export function runAgentRequestedWaggle(input: {
   readonly model: SupportedModelId
   readonly thinkingLevel: AgentSendPayload['thinkingLevel']
   readonly abortController: AbortController
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
 }) {
   return Effect.gen(function* () {
     const invocation = waggleInvocationFromHandoff(input.handoff)
@@ -58,6 +60,7 @@ export function runAgentRequestedWaggle(input: {
       model: input.model,
       config: input.handoff.config,
       signal: input.abortController.signal,
+      ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
       onRunPrepared: (runtimeModel) => {
         startStreamBuffer(input.sessionId, runtimeModel, 'waggle')
         emitTransportEvent(input.sessionId, {

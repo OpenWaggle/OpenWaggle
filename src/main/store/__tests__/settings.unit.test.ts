@@ -75,6 +75,20 @@ describe('settings store loading', () => {
     expect(() => getSettings()).toThrow(/Saved settings are invalid.*thinkingLevel/u)
   })
 
+  it('preserves the compaction threshold alongside legacy shortcut migration', async () => {
+    await writeRawSetting('compactionThresholdPercent', 73)
+    await writeRawSetting('shortcutBindings', { 'diff.toggle': { key: 'G', mod: true } })
+    const { getSettings } = await loadSettingsModule()
+    expect(getSettings().compactionThresholdPercent).toBe(73)
+    expect(getSettings().shortcutBindings['diff.toggle']).toEqual({ key: 'G', mod: true })
+  })
+
+  it('fails closed on an invalid persisted compaction threshold', async () => {
+    await writeRawSetting('compactionThresholdPercent', 0)
+    const { getSettings } = await loadSettingsModule()
+    expect(() => getSettings()).toThrow(/compactionThresholdPercent/u)
+  })
+
   it('loads pre-terminal shortcut bindings without losing custom shortcuts', async () => {
     await writeRawSetting('shortcutBindings', {
       'commandPalette.toggle': { key: 'K', mod: true },

@@ -8,6 +8,7 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
 import { executeWaggleRun } from '../application/waggle-run-service'
+import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
 import {
   clearAgentPhase,
@@ -126,7 +127,9 @@ function handleSendWaggleMessage(
 
     const abortController = new AbortController()
     const runId = waggleRunId(sessionId)
-    activeWaggleRuns.register(sessionId, abortController, {})
+    const controlRef: { current: AgentKernelRunControl | null } = { current: null }
+    const steerTailRef: { current: Promise<void> } = { current: Promise.resolve() }
+    activeWaggleRuns.register(sessionId, abortController, { controlRef, steerTailRef })
 
     return yield* Effect.ensuring(
       runRegisteredWaggleMessage(
@@ -136,6 +139,7 @@ function handleSendWaggleMessage(
         model,
         config,
         abortController,
+        controlRef,
       ),
       Effect.sync(() => {
         cancelAgentLoopInteractionsForRun({ sessionId, runId })
@@ -152,6 +156,7 @@ function runRegisteredWaggleMessage(
   model: SupportedModelId,
   config: WaggleConfig,
   abortController: AbortController,
+  controlRef: { current: AgentKernelRunControl | null },
 ) {
   return Effect.gen(function* () {
     const result = yield* executeWaggleRun({
@@ -161,6 +166,9 @@ function runRegisteredWaggleMessage(
       model,
       config,
       signal: abortController.signal,
+      onControlAvailable: (control) => {
+        if (activeWaggleRuns.isCurrent(sessionId, abortController)) controlRef.current = control
+      },
       onRunPrepared: (runtimeModel) => startWaggleStream(sessionId, runId, runtimeModel),
       onEvent: (event, meta) => {
         emitWaggleTransportEvent(sessionId, event, meta)

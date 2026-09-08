@@ -21,9 +21,37 @@ function findMissingOptimisticUserMessages(
   return missingMessages
 }
 
+function messageCreatedAtMs(message: UIMessage) {
+  if (!(message.createdAt instanceof Date)) return null
+  const timestamp = message.createdAt.getTime()
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+function mergeMissingOptimisticMessagesByTime(
+  snapshotMessages: UIMessage[],
+  missingOptimisticMessages: readonly UIMessage[],
+) {
+  const mergedMessages = [...snapshotMessages]
+  for (const message of missingOptimisticMessages) {
+    const createdAt = messageCreatedAtMs(message)
+    const insertionIndex =
+      createdAt === null
+        ? -1
+        : mergedMessages.findIndex((candidate) => {
+            const candidateCreatedAt = messageCreatedAtMs(candidate)
+            return candidateCreatedAt !== null && candidateCreatedAt > createdAt
+          })
+    if (insertionIndex < 0) mergedMessages.push(message)
+    else mergedMessages.splice(insertionIndex, 0, message)
+  }
+  return mergedMessages
+}
+
 /**
  * Keeps optimistic user rows visible until the persisted session snapshot catches up.
  * Matching is text-based because optimistic and persisted IDs are intentionally different.
+ * Missing rows use their client timestamp so a newer replacement snapshot cannot move an
+ * older optimistic turn below the assistant reply that followed it.
  */
 export function appendMissingOptimisticUserMessages(
   snapshotMessages: UIMessage[],
@@ -39,7 +67,7 @@ export function appendMissingOptimisticUserMessages(
   )
 
   return missingOptimisticMessages.length > 0
-    ? [...snapshotMessages, ...missingOptimisticMessages]
+    ? mergeMissingOptimisticMessagesByTime(snapshotMessages, missingOptimisticMessages)
     : snapshotMessages
 }
 

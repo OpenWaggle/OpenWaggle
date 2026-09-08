@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearInlineVisualizationStatesForTests } from '../../state/inline-visualization-state'
@@ -20,58 +20,15 @@ import {
   deliverVisualizationFollowUp,
   registerVisualizationFollowUpDispatcher,
 } from '../inline-visualization-host'
+import {
+  activateFrame,
+  dispatchFrameMessage,
+  frameOrigin,
+  visualizationFrame,
+  visualizationFrameWindow,
+} from './inline-visualization-test-helpers'
 
 let unregisterFollowUpDispatcher: (() => void) | null = null
-
-async function visualizationFrame(title: string) {
-  const element = await screen.findByTitle(title)
-  if (!(element instanceof HTMLIFrameElement)) {
-    throw new Error(`Expected ${title} to be an iframe.`)
-  }
-  return element
-}
-
-function visualizationFrameWindow(frame: HTMLIFrameElement) {
-  const frameWindow = frame.contentWindow
-  if (!frameWindow) throw new Error('Expected visualization iframe window.')
-  return frameWindow
-}
-
-function frameOrigin(frame: HTMLIFrameElement) {
-  const url = new URL(frame.src)
-  return `${url.protocol}//${url.host}`
-}
-
-function dispatchFrameMessage(
-  frame: HTMLIFrameElement,
-  data: Record<string, unknown>,
-  capability = 'test-capability-1234567890',
-) {
-  window.dispatchEvent(
-    new MessageEvent('message', {
-      source: visualizationFrameWindow(frame),
-      origin: frameOrigin(frame),
-      data: { capability, ...data },
-    }),
-  )
-}
-
-async function activateFrame(frame: HTMLIFrameElement) {
-  await act(async () => undefined)
-  const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
-  fireEvent.load(frame)
-  act(() => {
-    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:bootstrap' })
-    dispatchFrameMessage(frame, { type: 'openwaggle:inline-visualization:ready' })
-  })
-  await waitFor(() => {
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'openwaggle:inline-visualization:theme' }),
-      frameOrigin(frame),
-    )
-  })
-  postMessage.mockRestore()
-}
 
 describe('InlineVisualization brokers', () => {
   beforeEach(() => {
@@ -315,6 +272,40 @@ describe('InlineVisualization brokers', () => {
           type: 'openwaggle:inline-visualization:follow-up-result',
           requestId: 'follow-up-request-1',
           accepted: true,
+        },
+        frameOrigin(frame),
+      )
+    })
+    postMessage.mockRestore()
+  })
+
+  it('reports a declined follow-up when the confirmation broker fails', async () => {
+    apiMock.showConfirm.mockRejectedValue(new Error('Confirmation unavailable'))
+    render(
+      <InlineVisualization
+        sessionId={SessionId('session-visualization-1')}
+        interactionSessionId={SessionId('session-visualization-1')}
+        reference={{ path: '/repo/follow-up-map.html', title: 'Follow-up map' }}
+      />,
+    )
+    const frame = await visualizationFrame('Follow-up map')
+    await activateFrame(frame)
+    const postMessage = vi.spyOn(visualizationFrameWindow(frame), 'postMessage')
+
+    act(() => {
+      dispatchFrameMessage(frame, {
+        type: 'openwaggle:inline-visualization:follow-up',
+        requestId: 'failed-follow-up-request',
+        prompt: 'Investigate the selected service.',
+      })
+    })
+
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith(
+        {
+          type: 'openwaggle:inline-visualization:follow-up-result',
+          requestId: 'failed-follow-up-request',
+          accepted: false,
         },
         frameOrigin(frame),
       )

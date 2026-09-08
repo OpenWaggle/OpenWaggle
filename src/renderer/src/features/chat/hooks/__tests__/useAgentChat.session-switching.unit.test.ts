@@ -30,6 +30,7 @@ describe('useAgentChat session switching', () => {
     hasActiveRunMock.mockImplementation((id: SessionId) => id === sessionB)
     apiMock.getBackgroundRun.mockReturnValue(backgroundRun.promise)
     runRenderSnapshots.set('session-b', {
+      compactionStatus: null,
       updatedAt: 1,
       messages: [
         {

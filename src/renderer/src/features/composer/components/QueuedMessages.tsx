@@ -8,7 +8,6 @@ interface QueuedMessagesProps {
   readonly sessionId: SessionId | null
   readonly onSteer: (messageId: string) => Promise<void>
   readonly isStreaming: boolean
-  readonly isCompacting?: boolean
 }
 
 /**
@@ -18,12 +17,7 @@ interface QueuedMessagesProps {
  * inside the composer's rounded shoulders so it reads like a docked tab rather
  * than a separate full-width panel.
  */
-export function QueuedMessages({
-  sessionId,
-  onSteer,
-  isStreaming,
-  isCompacting = false,
-}: QueuedMessagesProps) {
+export function QueuedMessages({ sessionId, onSteer, isStreaming }: QueuedMessagesProps) {
   const queue = useMessageQueueStore(selectQueue(sessionId))
   const dismiss = useMessageQueueStore((s) => s.dismiss)
 
@@ -34,9 +28,7 @@ export function QueuedMessages({
       {/* Header */}
       <div className="flex items-center gap-1.5 px-1">
         <Timer className="size-3 text-text-tertiary" />
-        <span className="text-xs font-semibold text-text-tertiary">
-          {isCompacting ? 'Queued until compaction finishes' : 'Queued'}
-        </span>
+        <span className="text-xs font-semibold text-text-tertiary">Queued</span>
         <span className="flex size-4.5 items-center justify-center rounded-full bg-text-tertiary/12 text-xs font-semibold text-text-tertiary">
           {queue.length}
         </span>
@@ -50,7 +42,7 @@ export function QueuedMessages({
               {item.payload.text || `${String(item.payload.attachments.length)} attachment(s)`}
             </div>
             <div className="flex items-center gap-1">
-              {isStreaming && !isCompacting && (
+              {isStreaming && (
                 <Button
                   variant="unstyled"
                   type="button"

@@ -3,6 +3,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  clearInlineVisualizationStatesForTests,
+  latestInlineVisualizationContext,
+} from '../../state/inline-visualization-state'
 
 const apiMock = vi.hoisted(() => ({
   registerInlineVisualizationFrame: vi.fn(),
@@ -43,6 +47,7 @@ describe('InlineVisualization frame parking', () => {
     vi.unstubAllGlobals()
     intersectionCallback = null
     for (const mock of Object.values(apiMock)) mock.mockReset()
+    clearInlineVisualizationStatesForTests()
   })
 
   function dispatchIntersection(isIntersecting: boolean) {
@@ -53,10 +58,11 @@ describe('InlineVisualization frame parking', () => {
   }
 
   it('releases a distant frame while preserving its measured transcript height', async () => {
-    render(
+    const sessionId = SessionId('session-visualization-1')
+    const view = render(
       <InlineVisualization
-        sessionId={SessionId('session-visualization-1')}
-        interactionSessionId={SessionId('session-visualization-1')}
+        sessionId={sessionId}
+        interactionSessionId={sessionId}
         reference={{ path: '/repo/parked-map.html', title: 'Parked map' }}
       />,
     )
@@ -87,16 +93,40 @@ describe('InlineVisualization frame parking', () => {
           },
         }),
       )
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: frame.contentWindow,
+          origin: `${url.protocol}//${url.host}`,
+          data: {
+            capability: 'test-capability-1234567890',
+            type: 'openwaggle:inline-visualization:state',
+            state: { selectedStage: 'sandbox' },
+          },
+        }),
+      )
     })
     expect(frame).toHaveStyle({ height: '900px' })
-
     act(() => dispatchIntersection(false))
     await waitFor(() => expect(screen.queryByTitle('Parked map')).toBeNull())
     expect(screen.getByRole('status')).toHaveStyle({ height: '900px' })
     expect(apiMock.unregisterInlineVisualizationFrame).toHaveBeenCalledTimes(1)
+    expect(latestInlineVisualizationContext(sessionId)?.state).toEqual({
+      selectedStage: 'sandbox',
+    })
 
     act(() => dispatchIntersection(true))
     await screen.findByTitle('Parked map')
     expect(apiMock.registerInlineVisualizationFrame).toHaveBeenCalledTimes(2)
+
+    act(() => dispatchIntersection(false))
+    await waitFor(() => expect(screen.queryByTitle('Parked map')).toBeNull())
+    apiMock.registerInlineVisualizationFrame.mockRejectedValueOnce(
+      new Error('Registration unavailable'),
+    )
+    act(() => dispatchIntersection(true))
+    await screen.findByRole('alert')
+    expect(latestInlineVisualizationContext(sessionId)).toBeNull()
+    view.unmount()
+    expect(latestInlineVisualizationContext(sessionId)).toBeNull()
   })
 })

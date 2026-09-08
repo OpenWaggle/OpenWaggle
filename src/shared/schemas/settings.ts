@@ -1,3 +1,4 @@
+import { PERCENT_BASE } from '@shared/constants/math'
 import { Schema } from '@shared/schema'
 import { appearancePreferencesSchema } from '@shared/schemas/appearance-preferences'
 import {
@@ -44,6 +45,9 @@ export const settingsUpdateSchema = Schema.Struct({
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  compactionThresholdPercent: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
+  ),
   recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   skillTogglesByProject: Schema.optional(
     Schema.mutable(
