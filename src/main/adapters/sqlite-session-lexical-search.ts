@@ -3,6 +3,7 @@ import type { LocalSessionProfileAuthority } from '@shared/types/local-session-p
 import * as Effect from 'effect/Effect'
 import { tokenizeSessionTranscriptTerms } from '../services/session-transcript-term-tokenizer'
 import { SESSION_DISCOVERY_WINDOW_LIMIT } from './session-discovery-window-store'
+import { lexicalDiscoveryRankingCte } from './sqlite-session-discovery-ranking-query'
 import type { DiscoverySearchRequest } from './sqlite-session-discovery-window'
 import {
   decorateLexicalDiscoveryRows,
@@ -133,35 +134,6 @@ function lexicalCandidateRows(
         ORDER BY exact_matches.session_id
         LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
       ) AS exact
-    )
-  `
-}
-
-function lexicalDiscoveryRankingCte(
-  sql: SqlClient.SqlClient,
-  parameters: ReturnType<typeof lexicalSearchParameters>,
-  requiresEligibleSessionJoin: boolean,
-) {
-  const eligibleSessionJoin = requiresEligibleSessionJoin
-    ? sql`JOIN eligible_sessions
-        ON eligible_sessions.session_id = discovery_metadata.c0`
-    : sql``
-  // FTS5 documents c0/c1 as the stored values of our session_id/archived columns.
-  // Joining that content by rowid avoids a nested FTS content seek for every ranked hit.
-  // Keep this read-only mapping aligned with the FTS column order in the search schema.
-  return sql`
-    discovery_ranked_sessions AS MATERIALIZED (
-      SELECT discovery_metadata.c0 AS session_id,
-        bm25(session_node_discovery_search, 0.0, 0.0, 3.0, 3.0) AS score
-      FROM session_node_discovery_search
-      JOIN session_node_discovery_search_content AS discovery_metadata
-        ON discovery_metadata.id = session_node_discovery_search.rowid
-      ${eligibleSessionJoin}
-      WHERE ${parameters.fullTranscript} = 0
-        AND (${parameters.includeArchived} = 1 OR discovery_metadata.c1 = ${0})
-        AND session_node_discovery_search MATCH ${parameters.discoveryFtsQuery}
-      ORDER BY score, discovery_metadata.c0
-      LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     )
   `
 }

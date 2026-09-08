@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS } from '../services/session-host-discovery-term-population'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
@@ -80,4 +81,5 @@ export function populateSessionSearchCatalog(database: DatabaseSync) {
     SELECT session_id, rowid, initial_objective, current_preview
     FROM session_node_discovery_search;
   `)
+  for (const statement of SESSION_DISCOVERY_TERM_POPULATION_STATEMENTS) database.exec(statement)
 }

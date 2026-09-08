@@ -93,7 +93,7 @@ function installRevision29(sql: SqlClient.SqlClient) {
     yield* runAppDatabaseMigrations
     yield* sql.unsafe('DROP TRIGGER session_node_search_delete')
     yield* sql.unsafe(LEGACY_DELETE_TRIGGER)
-    yield* sql`DELETE FROM _migrations WHERE id = ${MIGRATION_ID}`
+    yield* sql`DELETE FROM _migrations WHERE id >= ${MIGRATION_ID}`
     const latest = yield* sql<{ readonly id: number }>`SELECT MAX(id) AS id FROM _migrations`
     expect(latest).toEqual([{ id: 29 }])
   })
@@ -187,6 +187,6 @@ describe('Session Host cascade-safe node-delete migration', () => {
     ])
     expect(second).toEqual(first)
     expect(SESSION_HOST_SCHEMA_REVISION).toBe(18)
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(MIGRATION_ID)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(MIGRATION_ID)
   })
 })

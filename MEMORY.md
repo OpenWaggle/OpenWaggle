@@ -497,6 +497,22 @@ avoids repeated FTS content callbacks without copying metadata or changing BM25 
 that join read-only, preserve the FTS column order, and compare scores, ties, live mutations,
 and pre-limit authority/archive filtering against the public FTS interface in regression tests.
 
+Dense single-ASCII-token discovery can rank one native FTS representative per exact signature
+of objective frequency, preview frequency, and total native token length. Do not copy BM25
+arithmetic or persist scores: even equivalent arithmetic changed a score by one ULP. Bound the
+signature probe and candidate work, retain native fallback for sparse/diverse signatures, and use
+one SQL snapshot for admission, scoring, archive filtering, and the final Session-ID tie order.
+Scoped, phrase, multiword, non-ASCII, and full-transcript requests retain their existing paths.
+
+Discovery term postings follow the canonical discovery-row mapping through foreign-key cascades.
+Incremental updates tokenize one document in a shared staging FTS inside the same transaction,
+using the same native tokenizer. The staging table must be empty after success or rollback. A live
+instance vocabulary filtered by document does not seek that document and would scan the entire
+corpus per edit.
+Migration 31 and legacy cutover group a single native vocabulary traversal, validate mappings
+(including empty documents), postings and signatures, then install incremental triggers. Keep
+schema revision 18 and the one-time cutover contract; existing targets apply migration 31 once.
+
 Lexical evidence prepares query clauses and snippet terms once per result batch, lazily on the
 first discovery match. Entirely ASCII input skips per-character Unicode normalization but retains
 the same lowercasing and token regex. Mixed or non-ASCII text uses the original Unicode path;

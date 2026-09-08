@@ -1,4 +1,5 @@
 import * as DatabaseSchema from './database-schema'
+import { SESSION_HOST_DISCOVERY_TERM_MIGRATION } from './session-host-discovery-term-migration'
 import { SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION } from './session-host-export-selected-path-migration'
 import {
   SESSION_HOST_DATABASE_MIGRATION,
@@ -297,4 +298,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION,
   SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION,
   SESSION_HOST_NODE_DELETE_MIGRATION,
+  SESSION_HOST_DISCOVERY_TERM_MIGRATION,
 ]
