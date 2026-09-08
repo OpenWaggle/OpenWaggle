@@ -47,14 +47,14 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7, 6],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION, 8],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({
       accepted: true,
-      revision: 7,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
       hostInstanceId: 'host-current',
     })
     expect(authenticate).toHaveBeenCalledOnce()
@@ -77,7 +77,7 @@ describe('Local Session server', () => {
     })
     expect(dispatch).toHaveBeenCalledWith({
       caller: { callerId: 'local-user' },
-      negotiatedRevision: 7,
+      negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
       eventCursor: { hostInstanceId: 'host-current', sequence: 0 },
       exposeEventCursor: expect.any(Function),
       payload: { operation: 'status', sessionId: 'session-target' },
@@ -144,7 +144,7 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
       }),
@@ -177,12 +177,15 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'previous',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(reader.next()).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
     client.write(
       encodeLocalSessionFrame({ kind: 'command', requestId: 'previous-command', payload: {} }),
     )
@@ -191,7 +194,9 @@ describe('Local Session server', () => {
       requestId: 'previous-command',
       payload: { compatible: true },
     })
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ negotiatedRevision: 7 }))
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION }),
+    )
   })
 
   it('authenticates a newer client, reports blockers, and requests a safe drain', async () => {

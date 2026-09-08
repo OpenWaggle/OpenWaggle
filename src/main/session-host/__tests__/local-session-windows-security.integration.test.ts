@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import net, { type Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -87,12 +88,15 @@ describe('Windows Local Session user-only admission', () => {
     admitted.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'windows-user-only-test',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(reader.next()).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
   })
 
   itWindows('starts only after PowerShell verifies the protected user-SID-only DACL', async () => {
@@ -110,11 +114,14 @@ describe('Windows Local Session user-only admission', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'windows-user-dacl-test',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(reader.next()).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
   })
 })

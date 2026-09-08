@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -34,7 +35,7 @@ describe('Local Session server concurrency', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -182,12 +183,15 @@ describe('Local Session server concurrency', () => {
     third.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'budget-released',
       }),
     )
-    await expect(thirdReader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(thirdReader.next()).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
   })
 
   it('bounds authentication work across all connections', async () => {
@@ -228,7 +232,7 @@ describe('Local Session server concurrency', () => {
       socket.write(
         encodeLocalSessionFrame({
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [7],
+          supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
           clientKind: 'cli',
           clientVersion: 'authentication-budget',
           profile: 'worker',
@@ -245,7 +249,10 @@ describe('Local Session server concurrency', () => {
     releases.shift()?.()
     await Promise.all(
       readers.map((reader) =>
-        expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 }),
+        expect(reader.next()).resolves.toMatchObject({
+          accepted: true,
+          revision: LOCAL_SESSION_CURRENT_REVISION,
+        }),
       ),
     )
     expect(peak).toBe(1)

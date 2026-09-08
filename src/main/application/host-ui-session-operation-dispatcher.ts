@@ -3,6 +3,7 @@ import { SupportedModelId } from '@shared/types/brand'
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { IpcInvokeArgs, IpcInvokeReturn } from '@shared/types/ipc'
 import * as Effect from 'effect/Effect'
+import type { InlineVisualizationService } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import type { SettingsService } from '../services/settings-service'
@@ -41,7 +42,11 @@ const FOUR_ARGUMENTS = 4
 
 export type HostBackedSessionGuiChannel = Extract<HostBackedGuiChannel, `sessions:${string}`>
 
-type SessionOperationServices = SessionProjectionRepository | SessionRepository | SettingsService
+type SessionOperationServices =
+  | SessionProjectionRepository
+  | SessionRepository
+  | SettingsService
+  | InlineVisualizationService
 
 function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: readonly unknown[]) {
   return match(channel)

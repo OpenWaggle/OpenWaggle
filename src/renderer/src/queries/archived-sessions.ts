@@ -35,8 +35,16 @@ export function archivedSessionBranchesQueryOptions(): UseInfiniteQueryOptions<
 }
 
 export function useUnarchiveSessionMutation() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: (sessionId: SessionId) => api.unarchiveSession(sessionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.archivedSessionBranches,
+        exact: true,
+      })
+    },
   })
 }
 

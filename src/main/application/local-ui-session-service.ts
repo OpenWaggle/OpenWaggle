@@ -10,6 +10,7 @@ import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { reserveSessionTreeMutation } from './active-session-runs'
 import { dismissInterruptedAgentRun } from './agent-run-service'
 import { navigateAgentSessionTree } from './agent-session-service'
+import { deleteSessionWithVisualizations } from './session-visualization-deletion'
 
 type LocalUiPayload = Extract<LocalSessionCommandPayload, { contract: 'local-ui-v1' }>
 type LocalAttachmentsPayload = Extract<
@@ -116,7 +117,7 @@ function executeLocalUiMutation(command: LocalUiPayload['request']['command']) {
             try: () => reserveSessionTreeMutation(sessionId),
             catch: () => new Error('Stop the active Run before deleting this Hive Session.'),
           }),
-          () => projection.delete(sessionId),
+          () => deleteSessionWithVisualizations(sessionId),
           (reservation) => Effect.sync(reservation.release),
         ).pipe(Effect.as({ effect: 'session-deleted' as const })),
       )
@@ -132,11 +133,9 @@ export function executeLocalUiSessionCommand(input: {
     yield* requireLocalUser(input.caller, 'Local UI commands')
     const outcome = yield* executeLocalUiMutation(input.payload.request.command)
     const sessionId = input.payload.request.command.sessionId
-    publishSessionHostEvent({
-      kind: 'session-list-changed',
-      sessionId,
-      change: outcome.effect === 'session-deleted' ? 'deleted' : 'updated',
-    })
+    if (outcome.effect !== 'session-deleted') {
+      publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'updated' })
+    }
     return {
       contract: 'local-ui-v1',
       response: {

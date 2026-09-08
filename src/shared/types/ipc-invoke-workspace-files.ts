@@ -19,6 +19,10 @@ import type {
 } from './workspace-files'
 
 export interface IpcWorkspaceFileInvokeChannelMap {
+  'workspace-files:authorize-project': {
+    args: [projectPath: string]
+    return: string
+  }
   'syntax-themes:list': {
     args: [projectPath?: string | null]
     return: SyntaxResourceCatalog

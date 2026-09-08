@@ -1,9 +1,9 @@
 import {
   LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
-  LOCAL_SESSION_REVISION_7_CAPABILITIES,
+  LOCAL_SESSION_REVISION_8_CAPABILITIES,
+  LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   type LocalSessionClientHello,
   type LocalSessionNegotiationResult,
@@ -52,13 +52,13 @@ export function negotiateLocalSessionProtocol(
       capabilities: LOCAL_SESSION_CAPABILITIES,
     }
   }
-  if (revision === LOCAL_SESSION_MCP_AUTH_REVISION) {
+  if (revision === LOCAL_SESSION_STEERING_RECEIPT_REVISION) {
     return {
       accepted: true,
       protocol: LOCAL_SESSION_PROTOCOL_NAME,
       revision,
       hostInstanceId,
-      capabilities: LOCAL_SESSION_REVISION_7_CAPABILITIES,
+      capabilities: LOCAL_SESSION_REVISION_8_CAPABILITIES,
     }
   }
   throw new Error('Local Session protocol negotiation selected an undeclared revision.')

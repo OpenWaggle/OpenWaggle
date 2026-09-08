@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalSessionAuthenticator } from '../local-session-authenticator'
 import { credentialsMatch, ensureLocalUserCredential } from '../local-user-credential'
@@ -63,7 +64,7 @@ describe('Local Session credentials', () => {
     await expect(
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'test',
         credential: localUserCredential,
@@ -77,7 +78,7 @@ describe('Local Session credentials', () => {
     await expect(
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'gui',
         clientVersion: 'test',
         credential: localUserCredential,
@@ -86,7 +87,7 @@ describe('Local Session credentials', () => {
     await expect(
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
         profile: 'review-bot',
@@ -115,7 +116,7 @@ describe('Local Session credentials', () => {
     await expect(
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
         credential: localUserCredential,
@@ -129,7 +130,7 @@ describe('Local Session credentials', () => {
     await expect(
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'test',
         credential: localUserCredential,
@@ -139,7 +140,7 @@ describe('Local Session credentials', () => {
     await expect(
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
         profile: 'review',
@@ -162,7 +163,7 @@ describe('Local Session credentials', () => {
     const authenticateProject = (projectPath: string) =>
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
         credential: localUserCredential,
@@ -188,7 +189,7 @@ describe('Local Session credentials', () => {
     const authenticateAuthority = (reversed: boolean) =>
       authenticate({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'mcp',
         clientVersion: 'test',
         credential: localUserCredential,

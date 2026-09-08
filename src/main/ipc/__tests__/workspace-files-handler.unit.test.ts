@@ -15,6 +15,7 @@ import { validateAuthorizedProjectPath } from '../../utils/project-path-validati
 
 const {
   invalidateGitStatusCacheMock,
+  invokeHostMock,
   listExternalEditorsMock,
   openFileMock,
   searchContentMock,
@@ -23,6 +24,7 @@ const {
   writeFileMock,
 } = vi.hoisted(() => ({
   invalidateGitStatusCacheMock: vi.fn(),
+  invokeHostMock: vi.fn(),
   listExternalEditorsMock: vi.fn(),
   openFileMock: vi.fn(),
   searchContentMock: vi.fn(),
@@ -32,6 +34,9 @@ const {
 }))
 
 vi.mock('../typed-ipc', () => ({ typedHandle: typedHandleMock }))
+vi.mock('../../application/gui-session-command-router', () => ({
+  invokeConfiguredHostUi: invokeHostMock,
+}))
 vi.mock('../git/status-cache', () => ({
   invalidateGitStatusCache: invalidateGitStatusCacheMock,
 }))
@@ -79,6 +84,7 @@ function registeredHandler(name: string, layer: ReturnType<typeof mutationLayer>
 describe('workspace file mutation handlers', () => {
   beforeEach(() => {
     invalidateGitStatusCacheMock.mockReset()
+    invokeHostMock.mockReset().mockResolvedValue({ handled: false })
     listExternalEditorsMock.mockReset()
     openFileMock.mockReset()
     searchContentMock.mockReset()
@@ -144,6 +150,40 @@ describe('workspace file mutation handlers', () => {
     ).rejects.toThrow()
 
     expect(openFileMock).not.toHaveBeenCalled()
+  })
+
+  it('searches an owner-approved root that is absent from the GUI database', async () => {
+    const ownerRoot = await fs.realpath(path.dirname(PROJECT_PATH))
+    invokeHostMock.mockResolvedValue({ handled: true, result: ownerRoot })
+
+    await registeredHandler('workspace-files:search', mutationLayer())?.(
+      {},
+      ownerRoot,
+      'src/main.ts',
+      10,
+    )
+
+    expect(invokeHostMock).toHaveBeenCalledWith('workspace-files:authorize-project', [ownerRoot])
+    expect(searchFilesMock).toHaveBeenCalledWith({
+      projectPath: ownerRoot,
+      query: 'src/main.ts',
+      limit: 10,
+    })
+  })
+
+  it('does not search a stale local root when the owner denies access', async () => {
+    invokeHostMock.mockRejectedValue(new Error('Host denied access'))
+
+    await expect(
+      registeredHandler('workspace-files:search', mutationLayer())?.(
+        {},
+        PROJECT_PATH,
+        'src/main.ts',
+        10,
+      ),
+    ).rejects.toThrow('Host denied access')
+
+    expect(searchFilesMock).not.toHaveBeenCalled()
   })
 
   it('rejects an unregistered project root before touching the workspace service', async () => {

@@ -43,7 +43,8 @@ describe('session detail lifecycle mutations', () => {
     expect(clearStreamBufferMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
-    expect(deleteVisualizationSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
+    expect(rollbackVisualizationSessionDeletionMock).not.toHaveBeenCalled()
   })
 
   it('archives a session through the Session Host', async () => {
@@ -81,16 +82,14 @@ describe('session detail lifecycle mutations', () => {
     expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
   })
 
-  it('restores staged visualization files when Session Host deletion fails', async () => {
+  it('does not stage local visualization files when Session Host deletion fails', async () => {
     dispatchLocalSessionCommandMock.mockReturnValue(Effect.fail(new Error('host unavailable')))
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:delete')
 
     await expect(handler?.({}, SessionId('session-delete'))).rejects.toThrow()
 
-    expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith(
-      SessionId('session-delete'),
-    )
+    expect(rollbackVisualizationSessionDeletionMock).not.toHaveBeenCalled()
     expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
   })
 

@@ -210,6 +210,33 @@ describe('ArchivedSection', () => {
     })
   })
 
+  it('reveals archived branches when their owning Session is restored', async () => {
+    sessionStoreState.archivedSessions = [createArchivedSession()]
+    listArchivedSessionBranchesMock
+      .mockResolvedValueOnce({ sessions: [] })
+      .mockResolvedValue({ sessions: [createArchivedBranchSession()] })
+    unarchiveSessionMock.mockResolvedValueOnce(undefined)
+
+    renderWithQueryClient(<ArchivedSection />)
+    fireEvent.click(await screen.findByTitle('Restore session'))
+
+    expect(await screen.findByTitle('Restore branch')).toBeInTheDocument()
+    expect(listArchivedSessionBranchesMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the archived catalog when restoring a Session fails', async () => {
+    sessionStoreState.archivedSessions = [createArchivedSession()]
+    unarchiveSessionMock.mockRejectedValueOnce(new Error('Restore rejected'))
+
+    renderWithQueryClient(<ArchivedSection />)
+    fireEvent.click(await screen.findByTitle('Restore session'))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Restore rejected'))
+    expect(screen.getByText('Archived session')).toBeInTheDocument()
+    expect(listArchivedSessionBranchesMock).toHaveBeenCalledTimes(1)
+    expect(loadSessionsMock).not.toHaveBeenCalled()
+  })
+
   it('deletes an archived session after confirmation and refreshes the bounded catalog', async () => {
     const session = createArchivedSession()
     sessionStoreState.archivedSessions = [session]

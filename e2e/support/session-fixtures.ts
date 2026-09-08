@@ -406,6 +406,8 @@ function seedSessionRow(
         sessionInput.updatedAt,
       )
 
+    if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
+
     database.exec('COMMIT')
   } catch (error) {
     database.exec('ROLLBACK')
@@ -440,7 +442,6 @@ export async function seedSessions(
     for (const sessionInput of sessionInputs) {
       const row = insertSessionRow(database)
       seedSessionRow(database, row, sessionInput, userDataDir)
-      if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
     }
   } finally {
     database.close()
@@ -540,12 +541,19 @@ export async function seedHive(
   }
 }
 
-/** An interrupted run on the session's main branch, which the sidebar reports as Interrupted. */
+/** Seed the Host Run and branch projection together so exact filters agree with sidebar rows. */
 function seedInterruptedRun(
   database: DatabaseSync,
   row: SessionRowFixture,
   sessionInput: SeedSessionInput,
 ) {
+  const runId = `run-${row.id}`
+  database
+    .prepare(
+      `INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+       VALUES (?, ?, 'interrupted', ?, ?)`,
+    )
+    .run(runId, row.id, row.createdAt, sessionInput.updatedAt)
   database
     .prepare(
       `
@@ -563,7 +571,7 @@ function seedInterruptedRun(
       `,
     )
     .run(
-      `run-${row.id}`,
+      runId,
       row.id,
       row.branchId,
       'classic',

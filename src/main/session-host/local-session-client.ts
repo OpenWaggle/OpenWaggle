@@ -3,6 +3,7 @@ import { decodeLocalSessionCommandPayload } from '@shared/schemas/local-session-
 import {
   HOST_BACKED_MCP_GUI_CHANNELS,
   HOST_UI_REVISION_7_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_9_REQUIRED_CHANNELS,
 } from '@shared/types/host-ui-protocol'
 import type {
   LocalSessionCommandPayload,
@@ -10,12 +11,13 @@ import type {
 } from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_COMPACTION_REVISION,
-  LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
+  LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_WAGGLE_REVISION,
+  LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
 } from '@shared/types/local-session-protocol'
 import {
   LOCAL_SESSION_DEFAULT_CLIENT_TIMEOUT_MS,
@@ -42,7 +44,7 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
     (payload.request.command.operation === 'steer' ||
       payload.request.command.operation === 'promote')
   ) {
-    return LOCAL_SESSION_CURRENT_REVISION
+    return LOCAL_SESSION_STEERING_RECEIPT_REVISION
   }
   if (
     payload.contract === 'local-compaction-v1' ||
@@ -51,6 +53,11 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
     return LOCAL_SESSION_COMPACTION_REVISION
   }
   if (payload.contract === 'host-ui-v1') {
+    if (
+      HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
+    ) {
+      return LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION
+    }
     if (
       HOST_UI_REVISION_7_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
     ) {

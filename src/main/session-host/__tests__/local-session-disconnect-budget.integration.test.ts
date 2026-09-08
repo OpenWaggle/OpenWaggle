@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -33,7 +34,7 @@ describe('Local Session disconnected dispatch budget', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion,
       }),
@@ -66,7 +67,10 @@ describe('Local Session disconnected dispatch budget', () => {
       dispatch,
     })
     const first = await connect(endpoint, 'retained-command')
-    await expect(first.reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(first.reader.next()).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
     first.socket.write(command)
     await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce())
     const firstClosed = new Promise<void>((resolve) => first.socket.once('close', resolve))
@@ -82,6 +86,9 @@ describe('Local Session disconnected dispatch budget', () => {
     releaseDispatch?.()
     await new Promise<void>((resolve) => setImmediate(resolve))
     const admitted = await connect(endpoint, 'budget-released-after-dispatch')
-    await expect(admitted.reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(admitted.reader.next()).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
   })
 })

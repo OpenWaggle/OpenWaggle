@@ -1,6 +1,10 @@
 import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
+export const HOST_UI_REVISION_9_REQUIRED_CHANNELS = [
+  'workspace-files:authorize-project',
+  'inline-visualization:prepare-source',
+] as const satisfies readonly IpcInvokeChannel[]
 
 export const HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6 = [
   'mcp:get-settings',
@@ -51,6 +55,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  ...HOST_UI_REVISION_9_REQUIRED_CHANNELS,
   'agent:list-active-runs',
   'agent:get-context-usage',
   'sessions:get-detail',

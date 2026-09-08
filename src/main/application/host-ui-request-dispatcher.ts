@@ -40,6 +40,7 @@ import {
 } from './host-ui-session-operation-dispatcher'
 import { dispatchHostUiSkillsOperation } from './host-ui-skill-operation-dispatcher'
 import { createHostUiWorktree, removeHostUiWorktree } from './host-ui-worktree-operation'
+import { prepareInlineVisualizationSourceOwner } from './inline-visualization-source-owner'
 import { setProjectPreferencesOperation } from './project-preferences-operation'
 import {
   getSettingsOperation,
@@ -47,6 +48,7 @@ import {
   testApiKeyOperation,
   updateSettingsOperation,
 } from './settings-operations'
+import { authorizeHostUiWorkspaceProject } from './workspace-project-authorization'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -179,6 +181,12 @@ function dispatchHostUiChannel(
     return dispatchHostUiSkillsOperation(channel, args)
   }
   return match(channel)
+    .with('workspace-files:authorize-project', () =>
+      oneInput(args, authorizeHostUiWorkspaceProject),
+    )
+    .with('inline-visualization:prepare-source', () =>
+      oneInput(args, prepareInlineVisualizationSourceOwner),
+    )
     .with('agent:list-active-runs', () =>
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, 0)

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import net, { type Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -111,12 +112,15 @@ describe('Local Session Host runtime', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'gui',
         clientVersion: 'test',
       }),
     )
-    await expect(negotiated).resolves.toMatchObject({ accepted: true, revision: 7 })
+    await expect(negotiated).resolves.toMatchObject({
+      accepted: true,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
+    })
     expect(startupOrder).toEqual(['recovered', 'authenticated'])
     expect(runtime.liveness.ownerCount('client')).toBe(1)
 

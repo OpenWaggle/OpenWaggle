@@ -25,7 +25,23 @@ const [, , , , , , , waggleRunCapability, waggleCancelCapability] =
   LOCAL_SESSION_REVISION_3_CAPABILITIES
 const [, , , , , , , , , localCompactionCapability] = LOCAL_SESSION_REVISION_4_CAPABILITIES
 const [, , , , , , , , , , hostUiCapability] = LOCAL_SESSION_REVISION_5_CAPABILITIES
-const [, , , , , , , , , , , mcpAuthCapability, steerReceiptCapability] = LOCAL_SESSION_CAPABILITIES
+const [
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  mcpAuthCapability,
+  steerReceiptCapability,
+  workspaceAuthCapability,
+  visualizationSourceCapability,
+] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
   Schema.Number.pipe(Schema.int(), Schema.positive()),
@@ -45,6 +61,8 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(hostUiCapability),
   Schema.Literal(mcpAuthCapability),
   Schema.Literal(steerReceiptCapability),
+  Schema.Literal(workspaceAuthCapability),
+  Schema.Literal(visualizationSourceCapability),
 )
 
 const previousCapabilitySchema = Schema.Tuple(
@@ -60,6 +78,7 @@ const previousCapabilitySchema = Schema.Tuple(
   Schema.Literal(localCompactionCapability),
   Schema.Literal(hostUiCapability),
   Schema.Literal(mcpAuthCapability),
+  Schema.Literal(steerReceiptCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

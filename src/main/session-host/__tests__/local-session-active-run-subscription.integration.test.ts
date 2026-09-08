@@ -3,6 +3,7 @@ import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -85,7 +86,7 @@ describe('Local Session active-run subscriptions', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'test',
       }),

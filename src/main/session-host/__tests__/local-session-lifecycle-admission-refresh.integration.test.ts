@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import type { SessionLifecycleResponse } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -102,7 +103,7 @@ describe('Local Session lifecycle admission refresh', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'test',
       }),

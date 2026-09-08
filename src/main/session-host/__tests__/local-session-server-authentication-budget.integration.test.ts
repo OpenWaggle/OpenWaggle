@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import type { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
@@ -32,7 +33,7 @@ describe('Local Session authentication budget', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [7],
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
         clientKind: 'cli',
         clientVersion: 'authentication-throttle',
         profile,
@@ -79,7 +80,7 @@ describe('Local Session authentication budget', () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     await expect(attempt(endpoint, 'worker')).resolves.toMatchObject({
       accepted: true,
-      revision: 7,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
     })
     expect(authenticate).toHaveBeenCalledTimes(2)
   })
@@ -111,7 +112,7 @@ describe('Local Session authentication budget', () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     await expect(attempt(endpoint, 'worker')).resolves.toMatchObject({
       accepted: true,
-      revision: 7,
+      revision: LOCAL_SESSION_CURRENT_REVISION,
     })
     expect(authenticate).toHaveBeenCalledTimes(3)
   })

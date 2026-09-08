@@ -4,8 +4,8 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS } from '@shared/types/workspace-external-editor'
 import * as Effect from 'effect/Effect'
 import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../adapters/workspace-file-watcher'
+import { authorizeWorkspaceProject } from '../application/workspace-project-authorization'
 import { WorkspaceFileService } from '../ports/workspace-file-service'
-import { WorkspaceProjectAuthorization } from '../ports/workspace-project-authorization'
 import { invalidateGitStatusCache } from './git/status-cache'
 import { typedHandle } from './typed-ipc'
 
@@ -98,12 +98,7 @@ const entryMutationInputSchema = Schema.Struct({
 })
 
 function validatedProjectPath(rawProjectPath: string) {
-  return Effect.gen(function* () {
-    const authorization = yield* WorkspaceProjectAuthorization
-    return yield* authorization.authorize(
-      decodeUnknownOrThrow(nonEmptyStringSchema, rawProjectPath),
-    )
-  })
+  return authorizeWorkspaceProject(decodeUnknownOrThrow(nonEmptyStringSchema, rawProjectPath))
 }
 
 function registerWorkspaceFileReadHandlers() {

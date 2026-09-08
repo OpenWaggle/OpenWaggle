@@ -9,6 +9,7 @@ import type { ExplicitWaggleOperationJournal } from '../ports/explicit-waggle-op
 import type { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import type { ExtensionManagerService } from '../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
+import type { InlineVisualizationService } from '../ports/inline-visualization-service'
 import type { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import type { ProviderService } from '../ports/provider-service'
 import type { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
@@ -59,6 +60,7 @@ type SessionToolDependencies =
   | ExtensionManagerService
   | ExtensionProjectOverridesRepository
   | ExplicitWaggleOperationJournal
+  | InlineVisualizationService
   | LocalSessionProfileRepository
   | SessionAuthorizationTargetRepository
   | SessionControlAttachmentService
