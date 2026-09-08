@@ -21,7 +21,6 @@ import {
   extractPiAssistantTerminalError,
   getPiAssistantStopReason,
 } from '../pi-run-result'
-import { buildPiPromptInput, PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from '../pi-runtime-input'
 import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
@@ -45,6 +44,8 @@ import {
 } from './runtime-extension-isolation'
 import { createSessionManagerForSession } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
+
+export { promptPiSession } from './run-prompt'
 
 export interface PiRunSessionRuntime {
   readonly model: PiModel
@@ -242,29 +243,6 @@ async function abortPreCancelledRun(session: AgentSession, warning: string) {
     sessionSnapshot: projectPiSessionSnapshot(session),
     aborted: true,
   } satisfies AgentKernelRunResult
-}
-
-export async function promptPiSession(
-  session: AgentSession,
-  model: PiModel,
-  payload: HydratedAgentSendPayload,
-) {
-  const promptInput = buildPiPromptInput(model, payload)
-  if (promptInput.visualizationContext) {
-    await session.sendCustomMessage(
-      {
-        customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
-        content: promptInput.visualizationContext,
-        display: false,
-        details: { source: 'openwaggle', kind: 'inline-visualization-context' },
-      },
-      { deliverAs: 'nextTurn', triggerTurn: false },
-    )
-  }
-  await session.prompt(
-    promptInput.text,
-    promptInput.images.length > 0 ? { images: [...promptInput.images] } : undefined,
-  )
 }
 
 export async function runSubscribedPiOperation(input: {

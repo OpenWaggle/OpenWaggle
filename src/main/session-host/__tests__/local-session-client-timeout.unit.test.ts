@@ -1,7 +1,32 @@
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { describe, expect, it } from 'vitest'
 import { resolveLocalSessionCommandTimeoutMs } from '../local-session-client'
 
 describe('Local Session client command timeout', () => {
+  it.each(['steer', 'promote'] as const)(
+    'waits for %s delivery through automatic compaction unless the caller sets a deadline',
+    (operation) => {
+      const payload: LocalSessionCommandPayload = {
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: 2,
+          requestId: 'compaction-steer',
+          idempotencyKey: 'compaction-steer',
+          command:
+            operation === 'steer'
+              ? {
+                  operation,
+                  sessionId: 'session',
+                  expectedRunId: 'run',
+                  input: { text: 'Continue here', attachmentIds: [] },
+                }
+              : { operation, sessionId: 'session', expectedRunId: 'run', followUpId: 'queued' },
+        },
+      }
+      expect(resolveLocalSessionCommandTimeoutMs(payload)).toBeUndefined()
+      expect(resolveLocalSessionCommandTimeoutMs(payload, 60_000)).toBe(60_000)
+    },
+  )
   it('keeps long-poll transport timeouts beyond the requested Session wait', () => {
     expect(
       resolveLocalSessionCommandTimeoutMs({

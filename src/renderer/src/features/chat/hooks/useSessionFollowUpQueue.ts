@@ -9,6 +9,10 @@ import type { SessionQueryOutcome } from '@shared/types/session-query'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import { queryOptions, type UseQueryOptions, useQuery } from '@tanstack/react-query'
+import {
+  GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
+  isGuiOnlyComposerCommand,
+} from '@/features/composer/commands'
 import { api } from '@/shared/lib/ipc'
 
 export interface SessionFollowUpQueueItem {
@@ -158,6 +162,9 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
 
   async function enqueue(payload: AgentSendPayload) {
     if (!sessionId) throw new Error('Select a Session before queueing a Follow-up.')
+    if (isGuiOnlyComposerCommand(payload.text)) {
+      throw new Error(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
+    }
     await mutate({
       operation: 'follow-up',
       sessionId,
@@ -182,6 +189,12 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
 
   async function promote(followUpId: string) {
     if (!sessionId) return
+    const item = query.data?.items.find((candidate) => candidate.id === followUpId)
+    if (item && isGuiOnlyComposerCommand(item.text)) {
+      throw new Error(
+        'This command cannot steer a Run. Dismiss the queued command, wait for the active Run to finish, then submit it again.',
+      )
+    }
     const activeRunId = query.data?.activeRunId
     if (!activeRunId) throw new Error('The Session no longer has an active Run to steer.')
     await mutate({

@@ -40,6 +40,12 @@ function pathIndexIsCurrent(state: ExportPathIndexStateRow) {
   return state.indexed_topology_revision === state.topology_revision
 }
 
+export function exportPathCheckpointsAreCurrent(sql: SqlClient.SqlClient, sessionId: string) {
+  return readExportPathIndexState(sql, sessionId).pipe(
+    Effect.map((state) => state !== undefined && pathIndexIsCurrent(state)),
+  )
+}
+
 function missingPathIndexState() {
   return new Error('Export path index state is missing for the Session.')
 }

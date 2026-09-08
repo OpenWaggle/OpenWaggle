@@ -1,14 +1,11 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import lockfile from 'proper-lockfile'
+import { DatabaseSync } from 'node:sqlite'
+import { setTimeout } from 'node:timers/promises'
 
-// Keep stale takeover beyond the supported 15-minute Host drain window. The heartbeat normally
-// refreshes every 30 seconds, but a synchronous native cutover must not let another process steal
-// the canonical database merely because the JavaScript event loop was temporarily blocked.
-const OWNERSHIP_LOCK_STALE_MS = 16 * 60_000
-const OWNERSHIP_LOCK_UPDATE_MS = 30_000
 const OWNERSHIP_HANDOFF_RETRY_MS = 5
-const OWNERSHIP_HANDOFF_RETRIES = 200
+const OWNERSHIP_HANDOFF_TIMEOUT_MS = 1000
+const SQLITE_BUSY = 5
 
 export interface AcquireSessionHostOwnershipOptions {
   readonly timeoutMs?: number
@@ -19,32 +16,50 @@ export interface SessionHostOwnership {
   readonly release: () => Promise<void>
 }
 
-/** Holds exclusive ownership of the canonical Session Host store for the process lifetime. */
+function tryAcquireOwnershipDatabase(ownershipPath: string) {
+  const database = new DatabaseSync(ownershipPath)
+  try {
+    // Exclusive locking mode retains the OS file lock across commits until this connection closes.
+    // Unlike an mtime lease, a stopped JS event loop cannot lose it and process death releases it.
+    database.exec(`
+      PRAGMA locking_mode = EXCLUSIVE;
+      BEGIN EXCLUSIVE;
+      CREATE TABLE IF NOT EXISTS ownership (singleton INTEGER PRIMARY KEY CHECK (singleton = 1));
+      COMMIT;
+    `)
+    return database
+  } catch (cause) {
+    database.close()
+    if (cause instanceof Error && 'errcode' in cause && cause.errcode === SQLITE_BUSY) return null
+    throw cause
+  }
+}
+
+/**
+ * Holds exclusive ownership independently of the canonical database, including during cutover.
+ * The ownership file lives in private user data and must never be removed or replaced: successors
+ * open the same inode and let SQLite prove that its previous OS lock has been released.
+ */
 export async function acquireSessionHostOwnership(
   targetPath: string,
   options: AcquireSessionHostOwnershipOptions = {},
 ): Promise<SessionHostOwnership> {
   await mkdir(path.dirname(targetPath), { recursive: true })
-  const retries =
-    options.timeoutMs === undefined
-      ? OWNERSHIP_HANDOFF_RETRIES
-      : Math.ceil(options.timeoutMs / OWNERSHIP_HANDOFF_RETRY_MS)
-  const releaseLock = await lockfile.lock(targetPath, {
-    realpath: false,
-    stale: OWNERSHIP_LOCK_STALE_MS,
-    update: OWNERSHIP_LOCK_UPDATE_MS,
-    retries: {
-      retries,
-      factor: 1,
-      minTimeout: OWNERSHIP_HANDOFF_RETRY_MS,
-      maxTimeout: OWNERSHIP_HANDOFF_RETRY_MS,
-    },
-  })
+  const deadline = performance.now() + (options.timeoutMs ?? OWNERSHIP_HANDOFF_TIMEOUT_MS)
+  let database = tryAcquireOwnershipDatabase(`${targetPath}.ownership.sqlite`)
+  while (!database) {
+    if (performance.now() >= deadline) {
+      throw Object.assign(new Error('Session Host ownership is already held.'), { code: 'ELOCKED' })
+    }
+    await setTimeout(OWNERSHIP_HANDOFF_RETRY_MS)
+    database = tryAcquireOwnershipDatabase(`${targetPath}.ownership.sqlite`)
+  }
+  const ownedDatabase = database
   let releasePromise: Promise<void> | null = null
   return {
     targetPath,
     release: () => {
-      releasePromise ??= releaseLock()
+      releasePromise ??= Promise.resolve().then(() => ownedDatabase.close())
       return releasePromise
     },
   }

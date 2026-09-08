@@ -7,12 +7,14 @@ import {
   claimSessionWriterSuccessor,
   claimSessionWriterSuccessorAndWait,
   getAllActiveRunSessionIds,
+  hasAnyActiveRun,
   interruptExactSessionRun,
   interruptSessionWriterAndWait,
   releaseClaimedSessionWriterSuccessor,
   requestExactSessionRunInterruption,
   reserveActiveSessionRun,
   reserveCompactionSessionWriter,
+  reservePendingClassicSessionRun,
   reservePendingWaggleSessionRun,
   reserveSessionTreeMutation,
   reserveWaggleSessionWriter,
@@ -58,6 +60,25 @@ describe('active Session Runs', () => {
 
     pending.release()
     expect(getAllActiveRunSessionIds()).not.toContain(sessionId)
+  })
+
+  it('retains pending classic ownership across cancellation until durable settlement', () => {
+    const sessionId = SessionId('session-cancelled-pending-classic')
+    const pending = reservePendingClassicSessionRun(sessionId, 'pending-classic')
+    expect(requestExactSessionRunInterruption(sessionId, 'other-run')).toBe(false)
+    expect(pending.controller.signal.aborted).toBe(false)
+
+    expect(cancelAllSessionRuns()).toContain(sessionId)
+    expect(pending.controller.signal.aborted).toBe(true)
+    expect(getAllActiveRunSessionIds()).toContain(sessionId)
+    expect(hasAnyActiveRun(sessionId)).toBe(true)
+    expect(() => reservePendingClassicSessionRun(sessionId, 'racing-classic')).toThrow(
+      'already has a pending classic run',
+    )
+
+    pending.release()
+    expect(getAllActiveRunSessionIds()).not.toContain(sessionId)
+    expect(hasAnyActiveRun(sessionId)).toBe(false)
   })
 
   it('waits for the exact interrupted Run to finish cleanup', async () => {

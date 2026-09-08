@@ -2,6 +2,7 @@ import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
+import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import { useComposerStore } from '../state/composer-store'
@@ -89,6 +90,10 @@ export function useComposerSubmission({
       return { type: 'blocked' } satisfies DispatchResult
     }
     if (isLoading && allowEnqueue) {
+      if (isGuiOnlyComposerCommand(payload.text)) {
+        onToast?.(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
+        return { type: 'blocked' } satisfies DispatchResult
+      }
       const completion = callAsPromise(() => onEnqueue(payload))
       consumeSendResult(completion)
       return { type: 'queued', completion } satisfies DispatchResult

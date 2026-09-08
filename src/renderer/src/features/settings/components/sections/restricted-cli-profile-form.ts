@@ -1,5 +1,8 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
-import type { LocalSessionProfileScope } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionProfileManagementEnvelope,
+  LocalSessionProfileScope,
+} from '@shared/types/local-session-profile'
 import type { LocalSessionProfileSummary } from '@shared/types/local-session-profile-management'
 import { SESSION_CAPABILITIES, type SessionCapability } from '@shared/types/session-capability'
 import { useState } from 'react'
@@ -16,16 +19,24 @@ function lines(value: string) {
 }
 
 function resolvedScope(input: {
+  readonly profile?: LocalSessionProfileSummary
   readonly all: boolean
   readonly projectPaths: string
   readonly sessionIds: string
   readonly hiveRootSessionIds: string
 }): LocalSessionProfileScope {
-  if (input.all) return { all: true }
+  const retainedRoots = {
+    ...(input.profile?.scope.exportRoots ? { exportRoots: input.profile.scope.exportRoots } : {}),
+    ...(input.profile?.scope.attachmentRoots
+      ? { attachmentRoots: input.profile.scope.attachmentRoots }
+      : {}),
+  }
+  if (input.all) return { ...retainedRoots, all: true }
   const projectPaths = lines(input.projectPaths)
   const sessionIds = lines(input.sessionIds)
   const hiveRootSessionIds = lines(input.hiveRootSessionIds)
   return {
+    ...retainedRoots,
     ...(projectPaths.length > 0 ? { projectPaths } : {}),
     ...(sessionIds.length > 0 ? { sessionIds } : {}),
     ...(hiveRootSessionIds.length > 0 ? { hiveRootSessionIds } : {}),
@@ -47,11 +58,7 @@ export interface RestrictedCliProfileSaveCommand {
   readonly capabilities: readonly SessionCapability[]
   readonly scope: LocalSessionProfileScope
   readonly authorizationCeiling: AgentAuthorizationMode
-  readonly managementEnvelope?: {
-    readonly capabilities: readonly SessionCapability[]
-    readonly scope: LocalSessionProfileScope
-    readonly authorizationCeiling: AgentAuthorizationMode
-  }
+  readonly managementEnvelope?: LocalSessionProfileManagementEnvelope
 }
 
 function saveCommand(input: {
@@ -61,21 +68,24 @@ function saveCommand(input: {
   readonly scope: LocalSessionProfileScope
   readonly authorizationCeiling: AgentAuthorizationMode
 }): RestrictedCliProfileSaveCommand {
+  // Existing delegation limits are not editable in this form. A visible policy
+  // change must not grant broader child-profile authority as a side effect.
+  const managementEnvelope = input.capabilities.includes('access:profiles')
+    ? input.profile?.capabilities.includes('access:profiles')
+      ? input.profile.managementEnvelope
+      : {
+          capabilities: input.capabilities.filter((item) => item !== 'access:profiles'),
+          scope: input.scope,
+          authorizationCeiling: input.authorizationCeiling,
+        }
+    : undefined
   return {
     operation: input.profile ? 'update' : 'create',
     name: input.name,
     capabilities: input.capabilities,
     scope: input.scope,
     authorizationCeiling: input.authorizationCeiling,
-    ...(input.capabilities.includes('access:profiles')
-      ? {
-          managementEnvelope: {
-            capabilities: input.capabilities.filter((item) => item !== 'access:profiles'),
-            scope: input.scope,
-            authorizationCeiling: input.authorizationCeiling,
-          },
-        }
-      : {}),
+    ...(managementEnvelope ? { managementEnvelope } : {}),
   }
 }
 
@@ -161,7 +171,13 @@ export function useRestrictedCliProfileForm(input: {
 
   async function submit() {
     const selectedName = name.trim()
-    const scope = resolvedScope({ all, projectPaths, sessionIds, hiveRootSessionIds })
+    const scope = resolvedScope({
+      profile: input.profile,
+      all,
+      projectPaths,
+      sessionIds,
+      hiveRootSessionIds,
+    })
     if (!selectedName) return setError('Give the profile a name.')
     if (scopeIsEmpty(scope)) {
       return setError('Choose at least one project, Session, Hive, or all Sessions.')

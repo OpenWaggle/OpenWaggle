@@ -249,13 +249,10 @@ describe('Local Session Host launcher', () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValue(true)
     const probe = vi.fn().mockRejectedValueOnce(pending).mockResolvedValue(accepted)
-    const tryAcquireOwnership = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        targetPath: paths.databasePath,
-        release: vi.fn(async () => undefined),
-      })
+    const tryAcquireOwnership = vi.fn().mockResolvedValueOnce({
+      targetPath: paths.databasePath,
+      release: vi.fn(async () => undefined),
+    })
     const launcher = dependencies({ canConnect, probe, tryAcquireOwnership })
 
     await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
@@ -263,6 +260,7 @@ describe('Local Session Host launcher', () => {
     expect(launcher.launch).toHaveBeenCalledOnce()
     expect(launcher.wait).toHaveBeenCalled()
     expect(probe).toHaveBeenCalledTimes(3)
+    expect(tryAcquireOwnership).toHaveBeenCalledOnce()
   })
 
   it('attaches when a compatible endpoint appears while ownership stays fenced', async () => {
@@ -277,7 +275,7 @@ describe('Local Session Host launcher', () => {
     expect(tryAcquireOwnership).toHaveBeenCalledOnce()
   })
 
-  it('preserves upgrade blockers when ownership is not released before the deadline', async () => {
+  it('preserves upgrade blockers even when an older Host does not use the current ownership file', async () => {
     const pending = new LocalSessionHostUpgradePendingError(
       'host-old',
       [{ sessionId: 'session-live', runId: 'run-live' }],
@@ -285,7 +283,6 @@ describe('Local Session Host launcher', () => {
     )
     const launcher = dependencies({
       probe: vi.fn(async () => Promise.reject(pending)),
-      tryAcquireOwnership: vi.fn(async () => null),
     })
 
     await expect(
@@ -293,5 +290,6 @@ describe('Local Session Host launcher', () => {
     ).rejects.toBe(pending)
 
     expect(launcher.launch).not.toHaveBeenCalled()
+    expect(launcher.tryAcquireOwnership).not.toHaveBeenCalled()
   })
 })

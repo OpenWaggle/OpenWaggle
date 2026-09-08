@@ -2,7 +2,9 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import {
   cancelCompactionSessionRun,
@@ -75,7 +77,7 @@ function runManualSessionCompaction(input: {
     )
     input.signal?.addEventListener('abort', abort, { once: true })
     if (input.signal?.aborted) abort()
-    let delayedSuccessfulEnd: Extract<AgentTransportEvent, { type: 'compaction_end' }> | null = null
+    let terminalEvent: Extract<AgentTransportEvent, { type: 'compaction_end' }> | null = null
     const compact = compactAgentSession({
       sessionId,
       model: SupportedModelId(request.model),
@@ -84,41 +86,38 @@ function runManualSessionCompaction(input: {
         : {}),
       signal: abortController.signal,
       onEvent: (event) => {
-        if (event.type === 'compaction_end' && !event.aborted && !event.errorMessage) {
-          delayedSuccessfulEnd = event
+        if (event.type === 'compaction_end') {
+          terminalEvent = event
           return
         }
         publishCompactionEvent(sessionId, event)
       },
     }).pipe(
-      Effect.tapError((error) =>
-        Effect.sync(() => {
-          if (!delayedSuccessfulEnd) return
-          publishCompactionEvent(sessionId, {
-            ...delayedSuccessfulEnd,
-            aborted: true,
-            willRetry: false,
-            errorMessage: error instanceof Error ? error.message : String(error),
-            timestamp: Date.now(),
-          })
-          delayedSuccessfulEnd = null
-        }),
-      ),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          if (delayedSuccessfulEnd) publishCompactionEvent(sessionId, delayedSuccessfulEnd)
-        }),
-      ),
       Effect.map((result) => ({
         contract: 'local-compaction-v1' as const,
         response: { requestId: request.requestId, sessionId: request.sessionId, result },
       })),
     )
     return yield* compact.pipe(
-      Effect.ensuring(
+      Effect.onExit((exit) =>
         Effect.sync(() => {
           input.signal?.removeEventListener('abort', abort)
           writer.release()
+          // Always settle restored GUI activity, including preflight failures
+          // before Pi emits a start. Publish synchronously before the released
+          // writer's successor resumes, so completion cannot clear its state.
+          publishCompactionEvent(sessionId, {
+            type: 'compaction_end',
+            reason: 'manual',
+            aborted: false,
+            willRetry: false,
+            result: null,
+            ...terminalEvent,
+            ...(Exit.isFailure(exit)
+              ? { aborted: true, willRetry: false, errorMessage: Cause.pretty(exit.cause) }
+              : {}),
+            timestamp: Date.now(),
+          })
         }),
       ),
     )

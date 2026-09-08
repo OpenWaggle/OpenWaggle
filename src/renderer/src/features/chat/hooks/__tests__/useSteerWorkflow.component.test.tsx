@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useSteerWorkflow } from '../useSteerWorkflow'
 
 function deferred() {
-  let resolve = () => {
+  let resolve: () => void = () => {
     throw new Error('Not initialized')
   }
   const promise = new Promise<void>((settle) => {
@@ -16,7 +16,7 @@ function deferred() {
 function setup() {
   return {
     activeSessionId: SessionId('session-1'),
-    promoteFollowUp: vi.fn(async (_id: string) => undefined),
+    promoteFollowUp: vi.fn(async (_id: string): Promise<void> => undefined),
     withDeferredSnapshotRefresh: <T,>(operation: () => Promise<T>) => operation(),
     showToast: vi.fn(),
   }

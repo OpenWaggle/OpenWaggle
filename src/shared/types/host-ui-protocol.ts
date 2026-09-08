@@ -30,12 +30,14 @@ export const HOST_BACKED_MCP_GUI_CHANNELS_REVISION_6 = [
 ] as const satisfies readonly IpcInvokeChannel[]
 
 export const HOST_UI_REVISION_7_REQUIRED_CHANNELS = [
+  'agent:list-active-runs',
   'mcp:logout-server',
   'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
 /** Channels introduced in revision 7. Changed channels may still have a legacy dispatcher. */
 export const HOST_UI_REVISION_7_NEW_CHANNELS = [
+  'agent:list-active-runs',
   'mcp:authorize-server',
 ] as const satisfies readonly IpcInvokeChannel[]
 
@@ -49,6 +51,7 @@ export const HOST_BACKED_MCP_GUI_CHANNELS = [
  * Adding a channel is a protocol change and must be reviewed alongside its Host dispatcher.
  */
 export const HOST_BACKED_GUI_CHANNELS = [
+  'agent:list-active-runs',
   'agent:get-context-usage',
   'sessions:get-detail',
   'sessions:create',

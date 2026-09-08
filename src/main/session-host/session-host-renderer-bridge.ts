@@ -59,6 +59,15 @@ export function relaySessionHostEvent(
     emitTransportEvent(sessionId, delivery.payload.event, {
       projectStreamBuffer: !options.streamBufferAlreadyProjected,
     })
+    // Manual compaction is standalone activity, including after a GUI reconnect
+    // that missed its start event. The owner publishes its end after releasing
+    // the writer, before a queued successor can start.
+    if (
+      delivery.payload.event.type === 'compaction_end' &&
+      delivery.payload.event.reason === 'manual'
+    ) {
+      emitRunCompleted(sessionId)
+    }
     return
   }
   if (delivery.payload.kind === 'session-waggle-transport') {

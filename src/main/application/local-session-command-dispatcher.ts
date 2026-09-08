@@ -33,7 +33,10 @@ import {
   withSessionAttachmentTransition,
 } from './session-attachment-cleanup'
 import { bindSessionControlAttachments } from './session-control-command-attachments'
-import { executeSessionControlMutation } from './session-control-command-service'
+import {
+  executeSessionControlMutation,
+  isSessionControlInterruption,
+} from './session-control-command-service'
 import { publishControlResponse } from './session-control-event-projection'
 import { executeSessionLifecycleCommand } from './session-lifecycle-command-service'
 import {
@@ -103,29 +106,33 @@ export function dispatchAdmittedSessionControlCommand(input: {
   readonly payload: Extract<LocalSessionCommandPayload, { readonly contract: 'session-control-v2' }>
 }) {
   const sessionId = input.payload.request.command.sessionId
+  const executeCommand = Effect.gen(function* () {
+    yield* bindSessionControlAttachments(input.caller, input.payload)
+    const settings = yield* SettingsService
+    const snapshot = yield* settings.get()
+    const authority = profileAuthorityForCapabilities(
+      input.caller,
+      requiredSessionControlCapabilities(input.payload.request.command),
+    )
+    const response = yield* executeSessionControlMutation({
+      callerId: input.caller.callerId,
+      caller: input.caller,
+      hostRunCeiling: snapshot.sessionHostRunCeiling,
+      ...(authority ? { authority } : {}),
+      request: input.payload.request,
+    })
+    publishControlResponse(response)
+    return { contract: 'session-control-v2', response } as const
+  })
+  if (isSessionControlInterruption(input.payload.request.command)) {
+    return executeCommand.pipe(Effect.uninterruptible)
+  }
   return Effect.gen(function* () {
     const attachmentService = yield* SessionControlAttachmentService
     return yield* preserveOutcomeAfterAttachmentCleanup({
       effect: withSessionAttachmentTransition({
         sessionId,
-        effect: Effect.gen(function* () {
-          yield* bindSessionControlAttachments(input.caller, input.payload)
-          const settings = yield* SettingsService
-          const snapshot = yield* settings.get()
-          const authority = profileAuthorityForCapabilities(
-            input.caller,
-            requiredSessionControlCapabilities(input.payload.request.command),
-          )
-          const response = yield* executeSessionControlMutation({
-            callerId: input.caller.callerId,
-            caller: input.caller,
-            hostRunCeiling: snapshot.sessionHostRunCeiling,
-            ...(authority ? { authority } : {}),
-            request: input.payload.request,
-          })
-          publishControlResponse(response)
-          return { contract: 'session-control-v2', response } as const
-        }),
+        effect: executeCommand,
       }),
       cleanup: withSessionAttachmentTransition({
         sessionId,

@@ -10,26 +10,26 @@ import type {
 import { type SessionId, SupportedModelId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import { retainedBytesAfterTextAppend, retainedPartsBytes } from './stream-buffer-byte-accounting'
-import {
-  appendReasoningPart,
-  appendTextPart,
-  upsertToolCallPart,
-} from './stream-buffer-message-parts'
+import { upsertToolCallPart } from './stream-buffer-message-parts'
 import {
   type ActiveStreamBuffer,
-  exceedsStreamBufferLimit,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
   MAX_DEGRADED_TOOL_CALL_IDS,
   MAX_TOTAL_STREAM_BUFFER_BYTES,
   restoreStreamBufferSnapshots,
-  retainDegradedToolCallId,
   retainedStreamBufferBytes,
   toStreamBufferSnapshot,
   withoutRetainedStreamContent,
   withWorktreeLaunchSnapshot,
 } from './stream-buffer-snapshots'
 import { applyToolExecutionEndToParts } from './stream-buffer-tool-parts'
+import {
+  appendStreamBufferText,
+  appendStreamBufferToolCallDelta,
+  type StreamBufferUpdate,
+  updateStreamBufferActivityEvents,
+  updateStreamBufferParts,
+} from './stream-buffer-updates'
 
 export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS, MAX_TOTAL_STREAM_BUFFER_BYTES }
 
@@ -48,91 +48,40 @@ function resetBufferedParts(sessionId: SessionId) {
   activeBuffers.set(sessionId, withoutRetainedStreamContent(buffer))
 }
 
+function applyBufferedUpdate(
+  sessionId: SessionId,
+  update: (buffer: ActiveStreamBuffer) => StreamBufferUpdate,
+) {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  const result = update(buffer)
+  totalRetainedBytes += result.retainedDelta
+  activeBuffers.set(sessionId, result.buffer)
+}
+
 function updateBufferedParts(
   sessionId: SessionId,
   update: (parts: readonly MessagePart[]) => readonly MessagePart[],
   attemptedContentBytes?: number,
 ) {
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return
-  const parts = update(buffer.parts)
-  const retainedBytes = retainedPartsBytes(parts)
-  const retainedDelta = retainedBytes - buffer.retainedBytes
-  if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {
-    activeBuffers.set(sessionId, {
-      ...buffer,
-      omittedBytes: buffer.omittedBytes + (attemptedContentBytes ?? Math.max(0, retainedDelta)),
-    })
-    return
-  }
-  totalRetainedBytes += retainedDelta
-  activeBuffers.set(sessionId, {
-    ...buffer,
-    parts,
-    retainedBytes,
-  })
+  applyBufferedUpdate(sessionId, (buffer) =>
+    updateStreamBufferParts(buffer, update, totalRetainedBytes, attemptedContentBytes),
+  )
 }
 
 function appendBufferedToolCallDelta(
   sessionId: SessionId,
   input: { readonly toolCallId: string; readonly delta: string; readonly args: JsonValue },
 ) {
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return
-  const deltaBytes = Buffer.byteLength(input.delta, 'utf8')
-  if (buffer.degradedToolCallIds.has(input.toolCallId)) {
-    activeBuffers.set(sessionId, {
-      ...buffer,
-      omittedBytes: buffer.omittedBytes + deltaBytes,
-    })
-    return
-  }
-  const parts = upsertToolCallPart({
-    parts: buffer.parts,
-    toolCallId: input.toolCallId,
-    args: input.args,
-  })
-  const hasExistingPart = buffer.parts.some(
-    (part) => part.type === 'tool-call' && String(part.toolCall.id) === input.toolCallId,
+  applyBufferedUpdate(sessionId, (buffer) =>
+    appendStreamBufferToolCallDelta(buffer, input, totalRetainedBytes),
   )
-  const retainedBytes = hasExistingPart
-    ? buffer.retainedBytes + deltaBytes
-    : retainedPartsBytes(parts)
-  const retainedDelta = retainedBytes - buffer.retainedBytes
-  if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {
-    const degraded = retainDegradedToolCallId(buffer, input.toolCallId, totalRetainedBytes)
-    totalRetainedBytes += degraded.retainedDelta
-    activeBuffers.set(sessionId, {
-      ...degraded.buffer,
-      omittedBytes: buffer.omittedBytes + deltaBytes,
-    })
-    return
-  }
-  totalRetainedBytes += retainedDelta
-  activeBuffers.set(sessionId, { ...buffer, parts, retainedBytes })
 }
 
 function appendBufferedText(sessionId: SessionId, type: 'text' | 'reasoning', delta: string) {
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return
-  const parts =
-    type === 'text' ? appendTextPart(buffer.parts, delta) : appendReasoningPart(buffer.parts, delta)
-  const retainedBytes = retainedBytesAfterTextAppend({
-    parts: buffer.parts,
-    retainedBytes: buffer.retainedBytes,
-    type,
-    delta,
-  })
-  const retainedDelta = retainedBytes - buffer.retainedBytes
-  if (exceedsStreamBufferLimit(buffer, retainedBytes, totalRetainedBytes, retainedDelta)) {
-    activeBuffers.set(sessionId, {
-      ...buffer,
-      omittedBytes: buffer.omittedBytes + Buffer.byteLength(delta, 'utf8'),
-    })
-    return
-  }
-  totalRetainedBytes += retainedDelta
-  activeBuffers.set(sessionId, { ...buffer, parts, retainedBytes })
+  applyBufferedUpdate(sessionId, (buffer) =>
+    appendStreamBufferText(buffer, type, delta, totalRetainedBytes),
+  )
 }
 
 function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: string) {
@@ -148,23 +97,9 @@ function updateBufferedActivityEvents(
   sessionId: SessionId,
   update: (events: readonly BackgroundRunActivityEvent[]) => readonly BackgroundRunActivityEvent[],
 ) {
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return
-  const activityEvents = update(buffer.activityEvents ?? [])
-  const activityEventsBytes =
-    activityEvents.length > 0 ? Buffer.byteLength(JSON.stringify(activityEvents), 'utf8') : 0
-  const retainedDelta = activityEventsBytes - (buffer.activityEventsBytes ?? 0)
-  if (
-    retainedStreamBufferBytes(buffer) + retainedDelta > MAX_ACTIVE_STREAM_BUFFER_BYTES ||
-    totalRetainedBytes + retainedDelta > MAX_TOTAL_STREAM_BUFFER_BYTES
+  applyBufferedUpdate(sessionId, (buffer) =>
+    updateStreamBufferActivityEvents(buffer, update, totalRetainedBytes),
   )
-    return
-  totalRetainedBytes += retainedDelta
-  activeBuffers.set(sessionId, {
-    ...buffer,
-    activityEvents,
-    activityEventsBytes,
-  })
 }
 
 function applyMessageUpdateToStreamBuffer(

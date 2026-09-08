@@ -24,28 +24,34 @@ function boundedResponseStream(
   let previousWasCarriageReturn = false
   let carriageReturnEndedBlankLine = false
 
+  function accountForLineBoundary(byte: number) {
+    if (byte === CARRIAGE_RETURN) {
+      carriageReturnEndedBlankLine = !lineHasContent
+      if (carriageReturnEndedBlankLine) eventBytes = 0
+      lineHasContent = false
+      previousWasCarriageReturn = true
+      return
+    }
+    if (byte === LINE_FEED) {
+      if (previousWasCarriageReturn) {
+        if (carriageReturnEndedBlankLine) eventBytes = 0
+      } else {
+        if (!lineHasContent) eventBytes = 0
+        lineHasContent = false
+      }
+      previousWasCarriageReturn = false
+      carriageReturnEndedBlankLine = false
+      return
+    }
+    lineHasContent = true
+    previousWasCarriageReturn = false
+    carriageReturnEndedBlankLine = false
+  }
+
   function accountForEventBytes(chunk: Uint8Array) {
     for (const byte of chunk) {
       eventBytes += 1
-      if (byte === 13) {
-        carriageReturnEndedBlankLine = !lineHasContent
-        if (carriageReturnEndedBlankLine) eventBytes = 0
-        lineHasContent = false
-        previousWasCarriageReturn = true
-      } else if (byte === 10) {
-        if (previousWasCarriageReturn) {
-          if (carriageReturnEndedBlankLine) eventBytes = 0
-        } else {
-          if (!lineHasContent) eventBytes = 0
-          lineHasContent = false
-        }
-        previousWasCarriageReturn = false
-        carriageReturnEndedBlankLine = false
-      } else {
-        lineHasContent = true
-        previousWasCarriageReturn = false
-        carriageReturnEndedBlankLine = false
-      }
+      accountForLineBoundary(byte)
       if (eventBytes > maxBytes) throw responseLimitError(maxBytes)
     }
   }
@@ -91,3 +97,5 @@ export function limitMcpResponseBytes(response: Response, maxBytes: number) {
   if (response.url) Object.defineProperty(limited, 'url', { value: response.url })
   return limited
 }
+const CARRIAGE_RETURN = 13
+const LINE_FEED = 10

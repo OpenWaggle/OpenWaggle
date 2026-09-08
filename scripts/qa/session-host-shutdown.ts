@@ -23,7 +23,7 @@ const QA_HOST_CLIENT_VERSION = 'qa-graceful-shutdown'
 const FUTURE_PROTOCOL_REVISION = LOCAL_SESSION_CURRENT_REVISION + 1
 const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
 const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
-const PROPER_LOCKFILE_SUFFIX = '.lock'
+const OWNERSHIP_DATABASE_SUFFIX = '.ownership.sqlite'
 
 type AfterOwnershipReleased = () => Promise<void>
 type WhileOwnershipHeld = (
@@ -54,10 +54,6 @@ function isUnavailable(error: unknown) {
   )
 }
 
-function isMissing(error: unknown) {
-  return hasErrorCode(error, 'ENOENT')
-}
-
 function containsPath(directory: string, candidate: string) {
   const relative = path.relative(directory, candidate)
   return (
@@ -84,35 +80,23 @@ async function removeEntriesExcept(root: string, preservedPath: string): Promise
   }
 }
 
-async function removeEmptyOwnershipParents(userDataRoot: string, lockPath: string) {
-  let candidate = path.dirname(lockPath)
-  while (containsPath(userDataRoot, candidate)) {
-    try {
-      await fs.rmdir(candidate)
-    } catch (error) {
-      if (!isMissing(error)) throw error
-    }
-    if (candidate === userDataRoot) return
-    candidate = path.dirname(candidate)
-  }
-}
-
 /**
- * Deletes QA profile data without deleting the live proper-lockfile lease. The returned finalizer
- * removes only the empty lock-parent chain after ownership is released, so a competing Host that
- * reacquires first makes cleanup fail closed instead of having its new profile recursively removed.
+ * Deletes QA profile data while retaining the persistent SQLite ownership file and its parents.
+ * This small, sanitized profile skeleton must remain after release: a successor can already hold
+ * its inode, and unlinking it would let a third Host acquire a replacement file concurrently.
+ * The finalizer deliberately performs no filesystem work after ownership has been released.
  */
 export async function prepareQaProfileRemoval(
   userDataRoot: string,
   ownership: SessionHostOwnership,
 ): Promise<AfterOwnershipReleased> {
   const profileRoot = path.resolve(userDataRoot)
-  const lockPath = path.resolve(`${ownership.targetPath}${PROPER_LOCKFILE_SUFFIX}`)
+  const lockPath = path.resolve(`${ownership.targetPath}${OWNERSHIP_DATABASE_SUFFIX}`)
   if (lockPath === profileRoot || !containsPath(profileRoot, lockPath)) {
     throw new Error(`Session Host ownership lock is outside the QA profile: ${lockPath}.`)
   }
   await removeEntriesExcept(profileRoot, lockPath)
-  return () => removeEmptyOwnershipParents(profileRoot, lockPath)
+  return () => Promise.resolve()
 }
 
 function canConnect(endpoint: string) {

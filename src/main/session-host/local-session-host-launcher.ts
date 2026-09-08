@@ -274,6 +274,10 @@ async function waitForLocalSessionHostAuthority(
         if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
         upgradePendingError = error
       }
+      // An older executable may use a different ownership mechanism. Its authenticated listener
+      // remains authoritative until it closes, even if this version's ownership file is available.
+      await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
+      continue
     }
     const ownership = await dependencies.tryAcquireOwnership(input.paths.databasePath)
     if (ownership) {

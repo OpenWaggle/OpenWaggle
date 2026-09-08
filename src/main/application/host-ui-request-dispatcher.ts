@@ -6,7 +6,7 @@ import type { LocalSessionCommandResult } from '@shared/types/local-session-prot
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { manageHostUiAgentDefinitions } from './host-ui-agent-definition-operation'
-import { getHostUiAgentContextUsage } from './host-ui-agent-operation'
+import { getHostUiAgentContextUsage, listHostUiActiveActivities } from './host-ui-agent-operation'
 import { discoverHostUiDocs } from './host-ui-docs-operation'
 import {
   acceptHostUiExtensionUpdate,
@@ -38,6 +38,7 @@ import {
   dispatchHostBackedSessionGuiOperation,
   isHostBackedSessionGuiChannel,
 } from './host-ui-session-operation-dispatcher'
+import { dispatchHostUiSkillsOperation } from './host-ui-skill-operation-dispatcher'
 import { createHostUiWorktree, removeHostUiWorktree } from './host-ui-worktree-operation'
 import { setProjectPreferencesOperation } from './project-preferences-operation'
 import {
@@ -46,11 +47,6 @@ import {
   testApiKeyOperation,
   updateSettingsOperation,
 } from './settings-operations'
-import {
-  getSkillPreviewOperation,
-  listSkillsOperation,
-  setSkillEnabledOperation,
-} from './skill-operations'
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -164,40 +160,6 @@ function dispatchExtensionOperation(
     .exhaustive()
 }
 
-function dispatchSkillsOperation(
-  channel: Extract<HostBackedGuiChannel, `skills:${string}`>,
-  args: readonly unknown[],
-) {
-  return match(channel)
-    .with('skills:list', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 1)
-        const projectPath = yield* requiredHostUiString(args[0], 'Project path')
-        return yield* listSkillsOperation(projectPath)
-      }),
-    )
-    .with('skills:set-enabled', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, THREE_ARGUMENTS)
-        const projectPath = yield* requiredHostUiString(args[0], 'Project path')
-        const skillId = yield* requiredHostUiString(args[1], 'Skill ID')
-        if (typeof args[TWO_ARGUMENTS] !== 'boolean') {
-          return yield* invalidHostUiInput('Skill enabled must be a boolean.')
-        }
-        return yield* setSkillEnabledOperation(projectPath, skillId, args[TWO_ARGUMENTS])
-      }),
-    )
-    .with('skills:get-preview', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
-        const projectPath = yield* requiredHostUiString(args[0], 'Project path')
-        const skillId = yield* requiredHostUiString(args[1], 'Skill ID')
-        return yield* getSkillPreviewOperation(projectPath, skillId)
-      }),
-    )
-    .exhaustive()
-}
-
 function dispatchHostUiChannel(
   channel: HostBackedGuiChannel,
   args: readonly unknown[],
@@ -214,9 +176,15 @@ function dispatchHostUiChannel(
     return dispatchExtensionOperation(channel, args)
   }
   if (isSkillsChannel(channel)) {
-    return dispatchSkillsOperation(channel, args)
+    return dispatchHostUiSkillsOperation(channel, args)
   }
   return match(channel)
+    .with('agent:list-active-runs', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 0)
+        return yield* listHostUiActiveActivities()
+      }),
+    )
     .with('agent:get-context-usage', () =>
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)

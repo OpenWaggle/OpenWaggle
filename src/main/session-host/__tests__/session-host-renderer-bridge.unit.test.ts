@@ -35,6 +35,32 @@ describe('Session Host renderer bridge', () => {
     broadcastToWindowsMock.mockReset()
   })
 
+  it.each(['manual', 'threshold'] as const)(
+    'settles only standalone manual activity when a %s compaction ends without a start',
+    (reason) => {
+      relaySessionHostEvent({
+        cursor: { hostInstanceId: 'remote-host', sequence: 1 },
+        timestamp: 2,
+        payload: {
+          kind: 'session-transport',
+          sessionId: SESSION_ID,
+          event: {
+            type: 'compaction_end',
+            reason,
+            aborted: false,
+            willRetry: false,
+            result: null,
+            timestamp: 2,
+          },
+        },
+      })
+      const completions = broadcastToWindowsMock.mock.calls.filter(
+        ([channel]) => channel === 'agent:run-completed',
+      )
+      expect(completions).toHaveLength(reason === 'manual' ? 1 : 0)
+    },
+  )
+
   it('projects a remote agent start into background-run state and clears it at settlement', () => {
     relaySessionHostEvent({
       cursor: { hostInstanceId: 'remote-host', sequence: 1 },

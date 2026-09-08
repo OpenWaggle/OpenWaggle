@@ -88,7 +88,10 @@ export function resolveLocalSessionCommandTimeoutMs(
   if (
     payload.contract === 'session-waggle-v1' ||
     payload.contract === 'local-compaction-v1' ||
-    payload.contract === 'host-ui-v1'
+    payload.contract === 'host-ui-v1' ||
+    (payload.contract === 'session-control-v2' &&
+      (payload.request.command.operation === 'steer' ||
+        payload.request.command.operation === 'promote'))
   ) {
     return explicitTimeoutMs
   }

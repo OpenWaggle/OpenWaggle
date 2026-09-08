@@ -32,7 +32,11 @@ describe('useAgentChat compaction lifecycle', () => {
 
     let sendPromise: Promise<void> | null = null
     await act(async () => {
-      sendPromise = result.current.sendMessage({ text: 'Hello', attachments: [] })
+      sendPromise = result.current.sendMessage({
+        text: 'Hello',
+        thinkingLevel: 'medium',
+        attachments: [],
+      })
       await Promise.resolve()
     })
 

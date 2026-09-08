@@ -56,11 +56,11 @@ export function RestrictedCliProfilesCard() {
           defaultProjectPath={projectPath}
           {...(profiles.editing === 'create' ? {} : { profile: profiles.editing })}
           onClose={() => profiles.setEditing(null)}
-          onSave={async (value) => {
+          onSave={async ({ name, ...value }) => {
             await profiles.mutate(
               value.operation === 'create'
-                ? { ...value, operation: 'create' }
-                : { ...value, operation: 'update', profileName: value.name },
+                ? { ...value, operation: 'create', name }
+                : { ...value, operation: 'update', profileName: name },
             )
           }}
         />

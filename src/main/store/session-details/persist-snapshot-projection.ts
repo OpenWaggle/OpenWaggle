@@ -81,7 +81,7 @@ function updateSnapshotNode(input: {
     return input.sql`
       UPDATE session_nodes SET
         parent_id = ${input.next.parentId}, pi_entry_type = ${input.next.piEntryType},
-        kind = ${input.next.kind}, timestamp_ms = ${input.next.timestampMs},
+        timestamp_ms = ${input.next.timestampMs},
         metadata_json = ${input.next.metadataJson}, branch_hint_id = ${input.next.branchHintId},
         path_depth = ${input.next.pathDepth}
       WHERE id = ${input.nodeId}

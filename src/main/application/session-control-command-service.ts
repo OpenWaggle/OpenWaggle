@@ -17,6 +17,7 @@ import {
   claimSessionWriterSuccessor,
   releaseClaimedSessionWriterSuccessor,
   reserveActiveSessionRun,
+  reservePendingClassicSessionRun,
 } from './active-session-runs'
 import {
   executeUnserializedSessionControlCommand,
@@ -52,6 +53,16 @@ function releaseSessionSemaphore(sessionId: string, entry: SessionSemaphoreEntry
     if (entry.users === 0 && sessionSemaphores.get(sessionId) === entry) {
       sessionSemaphores.delete(sessionId)
     }
+  })
+}
+
+function waitForWriterOrCancellation(settled: Promise<void>, signal: AbortSignal) {
+  return Effect.async<void>((resume) => {
+    const finish = () => resume(Effect.void)
+    signal.addEventListener('abort', finish, { once: true })
+    void settled.then(finish)
+    if (signal.aborted) finish()
+    return Effect.sync(() => signal.removeEventListener('abort', finish))
   })
 }
 
@@ -112,13 +123,22 @@ export function dispatchAcceptedSessionControlRun(
         )
       }
 
+      const pending = reservePendingClassicSessionRun(sessionId, runId)
       let successorConsumed = false
       let coordinatorOwnsLease = false
-      const coordinateAfterWriter = Effect.promise(() => successor.settled).pipe(
+      const coordinateAfterWriter = waitForWriterOrCancellation(
+        successor.settled,
+        pending.controller.signal,
+      ).pipe(
         Effect.flatMap(() =>
           Effect.sync(() => {
+            if (pending.controller.signal.aborted) {
+              releaseClaimedSessionWriterSuccessor(sessionId, successor.token)
+              return pending
+            }
             const reservation = reserveActiveSessionRun(sessionId, runId, successor.token)
             successorConsumed = true
+            pending.release()
             return reservation
           }),
         ),
@@ -133,6 +153,7 @@ export function dispatchAcceptedSessionControlRun(
         }),
         Effect.ensuring(
           Effect.sync(() => {
+            pending.release()
             if (!successorConsumed) {
               releaseClaimedSessionWriterSuccessor(sessionId, successor.token)
             }
@@ -163,6 +184,10 @@ type SessionControlDispatchDependencies =
   | SessionControlRunExecutor
   | SessionControlRunLifecycleRepository
 
+export function isSessionControlInterruption(command: SessionControlMutationRequest['command']) {
+  return command.operation === 'interrupt' || command.operation === 'interrupt-descendants'
+}
+
 export function executeSessionControlMutation(input: {
   readonly callerId: string
   readonly caller?: LocalSessionCallerIdentity
@@ -174,6 +199,9 @@ export function executeSessionControlMutation(input: {
   unknown,
   SessionControlCommandDependencies | SessionControlDispatchDependencies
 > {
+  if (isSessionControlInterruption(input.request.command)) {
+    return executeUnserializedSessionControlCommand(input)
+  }
   const sessionId = input.request.command.sessionId
   return Effect.gen(function* () {
     const lease = commandMayStartRun(input.request)

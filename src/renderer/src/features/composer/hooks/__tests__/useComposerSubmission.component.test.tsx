@@ -1,4 +1,4 @@
-import type { PreparedAttachment } from '@shared/types/agent'
+import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import { act, renderHook } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { LexicalEditor } from 'lexical'
@@ -30,10 +30,11 @@ function deferred() {
 }
 
 function renderSubmission(
-  onEnqueue: () => Promise<boolean | undefined>,
+  onEnqueue: (payload: AgentSendPayload) => Promise<boolean | undefined>,
   options: {
     readonly isLoading?: boolean
     readonly onSend?: () => Promise<void> | void | false
+    readonly onToast?: (message: string) => void
   } = {},
 ) {
   const editorRef: RefObject<LexicalEditor | null> = { current: null }
@@ -41,6 +42,7 @@ function renderSubmission(
     useComposerSubmission({
       onSend: options.onSend ?? vi.fn(),
       onEnqueue,
+      onToast: options.onToast,
       isLoading: options.isLoading ?? true,
       requiresText: false,
       clearOnSubmit: true,
@@ -128,6 +130,39 @@ describe('useComposerSubmission Follow-up lifecycle', () => {
     expect(useComposerStore.getState().attachments).toHaveLength(1)
     expect(useComposerStore.getState().promptHistory).not.toContain('keep this draft')
   })
+
+  it.each(['/compact', '/compact preserve decisions', '/fork', '/clone'])(
+    'keeps the draft and attachments when %s is submitted during a Run',
+    async (text) => {
+      useComposerStore.getState().setInput(text)
+      const enqueue = vi.fn(async () => undefined)
+      const onToast = vi.fn()
+      const { result } = renderSubmission(enqueue, { onToast })
+
+      expect(result.current.handleSubmit()).toBe(false)
+
+      expect(enqueue).not.toHaveBeenCalled()
+      expect(onToast).toHaveBeenCalledWith(expect.stringContaining('Wait for the active Run'))
+      expect(useComposerStore.getState().input).toBe(text)
+      expect(useComposerStore.getState().attachments).toHaveLength(1)
+      expect(useComposerStore.getState().promptHistory).not.toContain(text)
+      expect(clearEditor).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['/skill:review inspect this', '/native-extension-command', '/visualize the flow'])(
+    'continues queueing Pi input %s during a Run',
+    async (text) => {
+      useComposerStore.getState().setInput(text)
+      const enqueue = vi.fn(async () => undefined)
+      const { result } = renderSubmission(enqueue)
+      await act(async () => {
+        await expect(result.current.handleSubmit()).resolves.toBe(true)
+      })
+      expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ text }))
+      expect(useComposerStore.getState().input).toBe('')
+    },
+  )
 
   it('preserves the draft when the renderer send gate blocks a direct send', async () => {
     const { result } = renderSubmission(async () => true, {

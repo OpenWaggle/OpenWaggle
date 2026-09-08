@@ -1,4 +1,4 @@
-import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
+import type { AgentSendPayload } from '@shared/types/agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,

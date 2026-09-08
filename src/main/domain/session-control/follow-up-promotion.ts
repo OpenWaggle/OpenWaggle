@@ -50,7 +50,12 @@ export function applyAcceptedFollowUpPromotion(
   expectedRunId: RunId,
   followUpId: FollowUpId,
 ): SessionControlSessionState {
-  if (state.run.state !== 'active' || state.run.runId !== expectedRunId) return state
+  if (
+    (state.run.state !== 'active' && state.run.state !== 'stopping') ||
+    state.run.runId !== expectedRunId
+  ) {
+    return state
+  }
   const itemIndex = state.followUpQueue.items.findIndex((item) => item.id === followUpId)
   if (itemIndex < 0) return state
   return {

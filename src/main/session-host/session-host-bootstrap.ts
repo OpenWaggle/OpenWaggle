@@ -36,6 +36,38 @@ type AppEffectRunner = <A, E>(effect: Effect.Effect<A, E, AppServices>) => Promi
 
 const logger = createLogger('session-host/bootstrap')
 
+function recoverHostState() {
+  return Effect.gen(function* () {
+    const repository = yield* SessionHostRecoveryRepository
+    const projection = yield* SessionProjectionRepository
+    const lifecyclePreparation = yield* SessionLifecyclePreparationService
+    const recovery = yield* repository.recoverAfterHostLoss(Date.now())
+    const removalRecovery = yield* recoverPendingManagedWorktreeRemovals(
+      recovery.pendingWorktreeRemovals,
+    )
+    for (const result of removalRecovery) {
+      if (result.outcome._tag === 'Left') {
+        logger.error('Pending managed worktree removal recovery failed closed.', {
+          resourceId: result.resourceId,
+          error: result.outcome.left.message,
+        })
+      }
+    }
+    yield* projection.recoverPendingDeletions?.() ?? Effect.void
+    yield* lifecyclePreparation.recoverPending
+    const handoffRecovery = yield* recoverPendingSessionHandoffs(recovery.pendingHandoffs)
+    for (const result of handoffRecovery) {
+      if (result._tag === 'Left') {
+        logger.error('Pending Workspace handoff recovery exhausted retries.', {
+          error: result.left instanceof Error ? result.left.message : String(result.left),
+        })
+      }
+    }
+    yield* recoverSessionExportsAfterHostLoss()
+    yield* reconcileInterruptedAgentRuns()
+  })
+}
+
 export async function startAppSessionHost(input: {
   readonly paths: LocalSessionHostPaths
   readonly externalOwnership?: SessionHostOwnership
@@ -95,38 +127,7 @@ export async function startAppSessionHost(input: {
     snapshotActiveRuns: () => listStreamBufferSnapshots(),
     authorizeActiveRun: (caller, snapshot) =>
       input.runEffect(authorizeLocalSessionActiveRun(caller, snapshot.sessionId)),
-    recover: () =>
-      input.runEffect(
-        Effect.gen(function* () {
-          const repository = yield* SessionHostRecoveryRepository
-          const projection = yield* SessionProjectionRepository
-          const lifecyclePreparation = yield* SessionLifecyclePreparationService
-          const recovery = yield* repository.recoverAfterHostLoss(Date.now())
-          const removalRecovery = yield* recoverPendingManagedWorktreeRemovals(
-            recovery.pendingWorktreeRemovals,
-          )
-          for (const result of removalRecovery) {
-            if (result.outcome._tag === 'Left') {
-              logger.error('Pending managed worktree removal recovery failed closed.', {
-                resourceId: result.resourceId,
-                error: result.outcome.left.message,
-              })
-            }
-          }
-          yield* projection.recoverPendingDeletions?.() ?? Effect.void
-          yield* lifecyclePreparation.recoverPending
-          const handoffRecovery = yield* recoverPendingSessionHandoffs(recovery.pendingHandoffs)
-          for (const result of handoffRecovery) {
-            if (result._tag === 'Left') {
-              logger.error('Pending Workspace handoff recovery exhausted retries.', {
-                error: result.left instanceof Error ? result.left.message : String(result.left),
-              })
-            }
-          }
-          yield* recoverSessionExportsAfterHostLoss()
-          yield* reconcileInterruptedAgentRuns()
-        }),
-      ),
+    recover: () => input.runEffect(recoverHostState()),
     describeUpgradeBlockers: async () => readSessionHostUpgradeBlockers(input.paths.databasePath),
     startOwnedServices: input.startOwnedServices,
     stopOwnedServices: input.stopOwnedServices,

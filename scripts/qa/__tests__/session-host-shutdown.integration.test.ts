@@ -15,7 +15,7 @@ describe('QA Session Host profile removal', () => {
     if (userDataRoot) await fs.rm(userDataRoot, { recursive: true, force: true })
   })
 
-  it('holds real canonical ownership through data deletion and fails closed on reacquisition', async () => {
+  it('preserves the ownership inode during deletion and after a successor reacquires it', async () => {
     userDataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-shutdown-'))
     const stateRoot = path.join(userDataRoot, 'session-host')
     const databasePath = path.join(stateRoot, 'session-host.sqlite')
@@ -28,6 +28,8 @@ describe('QA Session Host profile removal', () => {
     let secondOwnership: SessionHostOwnership | undefined
     try {
       firstOwnership = await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+      const ownershipPath = `${databasePath}.ownership.sqlite`
+      const originalInode = await fs.stat(ownershipPath)
       const finishProfileRemoval = await prepareQaProfileRemoval(userDataRoot, firstOwnership)
 
       await expect(fs.access(databasePath)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -39,16 +41,50 @@ describe('QA Session Host profile removal', () => {
       await firstOwnership.release()
       firstOwnership = undefined
       secondOwnership = await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
-      await expect(finishProfileRemoval()).rejects.toMatchObject({ code: 'ENOTEMPTY' })
-      await expect(fs.access(userDataRoot)).resolves.toBeUndefined()
+      await fs.writeFile(databasePath, 'successor database')
+      await expect(finishProfileRemoval()).resolves.toBeUndefined()
+      expect(await fs.readFile(databasePath, 'utf8')).toBe('successor database')
+      expect(await fs.stat(ownershipPath)).toMatchObject({
+        dev: originalInode.dev,
+        ino: originalInode.ino,
+      })
+      await expect(
+        acquireSessionHostOwnership(databasePath, { timeoutMs: 0 }),
+      ).rejects.toMatchObject({ code: 'ELOCKED' })
 
       await secondOwnership.release()
       secondOwnership = undefined
       await finishProfileRemoval()
-      await expect(fs.access(userDataRoot)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await fs.readFile(databasePath, 'utf8')).toBe('successor database')
+      expect(await fs.stat(ownershipPath)).toMatchObject({
+        dev: originalInode.dev,
+        ino: originalInode.ino,
+      })
     } finally {
       await secondOwnership?.release().catch(() => undefined)
       await firstOwnership?.release().catch(() => undefined)
+    }
+  })
+
+  it('retains only the sanitized ownership skeleton when no successor has started', async () => {
+    userDataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-shutdown-'))
+    const stateRoot = path.join(userDataRoot, 'session-host')
+    const databasePath = path.join(stateRoot, 'session-host.sqlite')
+    const ownership = await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+    try {
+      await fs.writeFile(databasePath, 'private transcript fixture')
+      await fs.writeFile(path.join(stateRoot, 'local-user.credential'), 'private credential fixture')
+      await fs.mkdir(path.join(userDataRoot, 'renderer-cache'))
+      await fs.writeFile(path.join(userDataRoot, 'renderer-cache', 'cached-history'), 'private history')
+
+      const finalize = await prepareQaProfileRemoval(userDataRoot, ownership)
+      await ownership.release()
+      await finalize()
+
+      expect(await fs.readdir(userDataRoot)).toEqual(['session-host'])
+      expect(await fs.readdir(stateRoot)).toEqual(['session-host.sqlite.ownership.sqlite'])
+    } finally {
+      await ownership.release()
     }
   })
 })

@@ -107,17 +107,20 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Compaction progress belongs in the transcript, not in a composer dock. Match Codex's running and completed copy, retain manual-versus-automatic reason through Pi session projection, and use motion only on the active label with a reduced-motion fallback.
 - Keep the message queue generic during compaction. A normal send remains queued; only an explicit Steer moves that item into the transcript as a pending preview, and Pi's live run control delivers it with `sendUserMessage(..., { deliverAs: 'steer' })` after compaction finishes without cancelling or replacing the active turn.
 - Filter transient one-turn visualization context at every compaction boundary: Native checkpoints, Portable summaries, and Native endpoint fallback. Use a pure compaction-only transform rather than replaying Pi's general `context` extension chain; Portable splits the turn into summary and prefix arrays, so the filter needs the full prepared context as a reference, and overflow retry must explicitly retain the active prompt's state. Transform a Portable fallback lazily only after the Native endpoint selects it.
-- Standalone manual compactions are main-owned active activities even though they have no agent stream buffer. Include them in active-activity restoration, rebuild their running transcript state after renderer remounts, discard stale snapshots when a live lifecycle event wins during async initialization, and emit the normal run-completed settlement after the compaction registry entry is released.
+- Standalone manual compactions are Host-owned active activities even though they have no agent stream buffer. Route activity restoration to the owner, rebuild their running transcript state after renderer remounts, and discard stale snapshots when a live lifecycle event wins during async initialization. Publish the terminal event after releasing the writer but synchronously before its successor resumes; the GUI bridge emits normal run-completed even if it missed compaction_start. Preflight failures must also settle restored activity.
 - These changes require Pi core/provider patches, not an extension. On each Pi upgrade, regenerate both pnpm patches and re-audit generated model capability metadata, cold resume, repeated native replay, malformed native output, portable tail fit, and tool-loop scheduling.
 
 ## Renderer And Session Memory
 
+- Session Host authority uses an OS-held exclusive lock in a dedicated persistent `<databasePath>.ownership.sqlite` file. Never delete or replace this file during ownership or recovery. SQLite releases the lock on process death and retains it during synchronous cutovers with no JS heartbeat. An authenticated older Host draining for upgrade must close before replacement.
+- QA profile cleanup removes private data while ownership is held and retains the tiny ownership-file skeleton permanently. It must not unlink that inode after release either: a successor may already have acquired it.
+- A classic Run deferred behind another writer still needs an exact Run-ID cancellation reservation. Cancellation releases its successor claim and settles the durable Run without aborting the preceding writer. Stop bypasses the attachment/command serialization locks held by pending steering, but retains admission, authorization, and journal fences; completion of an accepted promotion removes the delivered item from the same stopping Run to prevent duplicate replay.
 - Export recovery must not scan history or touch artifacts before the Host listener opens. Capture a rowid watermark, fence execution claims, and recover bounded source-row pages in a scoped background worker. A cancelled page retains cleanup receipts; Host drain stops retries and releases the recovery lease.
 - Selected-path export checkpoints use revisioned, resumable repair with bounded source reads and checkpoint writes per transaction. Yield between batches and preserve cancellation; never expose a partly rebuilt revision. Semantic scope reuse and refresh must be atomic, including policy shrink and expired-lease eviction.
 - Compaction integration must preserve Session Control as the owner of durable Follow-ups and steering. Carry compaction/retry activity snapshots through the Local Session transport so an attached GUI restores the same activity as the Host.
 - Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.
 - Every Session creation path, including Session Control `create`, `launch`, and `spawn`, must persist the canonical empty `main` branch, its branch state, tree UI state, and `last_active_branch_id` before a Run can start. `session_active_runs.branch_id` is a foreign key; a metadata-only Session is visible in discovery but fails before Pi receives its first prompt.
-- Local Session command transport timeouts must cover the operation's declared long-poll window plus a response grace period. The default 10-second socket timeout is correct for ordinary commands but must not truncate `wait`, `exports-wait`, or freshness-blocking search requests that legitimately wait longer.
+- Local Session command transport timeouts must cover the operation's declared long-poll window plus a response grace period. The default 10-second socket timeout is correct for ordinary commands but must not truncate `wait`, `exports-wait`, or freshness-blocking search requests that legitimately wait longer. Steer and Promote may await automatic compaction; like manual compaction, they have no default response deadline, while preserving an explicitly requested client deadline.
 - E2E and diagnostic code that opens the application database must use the canonical Session Host database path (`session-host/session-host.sqlite`) through the shared fixture/path helper. `userData/openwaggle.db` is only the pre-cutover source and is absent for a fresh profile.
 - Switching away from a foreground run should demote it to background state, not reject the send promise as an error.
 - Active-run UI continuity needs a renderer-owned render snapshot keyed by session id; persisted run metadata alone does not prove visible reasoning/tool rows remain continuous.
@@ -485,3 +488,13 @@ share the wrong verifier.
 Agent-definition semantic catalogs must load the same enabled OpenWaggle-managed Pi packages and
 resource roots as a real Session Run, including runtime load-failure isolation. A catalog built from
 bare project Pi resources incorrectly rejects valid managed-extension tools and skills.
+
+Restricted CLI profile edits must preserve undisplayed export/attachment roots and the existing
+delegation management envelope, including its absence. Initialize an envelope only when granting
+profile management explicitly; remove it when that capability is removed. GUI update requests use
+`profileName`, not the create-only `name` field. Component tests should decode submitted commands
+through the real shared strict schema so an API mock cannot hide invalid wire payloads.
+
+GUI-only `/compact`, `/fork`, and `/clone` commands require an idle Session. Busy submissions retain
+the draft and attachments and explain that requirement; they must not enter the durable model-message
+queue. Promotion also rejects legacy queued GUI commands instead of sending them to the model.

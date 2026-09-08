@@ -15,15 +15,15 @@ import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { getAgentContextUsage } from '../application/agent-session-service'
+import { listHostUiActiveActivities } from '../application/host-ui-agent-operation'
 import { dispatchLocalSessionCommand } from '../application/local-session-command-dispatcher'
 import {
   clearAgentPhase,
   clearStreamBuffer,
   emitRunCompleted,
   getStreamBuffer,
-  listStreamBuffers,
 } from '../utils/stream-bridge'
-import { cancelAllSessionRuns, listActiveCompactions } from './active-agent-runs'
+import { cancelAllSessionRuns } from './active-agent-runs'
 import { hostHandle, typedHandle } from './typed-ipc'
 
 function clearSessionTransportState(sessionId: SessionId) {
@@ -248,9 +248,7 @@ function registerAgentStateHandlers() {
     Effect.sync(() => getStreamBuffer(sessionId)),
   )
 
-  typedHandle('agent:list-active-runs', () =>
-    Effect.sync(() => [...listStreamBuffers(), ...listActiveCompactions()]),
-  )
+  hostHandle('agent:list-active-runs', () => listHostUiActiveActivities())
 
   hostHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),

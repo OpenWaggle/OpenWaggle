@@ -17,6 +17,7 @@ vi.mock('../../session-host/session-host-events', () => ({
 }))
 
 import { activeCompactions, listActiveCompactions } from '../active-session-runs'
+import { dispatchHostUiRequest } from '../host-ui-request-dispatcher'
 import { executeManualSessionCompaction } from '../manual-session-compaction-service'
 
 const SESSION_ID = SessionId('manual-compaction-recovery-session')
@@ -68,7 +69,7 @@ describe('owner manual compaction recovery', () => {
         reason: 'manual',
         aborted: true,
         willRetry: false,
-        errorMessage: 'snapshot persistence failed',
+        errorMessage: expect.stringContaining('snapshot persistence failed'),
       }),
     })
     expect(activeCompactions.has(SESSION_ID)).toBe(false)
@@ -93,8 +94,46 @@ describe('owner manual compaction recovery', () => {
       startedAt: expect.any(Number),
     })
 
+    const activities = await Effect.runPromise(
+      fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+        dispatchHostUiRequest({
+          caller: { callerId: 'gui:local-user' },
+          request: {
+            contractVersion: 1,
+            requestId: 'restore-active-compaction',
+            channel: 'agent:list-active-runs',
+            args: [],
+          },
+        }),
+      ),
+    )
+    expect(activities).toMatchObject({
+      response: {
+        channel: 'agent:list-active-runs',
+        result: {
+          kind: 'value',
+          value: [expect.objectContaining({ activity: 'compaction', sessionId: SESSION_ID })],
+        },
+      },
+    })
+
     finishCompaction?.()
     await pending
     expect(activeCompactions.has(SESSION_ID)).toBe(false)
+  })
+
+  it('releases ownership before terminal delivery even when preflight fails before Pi starts', async () => {
+    mocks.compactAgentSession.mockReturnValue(Effect.fail(new Error('preflight failed')))
+    mocks.publishSessionHostEvent.mockImplementation(() => {
+      expect(activeCompactions.has(SESSION_ID)).toBe(false)
+    })
+
+    await expect(compact()).rejects.toThrow('preflight failed')
+
+    expect(mocks.publishSessionHostEvent).toHaveBeenCalledExactlyOnceWith({
+      kind: 'session-transport',
+      sessionId: SESSION_ID,
+      event: expect.objectContaining({ type: 'compaction_end', reason: 'manual', aborted: true }),
+    })
   })
 })

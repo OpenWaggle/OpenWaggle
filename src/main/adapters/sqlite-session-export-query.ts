@@ -7,6 +7,10 @@ import type {
   SessionExportSelectedPathCache,
 } from './session-export-selected-path-cache'
 import { byteBoundedPage } from './session-query-byte-pagination'
+import {
+  ensureCurrentExportPathCheckpoints,
+  exportPathCheckpointsAreCurrent,
+} from './sqlite-session-export-checkpoint-repair'
 import { exportContinuationMatchesSnapshot } from './sqlite-session-export-continuation'
 import { exportBaseOutcome } from './sqlite-session-export-manifest'
 import { exportNodeReadStrategy, readExportNodes } from './sqlite-session-export-node-reader'
@@ -192,7 +196,19 @@ function readExportQueueRows(sql: SqlClient.SqlClient, request: ExportRequest) {
   `
 }
 
-export function readSessionExport(
+function exportNeedsCheckpointRepair(
+  sql: SqlClient.SqlClient,
+  sessionId: string,
+  readStrategy: ReturnType<typeof exportNodeReadStrategy>,
+  selectedHeadNodeId: string | null,
+) {
+  if (readStrategy !== 'checkpointed-branch' || !selectedHeadNodeId) {
+    return Effect.succeed(false)
+  }
+  return exportPathCheckpointsAreCurrent(sql, sessionId).pipe(Effect.map((current) => !current))
+}
+
+function readSessionExportPage(
   sql: SqlClient.SqlClient,
   request: ExportRequest,
   exportSelectedPaths: SessionExportSelectedPathCache,
@@ -224,6 +240,11 @@ export function readSessionExport(
       selectedHeadNodeId,
       branchHeadNodeId,
     })
+    if (
+      yield* exportNeedsCheckpointRepair(sql, query.sessionId, readStrategy, selectedHeadNodeId)
+    ) {
+      return undefined
+    }
     const highWaterMark =
       query.snapshotManifest?.snapshot.nodeHighWaterMark ??
       query.throughCreatedOrder ??
@@ -264,4 +285,26 @@ export function readSessionExport(
     })
     return renderExportNodePage(request, baseOutcome, nodePage)
   }).pipe(sql.withTransaction)
+}
+
+export function readSessionExport(
+  sql: SqlClient.SqlClient,
+  request: ExportRequest,
+  exportSelectedPaths: SessionExportSelectedPathCache,
+  exportMaterializationOperationId?: string,
+) {
+  return Effect.gen(function* () {
+    while (true) {
+      const response = yield* readSessionExportPage(
+        sql,
+        request,
+        exportSelectedPaths,
+        exportMaterializationOperationId,
+      )
+      if (response !== undefined) return response
+      // Repair commits its bounded batches outside the page snapshot transaction. Re-read
+      // selection and revisions afterward so concurrent changes cannot mix snapshot data.
+      yield* ensureCurrentExportPathCheckpoints(sql, request.query.sessionId)
+    }
+  })
 }
