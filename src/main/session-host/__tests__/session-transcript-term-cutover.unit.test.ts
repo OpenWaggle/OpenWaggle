@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from '../../services/session-host-transcript-term-schema'
 import { populateSessionTranscriptTermCatalog } from '../session-transcript-term-cutover'
 
@@ -48,7 +48,34 @@ describe('Session transcript term cutover', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     database.close()
+  })
+
+  it('seeks the node cursor instead of rescanning the corpus for each batch', () => {
+    database.exec(`
+      CREATE UNIQUE INDEX idx_session_nodes_session_created_order_unique
+      ON session_nodes (session_id, created_order);
+    `)
+    const prepare = database.prepare.bind(database)
+    const plans: unknown[] = []
+    vi.spyOn(database, 'prepare').mockImplementation((query) => {
+      if (query.includes('WITH candidates AS MATERIALIZED')) {
+        plans.push(...prepare(`EXPLAIN QUERY PLAN ${query}`).all())
+      }
+      return prepare(query)
+    })
+
+    populateSessionTranscriptTermCatalog(database)
+
+    expect(plans).toContainEqual(
+      expect.objectContaining({
+        detail: expect.stringMatching(/^SEARCH nodes USING INDEX .*\(.*session_id/),
+      }),
+    )
+    expect(plans).not.toContainEqual(
+      expect.objectContaining({ detail: expect.stringMatching(/^SCAN nodes\b/) }),
+    )
   })
 
   it('builds and verifies an exact catalog from bounded Session batches', () => {
@@ -109,7 +136,7 @@ describe('Session transcript term cutover', () => {
     ).toEqual({ count: 0 })
   })
 
-  it('accumulates one huge Session across bounded node batches', () => {
+  it('traverses Session boundaries and tied node orders across multiple node batches', () => {
     database.exec(`
       CREATE TABLE cutover_batch_audit (token_count INTEGER NOT NULL);
       CREATE TRIGGER audit_skewed_cutover_batch
@@ -145,7 +172,7 @@ describe('Session transcript term cutover', () => {
       INSERT INTO session_nodes (
         id, session_id, created_order, kind, role, content_json, metadata_json
       )
-      SELECT printf('skew-node-%04d', value), 'skewed', value,
+      SELECT printf('skew-node-%04d', value), 'skewed', value / 3,
         'message', 'assistant',
         json_object('parts', json_array(
           json_object('type', 'text', 'text', printf('shared skew marker-%04d', value))
@@ -174,6 +201,70 @@ describe('Session transcript term cutover', () => {
     expect(database.prepare('SELECT COUNT(*) AS count FROM cutover_batch_audit').get()).toEqual({
       count: 3,
     })
+    expect(
+      database
+        .prepare(`
+          SELECT term, occurrences, first_node_id
+          FROM session_transcript_terms
+          WHERE session_id = 'skewed' AND length(term) = 4 AND term GLOB '[0-9]*'
+          ORDER BY term
+        `)
+        .all(),
+    ).toEqual(
+      Array.from({ length: 1000 }, (_, index) => ({
+        term: String(index).padStart(4, '0'),
+        occurrences: 1,
+        first_node_id: `skew-node-${String(index).padStart(4, '0')}`,
+      })),
+    )
+  })
+
+  it('resumes at the last admitted node when the content-byte limit shortens a page', () => {
+    database.exec(`
+      INSERT INTO sessions (id) VALUES ('large');
+      CREATE TABLE cutover_batch_audit (token_count INTEGER NOT NULL);
+      CREATE TRIGGER audit_large_cutover_batch
+      AFTER UPDATE ON session_transcript_term_documents
+      WHEN new.session_id = 'large'
+      BEGIN
+        INSERT INTO cutover_batch_audit (token_count) VALUES (new.token_count);
+      END;
+    `)
+    const insert = database.prepare(`
+      INSERT INTO session_nodes (
+        id, session_id, created_order, kind, role, content_json, metadata_json
+      ) VALUES (?, 'large', 0, 'message', 'user', ?, '{}')
+    `)
+    for (let index = 0; index < 360; index += 1) {
+      const marker = String(index).padStart(3, '0')
+      insert.run(
+        `large-node-${marker}`,
+        JSON.stringify({
+          parts: [{ type: 'text', text: `shared marker${marker}`.padEnd(12_000) }],
+        }),
+      )
+    }
+
+    populateSessionTranscriptTermCatalog(database)
+
+    expect(
+      database.prepare('SELECT token_count FROM cutover_batch_audit ORDER BY rowid').all(),
+    ).toEqual([{ token_count: 698 }, { token_count: 720 }])
+    expect(
+      database
+        .prepare(`
+          SELECT term, occurrences, first_node_id
+          FROM session_transcript_terms WHERE session_id = 'large' AND term LIKE 'marker%'
+          ORDER BY term
+        `)
+        .all(),
+    ).toEqual(
+      Array.from({ length: 360 }, (_, index) => ({
+        term: `marker${String(index).padStart(3, '0')}`,
+        occurrences: 1,
+        first_node_id: `large-node-${String(index).padStart(3, '0')}`,
+      })),
+    )
   })
 
   it('rejects a self-consistent semantic substitution before discarding its FTS ground truth', () => {

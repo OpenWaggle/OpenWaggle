@@ -460,6 +460,11 @@ semantic-only discovery may search the explicitly partial tier. Tier rotation mu
 rows and advance the deletion-compaction watermark so an evicted Session is neither re-embedded in
 a loop nor retained by a stale resident snapshot.
 
+Transcript term cutover must page with the three-column `(session_id, created_order, id)` tuple.
+Expanding that comparison into OR predicates made SQLite rewind the node index for every 512-node
+batch, producing quadratic prefix scans. Keep the production-query plan regression requiring an
+indexed seek, along with tied-order and content-byte-boundary traversal coverage.
+
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
 its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;

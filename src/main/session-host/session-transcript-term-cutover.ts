@@ -88,11 +88,7 @@ function stageBatch(database: DatabaseSync, cursor: CutoverCursor) {
           json_extract(nodes.metadata_json, '$.openWaggle.runId') AS run_id,
           ${CUTOVER_TRANSCRIPT_CONTENT} AS content
         FROM session_nodes AS nodes
-        WHERE nodes.session_id > ?
-          OR (nodes.session_id = ? AND (
-            nodes.created_order > ?
-            OR (nodes.created_order = ? AND nodes.id > ?)
-          ))
+        WHERE (nodes.session_id, nodes.created_order, nodes.id) > (?, ?, ?)
         ORDER BY nodes.session_id, nodes.created_order, nodes.id
         LIMIT ?
       ), bounded AS (
@@ -116,8 +112,6 @@ function stageBatch(database: DatabaseSync, cursor: CutoverCursor) {
     )
     .run(
       cursor.sessionId,
-      cursor.sessionId,
-      cursor.createdOrder,
       cursor.createdOrder,
       cursor.nodeId,
       CUTOVER_NODE_BATCH_SIZE,
