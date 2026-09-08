@@ -487,6 +487,16 @@ renderer only through the managed streaming protocol, never through an IPC base6
 
 ### Hive state comes from the session projection
 
+The Session Host task's confirmed future-facing reader is `listHiveSessionCatalogPage(sessionId,
+limit, cursor?)`, with unordered focused/parent `context` and a page of direct `workers`. Summary now
+accepts that contract and optional lineage fields through `SessionHiveReader`, preferring it over the
+transitional `getSessionHiveRelations` reader only when the capability really exists. The IPC proxy's
+missing-method function is not capability detection; use `in`, backed by its `has` trap. Host failures
+must not silently fall back to the old lineage projection. Preserve the workspace Hive event hook and
+title invalidation when integrating the Host branch. See `docs/session-summary-hive-integration.md`
+for the verified contract, fingerprints, canonical-writer cutover, and the still-required combined
+live-Host QA. Seeded Hive screenshots are not evidence of that end-to-end integration.
+
 `session_lineage` records immutable parentage for Sessions created by a hosted task plus the caller
 profile and current delegation state. The detail-side session summary query derives Queen/Worker roles
 and direct/active Worker counts from that table for both live and archived lists. The hosted task manager

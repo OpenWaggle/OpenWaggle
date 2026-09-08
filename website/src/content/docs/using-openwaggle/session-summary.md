@@ -75,6 +75,10 @@ The Hive section appears only for a Queen or Worker. A Queen sees direct Workers
 
 Hive opens automatically when a Worker needs attention, while work is active, or when the opened session is itself a Worker. For a Queen, an automatically opened section collapses shortly after all direct work finishes. A manual expansion choice wins and is remembered for that session. Selecting a row opens that session; keyboard focus returns to its Session Summary button after navigation.
 
+With the Session Host catalog available, large Hives load direct Workers in pages. **Load more workers** fetches the next page; the header counts still describe the whole direct Hive. A failed page can be retried without losing the Workers already shown. Host state changes refresh the Hive, and Host resynchronization starts again at the first page.
+
+The Hive section displays orchestration state supplied by the installed backend. Its presence does not enable an unfinished orchestration backend or add spawning and delegation commands to the Summary.
+
 ## Browsing Sources and Outputs
 
 Resources produced by a background session refresh that session's catalog even while you are viewing another session or Settings. Switching sessions never mixes their resources. Rapid switching also keeps resource loading bounded while earlier requests finish.

@@ -221,10 +221,10 @@ describe('HiveSummarySection', () => {
 
     vi.useFakeTimers()
     act(() => {
-      view.client.setQueryData(
-        queryKeys.sessionHive(SessionId('queen')),
-        hiveRelations(queen(0), [worker('accepted')]),
-      )
+      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
+        pages: [hiveRelations(queen(0), [worker('accepted')])],
+        pageParams: [undefined],
+      })
     })
     act(() => vi.advanceTimersByTime(0))
     expect(trigger).toHaveAttribute('aria-expanded', 'true')

@@ -1,4 +1,5 @@
 export * from './components'
+export { useSessionHiveInvalidation } from './hooks/useSessionHiveInvalidation'
 export { useSessionResourceOwnerActivation } from './hooks/useSessionResourceOwnerActivation'
 export {
   useSessionResourceBackfill,

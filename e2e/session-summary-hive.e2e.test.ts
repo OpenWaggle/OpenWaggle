@@ -104,6 +104,7 @@ test('Session Summary Hive shows only the opened session direct lineage and rema
       ARCHIVED_WORKER_TITLE,
     )
     await expect(hive.getByText(GRANDCHILD_TITLE)).toHaveCount(0)
+    await app.captureEvidence('hive-compatibility-current-projection')
 
     await hive.getByRole('button', { name: new RegExp(ACTIVE_WORKER_TITLE) }).click()
     await expect(page.locator('[data-qa="header-session-title"]')).toHaveText(

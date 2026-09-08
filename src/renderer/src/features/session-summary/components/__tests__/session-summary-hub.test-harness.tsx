@@ -43,6 +43,9 @@ vi.mock('@/shared/lib/ipc', () => ({
     listSessionResources: mocks.listSessionResources,
     listArchivedSessions: mocks.listArchivedSessions,
     listMcpEventSubscriptions: mocks.listMcpEventSubscriptions,
+    getSessionHiveRelations: vi
+      .fn()
+      .mockResolvedValue({ current: null, parent: null, workers: [] }),
     openExternal: vi.fn(),
   },
 }))

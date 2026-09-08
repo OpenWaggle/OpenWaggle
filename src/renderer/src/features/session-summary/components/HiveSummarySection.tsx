@@ -1,33 +1,19 @@
 import { SessionId } from '@shared/types/brand'
-import type {
-  SessionDelegationState,
-  SessionHiveRelations,
-  SessionLineage,
-  SessionSummary,
-} from '@shared/types/session'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChessQueen, ChevronDown, ChevronRight, Pickaxe } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import {
+  HIVE_DELEGATION_LABELS,
+  type HiveDelegationState,
+  type HiveSession,
+} from '@/queries/session-hive-contract'
 import { sessionHiveRelationsQueryOptions } from '@/queries/session-hive-relations'
 import { Button } from '@/shared/ui/Button'
+import { hiveStateNeedsAttention, hiveSummaryModel } from '../model/session-hive-summary'
 import { useSessionSummaryUIStore } from '../state/session-summary-ui-store'
 import { SessionSummaryPaginatedList } from './SessionSummaryPrimitives'
 
 const HIVE_COMPLETION_COLLAPSE_DELAY_MS = 2_500
-
-const DELEGATION_LABELS: Readonly<Record<SessionDelegationState, string>> = {
-  working: 'Working',
-  waiting: 'Waiting',
-  needs_attention: 'Needs attention',
-  ready_for_review: 'Ready for review',
-  revision_requested: 'Revision requested',
-  accepted: 'Accepted',
-  cancelled: 'Cancelled',
-}
-
-function lineageOf(value: SessionSummary | null | undefined): SessionLineage | null {
-  return value?.lineage ?? null
-}
 
 function expansionKey(sessionId: string) {
   return `openwaggle:session-summary:${sessionId}:hive`
@@ -39,39 +25,6 @@ function storedExpansion(sessionId: string) {
     return stored === null ? null : stored === 'true'
   } catch {
     return null
-  }
-}
-
-function isDone(lineage: SessionLineage | null) {
-  return lineage?.delegationState === 'accepted' || lineage?.delegationState === 'cancelled'
-}
-
-function needsAttention(lineage: SessionLineage | null) {
-  return stateNeedsAttention(lineage?.delegationState ?? null)
-}
-
-function stateNeedsAttention(state: SessionDelegationState | null) {
-  return state === 'needs_attention' || state === 'revision_requested'
-}
-
-function hiveSummaryModel(relations: SessionHiveRelations | undefined) {
-  const current = relations?.current
-  const lineage = lineageOf(current)
-  if (!current || !lineage || lineage.role === 'independent') return null
-  const workers = relations.workers.filter((session) => !session.archived)
-  const archivedWorkers = relations.workers.filter((session) => session.archived)
-  const attention = workers.some((worker) => needsAttention(lineageOf(worker)))
-  return {
-    current,
-    lineage,
-    workers,
-    archivedWorkers,
-    parent: relations.parent,
-    attention,
-    defaultExpanded:
-      attention ||
-      workers.some((worker) => !isDone(lineageOf(worker))) ||
-      lineage.role === 'worker',
   }
 }
 
@@ -124,15 +77,25 @@ export function HiveSummarySection({
   readonly sessionId: string
   readonly onNavigateSession: (sessionId: string) => void
 }) {
-  const relations = useQuery(sessionHiveRelationsQueryOptions(SessionId(sessionId))).data
-  const model = hiveSummaryModel(relations)
+  const query = useInfiniteQuery(sessionHiveRelationsQueryOptions(SessionId(sessionId)))
+  const model = hiveSummaryModel(query.data?.pages)
   const requestToggleFocus = useSessionSummaryUIStore((state) => state.requestToggleFocus)
   const generatedContentId = useId()
   const contentId = `session-summary-hive-${generatedContentId.replaceAll(':', '')}`
   const shouldExpandAutomatically = model?.defaultExpanded ?? false
   const expansion = useHiveExpansion(sessionId, shouldExpandAutomatically)
 
-  if (!model) return null
+  if (!model)
+    return query.isError ? (
+      <section aria-label="Hive" className="border-t border-border px-3 py-2">
+        <p role="alert" className="text-sm text-text-secondary">
+          Unable to load this session's Hive.
+        </p>
+        <Button variant="unstyled" onClick={() => void query.refetch()}>
+          Retry Hive
+        </Button>
+      </section>
+    ) : null
 
   function navigateSession(targetSessionId: string) {
     requestToggleFocus(targetSessionId)
@@ -140,13 +103,7 @@ export function HiveSummarySection({
   }
 
   const Icon = model.lineage.role === 'queen' ? ChessQueen : Pickaxe
-  const activeWorkers = model.workers.filter((worker) => !isDone(lineageOf(worker)))
-  const doneWorkers = model.workers.filter((worker) => isDone(lineageOf(worker)))
-  const activeCount = Math.max(model.lineage.activeDirectWorkerCount, activeWorkers.length)
-  const totalCount = Math.max(
-    model.lineage.directWorkerCount,
-    model.workers.length + model.archivedWorkers.length,
-  )
+  const { activeWorkers, doneWorkers, activeCount, totalCount } = model
   return (
     <section ref={expansion.sectionRef} className="border-t border-border" aria-label="Hive">
       <div className="sticky top-0 z-10 bg-bg-secondary/95 backdrop-blur">
@@ -195,7 +152,7 @@ export function HiveSummarySection({
               <HiveSessionRow
                 label="Parent"
                 title={model.parent.title}
-                state={lineageOf(model.parent)?.delegationState ?? null}
+                state={model.parent.lineage?.delegationState ?? null}
                 onClick={() => navigateSession(String(model.parent?.id))}
               />
             ) : null}
@@ -217,10 +174,47 @@ export function HiveSummarySection({
               rowLabel="Archived"
               onNavigateSession={navigateSession}
             />
+            <HivePageControls
+              error={query.isError}
+              loading={query.isFetching}
+              hasMore={query.hasNextPage}
+              onLoad={() =>
+                void (query.isFetchNextPageError || !query.isError
+                  ? query.fetchNextPage()
+                  : query.refetch())
+              }
+            />
           </div>
         </div>
       </div>
     </section>
+  )
+}
+
+function HivePageControls({
+  error,
+  loading,
+  hasMore,
+  onLoad,
+}: {
+  readonly error: boolean
+  readonly loading: boolean
+  readonly hasMore: boolean
+  readonly onLoad: () => void
+}) {
+  if (!hasMore && !error) return null
+  return (
+    <>
+      {error ? <p role="alert">Unable to load more workers.</p> : null}
+      <Button
+        variant="unstyled"
+        className="px-2 py-1 text-sm text-text-secondary"
+        disabled={loading}
+        onClick={onLoad}
+      >
+        {error ? 'Retry Hive' : 'Load more workers'}
+      </Button>
+    </>
   )
 }
 
@@ -231,7 +225,7 @@ function HiveWorkerGroup({
   onNavigateSession,
 }: {
   readonly label: string
-  readonly workers: readonly SessionSummary[]
+  readonly workers: readonly HiveSession[]
   readonly rowLabel: string
   readonly onNavigateSession: (sessionId: string) => void
 }) {
@@ -248,7 +242,7 @@ function HiveWorkerGroup({
           <HiveSessionRow
             label={rowLabel}
             title={worker.title}
-            state={lineageOf(worker)?.delegationState ?? null}
+            state={worker.lineage?.delegationState ?? null}
             onClick={() => onNavigateSession(String(worker.id))}
           />
         )}
@@ -265,7 +259,7 @@ function HiveSessionRow({
 }: {
   readonly label: string
   readonly title: string
-  readonly state: SessionDelegationState | null
+  readonly state: HiveDelegationState | null
   readonly onClick: () => void
 }) {
   return (
@@ -280,10 +274,10 @@ function HiveSessionRow({
       {state ? (
         <span
           className={
-            stateNeedsAttention(state) ? 'text-xs text-warning' : 'text-xs text-text-tertiary'
+            hiveStateNeedsAttention(state) ? 'text-xs text-warning' : 'text-xs text-text-tertiary'
           }
         >
-          {DELEGATION_LABELS[state]}
+          {HIVE_DELEGATION_LABELS[state]}
         </span>
       ) : null}
       <ChevronRight aria-hidden="true" className="size-3 text-text-muted" />

@@ -32,6 +32,14 @@ describe('ipc', () => {
   })
 
   describe('when window.api is available', () => {
+    it('reports only real preload capabilities through the in operator', async () => {
+      setWindow({ api: { getSettings: vi.fn() } })
+      const { api } = await import('../ipc')
+      expect('getSettings' in api).toBe(true)
+      expect('listHiveSessionCatalogPage' in api).toBe(false)
+      expect('onSessionHostEvent' in api).toBe(false)
+    })
+
     it('delegates to the real api object', async () => {
       const fakeApi = {
         getSettings: vi.fn().mockResolvedValue({ providers: {} }),
