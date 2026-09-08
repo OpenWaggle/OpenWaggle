@@ -155,20 +155,12 @@ function matchingTranscriptSessionCtes(
   const workingPath = request.query.workingPath ?? null
   const authorizationBypass = allSessionsAuthorized ? 1 : 0
   const multipleTerms = parameters.transcriptTerms.length > 1 ? 1 : 0
-  return sql`
-    query_transcript_terms AS MATERIALIZED (
-      SELECT DISTINCT CAST(value AS TEXT) AS term FROM json_each(${transcriptTermsJson})
-    ), matching_non_phrase_session_ids AS MATERIALIZED (
-      SELECT seed_terms.session_id, NULL AS first_node_id
-      FROM session_transcript_terms AS seed_terms
-      JOIN session_transcript_term_documents AS seed_documents
-        ON seed_documents.session_id = seed_terms.session_id
-      JOIN sessions ON sessions.id = seed_terms.session_id
-      WHERE ${parameters.termTranscriptSearch} = 1
-        AND ${parameters.phraseTranscriptSearch} = 0
-        AND seed_terms.term = ${seedTranscriptTerm}
-        AND (${authorizationBypass} = 1
-          OR seed_terms.session_id IN (SELECT session_id FROM authorized_sessions))
+  const requiresSessionJoin = projectPath !== null || workingPath !== null
+  const sessionJoin = requiresSessionJoin
+    ? sql`JOIN sessions ON sessions.id = seed_terms.session_id`
+    : sql``
+  const sessionFilters = requiresSessionJoin
+    ? sql`
         AND (${parameters.includeArchived} = 1 OR sessions.archived = 0)
         AND (${projectPath} IS NULL OR sessions.project_path = ${projectPath})
         AND (${workingPath} IS NULL OR EXISTS (
@@ -177,7 +169,26 @@ function matchingTranscriptSessionCtes(
             ON catalog_workspace.id = catalog_binding.workspace_id
           WHERE catalog_binding.session_id = sessions.id
             AND catalog_workspace.working_path = ${workingPath}
-        ))
+        ))`
+    : sql`
+        AND (${parameters.includeArchived} = 1 OR seed_terms.session_id NOT IN (
+          SELECT id FROM sessions WHERE id IS NOT NULL AND archived <> 0
+        ))`
+  return sql`
+    query_transcript_terms AS MATERIALIZED (
+      SELECT DISTINCT CAST(value AS TEXT) AS term FROM json_each(${transcriptTermsJson})
+    ), matching_non_phrase_session_ids AS MATERIALIZED (
+      SELECT seed_terms.session_id, NULL AS first_node_id
+      FROM session_transcript_terms AS seed_terms
+      JOIN session_transcript_term_documents AS seed_documents
+        ON seed_documents.session_id = seed_terms.session_id
+      ${sessionJoin}
+      WHERE ${parameters.termTranscriptSearch} = 1
+        AND ${parameters.phraseTranscriptSearch} = 0
+        AND seed_terms.term = ${seedTranscriptTerm}
+        AND (${authorizationBypass} = 1
+          OR seed_terms.session_id IN (SELECT session_id FROM authorized_sessions))
+        ${sessionFilters}
         AND (${multipleTerms} = 0 OR NOT EXISTS (
           SELECT 1 FROM query_transcript_terms AS required_term
           WHERE NOT EXISTS (

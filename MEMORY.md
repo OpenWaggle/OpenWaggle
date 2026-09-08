@@ -477,6 +477,11 @@ left join also catches missing documents explicitly. Keep a temporary covering i
 terms `(session_id, occurrences)` so per-Session token totals do not rescan every batch term.
 Production-query plan regressions protect both boundaries without relaxing integrity checks.
 
+Unscoped transcript-term ranking excludes the archived Session id set instead of looking up
+the full Session row for every posting. Project and working-path filters still require that join;
+authority and archive filtering must stay before the bounded ranking window. Exclude null ids
+from the archive set so malformed legacy rows cannot poison SQL `NOT IN` semantics.
+
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
 its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;
