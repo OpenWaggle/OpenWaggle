@@ -18,6 +18,7 @@ import {
   type TerminalRestartOptions,
 } from '../lib/terminal-pane-actions'
 import { acquireTerminalSurfaceLease } from '../lib/terminal-surface-lease'
+import { resetTerminalOutput } from '../lib/write-terminal-output'
 import { useTerminalStore } from '../state/terminal-store'
 import type { TerminalPaneSessionOptions } from './terminal-pane-session-model'
 
@@ -194,7 +195,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       }
       if (event.type === 'cleared') {
         outputDelivery.clear(event.outputGeneration)
-        term.reset()
+        resetTerminalOutput(term)
         setSelectionText('')
         return
       }
@@ -243,7 +244,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
         throw error
       }
       if (cleanedUp) return
-      term.reset()
+      resetTerminalOutput(term)
       setSelectionText('')
       applySnapshot(snapshot)
       if (snapshot.cwdMissing === true) {

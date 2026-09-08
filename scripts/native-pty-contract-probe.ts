@@ -188,7 +188,7 @@ async function probeNaturalFinalOutput(
       throw new Error(`${backend.label} final-output process exited with ${exitEvent.exitCode}.`)
     }
     if (platform === 'win32') assertTreeFirst(`${backend.label} natural exit`, stages)
-    assertFinalPayload(backend.label, output.read())
+    assertFinalPayload(backend.label, output.read(), platform)
     pty.closeDescriptor()
     pty.closeDescriptor()
   } finally {

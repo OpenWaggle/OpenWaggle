@@ -124,6 +124,50 @@ async function launchSessionWithTerminalFixture(
   }
 }
 
+test('restart and clear leave the rendered terminal usable without old output', async () => {
+  const { app, page } = await launchSessionWithTerminalFixture(
+    'openwaggle-terminal-reset-e2e-',
+    'terminal-reset-project',
+  )
+  try {
+    await app.confirmNativeDialogs()
+    await openTerminalPanel(page)
+    const pane = terminalPane(page)
+    await expect(pane).toHaveAttribute('data-readiness', 'ready', {
+      timeout: SHELL_OUTPUT_TIMEOUT_MS,
+    })
+    const oldMarker = 'OLD_TERMINAL_GENERATION'
+    const floodAndExit = process.platform === 'win32'
+      ? `1..10000 | ForEach-Object { '${oldMarker}' }; exit`
+      : `yes '${oldMarker}' | head -n 10000; exit`
+    await runTerminalCommand(page, pane, floodAndExit)
+    await pane.getByRole('button', { name: 'Restart', exact: true }).click({
+      timeout: SHELL_OUTPUT_TIMEOUT_MS,
+    })
+    await expect(pane).toHaveAttribute('data-readiness', 'ready', {
+      timeout: SHELL_OUTPUT_TIMEOUT_MS,
+    })
+    const replacementCommand = process.platform === 'win32'
+      ? "Write-Output ('NEW_TERMINAL' + '_GENERATION')"
+      : "printf 'NEW_TERMINAL\\137GENERATION\\n'"
+    await runTerminalCommand(page, pane, replacementCommand)
+    await expect(paneRows(pane)).toContainText('NEW_TERMINAL_GENERATION', {
+      timeout: SHELL_OUTPUT_TIMEOUT_MS,
+    })
+    await expect(paneRows(pane)).not.toContainText(oldMarker)
+
+    await page.getByRole('button', { name: 'Clear terminal', exact: true }).click()
+    await expect(paneRows(pane)).not.toContainText('NEW_TERMINAL_GENERATION')
+    await runTerminalCommand(page, pane, replacementCommand)
+    await expect(paneRows(pane)).toContainText('NEW_TERMINAL_GENERATION', {
+      timeout: SHELL_OUTPUT_TIMEOUT_MS,
+    })
+    await expect(paneRows(pane)).not.toContainText(oldMarker)
+  } finally {
+    await app.cleanup()
+  }
+})
+
 test('a draft terminal runs in the draft project path', async () => {
   const { app, page, projectPath } = await launchSessionWithTerminalFixture(
     'openwaggle-terminal-draft-e2e-',

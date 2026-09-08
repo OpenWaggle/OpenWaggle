@@ -49,6 +49,11 @@ test('terminal meets ready-key, pane-usability, flood, and active-restart releas
     await mainWindow.openThread(SESSION_TITLE)
     await page.getByRole('button', { name: 'Open terminal' }).click()
     await expect(page.getByTestId('workspace-terminal')).toBeVisible()
+    // Finish the unmeasured initial shell's startup before creating the test
+    // pane. Its profile execution must not overlap the renderer-only gate.
+    await expect(page.locator('[data-terminal-pane]')).toHaveAttribute('data-readiness', 'ready', {
+      timeout: 90_000,
+    })
 
     const paneUsable = await runTerminalPaneUsableGate({
       page,

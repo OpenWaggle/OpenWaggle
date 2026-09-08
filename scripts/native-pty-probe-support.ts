@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import { constants } from 'node:os'
+import { stripVTControlCharacters } from 'node:util'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 
 export const PROBE_TIMEOUT_MS = 10_000
@@ -18,6 +19,7 @@ const FINAL_PAYLOAD_BYTES = 256 * 1024
 const FINAL_PREFIX = 'OPENWAGGLE_PTY_FINAL_START:'
 const FINAL_SUFFIX = ':OPENWAGGLE_PTY_FINAL_END'
 const FINAL_CHARACTER = '~'
+const UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT = 128
 
 export type Disposable = { readonly dispose: () => void }
 export type ExitEvent = { readonly exitCode: number; readonly signal?: number }
@@ -174,13 +176,23 @@ export function assertTreeFirst(label: string, stages: readonly string[]) {
   }
 }
 
-export function assertFinalPayload(label: string, output: string) {
-  const start = output.indexOf(FINAL_PREFIX)
-  const end = output.indexOf(FINAL_SUFFIX, start + FINAL_PREFIX.length)
+export function assertFinalPayload(label: string, output: string, platform: NodeJS.Platform) {
+  // Windows console hosts serialize screen updates as VT, including cursor
+  // movement and wrapped rows. These are not bytes in the child's payload.
+  // Keep Unix byte-exact and require every Windows payload character exactly once.
+  const text = platform === 'win32'
+    ? stripVTControlCharacters(output).replaceAll('\r', '').replaceAll('\n', '')
+    : output
+  const start = text.indexOf(FINAL_PREFIX)
+  const end = text.indexOf(FINAL_SUFFIX, start + FINAL_PREFIX.length)
   if (start === -1 || end === -1) throw new Error(`${label} dropped final output markers.`)
-  const payload = output.slice(start + FINAL_PREFIX.length, end)
+  const payload = text.slice(start + FINAL_PREFIX.length, end)
   if (payload.length !== FINAL_PAYLOAD_BYTES || payload.replaceAll(FINAL_CHARACTER, '') !== '') {
-    throw new Error(`${label} corrupted final PTY output (${payload.length} bytes received).`)
+    const unexpected = payload.replaceAll(FINAL_CHARACTER, '').slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT)
+    throw new Error(
+      `${label} corrupted final PTY output (${payload.length}/${FINAL_PAYLOAD_BYTES} payload characters; ` +
+        `${output.length} raw characters; unexpected ${JSON.stringify(unexpected)}).`,
+    )
   }
 }
 

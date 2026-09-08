@@ -761,6 +761,11 @@ export async function runTerminalPaneUsableGate(options: {
 }): Promise<TerminalPaneUsablePerformanceResult> {
   const { page, trigger } = options
   await trigger.evaluate((element, stateKey) => {
+    const existingPaneIds = new Set(
+      Array.from(document.querySelectorAll('[data-terminal-pane]'), (pane) =>
+        pane.getAttribute('data-terminal-pane'),
+      ),
+    )
     const state = {
       completedAt: 0,
       elapsedMs: 0,
@@ -782,7 +787,9 @@ export async function runTerminalPaneUsableGate(options: {
       state.frameCount += 1
       state.maxFrameGapMs = Math.max(state.maxFrameGapMs, now - state.lastFrameAt)
       state.lastFrameAt = now
-      const pane = document.querySelector('[data-terminal-pane]')
+      const pane = Array.from(document.querySelectorAll('[data-terminal-pane]')).find(
+        (candidate) => !existingPaneIds.has(candidate.getAttribute('data-terminal-pane')),
+      )
       const screen = pane?.querySelector('.xterm-screen')
       const textarea = pane?.querySelector('textarea.xterm-helper-textarea')
       if (pane && state.firstPaneMs < 0) state.firstPaneMs = now - state.startedAt

@@ -3,6 +3,11 @@ import type { Terminal } from '@xterm/xterm'
 const PARSER_CHUNK_CODE_UNITS = 4_096
 const MAX_SINGLE_UTF16_CODE_POINT = 0xffff
 
+/** Queue RIS after old writes so a synchronous reset cannot be undone by them. */
+export function resetTerminalOutput(terminal: Pick<Terminal, 'write'>) {
+  terminal.write('\x1bc')
+}
+
 /** xterm checks its time budget between writes, never inside one large write. */
 export function writeTerminalOutput(
   terminal: Pick<Terminal, 'write'>,
