@@ -96,6 +96,18 @@ export async function verifyLiveHiveGui(input: {
       input.timeoutMs,
       input.automationIdentity,
     )
+    const consoleErrors: string[] = []
+    page.on('pageerror', (error) => consoleErrors.push(error.message))
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+    const runtime = await page.evaluate(() => ({
+      hasApi: 'api' in window,
+      isElectron: navigator.userAgent.includes('Electron'),
+    }))
+    if (!runtime.hasApi || !runtime.isElectron) {
+      throw new Error('Live Hive QA requires the real Electron renderer and preload API.')
+    }
     const row = (title: string) =>
       page.locator('[data-qa="sidebar-session-row"]').filter({ hasText: title })
     const queenRow = row(input.queenTitle)
@@ -118,6 +130,10 @@ export async function verifyLiveHiveGui(input: {
     await hive.waitFor({ state: 'visible', timeout: input.timeoutMs })
     const workerShortcut = hive.getByRole('button', { name: /^Open Worker Session:/ })
     await workerShortcut.waitFor({ state: 'visible', timeout: input.timeoutMs })
+    await hive.getByRole('button', { name: 'Collapse Hive Sessions', exact: true }).click()
+    await workerShortcut.waitFor({ state: 'hidden', timeout: input.timeoutMs })
+    await hive.getByRole('button', { name: 'Expand Hive Sessions', exact: true }).click()
+    await workerShortcut.waitFor({ state: 'visible', timeout: input.timeoutMs })
     await workerShortcut.click()
     await page.locator('header').getByText('Worker', { exact: true }).waitFor({
       state: 'visible',
@@ -133,6 +149,14 @@ export async function verifyLiveHiveGui(input: {
     )
     const screenshotPath = path.join(evidenceDirectory, 'live-queen-worker-hive.png')
     await page.screenshot({ path: screenshotPath })
+    await hive.getByRole('button', { name: /^Open parent Session:/ }).click()
+    await page.locator('header').getByText('Queen', { exact: true }).waitFor({
+      state: 'visible',
+      timeout: input.timeoutMs,
+    })
+    if (consoleErrors.length > 0) {
+      throw new Error(`Live Hive renderer errors (${screenshotPath}): ${consoleErrors.join('\n')}`)
+    }
     return screenshotPath
   } finally {
     await browser.close().catch(() => undefined)
