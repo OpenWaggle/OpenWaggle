@@ -39,6 +39,7 @@ interface DraftBranchComposerInput {
   readonly sessionId: SessionId
   readonly sourceNodeId: SessionNodeId
   readonly fallbackText: string
+  readonly projectPath: string | null
 }
 
 function draftBranchComposerContextKey(
@@ -95,11 +96,12 @@ function restoreBranchSummaryChoice(
   useBranchSummaryStore.getState().restoreChoice()
 }
 
-function switchComposerToDraftBranch(
-  params: BranchSummaryWorkflowParams,
-  input: DraftBranchComposerInput,
-) {
-  const contextKey = draftBranchComposerContextKey(params, input.sessionId, input.sourceNodeId)
+function switchComposerToDraftBranch(input: DraftBranchComposerInput) {
+  const contextKey = buildComposerDraftContextKey({
+    projectPath: input.projectPath,
+    sessionId: input.sessionId,
+    draftSourceNodeId: input.sourceNodeId,
+  })
   const appliedDraft = useComposerStore.getState().switchScopedDraftContext(contextKey, {
     input: input.fallbackText,
     attachments: [],
@@ -273,7 +275,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
       setComposerTextValue('')
     },
     switchComposerToDraftBranch(input: DraftBranchComposerInput) {
-      return switchComposerToDraftBranch(params, input)
+      return switchComposerToDraftBranch(input)
     },
   }
 }

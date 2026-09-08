@@ -1,4 +1,3 @@
-import { SessionId } from '@shared/types/brand'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -7,10 +6,7 @@ import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useTurnReveal } from '@/features/chat/hooks/useTurnReveal'
-import { createBranchDraftSelection } from '@/features/chat/lib/branch-from-message'
-import { maybeOpenBranchSummaryPrompt } from '@/features/chat/lib/branch-summary-prompt-controller'
 import { isCompactionRunning } from '@/features/chat/lib/compaction-lifecycle'
-import { useComposerStore } from '@/features/composer/state'
 import { useSkills } from '@/features/skills/hooks'
 import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
@@ -19,6 +15,7 @@ import { buildDiffSection } from '../lib/diff-section'
 import { setComposerSessionAuthorizationMode } from '../lib/session-authorization-mode-action'
 import { sendStarterPrompt } from '../lib/starter-prompt-action'
 import type { ChatPanelSections } from '../model'
+import { useBranchFromMessage } from './useBranchFromMessage'
 import { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import { useChatPanelEnvironment } from './useChatPanelEnvironment'
 import { useChatSendWorkflow } from './useChatSendWorkflow'
@@ -56,7 +53,6 @@ export function useChatPanelSections(): ChatPanelSections {
     projectPath,
     recentProjects,
     refreshSessionWorkspace,
-    setDraftBranch,
     showToast,
     thinkingLevel,
   } = env
@@ -172,46 +168,16 @@ export function useChatPanelSections(): ChatPanelSections {
     showToast,
   })
 
-  function handleBranchFromMessage(messageId: string) {
-    if (!activeSessionId) return
-    const sessionId = SessionId(String(activeSessionId))
-    const previousComposerText = useComposerStore.getState().input
-    const selection = createBranchDraftSelection({
-      messages,
-      workspace: activeWorkspace,
-      messageId,
-    })
-    const fallbackDraftText = selection.prefillText ?? ''
-    setDraftBranch({ sessionId, sourceNodeId: selection.sourceNodeId })
-    const draftComposerText = branchSummary.switchComposerToDraftBranch({
-      sessionId,
-      sourceNodeId: selection.sourceNodeId,
-      fallbackText: fallbackDraftText,
-    })
-    maybeOpenBranchSummaryPrompt({
-      sessionId,
-      sourceNodeId: selection.sourceNodeId,
-      restoreSelection: {
-        branchId: activeWorkspace?.activeBranchId ?? null,
-        nodeId: activeWorkspace?.activeNodeId ?? null,
-      },
-      previousComposerText,
-      draftComposerText,
-      activeWorkspace,
-      projectPath,
-    })
-    void navigate({
-      to: '/sessions/$sessionId',
-      params: { sessionId: String(sessionId) },
-      search: (previous) => ({
-        ...previous,
-        branch: undefined,
-        node: String(selection.routeNodeId),
-      }),
-    })
-
-    void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
-  }
+  const handleBranchFromMessage = useBranchFromMessage({
+    activeSessionId,
+    activeWorkspace,
+    messages,
+    projectPath,
+    navigate,
+    refreshSessionWorkspace,
+    switchComposerToDraftBranch: branchSummary.switchComposerToDraftBranch,
+    showToast,
+  })
 
   const { turnAnchorMessageIds, handleViewTurnDiff } = useTurnReveal(
     activeSessionId,

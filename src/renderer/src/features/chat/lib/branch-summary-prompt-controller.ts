@@ -1,6 +1,7 @@
 import type { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionWorkspace } from '@shared/types/session'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
+import { useChatStore } from '@/features/chat/state/chat-store'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -33,12 +34,11 @@ export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenReque
   function openIfCurrent() {
     const currentState = useSessionStore.getState()
     const currentDraft = currentState.draftBranch
-    const currentWorkspace = currentState.activeWorkspace
     if (
       !currentDraft ||
       currentDraft.sessionId !== input.sessionId ||
       currentDraft.sourceNodeId !== input.sourceNodeId ||
-      currentWorkspace?.tree.session.id !== input.sessionId
+      useChatStore.getState().activeSessionId !== input.sessionId
     ) {
       return
     }

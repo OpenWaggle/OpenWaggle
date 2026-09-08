@@ -7,6 +7,7 @@ import {
   createBranchDraftSelectionFromNode,
   shouldPromptForBranchSummary,
 } from '../branch-from-message'
+import { reconcileSnapshotUserMessages } from '../chat-message-reconciliation'
 
 const SESSION_ID = SessionId('session-1')
 
@@ -74,6 +75,16 @@ function workspace(entryNode: SessionNode, allNodes: readonly SessionNode[] = [e
 }
 
 describe('createBranchDraftSelection', () => {
+  it('does not invent a source node before the transcript workspace is hydrated', () => {
+    expect(
+      createBranchDraftSelection({
+        messages: [message('branch-point', 'user', 'Branch from this user node')],
+        workspace: null,
+        messageId: 'branch-point',
+      }),
+    ).toBeNull()
+  })
+
   it('branches from a user message parent and prefills the composer with the original text', () => {
     const result = createBranchDraftSelection({
       messages: [message('user-1', 'user', 'Fix this bug')],
@@ -99,6 +110,108 @@ describe('createBranchDraftSelection', () => {
       sourceNodeId: SessionNodeId('assistant-1'),
       routeNodeId: SessionNodeId('assistant-1'),
     })
+  })
+
+  it('preserves real root-user no-parent semantics', () => {
+    expect(
+      createBranchDraftSelection({
+        messages: [message('root', 'user', 'First prompt')],
+        workspace: workspace(node('root', null)),
+        messageId: 'root',
+      }),
+    ).toEqual({ sourceNodeId: SessionNodeId('root'), routeNodeId: SessionNodeId('root') })
+  })
+
+  it('uses a canonical hidden parent rather than the preceding visible message', () => {
+    const userNode = node('user-2', 'hidden-compaction')
+    expect(
+      createBranchDraftSelection({
+        messages: [
+          message('assistant-1', 'assistant', 'Previous visible reply'),
+          message('user-2', 'user', 'Retry'),
+        ],
+        workspace: workspace(userNode),
+        messageId: 'user-2',
+      }),
+    ).toEqual({
+      sourceNodeId: SessionNodeId('hidden-compaction'),
+      routeNodeId: SessionNodeId('hidden-compaction'),
+      prefillText: 'Retry',
+    })
+  })
+
+  it('resolves known canonical nodes outside the selected transcript path', () => {
+    const selected = node('other-leaf', null)
+    expect(
+      createBranchDraftSelection({
+        messages: [message('user-2', 'user', 'Retry')],
+        workspace: workspace(selected, [selected, node('user-2', 'canonical-parent')]),
+        messageId: 'user-2',
+      }),
+    ).toEqual({
+      sourceNodeId: SessionNodeId('canonical-parent'),
+      routeNodeId: SessionNodeId('canonical-parent'),
+      prefillText: 'Retry',
+    })
+  })
+
+  it.each([0, 3])(
+    'resolves an optimistic row by its reconciled canonical created order %i',
+    (createdOrder) => {
+      const persistedNode = { ...node('canonical-user', 'canonical-parent'), createdOrder }
+      const messages = reconcileSnapshotUserMessages(
+        [
+          {
+            ...message('canonical-user', 'user', 'Retry'),
+            metadata: { sessionNodeCreatedOrder: persistedNode.createdOrder },
+          },
+        ],
+        [message('optimistic-user', 'user', 'Retry')],
+      )
+      expect(messages[0]?.id).toBe('optimistic-user')
+      expect(
+        createBranchDraftSelection({
+          messages,
+          workspace: workspace(persistedNode),
+          messageId: 'optimistic-user',
+        }),
+      ).toEqual({
+        sourceNodeId: SessionNodeId('canonical-parent'),
+        routeNodeId: SessionNodeId('canonical-parent'),
+        prefillText: 'Retry',
+      })
+    },
+  )
+
+  it('keeps exact node identity authoritative over conflicting created-order metadata', () => {
+    const clicked = node('exact-id', 'exact-parent')
+    const other = { ...node('other-id', 'other-parent'), createdOrder: 9 }
+    expect(
+      createBranchDraftSelection({
+        messages: [
+          { ...message('exact-id', 'user', 'Retry'), metadata: { sessionNodeCreatedOrder: 9 } },
+        ],
+        workspace: workspace(clicked, [clicked, other]),
+        messageId: 'exact-id',
+      })?.sourceNodeId,
+    ).toBe('exact-parent')
+  })
+
+  it('rejects created-order matches with a different canonical kind or Session', () => {
+    const wrongRole = node('assistant', null, { kind: 'assistant_message' })
+    const wrongSession = {
+      ...node('foreign-user', 'foreign-parent'),
+      sessionId: SessionId('other-session'),
+    }
+    expect(
+      createBranchDraftSelection({
+        messages: [
+          { ...message('optimistic', 'user', 'Retry'), metadata: { sessionNodeCreatedOrder: 1 } },
+        ],
+        workspace: workspace(wrongRole, [wrongRole, wrongSession]),
+        messageId: 'optimistic',
+      }),
+    ).toBeNull()
   })
 })
 

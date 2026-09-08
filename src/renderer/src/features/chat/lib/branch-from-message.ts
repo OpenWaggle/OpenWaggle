@@ -1,5 +1,5 @@
 import { getMessageText as getAgentMessageText } from '@shared/types/agent'
-import { SessionNodeId } from '@shared/types/brand'
+import type { SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 
@@ -45,8 +45,30 @@ function pathToRootIds(nodesById: ReadonlyMap<string, SessionNode>, nodeId: Sess
   return pathIds
 }
 
-function findTranscriptNode(workspace: SessionWorkspace | null, messageId: string) {
-  return workspace?.transcriptPath.find((entry) => String(entry.node.id) === messageId)?.node
+function findTranscriptNode(
+  workspace: SessionWorkspace | null,
+  messageId: string,
+  message: UIMessage | undefined,
+) {
+  const createdOrder = message?.metadata?.sessionNodeCreatedOrder
+  return (
+    workspace?.transcriptPath.find(
+      (entry) =>
+        entry.node.sessionId === workspace.tree.session.id && String(entry.node.id) === messageId,
+    )?.node ??
+    workspace?.tree.nodes.find(
+      (node) => node.sessionId === workspace.tree.session.id && String(node.id) === messageId,
+    ) ??
+    (createdOrder === undefined
+      ? undefined
+      : workspace?.tree.nodes.find(
+          (node) =>
+            node.sessionId === workspace.tree.session.id &&
+            node.createdOrder === createdOrder &&
+            ((message?.role === 'user' && node.kind === 'user_message') ||
+              (message?.role === 'assistant' && node.kind === 'assistant_message')),
+        ))
+  )
 }
 
 export function createBranchDraftSelectionFromNode(node: SessionNode): BranchDraftSelection {
@@ -69,9 +91,9 @@ export function createBranchDraftSelection({
   messages,
   workspace,
   messageId,
-}: CreateBranchDraftSelectionInput): BranchDraftSelection {
+}: CreateBranchDraftSelectionInput): BranchDraftSelection | null {
   const message = messages.find((candidate) => candidate.id === messageId)
-  const node = findTranscriptNode(workspace, messageId)
+  const node = findTranscriptNode(workspace, messageId, message)
 
   if (message?.role === 'user' && node?.parentId) {
     const text = getUiMessageText(message).trim()
@@ -86,11 +108,9 @@ export function createBranchDraftSelection({
     return createBranchDraftSelectionFromNode(node)
   }
 
-  const nodeId = SessionNodeId(messageId)
-  return {
-    sourceNodeId: nodeId,
-    routeNodeId: nodeId,
-  }
+  // A visible live message can precede its canonical projection. In particular,
+  // an unknown user-message parent is not the same as a real root user node.
+  return null
 }
 
 export function shouldPromptForBranchSummary(
