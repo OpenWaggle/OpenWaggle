@@ -144,18 +144,23 @@ function lexicalDiscoveryRankingCte(
 ) {
   const eligibleSessionJoin = requiresEligibleSessionJoin
     ? sql`JOIN eligible_sessions
-        ON eligible_sessions.session_id = session_node_discovery_search.session_id`
+        ON eligible_sessions.session_id = discovery_metadata.c0`
     : sql``
+  // FTS5 documents c0/c1 as the stored values of our session_id/archived columns.
+  // Joining that content by rowid avoids a nested FTS content seek for every ranked hit.
+  // Keep this read-only mapping aligned with the FTS column order in the search schema.
   return sql`
     discovery_ranked_sessions AS MATERIALIZED (
-      SELECT session_node_discovery_search.session_id,
+      SELECT discovery_metadata.c0 AS session_id,
         bm25(session_node_discovery_search, 0.0, 0.0, 3.0, 3.0) AS score
       FROM session_node_discovery_search
+      JOIN session_node_discovery_search_content AS discovery_metadata
+        ON discovery_metadata.id = session_node_discovery_search.rowid
       ${eligibleSessionJoin}
       WHERE ${parameters.fullTranscript} = 0
-        AND (${parameters.includeArchived} = 1 OR session_node_discovery_search.archived = ${0})
+        AND (${parameters.includeArchived} = 1 OR discovery_metadata.c1 = ${0})
         AND session_node_discovery_search MATCH ${parameters.discoveryFtsQuery}
-      ORDER BY score, session_node_discovery_search.session_id
+      ORDER BY score, discovery_metadata.c0
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     )
   `
