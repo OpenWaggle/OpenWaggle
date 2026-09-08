@@ -15,7 +15,7 @@ export function seedComposerWorkspace() {
     .switchScopedDraftContext(`project:${PROJECT_PATH}:session:session-1:main`)
   useSessionStore.setState({
     activeWorkspace: fromPartial<SessionWorkspace>({
-      tree: { session: { id: SessionId('session-1') } },
+      tree: { session: { id: SessionId('session-1'), projectPath: PROJECT_PATH } },
       activeBranchId: null,
       activeNodeId: null,
     }),

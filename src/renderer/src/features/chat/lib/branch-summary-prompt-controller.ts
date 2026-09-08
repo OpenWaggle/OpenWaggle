@@ -27,15 +27,22 @@ export interface BranchSummaryPromptOpenRequest {
 export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenRequest): void {
   useBranchSummaryStore.getState().clearPrompt()
 
-  if (!shouldPromptForBranchSummary(input.activeWorkspace, input.sourceNodeId)) {
+  const workspace = input.activeWorkspace
+  if (
+    workspace?.tree.session.id !== input.sessionId ||
+    !shouldPromptForBranchSummary(workspace, input.sourceNodeId)
+  ) {
     return
   }
+  const projectPath = workspace.tree.session.projectPath
+  const originatingDraft = useSessionStore.getState().draftBranch
 
   function openIfCurrent() {
     const currentState = useSessionStore.getState()
     const currentDraft = currentState.draftBranch
     if (
       !currentDraft ||
+      currentDraft !== originatingDraft ||
       currentDraft.sessionId !== input.sessionId ||
       currentDraft.sourceNodeId !== input.sourceNodeId ||
       useChatStore.getState().activeSessionId !== input.sessionId
@@ -44,6 +51,7 @@ export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenReque
     }
     useBranchSummaryStore.getState().openPrompt({
       sessionId: input.sessionId,
+      projectPath,
       sourceNodeId: input.sourceNodeId,
       restoreSelection: input.restoreSelection,
       previousComposerText: input.previousComposerText,
@@ -57,9 +65,7 @@ export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenReque
   }
 
   void api
-    .getPiBranchSummarySkipPrompt(
-      input.activeWorkspace?.tree.session.projectPath ?? input.projectPath,
-    )
+    .getPiBranchSummarySkipPrompt(projectPath)
     .then((skipPrompt) => {
       if (!skipPrompt) {
         openIfCurrent()

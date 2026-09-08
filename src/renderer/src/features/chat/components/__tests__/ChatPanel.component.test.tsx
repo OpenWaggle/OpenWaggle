@@ -156,6 +156,7 @@ describe('ChatPanel', () => {
     const onSendWithWaggle = vi.fn().mockResolvedValue(undefined)
     useBranchSummaryStore.getState().openPrompt({
       sessionId: SessionId('session-1'),
+      projectPath: '/test/project',
       sourceNodeId: SessionNodeId('source-node'),
       restoreSelection: { branchId: null, nodeId: null },
       previousComposerText: 'original prompt',

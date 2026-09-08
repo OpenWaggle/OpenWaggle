@@ -103,9 +103,10 @@ function workspace(input: {
   }
 }
 
-function openPrompt() {
+function openPrompt(projectPath: string | null = '/repo') {
   useBranchSummaryStore.getState().openPrompt({
     sessionId: SESSION_ID,
+    projectPath,
     sourceNodeId: SOURCE_NODE_ID,
     restoreSelection: { branchId: MAIN_BRANCH_ID, nodeId: ACTIVE_NODE_ID },
     previousComposerText: 'previous composer text',
@@ -231,7 +232,7 @@ describe('useBranchSummaryWorkflow', () => {
   ])(
     'cancels branch summarization in the original $scope context',
     ({ owner, projectPath, expectedProject }) => {
-      openPrompt()
+      openPrompt(expectedProject)
       const params = {
         ...workflowParams(),
         activeWorkspace: owner
@@ -274,7 +275,7 @@ describe('useBranchSummaryWorkflow', () => {
   )
 
   it('clears the completed source draft under the canonical no-project key', async () => {
-    openPrompt()
+    openPrompt(null)
     const activeWorkspace = workspace({
       branchId: SUMMARY_BRANCH_ID,
       nodeId: ACTIVE_NODE_ID,
