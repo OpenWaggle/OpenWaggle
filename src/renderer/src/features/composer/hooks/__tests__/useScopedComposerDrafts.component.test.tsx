@@ -128,4 +128,38 @@ describe('useScopedComposerDrafts', () => {
     act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
     expect(useComposerStore.getState().attachments).toEqual([attachment])
   })
+
+  it.each([true, false])(
+    'preserves typing across delayed project selection, workspace first: %s',
+    (workspaceFirst) => {
+      usePreferencesStore.setState((state) => ({
+        settings: { ...state.settings, projectPath: '/old-project' },
+      }))
+      renderHook(() => useScopedComposerDrafts(SESSION_A))
+      act(() => useComposerStore.getState().setInput('New project draft'))
+      const hydrateWorkspace = () =>
+        act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
+      const updateProject = () =>
+        act(() =>
+          usePreferencesStore.setState((state) => ({
+            settings: { ...state.settings, projectPath: '/repo' },
+          })),
+        )
+      if (workspaceFirst) {
+        hydrateWorkspace()
+        updateProject()
+      } else {
+        updateProject()
+        hydrateWorkspace()
+      }
+      expect(useComposerStore.getState().input).toBe('New project draft')
+      expect(useComposerStore.getState().activeDraftContextKey).toBe(
+        buildComposerDraftContextKey({
+          projectPath: '/repo',
+          sessionId: SESSION_A,
+          activeBranchId: SessionBranchId('main'),
+        }),
+      )
+    },
+  )
 })

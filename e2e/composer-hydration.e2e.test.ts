@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
 
-test('selected slash command survives delayed session workspace hydration', async () => {
+test('selected slash command survives delayed project selection and session workspace hydration', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-composer-hydration-')
   try {
     const title = 'Composer hydration regression'
@@ -17,6 +17,7 @@ test('selected slash command survives delayed session workspace hydration', asyn
     const workspace = await page.evaluate(id => window.api.getSessionWorkspace(id), sessionId)
     if (!workspace) throw new Error('Seeded session workspace is missing')
     await app.holdSessionWorkspace(workspace)
+    await app.holdProjectSelection(app.userDataDir)
     await app.mainWindow().openThread(title)
     await page.locator('header').getByRole('button', { name: 'Toggle Session Tree' }).click()
     const tree = page.getByRole('region', { name: 'Session Tree' })
@@ -26,6 +27,8 @@ test('selected slash command survives delayed session workspace hydration', asyn
     await expect(page.getByRole('menuitem', { name: /Visualize/ })).toBeVisible()
     await input.press('Enter')
     await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
+    await app.releaseProjectSelection()
+    await expect.poll(() => app.projectSelectionApplied()).toBe(true)
     await app.releaseSessionWorkspace()
     await expect(tree.getByText(transcript, { exact: false })).toBeVisible()
     await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')

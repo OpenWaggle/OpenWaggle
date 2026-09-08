@@ -37,7 +37,7 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
-  const pendingContextKey = `${buildComposerDraftContextKey({ projectPath, sessionId: activeSessionId })}:pending`
+  const pendingContextKey = `session:${activeSessionId}:pending`
   const contextKey =
     buildScopedComposerContextKey(projectPath, activeSessionId, activeWorkspace, draftBranch) ??
     pendingContextKey
@@ -98,7 +98,9 @@ function buildScopedComposerContextKey(
   if (!workspaceBelongsToSession(activeWorkspace, scopedSessionId)) return null
 
   return buildComposerDraftContextKey({
-    projectPath,
+    projectPath: scopedSessionId
+      ? (activeWorkspace?.tree.session.projectPath ?? null)
+      : projectPath,
     sessionId: scopedSessionId,
     activeBranchId: activeWorkspace?.activeBranchId ?? null,
     activeNodeId: activeWorkspace?.activeNodeId ?? null,

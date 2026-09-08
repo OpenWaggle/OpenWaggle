@@ -79,7 +79,9 @@ export async function executeSessionOperation(
       ),
     )
     .with('wait', () => Effect.runPromise(waitForSession(tasks, session, input)))
-    .with('interrupt', () => Effect.runPromise(interruptSession(options, tasks, session)))
+    .with('interrupt', () =>
+      Effect.runPromise(interruptSession(options, tasks, session, input.timeoutMs)),
+    )
     .with('plan-worktree', () => planWorktree(metadata, session, input))
     .with('create-worktree', () => createWorktree(options, metadata, session, input, adapters))
     .with('handoff', () => Effect.runPromise(handoffSession(options, metadata, session, input)))

@@ -381,6 +381,13 @@ export class OpenWaggleApp {
     )
   }
 
+  async resizeMainContent(width: number, height: number): Promise<void> {
+    await this.app.evaluate(
+      ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setContentSize(size.width, size.height),
+      { width, height },
+    )
+  }
+
   /**
    * Emits a real `agent:event` from the main process.
    *
@@ -551,6 +558,40 @@ export class OpenWaggleApp {
     await this.app.evaluate(() => {
       const probeGlobal: typeof globalThis & { __openWaggleReleaseWorkspace?: () => void } = globalThis
       probeGlobal.__openWaggleReleaseWorkspace?.()
+    })
+  }
+
+  async holdProjectSelection(projectPath: string): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, targetPath) => {
+      const probeGlobal: typeof globalThis & {
+        __openWaggleProjectSelection?: { release: () => void; applied: boolean }
+      } = globalThis
+      const gate = Promise.withResolvers<void>()
+      let settingsReleased = false
+      probeGlobal.__openWaggleProjectSelection = { release: () => gate.resolve(), applied: false }
+      ipcMain.removeHandler('settings:update')
+      ipcMain.handle('settings:update', async () => { await gate.promise; settingsReleased = true; return { ok: true } })
+      ipcMain.removeHandler('project-config:get-preferences')
+      ipcMain.handle('project-config:get-preferences', (_event, requestedPath) => {
+        if (settingsReleased && requestedPath === targetPath && probeGlobal.__openWaggleProjectSelection) {
+          probeGlobal.__openWaggleProjectSelection.applied = true
+        }
+        return null
+      })
+    }, projectPath)
+  }
+
+  async releaseProjectSelection(): Promise<void> {
+    await this.app.evaluate(() => {
+      const probeGlobal: typeof globalThis & { __openWaggleProjectSelection?: { release: () => void } } = globalThis
+      probeGlobal.__openWaggleProjectSelection?.release()
+    })
+  }
+
+  async projectSelectionApplied(): Promise<boolean> {
+    return this.app.evaluate(() => {
+      const probeGlobal: typeof globalThis & { __openWaggleProjectSelection?: { applied: boolean } } = globalThis
+      return probeGlobal.__openWaggleProjectSelection?.applied ?? false
     })
   }
 

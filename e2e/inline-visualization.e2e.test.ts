@@ -251,7 +251,7 @@ async function expectSecureInteractiveVisualization(
   await expect(redrawTooltipButton).toHaveCount(0)
   await expect(frame.getByRole('tooltip')).toHaveCount(0)
 
-  await app.resizeMainWindow(1800, 900)
+  await app.resizeMainContent(1800, 900)
   await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_800)
   const sessionTreeToggle = page
     .locator('header')
