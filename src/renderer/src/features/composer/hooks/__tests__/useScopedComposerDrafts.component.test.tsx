@@ -1,5 +1,6 @@
-import { SessionBranchId, SessionId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, WagglePresetId } from '@shared/types/brand'
 import type { SessionWorkspace } from '@shared/types/session'
+import { WAGGLE_INHERIT_MODEL } from '@shared/types/waggle'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useBranchSummaryStore } from '@/features/chat/state'
@@ -48,11 +49,28 @@ describe('useScopedComposerDrafts', () => {
     useComposerStore.setState({
       activeDraftContextKey: null,
       scopedDrafts: {},
+      editedPendingDrafts: {},
       input: '',
       attachments: [],
       selectedWagglePreset: null,
       lexicalEditor: null,
     })
+  })
+
+  it('does not resurrect a saved draft after the pending draft was edited and cleared', () => {
+    const contextKey = buildComposerDraftContextKey({
+      projectPath: '/repo',
+      sessionId: SESSION_A,
+      activeBranchId: SessionBranchId('main'),
+    })
+    useComposerStore
+      .getState()
+      .saveScopedDraft(contextKey, { input: 'Old saved draft', attachments: [] })
+    renderHook(() => useScopedComposerDrafts(SESSION_A))
+    act(() => useComposerStore.getState().setInput('Temporary edit'))
+    act(() => useComposerStore.getState().setInput(''))
+    act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
+    expect(useComposerStore.getState().input).toBe('')
   })
 
   it('preserves a draft typed before the opened session workspace arrives', () => {
@@ -67,6 +85,79 @@ describe('useScopedComposerDrafts', () => {
         activeBranchId: SessionBranchId('main'),
       }),
     )
+  })
+
+  it('keeps a cleared attachment draft empty when hydration restores the branch', () => {
+    const contextKey = buildComposerDraftContextKey({
+      projectPath: '/repo',
+      sessionId: SESSION_A,
+      activeBranchId: SessionBranchId('main'),
+    })
+    useComposerStore
+      .getState()
+      .saveScopedDraft(contextKey, { input: 'Old saved draft', attachments: [] })
+    renderHook(() => useScopedComposerDrafts(SESSION_A))
+    act(() =>
+      useComposerStore.getState().addAttachments([
+        {
+          id: 'note',
+          kind: 'text',
+          name: 'note.txt',
+          path: '/repo/note.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 1,
+          extractedText: 'a',
+        },
+      ]),
+    )
+    act(() => useComposerStore.getState().removeAttachment('note'))
+    act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
+    expect(useComposerStore.getState().input).toBe('')
+    expect(useComposerStore.getState().attachments).toEqual([])
+  })
+
+  it('does not restore a saved draft after removing a pending Waggle preset', () => {
+    const contextKey = buildComposerDraftContextKey({
+      projectPath: '/repo',
+      sessionId: SESSION_A,
+      activeBranchId: SessionBranchId('main'),
+    })
+    useComposerStore
+      .getState()
+      .saveScopedDraft(contextKey, { input: 'Old saved draft', attachments: [] })
+    renderHook(() => useScopedComposerDrafts(SESSION_A))
+    act(() =>
+      useComposerStore.getState().setSelectedWagglePreset({
+        id: WagglePresetId('review'),
+        name: 'Review',
+        description: 'Review changes',
+        config: {
+          mode: 'sequential',
+          agents: [
+            {
+              label: 'Architect',
+              model: WAGGLE_INHERIT_MODEL,
+              roleDescription: 'Review architecture',
+              color: 'blue',
+            },
+            {
+              label: 'Reviewer',
+              model: WAGGLE_INHERIT_MODEL,
+              roleDescription: 'Review implementation',
+              color: 'amber',
+            },
+          ],
+          stop: { primary: 'consensus', maxTurnsSafety: 4 },
+        },
+        isBuiltIn: false,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    act(() => useComposerStore.getState().setSelectedWagglePreset(null))
+    act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
+    expect(useComposerStore.getState().input).toBe('')
+    expect(useComposerStore.getState().selectedWagglePreset).toBeNull()
   })
 
   it('keeps pending drafts isolated during rapid session switching and ignores stale workspaces', () => {
@@ -91,6 +182,31 @@ describe('useScopedComposerDrafts', () => {
     expect(useComposerStore.getState().input).toBe('Draft B')
   })
 
+  it.each(['', 'Keep the pending edit'])(
+    'restores the edited pending draft after unmounting and background hydration: %j',
+    (pendingInput) => {
+      const contextKey = buildComposerDraftContextKey({
+        projectPath: '/repo',
+        sessionId: SESSION_A,
+        activeBranchId: SessionBranchId('main'),
+      })
+      useComposerStore
+        .getState()
+        .saveScopedDraft(contextKey, { input: 'Old saved draft', attachments: [] })
+      const hook = renderHook(() => useScopedComposerDrafts(SESSION_A))
+      act(() => useComposerStore.getState().setInput('Temporary edit'))
+      act(() => useComposerStore.getState().setInput(pendingInput))
+      hook.unmount()
+      const other = renderHook(() => useScopedComposerDrafts(SessionId('session-b')))
+      act(() => useComposerStore.getState().setInput('Session B draft'))
+      act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
+      other.unmount()
+      renderHook(() => useScopedComposerDrafts(SESSION_A))
+      expect(useComposerStore.getState().input).toBe(pendingInput)
+      expect(useComposerStore.getState().getScopedDraft(contextKey)?.input ?? '').toBe(pendingInput)
+    },
+  )
+
   it('restores the saved branch draft when nothing was entered during hydration', () => {
     const contextKey = buildComposerDraftContextKey({
       projectPath: '/repo',
@@ -101,6 +217,11 @@ describe('useScopedComposerDrafts', () => {
       .getState()
       .saveScopedDraft(contextKey, { input: 'Saved branch draft', attachments: [] })
     renderHook(() => useScopedComposerDrafts(SESSION_A))
+    act(() => {
+      useComposerStore.getState().setInput('')
+      useComposerStore.getState().replaceAttachments([])
+      useComposerStore.getState().setSelectedWagglePreset(null)
+    })
     act(() => useSessionStore.setState({ activeWorkspace: workspace() }))
     expect(useComposerStore.getState().input).toBe('Saved branch draft')
     act(() =>

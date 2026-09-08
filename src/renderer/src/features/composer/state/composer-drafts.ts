@@ -68,7 +68,14 @@ export function createScopedDraftActions(set: ComposerSet, get: ComposerGet) {
     },
 
     clearScopedDraft(contextKey: string) {
-      set((state) => ({ scopedDrafts: removeScopedDraft(state.scopedDrafts, contextKey) }))
+      set((state) => {
+        const editedPendingDrafts = { ...state.editedPendingDrafts }
+        delete editedPendingDrafts[contextKey]
+        return {
+          scopedDrafts: removeScopedDraft(state.scopedDrafts, contextKey),
+          editedPendingDrafts,
+        }
+      })
     },
 
     clearScopedDraftsForSession(sessionId: string) {
@@ -134,11 +141,16 @@ function clearMatchingScopedDrafts(
   matchesContext: (contextKey: string) => boolean,
 ) {
   const nextDrafts = { ...state.scopedDrafts }
+  const editedPendingDrafts = { ...state.editedPendingDrafts }
   for (const contextKey of Object.keys(nextDrafts)) {
     if (matchesContext(contextKey)) delete nextDrafts[contextKey]
   }
+  for (const contextKey of Object.keys(editedPendingDrafts)) {
+    if (matchesContext(contextKey)) delete editedPendingDrafts[contextKey]
+  }
   return {
     scopedDrafts: nextDrafts,
+    editedPendingDrafts,
     ...(state.activeDraftContextKey && matchesContext(state.activeDraftContextKey)
       ? clearActiveDraftContextState()
       : {}),

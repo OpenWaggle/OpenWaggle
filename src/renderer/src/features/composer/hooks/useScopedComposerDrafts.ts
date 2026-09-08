@@ -46,14 +46,27 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
     const store = useComposerStore.getState()
     if (store.activeDraftContextKey === contextKey) return
 
-    // Hydration assigns the pending draft to its resolved branch without rebuilding
-    // Lexical content, which would discard command chips and the selection.
+    const pendingIsActive = store.activeDraftContextKey === pendingContextKey
+    // Hydration assigns an edited pending draft, including an intentionally empty one,
+    // to its branch. Preserve Lexical chips and selection when the same draft is visible.
     if (
-      store.activeDraftContextKey === pendingContextKey &&
-      (store.input.length > 0 || store.attachments.length > 0 || store.selectedWagglePreset)
+      contextKey !== pendingContextKey &&
+      (store.editedPendingDrafts[pendingContextKey] ||
+        store.scopedDrafts[pendingContextKey] ||
+        (pendingIsActive &&
+          (store.input.length > 0 || store.attachments.length > 0 || store.selectedWagglePreset)))
     ) {
+      const draft = pendingIsActive
+        ? {
+            input: store.input,
+            attachments: store.attachments,
+            wagglePreset: store.selectedWagglePreset,
+          }
+        : store.switchScopedDraftContext(pendingContextKey, undefined, currentDraftOverride())
       store.setActiveDraftContextKey(contextKey)
+      store.saveScopedDraft(contextKey, draft)
       store.clearScopedDraft(pendingContextKey)
+      if (!pendingIsActive) syncEditorDraft(draft)
       return
     }
 

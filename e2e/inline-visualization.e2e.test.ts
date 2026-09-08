@@ -450,9 +450,9 @@ async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
 }
 
 async function openVisualizationThread(app: OpenWaggleApp) {
-  const thread = app.mainWindow().threadItem(THREAD_TITLE)
-  await expect(thread).toBeVisible()
-  await thread.click({ noWaitAfter: true })
+  // Wait for the session route, not merely the click. The old home composer can
+  // remain visible during navigation and must not receive the new session's draft.
+  await app.mainWindow().openThread(THREAD_TITLE)
 }
 
 test('renders a persistent interactive visualization inside the isolated Electron frame', async () => {

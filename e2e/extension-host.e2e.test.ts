@@ -136,6 +136,11 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
 
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
+    // Exercise the real extension host and iframe, with a deterministic external API boundary.
+    // Anonymous GitHub rate limits must not decide whether lifecycle assertions pass.
+    await page.context().route('https://api.github.com/repos/*/*/issues?*', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+    )
     const consoleErrors: string[] = []
     const pageErrors: string[] = []
     page.on('console', (message) => {

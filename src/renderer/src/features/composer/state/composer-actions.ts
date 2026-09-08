@@ -4,6 +4,7 @@ import type { LexicalEditor } from 'lexical'
 import { createScopedDraftActions, removeScopedDraft } from './composer-drafts'
 import { createHistoryActions } from './composer-history'
 import { INITIAL_COMPOSER_STATE } from './composer-initial-state'
+import { markPendingDraftEdited } from './composer-pending-draft'
 import type { ComposerGet, ComposerSet, ComposerState, MenuKind } from './composer-store-types'
 
 export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
@@ -13,7 +14,13 @@ export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
     ...createHistoryActions(set, get),
     ...createAttachmentActions(set),
     setSelectedWagglePreset(preset: WagglePreset | null) {
-      set({ selectedWagglePreset: preset })
+      set((state) => ({
+        selectedWagglePreset: preset,
+        editedPendingDrafts:
+          state.selectedWagglePreset === preset
+            ? state.editedPendingDrafts
+            : markPendingDraftEdited(state),
+      }))
     },
     ...createScopedDraftActions(set, get),
     ...createMenuActions(set),
@@ -26,7 +33,11 @@ export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
 function createTextActions(set: ComposerSet) {
   return {
     setInput(value: string) {
-      set({ input: value })
+      set((state) => ({
+        input: value,
+        editedPendingDrafts:
+          state.input === value ? state.editedPendingDrafts : markPendingDraftEdited(state),
+      }))
     },
 
     setCursorIndex(index: number) {
@@ -38,16 +49,30 @@ function createTextActions(set: ComposerSet) {
 function createAttachmentActions(set: ComposerSet) {
   return {
     addAttachments(files: PreparedAttachment[]) {
-      set((state) => ({ attachments: [...state.attachments, ...files] }))
+      set((state) => ({
+        attachments: [...state.attachments, ...files],
+        editedPendingDrafts:
+          files.length > 0 ? markPendingDraftEdited(state) : state.editedPendingDrafts,
+      }))
     },
 
     replaceAttachments(files: readonly PreparedAttachment[]) {
-      set({ attachments: [...files] })
+      set((state) => ({
+        attachments: [...files],
+        editedPendingDrafts:
+          files.length !== state.attachments.length ||
+          files.some((file, index) => file !== state.attachments[index])
+            ? markPendingDraftEdited(state)
+            : state.editedPendingDrafts,
+      }))
     },
 
     removeAttachment(id: string) {
       set((state) => ({
         attachments: state.attachments.filter((attachment) => attachment.id !== id),
+        editedPendingDrafts: state.attachments.some((attachment) => attachment.id === id)
+          ? markPendingDraftEdited(state)
+          : state.editedPendingDrafts,
       }))
     },
 

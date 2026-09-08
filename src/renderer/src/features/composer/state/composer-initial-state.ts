@@ -14,6 +14,7 @@ export function buildInitialComposerState() {
     selectedWagglePreset: null,
     activeDraftContextKey: null,
     scopedDrafts: {},
+    editedPendingDrafts: {},
     thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
