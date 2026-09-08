@@ -128,9 +128,10 @@ const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
           path: test-results
           if-no-files-found: ignore
           retention-days: 7`
+// Successful retries still need their diagnostics for flake investigation.
 const e2eReportArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
   `      - name: Upload Electron E2E Playwright report
-        if: failure()
+        if: always()
         uses: ${ACTION_UPLOAD_ARTIFACT}
         with:
           name: electron-e2e-${platform}-report

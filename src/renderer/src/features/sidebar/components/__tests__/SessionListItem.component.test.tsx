@@ -76,6 +76,7 @@ describe('SessionListItem', () => {
 
   it('shows every session action from the context menu even when the session is active', async () => {
     const callbacks = renderSessionItem({ isActive: true })
+    expect(screen.getByRole('listitem')).toHaveAttribute('data-session-id', SESSION_ID)
     showConfirmMock.mockResolvedValueOnce(true)
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Target session' }))

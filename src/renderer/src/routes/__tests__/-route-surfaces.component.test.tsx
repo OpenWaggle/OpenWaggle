@@ -229,6 +229,10 @@ describe('route surfaces', () => {
     })
 
     expect(screen.getByText('Chat content')).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-route-session-id]')).toHaveAttribute(
+      'data-chat-route-session-id',
+      'session-1',
+    )
     expect(await screen.findByText('Diff pane')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
 

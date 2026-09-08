@@ -225,7 +225,10 @@ export function ChatRouteSurface({
   })
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
+      data-chat-route-session-id={workspace.sessionId ?? ''}
+    >
       <PanelErrorBoundary name="Chat" className="flex min-w-0 flex-1 overflow-hidden">
         <RightSidebarLayout
           open={rightSidebarOpen}

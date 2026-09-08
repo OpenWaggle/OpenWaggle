@@ -194,10 +194,10 @@ async function expectSecureInteractiveVisualization(
   const detailsTab = frame.getByRole('tab', { name: 'Details' })
   await expect(frame.getByRole('tabpanel', { name: 'Summary' })).toBeVisible()
   await expect(frame.getByRole('tabpanel', { name: 'Details' })).toBeHidden()
-  if (process.platform === 'darwin') await detailsTab.click()
+  if (!app.hidden) await detailsTab.click()
   else {
-    // Hidden Linux and Windows Electron windows do not deliver iframe pointer input consistently.
-    // A DOM click still exercises the visualization runtime's delegated tab interaction there.
+    // Hidden Electron windows on all three platforms can lose native iframe pointer input.
+    // Tab switching needs no trusted activation; this still exercises its delegated click handler.
     await detailsTab.evaluate((element: HTMLButtonElement) => {
       element.click()
     })
@@ -208,7 +208,7 @@ async function expectSecureInteractiveVisualization(
   await expect(summaryTab).toHaveAttribute('aria-selected', 'true')
   await expect(summaryTab).toBeFocused()
   const followUpButton = frame.getByRole('button', { name: 'Ask agent about count 0' })
-  if (process.platform === 'darwin') await followUpButton.click()
+  if (!app.hidden) await followUpButton.click()
   else await followUpButton.press('Enter')
   await expect(status).toHaveAttribute('data-follow-up', 'accepted')
   await expect

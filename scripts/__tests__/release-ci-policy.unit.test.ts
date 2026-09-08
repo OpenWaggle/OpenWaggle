@@ -23,6 +23,17 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it('rejects report uploads that discard diagnostics when retries pass', () => {
+    const successBlindWorkflow = compliantWorkflow.replaceAll(
+      '      - name: Upload Electron E2E Playwright report\n        if: always()',
+      '      - name: Upload Electron E2E Playwright report\n        if: failure()',
+    )
+    expect(successBlindWorkflow).not.toBe(compliantWorkflow)
+    expect(validateReleaseCiPolicy(successBlindWorkflow)).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
   it('rejects a workflow that skips release commits or omits dispatched-ref checkout', () => {
     const violations = validateReleaseCiPolicy(
       compliantWorkflow

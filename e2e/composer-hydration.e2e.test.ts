@@ -21,8 +21,18 @@ test('unsent text and slash chips survive responsive sidebar mode changes', asyn
     await input.press('Enter')
     await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
     await input.pressSequentially('Unsent responsive draft')
+    // Establish the draft before testing resize retention. BrowserWindow resizing returns
+    // before the renderer's ResizeObserver applies its responsive mode.
+    await expect(input).toContainText('Unsent responsive draft')
+    expect(await app.readAgentSendProbe()).toBeNull()
+    const editor = await input.elementHandle()
+    if (!editor) throw new Error('The active composer editor is missing')
     for (const width of [760, 1800, 760, 1800]) {
       await app.resizeMainContent(width, 900)
+      await expect(page.locator('[data-chat-panel-main="true"]')).toHaveAttribute(
+        'data-session-summary-space', width < 840 ? 'constrained' : 'available',
+      )
+      expect(await input.evaluate((element, original) => element === original, editor)).toBe(true)
       await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
       await expect(input).toContainText('Unsent responsive draft')
       await expect(input).toBeFocused()

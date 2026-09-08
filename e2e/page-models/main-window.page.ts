@@ -45,7 +45,17 @@ export class MainWindowPage {
   async openThread(title: string): Promise<void> {
     const thread = this.threadItem(title)
     await expect(thread).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
+    const sessionId = await thread.evaluate((element) =>
+      element.closest('[data-session-id]')?.getAttribute('data-session-id'),
+    )
+    if (!sessionId) throw new Error(`Session identity is missing for ${title}`)
     await thread.click()
+    // The store updates the header and outgoing chat before the router commits. Waiting
+    // for just the title/editor can type into that outgoing surface, then lose the input
+    // when the session route mounts. Do not wait for workspace hydration: tests hold it.
+    await expect(this.page.locator('[data-chat-route-session-id]')).toHaveAttribute(
+      'data-chat-route-session-id', sessionId, { timeout: THREAD_VISIBILITY_TIMEOUT_MS },
+    )
     await expect(
       this.page.locator('[data-qa="header-session-title"]').getByText(title, { exact: true }),
     ).toBeVisible({ timeout: THREAD_VISIBILITY_TIMEOUT_MS })
