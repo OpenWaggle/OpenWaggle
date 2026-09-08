@@ -43,6 +43,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
+  # A relative reusable call uses this exact CI commit, including on a branch where
+  # the new standalone workflow has not yet been registered on the default branch.
+  # Merge groups keep the standalone benchmark; Fast and visual runs do not select it.
+  session-performance:
+    name: Session Performance
+    if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+    uses: ./.github/workflows/session-performance.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+    permissions:
+      contents: read
+
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
@@ -663,6 +675,7 @@ jobs:
     name: Package Release Gate
     timeout-minutes: 10
     needs:
+      - session-performance
       - commit-policy
       - check
       - test-unit
@@ -680,6 +693,12 @@ jobs:
     env:
       CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast-no-e2e' || 'fast' }}
     steps:
+      - name: Require selected Session Performance result
+        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+        env:
+          SESSION_PERFORMANCE_RESULT: ${{ needs.session-performance.result }}
+        run: test "$SESSION_PERFORMANCE_RESULT" = success
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}

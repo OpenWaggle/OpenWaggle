@@ -166,7 +166,11 @@ export function useRemoteSidebarSessions(input: {
   const publishInterruptedPage = useCallback(
     async (cursor: string | undefined, requestGeneration: number) => {
       const page = await queryInterruptedSidebarSessions(cursor)
-      const hydrated = await hydrateSidebarSessions(page.ids)
+      const hydrated = (await hydrateSidebarSessions(page.ids)).filter(
+        (session) =>
+          session.archived !== true &&
+          sidebarSessionMatchesText(session, normalizedQuery, projectDisplayNames.current),
+      )
       if (generation.current !== requestGeneration) return
       setSessions((current) => appendUniqueSidebarSessions(current, hydrated))
       mode.current = page.nextCursor
@@ -174,7 +178,7 @@ export function useRemoteSidebarSessions(input: {
         : { kind: 'none' }
       setHasMore(page.nextCursor !== undefined)
     },
-    [],
+    [normalizedQuery],
   )
 
   useEffect(() => {
