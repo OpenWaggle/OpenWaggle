@@ -23,6 +23,21 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it.each([
+    ['manual-only range', `if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then`, 'if true; then'],
+    ['authoritative base', 'git merge-base --all origin/main', 'git merge-base --all HEAD'],
+    ['exact candidate', 'origin/main "$COMMIT_POLICY_TO"', 'origin/main HEAD'],
+    ['unambiguous base', '[[ "$COMMIT_POLICY_FROM" =~ ^[0-9a-f]{40}$ ]]', 'true'],
+    ['single base', 'test "${#COMMIT_POLICY_FROM}" -eq 40', 'true'],
+    ['failure propagation', 'COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")"', 'COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")" || true'],
+    ['queue base binding', "github.event_name == 'merge_group' && github.event.merge_group.base_sha", "github.event_name == 'merge_group' && github.sha"],
+  ])('rejects dispatched range weakening through %s', (_name, target, replacement) => {
+    expect(compliantWorkflow).toContain(target)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(target, replacement))).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
   it('rejects a workflow that skips release commits or omits dispatched-ref checkout', () => {
     const violations = validateReleaseCiPolicy(
       compliantWorkflow
