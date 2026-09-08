@@ -2,6 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import type { SessionSemanticDiscoveryStoragePolicy } from '../domain/session-semantic-discovery-storage-policy'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
+import { loadSemanticProjectionCounts } from './sqlite-session-semantic-projection-counts'
 
 export interface SessionSemanticProjectionRow {
   readonly session_id: string
@@ -41,9 +42,6 @@ export function loadCurrentSemanticProjectionRows(
       discovery_rows.current_preview AS preview_text
     FROM session_discovery_embedding_queue AS queue
     JOIN sessions ON sessions.id = queue.session_id
-    JOIN (
-      SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
-    ) AS hot_sessions ON hot_sessions.id = sessions.id
     LEFT JOIN session_discovery_search_rows AS discovery_rows
       ON discovery_rows.session_id = sessions.id
     LEFT JOIN delegation_contracts AS contracts ON contracts.child_session_id = sessions.id
@@ -51,41 +49,9 @@ export function loadCurrentSemanticProjectionRows(
       ON specifications.delegation_id = contracts.id
       AND specifications.revision = contracts.current_specification_revision
     WHERE queue.session_id IN ${sql.in(sessionIds)}
-  `
-}
-
-export function loadSemanticProjectionCounts(
-  sql: SqlClient.SqlClient,
-  model: {
-    readonly metadata: {
-      readonly id: string
-      readonly revision: string
-      readonly dimensions: number
-    }
-  },
-  recordLimit: number,
-) {
-  return sql<{ readonly prepared: number; readonly pending: number; readonly revision: number }>`
-    SELECT
-      (SELECT COUNT(*)
-        FROM session_discovery_embeddings AS embeddings
-        JOIN (
-          SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
-        ) AS hot_sessions ON hot_sessions.id = embeddings.session_id
-        WHERE embeddings.model_id = ${model.metadata.id}
-          AND embeddings.model_revision = ${model.metadata.revision}
-          AND embeddings.dimensions = ${model.metadata.dimensions}) AS prepared,
-      (SELECT COUNT(*)
-        FROM session_discovery_embedding_queue AS queue
-        JOIN (
-          SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
-        ) AS hot_sessions ON hot_sessions.id = queue.session_id) AS pending,
-      MAX(
-        COALESCE((SELECT MAX(snapshot_revision) FROM session_discovery_embeddings), 0),
-        COALESCE((
-          SELECT snapshot_revision FROM session_semantic_discovery_state WHERE singleton = 1
-        ), 0)
-      ) AS revision
+      AND ((SELECT COUNT(*) FROM sessions) <= ${recordLimit} OR queue.session_id IN (
+        SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
+      ))
   `
 }
 

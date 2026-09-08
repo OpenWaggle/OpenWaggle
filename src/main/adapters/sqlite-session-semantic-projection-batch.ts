@@ -4,9 +4,9 @@ import * as Effect from 'effect/Effect'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { sessionDiscoveryDocument } from './session-discovery-document'
 import { encodeFloat32Vector } from './session-flat-vector-index'
+import { loadSemanticProjectionCounts } from './sqlite-session-semantic-projection-counts'
 import {
   loadCurrentSemanticProjectionRows,
-  loadSemanticProjectionCounts,
   type SessionSemanticProjectionRow,
 } from './sqlite-session-semantic-projection-source'
 
@@ -200,16 +200,22 @@ export function loadSessionSemanticProjectionRows(
   limit: number,
   recordLimit: number,
 ) {
+  // Materialize the bounded queue page before SQLite can reorder the document joins.
   return sql<SessionSemanticProjectionRow>`
+    WITH candidates AS MATERIALIZED (
+      SELECT session_id, queued_at FROM session_discovery_embedding_queue
+      WHERE (SELECT COUNT(*) FROM sessions) <= ${recordLimit} OR session_id IN (
+        SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
+      )
+      ORDER BY queued_at, session_id
+      LIMIT ${limit}
+    )
     SELECT queue.session_id, sessions.title, queue.queued_at,
       specifications.specification_json,
       discovery_rows.initial_objective AS initial_text,
       discovery_rows.current_preview AS preview_text
-    FROM session_discovery_embedding_queue AS queue
+    FROM candidates AS queue
     JOIN sessions ON sessions.id = queue.session_id
-    JOIN (
-      SELECT id FROM sessions ORDER BY updated_at DESC, id DESC LIMIT ${recordLimit}
-    ) AS hot_sessions ON hot_sessions.id = sessions.id
     LEFT JOIN session_discovery_search_rows AS discovery_rows
       ON discovery_rows.session_id = sessions.id
     LEFT JOIN delegation_contracts AS contracts ON contracts.child_session_id = sessions.id
@@ -217,7 +223,6 @@ export function loadSessionSemanticProjectionRows(
       ON specifications.delegation_id = contracts.id
       AND specifications.revision = contracts.current_specification_revision
     ORDER BY queue.queued_at, queue.session_id
-    LIMIT ${limit}
   `
 }
 

@@ -15,6 +15,9 @@ import {
 } from './sqlite-session-semantic-projection-batch'
 import {
   loadSemanticProjectionCounts,
+  loadSemanticProjectionStorageCounts,
+} from './sqlite-session-semantic-projection-counts'
+import {
   reconcileSemanticProjectionModel,
   reconcileSemanticProjectionStorage,
   semanticProjectionReadinessStatus,
@@ -36,13 +39,6 @@ interface SemanticStateRow {
   readonly updated_at: number
   readonly eligible_count: number
 }
-interface SemanticStorageCountRow {
-  readonly session_count: number
-  readonly prepared_count: number
-  readonly pending_count: number
-  readonly hot_prepared_count: number
-  readonly hot_pending_count: number
-}
 export class SqliteSessionSemanticProjection {
   readonly #preparationOperationId = randomUUID()
   #modelRevisionReconciled = false
@@ -62,38 +58,28 @@ export class SqliteSessionSemanticProjection {
       yield* this.#ensureProjectionStorage()
       const rows = yield* this.sql<SemanticStateRow>`
         SELECT status, model_id, model_revision, snapshot_revision,
-          (SELECT COUNT(*)
-            FROM session_discovery_embeddings AS embeddings
-            JOIN (
-              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
-              LIMIT ${this.storagePolicy.recordLimit}
-            ) AS hot_sessions ON hot_sessions.id = embeddings.session_id
-            WHERE embeddings.model_id = ${this.model.metadata.id}
-              AND embeddings.model_revision = ${this.model.metadata.revision}
-              AND embeddings.dimensions = ${this.model.metadata.dimensions}) AS prepared_count,
-          (SELECT COUNT(*)
-            FROM session_discovery_embedding_queue AS queue
-            JOIN (
-              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
-              LIMIT ${this.storagePolicy.recordLimit}
-            ) AS hot_sessions ON hot_sessions.id = queue.session_id) AS pending_count,
+          counts.hot_prepared_count AS prepared_count,
+          counts.hot_pending_count AS pending_count,
           preparation_operation_id, failure_message, updated_at,
-          (SELECT COUNT(*) FROM sessions) AS eligible_count
-        FROM session_semantic_discovery_state WHERE singleton = 1
+          counts.session_count AS eligible_count
+        FROM session_semantic_discovery_state
+        CROSS JOIN (${loadSemanticProjectionStorageCounts(
+          this.sql,
+          this.model,
+          this.storagePolicy.recordLimit,
+        )}) AS counts
+        WHERE singleton = 1
       `
       const row = rows[0]
       if (!row) {
-        const pending = yield* this.sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count
-          FROM session_discovery_embedding_queue AS queue
-          JOIN (
-            SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
-            LIMIT ${this.storagePolicy.recordLimit}
-          ) AS hot_sessions ON hot_sessions.id = queue.session_id
-        `
+        const pending = yield* loadSemanticProjectionCounts(
+          this.sql,
+          this.model,
+          this.storagePolicy.recordLimit,
+        )
         return {
           status: 'unavailable',
-          pendingCount: pending[0]?.count ?? 0,
+          pendingCount: pending[0]?.pending ?? 0,
           reason: 'Semantic discovery has not been prepared.',
         } satisfies SemanticDiscoveryReadiness
       }
@@ -232,32 +218,11 @@ export class SqliteSessionSemanticProjection {
   #prepareProjectionStorage() {
     return Effect.gen(this, function* () {
       yield* this.#ensureProjectionStorage()
-      const rows = yield* this.sql<SemanticStorageCountRow>`
-        SELECT
-          (SELECT COUNT(*) FROM sessions) AS session_count,
-          (SELECT COUNT(*) FROM session_discovery_embeddings
-            WHERE model_id = ${this.model.metadata.id}
-              AND model_revision = ${this.model.metadata.revision}
-              AND dimensions = ${this.model.metadata.dimensions}) AS prepared_count,
-          (SELECT COUNT(*) FROM session_discovery_embedding_queue) AS pending_count,
-          (SELECT COUNT(*)
-            FROM session_discovery_embeddings AS embeddings
-            JOIN (
-              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
-              LIMIT ${this.storagePolicy.recordLimit}
-            ) AS hot_sessions ON hot_sessions.id = embeddings.session_id
-            WHERE embeddings.model_id = ${this.model.metadata.id}
-              AND embeddings.model_revision = ${this.model.metadata.revision}
-              AND embeddings.dimensions = ${this.model.metadata.dimensions}
-          ) AS hot_prepared_count,
-          (SELECT COUNT(*)
-            FROM session_discovery_embedding_queue AS queue
-            JOIN (
-              SELECT id FROM sessions ORDER BY updated_at DESC, id DESC
-              LIMIT ${this.storagePolicy.recordLimit}
-            ) AS hot_sessions ON hot_sessions.id = queue.session_id
-          ) AS hot_pending_count
-      `
+      const rows = yield* loadSemanticProjectionStorageCounts(
+        this.sql,
+        this.model,
+        this.storagePolicy.recordLimit,
+      )
       const row = rows[0]
       if (!row) return
       const queueExceedsLimit = row.pending_count > this.storagePolicy.recordLimit

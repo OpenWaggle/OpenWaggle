@@ -51,6 +51,23 @@ function matchingSessionOrder(sql: SqlClient.SqlClient, parameters: TranscriptSe
       ) DESC, seed_terms.session_id`
 }
 
+function attributableNodeId(sql: SqlClient.SqlClient, parameters: TranscriptSearchParameters) {
+  if (parameters.phraseTranscriptSearch === 1) return sql`matching_ids.first_node_id`
+  return sql`(
+    SELECT search_rows.node_id
+    FROM session_node_search_rows AS search_rows
+    JOIN session_nodes AS evidence_nodes ON evidence_nodes.id = search_rows.node_id
+    WHERE search_rows.session_id = matching_ids.session_id
+      AND EXISTS (
+        SELECT 1 FROM session_node_search
+        WHERE session_node_search.rowid = search_rows.search_rowid
+          AND session_node_search MATCH ${parameters.ftsQuery}
+      )
+    ORDER BY evidence_nodes.created_order, evidence_nodes.id
+    LIMIT 1
+  )`
+}
+
 export function transcriptSessionCtes(
   sql: SqlClient.SqlClient,
   request: DiscoverySearchRequest,
@@ -62,6 +79,7 @@ export function transcriptSessionCtes(
     parameters.phraseTranscriptSearch === 0 && parameters.transcriptTerms.length === 1
   const nodeEvidenceSearch =
     parameters.phraseTranscriptSearch === 1 || parameters.transcriptTerms.length > 1
+  const nodeId = attributableNodeId(sql, parameters)
   return sql`
     ${matchingTranscriptSessionCtes(
       sql,
@@ -88,20 +106,7 @@ export function transcriptSessionCtes(
         ON matching_documents.session_id = matching_ids.session_id
       GROUP BY matching_ids.session_id
     ), attributable_nodes AS MATERIALIZED (
-      SELECT matching_ids.session_id,
-        (
-          SELECT search_rows.node_id
-          FROM session_node_search_rows AS search_rows
-          JOIN session_nodes AS evidence_nodes ON evidence_nodes.id = search_rows.node_id
-          WHERE search_rows.session_id = matching_ids.session_id
-            AND EXISTS (
-              SELECT 1 FROM session_node_search
-              WHERE session_node_search.rowid = search_rows.search_rowid
-                AND session_node_search MATCH ${parameters.ftsQuery}
-            )
-          ORDER BY evidence_nodes.created_order, evidence_nodes.id
-          LIMIT 1
-        ) AS node_id
+      SELECT matching_ids.session_id, ${nodeId} AS node_id
       FROM matching_term_session_ids AS matching_ids
       WHERE ${nodeEvidenceSearch ? 1 : 0} = 1
     ), term_transcript_sessions AS MATERIALIZED (
@@ -154,7 +159,7 @@ function matchingTranscriptSessionCtes(
     query_transcript_terms AS MATERIALIZED (
       SELECT DISTINCT CAST(value AS TEXT) AS term FROM json_each(${transcriptTermsJson})
     ), matching_non_phrase_session_ids AS MATERIALIZED (
-      SELECT seed_terms.session_id
+      SELECT seed_terms.session_id, NULL AS first_node_id
       FROM session_transcript_terms AS seed_terms
       JOIN session_transcript_term_documents AS seed_documents
         ON seed_documents.session_id = seed_terms.session_id
@@ -184,9 +189,12 @@ function matchingTranscriptSessionCtes(
       ORDER BY ${matchingOrder}
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), matching_phrase_session_ids AS MATERIALIZED (
-      SELECT phrase_matches.session_id
+      SELECT phrase_matches.session_id, phrase_matches.first_node_id
       FROM (
-        SELECT DISTINCT search_rows.session_id
+        -- SQLite's sole MIN aggregate takes bare columns from the minimum row.
+        -- Session created_order is unique, so this retains the first phrase node.
+        SELECT search_rows.session_id, search_rows.node_id AS first_node_id,
+          MIN(search_rows.created_order) AS first_created_order
         FROM session_node_search
         JOIN session_node_search_rows AS search_rows
           ON search_rows.search_rowid = session_node_search.rowid
@@ -204,6 +212,7 @@ function matchingTranscriptSessionCtes(
             WHERE catalog_binding.session_id = sessions.id
               AND catalog_workspace.working_path = ${workingPath}
           ))
+        GROUP BY search_rows.session_id
       ) AS phrase_matches
       JOIN session_transcript_terms AS ranked_terms
         ON ranked_terms.session_id = phrase_matches.session_id
@@ -215,9 +224,9 @@ function matchingTranscriptSessionCtes(
         phrase_matches.session_id
       LIMIT ${SESSION_DISCOVERY_WINDOW_LIMIT + 1}
     ), matching_term_session_ids AS MATERIALIZED (
-      SELECT session_id FROM matching_non_phrase_session_ids
+      SELECT session_id, first_node_id FROM matching_non_phrase_session_ids
       UNION ALL
-      SELECT session_id FROM matching_phrase_session_ids
+      SELECT session_id, first_node_id FROM matching_phrase_session_ids
     ),
   `
 }

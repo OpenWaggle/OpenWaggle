@@ -443,6 +443,18 @@ semantic-only discovery may search the explicitly partial tier. Tier rotation mu
 rows and advance the deletion-compaction watermark so an evicted Session is neither re-embedded in
 a loop nor retained by a stale resident snapshot.
 
+Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
+and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
+its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;
+evaluate that condition inside the same SQL snapshot and recheck membership after model inference
+so a concurrent insertion cannot publish a newly cold Session.
+
+Phrase search should retain its earliest matching node during the initial FTS scan. Rechecking
+every candidate node repeats FTS posting traversal and scales with transcript length. SQLite's
+single-MIN bare-column selection preserves the matching node here because Session created_order
+is unique; keep the regression asserting earliest node/Run attribution and the query-plan guard
+against correlated rowid-plus-MATCH re-probes.
+
 Windows libuv named pipes use the operating system's default security descriptor, which grants
 Everyone read access and lets another account occupy a duplex server's read-only connections.
 Session Host pipe names therefore rotate after canonical database ownership is acquired, clients
