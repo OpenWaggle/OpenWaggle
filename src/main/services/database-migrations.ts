@@ -4,6 +4,7 @@ import {
   SESSION_HOST_DATABASE_MIGRATION,
   SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION,
 } from './session-host-migration'
+import { SESSION_HOST_NODE_DELETE_MIGRATION } from './session-host-node-delete-migration'
 import { SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION } from './session-host-transcript-term-migration'
 
 export interface AppMigration {
@@ -295,4 +296,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION,
   SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION,
   SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION,
+  SESSION_HOST_NODE_DELETE_MIGRATION,
 ]

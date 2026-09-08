@@ -483,6 +483,18 @@ the full Session row for every posting. Project and working-path filters still r
 authority and archive filtering must stay before the bounded ranking window. Exclude null ids
 from the archive set so malformed legacy rows cannot poison SQL `NOT IN` semantics.
 
+Discovery ranking reads Session id/archive metadata through the FTS5 content table's integer
+rowid. SQLite documents `c0`/`c1` as the exact stored values of the first two FTS columns; this
+avoids repeated FTS content callbacks without copying metadata or changing BM25 scores. Keep
+that join read-only, preserve the FTS column order, and compare scores, ties, live mutations,
+and pre-limit authority/archive filtering against the public FTS interface in regression tests.
+
+Node-delete search triggers must requeue semantic work only while the owning Session still
+exists. During a Session cascade, the parent row is already gone; unconditional queue inserts
+recreated a foreign-key dependency and made deletion preflight reject populated Sessions.
+Migration 30 replaces that trigger in existing targets without repeating the legacy cutover or
+changing schema revision 18. Standalone node deletion must still invalidate the surviving Session.
+
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
 its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;

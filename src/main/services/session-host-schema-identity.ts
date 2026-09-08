@@ -10,10 +10,11 @@ export const SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME =
 export const SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_ID = 29
 export const SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_NAME =
   'session-host-export-path-checkpoints'
+export const SESSION_HOST_NODE_DELETE_MIGRATION_ID = 30
+export const SESSION_HOST_NODE_DELETE_MIGRATION_NAME = 'session-host-cascade-safe-node-deletion'
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v14'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID =
-  SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_HOST_NODE_DELETE_MIGRATION_ID
