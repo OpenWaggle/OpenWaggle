@@ -161,6 +161,23 @@ describe('detached authority descriptor ownership', () => {
     expect(mocks.closeSync.mock.calls).toEqual([[17], [18], [51]])
   })
 
+  it('releases intermediate reservations before spawn needs its own internal descriptors', async () => {
+    const child = new ChildProcess()
+    vi.spyOn(child, 'unref').mockImplementation(() => undefined)
+    mocks.readdirSync.mockReturnValue(['0', '1', '2', '62'])
+    mocks.openSync.mockReturnValueOnce(17).mockReturnValueOnce(18).mockReturnValue(63)
+    mocks.spawn.mockImplementation(() => {
+      expect(mocks.closeSync.mock.calls).toEqual([[17], [18]])
+      return child
+    })
+
+    const pending = launchHeadlessBackgroundProcess(launch)
+    child.emit('spawn')
+
+    await expect(pending).resolves.toBeUndefined()
+    expect(mocks.closeSync.mock.calls).toEqual([[17], [18], [63]])
+  })
+
   it('fails closed and releases the null handle when the descriptor snapshot is unavailable', async () => {
     const failure = new Error('proc unavailable')
     mocks.readdirSync.mockImplementation(() => {

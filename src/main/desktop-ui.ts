@@ -152,9 +152,9 @@ const MAX_DETACHED_DESCRIPTOR = 65_535
 const LAST_CONTROL_DESCRIPTOR = 4
 const STANDARD_IO_DESCRIPTOR_COUNT = 3
 
-function isolatedLinuxStdio(ownedDescriptors: number[]): Array<'ignore' | number> {
+function isolatedLinuxStdio(ownedDescriptors: Set<number>): Array<'ignore' | number> {
   let nullDescriptor = openSync(devNull, 'r+')
-  ownedDescriptors.push(nullDescriptor)
+  ownedDescriptors.add(nullDescriptor)
   let lastDescriptor = LAST_CONTROL_DESCRIPTOR
   for (const entry of [...readdirSync('/proc/self/fd'), String(nullDescriptor)]) {
     const descriptor = Number(entry)
@@ -174,7 +174,14 @@ function isolatedLinuxStdio(ownedDescriptors: number[]): Array<'ignore' | number
   // when the existing snapshot is sparse and close to the process descriptor limit.
   while (nullDescriptor < lastDescriptor) {
     nullDescriptor = openSync(devNull, 'r+')
-    ownedDescriptors.push(nullDescriptor)
+    ownedDescriptors.add(nullDescriptor)
+  }
+  // Only the high source must survive until spawn. Free the reserved holes first so
+  // libuv can allocate its own launch pipe even near the process descriptor limit.
+  for (const descriptor of ownedDescriptors) {
+    if (descriptor === nullDescriptor) continue
+    closeSync(descriptor)
+    ownedDescriptors.delete(descriptor)
   }
   // Cover holes too: another native thread can reuse one before spawn. A descriptor
   // opened above this synchronous snapshot remains a Node spawn API limitation.
@@ -191,7 +198,7 @@ function launchDetachedProcess(input: {
   return new Promise<void>((resolve, reject) => {
     // Linux Electron can retain client pipes and Chromium sockets even with UV_IGNORE.
     // Replace the parent snapshot before exec; never close the new Host's own handles.
-    const ownedDescriptors: number[] = []
+    const ownedDescriptors = new Set<number>()
     let child: ReturnType<typeof spawn>
     try {
       child = spawn(input.command, [...input.args], {
