@@ -153,6 +153,9 @@ describe('native load probe', () => {
       expect.objectContaining({ useConpty: false }),
     ])
     expect(fixture.loadModule).toHaveBeenCalledWith('sharp')
+    for (const index of [0, 2, 4]) {
+      expect(fixture.terminals[index]?.write).toHaveBeenCalledWith('openwaggle-native-probe-input\r')
+    }
   })
 
   it('rejects an upstream terminal that lacks the patched lifecycle API', async () => {

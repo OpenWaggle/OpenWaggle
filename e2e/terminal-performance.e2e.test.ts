@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { captureHiddenWindowPresentation } from './support/hidden-window-presentation'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
-import { captureTerminalPresentation } from './support/terminal-presentation'
 import {
   runTerminalPaneUsableGate,
   runTerminalReadyKeyDispatchGate,
@@ -41,7 +41,7 @@ test('terminal meets ready-key, pane-usability, flood, and active-restart releas
       ],
     })
     await app.restart()
-    stopPresentation = await captureTerminalPresentation(app.electronApplication())
+    stopPresentation = await captureHiddenWindowPresentation(app.electronApplication())
 
     const page = app.window()
     const mainWindow = app.mainWindow()

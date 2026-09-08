@@ -119,7 +119,12 @@ async function probeActiveClose(
     }
     resizePty(pty)
     pty.write(PROMPT_INPUT)
-    await withTimeout(`${backend.label} prompt delivery`, output.waitFor(PROMPT_OUTPUT))
+    await withTimeout(`${backend.label} prompt delivery`, output.waitFor(PROMPT_OUTPUT)).catch((error: unknown) => {
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)} ` +
+          `PTY ${pty.pid}; stages ${JSON.stringify(stages)}; output ${JSON.stringify(output.read().slice(-OUTPUT_DIAGNOSTIC_LIMIT))}`,
+      )
+    })
     if (platform !== 'win32') signalOwnedPosixPty(nodePty, pty)
     pty.closeDescriptor()
     descriptorClosed = true

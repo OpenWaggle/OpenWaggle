@@ -5,7 +5,8 @@ import { isMatching, P } from '@diegogbrisa/ts-match'
 export const PROBE_TIMEOUT_MS = 10_000
 export const DESCENDANT_SETTLE_MS = 650
 export const IDENTITY_PREFIX = 'OPENWAGGLE_PTY_IDENTITY:'
-export const PROMPT_INPUT = 'openwaggle-native-probe-input\n'
+// A terminal Enter is CR. Windows console line input does not submit on LF.
+export const PROMPT_INPUT = 'openwaggle-native-probe-input\r'
 export const PROMPT_OUTPUT = 'OPENWAGGLE_PTY_PROMPT_OK'
 
 const INITIAL_COLUMNS = 80

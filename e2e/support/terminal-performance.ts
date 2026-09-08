@@ -317,7 +317,7 @@ interface TerminalInputDispatch {
   readonly data: string
   readonly ownerKey: string
   readonly terminalId: string
-  /** Handler completion proves the synchronous input drain reached node-pty. */
+  /** Renderer monotonic time sampled after the handler reached node-pty. */
   readonly writtenAt: number
 }
 
@@ -340,18 +340,18 @@ async function armTerminalInputDispatchProbe(application: ElectronApplication, s
       throw new Error('The terminal:write invoke handler is not registered.')
     }
     const dispatches: TerminalInputDispatch[] = []
-    const wrappedHandler = (...args: unknown[]) => {
-      const ownerKey = args[1]
-      const terminalId = args[2]
-      const data = args[3]
+    const wrappedHandler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => {
+      const ownerKey = args[0]
+      const terminalId = args[1]
+      const data = args[2]
       const input =
         typeof ownerKey === 'string' &&
         typeof terminalId === 'string' &&
         typeof data === 'string'
           ? { data, ownerKey, terminalId }
           : null
-      const result = Reflect.apply(originalHandler, ipcMain, args)
-      return Promise.resolve(result).then((value: unknown) => {
+      const result = Reflect.apply(originalHandler, ipcMain, [event, ...args])
+      return Promise.resolve(result).then(async (value: unknown) => {
         if (
           input !== null &&
           typeof value === 'object' &&
@@ -361,9 +361,10 @@ async function armTerminalInputDispatchProbe(application: ElectronApplication, s
         ) {
           dispatches.push({
             ...input,
-            // Date.now uses the same system clock in Electron's renderer and
-            // main processes. Their performance time origins are independent.
-            writtenAt: Date.now(),
+            // Both endpoints use the renderer's monotonic clock. Independent
+            // process wall clocks can drift backwards on hosted macOS. This
+            // additional return trip makes the unchanged budget stricter.
+            writtenAt: Number(await event.sender.executeJavaScript('performance.now()')),
           })
         }
         return value
@@ -448,7 +449,7 @@ async function armTerminalKeyProbe(page: Page, textarea: Locator, stateKey: stri
       const keydownTimes: number[] = []
       const handler = (event: KeyboardEvent) => {
         if (event.isTrusted && event.key === input.key && !event.repeat) {
-          keydownTimes.push(Date.now())
+          keydownTimes.push(performance.now())
         }
       }
       element.addEventListener('keydown', handler, { capture: true })
@@ -654,9 +655,10 @@ async function abortLongTaskMeasurement(page: Page) {
 
 /**
  * Measures trusted, focused keydown events through fulfillment of Electron's
- * real terminal:write handler with `written`. The handler resolves only after
- * the synchronous input drain calls node-pty, so this is a conservative
- * key-to-PTY upper bound. It excludes shell echo and PTY output so user
+ * real terminal:write handler with `written`, then back to the renderer's
+ * monotonic clock. The handler resolves only after the synchronous input drain
+ * calls node-pty, so this round trip is a conservative key-to-PTY upper bound.
+ * It excludes shell echo and PTY output so user
  * startup/configuration cannot skew the 16 ms input gate.
  */
 export async function runTerminalReadyKeyDispatchGate(options: {
@@ -726,7 +728,7 @@ export async function runTerminalReadyKeyDispatchGate(options: {
     )
     if (samples.some((sample) => !Number.isFinite(sample) || sample < 0)) {
       throw new Error(
-        'Terminal input dispatch clocks were not comparable between renderer and main processes.',
+        'Terminal input dispatch timestamps were not ordered on the renderer monotonic clock.',
       )
     }
     const ordered = [...samples].sort((left, right) => left - right)

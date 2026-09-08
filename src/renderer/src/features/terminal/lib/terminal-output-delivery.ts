@@ -1,6 +1,7 @@
 import type { TerminalAttachResult, TerminalRuntimeEvent } from '@shared/types/terminal'
 import type { Terminal } from '@xterm/xterm'
 import { sliceTerminalDataAfterBytes } from './terminal-input'
+import { writeTerminalOutput } from './write-terminal-output'
 
 type OutputEvent = Extract<TerminalRuntimeEvent, { type: 'output' }>
 
@@ -54,7 +55,7 @@ export function createTerminalOutputDelivery(options: TerminalOutputDeliveryOpti
       acknowledge(event)
       return
     }
-    options.terminal.write(suffix, () => acknowledge(event))
+    writeTerminalOutput(options.terminal, suffix, () => acknowledge(event))
   }
 
   const acknowledgePending = () => {
@@ -65,7 +66,7 @@ export function createTerminalOutputDelivery(options: TerminalOutputDeliveryOpti
   const applySnapshot = (snapshot: TerminalAttachResult) => {
     snapshotOutputBytes = snapshot.outputBytes
     outputGeneration = snapshot.outputGeneration
-    if (snapshot.history.length > 0) options.terminal.write(snapshot.history)
+    if (snapshot.history.length > 0) writeTerminalOutput(options.terminal, snapshot.history)
     for (const buffered of bufferedOutput) write(buffered)
     bufferedOutput.length = 0
   }

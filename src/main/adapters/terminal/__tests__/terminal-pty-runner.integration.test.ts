@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProjectActionTerminalEnvironment } from '@shared/utils/terminal-environment'
 import type { IPty } from 'node-pty'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { makePtyRunner } from '../terminal-pty-runner'
+import { makePtyRunner, type PtySpawnOutcome } from '../terminal-pty-runner'
+import { cleanupPtyFixture } from './terminal-pty-fixture-cleanup'
 
 const INTEGRATION_APP_VERSION = '7.8.9-test'
 const OUTPUT_MARKER = '__OPENWAGGLE_TERMINAL_ENV__'
@@ -29,7 +30,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       `OPENWAGGLE_PROFILE_LOAD_COUNT=$(( \${OPENWAGGLE_PROFILE_LOAD_COUNT:-0} + 1 ))\nexport OPENWAGGLE_PROFILE_LOAD_COUNT\n`,
     )
 
-    let spawnedPty: IPty | null = null
+    let spawnedPty: Extract<PtySpawnOutcome, { ok: true }> | null = null
     try {
       const outcome = await makePtyRunner({ appVersion: INTEGRATION_APP_VERSION }).spawn({
         cwd: temporaryHome,
@@ -39,15 +40,14 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
         readinessNonce: 'environment-integration-nonce',
       })
       if (!outcome.ok) throw outcome.error
-      spawnedPty = outcome.pty
+      spawnedPty = outcome
       const output = await captureEnvironmentLine(outcome.pty)
 
       expect(output).toContain(
         `${OUTPUT_MARKER}xterm-256color|truecolor|OpenWaggle|${INTEGRATION_APP_VERSION}|keep-me|/tmp/openwaggle-integration-agent.sock|unset|1`,
       )
     } finally {
-      spawnedPty?.kill()
-      await rm(temporaryHome, { recursive: true, force: true })
+      await cleanupPtyFixture(spawnedPty, temporaryHome)
     }
   })
 
@@ -60,7 +60,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
     vi.stubEnv('T3CODE_PROJECT_ROOT', '/stale/project')
     vi.stubEnv('T3CODE_WORKTREE_PATH', '/stale/worktree')
 
-    let spawnedPty: IPty | null = null
+    let spawnedPty: Extract<PtySpawnOutcome, { ok: true }> | null = null
     try {
       const outcome = await makePtyRunner({ appVersion: INTEGRATION_APP_VERSION }).spawn({
         cwd: temporaryHome,
@@ -70,7 +70,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
         readinessNonce: 'action-environment-integration-nonce',
       })
       if (!outcome.ok) throw outcome.error
-      spawnedPty = outcome.pty
+      spawnedPty = outcome
       const expected = `${actionMarker}${temporaryHome}|unset|${temporaryHome}|unset`
       const output = await captureCommandOutput(
         outcome.pty,
@@ -80,8 +80,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
 
       expect(output).toContain(expected)
     } finally {
-      spawnedPty?.kill()
-      await rm(temporaryHome, { recursive: true, force: true })
+      await cleanupPtyFixture(spawnedPty, temporaryHome)
     }
   })
 
@@ -101,7 +100,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       `OPENWAGGLE_BASH_RC_COUNT=$(( \${OPENWAGGLE_BASH_RC_COUNT:-0} + 1 ))\nexport OPENWAGGLE_BASH_RC_COUNT\nPROMPT_COMMAND='PS1="OPENWAGGLE_BASH_PROMPT> "'\n`,
     )
 
-    let spawnedPty: IPty | null = null
+    let spawnedPty: Extract<PtySpawnOutcome, { ok: true }> | null = null
     try {
       const outcome = await makePtyRunner({ appVersion: INTEGRATION_APP_VERSION }).spawn({
         cwd: temporaryHome,
@@ -111,7 +110,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
         readinessNonce,
       })
       if (!outcome.ok) throw outcome.error
-      spawnedPty = outcome.pty
+      spawnedPty = outcome
       expect(outcome.shell).toBe('bash')
       const promptOutput = await captureUntil(outcome.pty, readinessMarker)
 
@@ -129,8 +128,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
         `${PROFILE_MARKER}1|1|${temporaryHome}|${temporaryHome}/.bash_history`,
       )
     } finally {
-      spawnedPty?.kill()
-      await rm(temporaryHome, { recursive: true, force: true })
+      await cleanupPtyFixture(spawnedPty, temporaryHome)
     }
   })
 
@@ -164,7 +162,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       ),
     ])
 
-    let spawnedPty: IPty | null = null
+    let spawnedPty: Extract<PtySpawnOutcome, { ok: true }> | null = null
     try {
       const outcome = await makePtyRunner({ appVersion: INTEGRATION_APP_VERSION }).spawn({
         cwd: temporaryHome,
@@ -174,7 +172,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
         readinessNonce,
       })
       if (!outcome.ok) throw outcome.error
-      spawnedPty = outcome.pty
+      spawnedPty = outcome
       expect(outcome.shell).toBe('zsh')
       const promptOutput = await captureUntil(outcome.pty, readinessMarker)
 
@@ -191,8 +189,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       )
       expect(commandOutput).toContain(`${PROFILE_MARKER}1|1|1|1|${movedZdotdir}`)
     } finally {
-      spawnedPty?.kill()
-      await rm(temporaryHome, { recursive: true, force: true })
+      await cleanupPtyFixture(spawnedPty, temporaryHome)
     }
   })
 
@@ -213,7 +210,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       'export OPENWAGGLE_ZSH_LATER_FILE_SHOULD_NOT_RUN=1\n',
     )
 
-    let spawnedPty: IPty | null = null
+    let spawnedPty: Extract<PtySpawnOutcome, { ok: true }> | null = null
     try {
       const outcome = await makePtyRunner({ appVersion: INTEGRATION_APP_VERSION }).spawn({
         cwd: temporaryHome,
@@ -223,7 +220,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
         readinessNonce,
       })
       if (!outcome.ok) throw outcome.error
-      spawnedPty = outcome.pty
+      spawnedPty = outcome
       expect(outcome.shell).toBe('zsh')
       const promptOutput = await captureUntil(outcome.pty, readinessMarker)
       expect(promptOutput.indexOf(readinessMarker)).toBeGreaterThan(
@@ -238,8 +235,7 @@ describe.runIf(process.platform !== 'win32')('terminal PTY environment integrati
       )
       expect(commandOutput).toContain(expected)
     } finally {
-      spawnedPty?.kill()
-      await rm(temporaryHome, { recursive: true, force: true })
+      await cleanupPtyFixture(spawnedPty, temporaryHome)
     }
   })
 })
