@@ -115,7 +115,13 @@ public static class OpenWagglePipeSecurity
         {
             LocalFree(requested);
         }
+        return VerifyHandle(pipe);
+    }
 
+    public static string VerifyHandle(SafeFileHandle pipe)
+    {
+        SecurityIdentifier expectedUser = WindowsIdentity.GetCurrent().User;
+        string sid = expectedUser.Value;
         IntPtr verifiedOwner;
         IntPtr verifiedGroup;
         IntPtr verifiedDacl;

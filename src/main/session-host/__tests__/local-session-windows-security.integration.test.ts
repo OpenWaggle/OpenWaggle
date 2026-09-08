@@ -6,10 +6,12 @@ import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-prot
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { SessionHostLiveness } from '../../application/session-host-liveness'
+import { secureLocalSessionEndpoint } from '../local-session-endpoint'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { secureWindowsUserOnly } from '../windows-user-only-security'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import { verifyWindowsPipeInstances } from './windows-pipe-readback-probe'
+import { withWindowsCompileDiagnostics } from './windows-security-compile-diagnostics'
 
 const itWindows = process.platform === 'win32' ? it : it.skip
 
@@ -83,8 +85,9 @@ describe('Windows Local Session user-only admission', () => {
       const quarantined = await connect(endpoint)
       sockets.push(quarantined)
       await expect(
-        new Promise<void>((resolve) => quarantined.once('close', resolve)),
+        new Promise<void>((resolve) => quarantined.once('close', () => resolve())),
       ).resolves.toBeUndefined()
+      expect(quarantined.destroyed).toBe(true)
     } finally {
       securityPending.resolve()
       handle = await starting
@@ -109,12 +112,17 @@ describe('Windows Local Session user-only admission', () => {
 
   itWindows('starts only after PowerShell verifies the protected user-SID-only DACL', async () => {
     const endpoint = `\\\\.\\pipe\\openwaggle-owner-dacl-${crypto.randomUUID()}`
-    handle = await listenLocalSessionServer(endpoint, serverDependencies())
-    const verified = await secureWindowsUserOnly([{ kind: 'pipe', path: endpoint }])
+    const secureEndpoint = vi.fn(secureLocalSessionEndpoint)
+    handle = await withWindowsCompileDiagnostics(() =>
+      listenLocalSessionServer(endpoint, { ...serverDependencies(), secureEndpoint }),
+    )
+    const verifiedSid = await verifyWindowsPipeInstances(endpoint)
 
-    expect(verified.userSid).not.toBe('S-1-5-32-544')
-    expect(verified.userSid).not.toBe('S-1-1-0')
-    expect(verified.userSid).not.toBe('S-1-5-7')
+    expect(verifiedSid).toMatch(/^S-1-(?:\d+-)+\d+$/)
+    expect(verifiedSid).not.toBe('S-1-5-32-544')
+    expect(verifiedSid).not.toBe('S-1-1-0')
+    expect(verifiedSid).not.toBe('S-1-5-7')
+    expect(secureEndpoint).toHaveBeenCalledTimes(1)
 
     const client = await connectLocalSessionTestClient(endpoint)
     sockets.push(client)

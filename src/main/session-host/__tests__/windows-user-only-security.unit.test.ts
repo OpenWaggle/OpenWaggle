@@ -4,6 +4,7 @@ import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   secureWindowsUserOnly,
+  WindowsUserOnlySecurityTimeoutError,
   windowsUserOnlySecurityCommandForTests,
 } from '../windows-user-only-security'
 
@@ -43,9 +44,25 @@ describe('Windows user-only security helper', () => {
     await vi.advanceTimersByTimeAsync(1)
 
     expect(await outcome).toMatchObject({
-      message: 'Timed out applying Windows user-only security. Last stage: pipe-readback.',
+      stage: 'pipe-readback',
+      exitCode: null,
+      signalCode: null,
     })
     expect(kill).toHaveBeenCalledTimes(1)
+  })
+
+  it('bounds timeout evidence and preserves command-resolution versus compile failures', () => {
+    const failure = new WindowsUserOnlySecurityTimeoutError(
+      'resolve-compiler-command',
+      1,
+      null,
+      `${'old-output'.repeat(1_000)}latest compiler error`,
+    )
+
+    expect(failure.message).toContain('Last stage: resolve-compiler-command.')
+    expect(failure.message).toContain('Exit code: 1; signal: null.')
+    expect(failure.message).toContain('latest compiler error')
+    expect(failure.message.length).toBeLessThan(4_300)
   })
 
   it('closes input and admits only the verified SID after a successful helper exit', async () => {
@@ -93,6 +110,9 @@ describe('Windows user-only security helper', () => {
   it('uses handle-based pipe security with metadata-only rights and closes the handle', () => {
     const command = windowsUserOnlySecurityCommandForTests()
     const script = Buffer.from(command.arguments.at(-1) ?? '', 'base64').toString('utf16le')
+    expect(script.indexOf("Write-SecurityStage 'resolve-compiler-command'")).toBeLessThan(
+      script.indexOf("Write-SecurityStage 'compile'"),
+    )
     expect(script).not.toContain('SetNamedSecurityInfo')
     expect(script).not.toContain('GetNamedSecurityInfo')
     expect(script).toContain('READ_CONTROL | WRITE_DAC | WRITE_OWNER')

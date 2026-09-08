@@ -4,6 +4,7 @@ import { WINDOWS_PIPE_SECURITY_SOURCE } from './windows-pipe-security-source'
 
 const WINDOWS_SECURITY_TIMEOUT_MS = 20_000
 const MAX_HELPER_OUTPUT_BYTES = 64 * 1024
+const TIMEOUT_STDERR_TAIL_LENGTH = 4_096
 const WINDOWS_SID_PATTERN = /^S-1-(?:\d+-)+\d+$/
 
 export type WindowsUserOnlySecurityTarget =
@@ -14,6 +15,22 @@ export type WindowsUserOnlySecurityTarget =
 export type WindowsUserOnlySecurity = (
   targets: readonly WindowsUserOnlySecurityTarget[],
 ) => Promise<{ readonly userSid: string }>
+
+export class WindowsUserOnlySecurityTimeoutError extends Error {
+  constructor(
+    readonly stage: string,
+    readonly exitCode: number | null,
+    readonly signalCode: NodeJS.Signals | null,
+    stderr: string,
+  ) {
+    super(
+      `Timed out applying Windows user-only security. Last stage: ${stage}. ` +
+        `Exit code: ${String(exitCode)}; signal: ${String(signalCode)}. ` +
+        `Stderr tail: ${JSON.stringify(stderr.slice(-TIMEOUT_STDERR_TAIL_LENGTH))}`,
+    )
+    this.name = 'WindowsUserOnlySecurityTimeoutError'
+  }
+}
 
 const WINDOWS_SECURITY_SCRIPT = `
 $ErrorActionPreference = 'Stop'
@@ -26,8 +43,10 @@ function Write-SecurityStage([string]$stage) {
   [Console]::Error.WriteLine('OW_SECURITY_STAGE:' + $stage)
   [Console]::Error.Flush()
 }
+Write-SecurityStage 'resolve-compiler-command'
+$compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
 Write-SecurityStage 'compile'
-Add-Type -TypeDefinition $source -Language CSharp
+& $compiler -TypeDefinition $source -Language CSharp
 Write-SecurityStage 'read-input'
 $targets = [Console]::In.ReadToEnd() | ConvertFrom-Json
 Write-SecurityStage 'identity'
@@ -131,8 +150,11 @@ export const secureWindowsUserOnly: WindowsUserOnlySecurity = (targets) =>
     }
     const timer = setTimeout(() => {
       fail(
-        new Error(
-          `Timed out applying Windows user-only security. Last stage: ${lastSecurityStage(stderr)}.`,
+        new WindowsUserOnlySecurityTimeoutError(
+          lastSecurityStage(stderr),
+          child.exitCode,
+          child.signalCode,
+          stderr,
         ),
       )
     }, WINDOWS_SECURITY_TIMEOUT_MS)
