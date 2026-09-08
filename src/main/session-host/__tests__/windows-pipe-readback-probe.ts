@@ -53,7 +53,8 @@ $source = @'
 ${WINDOWS_PIPE_SECURITY_SOURCE}
 ${READBACK_PROBE_SOURCE}
 '@
-Add-Type -TypeDefinition $source -Language CSharp
+$compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
+& $compiler -TypeDefinition $source -Language CSharp
 $pipePath = [Console]::In.ReadToEnd() | ConvertFrom-Json
 # Keep eight distinct clients open together, then repeat after disposing the first batch.
 $first = [OpenWagglePipeReadbackProbe]::VerifyInstances($pipePath, 8)
@@ -64,6 +65,43 @@ if ($first -ne $replacement) { throw 'Named pipe owner changed between instance 
 }
 
 export function verifyWindowsPipeInstances(endpoint: string) {
+  return runWindowsPipeProbe(windowsPipeReadbackProbeScript(), endpoint)
+}
+
+export function windowsPipeDescriptorProbeScript() {
+  return `
+$ErrorActionPreference = 'Stop'
+$source = @'
+${WINDOWS_PIPE_SECURITY_SOURCE}
+'@
+$compiler = Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type' -CommandType Cmdlet
+& $compiler -TypeDefinition $source -Language CSharp
+$owner = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$fullControl = '0x' + ([int][System.IO.Pipes.PipeAccessRights]::FullControl).ToString('x')
+$cases = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$results = @(foreach ($case in $cases) {
+  $sddl = $case.sddl.Replace('{user}', $owner.Value).Replace('{fullControl}', $fullControl)
+  # Parsing happens outside the rejection check: invalid fixtures must fail the probe.
+  $descriptor = New-Object System.Security.AccessControl.RawSecurityDescriptor($sddl)
+  $accepted = $true
+  try { [OpenWagglePipeSecurity]::VerifyDescriptor($descriptor, $owner) }
+  catch { $accepted = $false }
+  [PSCustomObject]@{ name = $case.name; accepted = $accepted }
+})
+[Console]::Out.Write((ConvertTo-Json -InputObject $results -Compress))
+`
+}
+
+export async function verifyWindowsPipeDescriptors(
+  cases: readonly { readonly name: string; readonly sddl: string }[],
+): Promise<unknown> {
+  const result: unknown = JSON.parse(
+    await runWindowsPipeProbe(windowsPipeDescriptorProbeScript(), cases),
+  )
+  return result
+}
+
+function runWindowsPipeProbe(script: string, input: unknown) {
   return new Promise<string>((resolve, reject) => {
     const child = execFile(
       'powershell.exe',
@@ -73,7 +111,7 @@ export function verifyWindowsPipeInstances(endpoint: string) {
         '-ExecutionPolicy',
         'Bypass',
         '-EncodedCommand',
-        Buffer.from(windowsPipeReadbackProbeScript(), 'utf16le').toString('base64'),
+        Buffer.from(script, 'utf16le').toString('base64'),
       ],
       {
         env: getWindowsSecurityChildEnv(),
@@ -84,6 +122,6 @@ export function verifyWindowsPipeInstances(endpoint: string) {
       (error, stdout) => (error ? reject(error) : resolve(stdout.trim())),
     )
     child.stdin?.once('error', reject)
-    child.stdin?.end(JSON.stringify(endpoint))
+    child.stdin?.end(JSON.stringify(input))
   })
 }

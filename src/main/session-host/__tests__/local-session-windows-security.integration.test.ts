@@ -10,7 +10,10 @@ import { secureLocalSessionEndpoint } from '../local-session-endpoint'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
-import { verifyWindowsPipeInstances } from './windows-pipe-readback-probe'
+import {
+  verifyWindowsPipeDescriptors,
+  verifyWindowsPipeInstances,
+} from './windows-pipe-readback-probe'
 import { withWindowsCompileDiagnostics } from './windows-security-compile-diagnostics'
 
 const itWindows = process.platform === 'win32' ? it : it.skip
@@ -140,4 +143,48 @@ describe('Windows Local Session user-only admission', () => {
       revision: LOCAL_SESSION_CURRENT_REVISION,
     })
   })
+
+  itWindows(
+    'accepts explicit pipe full control and rejects weakened or broader descriptors',
+    async () => {
+      const cases = [
+        {
+          name: 'pipe full control',
+          sddl: 'O:{user}D:P(A;;{fullControl};;;{user})',
+          accepted: true,
+        },
+        { name: 'read only', sddl: 'O:{user}D:P(A;;GR;;;{user})', accepted: false },
+        {
+          name: 'missing change permissions',
+          sddl: 'O:{user}D:P(A;;0x1b019f;;;{user})',
+          accepted: false,
+        },
+        {
+          name: 'missing create instance',
+          sddl: 'O:{user}D:P(A;;0x1f019b;;;{user})',
+          accepted: false,
+        },
+        {
+          name: 'extra system security',
+          sddl: 'O:{user}D:P(A;;0x11f019f;;;{user})',
+          accepted: false,
+        },
+        { name: 'wrong owner', sddl: 'O:BAD:P(A;;{fullControl};;;{user})', accepted: false },
+        { name: 'everyone', sddl: 'O:{user}D:P(A;;{fullControl};;;WD)', accepted: false },
+        {
+          name: 'extra principal',
+          sddl: 'O:{user}D:P(A;;{fullControl};;;{user})(A;;GR;;;WD)',
+          accepted: false,
+        },
+        { name: 'unprotected', sddl: 'O:{user}D:(A;;{fullControl};;;{user})', accepted: false },
+        { name: 'deny ace', sddl: 'O:{user}D:P(D;;{fullControl};;;{user})', accepted: false },
+        { name: 'inherit only', sddl: 'O:{user}D:P(A;IO;{fullControl};;;{user})', accepted: false },
+        { name: 'empty dacl', sddl: 'O:{user}D:P', accepted: false },
+      ]
+
+      await expect(verifyWindowsPipeDescriptors(cases)).resolves.toEqual(
+        cases.map(({ name, accepted }) => ({ name, accepted })),
+      )
+    },
+  )
 })

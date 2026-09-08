@@ -123,4 +123,15 @@ describe('Windows user-only security helper', () => {
     expect(script).toContain('acl.Count != 1')
     expect(script).toContain('!expectedUser.Equals(ace.SecurityIdentifier)')
   })
+
+  it('sets and verifies the explicit Windows pipe full-control mask instead of a generic bit', () => {
+    const command = windowsUserOnlySecurityCommandForTests()
+    const script = Buffer.from(command.arguments.at(-1) ?? '', 'base64').toString('utf16le')
+    // System.IO.Pipes.PipeAccessRights.FullControl = 2032031, not GENERIC_ALL.
+    expect(script).toContain('private const int PIPE_FULL_CONTROL = 0x001F019F;')
+    expect(script).toContain('PIPE_FULL_CONTROL.ToString("x")')
+    expect(script).toContain('ace.AccessMask != PIPE_FULL_CONTROL')
+    expect(script).not.toContain('ace.AccessMask != GENERIC_ALL')
+    expect(script).toContain('VerifyDescriptor(new RawSecurityDescriptor(binary, 0), expectedUser)')
+  })
 })

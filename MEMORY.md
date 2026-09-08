@@ -516,6 +516,12 @@ this boundary. Named pipes require handle-based `SetSecurityInfo`/`GetSecurityIn
 `CreateFile` with security-metadata rights only. Keep pre-admission rejection active while the
 helper runs. Bounded stage diagnostics distinguish helper startup, input, and native API stalls;
 Unix unit tests cannot prove live Windows handle behavior or DACL readback.
+Use the explicit `System.IO.Pipes.PipeAccessRights.FullControl` mask (`0x001F019F`) in
+both the requested pipe descriptor and its readback check: generic access bits are mapped
+by Windows and are not a stable readback representation. Require one unconditional,
+non-inherited Allow ACE for the current user, a protected DACL, and that exact mask.
+Native regression probes must validate later pipe instances without reapplying protection;
+descriptor fixtures also check that narrower rights, extra principals and extra rights fail.
 
 After profile revocation, stored credential and receipt cleanup may ignore only `ENOENT`.
 Permission, locked-file, and directory-read failures must reach the CLI/GUI so retained files

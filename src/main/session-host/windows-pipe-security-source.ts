@@ -13,7 +13,10 @@ public static class OpenWagglePipeSecurity
     private const uint DACL_SECURITY_INFORMATION = 0x00000004;
     private const uint PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000;
     private const int SE_KERNEL_OBJECT = 6;
-    private const int GENERIC_ALL = unchecked((int)0x10000000);
+    // System.IO.Pipes.PipeAccessRights.FullControl. Use specific rights in the
+    // descriptor: Windows maps generic bits before returning native readback.
+    // https://learn.microsoft.com/dotnet/api/system.io.pipes.pipeaccessrights
+    private const int PIPE_FULL_CONTROL = 0x001F019F;
     private const uint READ_CONTROL = 0x00020000;
     private const uint WRITE_DAC = 0x00040000;
     private const uint WRITE_OWNER = 0x00080000;
@@ -84,7 +87,8 @@ public static class OpenWagglePipeSecurity
     {
         SecurityIdentifier expectedUser = WindowsIdentity.GetCurrent().User;
         string sid = expectedUser.Value;
-        string sddl = "O:" + sid + "G:" + sid + "D:P(A;;GA;;;" + sid + ")";
+        string sddl = "O:" + sid + "G:" + sid + "D:P(A;;0x" +
+            PIPE_FULL_CONTROL.ToString("x") + ";;;" + sid + ")";
         IntPtr requested = IntPtr.Zero;
         uint ignoredSize;
         if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, 1, out requested, out ignoredSize))
@@ -143,25 +147,33 @@ public static class OpenWagglePipeSecurity
             int length = checked((int)GetSecurityDescriptorLength(verified));
             byte[] binary = new byte[length];
             Marshal.Copy(verified, binary, 0, length);
-            RawSecurityDescriptor descriptor = new RawSecurityDescriptor(binary, 0);
-            if (!expectedUser.Equals(descriptor.Owner))
-                throw new InvalidOperationException("Named pipe owner SID verification failed.");
-            if ((descriptor.ControlFlags & ControlFlags.DiscretionaryAclProtected) == 0)
-                throw new InvalidOperationException("Named pipe DACL is not protected.");
-            RawAcl acl = descriptor.DiscretionaryAcl;
-            CommonAce ace = acl == null || acl.Count != 1 ? null : acl[0] as CommonAce;
-            if (ace == null)
-                throw new InvalidOperationException("Named pipe DACL is not user-only.");
-            if (ace.AceQualifier != AceQualifier.AccessAllowed ||
-                ace.AccessMask != GENERIC_ALL ||
-                !expectedUser.Equals(ace.SecurityIdentifier))
-                throw new InvalidOperationException("Named pipe DACL grants an unexpected principal or access mask.");
+            VerifyDescriptor(new RawSecurityDescriptor(binary, 0), expectedUser);
         }
         finally
         {
             LocalFree(verified);
         }
         return sid;
+    }
+
+    public static void VerifyDescriptor(RawSecurityDescriptor descriptor, SecurityIdentifier expectedUser)
+    {
+        if (!expectedUser.Equals(descriptor.Owner))
+            throw new InvalidOperationException("Named pipe owner SID verification failed.");
+        if ((descriptor.ControlFlags & ControlFlags.DiscretionaryAclProtected) == 0)
+            throw new InvalidOperationException("Named pipe DACL is not protected.");
+        RawAcl acl = descriptor.DiscretionaryAcl;
+        CommonAce ace = acl == null || acl.Count != 1 ? null : acl[0] as CommonAce;
+        if (ace == null)
+            throw new InvalidOperationException("Named pipe DACL is not user-only.");
+        if (ace.AceQualifier != AceQualifier.AccessAllowed ||
+            ace.AceFlags != AceFlags.None || ace.IsCallback ||
+            !expectedUser.Equals(ace.SecurityIdentifier))
+            throw new InvalidOperationException("Named pipe DACL grants an unexpected principal or ACE type.");
+        if (ace.AccessMask != PIPE_FULL_CONTROL)
+            throw new InvalidOperationException("Named pipe DACL access mask 0x" +
+                ace.AccessMask.ToString("x") + " differs from pipe full control 0x" +
+                PIPE_FULL_CONTROL.ToString("x") + ".");
     }
 }
 `
