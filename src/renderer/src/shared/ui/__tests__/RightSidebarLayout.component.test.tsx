@@ -185,6 +185,21 @@ describe('RightSidebarLayout', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('preserves the main draft and focus across both responsive sidebar modes', () => {
+    const content = <textarea aria-label="Draft" defaultValue="" />
+    const view = render(<RightSidebarLayout {...layoutProps(false)}>{content}</RightSidebarLayout>)
+    const draft = screen.getByRole('textbox', { name: 'Draft' })
+    fireEvent.change(draft, { target: { value: 'Unsent draft' } })
+    draft.focus()
+
+    for (const isSheet of [true, false, true, false]) {
+      installMatchMedia(isSheet)
+      view.rerender(<RightSidebarLayout {...layoutProps(false)}>{content}</RightSidebarLayout>)
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('Unsent draft')
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveFocus()
+    }
+  })
+
   it('moves focus into a docked sidebar when it opens', async () => {
     const view = renderLayout(false)
     view.rerender(
@@ -201,6 +216,21 @@ describe('RightSidebarLayout', () => {
     renderLayout(true)
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus())
+  })
+
+  it('keeps an open sidebar focused when moving between sheet and docked modes', async () => {
+    const view = renderLayout(true)
+    for (const isSheet of [true, false]) {
+      installMatchMedia(isSheet)
+      view.rerender(
+        <RightSidebarLayout {...layoutProps(true)}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus(),
+      )
+    }
   })
 
   it('grows left, clamps before acceptance, previews accepted widths, and persists on release', () => {

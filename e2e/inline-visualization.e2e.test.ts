@@ -253,6 +253,9 @@ async function expectSecureInteractiveVisualization(
 
   await app.resizeMainContent(1800, 900)
   await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_800)
+  // A responsive mode change must not reload the sandbox and undo its local interactions.
+  await expect(redrawTooltipButton).toHaveCount(0)
+  await expect(status).toHaveAttribute('data-follow-up', 'accepted')
   const sessionTreeToggle = page
     .locator('header')
     .getByRole('button', { name: 'Toggle Session Tree' })
@@ -438,7 +441,10 @@ async function expectSecureInteractiveVisualization(
 async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const page = app.window()
   const input = app.mainWindow().messageInput()
-  await input.fill('/vis')
+  await expect(input).toHaveText('')
+  await input.click()
+  await input.pressSequentially('/vis')
+  await expect(input).toHaveText('/vis')
   const menu = page.getByRole('menu', { name: 'Slash command menu' })
   await expect(menu).toBeVisible()
   const visualize = menu.getByRole('menuitem', { name: /Visualize/u })

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
-import { RightSidebarDockedLayout } from './RightSidebarDockedLayout'
+import { RightSidebarFrame } from './RightSidebarFrame'
 import { RightSidebarResizeRail } from './RightSidebarResizeRail'
 import { RightSidebarSheet } from './RightSidebarSheet'
 import {
@@ -79,14 +79,14 @@ export function RightSidebarLayout({
 
   useEffect(() => {
     const panel = panelRef.current
-    if (!open || !panel || panel.contains(document.activeElement)) return
+    if (isSheet || !open || !panel || panel.contains(document.activeElement)) return
     queueMicrotask(() => {
       const target = panel.querySelector<HTMLElement>(
         '[data-right-sidebar-focus-target="true"], button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
       )
       ;(target ?? panel).focus({ preventScroll: true })
     })
-  }, [open])
+  }, [isSheet, open])
 
   function captureSidebar(node: HTMLDivElement | null) {
     sidebarRef.current = node
@@ -111,23 +111,8 @@ export function RightSidebarLayout({
     panelRef.current?.style.setProperty('width', '100%')
   }
 
-  if (isSheet) {
-    return (
-      <>
-        <div inert={open} className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          {children}
-        </div>
-        {shouldRenderSidebar ? (
-          <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
-            {sidebar}
-          </RightSidebarSheet>
-        ) : null}
-      </>
-    )
-  }
-
   return (
-    <RightSidebarDockedLayout
+    <RightSidebarFrame
       captures={{ captureMain, capturePanel, captureRoot }}
       content={{ children, sidebar }}
       rail={
@@ -139,7 +124,14 @@ export function RightSidebarLayout({
           shouldAcceptWidth={shouldAcceptWidth}
         />
       }
-      shell={{ mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
+      shell={{ isSheet, mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
+      sheet={
+        isSheet && shouldRenderSidebar ? (
+          <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
+            {sidebar}
+          </RightSidebarSheet>
+        ) : null
+      }
     />
   )
 }

@@ -9,6 +9,8 @@ The Session Summary keeps the opened session's working context and durable resou
 
 The Summary is always a floating overlay. It never narrows the transcript or moves the composer. OpenWaggle hides it automatically when the chat area is too narrow or a right sidebar is open. Use the **Session Summary** layout-list button in the header to hide it or explicitly reopen it over the chat at any window size.
 
+Resizing between wide and narrow layouts keeps your unsent text, selected command chips, and interactive visualization state intact.
+
 At narrow widths, an explicit reopen is temporary. Press `Escape` or click outside the Summary to dismiss it without changing the saved wide-layout preference. A right sidebar always takes precedence. The header button remains visible but disabled until the sidebar closes. At wider widths, OpenWaggle remembers whether the Summary is open and which sections are expanded for each session.
 
 Authorization mode and context usage stay in the composer. They are not duplicated in the Summary.

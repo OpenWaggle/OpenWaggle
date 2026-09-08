@@ -2,6 +2,37 @@ import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
 
+test('unsent text and slash chips survive responsive sidebar mode changes', async () => {
+  const app = await OpenWaggleApp.launch('openwaggle-composer-responsive-')
+  try {
+    const title = 'Responsive draft retention'
+    await seedSingleSession(app.userDataDir, {
+      title, projectPath: app.userDataDir, updatedAt: Date.now(),
+      messages: [{ id: 'responsive-message', role: 'assistant', createdAt: Date.now(), parts: [{ type: 'text', text: 'Responsive workspace ready' }] }],
+    })
+    await app.restart()
+    await app.resizeMainContent(1800, 900)
+    await app.installAgentSendProbe()
+    await app.mainWindow().openThread(title)
+    const page = app.window()
+    const input = app.mainWindow().messageInput()
+    await input.fill('/vis')
+    await expect(page.getByRole('menuitem', { name: /Visualize/ })).toBeVisible()
+    await input.press('Enter')
+    await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
+    await input.pressSequentially('Unsent responsive draft')
+    for (const width of [760, 1800, 760, 1800]) {
+      await app.resizeMainContent(width, 900)
+      await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
+      await expect(input).toContainText('Unsent responsive draft')
+      await expect(input).toBeFocused()
+    }
+    expect(await app.readAgentSendProbe()).toBeNull()
+  } finally {
+    await app.cleanup()
+  }
+})
+
 test('selected slash command survives delayed project selection and session workspace hydration', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-composer-hydration-')
   try {
@@ -68,7 +99,11 @@ test('clearing a pending composer does not resurrect a saved branch draft', asyn
     await page.locator('header').getByRole('button', { name: 'Toggle Session Tree' }).click()
     await expect(tree.getByText(transcript, { exact: false })).toHaveCount(0)
     await main.messageInput().fill('Temporary pending edit')
-    await main.messageInput().fill('')
+    // Lexical's selection can race fill('')'s synthetic delete under CPU contention.
+    // Exercise the user keyboard path and prove the clear happened before hydration.
+    await main.messageInput().press('ControlOrMeta+A')
+    await main.messageInput().press('Backspace')
+    await expect(main.messageInput()).toHaveText('')
     await app.releaseSessionWorkspace()
     await expect(tree.getByText(transcript, { exact: false })).toBeVisible()
     await expect(main.messageInput()).toHaveText('')
