@@ -9,7 +9,7 @@ import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
-import { createSections, makeMessage } from './ChatPanel.test-utils'
+import { createSections, makeMessage, seedComposerWorkspace } from './ChatPanel.test-utils'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
 
@@ -54,6 +54,7 @@ describe('ChatPanel', () => {
   beforeEach(() => {
     useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
     useComposerStore.setState(useComposerStore.getInitialState())
+    seedComposerWorkspace()
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: {

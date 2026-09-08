@@ -98,6 +98,7 @@ function completeClaimedPromotion(input: {
       ? {
           operation: 'promote',
           effect: 'promoted-follow-up',
+          receipt: steering.receipt,
           sessionId: input.operation.request.command.sessionId,
           runId: input.expectedRunId,
           followUpId: input.followUpId,

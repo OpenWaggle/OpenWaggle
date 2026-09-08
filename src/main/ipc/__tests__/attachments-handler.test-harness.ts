@@ -197,15 +197,30 @@ export function resetAttachmentHandlerMocks() {
         },
         unknown
       >(rawInput)
-      const { prepareAttachmentFiles } = await import('../../utils/attachment-preparation')
+      const { prepareAttachmentFiles, toPublicPreparedAttachment } = await import(
+        '../../utils/attachment-preparation'
+      )
+      const { decodeLocalSessionCommandResponse } = await import(
+        '../../session-host/local-session-client-response'
+      )
       const attachments = await prepareAttachmentFiles({
         baseDirectory: input.caller.workingDirectory,
         entries: input.payload.request.entries,
       })
-      return {
-        contract: 'local-attachments-v1',
-        response: { requestId: input.payload.request.requestId, attachments },
-      }
+      return decodeLocalSessionCommandResponse(
+        {
+          kind: 'response',
+          requestId: input.payload.request.requestId,
+          payload: {
+            contract: 'local-attachments-v1',
+            response: {
+              requestId: input.payload.request.requestId,
+              attachments: attachments.map(toPublicPreparedAttachment),
+            },
+          },
+        },
+        input.payload.request.requestId,
+      )
     }),
   )
   statMock.mockReset()

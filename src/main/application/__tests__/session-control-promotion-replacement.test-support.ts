@@ -27,7 +27,7 @@ export function makePromotionReplacementLayer(
   const steer = vi.fn((_input: unknown) =>
     options?.steeringAccepted === false
       ? { accepted: false as const, code: 'run_not_live' as const }
-      : { accepted: true as const },
+      : { accepted: true as const, receipt: { delivery: 'handled' as const } },
   )
   const interrupt = vi.fn((_input: unknown) => ({ accepted: true as const }))
   const release = vi.fn(() => Effect.void)

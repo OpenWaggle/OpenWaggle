@@ -1,5 +1,10 @@
+import { createHash } from 'node:crypto'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
-import type { HydratedAttachment, InlineVisualizationContext } from '@shared/types/agent'
+import type {
+  AgentSteerDeliveryReceipt,
+  HydratedAttachment,
+  InlineVisualizationContext,
+} from '@shared/types/agent'
 import type { AgentSteeringResult } from '../../../ports/agent-steering-service'
 import type { PiModel } from '../pi-provider-catalog'
 import { createPiRunControl } from './pi-run-control'
@@ -55,13 +60,23 @@ export async function steerPiLiveRun(input: PiLiveRunSteeringInput): Promise<Age
     if (!liveRun.run.session.isStreaming && !liveRun.run.session.isCompacting) {
       return { accepted: false, code: 'run_not_streaming' }
     }
-    await liveRun.control.steer({
+    const delivery = await liveRun.control.steer({
       text: input.text,
       thinkingLevel: 'off',
       attachments: input.attachments,
       ...(input.visualizationContext ? { visualizationContext: input.visualizationContext } : {}),
     })
-    return { accepted: true }
+    const receipt: AgentSteerDeliveryReceipt =
+      delivery.delivery === 'handled'
+        ? { delivery: 'handled' }
+        : {
+            delivery: 'queued',
+            minimumCreatedOrder: delivery.minimumCreatedOrder,
+            durableTextSha256: createHash('sha256')
+              .update(delivery.durableText, 'utf8')
+              .digest('hex'),
+          }
+    return { accepted: true, receipt }
   })
   liveRun.steerTail = steering.then(
     () => undefined,

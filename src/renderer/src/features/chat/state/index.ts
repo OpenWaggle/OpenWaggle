@@ -4,5 +4,6 @@ export { useChatStore } from './chat-store'
 export {
   type OptimisticSteerPreview,
   selectOptimisticSteerPreviews,
+  selectPendingSteerFollowUps,
   useOptimisticSteerStore,
 } from './optimistic-steer-store'

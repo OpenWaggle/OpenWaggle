@@ -1,4 +1,8 @@
-import type { HydratedAttachment, InlineVisualizationContext } from '@shared/types/agent'
+import type {
+  AgentSteerDeliveryReceipt,
+  HydratedAttachment,
+  InlineVisualizationContext,
+} from '@shared/types/agent'
 import { Context, type Effect } from 'effect'
 
 export interface AgentSteeringInput {
@@ -9,7 +13,7 @@ export interface AgentSteeringInput {
 }
 
 export type AgentSteeringResult =
-  | { readonly accepted: true }
+  | { readonly accepted: true; readonly receipt: AgentSteerDeliveryReceipt }
   | { readonly accepted: false; readonly code: 'run_not_live' | 'run_not_streaming' }
 
 export interface AgentSteeringServiceShape {

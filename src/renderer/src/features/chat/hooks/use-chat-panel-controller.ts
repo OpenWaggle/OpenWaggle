@@ -9,6 +9,7 @@ import { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useTurnReveal } from '@/features/chat/hooks/useTurnReveal'
 import { createBranchDraftSelection } from '@/features/chat/lib/branch-from-message'
 import { maybeOpenBranchSummaryPrompt } from '@/features/chat/lib/branch-summary-prompt-controller'
+import { isCompactionRunning } from '@/features/chat/lib/compaction-lifecycle'
 import { useComposerStore } from '@/features/composer/state'
 import { useSkills } from '@/features/skills/hooks'
 import { useWaggleChat } from '@/features/waggle/hooks'
@@ -69,6 +70,7 @@ export function useChatPanelSections(): ChatPanelSections {
     stop,
     error,
     withDeferredSnapshotRefresh,
+    previewSteeredUserTurn,
     streamSignalVersion,
     compactionStatus,
     agentInteractions,
@@ -162,6 +164,9 @@ export function useChatPanelSections(): ChatPanelSections {
   })
   const { isSteering, handleSteer } = useSteerWorkflow({
     activeSessionId,
+    followUps: followUpQueue.snapshot.items,
+    isCompacting: isCompactionRunning(compactionStatus),
+    previewSteeredUserTurn,
     promoteFollowUp: followUpQueue.promote,
     withDeferredSnapshotRefresh,
     showToast,

@@ -2,6 +2,10 @@ import type { GitStatusSummary } from '@shared/types/git'
 import { broadcastToWindows } from '../utils/broadcast'
 
 const statusCache = new Map<string, { result: GitStatusSummary; timestamp: number }>()
+const pendingStatusReads = new Map<
+  string,
+  { readonly pending: Promise<GitStatusSummary>; readonly token: GitStatusCacheToken }
+>()
 const projectGenerations = new Map<string, number>()
 let globalGeneration = 0
 
@@ -23,18 +27,46 @@ export function getCachedGitStatus(projectPath: string, ttlMs: number) {
   return cached.result
 }
 
+function sameCacheToken(left: GitStatusCacheToken, right: GitStatusCacheToken) {
+  return (
+    left.globalGeneration === right.globalGeneration &&
+    left.projectGeneration === right.projectGeneration
+  )
+}
+
+export function getOrLoadCachedGitStatus(
+  projectPath: string,
+  ttlMs: number,
+  load: () => Promise<GitStatusSummary>,
+): Promise<GitStatusSummary> {
+  const cached = getCachedGitStatus(projectPath, ttlMs)
+  if (cached !== null) return Promise.resolve(cached)
+  const token = getGitStatusCacheToken(projectPath)
+  const existing = pendingStatusReads.get(projectPath)
+  if (existing && sameCacheToken(existing.token, token)) return existing.pending
+
+  const pending = Promise.resolve()
+    .then(load)
+    .then((result) => {
+      setCachedGitStatus(projectPath, result, token)
+      return result
+    })
+    .finally(() => {
+      if (pendingStatusReads.get(projectPath)?.pending === pending) {
+        pendingStatusReads.delete(projectPath)
+      }
+    })
+  pendingStatusReads.set(projectPath, { pending, token })
+  return pending
+}
+
 export function setCachedGitStatus(
   projectPath: string,
   result: GitStatusSummary,
   token: GitStatusCacheToken,
 ) {
   const currentToken = getGitStatusCacheToken(projectPath)
-  if (
-    token.globalGeneration !== currentToken.globalGeneration ||
-    token.projectGeneration !== currentToken.projectGeneration
-  ) {
-    return
-  }
+  if (!sameCacheToken(token, currentToken)) return
   statusCache.set(projectPath, { result, timestamp: Date.now() })
 }
 
@@ -58,7 +90,11 @@ export function invalidateGitStatusCache(workingPath?: string) {
   }
 
   const affected = new Set<string>([workingPath])
-  for (const cachedPath of [...statusCache.keys(), ...projectGenerations.keys()]) {
+  for (const cachedPath of [
+    ...statusCache.keys(),
+    ...pendingStatusReads.keys(),
+    ...projectGenerations.keys(),
+  ]) {
     if (isSameWorkingTree(cachedPath, workingPath)) affected.add(cachedPath)
   }
 

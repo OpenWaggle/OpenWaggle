@@ -1,7 +1,10 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { decodeUnknownExactOrThrow } from '@shared/schema'
+import { agentSendPayloadSchema, preparedAttachmentSchema } from '@shared/schemas/validation'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   broadcastToWindowsMock,
+  files,
   loadAttachmentHandlers,
   openMock,
   readdirMock,
@@ -19,20 +22,32 @@ describe('attachments:prepare-from-text', () => {
     ;({ registerAttachmentHandlers } = await loadAttachmentHandlers())
   })
 
-  it('preserves full long text without truncation and returns markdown metadata', async () => {
+  it('stores full long text and returns a bounded preview accepted by submission', async () => {
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare-from-text')
     expect(handler).toBeDefined()
 
     const longText = 'x'.repeat(50_000)
-    const result = await handler?.({}, longText, 'operation-1')
+    const result = decodeUnknownExactOrThrow(
+      preparedAttachmentSchema,
+      await handler?.({}, longText, 'operation-1'),
+    )
 
     expect(result).toMatchObject({
       kind: 'text',
       origin: 'auto-paste-text',
       mimeType: 'text/markdown',
-      extractedText: longText,
     })
+    expect(result.extractedText.length).toBe(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)
+    expect(result.extractedText).toMatch(/\n\.\.\.\[truncated\]$/)
+    expect(files.get(result.path)?.content.toString('utf8')).toBe(longText)
+    expect(() =>
+      decodeUnknownExactOrThrow(agentSendPayloadSchema, {
+        text: '',
+        thinkingLevel: 'off',
+        attachments: [result],
+      }),
+    ).not.toThrow()
     expect(result).toEqual(
       expect.objectContaining({
         name: expect.stringMatching(/^prompt-\d+\.md$/),

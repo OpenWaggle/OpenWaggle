@@ -103,17 +103,22 @@ export class OpenWaggleApp {
     private currentWindow: Page,
     readonly hidden: boolean,
     private readonly evidencePrefix: string,
+    readonly piAgentDir?: string,
   ) {}
 
-  static async launch(prefix = 'openwaggle-e2e-'): Promise<OpenWaggleApp> {
+  static async launch(
+    prefix = 'openwaggle-e2e-',
+    options: { readonly isolatedPiAgent?: boolean } = {},
+  ): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
+    const piAgentDir = options.isolatedPiAgent ? path.join(userDataDir, 'pi-agent') : undefined
     let app: ElectronApplication | null = null
     let window: Page | null = null
     try {
-      app = await launchOpenWaggleElectron({ userDataDir, hidden })
+      app = await launchOpenWaggleElectron({ userDataDir, hidden, piAgentDir })
       window = await app.firstWindow()
-      const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix)
+      const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix, piAgentDir)
       await instance.mainWindow().waitUntilReady()
       return instance
     } catch (error) {
@@ -180,6 +185,7 @@ export class OpenWaggleApp {
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
+      piAgentDir: this.piAgentDir,
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()

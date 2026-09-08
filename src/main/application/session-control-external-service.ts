@@ -213,6 +213,7 @@ export function steerSessionRun(input: SteerSessionRunInput) {
       ? {
           operation: 'steer',
           effect: 'steered-run',
+          receipt: steering.receipt,
           sessionId: input.request.command.sessionId,
           runId: input.request.command.expectedRunId,
           stateRevision: claim.stateRevision,

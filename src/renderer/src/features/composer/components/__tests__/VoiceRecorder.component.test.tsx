@@ -153,4 +153,16 @@ describe('VoiceRecorder', () => {
     expect(screen.queryByTitle('Stop recording')).toBeNull()
     expect(screen.getByTitle('Send recording')).toBeDisabled()
   })
+
+  it('blocks attachment and send controls while still allowing the microphone to stop', () => {
+    const voice = createVoiceController()
+    render(<VoiceRecorder fileInputRef={createFileInputRef()} voice={voice} disabled />)
+    expect(screen.getByTitle('Add to message')).toBeDisabled()
+    expect(screen.getByTitle('Send recording')).toBeDisabled()
+    expect(screen.getByTitle('Stop recording')).toBeEnabled()
+    fireEvent.click(screen.getByTitle('Send recording'))
+    fireEvent.click(screen.getByTitle('Stop recording'))
+    expect(voice.stopAndSend).not.toHaveBeenCalled()
+    expect(voice.stopCapture).toHaveBeenCalledOnce()
+  })
 })

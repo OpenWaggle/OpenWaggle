@@ -120,7 +120,7 @@ describe('Local Session client', () => {
           },
         },
       }),
-    ).rejects.toThrow(/does not support Host UI requests/)
+    ).rejects.toThrow(/protocol|revision/i)
     expect(calls).toHaveLength(1)
   })
 

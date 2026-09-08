@@ -188,7 +188,7 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
   }
 
   async function promote(followUpId: string) {
-    if (!sessionId) return
+    if (!sessionId) throw new Error('Select a Session before steering a Follow-up.')
     const item = query.data?.items.find((candidate) => candidate.id === followUpId)
     if (item && isGuiOnlyComposerCommand(item.text)) {
       throw new Error(
@@ -197,13 +197,17 @@ export function useSessionFollowUpQueue(sessionId: SessionId | null) {
     }
     const activeRunId = query.data?.activeRunId
     if (!activeRunId) throw new Error('The Session no longer has an active Run to steer.')
-    await mutate({
+    const response = await mutate({
       operation: 'promote',
       sessionId,
       expectedRunId: activeRunId,
       followUpId,
     })
+    if (response.outcome.effect !== 'promoted-follow-up') {
+      throw new Error('Session Host returned the wrong response for a Follow-up promotion.')
+    }
     await refresh()
+    return response.outcome.receipt
   }
 
   async function resubmitWithCurrentAccess(followUpId: string) {

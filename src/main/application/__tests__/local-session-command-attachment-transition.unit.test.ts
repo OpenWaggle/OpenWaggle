@@ -185,7 +185,7 @@ describe('Local Session attachment transition dispatch', () => {
               steeringEntered.resolve()
               await finishSteering.promise
               return steeringAccepted
-                ? { accepted: true as const }
+                ? { accepted: true as const, receipt: { delivery: 'handled' as const } }
                 : { accepted: false as const, code: 'run_not_live' as const }
             }),
         }),

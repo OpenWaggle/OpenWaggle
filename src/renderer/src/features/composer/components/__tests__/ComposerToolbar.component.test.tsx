@@ -96,6 +96,22 @@ describe('ComposerToolbar', () => {
     expect(screen.getByTitle('Select thinking level')).toBeInTheDocument()
   })
 
+  it('disables file selection and voice while the composer draft context is unavailable', () => {
+    usePreferencesStore.setState({
+      settings: { ...usePreferencesStore.getState().settings, projectPath: '/repo' },
+    })
+    const onToggleVoice = vi.fn()
+    renderToolbar({ disabled: true, onToggleVoice })
+    const add = screen.getByRole('button', { name: 'Add to message' })
+    const voice = screen.getByTitle('Start voice input')
+    expect(add).toBeDisabled()
+    expect(voice).toBeDisabled()
+    fireEvent.click(add)
+    fireEvent.click(voice)
+    expect(screen.queryByRole('menuitem', { name: /Attach files/ })).not.toBeInTheDocument()
+    expect(onToggleVoice).not.toHaveBeenCalled()
+  })
+
   it('shows and locks the persisted execution model for an existing Session', () => {
     const executionModel = SupportedModelId('anthropic/claude-sonnet-4-5')
     useChatStore.setState({

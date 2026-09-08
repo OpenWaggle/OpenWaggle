@@ -37,6 +37,7 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
+  const activeDraftContextKey = useComposerStore((state) => state.activeDraftContextKey)
   const contextKey = buildScopedComposerContextKey(
     projectPath,
     activeSessionId,
@@ -70,6 +71,9 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
       }
     }
   }, [])
+
+  // Session detail may arrive before the workspace establishes the draft's owner.
+  return contextKey !== null && activeDraftContextKey === contextKey
 }
 
 function buildScopedComposerContextKey(

@@ -1,10 +1,26 @@
 import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { SessionWorkspace } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { vi } from 'vitest'
+import { useComposerStore } from '@/features/composer/state'
+import { useSessionStore } from '@/features/sessions/state'
 import type { ChatPanelSections } from '../../model/chat-panel-sections'
 
 export const PROJECT_PATH = '/test/project'
+
+export function seedComposerWorkspace() {
+  useComposerStore
+    .getState()
+    .switchScopedDraftContext(`project:${PROJECT_PATH}:session:session-1:main`)
+  useSessionStore.setState({
+    activeWorkspace: fromPartial<SessionWorkspace>({
+      tree: { session: { id: SessionId('session-1') } },
+      activeBranchId: null,
+      activeNodeId: null,
+    }),
+  })
+}
 
 export function makeMessage(
   overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' },

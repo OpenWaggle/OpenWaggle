@@ -51,6 +51,8 @@ These names have precise meanings in the GUI, CLI, MCP adapter, and native `sess
 
 Pi's internal steering queue is an adapter detail. The durable **Follow-up queue** above is the product queue: it survives renderer disconnects and host recovery, can remain pending after the active Run, and is delivered one entry at a time when resumed.
 
+When you promote a Follow-up, its preview moves into the conversation while the Host processes it. During compaction it shows that it is waiting. Acceptance can precede delivery while a tool is still running, so the preview remains until the actual user message arrives. Switching Sessions does not discard it. If the Host refuses the promotion, the Follow-up remains in its queue.
+
 ## Workspace placement
 
 Spawning defaults to sharing the parent's exact Workspace. Choose a new worktree when Workers should edit independently, or local placement for a specific local checkout. Launches and forks have equivalent explicit choices. A Session never silently falls back from a missing worktree to another checkout.

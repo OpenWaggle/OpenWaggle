@@ -1,3 +1,4 @@
+import type { AgentSteerDeliveryReceipt } from './agent'
 import type {
   SessionAuthorizationSetCommand,
   SessionAuthorizationUpdatedOutcome,
@@ -110,6 +111,10 @@ export type {
 
 export const SESSION_CONTROL_CONTRACT_VERSION = 2 as const
 
+export type SessionControlSteeringReceipt =
+  | AgentSteerDeliveryReceipt
+  | { readonly delivery: 'unavailable' }
+
 export const SESSION_CONTROL_MUTATION_OPERATIONS = [
   'follow-up',
   'delegation-accept',
@@ -213,6 +218,7 @@ export type SessionControlMutationOutcome =
   | {
       readonly operation: 'steer'
       readonly effect: 'steered-run'
+      readonly receipt: SessionControlSteeringReceipt
       readonly sessionId: string
       readonly runId: string
       readonly stateRevision: number
@@ -228,6 +234,7 @@ export type SessionControlMutationOutcome =
   | {
       readonly operation: 'promote'
       readonly effect: 'promoted-follow-up'
+      readonly receipt: SessionControlSteeringReceipt
       readonly sessionId: string
       readonly runId: string
       readonly followUpId: string

@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 7 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 8 as const
+export const LOCAL_SESSION_MCP_AUTH_REVISION = 7 as const
 export const LOCAL_SESSION_MCP_HOST_UI_REVISION = 6 as const
 export const LOCAL_SESSION_LEGACY_HOST_UI_REVISION = 5 as const
 export const LOCAL_SESSION_COMPACTION_REVISION = 4 as const
@@ -6,7 +7,7 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
 /** The Host accepts only the current wire contract and its immediate predecessor. */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_MCP_HOST_UI_REVISION,
+  LOCAL_SESSION_MCP_AUTH_REVISION,
 ] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
@@ -39,7 +40,12 @@ export const LOCAL_SESSION_REVISION_6_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_5_CAPABILITIES,
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = [
+export const LOCAL_SESSION_REVISION_7_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_6_CAPABILITIES,
   'host-ui:mcp-auth-v2',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_7_CAPABILITIES,
+  'sessions:steer-receipt-v1',
 ] as const

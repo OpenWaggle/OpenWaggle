@@ -9,6 +9,7 @@ import {
 const PI_STEER_READY_POLL_MS = 20
 
 interface PiSteeringSession {
+  readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries'>
   readonly isCompacting: AgentSession['isCompacting']
   readonly isStreaming: AgentSession['isStreaming']
   readonly model:
@@ -65,6 +66,7 @@ export function createPiRunControl(
       const images = promptInput.images.length > 0 ? [...promptInput.images] : undefined
       if (options.routeThroughInputHook) {
         if (!session.prompt) throw new Error('The active Pi session cannot route steering input.')
+        const minimumCreatedOrder = session.sessionManager.getEntries().length
         const durableText = await session.prompt(text, {
           ...(images ? { images } : {}),
           ...(transformExpandedText ? { transformExpandedText } : {}),
@@ -72,12 +74,21 @@ export function createPiRunControl(
         })
         return durableText === undefined
           ? { delivery: 'handled' }
-          : { delivery: 'queued', durableText: stripAtomicVisualizationContext(durableText) }
+          : {
+              delivery: 'queued',
+              durableText: stripAtomicVisualizationContext(durableText),
+              minimumCreatedOrder,
+            }
       }
+      const minimumCreatedOrder = session.sessionManager.getEntries().length
       const durableText = transformExpandedText
         ? await session.steer(text, images, transformExpandedText)
         : await session.steer(text, images)
-      return { delivery: 'queued', durableText: stripAtomicVisualizationContext(durableText) }
+      return {
+        delivery: 'queued',
+        durableText: stripAtomicVisualizationContext(durableText),
+        minimumCreatedOrder,
+      }
     },
   }
 }

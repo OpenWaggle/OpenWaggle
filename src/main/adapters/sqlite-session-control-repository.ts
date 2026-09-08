@@ -1,7 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -11,6 +9,7 @@ import {
   type SessionControlRepositoryShape,
 } from '../ports/session-control-repository'
 import { applyCurrentFollowUpAuthorization } from './session-follow-up-authorization'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 import { liveSessionAuthorityBlockReason } from './sqlite-session-live-authority'
@@ -82,7 +81,7 @@ function replayExistingOperation(input: {
       }
       return {
         replayed: true,
-        outcome: decodeSessionControlMutationOutcome(parseJsonUnknown(input.existing.outcome_json)),
+        outcome: decodeStoredSessionControlMutationOutcome(input.existing.outcome_json),
       } as const
     },
     catch: (cause) => repositoryError('decode-idempotent-outcome', cause),

@@ -15,6 +15,7 @@ import {
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH,
   LOCAL_SESSION_MAX_SUPPORTED_REVISIONS,
+  LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT,
@@ -256,10 +257,20 @@ export function decodeLocalSessionCommandPayload(value: unknown) {
 
 export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
   const payload = decodeLocalSessionCommandPayload(value)
+  if (
+    payload.contract === 'session-control-v2' &&
+    (payload.request.command.operation === 'steer' ||
+      payload.request.command.operation === 'promote') &&
+    revision < LOCAL_SESSION_CURRENT_REVISION
+  ) {
+    throw new Error(
+      `This command requires Local Session protocol revision ${LOCAL_SESSION_CURRENT_REVISION}.`,
+    )
+  }
   const requiredRevision =
     payload.contract === 'host-ui-v1'
       ? HOST_UI_REVISION_7_NEW_CHANNELS.some((channel) => channel === payload.request.channel)
-        ? LOCAL_SESSION_CURRENT_REVISION
+        ? LOCAL_SESSION_MCP_AUTH_REVISION
         : HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
           ? LOCAL_SESSION_MCP_HOST_UI_REVISION
           : LOCAL_SESSION_LEGACY_HOST_UI_REVISION

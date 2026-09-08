@@ -225,8 +225,16 @@ function resolveAttachments(
       const row = byId.get(id)
       if (!row) throw new Error(`Attachment capability was not found: ${id}`)
       const attachment = attachmentFromRow(row)
+      // Auto-pastes are prompts: their bounded preview must not truncate the model input.
       if (attachment.kind !== 'image' && attachment.kind !== 'pdf')
-        return { ...attachment, source: null }
+        return {
+          ...attachment,
+          extractedText:
+            attachment.origin === 'auto-paste-text'
+              ? Buffer.from(row.source_base64, 'base64').toString('utf8')
+              : attachment.extractedText,
+          source: null,
+        }
       return {
         ...attachment,
         source: { type: 'data' as const, value: row.source_base64, mimeType: attachment.mimeType },

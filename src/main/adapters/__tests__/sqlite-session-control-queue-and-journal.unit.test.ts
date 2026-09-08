@@ -154,7 +154,14 @@ describe('SQLite Session Control queue and operation journal', () => {
     const steer = vi.fn(() =>
       Effect.promise(async () => {
         await steeringBarrier
-        return { accepted: true as const }
+        return {
+          accepted: true as const,
+          receipt: {
+            delivery: 'queued' as const,
+            durableTextSha256: 'a'.repeat(64),
+            minimumCreatedOrder: 17,
+          },
+        }
       }),
     )
     const layer = Layer.merge(
@@ -260,7 +267,17 @@ describe('SQLite Session Control queue and operation journal', () => {
     expect(settlementCompleted).toBe(false)
 
     releaseSteering()
-    await expect(first).resolves.toMatchObject({ outcome: { effect: 'promoted-follow-up' } })
+    const promoted = await first
+    expect(promoted.outcome).toMatchObject({
+      effect: 'promoted-follow-up',
+      receipt: { delivery: 'queued', durableTextSha256: 'a'.repeat(64), minimumCreatedOrder: 17 },
+    })
+    await expect(
+      runtime.runPromise(
+        promoteSessionFollowUp({ callerId: 'local-user', request: request('first') }),
+      ),
+    ).resolves.toEqual({ ...promoted, replayed: true })
+    expect(steer).toHaveBeenCalledOnce()
     const settlementResult = await settlement
     expect(settlementResult).toMatchObject({ accepted: true })
     expect('scheduled' in settlementResult).toBe(false)

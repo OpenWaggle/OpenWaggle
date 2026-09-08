@@ -18,6 +18,16 @@ import { sessionOrganizationOutcomeSchemas } from './session-organization'
 
 const stateRevisionSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
+const steeringReceiptSchema = Schema.Union(
+  Schema.Struct({
+    delivery: Schema.Literal('queued'),
+    durableTextSha256: Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)),
+    minimumCreatedOrder: stateRevisionSchema,
+  }),
+  Schema.Struct({ delivery: Schema.Literal('handled') }),
+  Schema.Struct({ delivery: Schema.Literal('unavailable') }),
+)
+
 const messageStartedRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('message'),
   effect: Schema.Literal('started-run'),
@@ -63,6 +73,7 @@ const startStartedRunOutcomeSchema = Schema.Struct({
 const steeredRunOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('steer'),
   effect: Schema.Literal('steered-run'),
+  receipt: steeringReceiptSchema,
   sessionId: Schema.String,
   runId: Schema.String,
   stateRevision: stateRevisionSchema,
@@ -110,6 +121,7 @@ const descendantInterruptionsRequestedOutcomeSchema = Schema.Struct({
 const promotedFollowUpOutcomeSchema = Schema.Struct({
   operation: Schema.Literal('promote'),
   effect: Schema.Literal('promoted-follow-up'),
+  receipt: steeringReceiptSchema,
   sessionId: Schema.String,
   runId: Schema.String,
   followUpId: Schema.String,

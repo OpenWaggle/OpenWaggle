@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import { AlertTriangle, ArrowUp, Play, RotateCcw, Timer, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { type SessionFollowUpQueueItem, useSessionFollowUpQueue } from '@/features/chat/hooks'
+import { selectPendingSteerFollowUps, useOptimisticSteerStore } from '@/features/chat/state'
 import { Button } from '@/shared/ui/Button'
 import { ComposerDock } from './ComposerDock'
 import { QueueIntentBadges } from './QueueIntentBadges'
@@ -178,7 +179,9 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     useSessionFollowUpQueue(sessionId)
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [isResuming, setIsResuming] = useState(false)
-  const queue = snapshot.items
+  const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
+  const pendingIds = new Set(pendingPromotions)
+  const queue = snapshot.items.filter((item) => !pendingIds.has(item.id))
 
   async function resolveAttention(item: SessionFollowUpQueueItem) {
     setResolvingId(item.id)

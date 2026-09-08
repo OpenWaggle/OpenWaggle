@@ -7,6 +7,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { getUIMessageText } from '../../lib/useAgentChat.utils'
+import { useOptimisticSteerStore } from '../../state/optimistic-steer-store'
 import {
   apiMock,
   createDeferred,
@@ -22,6 +23,38 @@ import {
 
 describe('useAgentChat session switching', () => {
   installUseAgentChatTestLifecycle()
+
+  it('retains a pending steer when returning from an idle Session before active hydration', async () => {
+    const activeId = SessionId('active-steer-session')
+    const idleId = SessionId('idle-steer-session')
+    hasActiveRunMock.mockImplementation((id) => id === activeId)
+    const activeSession = createSessionWithIdAndMessages(activeId, 1, [])
+    const idleSession = createSessionWithIdAndMessages(idleId, 1, [])
+    const { result, rerender } = renderHook(
+      ({ session }) => useAgentChat(session.id, session, SupportedModelId('test-model'), 'off'),
+      { initialProps: { session: activeSession } },
+    )
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      useOptimisticSteerStore.getState().beginPromotion(activeId, 'queued-steer')
+      result.current.previewSteeredUserTurn(
+        { ...SEND_PAYLOAD, text: 'Keep this steer visible' },
+        'waiting-for-compaction',
+      )
+    })
+    rerender({ session: idleSession })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    rerender({ session: activeSession })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    expect(result.current.messages.map(getUIMessageText)).toContain('Keep this steer visible')
+    expect(useOptimisticSteerStore.getState().pendingPromotions.get(activeId)).toEqual([
+      'queued-steer',
+    ])
+    act(() => {
+      useOptimisticSteerStore.getState().clearSession(activeId)
+      useOptimisticSteerStore.getState().finishPromotion(activeId, 'queued-steer')
+    })
+  })
 
   it('does not wipe an active run render snapshot with stale render output during a switch', async () => {
     const sessionA = SessionId('session-a')

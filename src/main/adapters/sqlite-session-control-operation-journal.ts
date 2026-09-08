@@ -1,7 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
-import { decodeSessionControlMutationOutcome } from '@shared/schemas/session-control'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
@@ -9,6 +7,7 @@ import {
   SessionControlOperationJournal,
   type SessionControlOperationJournalShape,
 } from '../ports/session-control-operation-journal'
+import { decodeStoredSessionControlMutationOutcome } from './sqlite-session-control-outcome-decoder'
 import { loadSessionControlState, persistSessionControlState } from './sqlite-session-control-state'
 import { reservedFollowUpIds } from './sqlite-session-follow-up-reservation'
 
@@ -72,7 +71,7 @@ function claimExternalOperation(
               if (existing.outcome_json === null) {
                 throw new Error('Completed operation has no outcome.')
               }
-              return decodeSessionControlMutationOutcome(parseJsonUnknown(existing.outcome_json))
+              return decodeStoredSessionControlMutationOutcome(existing.outcome_json)
             },
             catch: (cause) => repositoryError('decode-idempotent-outcome', cause),
           })

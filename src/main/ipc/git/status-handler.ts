@@ -3,7 +3,7 @@ import { decodeUnknownOrThrow } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { branchDiffBaseRefSchema, projectPathSchema } from './shared'
-import { getCachedGitStatus, getGitStatusCacheToken, setCachedGitStatus } from './status-cache'
+import { getOrLoadCachedGitStatus } from './status-cache'
 import { getGitBranchDiff, getGitDiff, getGitStatus } from './status-service'
 
 export { invalidateGitStatusCache } from './status-cache'
@@ -13,13 +13,11 @@ export function registerGitStatusHandlers() {
   typedHandle('git:status', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const cached = getCachedGitStatus(projectPath, GIT_CACHE.STATUS_TTL_MS)
-      if (cached) return cached
-
-      const cacheToken = getGitStatusCacheToken(projectPath)
-      const result = yield* Effect.promise(() => getGitStatus(projectPath))
-      setCachedGitStatus(projectPath, result, cacheToken)
-      return result
+      return yield* Effect.promise(() =>
+        getOrLoadCachedGitStatus(projectPath, GIT_CACHE.STATUS_TTL_MS, () =>
+          getGitStatus(projectPath),
+        ),
+      )
     }),
   )
 

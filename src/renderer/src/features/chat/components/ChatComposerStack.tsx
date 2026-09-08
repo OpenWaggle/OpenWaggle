@@ -191,7 +191,7 @@ export function ChatComposerStack({
     onStartCustomBranchSummary,
     onCancelBranchSummary,
   } = section
-  useScopedComposerDrafts(activeSessionId)
+  const draftContextReady = useScopedComposerDrafts(activeSessionId)
   const { strip, guardedSend, sendBlockedReason } = useComposerSendGate({
     activeSessionId,
     session: section.session,
@@ -279,7 +279,10 @@ export function ChatComposerStack({
             }
             onCancel={onCancel}
             isLoading={isLoading}
-            mode={branchSummaryComposerMode(branchSummaryMode, section.sessionDetailPending)}
+            mode={branchSummaryComposerMode(
+              branchSummaryMode,
+              section.sessionDetailPending || !draftContextReady,
+            )}
             onToast={onToast}
           />
         </div>

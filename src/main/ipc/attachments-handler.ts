@@ -16,7 +16,6 @@ import {
   buildTempPromptFilename,
   cleanupTempAttachments,
   ensureTempAttachmentsDirectory,
-  TEMP_PROMPT_MIME_TYPE,
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
@@ -118,7 +117,7 @@ function registerPrepareFromTextAttachmentHandler() {
         if (!attachment) {
           return yield* Effect.fail(new Error('Generated attachment preparation returned no file.'))
         }
-        return { ...attachment, mimeType: TEMP_PROMPT_MIME_TYPE, extractedText: text }
+        return attachment
       }),
   )
 }

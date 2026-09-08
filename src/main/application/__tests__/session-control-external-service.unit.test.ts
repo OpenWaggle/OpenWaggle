@@ -30,6 +30,11 @@ const request = {
   },
 } as const
 
+const acceptedSteering = {
+  accepted: true,
+  receipt: { delivery: 'queued', durableTextSha256: 'a'.repeat(64), minimumCreatedOrder: 17 },
+} as const
+
 function makeLayer(input: {
   readonly state: SessionControlSessionState
   readonly steer: (input: AgentSteeringInput) => Promise<AgentSteeringResult>
@@ -82,7 +87,7 @@ function makeLayer(input: {
 
 describe('Session Control external command service', () => {
   it('claims and completes an exact-Run Pi steering side effect', async () => {
-    const steer = vi.fn(async () => ({ accepted: true as const }))
+    const steer = vi.fn(async () => acceptedSteering)
     const setup = makeLayer({
       state: {
         sessionId: SessionId('session-target'),
@@ -111,6 +116,7 @@ describe('Session Control external command service', () => {
       outcome: {
         operation: 'steer',
         effect: 'steered-run',
+        receipt: acceptedSteering.receipt,
         sessionId: 'session-target',
         runId: 'run-active',
         stateRevision: 7,
@@ -125,7 +131,7 @@ describe('Session Control external command service', () => {
   })
 
   it('rejects a stale expected Run before calling Pi', async () => {
-    const steer = vi.fn(async () => ({ accepted: true as const }))
+    const steer = vi.fn(async () => acceptedSteering)
     const setup = makeLayer({
       state: {
         sessionId: SessionId('session-target'),
@@ -158,7 +164,7 @@ describe('Session Control external command service', () => {
         run: { state: 'active', runId: RunId('run-active') },
         followUpQueue: { state: 'running', revision: 0, items: [] },
       },
-      steer: vi.fn(async () => ({ accepted: true as const })),
+      steer: vi.fn(async () => acceptedSteering),
       interrupt,
     })
 
@@ -200,7 +206,7 @@ describe('Session Control external command service', () => {
         run: { state: 'active', runId: RunId('run-active') },
         followUpQueue: { state: 'running', revision: 0, items: [] },
       },
-      steer: vi.fn(async () => ({ accepted: true as const })),
+      steer: vi.fn(async () => acceptedSteering),
       interrupt: () => ({ accepted: false, code: 'run_not_live' }),
     })
 

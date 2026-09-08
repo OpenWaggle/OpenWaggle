@@ -221,9 +221,11 @@ test('a pending authorization request adds a ribbon without disturbing the compo
     const page = mainWindow.page
 
     // A half-written thought, focused, before the request arrives.
+    await expect(mainWindow.messageInput()).toHaveAttribute('contenteditable', 'true')
     await mainWindow.messageInput().click()
     await page.keyboard.type('also check whether any are already fixed on main')
     const draftBefore = await mainWindow.messageInput().innerText()
+    expect(draftBefore).toBe('also check whether any are already fixed on main')
 
     await app.emitAgentEvent(authorizationRequest(sessionId))
 

@@ -12,6 +12,7 @@ import {
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_CURRENT_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
+  LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_SUPPORTED_REVISIONS,
   LOCAL_SESSION_WAGGLE_REVISION,
@@ -37,6 +38,13 @@ const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
 function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
   if (
+    payload.contract === 'session-control-v2' &&
+    (payload.request.command.operation === 'steer' ||
+      payload.request.command.operation === 'promote')
+  ) {
+    return LOCAL_SESSION_CURRENT_REVISION
+  }
+  if (
     payload.contract === 'local-compaction-v1' ||
     payload.contract === 'local-compaction-cancel-v1'
   ) {
@@ -46,7 +54,7 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
     if (
       HOST_UI_REVISION_7_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
     ) {
-      return LOCAL_SESSION_CURRENT_REVISION
+      return LOCAL_SESSION_MCP_AUTH_REVISION
     }
     return HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
       ? LOCAL_SESSION_MCP_HOST_UI_REVISION
@@ -59,6 +67,9 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 }
 
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'session-control-v2') {
+    return 'The connected Session Host does not support steering delivery receipts.'
+  }
   if (payload.contract === 'host-ui-v1') {
     return 'The connected Session Host does not support Host UI requests.'
   }

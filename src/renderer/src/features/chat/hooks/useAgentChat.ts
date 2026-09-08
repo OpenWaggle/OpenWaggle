@@ -49,6 +49,9 @@ export function useAgentChat(
 ): AgentChatReturn {
   const upsertSession = useChatStore((state) => state.upsertSession)
   const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
+  const selectedSessionHasActiveRun = useBackgroundRunStore((state) =>
+    sessionId ? state.hasActiveRun(sessionId) : false,
+  )
   const getRunRenderSnapshot = useBackgroundRunStore((state) => state.getRunRenderSnapshot)
   const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
   const setRunCompactionStatus = useBackgroundRunStore((state) => state.setRunCompactionStatus)
@@ -122,7 +125,9 @@ export function useAgentChat(
     sessionId,
     buildClientUserMessage,
     messagesRef,
-    isSessionIdle,
+    // Local status may still belong to the previously selected Session until hydration runs.
+    // The session-scoped activity store must also confirm idle before discarding a pending steer.
+    isSessionIdle && !selectedSessionHasActiveRun,
   )
   const refs = {
     currentSessionIdRef,

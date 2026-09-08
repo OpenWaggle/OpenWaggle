@@ -62,6 +62,8 @@ Use `message` when adaptive start-or-queue behavior is wanted. Use `follow-up` w
 
 Profiles that use `replace` need both `sessions:message` and `sessions:interrupt`. A `sessions:start` grant does not substitute for message authority during Run replacement.
 
+Successful `steer` and `promote` responses include a delivery `receipt`. `delivery: "queued"` means Pi accepted the input for the active Run, not that it has reached the transcript yet. Its `durableTextSha256` is the lowercase SHA-256 of the exact projected first text block encoded as UTF-8, after Pi input transformations. Image-placeholder text parts are not included. `minimumCreatedOrder` is the earliest eligible native Session node order, captured after compaction and before queueing, so an older identical prompt cannot acknowledge the steer. This is not an index into the visible, compacted transcript. `delivery: "handled"` means an extension consumed the command without queueing a user message. Replayed successes saved by an older Host report `delivery: "unavailable"` when no receipt was recorded; they are never executed again to reconstruct it. These commands require Local Session protocol revision 8. Use `watch` or `read` to observe subsequent delivery.
+
 ## Queue, requests, and coordination
 
 ```sh

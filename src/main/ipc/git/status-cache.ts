@@ -2,6 +2,7 @@ export {
   type GitStatusCacheToken,
   getCachedGitStatus,
   getGitStatusCacheToken,
+  getOrLoadCachedGitStatus,
   invalidateGitStatusCache,
   isSameWorkingTree,
   setCachedGitStatus,

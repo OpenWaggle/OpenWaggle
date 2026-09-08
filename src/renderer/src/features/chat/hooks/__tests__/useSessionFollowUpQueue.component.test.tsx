@@ -1,9 +1,8 @@
-import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId } from '@shared/types/brand'
 import { act, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHookWithQueryClient } from '@/test-utils/query-test-utils'
 import { useSessionFollowUpQueue } from '../useSessionFollowUpQueue'
+import { PAYLOAD, queueResponse, SESSION_ID } from './session-follow-up-queue.test-fixtures'
 
 const apiMocks = vi.hoisted(() => ({
   querySessionControl: vi.fn(),
@@ -11,53 +10,6 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
-
-const SESSION_ID = SessionId('session-1')
-const PAYLOAD: AgentSendPayload = {
-  text: 'Run the tests',
-  thinkingLevel: 'high',
-  attachments: [
-    {
-      id: 'attachment-1',
-      kind: 'text',
-      name: 'notes.txt',
-      path: '/tmp/notes.txt',
-      mimeType: 'text/plain',
-      sizeBytes: 4,
-      extractedText: 'test',
-    },
-  ],
-}
-
-function queueResponse() {
-  return {
-    contractVersion: 2 as const,
-    requestId: 'query-1',
-    outcome: {
-      operation: 'queue-list' as const,
-      sessionId: SESSION_ID,
-      queueState: 'running' as const,
-      queueRevision: 4,
-      activeRunId: 'run-1',
-      items: [
-        {
-          followUpId: 'follow-up-1',
-          position: 0,
-          createdAt: 10,
-          deliveryState: 'needs_attention' as const,
-          attentionReason: 'authorization_ceiling_changed' as const,
-          intent: {
-            text: 'Existing follow-up',
-            attachmentIds: [],
-            runAuthorizationOverride: 'yolo',
-            waggle: { presetName: 'Cross-check', source: 'agent' },
-          },
-        },
-      ],
-      omittedBodyCount: 0,
-    },
-  }
-}
 
 describe('useSessionFollowUpQueue', () => {
   beforeEach(() => {
@@ -75,6 +27,7 @@ describe('useSessionFollowUpQueue', () => {
         followUpId: 'follow-up-1',
         queueRevision: 5,
         stateRevision: 6,
+        receipt: { delivery: 'queued', durableTextSha256: 'a'.repeat(64), minimumCreatedOrder: 1 },
       },
     }))
   })
@@ -113,7 +66,13 @@ describe('useSessionFollowUpQueue', () => {
     const { result } = renderHookWithQueryClient(() => useSessionFollowUpQueue(SESSION_ID))
     await waitFor(() => expect(result.current.snapshot.activeRunId).toBe('run-1'))
 
-    await act(() => result.current.promote('follow-up-1'))
+    await act(async () => {
+      expect(await result.current.promote('follow-up-1')).toEqual({
+        delivery: 'queued',
+        durableTextSha256: 'a'.repeat(64),
+        minimumCreatedOrder: 1,
+      })
+    })
     expect(apiMocks.mutateSessionControl).toHaveBeenCalledWith(
       expect.objectContaining({
         command: {

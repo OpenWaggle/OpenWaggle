@@ -49,7 +49,7 @@ export function Composer({
   const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { projectPath } = useProject()
-  const attachments = useComposerAttachments({ projectPath, onToast })
+  const attachments = useComposerAttachments({ projectPath, onToast, disabled })
   const submission = useComposerSubmission({
     onSend,
     onEnqueue,
@@ -66,6 +66,7 @@ export function Composer({
     hasPreparingTextAttachment: attachments.hasPreparingTextAttachment,
   })
   const voice = useComposerVoiceControls({
+    disabled,
     editorRef,
     sendComposed: submission.sendComposed,
     submitCurrentDraft: submission.submitCurrentDraft,
@@ -106,16 +107,19 @@ export function Composer({
           checkAndConvertPaste={attachments.checkAndConvertPaste}
         />
         <ComposerModeControls
+          disabled={disabled}
           accessControl={accessControl}
           fileInputRef={fileInputRef}
           voice={voice}
-          onSubmit={() => {
-            submission.handleSubmit()
+          submission={{
+            onSend: () => {
+              submission.handleSubmit()
+            },
+            onCancel,
+            isLoading,
+            canSend: submission.canSend,
+            sendTitle,
           }}
-          onCancel={onCancel}
-          isLoading={isLoading}
-          canSend={submission.canSend}
-          sendTitle={sendTitle}
         />
       </ComposerDropZone>
     </div>

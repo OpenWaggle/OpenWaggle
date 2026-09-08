@@ -40,7 +40,8 @@ async function withExtractionFallback(
 function normalizeText(value: string) {
   const trimmed = value.trim()
   if (trimmed.length <= ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS) return trimmed
-  return `${trimmed.slice(0, ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
+  const suffix = '\n...[truncated]'
+  return `${trimmed.slice(0, ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS - suffix.length)}${suffix}`
 }
 
 async function extractTextFromDocx(buffer: Buffer, signal: AbortSignal) {
