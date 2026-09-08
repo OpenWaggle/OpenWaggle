@@ -456,6 +456,8 @@ Performance probes must not subtract independent process wall clocks. Hosted mac
 
 Windows native final-output probes must interpret the console host's VT screen updates with xterm before requiring the exact 256 KiB payload and both boundary markers. Stripping escapes is insufficient: cursor redraws repeat bytes without adding visible characters, and regex stripping can leave fragments of OSC titles containing Windows paths. Retain the entire bounded payload in parser scrollback, and still reject missing, duplicated, or changed visible characters. Keep Unix output byte-exact. Never classify raw ConPTY stream length alone as data corruption.
 
+Electron rebuild calls node-gyp without running node-pty's package postinstall. A clean build therefore loses the bundled `conpty.dll` and `OpenConsole.exe` unless `binding.gyp` copies the vendored binaries into `build/Release/conpty` itself. Keep this in the dependency's source-build patch so both development and packaging rebuilds restore the target-architecture payload. The native probe must continue exercising system ConPTY, bundled ConPTY, and WinPTY.
+
 On the local macOS host, login-shell probes with long `-c` arguments exited via signal before producing output, including a harmless `printf` followed by a long comment. Keep the allowlisted capture command compact with one loop, not one expanded capture block per variable. The compact probe preserves markers, shell startup, timeout, output bound, and process-tree cleanup. The exact OS-level signal source was not established.
 
 ### Reserved shortcuts have to be declared where the conflict check looks

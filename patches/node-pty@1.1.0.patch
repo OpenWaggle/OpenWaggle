@@ -1,8 +1,8 @@
 diff --git a/binding.gyp b/binding.gyp
-index 5f63978b07ab50aaf7523219a2170ec737a6b5db..8d65e8d5bb2ff636b3dbfdf6e3eced4b359d4470 100644
+index 5f63978b07ab50aaf7523219a2170ec737a6b5db..20277e5d2ee659aa3c21ef2f454ccb5b4579f77c 100644
 --- a/binding.gyp
 +++ b/binding.gyp
-@@ -36,10 +36,11 @@
+@@ -36,10 +36,24 @@
            'target_name': 'conpty',
            'sources' : [
              'src/win/conpty.cc',
@@ -12,6 +12,19 @@ index 5f63978b07ab50aaf7523219a2170ec737a6b5db..8d65e8d5bb2ff636b3dbfdf6e3eced4b
            'libraries': [
 -            '-lshlwapi'
 +            '-lshlwapi', '-liphlpapi', '-lws2_32'
++          ],
++          # Electron rebuild invokes node-gyp without package postinstall.
++          # Keep the vendored console runtime beside every fresh native build.
++          'conditions': [
++            ['target_arch=="x64" or target_arch=="arm64"', {
++              'copies': [{
++                'destination': '<(PRODUCT_DIR)/conpty',
++                'files': [
++                  'third_party/conpty/1.23.251008001/win10-<(target_arch)/conpty.dll',
++                  'third_party/conpty/1.23.251008001/win10-<(target_arch)/OpenConsole.exe'
++                ]
++              }]
++            }]
            ],
          },
          {
