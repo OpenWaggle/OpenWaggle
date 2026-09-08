@@ -209,13 +209,12 @@ export function useSessionResources(sessionId: string | null) {
   return useQuery({ ...sessionResourcesQueryOptions(sessionId), enabled: sessionId !== null })
 }
 
-export function useSessionResourceInvalidation(sessionId: string | null) {
+export function useSessionResourceInvalidation() {
   const queryClient = useQueryClient()
   useEffect(() => {
-    if (!sessionId || typeof api.onSessionResourcesInvalidated !== 'function') return
+    if (typeof api.onSessionResourcesInvalidated !== 'function') return
     return api.onSessionResourcesInvalidated((payload) => {
-      if (String(payload.sessionId) !== sessionId) return
-      void invalidateSessionResourceQueries(queryClient, sessionId)
+      void invalidateSessionResourceQueries(queryClient, String(payload.sessionId))
     })
-  }, [queryClient, sessionId])
+  }, [queryClient])
 }

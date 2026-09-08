@@ -49,6 +49,22 @@ function input(
 }
 
 describe('Session Summary remote change-request state', () => {
+  it.each(['loading', 'error'] as const)(
+    'does not claim a detached HEAD while local Git status is %s',
+    (localVcsState) => {
+      render(
+        <EnvironmentSummarySection
+          input={{ ...input('unavailable'), vcsStatus: null, localVcsState }}
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: 'Branch: Detached HEAD' })).toBeNull()
+      expect(
+        screen.getByText(localVcsState === 'loading' ? 'Loading branch…' : 'Branch unavailable'),
+      ).toBeInTheDocument()
+    },
+  )
+
   it('omits inert Git rows when the opened environment is not a repository', () => {
     render(
       <EnvironmentSummarySection

@@ -60,7 +60,7 @@ describe('useSessionResources', () => {
     )
     const { result } = renderHook(
       () => {
-        useSessionResourceInvalidation('session-one')
+        useSessionResourceInvalidation()
         return useSessionResources('session-one')
       },
       { wrapper },
@@ -76,7 +76,7 @@ describe('useSessionResources', () => {
     expect(resourceMocks.list).toHaveBeenCalledTimes(2)
   })
 
-  it('ignores resource invalidations from another Session', async () => {
+  it('does not refetch the opened Session for another Session invalidation', async () => {
     let listener: ((payload: { readonly sessionId: SessionId }) => void) | undefined
     resourceMocks.onResourcesInvalidated.mockImplementation((next) => {
       listener = next
@@ -88,7 +88,7 @@ describe('useSessionResources', () => {
     )
     renderHook(
       () => {
-        useSessionResourceInvalidation('session-one')
+        useSessionResourceInvalidation()
         return useSessionResources('session-one')
       },
       { wrapper },

@@ -332,6 +332,18 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     await installDiffPerformanceObserver(page)
     await verifyClickTaskAttribution(page)
 
+    // Capture hosted Windows CPU evidence without weakening the long-task assertion. Hidden
+    // renderer scheduling can inflate wall time; the profile distinguishes that from JS work.
+    const profiler =
+      process.platform === 'win32' && process.env.GITHUB_ACTIONS === 'true'
+        ? await page.context().newCDPSession(page)
+        : null
+    if (profiler !== null) {
+      await profiler.send('Profiler.enable')
+      await profiler.send('Profiler.setSamplingInterval', { interval: 10_000 })
+      await profiler.send('Profiler.start')
+    }
+
     const toggle = page.getByRole('button', { name: 'Toggle diff panel' })
     await armDiffRenderMeasurement(toggle)
     await toggle.click()
@@ -351,6 +363,18 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
       timeout: HIGHLIGHT_TIMEOUT_MS,
     })
     const measurements = await readDiffRenderMeasurements(page)
+    await test.info().attach('diff-render-measurements', {
+      body: JSON.stringify(measurements, null, 2),
+      contentType: 'application/json',
+    })
+    if (profiler !== null) {
+      const { profile } = await profiler.send('Profiler.stop')
+      await test.info().attach('diff-render-cpu-profile', {
+        body: JSON.stringify(profile),
+        contentType: 'application/json',
+      })
+      await profiler.detach()
+    }
 
     // Hidden Chromium throttles requestAnimationFrame and worker startup under Xvfb and on
     // Windows. A loaded developer machine can deschedule the worker too, so calibrated Darwin CI

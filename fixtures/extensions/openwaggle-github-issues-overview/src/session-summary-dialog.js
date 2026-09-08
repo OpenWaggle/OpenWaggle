@@ -5,7 +5,7 @@ function element(tagName, text) {
 }
 
 export function mount(context) {
-  const payload = context.surfacePayload ?? {}
+  const payload = context.surface.payload ?? {}
   const section = element('section')
   section.append(
     element('h2', 'Session Summary context'),

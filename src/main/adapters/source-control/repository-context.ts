@@ -68,7 +68,11 @@ export function resolveRepositoryChangeRequestIdentity(
       repository.provider === 'github'
         ? `${expectedPath}/pull/`
         : `${expectedPath}/-/merge_requests/`
-    if (!requestedPath.startsWith(prefix)) return null
+    const matchesPrefix =
+      repository.provider === 'github'
+        ? requestedPath.toLowerCase().startsWith(prefix.toLowerCase())
+        : requestedPath.startsWith(prefix)
+    if (!matchesPrefix) return null
     const reference = requestedPath.slice(prefix.length)
     if (!/^\d+$/u.test(reference)) return null
     return { reference, url: `${expected.origin}${prefix}${reference}` }

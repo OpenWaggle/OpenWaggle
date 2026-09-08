@@ -92,7 +92,7 @@ async function openSessionSummary(page: Page) {
   if (!(await summary.isVisible())) {
     await page
       .locator('header')
-      .getByRole('button', { name: 'Session Summary', exact: true })
+      .getByRole('button', { name: 'Open Session Summary', exact: true })
       .click()
   }
   await expect(summary).toBeVisible()
@@ -185,8 +185,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
         .getByText(SEEDED_SESSION_TITLE, { exact: true }),
     ).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
     await expect(mainWindow.messageInput()).toBeVisible({ timeout: EXTENSION_MOUNT_TIMEOUT })
-    const summary = page.getByRole('complementary', { name: 'Session Summary' })
-    await expect(summary).toBeVisible()
+    const summary = await openSessionSummary(page)
     await expect(summary.getByRole('button', { name: 'GitHub Issues 2' })).toBeVisible()
     await expect(summary.getByRole('status')).toContainText('Extension data is available')
     await summary.getByRole('button', { name: 'Inspect session context' }).click()
@@ -204,7 +203,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await expect(dialogFrame.getByText('Messages: 1', { exact: true })).toBeVisible()
     await extensionDialog.getByRole('button', { name: 'Close extension dialog' }).click()
     await expect(extensionDialog).toHaveCount(0)
-    await expect(summary).toBeVisible()
+    await openSessionSummary(page)
     await summary.getByRole('button', { name: 'Open issues overview' }).click()
     const extensionSidePanel = page.getByRole('region', { name: 'Extension side panel' })
     await expect(extensionSidePanel).toBeVisible()
@@ -292,7 +291,7 @@ test('project extension can be trusted, enabled, rendered, disabled, and removed
     await dispatchButtonClick(summary.getByRole('button', { name: /Outputs/ }))
     await expect(summary.getByText('GitHub session report')).toBeVisible()
     await mainWindow.openThread(OTHER_SESSION_TITLE)
-    await expect(page.getByRole('complementary', { name: 'Session Summary' })).toBeVisible()
+    await openSessionSummary(page)
     await expect(
       page.getByRole('complementary', { name: 'Session Summary' }).getByText('GitHub session report'),
     ).toHaveCount(0)

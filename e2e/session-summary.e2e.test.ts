@@ -848,7 +848,7 @@ test('Session Summary creates a complete GitHub pull request', async () => {
     await expect(outputs).toContainText('2')
     await expect(
       summary
-        .locator('#session-summary-section-change-requests')
+        .locator('#session-summary-section-outputs')
         .getByRole('button', { name: GITHUB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
     const viewRequest = summary.getByRole('button', { name: 'View PR' })
@@ -944,7 +944,7 @@ test('Session Summary creates a complete GitLab draft merge request', async () =
     await expect(outputs).toContainText('2')
     await expect(
       summary
-        .locator('#session-summary-section-change-requests')
+        .locator('#session-summary-section-outputs')
         .getByRole('button', { name: GITLAB_CHANGE_REQUEST_TITLE, exact: true }),
     ).toBeVisible()
     const viewRequest = summary.getByRole('button', { name: 'View MR' })

@@ -251,8 +251,8 @@ async function expectSecureInteractiveVisualization(
   await expect(redrawTooltipButton).toHaveCount(0)
   await expect(frame.getByRole('tooltip')).toHaveCount(0)
 
-  await app.resizeMainWindow(1440, 900)
-  await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_400)
+  await app.resizeMainWindow(1800, 900)
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_800)
   const sessionTreeToggle = page
     .locator('header')
     .getByRole('button', { name: 'Toggle Session Tree' })
@@ -268,7 +268,7 @@ async function expectSecureInteractiveVisualization(
   const summary = page.getByRole('complementary', { name: 'Session Summary' })
   const summaryToggle = page
     .locator('header')
-    .getByRole('button', { name: 'Session Summary', exact: true })
+    .getByRole('button', { name: /^(?:Open|Hide) Session Summary$/u })
   await expect(summaryToggle).toBeVisible()
   if ((await summaryToggle.getAttribute('aria-pressed')) === 'true') {
     await summaryToggle.click()

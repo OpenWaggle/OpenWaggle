@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionImageResourcesByNodeIds } from '../useSessionMessageResources'
@@ -133,7 +133,7 @@ describe('useSessionImageResourcesByNodeIds', () => {
     changedPath.resolve({ resources: [], total: 0, nextCursor: null, orderRevision: 'three' })
   })
 
-  it('releases obsolete Session permits and stops their pagination after a route switch', async () => {
+  it('holds abandoned IPC permits until settlement and skips superseded queued Sessions', async () => {
     const sessionAPage = deferred<{
       resources: never[]
       total: number
@@ -173,22 +173,35 @@ describe('useSessionImageResourcesByNodeIds', () => {
     )
 
     rerender({ sessionId: 'session-b', nodeIds: ['b-0'] })
-
-    await waitFor(() =>
-      expect(resourceMocks.nodePage).toHaveBeenCalledWith(
-        'session-b',
-        expect.objectContaining({ nodeIds: ['b-0'] }),
-      ),
-    )
+    try {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(resourceMocks.nodePage).toHaveBeenCalledTimes(4)
+      expect(result.current.isPending).toBe(true)
+      rerender({ sessionId: 'session-c', nodeIds: ['c-0'] })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(resourceMocks.nodePage).toHaveBeenCalledTimes(4)
+    } finally {
+      await act(async () => {
+        sessionAPage.resolve({
+          resources: [],
+          total: 0,
+          nextCursor: 'obsolete-next-page',
+          orderRevision: 'session-a',
+        })
+      })
+    }
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-
-    sessionAPage.resolve({
-      resources: [],
-      total: 0,
-      nextCursor: 'obsolete-next-page',
-      orderRevision: 'session-a',
-    })
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(resourceMocks.nodePage).toHaveBeenCalledWith(
+      'session-c',
+      expect.objectContaining({ nodeIds: ['c-0'] }),
+    )
+    expect(resourceMocks.nodePage.mock.calls.some(([sessionId]) => sessionId === 'session-b')).toBe(
+      false,
+    )
     expect(
       resourceMocks.nodePage.mock.calls.filter(([sessionId]) => sessionId === 'session-a'),
     ).toHaveLength(4)

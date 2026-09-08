@@ -73,6 +73,33 @@ describe('source-control repository context', () => {
     ).toBeNull()
   })
 
+  it('accepts canonical GitHub casing without accepting a sibling repository', () => {
+    expect(
+      resolveRepositoryChangeRequestIdentity(
+        GITHUB_ENTERPRISE,
+        'https://github.example.test:8443/team/project/pull/42',
+      ),
+    ).toEqual({ reference: '42', url: 'https://github.example.test:8443/Team/Project/pull/42' })
+    expect(
+      repositoryBoundChangeRequestReference(
+        GITHUB_ENTERPRISE,
+        'https://github.example.test:8443/TEAM/PROJECT/pull/42',
+      ),
+    ).toBe('42')
+    expect(
+      resolveRepositoryChangeRequestIdentity(
+        GITHUB_ENTERPRISE,
+        'https://github.example.test:8443/team/project-other/pull/42',
+      ),
+    ).toBeNull()
+    expect(
+      resolveRepositoryChangeRequestIdentity(
+        GITLAB_NESTED,
+        'https://gitlab.example.test/Parent/child/project/-/merge_requests/7',
+      ),
+    ).toBeNull()
+  })
+
   it('turns an approved URL into a local reference and rejects a foreign URL', () => {
     expect(
       repositoryBoundChangeRequestReference(

@@ -7,6 +7,7 @@ import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
+import { useSessionResourceInvalidation } from '@/features/session-summary'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -17,6 +18,7 @@ import { useUIStore } from '@/shell/ui-store'
 
 export function useWorkspaceLifecycle(): void {
   const queryClient = useQueryClient()
+  useSessionResourceInvalidation()
   const { projectPath } = useProject()
   const {
     activeSessionId,

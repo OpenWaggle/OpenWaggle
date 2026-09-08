@@ -7,7 +7,14 @@ describe('slash-containing Git remote names', () => {
   it('lists and checks out a remote branch using the longest configured remote prefix', async () => {
     const { repository, worktree } = await createRepositoryWithWorktree()
     await git(repository, ['remote', 'add', 'team', repository])
-    await git(repository, ['remote', 'add', 'team/fork', repository])
+    // Newer Git rejects overlapping names in `remote add`, but existing repositories
+    // can still contain them. Seed that legacy config directly to test our reader.
+    await git(repository, ['config', 'remote.team/fork.url', repository])
+    await git(repository, [
+      'config',
+      'remote.team/fork.fetch',
+      '+refs/heads/*:refs/remotes/team/fork/*',
+    ])
     await git(repository, ['update-ref', 'refs/remotes/team/fork/feature', 'HEAD'])
 
     const listed = await listGitBranches(worktree)

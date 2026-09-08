@@ -140,33 +140,14 @@ async function withNodeResourceQueryPermit(
 ) {
   const acquired = await acquireNodeResourceQueryPermit(signal)
   if (!acquired) return []
-  let released = false
-  const release = () => {
-    if (released) return
-    released = true
-    releaseNodeResourceQueryPermit()
-  }
-  const pendingTask = new Promise<readonly SessionResource[]>((resolve, reject) => {
-    const onAbort = () => {
-      release()
-      resolve([])
-    }
-    if (signal.aborted) {
-      onAbort()
-      return
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    void task()
-      .then(
-        (resources) => resolve(signal.aborted ? [] : resources),
-        (cause: unknown) => reject(cause),
-      )
-      .finally(() => signal.removeEventListener('abort', onAbort))
-  })
   try {
-    return await pendingTask
+    if (signal.aborted) return []
+    // TanStack cancels the observer immediately, but IPC keeps running in main. The
+    // permit belongs to that work, not the observer, and is held until it settles.
+    const resources = await task()
+    return signal.aborted ? [] : resources
   } finally {
-    release()
+    releaseNodeResourceQueryPermit()
   }
 }
 

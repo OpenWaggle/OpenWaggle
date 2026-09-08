@@ -7,7 +7,6 @@ import {
   type SessionSummaryExtensionSidePanelTarget,
   SessionSummaryHub,
   useSessionResourceBackfill,
-  useSessionResourceInvalidation,
   useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
@@ -123,7 +122,6 @@ export function ChatPanelContent({
   )
   const summaryMessageCount = sections.composer.isFirstMessage ? 0 : messageCount
   const resourceSessionId = summaryMessageCount > 0 ? activeSessionId : null
-  useSessionResourceInvalidation(resourceSessionId)
   useSessionResourceBackfill(resourceSessionId)
   const activeMessageNodeIds = sections.transcript.messages.map(
     (message) => message.metadata?.sessionNodeId ?? message.id,

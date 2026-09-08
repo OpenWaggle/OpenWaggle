@@ -1,6 +1,6 @@
 import type { GitBranchInfo, GitStatusSummary, VcsStatus } from '@shared/types/git'
 import type { SessionResource } from '@shared/types/session-resource'
-import { ChevronRight, FileOutput, FolderOpen, GitCommit, Images } from 'lucide-react'
+import { ChevronRight, FileOutput, FolderOpen, GitBranch, GitCommit, Images } from 'lucide-react'
 import type { SessionResourceBrowserTarget } from '../model/session-resource-browser'
 import { isViewableSessionImage } from '../model/session-resource-viewability'
 import type { SessionSummaryGitAction } from '../model/session-summary-git-action'
@@ -73,11 +73,8 @@ export function EnvironmentSummarySection({
     quickAction,
     onQuickAction,
   } = input
-  const gitAvailable =
-    gitStatus !== null ||
-    vcsStatus?.isRepo === true ||
-    localVcsState === 'loading' ||
-    localVcsState === 'error'
+  const branchKnown = gitStatus !== null || vcsStatus?.isRepo === true
+  const gitAvailable = branchKnown || localVcsState === 'loading' || localVcsState === 'error'
   return (
     <SessionSummarySection
       id="environment"
@@ -104,15 +101,22 @@ export function EnvironmentSummarySection({
       <SessionEnvironmentRow environmentMode={environmentMode} workingPath={workingPath} />
       {gitAvailable ? (
         <>
-          <SessionBranchRow
-            branch={gitStatus?.branch ?? vcsStatus?.refName ?? null}
-            branches={branches}
-            busy={branchBusy}
-            error={branchError}
-            onRefresh={onRefreshBranches}
-            onSelect={onSelectBranch}
-            onCreate={onCreateBranch}
-          />
+          {branchKnown ? (
+            <SessionBranchRow
+              branch={gitStatus?.branch ?? vcsStatus?.refName ?? null}
+              branches={branches}
+              busy={branchBusy}
+              error={branchError}
+              onRefresh={onRefreshBranches}
+              onSelect={onSelectBranch}
+              onCreate={onCreateBranch}
+            />
+          ) : (
+            <SessionSummaryRow
+              icon={<GitBranch className="size-4" />}
+              label={localVcsState === 'loading' ? 'Loading branch…' : 'Branch unavailable'}
+            />
+          )}
           <SessionSummaryRow
             icon={<GitCommit className="size-4" />}
             label={quickAction.label}

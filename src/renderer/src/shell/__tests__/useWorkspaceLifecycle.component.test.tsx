@@ -13,6 +13,7 @@ type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
 type SessionListInvalidatedPayload = IpcEventChannelMap['sessions:list-invalidated']['payload']
 type SessionListInvalidatedHandler = (payload: SessionListInvalidatedPayload) => void
+type ResourcesInvalidatedHandler = (payload: { readonly sessionId: SessionId }) => void
 interface HotkeyBinding {
   readonly hotkey: ShortcutBinding
   readonly callback: () => void
@@ -21,8 +22,10 @@ interface HotkeyBinding {
 const lifecycleMocks = vi.hoisted(() => {
   let titleUpdatedHandler: TitleUpdatedHandler | null = null
   let sessionListInvalidatedHandler: SessionListInvalidatedHandler | null = null
+  let resourcesInvalidatedHandler: ResourcesInvalidatedHandler | null = null
   const titleUnsubscribe = vi.fn()
   const sessionListUnsubscribe = vi.fn()
+  const resourcesUnsubscribe = vi.fn()
   const invalidateQueries = vi.fn().mockResolvedValue(undefined)
   const hotkeys: HotkeyBinding[] = []
   const singleHotkeys: { readonly hotkey: unknown; readonly callback: () => void }[] = []
@@ -48,10 +51,16 @@ const lifecycleMocks = vi.hoisted(() => {
     useSessionStatusMonitor: vi.fn(),
     titleUnsubscribe,
     sessionListUnsubscribe,
+    resourcesUnsubscribe,
     hotkeys,
     singleHotkeys,
     getTitleUpdatedHandler: () => titleUpdatedHandler,
     getSessionListInvalidatedHandler: () => sessionListInvalidatedHandler,
+    getResourcesInvalidatedHandler: () => resourcesInvalidatedHandler,
+    onSessionResourcesInvalidated: vi.fn((handler: ResourcesInvalidatedHandler) => {
+      resourcesInvalidatedHandler = handler
+      return resourcesUnsubscribe
+    }),
     onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
       titleUpdatedHandler = handler
       return titleUnsubscribe
@@ -86,7 +95,8 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/' }),
 }))
 
-vi.mock('@tanstack/react-query', () => ({
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
   useQueryClient: () => lifecycleMocks.queryClient,
 }))
 
@@ -133,6 +143,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
     onSessionListInvalidated: lifecycleMocks.onSessionListInvalidated,
+    onSessionResourcesInvalidated: lifecycleMocks.onSessionResourcesInvalidated,
   },
 }))
 
@@ -168,6 +179,8 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.useSessionStatusMonitor.mockClear()
     lifecycleMocks.onSessionTitleUpdated.mockClear()
     lifecycleMocks.onSessionListInvalidated.mockClear()
+    lifecycleMocks.onSessionResourcesInvalidated.mockClear()
+    lifecycleMocks.resourcesUnsubscribe.mockClear()
     lifecycleMocks.titleUnsubscribe.mockClear()
     lifecycleMocks.sessionListUnsubscribe.mockClear()
     lifecycleMocks.hotkeys.length = 0
@@ -196,6 +209,13 @@ describe('useWorkspaceLifecycle', () => {
       refreshSession: lifecycleMocks.refreshSession,
     })
     expect(lifecycleMocks.useSessionStatusMonitor).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.onSessionResourcesInvalidated).toHaveBeenCalledOnce()
+    const resourcesHandler = lifecycleMocks.getResourcesInvalidatedHandler()
+    if (!resourcesHandler) throw new Error('Expected workspace-wide resource subscription')
+    resourcesHandler({ sessionId: SessionId('background-session') })
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      predicate: expect.any(Function),
+    })
 
     const titleHandler = lifecycleMocks.getTitleUpdatedHandler()
     if (!titleHandler) throw new Error('Expected title subscription')
@@ -242,6 +262,7 @@ describe('useWorkspaceLifecycle', () => {
     unmount()
     expect(lifecycleMocks.titleUnsubscribe).toHaveBeenCalledOnce()
     expect(lifecycleMocks.sessionListUnsubscribe).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.resourcesUnsubscribe).toHaveBeenCalledOnce()
   })
 
   it('loads project syntax resources when direct review changes working trees', async () => {
