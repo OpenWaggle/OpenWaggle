@@ -1,5 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
 import { loadWithRuntimeFailureIsolation } from '../../../extensions/runtime-load-isolation'
 import {
   getRuntimeEnabledPackagePiResourceRoots,
@@ -28,6 +29,7 @@ type RuntimeExtensionSelection = RuntimePackageSelection | RuntimePackagePathSel
 export interface PiProjectRuntimeIsolationOptions {
   readonly projectPath: string
   readonly modelReference: string
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly visualizationDirectory?: string
@@ -120,6 +122,8 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
   return createPiProjectModelRuntime({
     projectPath: options.projectPath,
     modelReference: options.modelReference,
+    compactionThresholdPercent:
+      options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
     ...(options.visualizationDirectory
@@ -145,6 +149,8 @@ export async function createIsolatedPiProjectRuntime(input: {
       const runtime = await createPiProjectModelRuntime({
         projectPath: input.options.projectPath,
         modelReference: input.options.modelReference,
+        compactionThresholdPercent:
+          input.options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
         ...(input.options.skillToggles ? { skillToggles: input.options.skillToggles } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths.length > 0
           ? { enabledOpenWaggleExtensionPackagePaths }

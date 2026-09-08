@@ -71,7 +71,25 @@ export type ChatRow =
   | { type: 'agent-loop-custom-message'; event: AgentTransportCustomEvent }
   | { type: 'agent-loop-interaction'; item: AgentInteractionTranscriptItem }
   | { type: 'branch-summary'; id: string; summary: string }
-  | { type: 'compaction-summary'; id: string; summary: string; tokensBefore: number }
+  | {
+      type: 'compaction-summary'
+      id: string
+      summary: string
+      tokensBefore: number
+      reason?: 'manual' | 'threshold' | 'overflow'
+    }
+  | {
+      type: 'compaction-status'
+      id: string
+      anchorMessageCount: number
+      announce: boolean
+      state:
+        | 'manual-running'
+        | 'manual-complete'
+        | 'automatic-running'
+        | 'automatic-complete'
+        | 'legacy-complete'
+    }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }
   | { type: 'run-summary'; phases: readonly CompletedPhase[]; totalMs: number }
   | {

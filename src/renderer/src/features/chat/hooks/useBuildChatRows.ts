@@ -5,8 +5,14 @@ import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { StreamingPhaseState } from '@/features/chat/hooks/useStreamingPhase'
 import { appendInteractionEventRows } from '../lib/build-agent-loop-interaction-rows'
+import { appendCustomMessageRows, appendStatusRows } from '../lib/chat-status-row-model'
+import {
+  createCompactionRowAppender,
+  createCompactionStatusRows,
+} from '../lib/compaction-chat-row-model'
 import type { AgentInteractionEvent, ChatRow, MessageChatRow } from '../lib/types-chat-row'
 import { createWorktreeLaunchRows, isWorktreeCreatedEvent } from '../lib/worktree-launch-row-model'
+import type { AgentCompactionStatus } from './useAgentChat.types'
 
 type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
 type SummaryRow = Extract<ChatRow, { type: 'branch-summary' | 'compaction-summary' }>
@@ -133,6 +139,7 @@ function getSummaryRow(message: UIMessage): SummaryRow | null {
       id: message.id,
       summary: compactionSummary.summary,
       tokensBefore: compactionSummary.tokensBefore,
+      reason: compactionSummary.reason,
     }
   }
 
@@ -196,48 +203,6 @@ function createMessageRow({
   }
 }
 
-function appendStatusRows(rows: ChatRow[], params: BuildChatRowsParams) {
-  if (params.phase.current) {
-    rows.push({
-      type: 'phase-indicator',
-      label: params.phase.current.label,
-      elapsedMs: params.phase.current.elapsedMs,
-    })
-  }
-  if (!params.phase.current && params.isLoading) {
-    rows.push({
-      type: 'phase-indicator',
-      label: 'Thinking',
-      elapsedMs: params.phase.totalElapsedMs,
-    })
-  }
-  if (!params.isLoading && !params.phase.current && params.phase.completed.length > 0) {
-    rows.push({
-      type: 'run-summary',
-      phases: params.phase.completed,
-      totalMs: params.phase.totalElapsedMs,
-    })
-  }
-  if (params.error && !params.isLoading) {
-    rows.push({
-      type: 'error',
-      error: params.error,
-      lastUserMessage: params.lastUserMessage,
-      dismissedError: params.dismissedError,
-      sessionId: params.sessionId ? String(params.sessionId) : null,
-    })
-  }
-}
-
-function appendCustomMessageRows(
-  rows: ChatRow[],
-  customMessages: readonly AgentTransportCustomEvent[],
-) {
-  for (const event of customMessages) {
-    rows.push({ type: 'agent-loop-custom-message', event })
-  }
-}
-
 interface BuildChatRowsParams {
   messages: UIMessage[]
   customMessages?: readonly AgentTransportCustomEvent[]
@@ -251,6 +216,7 @@ interface BuildChatRowsParams {
   phase: StreamingPhaseState
   interruptedRun?: SessionInterruptedRun
   worktreeLaunch?: WorktreeLaunchSnapshot | null
+  compactionStatus?: AgentCompactionStatus | null
 }
 
 function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
@@ -269,6 +235,13 @@ function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
 
 export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   const rows: ChatRow[] = []
+  const compactionRows = createCompactionStatusRows(
+    params.compactionStatus,
+    params.messages.flatMap((message) =>
+      message.metadata?.compactionSummary === undefined ? [] : [message.id],
+    ),
+  )
+  const appendCompactionRowsAt = createCompactionRowAppender(rows, compactionRows)
   const launchRows = createWorktreeLaunchRows({
     sessionId: params.sessionId,
     liveLaunch: params.worktreeLaunch,
@@ -287,6 +260,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
   let previousVisibleWaggleMeta: WaggleMessageMetadata | undefined
 
   for (let index = 0; index < params.messages.length; index += 1) {
+    appendCompactionRowsAt(index)
     const message = params.messages[index]
     if (message.role === 'assistant') appendLaunchRows()
     const summaryRow = getSummaryRow(message)
@@ -313,6 +287,7 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
       previousVisibleWaggleMeta = meta
     }
   }
+  appendCompactionRowsAt(params.messages.length)
 
   appendLaunchRows()
   appendCustomMessageRows(
@@ -320,6 +295,6 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
     (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
   )
   appendInteractionEventRows(rows, params.interactionEvents ?? [])
-  appendStatusRows(rows, params)
+  if (params.compactionStatus?.type !== 'compacting') appendStatusRows(rows, params)
   return groupWaggleTurnRows(rows)
 }

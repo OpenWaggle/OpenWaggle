@@ -140,7 +140,11 @@ describe('Pi session operations', () => {
 
     expect(session.subscribe).toHaveBeenCalledOnce()
     expect(operationMocks.createSessionListener).toHaveBeenCalledWith(
-      { model: MODEL, onEvent },
+      expect.objectContaining({
+        model: MODEL,
+        getContextWindow: expect.any(Function),
+        onEvent,
+      }),
       expect.any(String),
     )
     expect(session.abortCompaction).toHaveBeenCalledOnce()

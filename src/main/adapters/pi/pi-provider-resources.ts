@@ -12,6 +12,7 @@ import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly compactionThresholdPercent?: number
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
   readonly extensionFactories?: readonly ExtensionFactory[]

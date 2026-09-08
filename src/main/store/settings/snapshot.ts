@@ -2,6 +2,7 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
 import {
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
+  SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
   SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
@@ -23,6 +24,7 @@ import {
   isValidDiffView,
   isValidSessionEnvironmentMode,
   isValidThinkingLevel,
+  resolveCompactionThresholdPercent,
   resolveDefaultAuthorizationMode,
   resolveDefaultSessionEnvironmentMode,
   resolveDiffSyntaxTheme,
@@ -98,6 +100,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
   )
+  const compactionThresholdPercent = resolveCompactionThresholdPercent(
+    getStoredValue(storedSettings, SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT),
+  )
   const appearancePreferences = resolveAppearancePreferences(
     getStoredValue(storedSettings, SETTINGS_KEY_APPEARANCE_PREFERENCES),
   )
@@ -119,6 +124,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       syntaxThemeSelections,
       diffView,
       diffWrapLines,
+      compactionThresholdPercent,
       appearancePreferences,
     } satisfies Settings,
   }
@@ -197,6 +203,10 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
       ? resolveDefaultAuthorizationMode(partial.defaultAuthorizationMode)
       : current.defaultAuthorizationMode
   const diffSettings = resolveNextDiffSettings(current, partial)
+  const compactionThresholdPercent =
+    partial.compactionThresholdPercent !== undefined
+      ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
+      : current.compactionThresholdPercent
   const appearanceSettings = resolveNextAppearanceSettings(current, partial)
 
   return {
@@ -213,6 +223,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
     ...diffSettings,
+    compactionThresholdPercent,
     ...appearanceSettings,
   } satisfies Settings
 }

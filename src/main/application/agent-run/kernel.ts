@@ -19,6 +19,7 @@ export function runAgentKernel(
   payload: HydratedAgentSendPayload,
   preflight: {
     readonly session: SessionDetail
+    readonly compactionThresholdPercent: number
     readonly skillToggles?: Record<string, boolean>
     readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   },
@@ -30,8 +31,10 @@ export function runAgentKernel(
       runId: input.runId,
       payload,
       model: input.model,
+      compactionThresholdPercent: preflight.compactionThresholdPercent,
       signal: input.signal,
       onEvent: input.onEvent,
+      ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
       ...(input.onWorktreeLaunch ? { onWorktreeLaunch: input.onWorktreeLaunch } : {}),
       ...(preflight.skillToggles ? { skillToggles: preflight.skillToggles } : {}),
       ...(preflight.enabledOpenWaggleExtensionPackagePaths

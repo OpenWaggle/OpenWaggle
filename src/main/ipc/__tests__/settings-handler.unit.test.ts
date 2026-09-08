@@ -89,6 +89,21 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
+    it('accepts only percentage-range automatic compaction thresholds', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      await expect(handler?.({}, { compactionThresholdPercent: 0 })).resolves.toEqual({
+        ok: false,
+        error: expect.any(String),
+      })
+      await expect(handler?.({}, { compactionThresholdPercent: 73 })).resolves.toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledOnce()
+      expect(updateSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ compactionThresholdPercent: 73 }),
+      )
+    })
+
     it('converts selectedModel canonical ref to SupportedModelId', async () => {
       registerSettingsHandlers()
 

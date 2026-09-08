@@ -8,6 +8,7 @@ import { sessionToUIMessages } from '../lib/useAgentChat.utils'
 import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
 import { handleAgentStreamPayload } from './useAgentChat.stream-events'
 import type {
+  AgentCompactionStatus,
   AgentRunActions,
   AgentStreamEventContext,
   MutableValueRef,
@@ -20,9 +21,10 @@ interface UseSessionHydrationEffectsParams {
   readonly isSessionIdle: boolean
   readonly optimisticUserMessages: readonly UIMessage[]
   readonly hasActiveRun: (sessionId: SessionId) => boolean
-  readonly getRunRenderSnapshot: (
-    sessionId: SessionId,
-  ) => { readonly messages: readonly UIMessage[] } | null
+  readonly getRunRenderSnapshot: (sessionId: SessionId) => {
+    readonly messages: readonly UIMessage[]
+    readonly compactionStatus: AgentCompactionStatus | null
+  } | null
   readonly removeMatchedOptimisticUserMessages: (
     sessionId: SessionId,
     persistedMessages: readonly UIMessage[],
@@ -88,7 +90,6 @@ function handleRunCompletedPayload(
   context.setBackgroundStreaming(false)
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
-  context.setCompactionStatus(null)
   if (!terminalError) {
     context.setStatus('ready')
   }
@@ -119,14 +120,15 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
     }
 
     const activeRun = hasActiveRun(sessionId)
-    const cachedRenderSnapshot = activeRun ? getRunRenderSnapshot(sessionId) : null
+    const cachedRenderSnapshot = getRunRenderSnapshot(sessionId)
     hydrateSessionMessages(
       {
         sessionId,
         session,
         optimisticUserMessages,
         hasActiveRun: activeRun,
-        cachedRenderMessages: cachedRenderSnapshot?.messages ?? null,
+        cachedRenderMessages: activeRun ? (cachedRenderSnapshot?.messages ?? null) : null,
+        cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
       },
       context,
     )

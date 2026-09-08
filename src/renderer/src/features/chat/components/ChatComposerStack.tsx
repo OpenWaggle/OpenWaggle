@@ -19,6 +19,7 @@ import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/
 import { projectName } from '@/shared/lib/format'
 import { useComposerSendGate } from '../hooks/useComposerSendGate'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
+import { getTimelineCompactionStatus, isCompactionRunning } from '../lib/compaction-lifecycle'
 import type { ChatComposerSectionState } from '../model'
 import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
@@ -50,6 +51,13 @@ function runStatusTone(status: ChatComposerSectionState['status']) {
   if (status === 'streaming' || status === 'submitted') return 'running' as const
   if (status === 'compacting' || status === 'retrying') return 'running' as const
   return 'neutral' as const
+}
+
+function canSteerQueuedMessages(section: ChatComposerSectionState) {
+  const timelineCompactionStatus = getTimelineCompactionStatus(section.compactionStatus)
+  const isStandaloneManualCompaction =
+    timelineCompactionStatus?.reason === 'manual' && isCompactionRunning(section.compactionStatus)
+  return section.status !== 'ready' && section.status !== 'error' && !isStandaloneManualCompaction
 }
 
 /** Last path segment, so a project-scoped approval names somewhere the user recognises. */
@@ -153,7 +161,6 @@ export function ChatComposerStack({
   const {
     activeSessionId,
     isLoading,
-    status,
     compactionStatus,
     onSendWithWaggle,
     onSteer,
@@ -183,14 +190,13 @@ export function ChatComposerStack({
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
 
       <div className={`${CHAT_CONTENT_FRAME_CLASS} pb-5`} data-chat-composer-form="true">
-        {compactionStatus ? (
+        {compactionStatus?.type === 'retrying' ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}
-          isStreaming={status === 'streaming' || status === 'submitted'}
-          isCompacting={status === 'compacting' || status === 'retrying'}
+          isStreaming={canSteerQueuedMessages(section)}
         />
         <BranchSummaryPrompt
           onNoSummary={onSkipBranchSummary}

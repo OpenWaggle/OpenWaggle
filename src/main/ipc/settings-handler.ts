@@ -1,4 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import { PERCENT_BASE } from '@shared/constants/math'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { APPEARANCE_MOTION_PREFERENCES } from '@shared/types/appearance-preferences'
@@ -111,12 +112,15 @@ function validateShortcutBindingsUpdate(
   return { ok: true, value: candidate }
 }
 
+const compactionThresholdSchema = Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE))
+
 const settingsUpdateSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
+  compactionThresholdPercent: Schema.optional(compactionThresholdSchema),
   recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   skillTogglesByProject: Schema.optional(
     Schema.mutable(

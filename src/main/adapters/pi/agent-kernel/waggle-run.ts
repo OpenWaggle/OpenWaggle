@@ -211,10 +211,12 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     projectPath,
     runId: input.runId,
     modelReference: initialRuntimeModel,
+    compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
+    ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
@@ -222,6 +224,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    steeringInputHook: true,
     extensionFactories: [
       ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
       waggleExtension.factory,
@@ -233,6 +236,12 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       {
         ...input,
         model: initialRuntimeModel,
+        getContextWindow: (provider, modelId) => {
+          const activeModel = session.model
+          return activeModel?.provider === provider && activeModel.id === modelId
+            ? activeModel.contextWindow
+            : undefined
+        },
         onEvent: (event) =>
           input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
       },

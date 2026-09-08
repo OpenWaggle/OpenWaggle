@@ -23,7 +23,11 @@ export function ContextMeter() {
       ? `${String(activeSession.updatedAt)}:${String(activeSession.messages.length)}`
       : '',
   )
-  const usage = useContextUsageSnapshot({ activeSessionId, selectedModel, requestKey })
+  const usage = useContextUsageSnapshot({
+    activeSessionId,
+    selectedModel,
+    requestKey,
+  })
   const meter = buildContextMeterValue({
     snapshot: usage.snapshot,
     fallbackContextWindow,

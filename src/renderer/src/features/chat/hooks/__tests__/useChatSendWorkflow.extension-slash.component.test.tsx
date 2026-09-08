@@ -90,6 +90,7 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
     extensionContributions: extensionRegistry([extensionSlashEntry()]),
     handleSend: vi.fn().mockResolvedValue(undefined),
     handleSendWaggle: vi.fn().mockResolvedValue(undefined),
+    messages: [],
     model: MODEL,
     phase: { reset: vi.fn() },
     projectPath: PROJECT_PATH,

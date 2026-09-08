@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessagePart } from '@shared/types/agent'
 import type {
   ActiveRunInfo,
+  BackgroundRunActivityEvent,
   BackgroundRunSnapshot,
   RunMode,
   WorktreeLaunchSnapshot,
@@ -17,6 +18,7 @@ interface ActiveStreamBuffer {
   readonly startedAt: number
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
+  readonly activityEvents: readonly BackgroundRunActivityEvent[]
   readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }
 
@@ -125,6 +127,18 @@ function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: strin
   })
 }
 
+function updateBufferedActivityEvents(
+  sessionId: SessionId,
+  update: (events: readonly BackgroundRunActivityEvent[]) => readonly BackgroundRunActivityEvent[],
+) {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  activeBuffers.set(sessionId, {
+    ...buffer,
+    activityEvents: update(buffer.activityEvents),
+  })
+}
+
 function applyMessageUpdateToStreamBuffer(
   sessionId: SessionId,
   value: Extract<AgentTransportEvent, { type: 'message_update' }>,
@@ -194,7 +208,7 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       }
     })
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))
-    .with('message_end', () => undefined)
+    .with('message_end', 'context_usage', () => undefined)
     .with('tool_execution_start', 'tool_execution_update', (value) => {
       updateBufferedParts(sessionId, (parts) =>
         upsertToolCallPart({
@@ -206,12 +220,29 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
       )
     })
     .with('tool_execution_end', (value) => applyToolExecutionEndToStreamBuffer(sessionId, value))
+    .with('compaction_start', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [
+        ...events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+        value,
+      ])
+    })
+    .with('compaction_end', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
+    })
+    .with('auto_retry_start', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
+    })
+    .with('auto_retry_end', () => {
+      updateBufferedActivityEvents(sessionId, (events) =>
+        events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+      )
+    })
     .with(
       'queue_update',
-      'compaction_start',
-      'compaction_end',
-      'auto_retry_start',
-      'auto_retry_end',
       'custom',
       'agent_interaction_request',
       'agent_interaction_resolved',
@@ -226,6 +257,7 @@ export function startStreamBuffer(sessionId: SessionId, model: SupportedModelId,
     mode,
     startedAt: Date.now(),
     parts: [],
+    activityEvents: [],
   })
 }
 
@@ -251,12 +283,14 @@ export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | n
   const buffer = activeBuffers.get(sessionId)
   if (!buffer) return null
   return {
+    activity: 'agent-run',
     sessionId,
     model: buffer.model,
     mode: buffer.mode,
     startedAt: buffer.startedAt,
     ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
     parts: [...buffer.parts],
+    activityEvents: [...buffer.activityEvents],
     ...(buffer.worktreeLaunch ? { worktreeLaunch: buffer.worktreeLaunch } : {}),
   }
 }
@@ -265,10 +299,12 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   const result: ActiveRunInfo[] = []
   for (const [sessionId, buffer] of activeBuffers) {
     result.push({
+      activity: 'agent-run',
       sessionId,
       model: buffer.model,
       mode: buffer.mode,
       startedAt: buffer.startedAt,
+      activityEvents: [...buffer.activityEvents],
     })
   }
   return result
