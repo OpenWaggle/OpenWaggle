@@ -29,11 +29,17 @@ describe('QA Session Host profile removal', () => {
     try {
       firstOwnership = await acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
       const ownershipPath = `${databasePath}.ownership.sqlite`
+      const ownershipJournalPath = `${ownershipPath}-journal`
       const originalInode = await fs.stat(ownershipPath)
+      const originalJournalInode = await fs.stat(ownershipJournalPath)
       const finishProfileRemoval = await prepareQaProfileRemoval(userDataRoot, firstOwnership)
 
       await expect(fs.access(databasePath)).rejects.toMatchObject({ code: 'ENOENT' })
       await expect(fs.access(unrelatedPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await fs.stat(ownershipJournalPath)).toMatchObject({
+        dev: originalJournalInode.dev,
+        ino: originalJournalInode.ino,
+      })
       await expect(
         acquireSessionHostOwnership(databasePath, { timeoutMs: 0 }),
       ).rejects.toMatchObject({ code: 'ELOCKED' })
@@ -86,5 +92,36 @@ describe('QA Session Host profile removal', () => {
     } finally {
       await ownership.release()
     }
+  })
+
+  it('preserves only exact ownership SQLite companions, not other profile journals or similar names', async () => {
+    userDataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-qa-shutdown-'))
+    const stateRoot = path.join(userDataRoot, 'session-host')
+    const databasePath = path.join(stateRoot, 'session-host.sqlite')
+    const ownershipName = 'session-host.sqlite.ownership.sqlite'
+    const preservedNames = [
+      ownershipName,
+      `${ownershipName}-journal`,
+      `${ownershipName}-wal`,
+      `${ownershipName}-shm`,
+    ]
+    const removedNames = [
+      'session-host.sqlite-journal',
+      `${ownershipName}-journal.extra`,
+      `${ownershipName}-wal.backup`,
+      `${ownershipName}.private`,
+    ]
+    await fs.mkdir(stateRoot, { recursive: true })
+    for (const name of [...preservedNames, ...removedNames]) {
+      await fs.writeFile(path.join(stateRoot, name), 'fixture')
+    }
+
+    const finalize = await prepareQaProfileRemoval(userDataRoot, {
+      targetPath: databasePath,
+      release: async () => undefined,
+    })
+    await finalize()
+
+    expect((await fs.readdir(stateRoot)).toSorted()).toEqual(preservedNames.toSorted())
   })
 })

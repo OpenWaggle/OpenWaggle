@@ -24,6 +24,7 @@ const FUTURE_PROTOCOL_REVISION = LOCAL_SESSION_CURRENT_REVISION + 1
 const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
 const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const OWNERSHIP_DATABASE_SUFFIX = '.ownership.sqlite'
+const SQLITE_COMPANION_SUFFIXES = ['-journal', '-wal', '-shm'] as const
 
 type AfterOwnershipReleased = () => Promise<void>
 type WhileOwnershipHeld = (
@@ -62,13 +63,13 @@ function containsPath(directory: string, candidate: string) {
   )
 }
 
-async function removeEntriesExcept(root: string, preservedPath: string): Promise<void> {
+async function removeEntriesExcept(root: string, preservedPaths: readonly string[]): Promise<void> {
   const entries = await fs.readdir(root, { withFileTypes: true })
   for (const entry of entries) {
     const candidate = path.join(root, entry.name)
-    if (candidate === preservedPath) continue
-    if (containsPath(candidate, preservedPath)) {
-      await removeEntriesExcept(candidate, preservedPath)
+    if (preservedPaths.includes(candidate)) continue
+    if (preservedPaths.some((preservedPath) => containsPath(candidate, preservedPath))) {
+      await removeEntriesExcept(candidate, preservedPaths)
       continue
     }
     await fs.rm(candidate, {
@@ -81,7 +82,7 @@ async function removeEntriesExcept(root: string, preservedPath: string): Promise
 }
 
 /**
- * Deletes QA profile data while retaining the persistent SQLite ownership file and its parents.
+ * Deletes QA profile data while retaining the SQLite ownership file, its companions and parents.
  * This small, sanitized profile skeleton must remain after release: a successor can already hold
  * its inode, and unlinking it would let a third Host acquire a replacement file concurrently.
  * The finalizer deliberately performs no filesystem work after ownership has been released.
@@ -95,7 +96,13 @@ export async function prepareQaProfileRemoval(
   if (lockPath === profileRoot || !containsPath(profileRoot, lockPath)) {
     throw new Error(`Session Host ownership lock is outside the QA profile: ${lockPath}.`)
   }
-  await removeEntriesExcept(profileRoot, lockPath)
+  // SQLite can retain an open rollback journal in exclusive locking mode after COMMIT.
+  // Removing it fails on Windows and unlinks a live SQLite file on POSIX. Leave these
+  // exact ownership companions to SQLite, including after a successor acquires ownership.
+  await removeEntriesExcept(profileRoot, [
+    lockPath,
+    ...SQLITE_COMPANION_SUFFIXES.map((suffix) => `${lockPath}${suffix}`),
+  ])
   return () => Promise.resolve()
 }
 
