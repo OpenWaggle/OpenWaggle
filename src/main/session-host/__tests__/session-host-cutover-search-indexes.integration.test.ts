@@ -90,4 +90,98 @@ describe('Session Host cutover search indexes', () => {
       target.close()
     }
   })
+
+  it('preserves exact counts and earliest evidence as repeated terms cross cutover batches', async () => {
+    const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
+    const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
+    const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
+    seedLegacyDatabase(sourceDatabasePath)
+    const source = new DatabaseSync(sourceDatabasePath)
+    try {
+      source.exec(`
+        WITH RECURSIVE sequence(value) AS (
+          SELECT 1 UNION ALL SELECT value + 1 FROM sequence WHERE value < 1025
+        )
+        INSERT INTO session_nodes (
+          id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms,
+          content_json, metadata_json, path_depth, created_order
+        )
+        SELECT printf('repeated-%04d', value), 'session-root',
+          CASE WHEN value = 1 THEN 'node-1' ELSE printf('repeated-%04d', value - 1) END,
+          'message', 'message', 'user', value + 20,
+          json_object('text', CASE WHEN value <= 512
+            THEN 'alpha alpha beta' ELSE 'alpha gamma gamma' END),
+          CASE WHEN value IN (1, 513) THEN json_object('openWaggle', json_object(
+            'runId', CASE WHEN value = 1 THEN 'run-first' ELSE 'run-later' END
+          )) ELSE '{}' END,
+          value, value
+        FROM sequence;
+        INSERT INTO sessions (id, pi_session_id, project_path, title, created_at, updated_at)
+        VALUES ('session-secondary', 'pi-secondary', '/project', 'Secondary', 10, 20);
+        INSERT INTO session_nodes (
+          id, session_id, pi_entry_type, kind, role, timestamp_ms,
+          content_json, metadata_json, path_depth, created_order
+        ) VALUES ('other-alpha', 'session-secondary', 'message', 'message', 'user', 11,
+          '{"text":"alpha alpha"}', '{}', 0, 0);
+      `)
+    } finally {
+      source.close()
+    }
+
+    await expect(
+      runSessionHostCutover(
+        { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
+        1_000,
+        fakeEmbeddingModel,
+      ),
+    ).resolves.toMatchObject({ status: 'migrated', sessionCount: 2, nodeCount: 1027 })
+
+    const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
+    try {
+      expect(
+        target.prepare('SELECT * FROM session_transcript_terms ORDER BY session_id, term').all(),
+      ).toEqual([
+        {
+          term: 'alpha',
+          session_id: 'session-root',
+          occurrences: 1537,
+          first_node_id: 'repeated-0001',
+          first_created_order: 1,
+          first_run_id: 'run-first',
+        },
+        {
+          term: 'beta',
+          session_id: 'session-root',
+          occurrences: 512,
+          first_node_id: 'repeated-0001',
+          first_created_order: 1,
+          first_run_id: 'run-first',
+        },
+        {
+          term: 'gamma',
+          session_id: 'session-root',
+          occurrences: 1026,
+          first_node_id: 'repeated-0513',
+          first_created_order: 513,
+          first_run_id: 'run-later',
+        },
+        {
+          term: 'alpha',
+          session_id: 'session-secondary',
+          occurrences: 2,
+          first_node_id: 'other-alpha',
+          first_created_order: 0,
+          first_run_id: null,
+        },
+      ])
+      expect(
+        target.prepare('SELECT * FROM session_transcript_term_documents ORDER BY session_id').all(),
+      ).toEqual([
+        { session_id: 'session-root', token_count: 3075 },
+        { session_id: 'session-secondary', token_count: 2 },
+      ])
+    } finally {
+      target.close()
+    }
+  })
 })

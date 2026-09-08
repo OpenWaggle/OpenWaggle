@@ -143,17 +143,21 @@ function stageBatch(database: DatabaseSync, cursor: CutoverCursor) {
     INSERT INTO temp.${CUTOVER_SEARCH_TABLE} (rowid, content)
     SELECT rowid, content FROM temp.${CUTOVER_SOURCE_TABLE};
 
+    WITH grouped AS (
+      SELECT vocabulary.term, source.session_id, COUNT(*) AS occurrences,
+        MIN(printf('%020d:%s', source.created_order, source.node_id)) AS evidence_key
+      FROM temp.${CUTOVER_VOCABULARY_TABLE} AS vocabulary
+      JOIN temp.${CUTOVER_SOURCE_TABLE} AS source ON source.rowid = vocabulary.doc
+      GROUP BY vocabulary.term, source.session_id
+    )
     INSERT INTO temp.${CUTOVER_TERM_GROUPS_TABLE} (
       term, session_id, occurrences, evidence_key, previous_occurrences
     )
-    SELECT vocabulary.term, source.session_id, COUNT(*) AS occurrences,
-      MIN(printf('%020d:%s', source.created_order, source.node_id)) AS evidence_key,
-      COALESCE(MAX(existing.occurrences), 0) AS previous_occurrences
-    FROM temp.${CUTOVER_VOCABULARY_TABLE} AS vocabulary
-    JOIN temp.${CUTOVER_SOURCE_TABLE} AS source ON source.rowid = vocabulary.doc
+    SELECT grouped.term, grouped.session_id, grouped.occurrences, grouped.evidence_key,
+      COALESCE(existing.occurrences, 0)
+    FROM grouped
     LEFT JOIN session_transcript_terms AS existing
-      ON existing.term = vocabulary.term AND existing.session_id = source.session_id
-    GROUP BY vocabulary.term, source.session_id;
+      ON existing.term = grouped.term AND existing.session_id = grouped.session_id;
   `)
   return {
     sessionId: last.session_id,
