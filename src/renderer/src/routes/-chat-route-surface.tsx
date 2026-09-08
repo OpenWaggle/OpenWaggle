@@ -11,6 +11,14 @@ import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN, useUIStore } from '@/shell'
 import { useChatRouteEffects } from './-chat-route-effects'
+import {
+  coordinateDiffPanel,
+  coordinateExtensionPanel,
+  coordinateSessionTreePanel,
+  coordinateWorkspaceFilePanel,
+  routePanelRequestKey,
+  useRoutePanelClaim,
+} from './-right-sidebar-coordination'
 import { isExtensionRightSidebarPanel, resolveRightSidebarPanel } from './-right-sidebar-panel'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
 
@@ -113,11 +121,13 @@ function useChatRouteSurfaceActions(
   }, [chatCommandRequest, clearChatCommandRequest, sections.composer])
 
   function handleDiffOpenChange(open: boolean) {
+    coordinateDiffPanel(open)
     setLastRightSidebarPanel('diff')
     rightSidebarActions.onDiffOpenChange(open)
   }
 
   function handleSessionTreeOpenChange(open: boolean) {
+    coordinateSessionTreePanel(open)
     setLastRightSidebarPanel('session-tree')
     rightSidebarActions.onSessionTreeOpenChange(open)
   }
@@ -129,6 +139,7 @@ function useChatRouteSurfaceActions(
       ...(target.packagePath ? { packagePath: target.packagePath } : {}),
       ...(target.contentHash ? { contentHash: target.contentHash } : {}),
     }
+    coordinateExtensionPanel(open, routeTarget)
     setLastRightSidebarPanel({ kind: 'extension-side-panel', ...routeTarget })
     rightSidebarActions.onExtensionSidePanelOpenChange(open, routeTarget)
   }
@@ -137,6 +148,7 @@ function useChatRouteSurfaceActions(
     open: boolean,
     target?: { readonly path: string; readonly line?: number | null },
   ) {
+    coordinateWorkspaceFilePanel(open, target)
     setLastRightSidebarPanel('file')
     rightSidebarActions.onWorkspaceFileOpenChange(open, target)
   }
@@ -169,6 +181,16 @@ export function ChatRouteSurface({
     lastPanel: lastRightSidebarPanel,
     sessionTreeOpen: rightSidebar.sessionTreeOpen,
   })
+  const routePanelRequested =
+    rightSidebar.diffOpen ||
+    rightSidebar.sessionTreeOpen ||
+    rightSidebar.extensionSidePanel !== null ||
+    rightSidebar.workspaceFile !== null
+  const routePanelKey = routePanelRequested
+    ? routePanelRequestKey(renderedRightSidebarPanel, rightSidebar.workspaceFile)
+    : null
+  const routePanelScope = workspace.sessionId ?? sections.diff.workingPath
+  const routePanelOpen = useRoutePanelClaim(routePanelKey, routePanelScope)
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
     projectPath: sections.diff.workingPath,
@@ -186,12 +208,7 @@ export function ChatRouteSurface({
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <PanelErrorBoundary name="Chat" className="flex min-w-0 flex-1 overflow-hidden">
         <RightSidebarLayout
-          open={
-            rightSidebar.diffOpen ||
-            rightSidebar.sessionTreeOpen ||
-            rightSidebar.extensionSidePanel !== null ||
-            rightSidebar.workspaceFile != null
-          }
+          open={routePanelOpen}
           sizing={{
             defaultWidth: DIFF_PANEL_DEFAULT_WIDTH,
             mainMinWidth: CHAT_MIN_WIDTH,

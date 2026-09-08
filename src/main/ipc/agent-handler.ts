@@ -47,6 +47,7 @@ import {
   activeWaggleRuns,
   cancelAllSessionRuns,
   cancelSessionRuns,
+  ensureSessionRunStartAllowed,
   hasAnyActiveRun,
 } from './active-agent-runs'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
@@ -82,6 +83,7 @@ function registerAgentRunHandlers() {
         const validatedPayload = toAgentSendPayload(
           decodeUnknownOrThrow(agentSendPayloadSchema, payload),
         )
+        yield* ensureSessionRunStartAllowed(sessionId)
         // ─── Transport: cancel existing same-session work, register new ────
         if (cancelSessionRuns(sessionId)) {
           clearSessionTransportState(sessionId)
@@ -118,6 +120,7 @@ function registerAgentRunHandlers() {
           const handoff =
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
           if (handoff && !abortController.signal.aborted) {
+            yield* ensureSessionRunStartAllowed(sessionId)
             activeWaggleRuns.register(sessionId, abortController, {})
             yield* runAgentRequestedWaggle({
               sessionId,
@@ -214,6 +217,7 @@ function registerAgentCompactionHandlers() {
     'agent:compact-session',
     (_event, sessionId: SessionId, model: SupportedModelId, customInstructions?: string) =>
       Effect.gen(function* () {
+        yield* ensureSessionRunStartAllowed(sessionId)
         if (hasAnyActiveRun(sessionId)) {
           return yield* Effect.fail(
             new Error('Wait for the current run to finish before compacting.'),

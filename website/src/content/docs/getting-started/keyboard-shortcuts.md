@@ -19,11 +19,64 @@ section: "Getting Started"
 | Open pinned session 1 to 9 | `Cmd+1` … `Cmd+9` | `Ctrl+1` … `Ctrl+9` |
 | Toggle terminal | `Cmd+J` | `Ctrl+J` |
 | Toggle diff panel | `Cmd+D` | `Ctrl+D` |
+| Toggle right panel | `Cmd+Option+B` | `Ctrl+Alt+B` |
+| Toggle browser preview | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Toggle Session Tree | `Cmd+Shift+Y` | `Ctrl+Shift+Y` |
 | Submit diff comment or review | `Cmd+Enter` | `Ctrl+Enter` |
 | Cancel diff comment or review | `Escape` | `Escape` |
 
-Open **Settings > Shortcuts** to record replacements. OpenWaggle rejects conflicts instead of silently replacing another command. Command palette, Go to file, and New session must remain assigned; optional workspace shortcuts can be cleared and every shortcut can be reset.
+## Terminal Shortcuts
+
+These actions apply while focus is inside a terminal pane:
+
+| Action | macOS | Windows/Linux |
+|--------|-------|---------------|
+| New terminal tab | `Cmd+N` | `Ctrl+N` |
+| Split terminal side by side | `Cmd+D` | `Ctrl+D` |
+| Split terminal below | `Cmd+Shift+D` | `Ctrl+Shift+D` |
+| Close active terminal pane | `Cmd+W` | `Ctrl+W` |
+
+Terminal focus makes these bindings contextual. Outside a terminal, `Cmd/Ctrl+N` creates a session
+and `Cmd/Ctrl+D` toggles the diff panel.
+
+## Right Panel and Browser Preview
+
+`Cmd/Ctrl+W` closes the active right panel outside a terminal. When no panel is open, OpenWaggle
+leaves that shortcut to the focused application or browser content instead of swallowing it.
+
+These actions apply while focus is inside a Browser preview:
+
+| Action | macOS | Windows/Linux |
+|--------|-------|---------------|
+| Focus address | `Cmd+L` | `Ctrl+L` |
+| Refresh | `Cmd+R` | `Ctrl+R` |
+| Zoom in | `Cmd+=` or `Cmd++` | `Ctrl+=` or `Ctrl++` |
+| Zoom out | `Cmd+-` | `Ctrl+-` |
+| Reset zoom | `Cmd+0` | `Ctrl+0` |
+
+Native preview content and the rest of the app use the same resolver, so an override runs once and
+ordinary page typing stays inside the page.
+
+## Customize Bindings
+
+Open **Settings > Shortcuts** to search built-in and Project Action bindings in one place. Each
+command may have more than one ordered binding. Record a chord, then use the visual condition
+builder or its expression field to control where it applies. Conflicts are highlighted but may be
+saved intentionally; the newest active rule matching the chord wins globally. Default bindings can
+be edited and reset, while custom rules can also be removed.
+
+Conditions can use `terminalFocus`, `terminalOpen`, `previewFocus`, `previewOpen`, and
+`modelPickerOpen`, combined with `!`, `&&`, `||`, and parentheses. Unknown context names are kept for
+forward compatibility and evaluate to false until the runtime provides them.
+
+## Project Action Bindings
+
+Open **Settings > Project actions** to edit an action and its bindings directly, or use the unified
+browser under **Settings > Shortcuts**. A binding can be unconditional or contextual.
+
+Project Action bindings participate in the same ordered resolution as built-ins. A later active
+Project Action rule can intentionally override a built-in command, and context-specific rules can
+reuse the same chord without colliding at runtime.
 
 ## Sidebar
 

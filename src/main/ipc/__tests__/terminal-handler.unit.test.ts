@@ -1,136 +1,21 @@
+import { EventEmitter } from 'node:events'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import type { TerminalAttachResult, TerminalOpenInput } from '@shared/types/terminal'
-import { Layer } from 'effect'
-import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TerminalService } from '../../ports/terminal-service'
-
-const typedHandleMock = vi.hoisted(() => vi.fn())
-const typedOnMock = vi.hoisted(() => vi.fn())
-const serviceMocks = vi.hoisted(() => ({
-  open: vi.fn(),
-  write: vi.fn(),
-  resize: vi.fn(),
-  clear: vi.fn(),
-  restart: vi.fn(),
-  close: vi.fn(),
-  closeAllForOwner: vi.fn(),
-  closeAllUnderPath: vi.fn(),
-  attachSurface: vi.fn(),
-  detachTerminal: vi.fn(),
-  detachSurface: vi.fn(),
-  closeAll: vi.fn(),
-}))
-
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-  typedOn: typedOnMock,
-}))
-
-vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, TerminalService>) =>
-    Effect.runPromise(Effect.provide(effect, TestTerminalServiceLayer)),
-}))
-
-const FAKE_SURFACE_ID = 42
-const FAKE_ATTACH_RESULT: TerminalAttachResult = {
-  history: 'restored scrollback',
-  outputBytes: 0,
-  running: true,
-}
-
-const TestTerminalServiceLayer = Layer.succeed(
-  TerminalService,
-  TerminalService.of({
-    open: (input) => {
-      serviceMocks.open(input)
-      return Effect.succeed(FAKE_ATTACH_RESULT)
-    },
-    write: (ownerKey, terminalId, data) => {
-      serviceMocks.write(ownerKey, terminalId, data)
-      return Effect.void
-    },
-    detachTerminal: (ownerKey, terminalId, surfaceId) => {
-      serviceMocks.detachTerminal(ownerKey, terminalId, surfaceId)
-      return Effect.void
-    },
-    resize: (ownerKey, terminalId, cols, rows) => {
-      serviceMocks.resize(ownerKey, terminalId, cols, rows)
-      return Effect.void
-    },
-    clear: (ownerKey, terminalId) => {
-      serviceMocks.clear(ownerKey, terminalId)
-      return Effect.void
-    },
-    restart: (input) => {
-      serviceMocks.restart(input)
-      return Effect.succeed(FAKE_ATTACH_RESULT)
-    },
-    close: (ownerKey, terminalId, deleteHistory) => {
-      serviceMocks.close(ownerKey, terminalId, deleteHistory)
-      return Effect.void
-    },
-    closeAllForOwner: (ownerKey, deleteHistory) => {
-      serviceMocks.closeAllForOwner(ownerKey, deleteHistory)
-      return Effect.void
-    },
-    closeAllUnderPath: (directoryPath, deleteHistory) => {
-      serviceMocks.closeAllUnderPath(directoryPath, deleteHistory)
-      return Effect.void
-    },
-    attachSurface: (terminalKey, surfaceId) => {
-      serviceMocks.attachSurface(terminalKey, surfaceId)
-      return Effect.void
-    },
-    detachSurface: (surfaceId) => {
-      serviceMocks.detachSurface(surfaceId)
-      return Effect.void
-    },
-    closeAll: () => {
-      serviceMocks.closeAll()
-      return Effect.void
-    },
-  }),
-)
-
-import { cleanupTerminals, registerTerminalHandlers } from '../terminal-handler'
-
-const VALID_OPEN_INPUT: TerminalOpenInput = {
-  ownerKey: 'session-1',
-  terminalId: 'main',
-  cwd: '/tmp/openwaggle-workspace',
-  cols: 120,
-  rows: 40,
-}
-
-const fakeEvent = { sender: { id: FAKE_SURFACE_ID } }
-
-function getInvokeHandler(name: string) {
-  const call = typedHandleMock.mock.calls.find(
-    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
-  )
-  const handler = call?.[1]
-  if (typeof handler !== 'function') return undefined
-  return (...args: unknown[]) =>
-    Effect.runPromise(Effect.provide(handler(...args), TestTerminalServiceLayer))
-}
-
-function getSendHandler(name: string) {
-  const call = typedOnMock.mock.calls.find(
-    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
-  )
-  const handler = call?.[1]
-  if (typeof handler !== 'function') return undefined
-  return (...args: unknown[]) =>
-    Effect.runPromise(Effect.provide(handler(...args), TestTerminalServiceLayer))
-}
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  FAKE_ATTACH_RESULT,
+  FAKE_SURFACE_ID,
+  fakeEvent,
+  getInvokeHandler,
+  registerTerminalHandlers,
+  resetTerminalHandlerTest,
+  serviceMocks,
+  typedHandleMock,
+  typedOnMock,
+  VALID_OPEN_INPUT,
+} from './terminal-handler-test-harness'
 
 describe('registerTerminalHandlers', () => {
-  beforeEach(() => {
-    typedHandleMock.mockReset()
-    typedOnMock.mockReset()
-    for (const mock of Object.values(serviceMocks)) mock.mockReset()
-  })
+  beforeEach(resetTerminalHandlerTest)
 
   it('registers the session-terminal channel set', () => {
     registerTerminalHandlers()
@@ -139,14 +24,40 @@ describe('registerTerminalHandlers', () => {
     const sendChannels = typedOnMock.mock.calls.map((call: readonly unknown[]) => call[0])
 
     expect(invokeChannels).toEqual([
+      'terminal:get-activity-snapshot',
       'terminal:open',
       'terminal:detach',
       'terminal:resize',
       'terminal:clear',
       'terminal:restart',
+      'terminal:assess-close',
       'terminal:close',
+      'terminal:write',
+      'terminal:send-input-now',
+      'terminal:migrate-owner',
     ])
-    expect(sendChannels).toEqual(['terminal:write'])
+    expect(sendChannels).toEqual(['terminal:ack-output'])
+  })
+
+  it('returns the bounded global terminal activity snapshot', async () => {
+    registerTerminalHandlers()
+    const handler = getInvokeHandler('terminal:get-activity-snapshot')
+
+    await expect(handler?.(fakeEvent)).resolves.toEqual({
+      revision: 7,
+      summaries: [
+        {
+          ownerKey: 'session-1',
+          terminalId: 'main',
+          activityStatus: 'running',
+          processName: 'pnpm',
+          ports: [5173],
+          projectActionPending: false,
+        },
+      ],
+      truncated: false,
+    })
+    expect(serviceMocks.getActivitySnapshot).toHaveBeenCalledOnce()
   })
 
   it('terminal:open decodes input, opens, and attaches the calling surface', async () => {
@@ -162,16 +73,65 @@ describe('registerTerminalHandlers', () => {
     expect(serviceMocks.attachSurface).toHaveBeenCalledWith('session-1::main', FAKE_SURFACE_ID)
   })
 
+  it('detaches all watched terminals when a renderer reloads or dies', async () => {
+    registerTerminalHandlers()
+    const handler = getInvokeHandler('terminal:open')
+    const sender = Object.assign(new EventEmitter(), { id: 77 })
+    const event = { sender }
+
+    await handler?.(event, VALID_OPEN_INPUT)
+    await handler?.(event, VALID_OPEN_INPUT)
+    expect(sender.listenerCount('did-start-loading')).toBe(1)
+
+    sender.emit('did-start-loading')
+    await Promise.resolve()
+    expect(serviceMocks.detachSurface).toHaveBeenCalledWith(77)
+
+    sender.emit('render-process-gone')
+    await Promise.resolve()
+    expect(serviceMocks.detachSurface).toHaveBeenCalledTimes(2)
+  })
+
+  it('terminal:open accepts bounded environment overrides', async () => {
+    registerTerminalHandlers()
+    const handler = getInvokeHandler('terminal:open')
+    const input = {
+      ...VALID_OPEN_INPUT,
+      env: {
+        OPENWAGGLE_PROJECT_ROOT: '/tmp/project',
+        T3CODE_PROJECT_ROOT: '/tmp/project',
+      },
+    }
+
+    await handler?.(fakeEvent, input)
+
+    expect(serviceMocks.open).toHaveBeenCalledWith(input)
+  })
+
   it('terminal:open rejects invalid launch contexts', async () => {
     registerTerminalHandlers()
     const handler = getInvokeHandler('terminal:open')
     const invalidInputs = [
       { ...VALID_OPEN_INPUT, ownerKey: '' },
       { ...VALID_OPEN_INPUT, terminalId: '' },
+      { ...VALID_OPEN_INPUT, terminalId: 'pane::spoofed-owner' },
       { ...VALID_OPEN_INPUT, cols: TERMINAL.MAX_COLS + 1 },
       { ...VALID_OPEN_INPUT, cols: 80.5 },
       { ...VALID_OPEN_INPUT, rows: TERMINAL.MIN_ROWS - 1 },
       { ...VALID_OPEN_INPUT, cwd: '' },
+      { ...VALID_OPEN_INPUT, cwd: 'relative/worktree' },
+      { ...VALID_OPEN_INPUT, env: { 'BAD=NAME': 'value' } },
+      { ...VALID_OPEN_INPUT, env: { NODE_OPTIONS: '--require /tmp/injected.cjs' } },
+      { ...VALID_OPEN_INPUT, env: { VALID_NAME: 'value\0tail' } },
+      {
+        ...VALID_OPEN_INPUT,
+        env: Object.fromEntries(
+          Array.from({ length: TERMINAL.ENV_MAX_ENTRIES + 1 }, (_, index) => [
+            `VALUE_${String(index)}`,
+            'value',
+          ]),
+        ),
+      },
     ]
 
     for (const input of invalidInputs) {
@@ -263,6 +223,9 @@ describe('registerTerminalHandlers', () => {
       await expect(handler?.(fakeEvent, 'session-1', 'main', cols, rows)).rejects.toThrow()
     }
     await expect(handler?.(fakeEvent, 'session-1', '', 120, 40)).rejects.toThrow()
+    await expect(
+      handler?.(fakeEvent, 's'.repeat(TERMINAL.OWNER_KEY_MAX_LENGTH + 1), 'main', 120, 40),
+    ).rejects.toThrow()
 
     expect(serviceMocks.resize).not.toHaveBeenCalled()
   })
@@ -298,43 +261,24 @@ describe('registerTerminalHandlers', () => {
     expect(serviceMocks.close).toHaveBeenCalledTimes(3)
   })
 
+  it('terminal:assess-close returns the main-process impact assessment', async () => {
+    registerTerminalHandlers()
+    const handler = getInvokeHandler('terminal:assess-close')
+
+    await expect(handler?.(fakeEvent, 'session-1', 'main')).resolves.toEqual({
+      disposition: 'confirm',
+      reason: 'active',
+      processNames: ['pnpm'],
+      ports: [5173],
+    })
+    expect(serviceMocks.assessClose).toHaveBeenCalledWith('session-1', 'main')
+  })
+
   it('terminal:close rejects an empty terminal id', async () => {
     registerTerminalHandlers()
     const handler = getInvokeHandler('terminal:close')
 
     await expect(handler?.(fakeEvent, 'session-1', '', true)).rejects.toThrow()
     expect(serviceMocks.close).not.toHaveBeenCalled()
-  })
-
-  it('terminal:write writes valid input through the service', async () => {
-    registerTerminalHandlers()
-    const handler = getSendHandler('terminal:write')
-    const maxInput = 'x'.repeat(TERMINAL.MAX_INPUT_BYTES)
-
-    await handler?.(fakeEvent, 'session-1', 'main', 'echo hello')
-    await handler?.(fakeEvent, 'session-1', 'main', maxInput)
-
-    expect(serviceMocks.write).toHaveBeenCalledWith('session-1', 'main', 'echo hello')
-    expect(serviceMocks.write).toHaveBeenCalledWith('session-1', 'main', maxInput)
-    expect(serviceMocks.write).toHaveBeenCalledTimes(2)
-  })
-
-  it('terminal:write ignores oversized and empty input', async () => {
-    registerTerminalHandlers()
-    const handler = getSendHandler('terminal:write')
-    const oversized = 'x'.repeat(TERMINAL.MAX_INPUT_BYTES + 1)
-
-    await expect(handler?.(fakeEvent, 'session-1', 'main', oversized)).resolves.toBeUndefined()
-    await handler?.(fakeEvent, 'session-1', 'main', '')
-
-    expect(serviceMocks.write).not.toHaveBeenCalled()
-  })
-
-  it('cleanupTerminals closes every terminal on shutdown', async () => {
-    registerTerminalHandlers()
-
-    await cleanupTerminals()
-
-    expect(serviceMocks.closeAll).toHaveBeenCalledOnce()
   })
 })

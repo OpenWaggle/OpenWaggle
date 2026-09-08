@@ -7,7 +7,11 @@ import type { AgentAuthorizationMode } from './agent-authorization'
  * is what stops a request from arriving with an unrecognised capability and being matched against a
  * grant the user never meant to give.
  */
-export const AGENT_AUTHORIZATION_CAPABILITIES = ['mcp.tool-call', 'mcp.sampling'] as const
+export const AGENT_AUTHORIZATION_CAPABILITIES = [
+  'browser.preview',
+  'mcp.tool-call',
+  'mcp.sampling',
+] as const
 
 export type AgentAuthorizationCapability = (typeof AGENT_AUTHORIZATION_CAPABILITIES)[number]
 
@@ -95,6 +99,7 @@ export function findMatchingGrant(
 
 /** Human-readable label for a capability, for prompts and the Settings list. */
 export const AGENT_AUTHORIZATION_CAPABILITY_LABELS = {
+  'browser.preview': 'Control browser preview',
   'mcp.tool-call': 'Run a tool',
   'mcp.sampling': 'Use your model',
 } satisfies Record<AgentAuthorizationCapability, string>

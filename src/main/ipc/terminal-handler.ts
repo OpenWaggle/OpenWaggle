@@ -1,67 +1,51 @@
 import { Buffer } from 'node:buffer'
 import { TERMINAL } from '@shared/constants/resource-limits'
-import { decodeUnknownOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
-import type { TerminalOpenInput } from '@shared/types/terminal'
+import { decodeUnknownOrThrow, safeDecodeUnknown } from '@shared/schema'
+import type {
+  TerminalInputIdentity,
+  TerminalInputIntent,
+  TerminalOpenInput,
+} from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
-import { TerminalService } from '../ports/terminal-service'
+import { TerminalService, type TerminalServiceShape } from '../ports/terminal-service'
 import { runAppEffect } from '../runtime'
+import {
+  terminalInputIdentitySchema,
+  terminalInputIntentSchema,
+  terminalOpenInputSchema,
+  terminalOutputAckSchema,
+  terminalOwnerMigrationSchema,
+  terminalOwnerSchema,
+  terminalResizeSchema,
+  terminalWriteSchema,
+} from './terminal-handler-schemas'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('terminal-handler')
 
-const MAX_TERMINAL_INPUT_BYTES = TERMINAL.MAX_INPUT_BYTES
+const registeredTerminalSurfaces = new WeakSet<object>()
 
-const terminalOpenInputSchema = Schema.Struct({
-  ownerKey: Schema.String.pipe(
-    Schema.minLength(1),
-    Schema.maxLength(TERMINAL.OWNER_KEY_MAX_LENGTH),
-  ),
-  terminalId: Schema.String.pipe(
-    Schema.minLength(1),
-    Schema.maxLength(TERMINAL.TERMINAL_ID_MAX_LENGTH),
-  ),
-  cwd: Schema.String.pipe(Schema.minLength(1), Schema.maxLength(TERMINAL.CWD_PATH_MAX_LENGTH)),
-  cols: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(TERMINAL.MIN_COLS),
-    Schema.lessThanOrEqualTo(TERMINAL.MAX_COLS),
-  ),
-  rows: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(TERMINAL.MIN_ROWS),
-    Schema.lessThanOrEqualTo(TERMINAL.MAX_ROWS),
-  ),
-})
-
-const terminalResizeSchema = Schema.Struct({
-  ownerKey: Schema.String.pipe(Schema.minLength(1)),
-  terminalId: Schema.String.pipe(Schema.minLength(1)),
-  cols: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(TERMINAL.MIN_COLS),
-    Schema.lessThanOrEqualTo(TERMINAL.MAX_COLS),
-  ),
-  rows: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(TERMINAL.MIN_ROWS),
-    Schema.lessThanOrEqualTo(TERMINAL.MAX_ROWS),
-  ),
-})
-
-const terminalOwnerSchema = Schema.Struct({
-  ownerKey: Schema.String.pipe(Schema.minLength(1)),
-  terminalId: Schema.String.pipe(Schema.minLength(1)),
-})
-
-const terminalWriteSchema = Schema.String.pipe(
-  Schema.maxLength(MAX_TERMINAL_INPUT_BYTES),
-  // The cap is a wire-bytes cap: a 16k-char emoji paste is up to 64 KiB utf-8.
-  Schema.filter((data) => Buffer.byteLength(data, 'utf8') <= MAX_TERMINAL_INPUT_BYTES, {
-    message: () => 'Terminal input exceeds the byte limit.',
-  }),
-)
+function registerTerminalSurfaceLifecycle(sender: object, service: TerminalServiceShape) {
+  if (registeredTerminalSurfaces.has(sender)) return
+  const on: unknown = Reflect.get(sender, 'on')
+  if (typeof on !== 'function') return
+  registeredTerminalSurfaces.add(sender)
+  const surfaceId: unknown = Reflect.get(sender, 'id')
+  if (typeof surfaceId !== 'number') return
+  const detach = () => {
+    void Effect.runPromise(service.detachSurface(surfaceId)).catch((error: unknown) => {
+      logger.warn('Terminal surface cleanup failed', {
+        surfaceId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+  }
+  Reflect.apply(on, sender, ['did-start-loading', detach])
+  Reflect.apply(on, sender, ['render-process-gone', detach])
+  Reflect.apply(on, sender, ['destroyed', detach])
+}
 
 /**
  * Session-bound terminal transport (ADR 0030). Handlers decode, register the
@@ -69,16 +53,28 @@ const terminalWriteSchema = Schema.String.pipe(
  * to the TerminalService.
  */
 export function registerTerminalHandlers(): void {
+  registerTerminalLifecycleHandlers()
+  registerTerminalStreamHandlers()
+}
+
+function registerTerminalLifecycleHandlers() {
+  typedHandle('terminal:get-activity-snapshot', () =>
+    Effect.gen(function* () {
+      const service = yield* TerminalService
+      return yield* service.getActivitySnapshot()
+    }),
+  )
+
   typedHandle('terminal:open', (event, input: TerminalOpenInput) =>
     Effect.gen(function* () {
       const decoded = yield* Effect.try(() => decodeUnknownOrThrow(terminalOpenInputSchema, input))
       const service = yield* TerminalService
-      const result = yield* service.open(decoded)
+      registerTerminalSurfaceLifecycle(event.sender, service)
       yield* service.attachSurface(
         terminalKeyOf(decoded.ownerKey, decoded.terminalId),
         event.sender.id,
       )
-      return result
+      return yield* service.open(decoded)
     }),
   )
 
@@ -118,12 +114,22 @@ export function registerTerminalHandlers(): void {
     Effect.gen(function* () {
       const decoded = yield* Effect.try(() => decodeUnknownOrThrow(terminalOpenInputSchema, input))
       const service = yield* TerminalService
-      const result = yield* service.restart(decoded)
+      registerTerminalSurfaceLifecycle(event.sender, service)
       yield* service.attachSurface(
         terminalKeyOf(decoded.ownerKey, decoded.terminalId),
         event.sender.id,
       )
-      return result
+      return yield* service.restart(decoded)
+    }),
+  )
+
+  typedHandle('terminal:assess-close', (_event, ownerKey: string, terminalId: string) =>
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try(() =>
+        decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+      )
+      const service = yield* TerminalService
+      return yield* service.assessClose(decoded.ownerKey, decoded.terminalId)
     }),
   )
 
@@ -138,14 +144,111 @@ export function registerTerminalHandlers(): void {
         yield* service.close(decoded.ownerKey, decoded.terminalId, deleteHistory === true)
       }),
   )
+}
 
-  typedOn('terminal:write', (_event, ownerKey: string, terminalId: string, data: string) =>
+function registerTerminalStreamHandlers() {
+  typedHandle(
+    'terminal:write',
+    (
+      _event,
+      ownerKey: string,
+      terminalId: string,
+      data: string,
+      identity?: TerminalInputIdentity,
+      intent?: TerminalInputIntent,
+    ) =>
+      Effect.gen(function* () {
+        const owner = yield* Effect.try(() =>
+          decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+        )
+        const decodedIdentity =
+          identity === undefined
+            ? undefined
+            : yield* Effect.try(() => decodeUnknownOrThrow(terminalInputIdentitySchema, identity))
+        const decodedIntent =
+          intent === undefined
+            ? undefined
+            : yield* Effect.try(() => decodeUnknownOrThrow(terminalInputIntentSchema, intent))
+        if (decodedIntent !== undefined && decodedIdentity === undefined) {
+          return yield* Effect.fail(
+            new Error('Semantic terminal input requires an idempotency identity.'),
+          )
+        }
+        const parsed = safeDecodeUnknown(terminalWriteSchema, data)
+        const byteLimit =
+          decodedIntent?.kind === 'project-action'
+            ? TERMINAL.MAX_PROJECT_ACTION_INPUT_BYTES
+            : TERMINAL.MAX_INPUT_BYTES
+        if (
+          !parsed.success ||
+          (typeof data === 'string' && Buffer.byteLength(data, 'utf8') > byteLimit)
+        ) {
+          return {
+            status: 'rejected',
+            acceptedBytes: 0,
+            reason: typeof data === 'string' && data.length === 0 ? 'empty' : 'input-too-large',
+            ...(decodedIdentity === undefined ? {} : { identity: decodedIdentity }),
+          } as const
+        }
+        if (parsed.data.length === 0) {
+          return {
+            status: 'rejected',
+            acceptedBytes: 0,
+            reason: 'empty',
+            ...(decodedIdentity === undefined ? {} : { identity: decodedIdentity }),
+          } as const
+        }
+        const service = yield* TerminalService
+        return yield* service.write(
+          owner.ownerKey,
+          owner.terminalId,
+          parsed.data,
+          decodedIdentity,
+          decodedIntent,
+        )
+      }),
+  )
+
+  typedHandle('terminal:send-input-now', (_event, ownerKey: string, terminalId: string) =>
     Effect.gen(function* () {
-      const parsed = safeDecodeUnknown(terminalWriteSchema, data)
-      if (!parsed.success || parsed.data.length === 0) return
+      const decoded = yield* Effect.try(() =>
+        decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
+      )
       const service = yield* TerminalService
-      yield* service.write(ownerKey, terminalId, parsed.data)
+      return yield* service.sendInputNow(decoded.ownerKey, decoded.terminalId)
     }),
+  )
+
+  typedHandle('terminal:migrate-owner', (_event, fromOwnerKey: string, toOwnerKey: string) =>
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try(() =>
+        decodeUnknownOrThrow(terminalOwnerMigrationSchema, { fromOwnerKey, toOwnerKey }),
+      )
+      const service = yield* TerminalService
+      return yield* service.migrateOwner(decoded.fromOwnerKey, decoded.toOwnerKey)
+    }),
+  )
+
+  typedOn(
+    'terminal:ack-output',
+    (_event, ownerKey: string, terminalId: string, outputGeneration: number, endOffset: number) =>
+      Effect.gen(function* () {
+        const decoded = yield* Effect.try(() =>
+          decodeUnknownOrThrow(terminalOutputAckSchema, {
+            ownerKey,
+            terminalId,
+            outputGeneration,
+            endOffset,
+          }),
+        )
+        const service = yield* TerminalService
+        yield* service.acknowledgeOutput(
+          decoded.ownerKey,
+          decoded.terminalId,
+          decoded.outputGeneration,
+          decoded.endOffset,
+        )
+      }),
   )
 }
 
@@ -160,5 +263,6 @@ export function cleanupTerminals(): Promise<void> {
     logger.error('Terminal cleanup on shutdown failed', {
       error: error instanceof Error ? error.message : String(error),
     })
+    throw error
   })
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createTerminalHistorySanitizer,
   stripTerminalQuerySequences,
+  stripTerminalReplaySequences,
 } from '../terminal-history-sanitizer'
 
 const ESC = '\x1b'
@@ -31,8 +32,6 @@ const PRESERVED_SEQUENCES = [
   `${ESC}[2A`, // cursor up
   `${ESC}[2J`, // erase display
   `${ESC}[H`, // cursor home
-  `${ESC}[?25h`, // show cursor
-  `${ESC}[?1049h`, // alternate screen
   `${ESC}[24;80R`, // DSR response (final `R`)
   `${ESC}]0;OpenWaggle${BEL}`, // OSC title set (BEL)
   `${ESC}]2;OpenWaggle${ST}`, // OSC title set (ST)
@@ -71,6 +70,11 @@ describe('stripTerminalQuerySequences', () => {
     }
   })
 
+  it('preserves live display modes for same-process reattachment', () => {
+    const modes = `${ESC}[?1049h${ESC}[?1006h${ESC}[?2004h`
+    expect(stripTerminalQuerySequences(modes)).toBe(modes)
+  })
+
   it('preserves plain text around stripped queries', () => {
     const text = `hello${ESC}[31mred${ESC}[0m${ESC}[6n world`
     expect(stripTerminalQuerySequences(text)).toBe('hello\x1b[31mred\x1b[0m world')
@@ -107,7 +111,9 @@ describe('createTerminalHistorySanitizer', () => {
     const sanitizer = createTerminalHistorySanitizer()
     expect(sanitizer.feed('out: ')).toBe('out: ')
     expect(sanitizer.feed(`${ESC}[6`)).toBe('')
+    expect(sanitizer.pendingRawTail()).toBe(`${ESC}[6`)
     expect(sanitizer.feed('n done')).toBe(' done')
+    expect(sanitizer.pendingRawTail()).toBe('')
   })
 
   it('carries pending OSC bodies across feed calls', () => {
@@ -148,5 +154,77 @@ describe('createTerminalHistorySanitizer', () => {
     // dropped rather than held, so the next chunk is emitted as plain text.
     expect(sanitizer.feed(`${ESC}[${'0'.repeat(4_200)}`)).toBe('')
     expect(sanitizer.feed('ok')).toBe('ok')
+  })
+})
+
+describe('cold terminal replay sanitation', () => {
+  it('strips DECSET and DECRST modes while preserving printable and color output', () => {
+    const history = [
+      'before',
+      `${ESC}[31mred${ESC}[0m`,
+      `${ESC}[?1049h`,
+      `${ESC}[?1000;1006h`,
+      `${ESC}[?2004h`,
+      'inside',
+      `${ESC}[?2004l`,
+      `${ESC}[?1000;1006l`,
+      `${ESC}[?1049l`,
+      'after',
+    ].join('')
+
+    expect(stripTerminalReplaySequences(history)).toBe(`before${ESC}[31mred${ESC}[0minsideafter`)
+  })
+
+  it('strips keyboard protocols, ANSI modes, clipboard writes, and terminal reset', () => {
+    const history = [
+      'a',
+      `${ESC}[4h`,
+      `${ESC}[>4;2m`,
+      `${ESC}[=3u`,
+      `${ESC}[<u`,
+      `${ESC}]52;c;Zm9v${BEL}`,
+      `${ESC}=`,
+      `${ESC}c`,
+      'b',
+    ].join('')
+
+    expect(stripTerminalReplaySequences(history)).toBe('ab')
+  })
+
+  it('drops a truncated mode setter instead of replaying an escape fragment', () => {
+    expect(stripTerminalReplaySequences(`safe${ESC}[?1049`)).toBe('safe')
+  })
+
+  it('keeps only printable text and standard SGR from a dead TUI transcript', () => {
+    const history = [
+      'before',
+      `${ESC}[31mred${ESC}[0m`,
+      `${ESC}[2J`,
+      `${ESC}[H`,
+      `${ESC}[4;20r`,
+      `${ESC}[3A`,
+      `${ESC}[2K`,
+      `${ESC}[s`,
+      `${ESC}[u`,
+      `${ESC}]8;;https://example.com${ST}`,
+      `${ESC}]8;;${ST}`,
+      `${ESC}7`,
+      `${ESC}8`,
+      'after',
+    ].join('')
+
+    expect(stripTerminalReplaySequences(history)).toBe(`before${ESC}[31mred${ESC}[0mafter`)
+  })
+
+  it('strips private SGR extensions while retaining colon-form colors', () => {
+    const history = `${ESC}[>4;2m${ESC}[38:2::1:2:3mcolor${ESC}[0m`
+
+    expect(stripTerminalReplaySequences(history)).toBe(`${ESC}[38:2::1:2:3mcolor${ESC}[0m`)
+  })
+
+  it('removes C0 side effects and 8-bit C1 protocol introducers', () => {
+    const history = `a\x07\x08\x9b2Jb\x9d52;c;payload\x07c\n`
+
+    expect(stripTerminalReplaySequences(history)).toBe('a2Jb52;c;payloadc\n')
   })
 })

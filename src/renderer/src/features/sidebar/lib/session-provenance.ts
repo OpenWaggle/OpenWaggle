@@ -27,12 +27,9 @@ export interface SessionProvenanceInput {
   readonly session: SessionSummary
   readonly gitBranch: string | null
   /**
-   * Terminals alive for this session.
-   *
-   * ADR 0030 keys every terminal by its owning session, so a per-session count
-   * is derivable from the terminal service's records; rendering it stays a
-   * follow-up (#97-followup) since the sidebar read path does not consume the
-   * terminal service yet.
+   * Terminals for this session with an observed descendant process. The global
+   * main-process snapshot is keyed by owner and terminal, so two renderer
+   * surfaces showing one PTY never double count it.
    */
   readonly terminalCount: number
 }
@@ -96,10 +93,13 @@ export function buildSessionProvenance(
   }
 
   if (terminalCount > 0) {
-    const plural = terminalCount === 1 ? 'process' : 'processes'
     indicators.push({
       kind: 'terminal',
-      description: `${String(terminalCount)} terminal ${plural} running`,
+      count: terminalCount,
+      description:
+        terminalCount === 1
+          ? '1 terminal running a subprocess'
+          : `${String(terminalCount)} terminals running subprocesses`,
     })
   }
 

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { Button } from '@/shared/ui/Button'
 import { ChatRouteSurface } from '../-chat-route-surface'
 import { SettingsRouteSurface } from '../-settings-route-surface'
@@ -140,19 +141,25 @@ vi.mock('@/shared/ui/PanelErrorBoundary', () => ({
 vi.mock('@/shared/ui/RightSidebarLayout', () => ({
   RightSidebarLayout: ({
     children,
+    open,
     onOpenChange,
     sidebar,
   }: {
     readonly children: React.ReactNode
+    readonly open: boolean
     readonly onOpenChange: (open: boolean) => void
     readonly sidebar: React.ReactNode
   }) => (
-    <section>
+    <section data-testid="route-right-sidebar-layout" data-open={open}>
       {children}
-      {sidebar}
-      <Button variant="unstyled" type="button" onClick={() => onOpenChange(false)}>
-        Close right sidebar
-      </Button>
+      {open ? (
+        <>
+          {sidebar}
+          <Button variant="unstyled" type="button" onClick={() => onOpenChange(false)}>
+            Close right sidebar
+          </Button>
+        </>
+      ) : null}
     </section>
   ),
 }))
@@ -173,6 +180,7 @@ describe('route surfaces', () => {
   beforeEach(() => {
     routeSurfaceMocks.setPathname('/settings/general')
     routeSurfaceMocks.setLastPanel('diff')
+    useRightSidebarCoordinator.setState({ activeClaim: null })
     routeSurfaceMocks.setLastRightSidebarPanel.mockClear()
     routeSurfaceMocks.chatRouteEffects.mockClear()
     routeSurfaceMocks.sidePanelRefetch.mockClear()

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RightSidebarLayout, sidebarWidthValue } from '../RightSidebarLayout'
 import type { WidthAcceptanceContext } from '../right-sidebar-layout-types'
@@ -17,16 +17,21 @@ const ROOT_WIDTH = 1600
 const ACCEPTED_WIDTH = 700
 
 function installMatchMedia(matches: boolean) {
+  const listeners = new Set<() => void>()
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches,
     media: query,
     onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
+    addEventListener: (_type: string, callback: () => void) => listeners.add(callback),
+    removeEventListener: (_type: string, callback: () => void) => listeners.delete(callback),
     addListener: vi.fn(),
     removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   }))
+  return (nextMatches: boolean) => {
+    matches = nextMatches
+    for (const listener of [...listeners]) listener()
+  }
 }
 
 function renderLayout(open: boolean, onOpenChange = vi.fn()) {
@@ -37,8 +42,9 @@ function renderLayout(open: boolean, onOpenChange = vi.fn()) {
   )
 }
 
-function layoutProps(open: boolean, onOpenChange = vi.fn()) {
+function layoutProps(open: boolean, onOpenChange = vi.fn(), maximized = false) {
   return {
+    maximized,
     open,
     sizing: {
       defaultWidth: DEFAULT_WIDTH_PX,
@@ -110,6 +116,27 @@ describe('RightSidebarLayout', () => {
     vi.restoreAllMocks()
   })
 
+  it('preserves the main input, focus, and selection across responsive breakpoints', () => {
+    const setSheet = installMatchMedia(false)
+    render(
+      <RightSidebarLayout {...layoutProps(false)}>
+        <textarea aria-label="Draft" defaultValue="Keep my draft" />
+      </RightSidebarLayout>,
+    )
+    const input = screen.getByRole('textbox', { name: 'Draft' })
+    if (!(input instanceof HTMLTextAreaElement)) throw new Error('Expected draft textarea')
+    input.focus()
+    input.setSelectionRange(3, 7)
+
+    for (const isSheet of [true, false, true, false]) {
+      act(() => setSheet(isSheet))
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(input)
+      expect(input).toHaveFocus()
+      expect(input).toHaveValue('Keep my draft')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 7])
+    }
+  })
+
   it('keeps sidebar content mounted after the first open so close can animate', () => {
     const view = renderLayout(false)
 
@@ -168,6 +195,48 @@ describe('RightSidebarLayout', () => {
 
     expect(sidebarWidthValue(720, MAIN_MIN_WIDTH_PX)).toBe(PERSISTED_CLAMPED_WIDTH)
     expect(sidebar).toHaveAttribute('data-right-sidebar-preferred-width', '720')
+  })
+
+  it('maximizes without unmounting main content and restores the exact retained width', () => {
+    window.localStorage.setItem(STORAGE_KEY, '720')
+    const view = render(
+      <RightSidebarLayout {...layoutProps(true, vi.fn(), false)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+    const originalMainContent = screen.getByText('Main content')
+
+    view.rerender(
+      <RightSidebarLayout {...layoutProps(true, vi.fn(), true)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+
+    expect(screen.getByText('Main content')).toBe(originalMainContent)
+    expect(document.querySelector('[data-right-sidebar-main="true"]')).toHaveAttribute('inert')
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toHaveStyle({
+      width: '100%',
+    })
+    expect(screen.queryByRole('button', { name: 'Resize right sidebar' })).toBeNull()
+
+    view.rerender(
+      <RightSidebarLayout {...layoutProps(true, vi.fn(), false)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+
+    expect(screen.getByText('Main content')).toBe(originalMainContent)
+    expect(document.querySelector('[data-right-sidebar-main="true"]')).not.toHaveAttribute('inert')
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toHaveAttribute(
+      'data-right-sidebar-maximized',
+      'false',
+    )
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toHaveAttribute(
+      'data-right-sidebar-preferred-width',
+      '720',
+    )
+    expect(sidebarWidthValue(720, MAIN_MIN_WIDTH_PX)).toBe(PERSISTED_CLAMPED_WIDTH)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('720')
   })
 
   it('renders a dismissible sheet when the viewport is below the sidebar breakpoint', () => {

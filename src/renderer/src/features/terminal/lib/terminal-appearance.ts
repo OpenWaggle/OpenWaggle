@@ -1,17 +1,32 @@
+import { normalizeTerminalPaletteColor } from '@shared/types/appearance-preferences'
 import type { ITheme } from '@xterm/xterm'
+import { useAppearancePreferencesRuntimeStore } from '@/shared/lib/appearance-preferences-runtime'
+import { useSyntaxThemeRuntimeStore } from '@/shared/lib/syntax/syntax-theme-runtime'
+import { readTerminalPalette } from '@/shared/lib/terminal-palette'
+import { terminalFontFamilyWithSymbols } from './terminal-fonts'
 
-const TERMINAL_SELECTION_OPACITY = 0.3
 export const DEFAULT_TERMINAL_FONT_SIZE = 14
 
-function colorWithOpacity(color: string, opacity: number) {
-  const context = document.createElement('canvas').getContext('2d')
-  if (context === null) return color
+const ANSI_THEME_ENTRIES = [
+  ['black', 'terminal.ansiBlack'],
+  ['red', 'terminal.ansiRed'],
+  ['green', 'terminal.ansiGreen'],
+  ['yellow', 'terminal.ansiYellow'],
+  ['blue', 'terminal.ansiBlue'],
+  ['magenta', 'terminal.ansiMagenta'],
+  ['cyan', 'terminal.ansiCyan'],
+  ['white', 'terminal.ansiWhite'],
+  ['brightBlack', 'terminal.ansiBrightBlack'],
+  ['brightRed', 'terminal.ansiBrightRed'],
+  ['brightGreen', 'terminal.ansiBrightGreen'],
+  ['brightYellow', 'terminal.ansiBrightYellow'],
+  ['brightBlue', 'terminal.ansiBrightBlue'],
+  ['brightMagenta', 'terminal.ansiBrightMagenta'],
+  ['brightCyan', 'terminal.ansiBrightCyan'],
+  ['brightWhite', 'terminal.ansiBrightWhite'],
+] as const
 
-  context.fillStyle = color
-  context.fillRect(0, 0, 1, 1)
-  const [red, green, blue] = context.getImageData(0, 0, 1, 1).data
-  return `rgba(${red}, ${green}, ${blue}, ${opacity})`
-}
+type AnsiThemeRole = (typeof ANSI_THEME_ENTRIES)[number][0]
 
 export interface TerminalAppearance {
   readonly theme: ITheme
@@ -19,16 +34,30 @@ export interface TerminalAppearance {
   readonly fontSize: number
 }
 
+function importedAnsiTheme(
+  colors: Readonly<Record<string, string>>,
+): Partial<Pick<ITheme, AnsiThemeRole>> {
+  const theme: Partial<Pick<ITheme, AnsiThemeRole>> = {}
+  for (const [role, key] of ANSI_THEME_ENTRIES) {
+    const color = normalizeTerminalPaletteColor(colors[key])
+    if (color !== null) theme[role] = color
+  }
+  return theme
+}
+
 /** Maps OpenWaggle's semantic CSS custom properties onto xterm's theme shape. */
 export function readTerminalAppearance(): TerminalAppearance {
   const styles = getComputedStyle(document.documentElement)
   const color = (name: string) => styles.getPropertyValue(name).trim()
   const accent = color('--color-accent')
+  const terminal = readTerminalPalette()
   const theme: ITheme = {
-    background: color('--color-bg'),
-    foreground: color('--color-text-primary'),
-    cursor: accent,
-    selectionBackground: colorWithOpacity(accent, TERMINAL_SELECTION_OPACITY),
+    background: terminal.palette.background,
+    foreground: terminal.palette.foreground,
+    cursor: terminal.palette.cursor,
+    cursorAccent: terminal.palette.background,
+    selectionBackground: terminal.palette.selection,
+    scrollbarSliderBackground: terminal.palette.scrollbar,
     black: color('--color-diff-bg'),
     red: color('--color-error'),
     green: color('--color-success'),
@@ -45,11 +74,12 @@ export function readTerminalAppearance(): TerminalAppearance {
     brightMagenta: color('--color-plan'),
     brightCyan: color('--color-progress'),
     brightWhite: color('--color-text-primary'),
+    ...importedAnsiTheme(terminal.themeColors),
   }
 
   const fontSize = Number.parseFloat(styles.getPropertyValue('--font-terminal-size'))
   return {
-    fontFamily: styles.getPropertyValue('--font-terminal').trim(),
+    fontFamily: terminalFontFamilyWithSymbols(styles.getPropertyValue('--font-terminal').trim()),
     fontSize: Number.isFinite(fontSize) ? fontSize : DEFAULT_TERMINAL_FONT_SIZE,
     theme,
   }
@@ -74,9 +104,13 @@ export function observeTerminalAppearance(
     attributeFilter: ['data-theme', 'style'],
     attributes: true,
   })
-  document.fonts.addEventListener('loadingdone', apply)
+  const unsubscribeAppearance = useAppearancePreferencesRuntimeStore.subscribe(apply)
+  const unsubscribeSyntax = useSyntaxThemeRuntimeStore.subscribe(apply)
+  document.fonts?.addEventListener('loadingdone', apply)
   return () => {
     observer.disconnect()
-    document.fonts.removeEventListener('loadingdone', apply)
+    unsubscribeAppearance()
+    unsubscribeSyntax()
+    document.fonts?.removeEventListener('loadingdone', apply)
   }
 }

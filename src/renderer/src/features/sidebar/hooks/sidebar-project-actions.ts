@@ -3,6 +3,7 @@ import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
 import { api } from '@/shared/lib/ipc'
+import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -68,7 +69,12 @@ async function archiveProjectSessions(
   )
   if (!confirmed) return
 
-  await Promise.all(projectSessions.map((session) => api.archiveSession(session.id)))
+  await Promise.all(
+    projectSessions.map(async (session) => {
+      await api.archiveSession(session.id)
+      await archiveWorkspaceOwner(String(session.id))
+    }),
+  )
   clearComposerDraftsForSessions(projectSessions)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
 
@@ -95,7 +101,12 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
       projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
     ),
   )
-  await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
+  await Promise.all(
+    projectSessions.map(async (session) => {
+      await api.deleteSession(session.id)
+      await deleteWorkspaceOwner(String(session.id))
+    }),
+  )
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])

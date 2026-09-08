@@ -53,6 +53,8 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly onEvent: AgentKernelRunInput['onEvent']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
 }
 
@@ -98,6 +100,12 @@ export async function createPiRunSessionRuntime(
     modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),

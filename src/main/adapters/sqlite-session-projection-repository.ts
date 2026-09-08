@@ -28,6 +28,7 @@ type RepoOperation =
   | 'listArchived'
   | 'updateTitle'
   | 'setWorktreePlan'
+  | 'resetWorktreeSetup'
   | 'setAuthorizationMode'
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
@@ -142,6 +143,14 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
             plan.startFromOrigin,
           ),
         ),
+
+      resetWorktreeSetup: (id, worktreePath) =>
+        repoOp('resetWorktreeSetup', async () => {
+          const pending = await store.resetRecordedSessionWorktreeSetup(id, worktreePath)
+          if (!pending) {
+            throw new Error('The Session does not own this recorded worktree path.')
+          }
+        }),
 
       setAuthorizationMode: (id, mode) =>
         repoOp('setAuthorizationMode', () => store.setSessionAuthorizationMode(id, mode)),

@@ -24,6 +24,8 @@ const INPUT: TerminalOpenInput = {
 function makeRecord(options: {
   readonly cwd: string
   readonly live: boolean
+  readonly exitCode?: number | null
+  readonly env?: Readonly<Record<string, string>>
   readonly scrollback?: string
 }): TerminalRecord {
   const scrollback = createTerminalScrollback()
@@ -33,16 +35,60 @@ function makeRecord(options: {
     ownerKey: OWNER_KEY,
     terminalId: TERMINAL_ID,
     cwd: options.cwd,
+    env: options.env ?? {},
     scrollback,
     sanitizer: createTerminalHistorySanitizer(),
     pendingOutput: '',
-    pendingInput: '',
+    pendingOutputBytes: 0,
+    inFlightOutput: null,
+    pendingInput: [],
+    pendingInputBytes: 0,
+    inputGeneration: null,
+    lastInputReceipt: null,
     pendingStartOffset: 0,
     outputBytes: 0,
+    outputGeneration: 1,
     spawnGeneration: 1,
-    exitCode: null,
+    readinessPhase: 'ready',
+    readinessGeneration: 1,
+    promptDetector: null,
+    promptEpoch: 1,
+    projectAction: null,
+    exitCode: options.exitCode === undefined ? (options.live ? null : 0) : options.exitCode,
     closed: false,
-    live: options.live ? { pty: fromPartial<IPty>({}), pid: 4242 } : null,
+    live: options.live
+      ? {
+          pty: fromPartial<IPty>({}),
+          pid: 4242,
+          pauseOutput: () => undefined,
+          resumeOutput: () => undefined,
+          tty: null,
+          ttyIdentity: null,
+          processIdentity: null,
+          processMetadata: Promise.resolve(null),
+          exit: {
+            whenExited: new Promise(() => undefined),
+            exitCode: null,
+            notifyExit: () => undefined,
+            dispose: () => undefined,
+          },
+          processTreeExit: {
+            whenExited: new Promise(() => undefined),
+            exitCode: null,
+            notifyExit: () => undefined,
+            dispose: () => undefined,
+          },
+          resourceDrain: {
+            status: 'pending',
+            whenDrained: new Promise(() => undefined),
+          },
+          outputPaused: false,
+        }
+      : null,
+    drainingProcesses: new Set(),
+    termination: null,
+    activity: null,
+    ownerMigration: null,
   }
 }
 
@@ -81,6 +127,46 @@ describe('decideTerminalOpen', () => {
     expect(decideTerminalOpen(record, INPUT, true, '')).toEqual({ kind: 'reuse' })
   })
 
+  it('preserves explicit overrides when a same-cwd pane attach omits env', () => {
+    const record = makeRecord({
+      cwd: CWD_A,
+      live: true,
+      env: { T3CODE_PROJECT_ROOT: '/project' },
+    })
+
+    expect(decideTerminalOpen(record, INPUT, true, '')).toEqual({ kind: 'reuse' })
+    expect(record.env).toEqual({ T3CODE_PROJECT_ROOT: '/project' })
+  })
+
+  it('treats an explicit environment change as a launch-context change', () => {
+    const record = makeRecord({
+      cwd: CWD_A,
+      live: true,
+      env: { T3CODE_PROJECT_ROOT: '/old-project' },
+    })
+
+    expect(
+      decideTerminalOpen(
+        record,
+        { ...INPUT, env: { T3CODE_PROJECT_ROOT: '/new-project' } },
+        true,
+        '',
+      ),
+    ).toEqual({ kind: 'context-change' })
+  })
+
+  it('treats an explicit empty environment as clearing existing overrides', () => {
+    const record = makeRecord({
+      cwd: CWD_A,
+      live: false,
+      env: { T3CODE_PROJECT_ROOT: '/project' },
+    })
+
+    expect(decideTerminalOpen(record, { ...INPUT, env: {} }, true, '')).toEqual({
+      kind: 'context-change',
+    })
+  })
+
   it('reports context-change for a live shell in a different working path', () => {
     const record = makeRecord({ cwd: CWD_B, live: true })
     expect(decideTerminalOpen(record, INPUT, true, '')).toEqual({ kind: 'context-change' })
@@ -91,8 +177,16 @@ describe('decideTerminalOpen', () => {
     expect(decideTerminalOpen(record, INPUT, true, '')).toEqual({ kind: 'respawn' })
   })
 
-  it('respawns a dead shell even when the working path changed', () => {
+  it('reuses the same launch context while its shell spawn is still in flight', () => {
+    const current = makeRecord({ cwd: CWD_A, live: false, exitCode: null })
+
+    expect(decideTerminalOpen(current, INPUT, true, '')).toEqual({
+      kind: 'reuse-spawning',
+    })
+  })
+
+  it('reports context-change for a dead shell when the working path changed', () => {
     const record = makeRecord({ cwd: CWD_B, live: false })
-    expect(decideTerminalOpen(record, INPUT, true, '')).toEqual({ kind: 'respawn' })
+    expect(decideTerminalOpen(record, INPUT, true, '')).toEqual({ kind: 'context-change' })
   })
 })

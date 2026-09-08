@@ -1,5 +1,8 @@
 appId: com.openwaggle.app
 productName: OpenWaggle
+# Packaging rebuilds native dependencies once per target architecture. Always
+# compile patched node-pty sources instead of accepting its upstream prebuilds.
+buildDependenciesFromSource: true
 directories:
   buildResources: build
 publish:

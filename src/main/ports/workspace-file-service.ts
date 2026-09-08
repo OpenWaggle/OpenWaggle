@@ -58,6 +58,13 @@ export interface WorkspaceFileServiceShape {
     readonly path: string
     readonly editor: WorkspaceExternalEditorId
     readonly line?: number
+    readonly column?: number
+  }) => EffectType<void, WorkspaceFileError>
+  readonly openAbsoluteFile: (input: {
+    readonly path: string
+    readonly editor: WorkspaceExternalEditorId
+    readonly line?: number
+    readonly column?: number
   }) => EffectType<void, WorkspaceFileError>
   readonly createEntry: (
     input: WorkspaceEntryCreateInput,

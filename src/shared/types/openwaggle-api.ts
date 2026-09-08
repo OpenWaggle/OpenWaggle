@@ -61,6 +61,7 @@ import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
+import type { OpenWaggleBrowserPreviewApi } from './openwaggle-browser-preview-api'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleTerminalApi } from './openwaggle-terminal-api'
@@ -91,6 +92,7 @@ import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voic
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
+    OpenWaggleBrowserPreviewApi,
     OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
     OpenWaggleProjectConfigApi,
@@ -278,6 +280,7 @@ export interface OpenWaggleApi
 
   // Shell / App
   copyToClipboard(text: string): void
+  readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>

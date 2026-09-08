@@ -933,6 +933,12 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - When worktree creation completes, **Worktree launch progress** collapses its bordered steps to `Worktree created` while `Starting a task` remains active. When Pi agent activity begins, the active setup component becomes a durable **Worktree launch trace** rather than disappearing.
 - A **Worktree launch trace** is app-owned transcript activity, not an assistant message or **Agent phase**. It remains after reload and exposes the real retained setup output through a compact disclosure.
 - Optional setup activity produces an additional durable trace only when OpenWaggle actually performed that setup; absent operations leave no synthetic history.
+- A project owns zero or more **Project actions** and at most one **Setup action**.
+- A **Project action** owns zero or more **Project action bindings**; a project resolves them as one ordered stack.
+- A **Project action binding** may intentionally override another active binding, while a **Shortcut registry** entry remains conflict-free.
+- A **Checked-in action candidate** becomes a **Project action** only after explicit import; discovery never grants command-execution authority.
+- A **Setup action** belongs to one newly created **Session worktree** generation. Adoption may deliver that generation while its durable dispatch remains pending. Recovery never replays a claimed, accepted, or legacy generation.
+- A **Setup action** runs in a Session terminal before the first agent turn starts. Launch failure is reported in **Worktree launch progress** but does not block that turn.
 - A launch that uses **Work-locally fallback** or is cancelled leaves no `Worktree created` trace, because no successful worktree creation occurred.
 - A **Failed worktree launch** keeps the submitted user message visible and presents `Retry`, `Work locally`, `Cancel`, and `More details`. Retry and Work locally continue the retained turn exactly once; Cancel removes it and restores its exact pre-send draft.
 - A **Failed worktree launch** does not also restore the retained message into the composer, because representing the same intent as both a transcript turn and a draft invites a duplicate send.
@@ -1142,6 +1148,12 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 > **Dev:** "Should an agent hardcode the packaged docs path?"
 > **Domain expert:** "No — use the **Docs discovery capability** to resolve documentation topics to local paths."
 
+> **Dev:** "Should finding a setup command in `t3.json` run it during first send?"
+> **Domain expert:** "No. It is a **Checked-in action candidate** until the user imports it and chooses it as the **Setup action**."
+
+> **Dev:** "Should recovering an existing Session worktree run its Setup action again?"
+> **Domain expert:** "No. A **Setup action** belongs to first creation, so recovery only restores the existing worktree."
+
 > **Dev:** "Is docs discovery only for extensions?"
 > **Domain expert:** "No — it also belongs in the **Self-modifying agent context** so agents can inspect installed OpenWaggle contracts."
 
@@ -1204,6 +1216,10 @@ _Avoid_: project terminal, global terminal, workspace terminal
 One viewport inside the terminal panel showing exactly one Session terminal. Panes compose by splitting a tab's area, so several Session terminals of the same session can be visible at once.
 _Avoid_: terminal window, tab (a tab organizes panes; a pane shows one terminal)
 
+**Terminal panel location**:
+The bottom drawer or right-side panel that currently owns a Terminal tab's viewport layout. Moving a tab changes only its renderer location; it preserves the Session terminal id, PTY, Working path, output stream, and lifecycle owner. The two locations can be open together but never mount the same PTY twice.
+_Avoid_: terminal migration (runtime ownership does not change), duplicate terminal panel
+
 **Terminal tab**:
 The strip entry that owns one or more Terminal panes of the active session's terminals. Switching session swaps the whole strip to that session's tabs; the panel never mixes terminals from two sessions.
 _Avoid_: session (the tab is UI organization, not the domain object), terminal (the terminal is the shell process, not its strip entry)
@@ -1211,3 +1227,91 @@ _Avoid_: session (the tab is UI organization, not the domain object), terminal (
 **Terminal scrollback persistence**:
 The durable, capped per-terminal record of what a Session terminal displayed, kept by OpenWaggle so a terminal that was hidden, reloaded, or left running restores its visual state when viewed again. It is terminal state, not session conversation.
 _Avoid_: session history, transcript (those are conversation records), log (it is restored state, not an audit log)
+
+**Terminal shell environment**:
+A Session terminal's user-owned shell launch context, including the default shell, startup files, exported environment, locale, authentication sockets, display session, and terminal capabilities.
+_Avoid_: terminal configuration (ambiguous with Appearance and shortcut settings), safe child environment (the policy for non-interactive app subprocesses)
+
+**Terminal parity floor**:
+The complete terminal behaviour in T3 Code's latest stable Electron desktop plus terminal changes merged to its main branch at OpenWaggle's final pre-merge audit, across macOS, Windows, and Linux.
+_Avoid_: parity subset, parity checklist (a hand-picked subset is not parity)
+
+**Terminal transport adapter**:
+The implementation behind OpenWaggle's Terminal service port that owns PTY placement and output delivery. The shipped desktop adapter runs in Electron main; a future remote OpenWaggle product may supply another adapter without changing Session terminal semantics.
+_Avoid_: terminal backend (ambiguous with the PTY), remote terminal mode (not yet a product decision)
+
+**Terminal subscriber cursor**:
+The per-subscriber applied output position and acknowledgement required by any future remote or multi-subscriber Terminal transport adapter. Each subscriber has independent item and byte budgets and resumes from its own last applied sequence, so a slow subscriber cannot stall a Session terminal or another subscriber.
+_Avoid_: global remote ACK, shared client offset
+
+**Terminal startup input**:
+Keystrokes received after a Terminal pane is focused but before its shell is ready for interactive input, preserved as one acknowledged-and-retained ordered batch across viewport moves, renderer reloads, and shell restarts, then delivered exactly once after readiness.
+_Avoid_: pending input (an implementation detail), discarded startup keys
+
+**Terminal readiness integration**:
+A shell-specific, nonce-bearing prompt-end signal that lets OpenWaggle release Terminal startup input only after the interactive prompt is ready. Unknown shells keep input visibly queued until the user chooses **Send now**.
+_Avoid_: first-output readiness, prompt-text matching, quiet-time readiness
+
+**Terminal performance budget**:
+The release-blocking latency, responsiveness, memory, and idle-work limits for Session terminals, measured independently from time spent in user shell startup files or commands.
+_Avoid_: benchmark target, performance aspiration (the budget is a shipping gate)
+
+**Draft terminal migration**:
+The atomic ownership transition that moves a draft project's terminal group into its newly created Session without restarting its PTYs or losing layout and scrollback. Inherited panes remain in their original checkout until the user explicitly restarts them in the Session worktree.
+_Avoid_: process migration (the running process does not change cwd), silent terminal restart
+
+**Terminal close protection**:
+The process-aware close rule that immediately closes a dead or confidently idle Terminal, but requires one destructive confirmation when an affected Terminal has active or uncertain work.
+_Avoid_: blanket close confirmation, optimistic UI close
+
+**Terminal restoration**:
+Reconstructing a Terminal pane from capped persisted output. A renderer reload attached to the same live PTY is seamless; a cold app restart labels replay as **Previous terminal session**, neutralizes historical input and TUI modes, and then starts a clean shell.
+_Avoid_: terminal resurrection (a process does not survive app exit), unmarked cold replay
+
+**Browser preview**:
+An HTTP(S)-only native Electron view owned by a Session and controlled by OpenWaggle chrome. The same retained view can be presented in the right-side panel or a floating mini-player over that Session's chat; presentation never changes its owner, page, or agent run. It has bounded tabs, navigation controls, denied permission/download/popup authority, and an explicit handoff to the system browser. Hiding its Session detaches the view without ending its page or background agent run. The user's Web link destination decides whether recognized terminal and localhost links open here or in the system browser.
+_Avoid_: webview, embedded browser permission, terminal port viewer
+
+**Browser preview owner**:
+The Session identity whose Browser preview tabs, current tab, profile choices, artifacts, and agent actions form one authority boundary. Electron main binds that identity to a trusted renderer before it creates a native view; a renderer-provided owner key alone proves nothing.
+_Avoid_: panel owner (the panel may be unmounted), renderer owner (the renderer is an authenticated host, not the domain owner)
+
+**Current Browser preview**:
+The one tab selected for a Browser preview owner. User selection, opening a tab, or an explicit agent target updates it; an operation without a `tabId` resolves to it.
+_Avoid_: active browser (ambiguous with the system browser), visible tab (the Session may be hidden)
+
+**Browser profile**:
+The immutable Electron storage identity selected for one Browser preview tab's native-view lifetime. Default and named profiles persist; Incognito is in memory. Changing profiles replaces the native view rather than mutating its partition.
+_Avoid_: browser account (one profile may contain several site accounts), imported browser (import copies compatible cookies into a profile)
+
+**Browser preview open generation**:
+A main-issued, monotonic request generation paired with a unique request id. A background open succeeds only after the authenticated renderer acknowledges that exact request and Electron main observes the matching native view; cancellation or supersession invalidates late work.
+_Avoid_: open event (delivery is not completion), tab generation (the generation belongs to one materialization request)
+
+**Collaborative Browser preview control**:
+The serialized, bounded CDP path shared by user controls and approved `preview_*` agent tools. Expected synthetic events are distinguished from real input; unmatched human input interrupts the agent, and document changes invalidate stale locators and mixed snapshots.
+_Avoid_: headless browser automation (the agent works in the user's Session tab), agent-owned browser (the user retains control)
+
+**Browser preview artifact**:
+A bounded screenshot, element-context capture, or recording produced from a Browser preview and stored locally with Session and tab provenance. Artifacts are evidence for review or composer context, not authority to keep controlling a page.
+_Avoid_: attachment (an artifact becomes an attachment only when the user adds it to the composer), browser history
+
+**Web link destination**:
+The persisted user preference that routes recognized HTTP(S) links to the system browser or a Browser preview. It changes presentation, not URL validation or authority.
+_Avoid_: link trust setting, browser permission
+
+**Project action**:
+A named, project-scoped shell command that the user saves for repeated launch from OpenWaggle.
+_Avoid_: task (an agent run), script (the command need not be a script file), terminal command (too broad)
+
+**Project action binding**:
+An ordered, optionally conditional keyboard mapping that launches a Project action. Multiple bindings may overlap deliberately; the last active matching binding owns the chord.
+_Avoid_: Shortcut registry entry (that registry is conflict-free), action shortcut (does not name ordering or conditions)
+
+**Setup action**:
+The sole Project action, if any, selected for one at-most-once dispatch per Session worktree generation. First creation, interrupted-creation adoption, and explicit missing-tree recreation persist pending intent. Main commits a claim before terminal handoff and records acceptance afterward. A claim left by an app crash is indeterminate and never replays automatically because the command may already have reached the shell.
+_Avoid_: initialization hook (it is a visible user command), setup script (the command need not be a script file)
+
+**Checked-in action candidate**:
+An untrusted Project action definition discovered in the project's root `t3.json` but not saved or runnable by OpenWaggle until the user imports it.
+_Avoid_: project action (it is only a candidate), auto-imported script

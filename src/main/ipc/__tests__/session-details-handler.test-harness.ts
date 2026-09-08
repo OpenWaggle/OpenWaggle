@@ -25,6 +25,7 @@ const mocks = vi.hoisted(
     unpinSessionMock: vi.fn(async () => undefined),
     movePinnedSessionMock: vi.fn(async () => undefined),
     cancelSessionRunsMock: vi.fn(),
+    waitForSessionRunsMock: vi.fn(),
     clearAgentPhaseMock: vi.fn(),
     clearStreamBufferMock: vi.fn(),
     emitRunCompletedMock: vi.fn(),
@@ -45,6 +46,7 @@ export const {
   archiveSessionMock,
   setAuthorizationModeMock,
   cancelSessionRunsMock,
+  waitForSessionRunsMock,
   clearAgentPhaseMock,
   clearStreamBufferMock,
   emitRunCompletedMock,
@@ -68,8 +70,10 @@ vi.mock('../../agent/session-cleanup', () => ({
   cleanupSessionRun: cleanupSessionRunMock,
 }))
 
-vi.mock('../active-agent-runs', () => ({
+vi.mock('../active-agent-runs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../active-agent-runs')>()),
   cancelSessionRuns: cancelSessionRunsMock,
+  waitForSessionRuns: waitForSessionRunsMock,
 }))
 
 vi.mock('../../utils/stream-bridge', () => ({
@@ -89,6 +93,7 @@ export function resetSessionDetailsHandlerMocks() {
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
+  waitForSessionRunsMock.mockResolvedValue(true)
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

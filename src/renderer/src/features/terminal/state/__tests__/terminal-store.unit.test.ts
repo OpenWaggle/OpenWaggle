@@ -1,25 +1,11 @@
 import { TERMINAL } from '@shared/constants/resource-limits'
-import { SessionId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
-import { runtimeKeyOf, terminalOwnerContext, terminalTabTitle } from '../../lib/terminal-owner'
-import { useTerminalStore } from '../terminal-store'
-import { TERMINAL_PANEL_DEFAULT_HEIGHT } from '../terminal-store-persistence'
-
-const OWNER = 'owner-1'
-
-function resetStore() {
-  useTerminalStore.setState({
-    groups: {},
-    panelHeight: TERMINAL_PANEL_DEFAULT_HEIGHT,
-    activity: {},
-    portPreviews: {},
-    exits: {},
-  })
-}
-
-function store() {
-  return useTerminalStore.getState()
-}
+import { runtimeKeyOf } from '../../lib/terminal-owner'
+import {
+  TERMINAL_STORE_OWNER as OWNER,
+  resetTerminalStore as resetStore,
+  terminalStore as store,
+} from './terminal-store-test-harness'
 
 function seedSplitTab() {
   const firstId = store().createTerminal(OWNER, '/repo')
@@ -41,6 +27,7 @@ describe('terminal store layout', () => {
     expect(group?.tabs).toHaveLength(1)
     expect(group?.tabs[0]?.panes).toEqual([{ terminalId, cwd: '/repo' }])
     expect(group?.activeTabId).toBe(group?.tabs[0]?.id)
+    expect(group?.tabs[0]?.activePaneId).toBe(terminalId)
   })
 
   it('createTerminal refuses an empty working path', () => {
@@ -61,6 +48,7 @@ describe('terminal store layout', () => {
     expect(splitId).toEqual(expect.any(String))
     const panes = store().groups[OWNER]?.tabs[0]?.panes
     expect(panes?.map((pane) => pane.terminalId)).toEqual([firstId, splitId])
+    expect(store().groups[OWNER]?.tabs[0]?.activePaneId).toBe(splitId)
   })
 
   it('splitTerminal refuses beyond the pane cap or for unknown tabs', () => {
@@ -111,6 +99,32 @@ describe('terminal store layout', () => {
     expect(group?.activeTabId).toBeNull()
   })
 
+  it('remembers an active pane per tab and chooses a neighbor after close', () => {
+    resetStore()
+    const { firstId, secondId } = seedSplitTab()
+    const firstTabId = store().groups[OWNER]?.activeTabId
+    if (firstTabId === null || firstTabId === undefined) throw new Error('Expected first tab')
+    store().setActivePane(OWNER, firstTabId, firstId)
+    const thirdId = store().createTerminal(OWNER, '/repo')
+    const secondTabId = store().groups[OWNER]?.activeTabId
+    if (thirdId === null || secondTabId === null || secondTabId === undefined) {
+      throw new Error('Expected second tab')
+    }
+
+    store().setActiveTab(OWNER, firstTabId)
+    expect(store().groups[OWNER]?.tabs.find((tab) => tab.id === firstTabId)?.activePaneId).toBe(
+      firstId,
+    )
+
+    store().closePane(OWNER, firstId)
+    expect(store().groups[OWNER]?.tabs.find((tab) => tab.id === firstTabId)?.activePaneId).toBe(
+      secondId,
+    )
+    expect(store().groups[OWNER]?.tabs.find((tab) => tab.id === secondTabId)?.activePaneId).toBe(
+      thirdId,
+    )
+  })
+
   it('closeTab returns every closed terminal id and clears their runtime keys', () => {
     resetStore()
     const firstId = store().createTerminal(OWNER, '/repo')
@@ -120,7 +134,10 @@ describe('terminal store layout', () => {
     const survivor = store().createTerminal(OWNER, '/repo')
     if (secondId === null || survivor === null) throw new Error('Expected survivor terminal id')
     store().applyRuntimeEvent(OWNER, firstId, { type: 'activity', processName: 'vitest' })
-    store().applyRuntimeEvent(OWNER, firstId, { type: 'ports', ports: [3000] })
+    store().applyRuntimeEvent(OWNER, firstId, {
+      type: 'port-previews',
+      previews: [{ host: 'localhost', port: 3000, url: 'http://localhost:3000/' }],
+    })
     store().applyRuntimeEvent(OWNER, firstId, { type: 'exited', exitCode: 1 })
 
     const closedIds = store().closeTab(OWNER, tabId)
@@ -138,6 +155,51 @@ describe('terminal store layout', () => {
     resetStore()
 
     expect(store().closeTab(OWNER, 'missing-tab')).toEqual([])
+  })
+
+  it('moves one live tab between drawer and side-panel layouts without duplicating panes', () => {
+    resetStore()
+    const firstTerminalId = store().createTerminal(OWNER, '/repo')
+    const firstTabId = store().groups[OWNER]?.activeTabId
+    const secondTerminalId = store().createTerminal(OWNER, '/repo')
+    if (
+      firstTerminalId === null ||
+      secondTerminalId === null ||
+      firstTabId === null ||
+      firstTabId === undefined
+    ) {
+      throw new Error('Expected two terminal tabs')
+    }
+
+    store().moveTab(OWNER, 'side-panel:owner-1', firstTabId)
+
+    expect(store().groups[OWNER]?.tabs.flatMap((tab) => tab.panes)).toEqual([
+      { terminalId: secondTerminalId, cwd: '/repo' },
+    ])
+    expect(store().groups['side-panel:owner-1']).toMatchObject({
+      activeTabId: firstTabId,
+      panelOpen: true,
+    })
+    expect(store().groups['side-panel:owner-1']?.tabs[0]?.panes).toEqual([
+      { terminalId: firstTerminalId, cwd: '/repo' },
+    ])
+  })
+
+  it('returns every side-panel tab to the drawer in one layout update', () => {
+    resetStore()
+    const sideOwner = 'side-panel:owner-1'
+    store().createTerminal(sideOwner, '/repo')
+    store().createTerminal(sideOwner, '/repo')
+
+    store().moveAllTabs(sideOwner, OWNER)
+
+    expect(store().groups[sideOwner]).toMatchObject({
+      activeTabId: null,
+      panelOpen: false,
+      tabs: [],
+    })
+    expect(store().groups[OWNER]).toMatchObject({ panelOpen: true })
+    expect(store().groups[OWNER]?.tabs).toHaveLength(2)
   })
 
   it('renameTab trims names, rejects blanks, and null clears the custom name', () => {
@@ -169,146 +231,25 @@ describe('terminal store layout', () => {
   it('setPanelHeight clamps to the 120..720 band and rounds', () => {
     resetStore()
 
-    store().setPanelHeight(10)
-    expect(store().panelHeight).toBe(120)
+    store().setPanelHeight(OWNER, 10)
+    expect(store().groups[OWNER]?.panelHeight).toBe(120)
 
-    store().setPanelHeight(9999)
-    expect(store().panelHeight).toBe(720)
+    store().setPanelHeight(OWNER, 9999)
+    expect(store().groups[OWNER]?.panelHeight).toBe(720)
 
-    store().setPanelHeight(300.6)
-    expect(store().panelHeight).toBe(301)
+    store().setPanelHeight(OWNER, 300.6)
+    expect(store().groups[OWNER]?.panelHeight).toBe(301)
   })
-})
 
-describe('terminal store runtime events', () => {
-  it('applyRuntimeEvent records activity, ports, and exits under the runtime key', () => {
+  it('keeps panel visibility and height isolated per owner', () => {
     resetStore()
 
-    store().applyRuntimeEvent(OWNER, 'term-1', { type: 'activity', processName: 'vite' })
-    store().applyRuntimeEvent(OWNER, 'term-1', { type: 'ports', ports: [5173, 3000] })
-    store().applyRuntimeEvent(OWNER, 'term-1', { type: 'exited', exitCode: 2 })
-    // Other owners must stay isolated.
-    store().applyRuntimeEvent('owner-2', 'term-1', { type: 'activity', processName: 'x' })
+    store().setPanelOpen(OWNER, true)
+    store().setPanelHeight(OWNER, 320)
+    store().setPanelOpen('owner-2', false)
+    store().setPanelHeight('owner-2', 480)
 
-    const state = store()
-    const runtime = runtimeKeyOf(OWNER, 'term-1')
-    expect(state.activity[runtime]).toBe('vite')
-    expect(state.portPreviews[runtime]).toEqual([5173, 3000])
-    expect(state.exits[runtime]).toBe(2)
-    expect(state.activity[runtimeKeyOf('owner-2', 'term-1')]).toBe('x')
-  })
-
-  it('applyRuntimeEvent ignores output and cleared events', () => {
-    resetStore()
-
-    store().applyRuntimeEvent(OWNER, 'term-1', {
-      type: 'output',
-      data: 'hello',
-      startOffset: 0,
-      endOffset: 5,
-    })
-    store().applyRuntimeEvent(OWNER, 'term-1', { type: 'cleared' })
-
-    const state = store()
-    expect(state.activity).toEqual({})
-    expect(state.portPreviews).toEqual({})
-    expect(state.exits).toEqual({})
-  })
-
-  it('clearExit removes only that terminal exit entry', () => {
-    resetStore()
-    store().applyRuntimeEvent(OWNER, 'term-1', { type: 'exited', exitCode: 1 })
-    store().applyRuntimeEvent(OWNER, 'term-2', { type: 'exited', exitCode: 2 })
-
-    store().clearExit(OWNER, 'term-1')
-
-    const state = store()
-    expect(state.exits[runtimeKeyOf(OWNER, 'term-1')]).toBeUndefined()
-    expect(state.exits[runtimeKeyOf(OWNER, 'term-2')]).toBe(2)
-  })
-})
-
-describe('terminalTabTitle', () => {
-  const tab = (panes: string[], customName: string | null) => ({
-    id: 'tab-1',
-    panes: panes.map((terminalId) => ({ terminalId, cwd: '/repo' })),
-    splitDirection: 'side-by-side' as const,
-    customName,
-  })
-
-  it('prefers the custom name over everything', () => {
-    const title = terminalTabTitle(OWNER, tab(['t1'], 'build'), 0, {
-      [runtimeKeyOf(OWNER, 't1')]: 'vite',
-    })
-
-    expect(title).toBe('build')
-  })
-
-  it('falls back to the primary pane foreground process name', () => {
-    expect(
-      terminalTabTitle(OWNER, tab(['t1'], null), 0, {
-        [runtimeKeyOf(OWNER, 't1')]: 'vite',
-      }),
-    ).toBe('vite')
-  })
-
-  it('ignores blank activity names and labels by index otherwise', () => {
-    expect(terminalTabTitle(OWNER, tab(['t1'], null), 0, { [runtimeKeyOf(OWNER, 't1')]: '' })).toBe(
-      'Terminal 1',
-    )
-    expect(terminalTabTitle(OWNER, tab(['t1'], null), 2, {})).toBe('Terminal 3')
-  })
-})
-
-describe('runtimeKeyOf', () => {
-  it('joins owner and terminal id with the canonical separator', () => {
-    expect(runtimeKeyOf('session-1', 'term-9')).toBe('session-1::term-9')
-  })
-})
-
-describe('terminalOwnerContext', () => {
-  it('binds a session to its id and resolves local mode to the opened checkout', () => {
-    const context = terminalOwnerContext(
-      { id: SessionId('session-1'), environmentMode: 'local', projectPath: '/repo' },
-      '/opened',
-    )
-
-    expect(context).toEqual({ ownerKey: 'session-1', defaultCwd: '/repo' })
-  })
-
-  it('resolves worktree mode to the Session worktree path', () => {
-    const context = terminalOwnerContext(
-      {
-        id: SessionId('session-2'),
-        environmentMode: 'worktree',
-        worktreePath: '/repo/.worktrees/session-2',
-        projectPath: '/repo',
-      },
-      '/opened',
-    )
-
-    expect(context).toEqual({
-      ownerKey: 'session-2',
-      defaultCwd: '/repo/.worktrees/session-2',
-    })
-  })
-
-  it('falls back to the opened project when the session has no project path', () => {
-    const context = terminalOwnerContext(
-      { id: SessionId('session-3'), environmentMode: 'local', projectPath: null },
-      '/opened',
-    )
-
-    expect(context).toEqual({ ownerKey: 'session-3', defaultCwd: '/opened' })
-  })
-
-  it('binds an unsent draft to the draft project path', () => {
-    const context = terminalOwnerContext(null, '/tmp/project-x')
-
-    expect(context).toEqual({ ownerKey: 'draft:/tmp/project-x', defaultCwd: '/tmp/project-x' })
-  })
-
-  it('has no owner without a project', () => {
-    expect(terminalOwnerContext(null, null)).toEqual({ ownerKey: '', defaultCwd: null })
+    expect(store().groups[OWNER]).toMatchObject({ panelOpen: true, panelHeight: 320 })
+    expect(store().groups['owner-2']).toMatchObject({ panelOpen: false, panelHeight: 480 })
   })
 })

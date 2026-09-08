@@ -26,28 +26,6 @@ function platformModifier() {
   return process.platform === 'darwin' ? ('Meta' as const) : ('Control' as const)
 }
 
-/**
- * xterm loads its WebGL renderer whenever a GPU (or SwiftShader) context is
- * available, which draws glyphs onto a canvas and leaves no output text in the
- * DOM. Returning null from canvas getContext makes the WebGL addon throw while
- * loading, which the pane's load path already treats as "fall back to the DOM
- * renderer" — so terminal output stays readable in `.xterm-rows` for
- * assertions without touching the production code.
- */
-async function forceDomTerminalRenderer(page: Page) {
-  await page.addInitScript(() => {
-    const prototype = HTMLCanvasElement.prototype
-    const nativeGetContext = prototype.getContext
-    const webglContextIds = new Set(['webgl2', 'webgl', 'experimental-webgl'])
-    prototype.getContext = function (contextId: string, ...options: unknown[]) {
-      if (webglContextIds.has(contextId)) return null
-      const getContext = nativeGetContext as (...args: unknown[]) => RenderingContext | null
-      return getContext.call(this, contextId, ...options)
-    } as typeof prototype.getContext
-  })
-  await page.reload()
-}
-
 function terminalPanel(page: Page): Locator {
   return page.getByTestId('workspace-terminal')
 }
@@ -81,6 +59,17 @@ async function runTerminalCommand(page: Page, pane: Locator, command: string) {
   await page.keyboard.press('Enter')
 }
 
+async function expectShellWorkingPath(page: Page, pane: Locator, expectedPath: string) {
+  // Split/encode the marker so terminal command echo cannot satisfy the assertion.
+  const command = process.platform === 'win32'
+    ? "Write-Output ('_CWD' + '_' + (Get-Location).Path + '_END_')"
+    : `printf '\\137CWD\\137%s\\137END\\137\\n' "$(pwd -P)"`
+  await runTerminalCommand(page, pane, command)
+  await expect(paneRows(pane)).toContainText(`_CWD_${await fs.realpath(expectedPath)}_END_`, {
+    timeout: SHELL_OUTPUT_TIMEOUT_MS,
+  })
+}
+
 interface SeededTerminalSession {
   readonly app: OpenWaggleApp
   readonly page: Page
@@ -89,8 +78,8 @@ interface SeededTerminalSession {
 }
 
 /**
- * Seed one session in a fresh project, restart the app over it, force the DOM
- * terminal renderer, and open the seeded thread. With `worktreeLabel`, the
+ * Seed one session in a fresh project, restart the app over it, and open the
+ * seeded thread. With `worktreeLabel`, the
  * session is seeded in worktree mode with a real directory under
  * `.openwaggle/worktrees/` so the terminal binds to it without a live agent run.
  */
@@ -125,7 +114,6 @@ async function launchSessionWithTerminalFixture(
     })
     await app.restart()
     const page = app.window()
-    await forceDomTerminalRenderer(page)
     const mainWindow = app.mainWindow()
     await mainWindow.waitUntilReady()
     await mainWindow.openThread(SESSION_TITLE)
@@ -150,17 +138,11 @@ test('a draft terminal runs in the draft project path', async () => {
     ).toBeVisible()
 
     await openTerminalPanel(page)
-    await expect(terminalPanel(page).getByText(projectPath)).toBeVisible()
-
-    await page.locator('[aria-label="New terminal"]').click()
     const pane = terminalPane(page)
     await expect(pane).toHaveCount(1)
     await expectShellAttached(pane)
 
-    await runTerminalCommand(page, pane, 'pwd')
-    await expect(paneRows(pane)).toContainText(DRAFT_PROJECT_LABEL, {
-      timeout: SHELL_OUTPUT_TIMEOUT_MS,
-    })
+    await expectShellWorkingPath(page, pane, projectPath)
   } finally {
     await app.cleanup()
   }
@@ -182,7 +164,7 @@ test('terminal output survives hiding and re-showing the panel', async () => {
     await runTerminalCommand(page, pane, `echo ${HIDE_MARKER}`)
     await expect(paneRows(pane)).toContainText(HIDE_MARKER, { timeout: SHELL_OUTPUT_TIMEOUT_MS })
 
-    await terminalPanel(page).locator('[title="Close panel"]').click()
+    await terminalPanel(page).getByRole('button', { name: 'Close terminal panel', exact: true }).click()
     await expect(terminalPane(page)).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Open terminal' }).click()
@@ -239,26 +221,14 @@ test('reloading the window keeps the shell and replays its scrollback on re-atta
     expect(snapshot.running).toBe(true)
     expect(snapshot.history).toContain(RELOAD_MARKER)
 
-    // The persisted tab layout rehydrates, so opening the panel remounts the
-    // pane and the replay must be visible in the DOM renderer, not just in the
-    // service snapshot.
-    await page.keyboard.press('Meta+j')
-    await page.evaluate(() => {
-      document.querySelector('[data-terminal-pane]')?.dispatchEvent(
-        new MouseEvent('mousedown', { bubbles: true }),
-      )
+    // The persisted open panel and tab layout rehydrate, so the restored
+    // pane and the replay must be visible in xterm, not just in the service
+    // snapshot.
+    await expect(terminalPanel(page)).toBeVisible()
+    await expect(pane).toHaveAttribute('data-terminal-pane', terminalId ?? '')
+    await expect(paneRows(pane)).toContainText(RELOAD_MARKER, {
+      timeout: SHELL_OUTPUT_TIMEOUT_MS,
     })
-    await expect
-      .poll(
-        async () => {
-          return page.evaluate(() => {
-            const rows = document.querySelector('[data-terminal-pane] .xterm-rows')
-            return rows ? (rows.textContent ?? '') : ''
-          })
-        },
-        { timeout: 10_000 },
-      )
-      .toContain(RELOAD_MARKER)
   } finally {
     await app.cleanup()
   }
@@ -273,15 +243,14 @@ test('new terminal tabs and the split action create separate panes', async () =>
   try {
     await openTerminalPanel(page)
     const newTerminal = page.locator('[aria-label="New terminal"]')
-    await newTerminal.click()
+    await expect(terminalPanel(page).getByRole('tab')).toHaveCount(1)
     await newTerminal.click()
 
-    // One close button per tab; pane close buttons only exist once a tab is split.
-    await expect(terminalPanel(page).locator('[aria-label^="Close "]')).toHaveCount(2)
+    await expect(terminalPanel(page).getByRole('tab')).toHaveCount(2)
     // Only the active tab's panes render into the grid.
     await expect(terminalPane(page)).toHaveCount(1)
 
-    await page.locator('[aria-label="Split terminal"]').click()
+    await page.locator('[aria-label="Split terminal side by side"]').click()
     await expect(terminalPane(page)).toHaveCount(2)
     await expect(page.locator('[data-terminal-pane][data-focused="true"]')).toHaveCount(1)
     const [firstPane, secondPane] = await terminalPane(page).all()
@@ -318,19 +287,11 @@ test('a worktree-mode session terminal runs inside the session worktree', async 
     )
 
     await openTerminalPanel(page)
-    // The panel names the session's Working path before any terminal exists.
-    await expect(terminalPanel(page).getByText(worktreePath)).toBeVisible()
-
-    await page.locator('[aria-label="New terminal"]').click()
     const pane = terminalPane(page)
     await expect(pane).toHaveCount(1)
     await expectShellAttached(pane)
 
-    await runTerminalCommand(page, pane, 'pwd')
-    await expect(paneRows(pane)).toContainText(
-      `${WORKTREE_PROJECT_LABEL}/.openwaggle/worktrees/${WORKTREE_LABEL}`,
-      { timeout: SHELL_OUTPUT_TIMEOUT_MS },
-    )
+    await expectShellWorkingPath(page, pane, worktreePath)
   } finally {
     await app.cleanup()
   }

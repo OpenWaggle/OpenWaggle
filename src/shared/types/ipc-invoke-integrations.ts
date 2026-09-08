@@ -162,6 +162,10 @@ export interface IpcIntegrationInvokeChannelMap
     args: [message: string, detail?: string]
     return: boolean
   }
+  'clipboard:read-text': {
+    args: []
+    return: string
+  }
   'app:open-logs-dir': {
     args: []
     return: undefined

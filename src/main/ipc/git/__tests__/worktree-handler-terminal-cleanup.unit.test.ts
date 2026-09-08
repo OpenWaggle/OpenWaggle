@@ -39,20 +39,56 @@ vi.mock('../status-cache', () => ({
 }))
 
 const closeAllUnderPathCalls: Array<readonly [string, boolean]> = []
+const operationOrder: string[] = []
+const mutationScopes: unknown[] = []
+let closeAllUnderPathFailure: Error | null = null
+let historyCleanupError: Error | null = null
 
 const RecordingTerminalServiceLayer = Layer.succeed(
   TerminalService,
   TerminalService.of({
-    open: () => EffectModule.succeed({ history: '', outputBytes: 0, running: false }),
-    write: () => EffectModule.void,
+    getActivitySnapshot: () =>
+      EffectModule.succeed({ revision: 0, summaries: [], truncated: false }),
+    open: () =>
+      EffectModule.succeed({
+        history: '',
+        outputBytes: 0,
+        outputGeneration: 0,
+        readiness: null,
+        running: false,
+        processName: null,
+        ports: [],
+        projectActionPending: false,
+      }),
+    write: () => EffectModule.succeed({ status: 'written', acceptedBytes: 0 }),
+    sendInputNow: () => EffectModule.succeed({ status: 'already-ready', releasedBytes: 0 }),
+    acknowledgeOutput: () => EffectModule.void,
+    migrateOwner: () => EffectModule.succeed({ terminalIds: [] }),
     resize: () => EffectModule.void,
     clear: () => EffectModule.void,
-    restart: () => EffectModule.succeed({ history: '', outputBytes: 0, running: false }),
+    restart: () =>
+      EffectModule.succeed({
+        history: '',
+        outputBytes: 0,
+        outputGeneration: 0,
+        readiness: null,
+        running: false,
+        processName: null,
+        ports: [],
+        projectActionPending: false,
+      }),
+    assessClose: () => EffectModule.succeed({ disposition: 'safe', reason: 'dead' }),
     close: () => EffectModule.void,
     closeAllForOwner: () => EffectModule.void,
     closeAllUnderPath: (directoryPath, deleteHistory) => {
       closeAllUnderPathCalls.push([directoryPath, deleteHistory])
-      return EffectModule.void
+      operationOrder.push(`terminal:${deleteHistory ? 'delete' : 'stop'}`)
+      const failure = deleteHistory ? historyCleanupError : closeAllUnderPathFailure
+      return failure === null ? EffectModule.void : EffectModule.fail(failure)
+    },
+    runWithMutationFence: (scope, operation) => {
+      mutationScopes.push(scope)
+      return operation
     },
     attachSurface: () => EffectModule.void,
     detachTerminal: () => EffectModule.void,
@@ -90,28 +126,75 @@ describe('git:worktrees:remove terminal cleanup', () => {
     handlers.clear()
     mocks.statusInvalidations.length = 0
     closeAllUnderPathCalls.length = 0
+    operationOrder.length = 0
+    mutationScopes.length = 0
+    closeAllUnderPathFailure = null
+    historyCleanupError = null
     mocks.removeGitWorktree.mockReset()
+    mocks.removeGitWorktree.mockImplementation(async () => {
+      operationOrder.push('git')
+      return REMOVE_SUCCESS
+    })
   })
 
-  it('closes terminals under the removed path with history deletion on success', async () => {
-    mocks.removeGitWorktree.mockResolvedValue(REMOVE_SUCCESS)
+  it('stops terminals before Git and deletes retained history only after success', async () => {
     registerGitWorktreeHandlers()
 
     const result = await invokeRemove({ path: WORKTREE_PATH })
 
     expect(result).toEqual(REMOVE_SUCCESS)
-    expect(closeAllUnderPathCalls).toEqual([[WORKTREE_PATH, true]])
+    expect(closeAllUnderPathCalls).toEqual([
+      [WORKTREE_PATH, false],
+      [WORKTREE_PATH, true],
+    ])
+    expect(operationOrder).toEqual(['terminal:stop', 'git', 'terminal:delete'])
+    expect(mutationScopes).toEqual([{ kind: 'path', directoryPath: WORKTREE_PATH }])
     expect(mocks.statusInvalidations).toContain(WORKTREE_PATH)
   })
 
-  it('leaves terminals and caches alone when the worktree removal fails', async () => {
-    mocks.removeGitWorktree.mockResolvedValue(REMOVE_FAILURE)
+  it('stops terminals but retains history when Git refuses the removal', async () => {
+    mocks.removeGitWorktree.mockImplementation(async () => {
+      operationOrder.push('git')
+      return REMOVE_FAILURE
+    })
     registerGitWorktreeHandlers()
 
     const result = await invokeRemove({ path: WORKTREE_PATH })
 
     expect(result).toEqual(REMOVE_FAILURE)
+    expect(closeAllUnderPathCalls).toEqual([[WORKTREE_PATH, false]])
+    expect(operationOrder).toEqual(['terminal:stop', 'git'])
+    expect(mocks.statusInvalidations).toEqual([])
+  })
+
+  it('does not call Git when terminal shutdown fails', async () => {
+    closeAllUnderPathFailure = new Error('terminal shutdown failed')
+    registerGitWorktreeHandlers()
+
+    await expect(invokeRemove({ path: WORKTREE_PATH })).rejects.toThrow('terminal shutdown failed')
+
+    expect(mocks.removeGitWorktree).not.toHaveBeenCalled()
+    expect(operationOrder).toEqual(['terminal:stop'])
+    expect(mocks.statusInvalidations).toEqual([])
+  })
+
+  it('returns Git success and invalidates caches when deferred history cleanup fails', async () => {
+    historyCleanupError = new Error('history cleanup failed')
+    registerGitWorktreeHandlers()
+
+    await expect(invokeRemove({ path: WORKTREE_PATH })).resolves.toEqual(REMOVE_SUCCESS)
+
+    expect(operationOrder).toEqual(['terminal:stop', 'git', 'terminal:delete'])
+    expect(mocks.statusInvalidations).toEqual([WORKTREE_PATH, PROJECT_PATH])
+  })
+
+  it('rejects relative paths before stopping terminals or mutating Git', async () => {
+    registerGitWorktreeHandlers()
+
+    await expect(invokeRemove({ path: '.worktrees/session-1' })).rejects.toThrow()
+
     expect(closeAllUnderPathCalls).toEqual([])
+    expect(mocks.removeGitWorktree).not.toHaveBeenCalled()
     expect(mocks.statusInvalidations).toEqual([])
   })
 })

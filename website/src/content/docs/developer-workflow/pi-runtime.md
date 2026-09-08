@@ -1,7 +1,7 @@
 ---
 title: "Pi Runtime"
 description: "How OpenWaggle uses Pi as the native coding-agent runtime."
-order: 3
+order: 4
 section: "Developer Workflow"
 ---
 

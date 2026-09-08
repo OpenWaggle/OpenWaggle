@@ -20,6 +20,15 @@ const OSC_MARKER_CODE = 0x5d
 const DCS_MARKER_CODE = 0x50
 const CSI_FINAL_MIN = 0x40
 const CSI_FINAL_MAX = 0x7e
+const ESC_INTERMEDIATE_MIN = 0x20
+const ESC_INTERMEDIATE_MAX = 0x2f
+const ESC_FINAL_MIN = 0x30
+const ESC_FINAL_MAX = 0x7e
+const HORIZONTAL_TAB_CODE = 0x09
+const LINE_FEED_CODE = 0x0a
+const CARRIAGE_RETURN_CODE = 0x0d
+const DELETE_CODE = 0x7f
+const C1_CONTROL_MAX = 0x9f
 const ESC_BODY_OFFSET = 2
 const ESC_CODE_LENGTH = 1
 const ST_LENGTH = 2
@@ -32,16 +41,34 @@ const ST_LENGTH = 2
 const MAX_PENDING_TAIL = 4_096
 
 const ESC = String.fromCharCode(ESC_CODE)
-const ST = `${ESC}\\`
 
 export interface TerminalHistorySanitizer {
   /** Sanitize one output chunk; carries incomplete sequence tails internally. */
   feed(chunk: string): string
+  /**
+   * Raw prefix of an escape sequence already counted by the live output
+   * stream, but not yet safe to persist. Hot replacement surfaces replay it
+   * so the next live chunk can complete the sequence instead of starting in
+   * its middle.
+   */
+  pendingRawTail(): string
 }
 
 /** One-shot scrub for text known to contain no split sequences (tests, replay reads). */
 export function stripTerminalQuerySequences(text: string) {
-  return stripQuerySequences(text, -1)
+  const parts = splitAtIncompleteTail(text)
+  return stripQuerySequences(parts.complete) + parts.incomplete
+}
+
+/**
+ * Scrub persisted output before a dead PTY is replayed into a fresh xterm.
+ * Live terminal output still carries display modes to the active emulator;
+ * cold replay drops modes that could leave the new prompt in alternate-screen,
+ * mouse, paste, keyboard-protocol, insert, keypad, or reset state.
+ */
+export function stripTerminalReplaySequences(text: string) {
+  const parts = splitAtIncompleteTail(text)
+  return stripUnsafeReplayControlCharacters(stripUnsafeReplaySequences(parts.complete))
 }
 
 export function createTerminalHistorySanitizer() {
@@ -51,56 +78,31 @@ export function createTerminalHistorySanitizer() {
     const text = tail + chunk
     tail = ''
     const parts = splitAtIncompleteTail(text)
-    const sanitized = stripQuerySequences(parts.complete, parts.incompleteStart)
+    const sanitized = stripQuerySequences(parts.complete)
     if (parts.incomplete.length > 0 && parts.incomplete.length <= MAX_PENDING_TAIL) {
       tail = parts.incomplete
     }
     return sanitized
   }
 
-  return { feed }
+  return {
+    feed,
+    pendingRawTail: () => tail,
+  }
 }
 
 function splitAtIncompleteTail(text: string) {
-  const lastEsc = text.lastIndexOf(ESC)
-  if (lastEsc === -1) {
-    return { complete: text, incomplete: '', incompleteStart: -1 }
-  }
-
-  const tail = text.slice(lastEsc)
-  if (isCompleteEscapeSequence(tail)) {
-    return { complete: text, incomplete: '', incompleteStart: -1 }
-  }
-
-  return { complete: text.slice(0, lastEsc), incomplete: tail, incompleteStart: lastEsc }
-}
-
-function isCompleteEscapeSequence(sequence: string) {
-  if (sequence.length < ESC_BODY_OFFSET) return false
-  const second = sequence.charCodeAt(ESC_CODE_LENGTH)
-
-  // OSC: complete at BEL or ST (ESC \).
-  if (second === OSC_MARKER_CODE) {
-    if (sequence.includes(String.fromCharCode(BEL_CODE))) return true
-    return sequence.slice(ESC_BODY_OFFSET).includes(ST)
-  }
-
-  // DCS: complete at ST.
-  if (second === DCS_MARKER_CODE) {
-    return sequence.slice(ESC_BODY_OFFSET).includes(ST)
-  }
-
-  // CSI: complete once a final byte in 0x40–0x7e appears.
-  if (second === CSI_MARKER_CODE) {
-    for (let index = ESC_BODY_OFFSET; index < sequence.length; index += 1) {
-      const code = sequence.charCodeAt(index)
-      if (code >= CSI_FINAL_MIN && code <= CSI_FINAL_MAX) return true
+  let cursor = 0
+  while (cursor < text.length) {
+    const escIndex = text.indexOf(ESC, cursor)
+    if (escIndex === -1) return { complete: text, incomplete: '' }
+    const sequence = readEscapeSequence(text, escIndex)
+    if (sequence === null) {
+      return { complete: text.slice(0, escIndex), incomplete: text.slice(escIndex) }
     }
-    return false
+    cursor = sequence.end
   }
-
-  // Two-byte ESC sequences are complete immediately.
-  return true
+  return { complete: text, incomplete: '' }
 }
 
 /**
@@ -113,7 +115,34 @@ function isCompleteEscapeSequence(sequence: string) {
  * - DCS `+q` XTGETTCAP requests
  * - OSC 10/11/12 color queries of the form `OSC nnn ; ? (BEL|ST)`
  */
-function stripQuerySequences(text: string, incompleteStart = -1) {
+function stripQuerySequences(text: string) {
+  return stripSequences(text, isQuerySequence)
+}
+
+function stripUnsafeReplaySequences(text: string) {
+  return stripSequences(text, isUnsafeReplaySequence)
+}
+
+function stripUnsafeReplayControlCharacters(text: string) {
+  let output = ''
+  for (const character of text) {
+    const code = character.charCodeAt(0)
+    const retainedWhitespace =
+      code === HORIZONTAL_TAB_CODE || code === LINE_FEED_CODE || code === CARRIAGE_RETURN_CODE
+    const safeEscapePrefix = code === ESC_CODE
+    const c0Control = code < ESC_INTERMEDIATE_MIN
+    const deleteOrC1Control = code >= DELETE_CODE && code <= C1_CONTROL_MAX
+    if (retainedWhitespace || safeEscapePrefix || (!c0Control && !deleteOrC1Control)) {
+      output += character
+    }
+  }
+  return output
+}
+
+function stripSequences(
+  text: string,
+  shouldStrip: (body: string, kind: string, raw: string) => boolean,
+) {
   let output = ''
   let cursor = 0
 
@@ -124,10 +153,6 @@ function stripQuerySequences(text: string, incompleteStart = -1) {
       break
     }
 
-    // Anything from an incomplete sequence's ESC onward is held for the next
-    // chunk instead of leaking a half-parsed query into the output.
-    if (incompleteStart !== -1 && escIndex >= incompleteStart) break
-
     output += text.slice(cursor, escIndex)
     const sequence = readEscapeSequence(text, escIndex)
     if (sequence === null) {
@@ -137,7 +162,7 @@ function stripQuerySequences(text: string, incompleteStart = -1) {
       continue
     }
 
-    if (!isQuerySequence(sequence.body, sequence.kind, sequence.raw)) {
+    if (!shouldStrip(sequence.body, sequence.kind, sequence.raw)) {
       output += sequence.raw
     }
     cursor = sequence.end
@@ -149,72 +174,100 @@ function stripQuerySequences(text: string, incompleteStart = -1) {
 const ESCAPE_KIND_CSI = 'csi'
 const ESCAPE_KIND_OSC = 'osc'
 const ESCAPE_KIND_DCS = 'dcs'
+const ESCAPE_KIND_ESC = 'esc'
 
-function readEscapeSequence(text: string, start: number) {
+interface EscapeSequence {
+  readonly raw: string
+  readonly body: string
+  readonly kind: string
+  readonly end: number
+}
+
+function readEscapeSequence(text: string, start: number): EscapeSequence | null {
   const second = text.charCodeAt(start + ESC_CODE_LENGTH)
   if (Number.isNaN(second)) return null
+  if (second === CSI_MARKER_CODE) return readCsiSequence(text, start)
+  if (second === OSC_MARKER_CODE) return readOscSequence(text, start)
+  if (second === DCS_MARKER_CODE) return readDcsSequence(text, start)
+  return readPlainEscapeSequence(text, start, second)
+}
 
-  if (second === CSI_MARKER_CODE) {
-    // CSI: params/intermediates until a final byte 0x40–0x7e.
-    for (let index = ESC_BODY_OFFSET + start; index < text.length; index += 1) {
-      const code = text.charCodeAt(index)
-      if (code >= CSI_FINAL_MIN && code <= CSI_FINAL_MAX) {
-        return {
-          raw: text.slice(start, index + ESC_CODE_LENGTH),
-          body: text.slice(start + ESC_BODY_OFFSET, index),
-          kind: ESCAPE_KIND_CSI,
-          end: index + ESC_CODE_LENGTH,
-        }
+function readCsiSequence(text: string, start: number): EscapeSequence | null {
+  for (let index = ESC_BODY_OFFSET + start; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    if (code >= CSI_FINAL_MIN && code <= CSI_FINAL_MAX) {
+      return {
+        raw: text.slice(start, index + ESC_CODE_LENGTH),
+        body: text.slice(start + ESC_BODY_OFFSET, index),
+        kind: ESCAPE_KIND_CSI,
+        end: index + ESC_CODE_LENGTH,
       }
     }
-    return null
   }
+  return null
+}
 
-  if (second === OSC_MARKER_CODE) {
-    // OSC: terminated by BEL or ST.
-    for (let index = ESC_BODY_OFFSET + start; index < text.length; index += 1) {
-      if (text.charCodeAt(index) === BEL_CODE) {
-        return {
-          raw: text.slice(start, index + ESC_CODE_LENGTH),
-          body: text.slice(start + ESC_BODY_OFFSET, index),
-          kind: ESCAPE_KIND_OSC,
-          end: index + ESC_CODE_LENGTH,
-        }
-      }
-      if (text.charCodeAt(index) === ESC_CODE && text.charCodeAt(index + 1) === ST_ESCAPE_CODE) {
-        return {
-          raw: text.slice(start, index + ST_LENGTH),
-          body: text.slice(start + ESC_BODY_OFFSET, index),
-          kind: ESCAPE_KIND_OSC,
-          end: index + ST_LENGTH,
-        }
+function readOscSequence(text: string, start: number): EscapeSequence | null {
+  for (let index = ESC_BODY_OFFSET + start; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === BEL_CODE) {
+      return {
+        raw: text.slice(start, index + ESC_CODE_LENGTH),
+        body: text.slice(start + ESC_BODY_OFFSET, index),
+        kind: ESCAPE_KIND_OSC,
+        end: index + ESC_CODE_LENGTH,
       }
     }
-    return null
-  }
-
-  if (second === DCS_MARKER_CODE) {
-    // DCS: terminated by ST.
-    for (let index = ESC_BODY_OFFSET + start; index < text.length - ESC_CODE_LENGTH; index += 1) {
-      if (text.charCodeAt(index) === ESC_CODE && text.charCodeAt(index + 1) === ST_ESCAPE_CODE) {
-        return {
-          raw: text.slice(start, index + ST_LENGTH),
-          body: text.slice(start + ESC_BODY_OFFSET, index),
-          kind: ESCAPE_KIND_DCS,
-          end: index + ST_LENGTH,
-        }
+    if (text.charCodeAt(index) === ESC_CODE && text.charCodeAt(index + 1) === ST_ESCAPE_CODE) {
+      return {
+        raw: text.slice(start, index + ST_LENGTH),
+        body: text.slice(start + ESC_BODY_OFFSET, index),
+        kind: ESCAPE_KIND_OSC,
+        end: index + ST_LENGTH,
       }
     }
-    return null
   }
+  return null
+}
 
-  // Other ESC sequences (two-byte and SS forms) are preserved as-is.
-  return {
-    raw: text.slice(start, start + ESC_BODY_OFFSET),
-    body: '',
-    kind: ESCAPE_KIND_CSI,
-    end: start + ESC_BODY_OFFSET,
+function readDcsSequence(text: string, start: number): EscapeSequence | null {
+  for (let index = ESC_BODY_OFFSET + start; index < text.length - ESC_CODE_LENGTH; index += 1) {
+    if (text.charCodeAt(index) === ESC_CODE && text.charCodeAt(index + 1) === ST_ESCAPE_CODE) {
+      return {
+        raw: text.slice(start, index + ST_LENGTH),
+        body: text.slice(start + ESC_BODY_OFFSET, index),
+        kind: ESCAPE_KIND_DCS,
+        end: index + ST_LENGTH,
+      }
+    }
   }
+  return null
+}
+
+function readPlainEscapeSequence(
+  text: string,
+  start: number,
+  second: number,
+): EscapeSequence | null {
+  if (second < ESC_INTERMEDIATE_MIN || second > ESC_INTERMEDIATE_MAX) {
+    return {
+      raw: text.slice(start, start + ESC_BODY_OFFSET),
+      body: '',
+      kind: ESCAPE_KIND_ESC,
+      end: start + ESC_BODY_OFFSET,
+    }
+  }
+  for (let index = start + ESC_BODY_OFFSET; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    if (code >= ESC_FINAL_MIN && code <= ESC_FINAL_MAX) {
+      return {
+        raw: text.slice(start, index + ESC_CODE_LENGTH),
+        body: text.slice(start + ESC_CODE_LENGTH, index),
+        kind: ESCAPE_KIND_ESC,
+        end: index + ESC_CODE_LENGTH,
+      }
+    }
+  }
+  return null
 }
 
 function isQuerySequence(body: string, kind: string, raw: string) {
@@ -238,4 +291,27 @@ function isQuerySequence(body: string, kind: string, raw: string) {
     return final === 'c' || final === 'q'
   }
   return final === 'n' || final === 'c'
+}
+
+function isUnsafeReplaySequence(body: string, kind: string, raw: string) {
+  if (isQuerySequence(body, kind, raw)) return true
+  // Cold history is presentation, not a live terminal protocol stream. OSC,
+  // DCS, and plain ESC commands can mutate title/clipboard/hyperlinks,
+  // character sets, keypad mode, or other emulator state. None is required to
+  // preserve the readable transcript, so retain them only for a live attach.
+  if (kind === ESCAPE_KIND_OSC || kind === ESCAPE_KIND_DCS || kind === ESCAPE_KIND_ESC) {
+    return true
+  }
+  if (kind !== ESCAPE_KIND_CSI) return true
+
+  return !isSafeColdReplayCsi(body, raw)
+}
+
+function isSafeColdReplayCsi(body: string, raw: string) {
+  const final = raw.slice(-1)
+  // Standard SGR is the only stateful sequence worth preserving for a cold
+  // transcript. The replay boundary resets it before the new prompt. All
+  // cursor, erase, scroll-region, insert/delete, TUI mode, and protocol
+  // sequences are discarded, including private `...m` extensions.
+  return final === 'm' && /^[0-9:;]*$/.test(body)
 }

@@ -93,7 +93,7 @@ describe('ElectronTerminalEventSinkLive', () => {
     await Effect.runPromise(sink.attach(TERMINAL_KEY, 1))
     await Effect.runPromise(sink.attach(OTHER_KEY, 1))
 
-    await Effect.runPromise(sink.detach(TERMINAL_KEY, 1))
+    await expect(Effect.runPromise(sink.detach(TERMINAL_KEY, 1))).resolves.toBe(true)
 
     await Effect.runPromise(
       sink.emit({ ownerKey: OWNER, terminalId: TERMINAL_ID, event: { type: 'closed' } }),
@@ -112,13 +112,52 @@ describe('ElectronTerminalEventSinkLive', () => {
     await Effect.runPromise(sink.attach(TERMINAL_KEY, 1))
     await Effect.runPromise(sink.attach(OTHER_KEY, 1))
 
-    await Effect.runPromise(sink.detachSurface(1))
+    await expect(Effect.runPromise(sink.detachSurface(1))).resolves.toEqual([
+      TERMINAL_KEY,
+      OTHER_KEY,
+    ])
 
     await Effect.runPromise(sink.emit(PAYLOAD))
     await Effect.runPromise(
       sink.emit({ ownerKey: OWNER, terminalId: 'side', event: { type: 'closed' } }),
     )
     expect(surface.send).not.toHaveBeenCalled()
+  })
+
+  it('moves and merges attachments when a terminal owner is rekeyed', async () => {
+    const sink = await buildSink()
+    const first = makeSurface(1)
+    const second = makeSurface(2)
+    const destinationKey = 'session-born::main'
+    await Effect.runPromise(sink.attach(TERMINAL_KEY, 1))
+    await Effect.runPromise(sink.attach(destinationKey, 2))
+
+    await Effect.runPromise(sink.move(TERMINAL_KEY, destinationKey))
+    await Effect.runPromise(sink.emit(PAYLOAD))
+    expect(first.send).not.toHaveBeenCalled()
+
+    const migratedPayload: TerminalEventPayload = {
+      ownerKey: 'session-born',
+      terminalId: TERMINAL_ID,
+      event: { type: 'exited', exitCode: 0 },
+    }
+    await Effect.runPromise(sink.emit(migratedPayload))
+
+    expect(first.send).toHaveBeenCalledExactlyOnceWith('terminal:event', migratedPayload)
+    expect(second.send).toHaveBeenCalledExactlyOnceWith('terminal:event', migratedPayload)
+  })
+
+  it('reports only terminals that lose their final watcher', async () => {
+    const sink = await buildSink()
+    makeSurface(1)
+    makeSurface(2)
+    await Effect.runPromise(sink.attach(TERMINAL_KEY, 1))
+    await Effect.runPromise(sink.attach(TERMINAL_KEY, 2))
+    await Effect.runPromise(sink.attach(OTHER_KEY, 1))
+
+    await expect(Effect.runPromise(sink.detach(TERMINAL_KEY, 1))).resolves.toBe(false)
+    await expect(Effect.runPromise(sink.detachSurface(1))).resolves.toEqual([OTHER_KEY])
+    await expect(Effect.runPromise(sink.detachSurface(2))).resolves.toEqual([TERMINAL_KEY])
   })
 
   it('emitting without attachments is a no-op', async () => {

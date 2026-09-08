@@ -38,7 +38,9 @@ type PiWaggleKernelRunInput = AgentKernelRunInput & {
    */
   readonly workingPath: string
   readonly visualizationDirectory?: string
-  readonly mcpExtensionFactory?: ExtensionFactory
+  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
 } & PiRuntimeExtensionIsolationInput
 
 function appendEnabledWaggleModeState(input: {
@@ -222,10 +224,14 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
-    extensionFactories: [
-      ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
+    ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+    trustedExtensionFactories: [
+      ...(input.trustedExtensionFactories ?? []),
       waggleExtension.factory,
     ],
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
   })
 
   const unsubscribe = session.subscribe(

@@ -32,11 +32,14 @@ export const ElectronTerminalEventSinkLive = Layer.effect(
         Effect.sync(() => {
           const key = terminalKeyOf(payload.ownerKey, payload.terminalId)
           const surfaces = attached.get(key)
-          if (surfaces === undefined) return
+          if (surfaces === undefined) return 0
+          let delivered = 0
           for (const surfaceId of surfaces) {
-            if (!send(surfaceId, payload)) surfaces.delete(surfaceId)
+            if (send(surfaceId, payload)) delivered += 1
+            else surfaces.delete(surfaceId)
           }
           if (surfaces.size === 0) attached.delete(key)
+          return delivered
         }),
       attach: (terminalKey, surfaceId) =>
         Effect.sync(() => {
@@ -47,16 +50,32 @@ export const ElectronTerminalEventSinkLive = Layer.effect(
       detach: (terminalKey, surfaceId) =>
         Effect.sync(() => {
           const surfaces = attached.get(terminalKey)
-          if (surfaces === undefined) return
+          if (surfaces === undefined) return true
           surfaces.delete(surfaceId)
-          if (surfaces.size === 0) attached.delete(terminalKey)
+          if (surfaces.size > 0) return false
+          attached.delete(terminalKey)
+          return true
+        }),
+      move: (fromKey, toKey) =>
+        Effect.sync(() => {
+          if (fromKey === toKey) return
+          const source = attached.get(fromKey)
+          if (source === undefined) return
+          const destination = attached.get(toKey) ?? new Set<number>()
+          for (const surfaceId of source) destination.add(surfaceId)
+          attached.set(toKey, destination)
+          attached.delete(fromKey)
         }),
       detachSurface: (surfaceId) =>
         Effect.sync(() => {
+          const orphaned: TerminalKey[] = []
           for (const [key, surfaces] of attached) {
             surfaces.delete(surfaceId)
-            if (surfaces.size === 0) attached.delete(key)
+            if (surfaces.size > 0) continue
+            attached.delete(key)
+            orphaned.push(key)
           }
+          return orphaned
         }),
     }
   }),

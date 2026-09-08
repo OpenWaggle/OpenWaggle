@@ -1,10 +1,8 @@
 import type { SearchAddon } from '@xterm/addon-search'
 import { useRef, useState } from 'react'
-import { useChat } from '@/features/chat/hooks'
-import { useProject } from '@/features/sessions/hooks'
-import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
-import { terminalOwnerContext } from '../lib/terminal-owner'
+import { useTerminalPanelCloseActions } from '../hooks/useTerminalPanelActions'
+import type { TerminalContextProvenance } from '../lib/terminal-context'
 import {
   type TerminalGroupState,
   type TerminalTabState,
@@ -15,82 +13,134 @@ import { TerminalPanelHeader } from './TerminalPanelHeader'
 import { TerminalSearchBar } from './TerminalSearchBar'
 
 interface TerminalPanelProps {
+  /** Renderer layout bucket; the side panel uses a distinct bucket. */
+  readonly ownerKey: string
+  /** Session/draft owner used by the PTY runtime. Defaults to ownerKey. */
+  readonly runtimeOwnerKey?: string
+  readonly defaultCwd: string | null
+  readonly defaultProvenance?: TerminalContextProvenance
   readonly onClose: () => void
+  readonly closePanelLabel?: string
+  readonly onDockActiveTab?: (tabId: string) => void
 }
 
 /** The Session terminal panel: tab strip, split panes, search, port previews. */
-export function TerminalPanel({ onClose }: TerminalPanelProps) {
-  const { activeSession } = useChat()
-  const { projectPath } = useProject()
-  const owner = terminalOwnerContext(activeSession, projectPath)
-  const group = useTerminalStore((state) =>
-    owner.ownerKey.length > 0 ? state.groups[owner.ownerKey] : undefined,
-  )
-  const closePane = useTerminalStore((state) => state.closePane)
-
-  const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null)
+export function TerminalPanel(props: TerminalPanelProps) {
+  const options = normalizePanelProps(props)
+  const group = useTerminalStore((state) => state.groups[options.ownerKey])
+  const setActivePane = useTerminalStore((state) => state.setActivePane)
   const [searchOpen, setSearchOpen] = useState(false)
-  const searchAddonsRef = useRef(new Map<string, SearchAddon>())
-
-  if (owner.ownerKey.length === 0 || owner.defaultCwd === null) {
-    return <TerminalUnavailable />
-  }
-
+  const [searchAddons, setSearchAddons] = useState<ReadonlyMap<string, SearchAddon>>(
+    () => new Map(),
+  )
+  const panelRef = useRef<HTMLDivElement>(null)
   const activeTab = resolveActiveTab(group)
+  const focusedPaneId = activeTab?.activePaneId ?? null
 
   // A stale focus (pane unmounted after a tab switch) must not enable search
   // against a missing addon: resolve within the active tab's panes only.
-  const activePaneIds = new Set(activeTab?.panes.map((pane) => pane.terminalId) ?? [])
-  const searchTargetPane =
-    focusedPaneId !== null && activePaneIds.has(focusedPaneId)
-      ? focusedPaneId
-      : (activeTab?.panes[0]?.terminalId ?? null)
+  const searchTargetPane = resolveSearchTarget(activeTab, focusedPaneId)
+  const closeActions = useTerminalPanelCloseActions({
+    group,
+    ownerKey: options.ownerKey,
+    runtimeOwnerKey: options.runtimeOwnerKey,
+  })
+  if (options.ownerKey.length === 0 || options.defaultCwd === null) return <TerminalUnavailable />
 
-  const closeOnePane = (terminalId: string) => {
-    closePane(owner.ownerKey, terminalId)
-    // Explicit close kills the shell and drops its scrollback; the pane's own
-    // unmount detach only detaches (hidden panes keep running).
-    void api.closeTerminal(owner.ownerKey, terminalId, true)
-    if (focusedPaneId === terminalId) setFocusedPaneId(null)
+  const restoreTerminalFocus = () => {
+    const pane = [
+      ...(panelRef.current?.querySelectorAll<HTMLElement>('[data-terminal-pane]') ?? []),
+    ].find((candidate) => candidate.dataset.terminalPane === searchTargetPane)
+    pane?.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea')?.focus()
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-bg">
+    <div ref={panelRef} className="flex h-full flex-col overflow-hidden bg-bg">
       <TerminalPanelHeader
-        ownerKey={owner.ownerKey}
-        activeTab={activeTab}
-        defaultCwd={owner.defaultCwd}
-        focusedPaneId={focusedPaneId}
-        searchOpen={searchOpen}
-        setSearchOpen={setSearchOpen}
-        setFocusedPaneId={setFocusedPaneId}
-        onClosePanel={onClose}
+        model={{
+          ownerKey: options.ownerKey,
+          runtimeOwnerKey: options.runtimeOwnerKey,
+          activeTab,
+          defaultCwd: options.defaultCwd,
+          focusedPaneId,
+          searchOpen,
+          closePanelLabel: options.closePanelLabel,
+        }}
+        actions={{
+          setSearchOpen,
+          setFocusedPaneId: (terminalId) => {
+            if (terminalId === null || activeTab === null) return
+            setActivePane(options.ownerKey, activeTab.id, terminalId)
+          },
+          onClosePanel: options.onClose,
+          onCloseTab: (tab) => void closeActions.closeOneTab(tab),
+          onDockActiveTab: options.onDockActiveTab,
+        }}
       />
       {searchOpen && searchTargetPane !== null && (
         <TerminalSearchBar
-          addon={searchAddonsRef.current.get(searchTargetPane) ?? null}
-          onDismiss={() => setSearchOpen(false)}
+          addon={searchAddons.get(searchTargetPane) ?? null}
+          onDismiss={() => {
+            setSearchOpen(false)
+            requestAnimationFrame(restoreTerminalFocus)
+          }}
         />
       )}
       <div className="relative min-h-0 flex-1">
         {activeTab === null ? (
-          <TerminalEmptyState ownerKey={owner.ownerKey} defaultCwd={owner.defaultCwd} />
+          <TerminalEmptyState ownerKey={options.ownerKey} defaultCwd={options.defaultCwd} />
         ) : (
           <TerminalPaneGrid
-            ownerKey={owner.ownerKey}
-            tab={activeTab}
+            model={{
+              ownerKey: options.ownerKey,
+              runtimeOwnerKey: options.runtimeOwnerKey,
+              defaultCwd: options.defaultCwd,
+              defaultProvenance: options.defaultProvenance,
+              tab: activeTab,
+            }}
             focusedPaneId={focusedPaneId}
-            onFocusPane={setFocusedPaneId}
-            onClosePane={closeOnePane}
+            onFocusPane={(terminalId) => setActivePane(options.ownerKey, activeTab.id, terminalId)}
+            onClosePane={(terminalId) => void closeActions.closeOnePane(terminalId)}
             onSearchAddon={(terminalId, addon) => {
-              if (addon === null) searchAddonsRef.current.delete(terminalId)
-              else searchAddonsRef.current.set(terminalId, addon)
+              setSearchAddons((current) => {
+                if (
+                  current.get(terminalId) === addon ||
+                  (addon === null && !current.has(terminalId))
+                ) {
+                  return current
+                }
+                const next = new Map(current)
+                if (addon === null) next.delete(terminalId)
+                else next.set(terminalId, addon)
+                return next
+              })
             }}
           />
         )}
       </div>
     </div>
   )
+}
+
+function normalizePanelProps(props: TerminalPanelProps) {
+  return {
+    ...props,
+    runtimeOwnerKey: props.runtimeOwnerKey ?? props.ownerKey,
+    defaultProvenance:
+      props.defaultProvenance ??
+      (props.ownerKey.startsWith('draft:') ? 'draft-checkout' : 'opened-checkout'),
+    closePanelLabel: props.closePanelLabel ?? 'Close terminal panel',
+  }
+}
+
+function resolveSearchTarget(activeTab: TerminalTabState | null, focusedPaneId: string | null) {
+  if (
+    focusedPaneId !== null &&
+    activeTab?.panes.some((pane) => pane.terminalId === focusedPaneId)
+  ) {
+    return focusedPaneId
+  }
+  return activeTab?.panes[0]?.terminalId ?? null
 }
 
 function resolveActiveTab(group: TerminalGroupState | undefined): TerminalTabState | null {

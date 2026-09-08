@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron-browser-preview-automation-service'
 import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
@@ -63,12 +64,18 @@ const McpServicesLive = Layer.mergeAll(
   EncryptedMcpSecretVaultServiceLive,
   FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
 ).pipe(Layer.provide(McpTurnStateServiceLive))
+const BrowserPreviewAutomationWithSettingsLive = ElectronBrowserPreviewAutomationServiceLive.pipe(
+  Layer.provide(SettingsService.Live),
+)
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
       McpServicesLive,
       FilesystemInlineVisualizationLive,
+      NodePtyTerminalServiceLive,
+      SettingsService.Live,
+      BrowserPreviewAutomationWithSettingsLive,
     ),
   ),
 )

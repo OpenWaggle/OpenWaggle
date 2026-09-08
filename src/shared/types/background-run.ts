@@ -1,5 +1,6 @@
 import type { MessagePart } from './agent'
 import type { SessionId } from './brand'
+import type { JsonObject } from './json'
 import type { SupportedModelId } from './llm'
 
 export const WORKTREE_CREATED_CUSTOM_EVENT = 'openwaggle.worktree-created'
@@ -14,6 +15,15 @@ export type WorktreeLaunchStage =
   | 'worktree-created'
   | 'starting-task'
 
+/** A Setup action terminal accepted by main and ready for renderer reconciliation. */
+export interface WorktreeSetupActionTerminal extends JsonObject {
+  readonly terminalId: string
+  readonly actionId: string
+  readonly actionName: string
+  readonly projectRoot: string
+  readonly cwd: string
+}
+
 /** A point-in-time update produced by the worktree birth path. */
 export interface WorktreeLaunchProgress {
   readonly stage: WorktreeLaunchStage
@@ -22,6 +32,7 @@ export interface WorktreeLaunchProgress {
   readonly worktreePath?: string
   readonly branch?: string
   readonly baseRef?: string
+  readonly setupAction?: WorktreeSetupActionTerminal
 }
 
 /** Reconnectable state for the first-send worktree preflight card. */
@@ -35,6 +46,7 @@ export interface WorktreeLaunchSnapshot {
   readonly worktreePath?: string
   readonly branch?: string
   readonly baseRef?: string
+  readonly setupAction?: WorktreeSetupActionTerminal
   readonly errorMessage?: string
 }
 

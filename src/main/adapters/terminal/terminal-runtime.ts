@@ -1,217 +1,250 @@
-import { TERMINAL } from '@shared/constants/resource-limits'
 import type {
   TerminalId,
+  TerminalInputIntent,
+  TerminalInputReleaseResult,
   TerminalKey,
   TerminalOpenInput,
   TerminalRuntimeEvent,
+  TerminalWriteResult,
 } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
-import type { IPty } from 'node-pty'
+import { normalizeTerminalEnvironment } from '@shared/utils/terminal-environment'
 import { createLogger } from '../../logger'
 import { createTerminalHistorySanitizer } from './terminal-history-sanitizer'
 import type { TerminalHistoryStore } from './terminal-history-store'
+import { makeTerminalInputFlow } from './terminal-input-flow'
+import { makeTerminalOutputFlow } from './terminal-output-flow'
+import { shutdownLiveTerminal } from './terminal-process-shutdown'
 import type { PtyRunner } from './terminal-pty-runner'
-import type { TerminalRecord } from './terminal-records'
+import type { RetainedTerminalProcess, TerminalRecord } from './terminal-records'
+import { TerminalRetainedProcesses } from './terminal-retained-processes'
 import { createTerminalScrollback } from './terminal-scrollback'
+import { makeTerminalSpawner } from './terminal-spawn-controller'
 
 const logger = createLogger('terminal-runtime')
+const SPAWN_SETTLE_BEFORE_SHUTDOWN_MS = 250
 
-const SPAWN_FAILED_EXIT_CODE = -1
+export { TERMINAL_RESOURCE_DRAIN_MS } from './terminal-retained-processes'
 
 export type { TerminalRecord }
 
-/**
- * Shared mutable runtime behind the terminal service: the record registry,
- * coalesced output delivery, and shell process lifecycle (ADR 0030).
- */
+/** Registry, acknowledged output delivery, prompt readiness, and shell lifecycle. */
 export interface TerminalRuntime {
   readonly records: Map<string, TerminalRecord>
   readonly history: TerminalHistoryStore
   readonly emitEvent: (record: TerminalRecord, event: TerminalRuntimeEvent) => void
   readonly flushOutputs: () => void
-  readonly killLive: (record: TerminalRecord) => void
-  readonly spawn: (record: TerminalRecord, cols: number, rows: number) => void
+  /** Stop a live process tree and resolve after authoritative tree exit proof. */
+  readonly killLive: (record: TerminalRecord) => Promise<boolean>
+  /** Prove every retained process tree stopped without waiting on native I/O teardown. */
+  readonly shutdownDetachedProcessTrees: (records?: readonly TerminalRecord[]) => Promise<boolean>
+  /** Stop every retained tree and await native resource plus final-output drain. */
+  readonly shutdownDetachedProcesses: (records?: readonly TerminalRecord[]) => Promise<boolean>
+  /** A dead public record can still own descendants or native PTY resources. */
+  readonly hasDetachedProcesses: (record: TerminalRecord) => boolean
+  readonly spawn: (
+    record: TerminalRecord,
+    cols: number,
+    rows: number,
+    expectedReadinessNonce?: string,
+  ) => void
   readonly makeRecord: (input: TerminalOpenInput, cwd: string) => TerminalRecord
   readonly discardPendingOutput: (key: TerminalKey) => void
+  readonly rekeyRecord: (oldKey: TerminalKey, newKey: TerminalKey) => void
+  readonly resetOutputStream: (record: TerminalRecord) => void
+  readonly writeInput: (
+    record: TerminalRecord,
+    data: string,
+    intent?: TerminalInputIntent,
+  ) => TerminalWriteResult
+  readonly stageInputForLaunch: (
+    record: TerminalRecord,
+    data: string,
+    intent?: TerminalInputIntent,
+  ) => TerminalWriteResult
+  readonly resumeInput: (record: TerminalRecord) => void
+  readonly forceReleaseInput: (record: TerminalRecord) => TerminalInputReleaseResult
+  readonly acknowledgeOutput: (
+    record: TerminalRecord,
+    outputGeneration: number,
+    endOffset: number,
+  ) => void
+  readonly reconcileOutputSnapshot: (
+    record: TerminalRecord,
+    outputGeneration: number,
+    outputBytes: number,
+  ) => void
+  readonly observeProjectActionActivity: (record: TerminalRecord) => void
+  readonly prepareProjectActionForRestart: (record: TerminalRecord) => void
 }
 
 export interface TerminalRuntimeDeps {
   readonly runner: PtyRunner
   readonly history: TerminalHistoryStore
-  /** Deliver one runtime event to attached surfaces. */
+  /** Deliver one runtime event and report how many surfaces received it. */
   readonly emit: (payload: {
     readonly ownerKey: string
     readonly terminalId: TerminalId
     readonly event: TerminalRuntimeEvent
-  }) => void
-  /** Notify that the set of live shell pids changed (drives the inspector). */
+  }) => number | Promise<number>
   readonly onLivePidsChanged: () => void
+  readonly onRecordActive?: (record: TerminalRecord) => void
+  readonly onRecordInactive?: (record: TerminalRecord) => void
+  readonly onOutputDrained?: (record: TerminalRecord) => void
+  readonly onRecordMetadataChanged?: (record: TerminalRecord) => void
+  readonly shutdownDetachedProcess?: (target: RetainedTerminalProcess) => Promise<boolean>
 }
 
-/** Streams of one live shell: input release, scrollback capture, exit handling. */
-function wireShellStreams(
-  record: TerminalRecord,
-  pty: IPty,
-  generation: number,
-  sinks: {
-    readonly history: TerminalHistoryStore
-    readonly markDirty: (key: TerminalKey) => void
-    readonly onLivePidsChanged: () => void
-    readonly emitEvent: (record: TerminalRecord, event: TerminalRuntimeEvent) => void
-    readonly scheduleFlush: () => void
-  },
-) {
-  pty.onData((data: string) => {
-    if (record.closed) return
-    // First shell output = the shell is reading input now; release anything
-    // the user typed during startup, in order, before further handling.
-    if (record.pendingInput.length > 0) {
-      pty.write(record.pendingInput)
-      record.pendingInput = ''
-    }
-    const sanitized = record.sanitizer.feed(data)
-    record.scrollback.append(sanitized)
-    sinks.history.append(record.key, sanitized)
-    if (record.pendingOutput.length === 0) record.pendingStartOffset = record.outputBytes
-    record.pendingOutput += data
-    record.outputBytes += data.length
-    sinks.markDirty(record.key)
-    sinks.scheduleFlush()
+function waitForPendingSpawns(tasks: ReadonlySet<Promise<void>>) {
+  if (tasks.size === 0) return Promise.resolve(true)
+  let timer: NodeJS.Timeout | null = null
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), SPAWN_SETTLE_BEFORE_SHUTDOWN_MS)
   })
+  return Promise.race([Promise.all([...tasks]).then(() => true), timeout]).finally(() => {
+    if (timer !== null) clearTimeout(timer)
+  })
+}
 
-  pty.onExit(({ exitCode }: { exitCode: number }) => {
-    if (generation !== record.spawnGeneration) return
-    record.live = null
-    record.exitCode = exitCode
-    sinks.onLivePidsChanged()
-    sinks.emitEvent(record, { type: 'exited', exitCode })
-  })
+function makeRecord(input: TerminalOpenInput, cwd: string): TerminalRecord {
+  return {
+    key: terminalKeyOf(input.ownerKey, input.terminalId),
+    ownerKey: input.ownerKey,
+    terminalId: input.terminalId,
+    cwd,
+    env: normalizeTerminalEnvironment(input.env),
+    scrollback: createTerminalScrollback(),
+    sanitizer: createTerminalHistorySanitizer(),
+    pendingOutput: '',
+    pendingOutputBytes: 0,
+    inFlightOutput: null,
+    pendingInput: [],
+    pendingInputBytes: 0,
+    inputGeneration: input.inputGeneration ?? null,
+    lastInputReceipt: null,
+    pendingStartOffset: 0,
+    outputBytes: 0,
+    outputGeneration: 0,
+    spawnGeneration: 0,
+    readinessPhase: 'spawning',
+    readinessGeneration: 0,
+    promptDetector: null,
+    promptEpoch: 0,
+    projectAction: null,
+    exitCode: null,
+    closed: false,
+    live: null,
+    drainingProcesses: new Set(),
+    termination: null,
+    activity: null,
+    ownerMigration: null,
+  }
 }
 
 export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime {
   const { history, runner } = deps
   const records = new Map<string, TerminalRecord>()
-  const dirty = new Set<TerminalKey>()
-  let flushTimer: NodeJS.Timeout | null = null
+  const pendingSpawns = new WeakMap<TerminalRecord, Set<Promise<void>>>()
+  const output = makeTerminalOutputFlow({
+    records,
+    emit: deps.emit,
+    onOutputDrained: deps.onOutputDrained ?? (() => undefined),
+  })
 
   const emitEvent = (record: TerminalRecord, event: TerminalRuntimeEvent) => {
-    void deps.emit({ ownerKey: record.ownerKey, terminalId: record.terminalId, event })
+    void Promise.resolve(
+      deps.emit({ ownerKey: record.ownerKey, terminalId: record.terminalId, event }),
+    ).catch(() => undefined)
   }
 
-  // Coalesced delivery: chunks buffer for OUTPUT_FLUSH_MS, then one event (ADR 0030).
-  const flushOutputs = () => {
-    if (flushTimer !== null) {
-      clearTimeout(flushTimer)
-      flushTimer = null
-    }
-    if (dirty.size === 0) return
-    const keys = [...dirty]
-    dirty.clear()
-    for (const key of keys) {
-      const record = records.get(key)
-      if (record === undefined || record.pendingOutput.length === 0) continue
-      const data = record.pendingOutput
-      const startOffset = record.pendingStartOffset
-      record.pendingOutput = ''
-      record.pendingStartOffset = record.outputBytes
-      emitEvent(record, { type: 'output', data, startOffset, endOffset: record.outputBytes })
-    }
-  }
-
-  const scheduleFlush = () => {
-    if (flushTimer !== null) return
-    flushTimer = setTimeout(flushOutputs, TERMINAL.OUTPUT_FLUSH_MS)
-  }
-
-  const killLive = (record: TerminalRecord) => {
-    if (record.live === null) return
-    record.spawnGeneration += 1
-    try {
-      record.live.pty.kill()
-    } catch {
-      // Shell may already be gone.
-    }
-    record.live = null
-    deps.onLivePidsChanged()
-  }
-
-  const spawn = (record: TerminalRecord, cols: number, rows: number) => {
-    record.spawnGeneration += 1
-    const generation = record.spawnGeneration
-
-    void runner
-      .spawn({ cwd: record.cwd, cols, rows })
-      .then((outcome) => {
-        if (!outcome.ok) {
-          logger.error('No terminal shell could be spawned', {
-            cwd: record.cwd,
-            error: outcome.error.message,
-          })
-          if (generation === record.spawnGeneration) {
-            record.exitCode = SPAWN_FAILED_EXIT_CODE
-            emitEvent(record, { type: 'exited', exitCode: SPAWN_FAILED_EXIT_CODE })
-          }
-          return
-        }
-        if (generation !== record.spawnGeneration) {
-          outcome.pty.kill()
-          return
-        }
-        attachLiveShell(record, outcome.pty, outcome.pid, generation, outcome.shell)
-      })
-      .catch((error: unknown) => {
-        logger.error('Terminal spawn pipeline failed', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      })
-  }
-
-  const attachLiveShell = (
-    record: TerminalRecord,
-    pty: IPty,
-    pid: number,
-    generation: number,
-    shell: string,
-  ) => {
-    record.live = { pty, pid }
-    record.exitCode = null
-    deps.onLivePidsChanged()
-    // Title the tab after the user's shell immediately, before the first poll.
-    emitEvent(record, { type: 'activity', processName: shell })
-    wireShellStreams(record, pty, generation, {
-      history,
-      markDirty: (key) => dirty.add(key),
-      onLivePidsChanged: deps.onLivePidsChanged,
-      emitEvent,
-      scheduleFlush,
-    })
-  }
-
-  const makeRecord = (input: TerminalOpenInput, cwd: string): TerminalRecord => ({
-    key: terminalKeyOf(input.ownerKey, input.terminalId),
-    ownerKey: input.ownerKey,
-    terminalId: input.terminalId,
-    cwd,
-    scrollback: createTerminalScrollback(),
-    sanitizer: createTerminalHistorySanitizer(),
-    pendingOutput: '',
-    pendingInput: '',
-    pendingStartOffset: 0,
-    outputBytes: 0,
-    spawnGeneration: 0,
-    exitCode: null,
-    closed: false,
-    live: null,
+  const input = makeTerminalInputFlow({
+    emitEvent,
+    onProjectActionChanged: deps.onRecordMetadataChanged ?? (() => undefined),
   })
+  const onRecordInactive = deps.onRecordInactive ?? (() => undefined)
+
+  const retained = new TerminalRetainedProcesses(onRecordInactive, deps.shutdownDetachedProcess)
+  const {
+    registerDetachedProcess,
+    shutdownRetainedProcess,
+    shutdownRetainedProcessTrees,
+    shutdownRetainedProcesses,
+  } = retained
+
+  const spawn = makeTerminalSpawner({
+    runner,
+    history,
+    input,
+    output,
+    pendingSpawns,
+    registerDetachedProcess,
+    shutdownRetainedProcess,
+    emitEvent,
+    onLivePidsChanged: deps.onLivePidsChanged,
+    onRecordActive: deps.onRecordActive ?? (() => undefined),
+    onRecordInactive,
+  })
+
+  const killLive = async (record: TerminalRecord) => {
+    const tasks = pendingSpawns.get(record)
+    if (tasks !== undefined && !(await waitForPendingSpawns(tasks))) {
+      logger.error('Terminal spawn did not settle before bounded shutdown', {
+        key: record.key,
+      })
+      return false
+    }
+    if (!(await retained.shutdownRetainedProcessTrees(new Set([record])))) return false
+    const live = record.live
+    const activityPids = record.activity?.processPids ?? []
+    const activityIdentities = record.activity?.processIdentities ?? []
+    const stoppedLive = await shutdownLiveTerminal(record, deps.onLivePidsChanged)
+    if (stoppedLive && live !== null) {
+      const target = registerDetachedProcess(
+        record,
+        live,
+        activityPids,
+        activityIdentities,
+        true,
+        false,
+      )
+      void shutdownRetainedProcess(target)
+      if (record.exitCode === null) {
+        record.exitCode = live.processTreeExit.exitCode ?? live.exit.exitCode ?? -1
+      }
+    }
+    return stoppedLive && !retained.hasUncommittedOwner(record)
+  }
+
+  const ownerSet = (targetRecords?: readonly TerminalRecord[]) =>
+    targetRecords === undefined ? undefined : new Set(targetRecords)
+
+  const shutdownDetachedProcessTrees = (targetRecords?: readonly TerminalRecord[]) =>
+    shutdownRetainedProcessTrees(ownerSet(targetRecords))
+
+  const shutdownDetachedProcesses = (targetRecords?: readonly TerminalRecord[]) =>
+    shutdownRetainedProcesses(ownerSet(targetRecords))
 
   return {
     records,
     history,
     emitEvent,
-    flushOutputs,
+    flushOutputs: output.flush,
     killLive,
+    shutdownDetachedProcessTrees,
+    shutdownDetachedProcesses,
+    hasDetachedProcesses: (record) => retained.hasOwner(record),
     spawn,
     makeRecord,
-    discardPendingOutput: (key) => dirty.delete(key),
+    discardPendingOutput: output.discard,
+    rekeyRecord: output.rekey,
+    resetOutputStream: output.resetStream,
+    writeInput: input.write,
+    stageInputForLaunch: input.stageForLaunch,
+    resumeInput: input.resume,
+    forceReleaseInput: input.forceRelease,
+    acknowledgeOutput: output.acknowledge,
+    reconcileOutputSnapshot: output.reconcileSnapshot,
+    observeProjectActionActivity: input.observeProjectActionActivity,
+    prepareProjectActionForRestart: input.prepareProjectActionForRestart,
   }
 }

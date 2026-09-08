@@ -1,22 +1,38 @@
 import { TERMINAL } from '@shared/constants/resource-limits'
+import type { ShortcutCommand, ShortcutRules } from '@shared/types/shortcuts'
+import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import {
+  formatAriaShortcutBinding,
+  formatShortcutBinding,
+  usesAppleShortcuts,
+} from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
 import { type TerminalTabState, useTerminalStore } from '../state/terminal-store'
 import { TerminalTabStrip } from './TerminalTabStrip'
 
-const SPLIT_ICON = '⧉'
 const STACK_ICON = '▤'
 const SIDE_BY_SIDE_ICON = '▥'
 
 interface TerminalPanelHeaderProps {
-  readonly ownerKey: string
-  readonly activeTab: TerminalTabState | null
-  readonly defaultCwd: string | null
-  readonly focusedPaneId: string | null
-  readonly searchOpen: boolean
-  readonly setSearchOpen: (update: (open: boolean) => boolean) => void
-  readonly setFocusedPaneId: (terminalId: string | null) => void
-  readonly onClosePanel: () => void
+  readonly model: {
+    readonly ownerKey: string
+    readonly runtimeOwnerKey: string
+    readonly activeTab: TerminalTabState | null
+    readonly defaultCwd: string | null
+    readonly focusedPaneId: string | null
+    readonly searchOpen: boolean
+    readonly closePanelLabel: string
+  }
+  readonly actions: {
+    readonly setSearchOpen: (update: (open: boolean) => boolean) => void
+    readonly setFocusedPaneId: (terminalId: string | null) => void
+    readonly onClosePanel: () => void
+    readonly onCloseTab: (tab: TerminalTabState) => void
+    readonly onDockActiveTab?: (tabId: string) => void
+  }
 }
 
 /**
@@ -24,68 +40,76 @@ interface TerminalPanelHeaderProps {
  * Store-driven so the panel component stays a thin composition root.
  */
 export function TerminalPanelHeader(props: TerminalPanelHeaderProps) {
-  const group = useTerminalStore((state) => state.groups[props.ownerKey])
+  const { model, actions } = props
+  const group = useTerminalStore((state) => state.groups[model.ownerKey])
   const activity = useTerminalStore((state) => state.activity)
   const createTerminal = useTerminalStore((state) => state.createTerminal)
   const splitTerminal = useTerminalStore((state) => state.splitTerminal)
-  const closeTab = useTerminalStore((state) => state.closeTab)
   const renameTab = useTerminalStore((state) => state.renameTab)
   const setActiveTab = useTerminalStore((state) => state.setActiveTab)
   const setSplitDirection = useTerminalStore((state) => state.setSplitDirection)
+  const showToast = useUIStore((state) => state.showToast)
+  const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
 
   const newTerminal = () => {
-    if (props.defaultCwd === null) return
-    const terminalId = createTerminal(props.ownerKey, props.defaultCwd)
-    if (terminalId !== null) props.setFocusedPaneId(terminalId)
+    if (model.defaultCwd === null) return
+    const terminalId = createTerminal(model.ownerKey, model.defaultCwd)
+    if (terminalId !== null) actions.setFocusedPaneId(terminalId)
   }
 
-  const splitActiveTab = () => {
-    if (props.activeTab === null || props.defaultCwd === null) return
-    const terminalId = splitTerminal(props.ownerKey, props.activeTab.id, props.defaultCwd)
-    if (terminalId !== null) props.setFocusedPaneId(terminalId)
+  const splitActiveTab = (direction: 'side-by-side' | 'stacked') => {
+    if (model.activeTab === null || model.defaultCwd === null) return
+    setSplitDirection(model.ownerKey, model.activeTab.id, direction)
+    const terminalId = splitTerminal(model.ownerKey, model.activeTab.id, model.defaultCwd)
+    if (terminalId !== null) actions.setFocusedPaneId(terminalId)
   }
 
-  const searchTarget = props.focusedPaneId ?? props.activeTab?.panes[0]?.terminalId ?? null
+  const searchTarget = model.focusedPaneId ?? model.activeTab?.panes[0]?.terminalId ?? null
+  const activeTabId = model.activeTab?.id
+  const onDockActiveTab = actions.onDockActiveTab
+  const dockActiveTab =
+    activeTabId === undefined || onDockActiveTab === undefined
+      ? undefined
+      : () => onDockActiveTab(activeTabId)
 
   return (
     <div className="flex items-center gap-1 border-b border-border px-2 py-1">
       <TerminalTabStrip
-        ownerKey={props.ownerKey}
+        ownerKey={model.runtimeOwnerKey}
         tabs={group?.tabs ?? []}
         activeTabId={group?.activeTabId ?? null}
         activity={activity}
-        focusedPaneId={props.focusedPaneId}
-        onSelectTab={(tabId) => setActiveTab(props.ownerKey, tabId)}
+        onSelectTab={(tabId) => setActiveTab(model.ownerKey, tabId)}
         onCloseTab={(tabId) => {
-          for (const terminalId of closeTab(props.ownerKey, tabId)) {
-            // Explicit close kills the shell and drops its scrollback.
-            void api.closeTerminal(props.ownerKey, terminalId, true)
-            if (props.focusedPaneId === terminalId) props.setFocusedPaneId(null)
-          }
+          const tab = group?.tabs.find((candidate) => candidate.id === tabId)
+          if (tab !== undefined) actions.onCloseTab(tab)
         }}
-        onRenameTab={(tabId, name) => renameTab(props.ownerKey, tabId, name)}
+        onRenameTab={(tabId, name) => renameTab(model.ownerKey, tabId, name)}
       />
       <HeaderActions
-        tab={props.activeTab}
+        tab={model.activeTab}
         paneTools={{
-          searchEnabled: searchTarget !== null && !props.searchOpen,
-          onToggleSearch: () => props.setSearchOpen((open) => !open),
+          searchEnabled: searchTarget !== null && !model.searchOpen,
+          onToggleSearch: () => actions.setSearchOpen((open) => !open),
           onClear: () => {
             if (searchTarget === null) return
-            void api.clearTerminal(props.ownerKey, searchTarget)
+            void api.clearTerminal(model.runtimeOwnerKey, searchTarget).catch((error: unknown) => {
+              showToast(
+                error instanceof Error ? error.message : 'Terminal could not be cleared.',
+                'error',
+              )
+            })
           },
         }}
-        onNewTerminal={newTerminal}
-        onSplit={splitActiveTab}
-        onToggleDirection={() => {
-          if (props.activeTab === null) return
-          setSplitDirection(
-            props.ownerKey,
-            props.activeTab.id,
-            props.activeTab.splitDirection === 'side-by-side' ? 'stacked' : 'side-by-side',
-          )
+        commands={{
+          newTerminal,
+          splitSideBySide: () => splitActiveTab('side-by-side'),
+          splitVertical: () => splitActiveTab('stacked'),
+          dockActiveTab,
+          closePanel: actions.onClosePanel,
         }}
-        onClosePanel={props.onClosePanel}
+        closePanelLabel={model.closePanelLabel}
+        shortcutRules={shortcutRules}
       />
     </div>
   )
@@ -100,47 +124,98 @@ interface PaneTools {
 interface HeaderActionsProps {
   readonly tab: TerminalTabState | null
   readonly paneTools: PaneTools
-  readonly onNewTerminal: () => void
-  readonly onSplit: () => void
-  readonly onToggleDirection: () => void
-  readonly onClosePanel: () => void
+  readonly commands: {
+    readonly newTerminal: () => void
+    readonly splitSideBySide: () => void
+    readonly splitVertical: () => void
+    readonly dockActiveTab?: () => void
+    readonly closePanel: () => void
+  }
+  readonly closePanelLabel: string
+  readonly shortcutRules: ShortcutRules
+}
+
+function terminalHeaderShortcutContext() {
+  return {
+    terminalFocus: true,
+    terminalOpen: true,
+    previewFocus: false,
+    previewOpen: document.querySelector('[data-browser-preview-panel]') !== null,
+    modelPickerOpen: false,
+  }
+}
+
+function terminalShortcutBinding(
+  shortcutRules: ShortcutRules,
+  command: ShortcutCommand,
+  context: ReturnType<typeof terminalHeaderShortcutContext>,
+) {
+  return (
+    activeShortcutRuleForCommand(shortcutRules, command, context, usesAppleShortcuts())?.shortcut ??
+    null
+  )
 }
 
 function HeaderActions(props: HeaderActionsProps) {
   const tab = props.tab
-  const splitDirection = tab?.splitDirection ?? 'side-by-side'
-
+  const atPaneLimit = (tab?.panes.length ?? 0) >= TERMINAL.MAX_PANES_PER_TAB
+  const terminalContext = terminalHeaderShortcutContext()
+  const newTerminalBinding = terminalShortcutBinding(
+    props.shortcutRules,
+    'terminal.new',
+    terminalContext,
+  )
+  const splitBinding = terminalShortcutBinding(
+    props.shortcutRules,
+    'terminal.split',
+    terminalContext,
+  )
+  const splitVerticalBinding = terminalShortcutBinding(
+    props.shortcutRules,
+    'terminal.splitVertical',
+    terminalContext,
+  )
+  const newTerminalTitle = shortcutTitle('New terminal', newTerminalBinding)
+  const splitSideTitle = atPaneLimit
+    ? `Split terminal side by side unavailable — maximum ${String(TERMINAL.MAX_PANES_PER_TAB)} panes`
+    : shortcutTitle('Split terminal side by side', splitBinding)
+  const splitVerticalTitle = atPaneLimit
+    ? `Split terminal vertically unavailable — maximum ${String(TERMINAL.MAX_PANES_PER_TAB)} panes`
+    : shortcutTitle('Split terminal vertically', splitVerticalBinding)
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <Button
         size="icon-sm"
         variant="ghost"
-        title="New terminal"
+        title={newTerminalTitle}
         aria-label="New terminal"
-        onClick={props.onNewTerminal}
+        aria-keyshortcuts={formatAriaShortcutBinding(newTerminalBinding)}
+        onClick={props.commands.newTerminal}
       >
         +
       </Button>
       <Button
         size="icon-sm"
         variant="ghost"
-        title="Split terminal"
-        aria-label="Split terminal"
-        disabled={tab === null || tab.panes.length >= TERMINAL.MAX_PANES_PER_TAB}
-        onClick={props.onSplit}
+        title={splitSideTitle}
+        aria-label={atPaneLimit ? splitSideTitle : 'Split terminal side by side'}
+        aria-keyshortcuts={formatAriaShortcutBinding(splitBinding)}
+        disabled={tab === null || atPaneLimit}
+        onClick={props.commands.splitSideBySide}
       >
-        {SPLIT_ICON}
+        {SIDE_BY_SIDE_ICON}
       </Button>
-      {tab !== null && tab.panes.length > 1 && (
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          title={splitDirection === 'side-by-side' ? 'Stack panes' : 'Panels side by side'}
-          onClick={props.onToggleDirection}
-        >
-          {splitDirection === 'side-by-side' ? STACK_ICON : SIDE_BY_SIDE_ICON}
-        </Button>
-      )}
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        title={splitVerticalTitle}
+        aria-label={atPaneLimit ? splitVerticalTitle : 'Split terminal vertically'}
+        aria-keyshortcuts={formatAriaShortcutBinding(splitVerticalBinding)}
+        disabled={tab === null || atPaneLimit}
+        onClick={props.commands.splitVertical}
+      >
+        {STACK_ICON}
+      </Button>
       <Button
         size="icon-sm"
         variant="ghost"
@@ -161,9 +236,30 @@ function HeaderActions(props: HeaderActionsProps) {
       >
         ⌕
       </Button>
-      <Button size="icon-sm" variant="ghost" title="Close panel" onClick={props.onClosePanel}>
+      {props.commands.dockActiveTab !== undefined && (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          title="Open active terminal in side panel"
+          aria-label="Open active terminal in side panel"
+          onClick={props.commands.dockActiveTab}
+        >
+          ⇥
+        </Button>
+      )}
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        title={props.closePanelLabel}
+        aria-label={props.closePanelLabel}
+        onClick={props.commands.closePanel}
+      >
         ✕
       </Button>
     </div>
   )
+}
+
+function shortcutTitle(label: string, binding: Parameters<typeof formatShortcutBinding>[0]) {
+  return `${label} (${formatShortcutBinding(binding)})`
 }

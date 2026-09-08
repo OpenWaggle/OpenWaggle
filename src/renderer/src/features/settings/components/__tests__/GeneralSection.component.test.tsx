@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UpdateStatus } from '@shared/types/updater'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,12 +10,14 @@ const {
   onUpdateStatusMock,
   checkForUpdatesMock,
   installUpdateMock,
+  updateSettingsMock,
 } = vi.hoisted(() => ({
   getAppVersionMock: vi.fn(),
   getUpdateStatusMock: vi.fn(),
   onUpdateStatusMock: vi.fn(),
   checkForUpdatesMock: vi.fn(),
   installUpdateMock: vi.fn(),
+  updateSettingsMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -24,9 +27,11 @@ vi.mock('@/shared/lib/ipc', () => ({
     onUpdateStatus: onUpdateStatusMock,
     checkForUpdates: checkForUpdatesMock,
     installUpdate: installUpdateMock,
+    updateSettings: updateSettingsMock,
   },
 }))
 
+import { usePreferencesStore } from '../../state/preferences-store'
 import { GeneralSection } from '../sections/GeneralSection'
 
 describe('GeneralSection', () => {
@@ -36,12 +41,15 @@ describe('GeneralSection', () => {
     onUpdateStatusMock.mockReset()
     checkForUpdatesMock.mockReset()
     installUpdateMock.mockReset()
+    updateSettingsMock.mockReset()
 
     getAppVersionMock.mockResolvedValue('0.2.0')
     getUpdateStatusMock.mockResolvedValue({ type: 'idle' } satisfies UpdateStatus)
     onUpdateStatusMock.mockReturnValue(() => {})
     checkForUpdatesMock.mockResolvedValue(undefined)
     installUpdateMock.mockResolvedValue(undefined)
+    updateSettingsMock.mockResolvedValue({ ok: true })
+    usePreferencesStore.setState({ settings: DEFAULT_SETTINGS })
   })
 
   it('renders the app version after it resolves', async () => {
@@ -55,6 +63,24 @@ describe('GeneralSection', () => {
   it('renders the "About & Updates" section heading', () => {
     render(<GeneralSection />)
     expect(screen.getByText('About & Updates')).toBeInTheDocument()
+  })
+
+  it('persists the in-app browser destination from the accessible link setting', async () => {
+    render(<GeneralSection />)
+
+    expect(screen.getByRole('radio', { name: 'System browser' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'OpenWaggle' }))
+
+    await waitFor(() => {
+      expect(updateSettingsMock).toHaveBeenCalledWith({ browserLinkTarget: 'app' })
+      expect(screen.getByRole('radio', { name: 'OpenWaggle' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      )
+    })
   })
 
   it('renders the "Check now" button when status is idle', async () => {

@@ -1,15 +1,17 @@
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SupportedModelId } from '@shared/types/brand'
-import type { SessionEnvironmentMode } from '@shared/types/git'
 import {
   DEFAULT_SETTINGS,
-  type DiffSyntaxTheme,
-  type DiffView,
   type Settings,
   THINKING_LEVELS,
   type ThinkingLevel,
 } from '@shared/types/settings'
-import type { ShortcutBinding, ShortcutBindings, ShortcutCommand } from '@shared/types/shortcuts'
+import {
+  DEFAULT_SHORTCUT_RULES,
+  type ShortcutBinding,
+  type ShortcutBindings,
+  type ShortcutCommand,
+  type ShortcutRules,
+} from '@shared/types/shortcuts'
 import { includes } from '@shared/utils/validation'
 import { useProviderStore } from '@/features/providers/state'
 import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
@@ -18,13 +20,15 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { setRuntimeSyntaxThemeSelections } from '@/shared/lib/syntax/syntax-theme-runtime'
 import {
   persistAppearanceMotion,
+  persistAppearanceTerminalPalette,
   persistAppearanceTypography,
 } from './appearance-preferences-actions'
+import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
 
 const logger = createRendererLogger('preferences')
-const SLICE_ARG_2 = 100
-const SLICE_ARG_2_VALUE_10 = 10
+const MAX_FAVORITE_MODELS = 100
+const MAX_RECENT_PROJECTS = 10
 let syntaxThemeWriteQueue = Promise.resolve()
 
 function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
@@ -45,7 +49,7 @@ function persistProjectPreference(
 function appendRecentProject(paths: readonly string[], path: string) {
   const normalized = path.trim()
   if (!normalized || paths.includes(normalized)) return paths
-  return [...paths, normalized].slice(-SLICE_ARG_2_VALUE_10)
+  return [...paths, normalized].slice(-MAX_RECENT_PROJECTS)
 }
 
 async function refreshProviderModels(set: PreferencesSet, get: PreferencesGet) {
@@ -128,17 +132,21 @@ async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: 
   if (!result.ok) throw new Error(result.error)
 
   const persistedSettings = await api.getSettings()
-  mergeSettings(set, { shortcutBindings: persistedSettings.shortcutBindings })
+  mergeSettings(set, {
+    shortcutBindings: persistedSettings.shortcutBindings,
+    shortcutRules: persistedSettings.shortcutRules,
+  })
 }
 
-/** Persists one scalar setting and mirrors it into the store. */
-async function persistSetting<K extends keyof Settings>(
-  key: K,
-  value: Settings[K],
-  set: PreferencesSet,
-) {
-  await api.updateSettings({ [key]: value })
-  mergeSettings(set, { [key]: value })
+async function persistShortcutRules(shortcutRules: ShortcutRules, set: PreferencesSet) {
+  const result = await api.updateSettings({ shortcutRules })
+  if (!result.ok) throw new Error(result.error)
+
+  const persistedSettings = await api.getSettings()
+  mergeSettings(set, {
+    shortcutBindings: persistedSettings.shortcutBindings,
+    shortcutRules: persistedSettings.shortcutRules,
+  })
 }
 
 function assertSettingsUpdateSucceeded(result: Awaited<ReturnType<typeof api.updateSettings>>) {
@@ -166,15 +174,35 @@ function persistSyntaxThemeSelection(
   return write
 }
 
+function createAppearancePreferencesActions(set: PreferencesSet, get: PreferencesGet) {
+  return {
+    setSyntaxTheme: (
+      variant: Parameters<PreferencesActions['setSyntaxTheme']>[0],
+      themeId: Parameters<PreferencesActions['setSyntaxTheme']>[1],
+    ) => persistSyntaxThemeSelection(variant, themeId, set, get),
+    setAppearanceTypography: (
+      typography: Parameters<PreferencesActions['setAppearanceTypography']>[0],
+    ) => persistAppearanceTypography(typography, set, get),
+    setAppearanceTerminalPalette: (
+      palette: Parameters<PreferencesActions['setAppearanceTerminalPalette']>[0],
+    ) => persistAppearanceTerminalPalette(palette, set, get),
+    setAppearanceMotion: (motion: Parameters<PreferencesActions['setAppearanceMotion']>[0]) =>
+      persistAppearanceMotion(motion, set, get),
+  }
+}
+
 export function createPreferencesActions(
   set: PreferencesSet,
   get: PreferencesGet,
 ): PreferencesActions {
   return {
+    ...createBrowserAndScalarPreferencesActions(set),
+    ...createAppearancePreferencesActions(set, get),
     loadSettings: () => loadSettings(set, get),
     retryLoad: async () => {
       set({ loadError: null, isLoaded: false })
       await get().loadSettings()
+      if (get().loadError !== null) return
       await refreshProviderModels(set, get)
     },
     setSelectedModel: async (model) => {
@@ -194,7 +222,7 @@ export function createPreferencesActions(
         : [
             normalizedModel,
             ...settings.favoriteModels.filter((entry) => entry !== normalizedModel),
-          ].slice(0, SLICE_ARG_2)
+          ].slice(0, MAX_FAVORITE_MODELS)
       await api.updateSettings({ favoriteModels })
       mergeSettings(set, { favoriteModels })
     },
@@ -219,16 +247,6 @@ export function createPreferencesActions(
       mergeSettings(set, { thinkingLevel: preset })
       persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
     },
-    setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) =>
-      persistSetting('defaultAuthorizationMode', mode, set),
-    setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) =>
-      persistSetting('defaultSessionEnvironmentMode', mode, set),
-    setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => persistSetting('diffSyntaxTheme', theme, set),
-    setSyntaxTheme: (variant, themeId) => persistSyntaxThemeSelection(variant, themeId, set, get),
-    setDiffView: (view: DiffView) => persistSetting('diffView', view, set),
-    setDiffWrapLines: (wrap: boolean) => persistSetting('diffWrapLines', wrap, set),
-    setAppearanceTypography: (typography) => persistAppearanceTypography(typography, set, get),
-    setAppearanceMotion: (motion) => persistAppearanceMotion(motion, set, get),
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
       const { settings } = get()
@@ -241,9 +259,11 @@ export function createPreferencesActions(
       const shortcutBindings = { ...settings.shortcutBindings, [command]: binding }
       await persistShortcutBindings(shortcutBindings, set)
     },
+    setShortcutRules: (shortcutRules: ShortcutRules) => persistShortcutRules(shortcutRules, set),
     resetShortcutBindings: async () => {
       await persistShortcutBindings(DEFAULT_SETTINGS.shortcutBindings, set)
     },
+    resetShortcutRules: () => persistShortcutRules(DEFAULT_SHORTCUT_RULES, set),
     clearProjectDisplayName: async (path) => {
       const { settings } = get()
       const { [path]: _ignored, ...projectDisplayNames } = settings.projectDisplayNames

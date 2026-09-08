@@ -1,7 +1,14 @@
 import type { GitStatusSummary } from '@shared/types/git'
+import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
 import { Hash, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { projectName } from '@/shared/lib/format'
+import {
+  formatAriaShortcutBinding,
+  formatShortcutBinding,
+  usesAppleShortcuts,
+} from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
 
 interface HeaderLeftProps {
@@ -95,21 +102,43 @@ export function HeaderLeft({
   )
 }
 
-function terminalTitle(projectPath: string | null, terminalOpen: boolean) {
+function terminalTitle(
+  projectPath: string | null,
+  terminalOpen: boolean,
+  shortcut: ReturnType<
+    typeof usePreferencesStore.getState
+  >['settings']['shortcutBindings']['terminal.toggle'],
+) {
   if (!projectPath) {
     return 'No project selected'
   }
 
-  return terminalOpen ? 'Hide session terminal' : 'Open session terminal'
+  const action = terminalOpen ? 'Hide session terminal' : 'Open session terminal'
+  return `${action} (${formatShortcutBinding(shortcut)})`
 }
 
 export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonProps) {
+  const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
+  const shortcut =
+    activeShortcutRuleForCommand(
+      shortcutRules,
+      'terminal.toggle',
+      {
+        terminalFocus: false,
+        terminalOpen: open,
+        previewFocus: false,
+        previewOpen: document.querySelector('[data-browser-preview-panel]') !== null,
+        modelPickerOpen: false,
+      },
+      usesAppleShortcuts(),
+    )?.shortcut ?? null
   return (
     <Button
       variant="secondary"
       size="none"
       radius="sm"
       aria-label={open ? 'Hide terminal' : 'Open terminal'}
+      aria-keyshortcuts={formatAriaShortcutBinding(shortcut)}
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
@@ -117,7 +146,7 @@ export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonPr
         !projectPath && 'pointer-events-none opacity-30',
       )}
       disabled={!projectPath}
-      title={terminalTitle(projectPath, open)}
+      title={terminalTitle(projectPath, open, shortcut)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
       <span className="text-sm font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>

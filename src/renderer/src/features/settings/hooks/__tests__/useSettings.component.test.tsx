@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -18,6 +18,8 @@ const {
   setPreferencesStateMock: vi.fn(),
   unsubscribeMock: vi.fn(),
 }))
+
+let preferencesLoadError: string | null = null
 
 function selectPreferences<T>(selector: (state: { loadSettings: typeof loadSettingsMock }) => T) {
   return selector({ loadSettings: loadSettingsMock })
@@ -58,6 +60,7 @@ function getProviderState() {
 
 function getPreferencesState() {
   return {
+    loadError: preferencesLoadError,
     settings: {
       projectPath: null,
     },
@@ -102,6 +105,7 @@ import { useSettingsSetup } from '../useSettings'
 describe('useSettingsSetup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    preferencesLoadError = null
     loadSyntaxThemeCatalogMock.mockResolvedValue(undefined)
     loadSettingsMock.mockResolvedValue(undefined)
     loadProviderModelsMock.mockResolvedValue(undefined)
@@ -152,6 +156,34 @@ describe('useSettingsSetup', () => {
       expect(loadAllAuthAccountsMock).toHaveBeenCalledOnce()
       expect(loadAllAuthAccountsMock).toHaveBeenCalledWith(['openai-codex', 'github-copilot'])
     })
+  })
+
+  it('does not load providers or auth from fallback settings after a settings read failure', async () => {
+    preferencesLoadError = 'settings database unavailable'
+
+    renderHook(() => useSettingsSetup())
+
+    await waitFor(() => {
+      expect(loadSettingsMock).toHaveBeenCalledOnce()
+    })
+    expect(loadProviderModelsMock).not.toHaveBeenCalled()
+    expect(loadAllAuthAccountsMock).not.toHaveBeenCalled()
+  })
+
+  it('retries the complete settings dependency chain in place after recovery', async () => {
+    preferencesLoadError = 'settings database unavailable'
+    const { result } = renderHook(() => useSettingsSetup())
+    await waitFor(() => expect(loadSettingsMock).toHaveBeenCalledOnce())
+
+    preferencesLoadError = null
+    act(() => result.current())
+
+    await waitFor(() => {
+      expect(loadSettingsMock).toHaveBeenCalledTimes(2)
+      expect(loadProviderModelsMock).toHaveBeenCalledOnce()
+      expect(loadAllAuthAccountsMock).toHaveBeenCalledOnce()
+    })
+    expect(setPreferencesStateMock).toHaveBeenCalledWith({ isLoaded: false, loadError: null })
   })
 
   it('registers and cleans up the OAuth status listener', () => {

@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { useUIStore } from '@/shell/ui-store'
 import { SyntaxThemePicker } from './SyntaxThemePicker'
+import { TerminalPaletteSettings } from './TerminalPaletteSettings'
 import { TypographySettings } from './TypographySettings'
 
 const DIFF_VIEW_LABELS: Record<DiffView, string> = {
@@ -125,6 +126,7 @@ export function AppearanceSection() {
         </p>
       </header>
       <SyntaxThemePicker />
+      <TerminalPaletteSettings />
       <TypographySettings />
       <ReviewAppearanceSettings />
       <AccessibilityAppearanceSettings />

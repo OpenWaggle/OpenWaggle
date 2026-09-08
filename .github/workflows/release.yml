@@ -466,6 +466,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Smoke packaged macOS PTY runtime
+        run: pnpm packaged-app:smoke
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-artifacts
@@ -499,6 +502,9 @@ jobs:
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
+      - name: Smoke packaged Linux PTY runtime
+        run: pnpm packaged-app:smoke
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-artifacts
@@ -530,6 +536,9 @@ jobs:
 
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
+
+      - name: Smoke packaged Windows PTY runtimes
+        run: pnpm packaged-app:smoke
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

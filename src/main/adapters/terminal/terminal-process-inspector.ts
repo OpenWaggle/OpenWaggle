@@ -1,291 +1,189 @@
-import { execFile } from 'node:child_process'
-import os from 'node:os'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import type { TerminalKey } from '@shared/types/terminal'
-import { getSafeChildEnv } from '../../env'
 import { createLogger } from '../../logger'
+import {
+  collectDescendants,
+  makeUnreliableSnapshot,
+  resolveForegroundName,
+  sameActivitySnapshot,
+} from './terminal-process-activity'
+import { sampleTerminalActivity } from './terminal-process-inspector-sample'
+import type {
+  InspectorTarget,
+  TerminalProcessActivitySnapshot,
+} from './terminal-process-inspector-types'
+import { makeTerminalProcessPollScheduler } from './terminal-process-poll-scheduler'
+
+export { type ProcessRow, parsePosixRow } from './terminal-process-probes'
+export type { InspectorTarget, TerminalProcessActivitySnapshot }
+export { collectDescendants, resolveForegroundName }
 
 const logger = createLogger('terminal-inspector')
 
-const LSOF_MIN_FIELDS = 9
-const LSOF_NODE_FIELD = 8
-const EXEC_TIMEOUT_MS = 4_000
-const PS_COLUMN_COUNT = 4
-const NO_TTY_FG_GROUP = -1
+function sameTargetProcess(left: InspectorTarget, right: InspectorTarget) {
+  return (
+    left.pid === right.pid &&
+    left.tty === right.tty &&
+    left.ttyIdentity === right.ttyIdentity &&
+    left.processIdentity?.pid === right.processIdentity?.pid &&
+    left.processIdentity?.startedAt === right.processIdentity?.startedAt
+  )
+}
+
+function targetProcessKey(target: InspectorTarget) {
+  return JSON.stringify([
+    target.pid,
+    target.tty,
+    target.ttyIdentity,
+    target.processIdentity?.pid,
+    target.processIdentity?.startedAt,
+  ])
+}
+
+function reconcileSnapshotsForTargets(
+  previousTargets: ReadonlyMap<TerminalKey, InspectorTarget>,
+  nextTargets: ReadonlyMap<TerminalKey, InspectorTarget>,
+  previousSnapshots: ReadonlyMap<TerminalKey, TerminalProcessActivitySnapshot>,
+) {
+  const movedSnapshots = new Map<string, TerminalProcessActivitySnapshot>()
+  for (const [key, target] of previousTargets) {
+    if (nextTargets.has(key)) continue
+    const snapshot = previousSnapshots.get(key)
+    if (snapshot !== undefined) movedSnapshots.set(targetProcessKey(target), snapshot)
+  }
+
+  const reconciled = new Map<TerminalKey, TerminalProcessActivitySnapshot>()
+  for (const [key, target] of nextTargets) {
+    const previousTarget = previousTargets.get(key)
+    const sameKeySnapshot = previousSnapshots.get(key)
+    if (
+      previousTarget !== undefined &&
+      sameKeySnapshot !== undefined &&
+      sameTargetProcess(previousTarget, target)
+    ) {
+      reconciled.set(key, sameKeySnapshot)
+      continue
+    }
+    const movedSnapshot = movedSnapshots.get(targetProcessKey(target))
+    if (movedSnapshot !== undefined) reconciled.set(key, movedSnapshot)
+  }
+  return reconciled
+}
 
 /**
  * Shared process-table poll behind process-aware tab titles and port previews
- * (ADR 0030). One snapshot per tick serves every terminal. On POSIX the
- * foreground name is exact: the shell row's `tpgid` is the controlling tty's
- * foreground process group, so the process leading that group is the command
- * the user is interacting with. Windows keeps a nearest-descendant walk.
+ * (ADR 0030). One process-table snapshot is shared by every live terminal in
+ * the tick, so polling launches a constant number of operating-system probes
+ * regardless of pane count. The foreground name is exact: the shell row's
+ * `tpgid` is the controlling tty's foreground process group, so the process
+ * leading that group is the command the user is interacting with. Windows
+ * keeps a nearest-descendant walk.
  * Listening ports come from a periodic socket table scan filtered to the
  * shell's descendant pids. Emits only on change, and skips exec entirely
  * while no terminal is live.
  */
 
-export interface TerminalActivitySnapshot {
-  readonly processName: string | null
-  readonly ports: readonly number[]
-}
-
-export interface InspectorTarget {
-  readonly key: TerminalKey
-  readonly pid: number
-}
-
 export interface TerminalProcessInspector {
   /** Begin polling; the callback fires for each target whose snapshot changed. */
-  start(onActivity: (key: TerminalKey, snapshot: TerminalActivitySnapshot) => void): void
+  start(onActivity: (key: TerminalKey, snapshot: TerminalProcessActivitySnapshot) => void): void
+  /** Observe every successful process-table sample, even when metadata is unchanged. */
+  observe(
+    onObservation: (key: TerminalKey, snapshot: TerminalProcessActivitySnapshot) => void,
+  ): void
   /** Replace the polled target set (live terminal pids). */
   setTargets(targets: Iterable<InspectorTarget>): void
   stop(): void
 }
 
-export interface ProcessRow {
-  readonly pid: number
-  readonly ppid: number
-  /** Process group id; POSIX only (-1 on Windows rows). */
-  readonly pgid: number
-  /** Controlling tty's foreground process group; POSIX only (-1 elsewhere). */
-  readonly tpgid: number
-  readonly name: string
-}
-
-const runCommand = (command: string, args: readonly string[]): Promise<string> =>
-  new Promise((resolve) => {
-    execFile(
-      command,
-      [...args],
-      { env: stripUndefined(getSafeChildEnv()), timeout: EXEC_TIMEOUT_MS },
-      (error, stdout) => {
-        resolve(error ? '' : stdout)
-      },
-    )
-  })
-
-const readProcessTable = async () => {
-  if (os.platform() === 'win32') {
-    const output = await runCommand('powershell.exe', [
-      '-NoProfile',
-      '-Command',
-      'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.Name)" }',
-    ])
-    const rows = new Map<number, ProcessRow>()
-    for (const line of output.split('\n')) {
-      const [pid, ppid, name] = line.trim().split('\t')
-      const pidNumber = Number(pid)
-      const ppidNumber = Number(ppid)
-      if (Number.isInteger(pidNumber) && Number.isInteger(ppidNumber) && name) {
-        rows.set(pidNumber, {
-          pid: pidNumber,
-          ppid: ppidNumber,
-          pgid: NO_TTY_FG_GROUP,
-          tpgid: NO_TTY_FG_GROUP,
-          name,
-        })
-      }
-    }
-    return rows
-  }
-
-  const output = await runCommand('ps', ['-eo', 'pid=,ppid=,pgid=,tpgid=,comm='])
-  const rows = new Map<number, ProcessRow>()
-  for (const line of output.split('\n')) {
-    const row = parsePosixRow(line)
-    if (row !== null) rows.set(row.pid, row)
-  }
-  return rows
-}
-
-export function parsePosixRow(line: string): ProcessRow | null {
-  const trimmed = line.trim()
-  if (trimmed.length === 0) return null
-  const columns = trimmed.split(/\s+/)
-  if (columns.length < PS_COLUMN_COUNT + 1) return null
-  const [pidField, ppidField, pgidField, tpgidField] = columns
-  const name = columns.slice(PS_COLUMN_COUNT).join(' ')
-  const pid = Number(pidField)
-  const ppid = Number(ppidField)
-  const pgid = Number(pgidField)
-  const tpgid = Number(tpgidField)
-  if (![pid, ppid, pgid, tpgid].every(Number.isInteger) || name.length === 0) return null
-  return { pid, ppid, pgid, tpgid, name: basename(name) }
-}
-
-const readListeningPorts = async (): Promise<Map<number, number[]>> => {
-  const portsByPid = new Map<number, number[]>()
-  const record = (pid: number, port: number) => {
-    const ports = portsByPid.get(pid) ?? []
-    ports.push(port)
-    portsByPid.set(pid, ports)
-  }
-
-  if (os.platform() === 'win32') {
-    const output = await runCommand('netstat', ['-ano'])
-    for (const line of output.split('\n')) {
-      if (!line.includes('LISTENING')) continue
-      const fields = line.trim().split(/\s+/)
-      const pid = Number(fields[fields.length - 1])
-      const port = Number(fields[1]?.split(':').pop())
-      if (Number.isInteger(pid) && Number.isInteger(port) && port > 0) record(pid, port)
-    }
-    return portsByPid
-  }
-
-  const output = await runCommand('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN'])
-  for (const line of output.split('\n').slice(1)) {
-    const fields = line.trim().split(/\s+/)
-    if (fields.length < LSOF_MIN_FIELDS) continue
-    const pid = Number(fields[1])
-    const port = Number(fields[LSOF_NODE_FIELD]?.split(':').pop())
-    if (Number.isInteger(pid) && Number.isInteger(port) && port > 0) record(pid, port)
-  }
-  return portsByPid
-}
-
-/** Descendant names and pids for one shell pid, nearest first (BFS). */
-const collectDescendants = (rootPid: number, rows: Map<number, ProcessRow>) => {
-  const childrenByParent = new Map<number, ProcessRow[]>()
-  for (const row of rows.values()) {
-    const siblings = childrenByParent.get(row.ppid) ?? []
-    siblings.push(row)
-    childrenByParent.set(row.ppid, siblings)
-  }
-
-  const names: string[] = []
-  const pids = new Set<number>()
-  let frontier = [rootPid]
-  while (frontier.length > 0) {
-    const next: number[] = []
-    for (const pid of frontier) {
-      for (const child of childrenByParent.get(pid) ?? []) {
-        if (pids.has(child.pid)) continue
-        pids.add(child.pid)
-        names.push(child.name)
-        next.push(child.pid)
-      }
-    }
-    frontier = next
-  }
-  return { names, pids }
-}
-
-/**
- * Foreground command name for one shell: exact via the tty's foreground
- * process group (the shell row's tpgid — the group leader's name, or any live
- * member of that group when the leader already exited), falling back to the
- * nearest descendant when tpgid is unavailable (Windows, detached ttys).
- */
-export function resolveForegroundName(shellPid: number, rows: Map<number, ProcessRow>) {
-  const shell = rows.get(shellPid)
-  if (shell === undefined || shell.tpgid === NO_TTY_FG_GROUP) {
-    return collectDescendants(shellPid, rows).names[0] ?? null
-  }
-
-  const leader = rows.get(shell.tpgid)
-  if (leader !== undefined) return leader.name
-  for (const row of rows.values()) {
-    if (row.pgid === shell.tpgid) return row.name
-  }
-  return collectDescendants(shellPid, rows).names[0] ?? null
-}
-
 export function makeTerminalProcessInspector(): TerminalProcessInspector {
-  let timer: NodeJS.Timeout | null = null
-  let onActivity: ((key: TerminalKey, snapshot: TerminalActivitySnapshot) => void) | null = null
-  let pollInFlight = false
+  let onActivity: ((key: TerminalKey, snapshot: TerminalProcessActivitySnapshot) => void) | null =
+    null
+  let onObservation:
+    | ((key: TerminalKey, snapshot: TerminalProcessActivitySnapshot) => void)
+    | null = null
+  let lifecycleRevision = 0
   let lastPortScan = 0
-  const targetPids = new Map<TerminalKey, number>()
-  const lastSnapshot = new Map<TerminalKey, TerminalActivitySnapshot>()
+  const targets = new Map<TerminalKey, InspectorTarget>()
+  const lastSnapshot = new Map<TerminalKey, TerminalProcessActivitySnapshot>()
 
-  const emitIfChanged = (key: TerminalKey, snapshot: TerminalActivitySnapshot) => {
+  const emitIfChanged = (key: TerminalKey, snapshot: TerminalProcessActivitySnapshot) => {
     const previous = lastSnapshot.get(key)
-    if (
-      previous !== undefined &&
-      previous.processName === snapshot.processName &&
-      samePorts(previous.ports, snapshot.ports)
-    ) {
-      return
-    }
+    if (previous !== undefined && sameActivitySnapshot(previous, snapshot)) return
     lastSnapshot.set(key, snapshot)
     onActivity?.(key, snapshot)
   }
 
-  const tick = async (): Promise<void> => {
-    if (onActivity === null || pollInFlight || targetPids.size === 0) return
-    pollInFlight = true
+  const tick = async (): Promise<boolean> => {
+    const revision = lifecycleRevision
+    const sampledTargets = new Map(targets)
     try {
-      const rows = await readProcessTable()
       const shouldScanPorts = Date.now() - lastPortScan >= TERMINAL.PORT_SCAN_POLL_MS
-      const portsByPid = shouldScanPorts ? await readListeningPorts() : null
+      const snapshots = await sampleTerminalActivity(
+        sampledTargets,
+        new Map(lastSnapshot),
+        shouldScanPorts,
+      )
+      if (revision !== lifecycleRevision) return true
       if (shouldScanPorts) lastPortScan = Date.now()
-
-      for (const [key, pid] of targetPids) {
-        const { pids } = collectDescendants(pid, rows)
-        const ports =
-          portsByPid === null
-            ? (lastSnapshot.get(key)?.ports ?? [])
-            : collectPorts(pids, portsByPid)
-        emitIfChanged(key, { processName: resolveForegroundName(pid, rows), ports })
+      for (const [key, snapshot] of snapshots) {
+        const original = sampledTargets.get(key)
+        const current = targets.get(key)
+        if (!original || !current || !sameTargetProcess(original, current)) continue
+        emitIfChanged(key, snapshot)
+        if (snapshot.processReliable) onObservation?.(key, snapshot)
       }
+      return [...snapshots.values()].some((snapshot) => snapshot.processReliable)
     } catch (error) {
+      if (revision !== lifecycleRevision) return true
+      for (const [key, original] of sampledTargets) {
+        const current = targets.get(key)
+        if (!current || !sameTargetProcess(original, current)) continue
+        emitIfChanged(key, makeUnreliableSnapshot(lastSnapshot.get(key)))
+      }
       logger.debug('Terminal process poll skipped', {
         error: error instanceof Error ? error.message : String(error),
       })
-    } finally {
-      pollInFlight = false
+      return false
     }
   }
+  const scheduler = makeTerminalProcessPollScheduler(tick)
 
   return {
     start(activities) {
       onActivity = activities
-      if (timer !== null) return
-      timer = setInterval(() => {
-        void tick()
-      }, TERMINAL.ACTIVITY_POLL_MS)
-      timer.unref?.()
+      scheduler.update(targets.size > 0)
     },
-    setTargets(targets) {
-      targetPids.clear()
-      for (const target of targets) targetPids.set(target.key, target.pid)
-      if (targetPids.size === 0) {
-        for (const key of [...lastSnapshot.keys()]) {
-          if (!targetPids.has(key)) lastSnapshot.delete(key)
-        }
-      }
+    observe(observations) {
+      onObservation = observations
+    },
+    setTargets(nextTargets) {
+      const previousTargets = new Map(targets)
+      const nextTargetMap = new Map([...nextTargets].map((target) => [target.key, target] as const))
+      const changed =
+        previousTargets.size !== nextTargetMap.size ||
+        [...nextTargetMap].some(([key, target]) => {
+          const previous = previousTargets.get(key)
+          return previous === undefined || !sameTargetProcess(previous, target)
+        })
+      const nextSnapshots = reconcileSnapshotsForTargets(
+        previousTargets,
+        nextTargetMap,
+        lastSnapshot,
+      )
+      targets.clear()
+      for (const [key, target] of nextTargetMap) targets.set(key, target)
+      lastSnapshot.clear()
+      for (const [key, snapshot] of nextSnapshots) lastSnapshot.set(key, snapshot)
+      scheduler.update(onActivity !== null && targets.size > 0, changed)
     },
     stop() {
       onActivity = null
-      if (timer !== null) {
-        clearInterval(timer)
-        timer = null
-      }
+      onObservation = null
+      lifecycleRevision += 1
+      scheduler.update(false)
+      lastPortScan = 0
       lastSnapshot.clear()
-      targetPids.clear()
+      targets.clear()
     },
   }
-}
-
-function collectPorts(pids: Set<number>, portsByPid: Map<number, number[]>) {
-  const ports = new Set<number>()
-  for (const pid of pids) {
-    for (const port of portsByPid.get(pid) ?? []) ports.add(port)
-  }
-  return [...ports].sort((a, b) => a - b)
-}
-
-function samePorts(a: readonly number[], b: readonly number[]) {
-  return a.length === b.length && a.every((port, index) => port === b[index])
-}
-
-function basename(command: string) {
-  const normalized = command.replaceAll('\\', '/')
-  const lastSegment = normalized.split('/').pop() ?? command
-  return lastSegment.replace(/\.(exe|cmd|bat)$/i, '')
-}
-
-function stripUndefined(env: Record<string, string | undefined>) {
-  return Object.fromEntries(Object.entries(env).filter((entry) => entry[1] !== undefined))
 }

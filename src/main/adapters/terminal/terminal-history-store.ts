@@ -1,220 +1,300 @@
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
 import { createLogger } from '../../logger'
+import {
+  makeTerminalHistoryFiles,
+  ownerKeyFromTerminalKey,
+  type TerminalHistoryFiles,
+} from './terminal-history-files'
+import { makeTerminalHistoryMover, type TerminalHistoryMover } from './terminal-history-moves'
+import { removeTerminalHistoryForPath } from './terminal-history-path-cleanup'
+import {
+  measureTerminalHistoryText,
+  retainTerminalHistorySuffix,
+  type TerminalHistoryCounts,
+} from './terminal-history-retention'
+import { stripTerminalReplaySequences } from './terminal-history-sanitizer'
+import type {
+  TerminalHistoryCacheSnapshot,
+  TerminalHistoryStore,
+} from './terminal-history-store-types'
+
+export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
 
-const LOG_FILE_EXTENSION_LENGTH = 4
-const CHAR_CODE_LINE_FEED = 10
-/**
- * Compaction slack: the file may run to these multiples of the scrollback
- * caps before being rewritten to the newest cap, so bursts cost one rewrite
- * per ~cap/4 lines (or ~cap/4 bytes) instead of per append.
- */
-const HISTORY_COMPACT_LINE_THRESHOLD = Math.floor(TERMINAL.MAX_SCROLLBACK_LINES * 1.25)
-const HISTORY_COMPACT_BYTE_THRESHOLD = Math.floor(TERMINAL.MAX_SCROLLBACK_BYTES * 1.25)
+const HISTORY_COMPACT_TARGET_PERCENT = 80
+const PERCENT_BASE = 100
+const HISTORY_COMPACT_TARGET_LINES = Math.floor(
+  (TERMINAL.MAX_SCROLLBACK_LINES * HISTORY_COMPACT_TARGET_PERCENT) / PERCENT_BASE,
+)
+const HISTORY_COMPACT_TARGET_BYTES = Math.floor(
+  (TERMINAL.MAX_SCROLLBACK_BYTES * HISTORY_COMPACT_TARGET_PERCENT) / PERCENT_BASE,
+)
 
-/**
- * Persisted scrollback for Session terminals (ADR 0030): one log per terminal
- * under `userData/terminal-logs/`, written through a coalescing worker so
- * bursty output does not hammer the disk, compacted to the newest
- * MAX_SCROLLBACK_LINES lines (and MAX_SCROLLBACK_BYTES bytes — progress-bar
- * output that never emits a newline would otherwise grow without bound), and
- * replayed on attach so a terminal restores its visual state after hide,
- * reload, or app restart. Per-key write chains serialize every mutation so a
- * concurrent append can never be clobbered by a compaction rewrite.
- */
-export interface TerminalHistoryStore {
-  /** Read the persisted scrollback for one terminal (empty when absent). */
-  read(key: TerminalKey): Promise<string>
-  /** Queue an (already sanitized) chunk for coalesced append. */
-  append(key: TerminalKey, chunk: string): void
-  /** Drop persisted scrollback, keeping the terminal's file for future appends. */
-  truncate(key: TerminalKey): void
-  /** Delete one terminal's persisted scrollback. */
-  remove(key: TerminalKey): void
-  /** Delete every terminal's scrollback for one owner (session delete). */
-  removeForOwner(ownerKey: TerminalOwnerKey): void
-  /** Flush pending appends immediately; called on shutdown. */
-  flush(): Promise<void>
+interface PendingBatch {
+  parts: string[]
+  bytes: number
+  lines: number
 }
 
-/** Canonical log-file location for one terminal key. */
-const fileFor = (logsDir: string, key: TerminalKey) =>
-  path.join(logsDir, `${Buffer.from(key, 'utf8').toString('base64url')}.log`)
+const logMutationFailure = (error: unknown) => {
+  logger.warn('Terminal history mutation failed', {
+    error: error instanceof Error ? error.message : String(error),
+  })
+}
 
-const countLines = (chunk: string) => {
-  let count = 0
-  for (let index = 0; index < chunk.length; index += 1) {
-    if (chunk.charCodeAt(index) === CHAR_CODE_LINE_FEED) count += 1
+class TerminalHistoryStoreImpl implements TerminalHistoryStore {
+  private flushTimer: NodeJS.Timeout | null = null
+  private mutationTail: Promise<void> = Promise.resolve()
+  private readonly pending = new Map<TerminalKey, PendingBatch>()
+  private readonly states = new Map<TerminalKey, TerminalHistoryCounts>()
+  private readonly workingDirectories = new Map<TerminalKey, string>()
+  private readonly files: TerminalHistoryFiles
+  private readonly mover: TerminalHistoryMover
+
+  constructor(logsDir: string) {
+    this.files = makeTerminalHistoryFiles(logsDir)
+    this.mover = makeTerminalHistoryMover(this.files, this.states, this.workingDirectories)
   }
-  return count
-}
 
-/** Rewrite one terminal's log down to the newest scrollback caps. */
-async function compactFile(file: string): Promise<void> {
-  const content = await fs.readFile(file, 'utf8')
-  const lines = content.split('\n')
-  let keptBytes = 0
-  let cut = lines.length
-  while (cut > 0) {
-    const nextIndex = cut - 1
-    const lineBytes = Buffer.byteLength(lines[nextIndex], 'utf8') + 1
-    const overLines = lines.length - nextIndex > TERMINAL.MAX_SCROLLBACK_LINES
-    const overBytes = keptBytes + lineBytes > TERMINAL.MAX_SCROLLBACK_BYTES
-    if (overLines || overBytes) break
-    keptBytes += lineBytes
-    cut = nextIndex
+  async read(key: TerminalKey) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      return this.readPersisted(key)
+    }).catch(() => '')
   }
-  if (cut > 0) await fs.writeFile(file, lines.slice(cut).join('\n'), 'utf8')
-}
 
-type WriteEnqueue = (key: TerminalKey, mutation: () => Promise<void>) => Promise<void>
+  registerWorkingDirectory(key: TerminalKey, cwd: string) {
+    this.workingDirectories.set(key, cwd)
+    return this.enqueueMutation(async () => {
+      await this.files.ensureDirectory()
+      await this.files.ensureWorkingDirectory(key, cwd)
+    })
+  }
 
-/** Delete every history file (and counter) whose key belongs to one owner. */
-async function removeOwnerFiles(
-  logsDir: string,
-  ownerKey: TerminalOwnerKey,
-  enqueue: WriteEnqueue,
-  appendedLines: Map<TerminalKey, number>,
-  appendedBytes: Map<TerminalKey, number>,
-): Promise<void> {
-  const prefix = `${ownerKey}::`
-  const entries = await fs.readdir(logsDir).catch((): string[] => [])
-  await Promise.all(
-    entries
-      .filter((entry) => entry.endsWith('.log'))
-      .map((entry) => {
-        const decoded = Buffer.from(
-          entry.slice(0, entry.length - LOG_FILE_EXTENSION_LENGTH),
-          'base64url',
-        ).toString('utf8')
-        if (!decoded.startsWith(prefix)) return Promise.resolve()
-        appendedLines.delete(decoded)
-        appendedBytes.delete(decoded)
-        return enqueue(decoded, async () => {
-          await fs.rm(path.join(logsDir, entry), { force: true })
-        })
-      }),
-  )
-}
+  append(key: TerminalKey, chunk: string) {
+    if (chunk.length === 0) return
+    const measured = measureTerminalHistoryText(chunk)
+    const batch = this.pending.get(key) ?? { parts: [], bytes: 0, lines: 0 }
+    batch.parts.push(chunk)
+    batch.bytes += measured.bytes
+    batch.lines += measured.lines
+    this.retainPendingBatch(batch)
+    this.pending.set(key, batch)
+    this.scheduleFlush()
+  }
 
-/** Chains per-key file mutations so an append can never be clobbered by a compaction. */
-function makeWriteEnqueue(chains: Map<TerminalKey, Promise<void>>) {
-  return (key: TerminalKey, mutation: () => Promise<void>): Promise<void> => {
-    const chained = chains.get(key)?.then(mutation, mutation) ?? mutation()
-    const settled = chained.catch((error: unknown) => {
-      logger.warn('Terminal history mutation failed', {
-        error: error instanceof Error ? error.message : String(error),
+  truncate(key: TerminalKey) {
+    this.pending.delete(key)
+    return this.enqueueMutation(async () => {
+      await this.files.ensureDirectory()
+      const files = await this.ensureHistoryFiles(key)
+      await this.files.writePrivate(files.logFile, '')
+      this.states.set(key, { bytes: 0, lines: 0 })
+    })
+  }
+
+  remove(key: TerminalKey) {
+    this.pending.delete(key)
+    return this.enqueueMutation(async () => {
+      const files = this.files.describe(key)
+      await this.files.remove([files.logFile, files.metadataFile, files.workingDirectoryFile])
+      this.states.delete(key)
+      this.workingDirectories.delete(key)
+    })
+  }
+
+  removeForOwner(ownerKey: TerminalOwnerKey) {
+    for (const key of this.pending.keys()) {
+      if (ownerKeyFromTerminalKey(key) === ownerKey) this.pending.delete(key)
+    }
+    return this.enqueueMutation(async () => {
+      await this.files.ensureDirectory()
+      const entries = await this.files.listOwnerEntries(ownerKey)
+      await this.files.remove(entries.map((entry) => this.files.pathForEntry(entry)))
+      for (const key of this.states.keys()) {
+        if (ownerKeyFromTerminalKey(key) === ownerKey) this.states.delete(key)
+      }
+      for (const key of this.workingDirectories.keys()) {
+        if (ownerKeyFromTerminalKey(key) === ownerKey) this.workingDirectories.delete(key)
+      }
+    })
+  }
+
+  removeForPath(directoryPath: string) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      await removeTerminalHistoryForPath(this.files, directoryPath, (key) => {
+        this.pending.delete(key)
+        this.states.delete(key)
+        this.workingDirectories.delete(key)
       })
     })
-    chains.set(
-      key,
-      settled.finally(() => {
-        if (chains.get(key) === settled) chains.delete(key)
-      }),
+  }
+
+  move(fromKey: TerminalKey, toKey: TerminalKey) {
+    if (fromKey === toKey) return Promise.resolve()
+    return this.moveKeys(() => this.mover.move(fromKey, toKey))
+  }
+
+  moveOwner(fromOwnerKey: TerminalOwnerKey, toOwnerKey: TerminalOwnerKey) {
+    if (fromOwnerKey === toOwnerKey) return Promise.resolve()
+    return this.moveKeys(() => this.mover.moveOwner(fromOwnerKey, toOwnerKey))
+  }
+
+  release(key: TerminalKey) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier.catch(() => undefined)
+      this.states.delete(key)
+      this.workingDirectories.delete(key)
+    })
+  }
+
+  async flush() {
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = null
+    }
+    await this.queuePendingBatches()
+  }
+
+  cacheSnapshotForTests(): TerminalHistoryCacheSnapshot {
+    return {
+      states: [...this.states].map(([key, state]) => ({ key, ...state })),
+      workingDirectories: [...this.workingDirectories].map(([key, cwd]) => ({ key, cwd })),
+    }
+  }
+  private enqueueMutation<Result>(mutation: () => Promise<Result>): Promise<Result> {
+    const result = this.mutationTail.then(mutation)
+    this.mutationTail = result.then(
+      () => undefined,
+      (error: unknown) => logMutationFailure(error),
     )
-    return chained
+    return result
+  }
+
+  private async readPersisted(key: TerminalKey) {
+    await this.files.ensureDirectory()
+    const files = this.files.describe(key)
+    const metadata = await this.files.readIfPresent(files.metadataFile)
+    if (metadata === null) return ''
+    if (metadata !== key) throw new Error('Terminal history digest collision')
+    const raw = (await this.files.readIfPresent(files.logFile)) ?? ''
+    const retained = retainTerminalHistorySuffix(
+      raw,
+      TERMINAL.MAX_SCROLLBACK_LINES,
+      TERMINAL.MAX_SCROLLBACK_BYTES,
+    )
+    if (retained.text !== raw) await this.files.writePrivate(files.logFile, retained.text)
+    this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
+    return stripTerminalReplaySequences(retained.text)
+  }
+
+  private async loadState(key: TerminalKey) {
+    const cached = this.states.get(key)
+    if (cached !== undefined) return cached
+    const files = await this.ensureHistoryFiles(key)
+    const raw = (await this.files.readIfPresent(files.logFile)) ?? ''
+    const retained = retainTerminalHistorySuffix(
+      raw,
+      TERMINAL.MAX_SCROLLBACK_LINES,
+      TERMINAL.MAX_SCROLLBACK_BYTES,
+    )
+    if (retained.text !== raw) {
+      await this.files.writePrivate(files.logFile, retained.text)
+    }
+    if (retained.text === raw && raw.length > 0) await this.files.makePrivate(files.logFile)
+    this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
+    return retained
+  }
+
+  private async appendBatch(key: TerminalKey, batch: PendingBatch) {
+    const chunk = batch.parts.join('')
+    if (chunk.length === 0) return
+    const files = await this.ensureHistoryFiles(key)
+    const state = await this.loadState(key)
+    if (
+      state.lines + batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
+      state.bytes + batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
+    ) {
+      await this.files.appendPrivate(files.logFile, chunk)
+      this.states.set(key, {
+        bytes: state.bytes + batch.bytes,
+        lines: state.lines + batch.lines,
+      })
+      return
+    }
+
+    const existing = (await this.files.readIfPresent(files.logFile)) ?? ''
+    const retained = retainTerminalHistorySuffix(
+      existing + chunk,
+      HISTORY_COMPACT_TARGET_LINES,
+      HISTORY_COMPACT_TARGET_BYTES,
+    )
+    await this.files.writePrivate(files.logFile, retained.text)
+    this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
+  }
+
+  private retainPendingBatch(batch: PendingBatch) {
+    if (
+      batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
+      batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
+    ) {
+      return
+    }
+    const retained = retainTerminalHistorySuffix(
+      batch.parts.join(''),
+      HISTORY_COMPACT_TARGET_LINES,
+      HISTORY_COMPACT_TARGET_BYTES,
+    )
+    batch.parts = [retained.text]
+    batch.bytes = retained.bytes
+    batch.lines = retained.lines
+  }
+
+  private ensureHistoryFiles(key: TerminalKey) {
+    const cwd = this.workingDirectories.get(key)
+    return cwd === undefined
+      ? this.files.ensureMetadata(key)
+      : this.files.ensureWorkingDirectory(key, cwd)
+  }
+
+  private takePendingBatches() {
+    const batches = [...this.pending.entries()]
+    this.pending.clear()
+    return batches
+  }
+
+  private queuePendingBatches() {
+    const batches = this.takePendingBatches()
+    if (batches.length === 0) return this.mutationTail
+    return this.enqueueMutation(async () => {
+      await this.files.ensureDirectory()
+      await Promise.all(batches.map(([key, batch]) => this.appendBatch(key, batch)))
+    })
+  }
+
+  private scheduleFlush() {
+    if (this.flushTimer !== null) return
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null
+      void this.flush().catch(logMutationFailure)
+    }, TERMINAL.HISTORY_FLUSH_MS)
+  }
+
+  private moveKeys(move: () => Promise<void>) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      await move()
+    })
   }
 }
 
 export function makeTerminalHistoryStore(logsDir: string): TerminalHistoryStore {
-  let directoryReady = false
-  let flushTimer: NodeJS.Timeout | null = null
-  const pending = new Map<TerminalKey, string>()
-  /** Lines and bytes appended since the last compaction of that key. */
-  const appendedLines = new Map<TerminalKey, number>()
-  const appendedBytes = new Map<TerminalKey, number>()
-  /** Serializes every file mutation per key. */
-  const writeChains = new Map<TerminalKey, Promise<void>>()
-  const enqueue = makeWriteEnqueue(writeChains)
-
-  const ensureDirectory = async () => {
-    if (directoryReady) return
-    await fs.mkdir(logsDir, { recursive: true })
-    directoryReady = true
-  }
-
-  const flush = async (): Promise<void> => {
-    if (pending.size > 0) {
-      const batches = [...pending.entries()]
-      pending.clear()
-      try {
-        await ensureDirectory()
-        await Promise.all(batches.map(([key, chunk]) => appendBatch(key, chunk)))
-      } catch (error) {
-        logger.warn('Failed to persist terminal scrollback', {
-          error: error instanceof Error ? error.message : String(error),
-          terminals: batches.length,
-        })
-      }
-    }
-    // Barrier: callers (shutdown, truncate visibility) must be able to rely on
-    // every already-enqueued mutation having completed, not just the appends.
-    await Promise.all([...writeChains.values()])
-  }
-
-  // Runs inside the key's write chain, so the compaction is serialized with
-  // the append it follows and can never clobber a concurrent batch.
-  const appendBatch = (key: TerminalKey, chunk: string): Promise<void> =>
-    enqueue(key, async () => {
-      await fs.appendFile(fileFor(logsDir, key), chunk, 'utf8')
-      const overLines = (appendedLines.get(key) ?? 0) > HISTORY_COMPACT_LINE_THRESHOLD
-      const overBytes = (appendedBytes.get(key) ?? 0) > HISTORY_COMPACT_BYTE_THRESHOLD
-      if (!overLines && !overBytes) return
-      await compactFile(fileFor(logsDir, key))
-      appendedLines.set(key, 0)
-      appendedBytes.set(key, 0)
-    })
-
-  const scheduleFlush = () => {
-    if (flushTimer !== null) return
-    flushTimer = setTimeout(() => {
-      flushTimer = null
-      void flush()
-    }, TERMINAL.HISTORY_FLUSH_MS)
-  }
-
-  return {
-    async read(key) {
-      try {
-        return await fs.readFile(fileFor(logsDir, key), 'utf8')
-      } catch {
-        return ''
-      }
-    },
-    append(key, chunk) {
-      if (chunk.length === 0) return
-      pending.set(key, (pending.get(key) ?? '') + chunk)
-      appendedLines.set(key, (appendedLines.get(key) ?? 0) + countLines(chunk))
-      appendedBytes.set(key, (appendedBytes.get(key) ?? 0) + Buffer.byteLength(chunk, 'utf8'))
-      scheduleFlush()
-    },
-    truncate(key) {
-      pending.delete(key)
-      appendedLines.set(key, 0)
-      appendedBytes.set(key, 0)
-      scheduleFlush()
-      void enqueue(key, () => fs.writeFile(fileFor(logsDir, key), '', 'utf8'))
-    },
-    remove(key) {
-      pending.delete(key)
-      appendedLines.delete(key)
-      appendedBytes.delete(key)
-      void enqueue(key, async () => {
-        await fs.rm(fileFor(logsDir, key), { force: true })
-      })
-    },
-    removeForOwner(ownerKey) {
-      void (async () => {
-        await flush()
-        await removeOwnerFiles(logsDir, ownerKey, enqueue, appendedLines, appendedBytes)
-      })()
-    },
-    flush: () => {
-      return flush()
-    },
-  }
+  return new TerminalHistoryStoreImpl(logsDir)
 }

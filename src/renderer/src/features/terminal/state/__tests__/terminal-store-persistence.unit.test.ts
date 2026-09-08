@@ -17,11 +17,14 @@ const VALID_GROUP = {
       {
         id: 'tab-1',
         panes: [{ terminalId: 't1', cwd: '/repo' }],
+        activePaneId: 't1',
         splitDirection: 'stacked',
         customName: 'build',
       },
     ],
     activeTabId: 'tab-1',
+    panelOpen: false,
+    panelHeight: TERMINAL_PANEL_DEFAULT_HEIGHT,
   },
 }
 
@@ -127,11 +130,14 @@ describe('sanitizeStoredGroups', () => {
           {
             id: 'tab-1',
             panes: [{ terminalId: 't1', cwd: '/repo' }],
+            activePaneId: 't1',
             splitDirection: 'stacked',
             customName: null,
           },
         ],
         activeTabId: 'tab-1',
+        panelOpen: false,
+        panelHeight: TERMINAL_PANEL_DEFAULT_HEIGHT,
       },
     })
   })
@@ -147,6 +153,32 @@ describe('sanitizeStoredGroups', () => {
     }
 
     expect(sanitizeStoredGroups(input)['session-1']?.tabs[0]?.splitDirection).toBe('side-by-side')
+  })
+
+  it('repairs stale active panes and restores per-session panel state', () => {
+    const input = {
+      'session-1': {
+        tabs: [
+          {
+            id: 'tab-1',
+            panes: [
+              { terminalId: 't1', cwd: '/repo' },
+              { terminalId: 't2', cwd: '/repo' },
+            ],
+            activePaneId: 'missing',
+          },
+        ],
+        activeTabId: 'tab-1',
+        panelOpen: true,
+        panelHeight: 333,
+      },
+    }
+
+    expect(sanitizeStoredGroups(input)['session-1']).toMatchObject({
+      panelOpen: true,
+      panelHeight: 333,
+      tabs: [{ activePaneId: 't1' }],
+    })
   })
 })
 
@@ -197,6 +229,41 @@ describe('terminalStorageOptions', () => {
     await storage.setItem(TERMINAL_STORAGE_KEY, snapshot)
 
     expect(storage.getItem(TERMINAL_STORAGE_KEY)).toEqual(snapshot)
+  })
+
+  it('hydrates version-one layouts through the actual store without migration errors', async () => {
+    const { useTerminalStore } = await import('../terminal-store')
+    const originalOptions = useTerminalStore.persist.getOptions()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const legacy = {
+      groups: {
+        'session-1': {
+          tabs: VALID_GROUP['session-1'].tabs,
+          activeTabId: 'tab-1',
+          panelOpen: true,
+        },
+      },
+      panelHeight: 380,
+    }
+    useTerminalStore.persist.setOptions({
+      storage: {
+        getItem: () => ({ state: legacy, version: 1 }),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      },
+    })
+    try {
+      await useTerminalStore.persist.rehydrate()
+      expect(error).not.toHaveBeenCalled()
+      expect(useTerminalStore.getState().groups['session-1']).toEqual({
+        ...VALID_GROUP['session-1'],
+        panelOpen: true,
+        panelHeight: 380,
+      })
+    } finally {
+      useTerminalStore.persist.setOptions(originalOptions)
+      error.mockRestore()
+    }
   })
 })
 

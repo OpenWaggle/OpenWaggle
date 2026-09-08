@@ -33,7 +33,11 @@ Provider/model/auth metadata comes from Pi `ModelRuntime`:
 - **Attachments** — drag-and-drop text files, PDFs (text extraction), images (OCR)
 - **Voice input** — local Whisper transcription (audio never leaves your machine)
 - **Slash commands** — type `/` to reference cataloged skills, start Waggle, or run `/compact`
-- **Built-in terminal** — full PTY terminal emulation with xterm.js (toggle with `Ctrl+J`)
+- **Built-in terminal** — session-bound xterm.js PTYs with tabs, split panes, bottom/right-panel
+  docking, shell/environment fidelity, process-aware close protection, safe links,
+  selection-to-chat, and persisted scrollback (toggle with `Ctrl+J`)
+- **Browser preview** — Session-owned native tabs with persistent or Incognito profiles, responsive
+  viewports, captures, and approved agent control in the same page the user sees
 
 ### Local-First & Secure
 - Sessions and settings are stored locally; Pi credentials are resolved by Pi auth storage/environment/custom provider configuration

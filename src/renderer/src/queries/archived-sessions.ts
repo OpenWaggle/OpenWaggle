@@ -1,6 +1,7 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
+import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { queryKeys } from './query-keys'
 import type { OpenWaggleQueryOptions } from './query-options'
 
@@ -69,7 +70,10 @@ export function useArchivedDeleteSessionMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (sessionId: SessionId) => api.deleteSession(sessionId),
+    mutationFn: async (sessionId: SessionId) => {
+      await api.deleteSession(sessionId)
+      await deleteWorkspaceOwner(String(sessionId))
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.archivedSessions,

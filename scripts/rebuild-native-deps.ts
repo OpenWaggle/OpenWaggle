@@ -21,6 +21,7 @@ import {
 
 export {
   createNativeRebuildCacheKey,
+  createNativeRebuildPlan,
   isNativeRebuildForceEnabled,
   isNativeRebuildMarkerFresh,
   nativeArtifactPackagesForMode,
@@ -212,16 +213,10 @@ export async function ensureNativeProbeRuntime(
   try {
     await accessPath(electronExecutablePath(projectRoot, platform))
   } catch {
-    const install = electronRuntimeInstallCommandForPlatform(
-      projectRoot,
-      platform,
-      options.nodeExecutable ?? process.execPath,
-    )
-    await runInstall(
-      install.command,
-      install.args,
-      suppressDependencyDeprecationWarnings(),
-    )
+    const nodeExecutable = options.nodeExecutable ?? process.execPath
+    const install = electronRuntimeInstallCommandForPlatform(projectRoot, platform, nodeExecutable)
+    const environment = suppressDependencyDeprecationWarnings()
+    await runInstall(install.command, install.args, environment)
   }
 }
 
@@ -246,6 +241,29 @@ export function nativeLoadProbeCommandForMode(
       }
 }
 
+export function nodeNativeRebuildInvocation(baseEnvironment: NodeJS.ProcessEnv = process.env) {
+  return {
+    command: 'pnpm',
+    args: ['rebuild', ...nativeArtifactPackagesForMode('node')],
+    environment: nativeSourceBuildEnvironment(baseEnvironment),
+  } satisfies CommandInvocation & { readonly environment: NodeJS.ProcessEnv }
+}
+
+export function electronNativeRebuildInvocation(baseEnvironment: NodeJS.ProcessEnv = process.env) {
+  return {
+    command: 'pnpm',
+    args: ['exec', 'electron-builder', 'install-app-deps'],
+    environment: nativeSourceBuildEnvironment(baseEnvironment),
+  } satisfies CommandInvocation & { readonly environment: NodeJS.ProcessEnv }
+}
+
+function nativeSourceBuildEnvironment(baseEnvironment: NodeJS.ProcessEnv) {
+  return suppressDependencyDeprecationWarnings(
+    { npm_config_build_from_source: 'true' },
+    baseEnvironment,
+  )
+}
+
 async function nativeLoadProbeSucceeds(mode: RebuildMode) {
   await ensureNativeProbeRuntime(mode)
   const probe = nativeLoadProbeCommandForMode(mode)
@@ -259,7 +277,8 @@ async function assertNativeLoadProbe(mode: RebuildMode) {
 }
 
 async function rebuildForNode() {
-  await runCommand('pnpm', ['rebuild', 'better-sqlite3'], suppressDependencyDeprecationWarnings())
+  const invocation = nodeNativeRebuildInvocation()
+  await runCommand(invocation.command, invocation.args, invocation.environment)
   await removeElectronRebuildMetadata(
     NATIVE_REBUILD_CACHE_PATHS,
     nativeArtifactPackagesForMode('node'),
@@ -275,18 +294,8 @@ async function rebuildForElectron() {
     NATIVE_REBUILD_CACHE_PATHS,
     nativeArtifactPackagesForMode('electron'),
   )
-  try {
-    await runCommand(
-      'pnpm',
-      ['exec', 'electron-builder', 'install-app-deps'],
-      suppressDependencyDeprecationWarnings(),
-    )
-  } catch (error) {
-    await assertNativeLoadProbe('electron')
-    console.warn(
-      `Electron native rebuild command failed after producing loadable artifacts; continuing. ${errorMessage(error)}`,
-    )
-  }
+  const invocation = electronNativeRebuildInvocation()
+  await runCommand(invocation.command, invocation.args, invocation.environment)
 }
 
 async function rebuildNativeDependencies(options: RebuildOptions) {

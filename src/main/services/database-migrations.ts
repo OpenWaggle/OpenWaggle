@@ -9,6 +9,8 @@ import {
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
+import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
+import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
 
 export interface AppMigration {
   readonly id: number
@@ -295,4 +297,6 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     skipIfColumn: { table: 'sessions', column: 'authorization_mode_override' },
     statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
+  SESSION_WORKTREE_SETUP_MIGRATION,
+  SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION,
 ]

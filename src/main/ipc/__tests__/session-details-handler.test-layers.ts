@@ -97,6 +97,7 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
       }),
     setWorktreePlan: () => Effect.void,
+    resetWorktreeSetup: () => Effect.void,
     setAuthorizationMode: (id, authorizationMode) =>
       Effect.tryPromise({
         try: async () => {

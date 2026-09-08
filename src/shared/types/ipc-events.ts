@@ -1,9 +1,22 @@
 import type { OAuthFlowStatus } from './auth'
 import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
+import type {
+  BrowserPreviewKeyEvent,
+  BrowserPreviewShortcutEvent,
+  BrowserPreviewState,
+} from './browser-preview'
+import type {
+  BrowserPreviewOpenRequest,
+  BrowserPreviewOpenRequestCancellation,
+} from './browser-preview-owner'
+import type {
+  BrowserPreviewRecordingCancelRequest,
+  BrowserPreviewRecordingRequest,
+} from './browser-preview-recording-request'
 import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
-import type { TerminalEventPayload } from './terminal'
+import type { TerminalActivitySnapshot, TerminalEventPayload } from './terminal'
 import type { UpdateStatus } from './updater'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 import type { WorkspaceFilesChangedEvent } from './workspace-files'
@@ -12,8 +25,8 @@ export interface IpcSendChannelMap {
   'agent:cancel-waggle': {
     args: [sessionId: SessionId]
   }
-  'terminal:write': {
-    args: [ownerKey: string, terminalId: string, data: string]
+  'terminal:ack-output': {
+    args: [ownerKey: string, terminalId: string, outputGeneration: number, endOffset: number]
   }
   'clipboard:write-text': {
     args: [text: string]
@@ -24,12 +37,37 @@ export interface IpcSendChannelMap {
  * Event channels — one-way, main → renderer
  */
 export interface IpcEventChannelMap {
+  'browser-preview:open-request': {
+    payload: BrowserPreviewOpenRequest
+  }
+  'browser-preview:cancel-open-request': {
+    payload: BrowserPreviewOpenRequestCancellation
+  }
+  'browser-preview:state': {
+    payload: BrowserPreviewState
+  }
+  'browser-preview:shortcut': {
+    payload: BrowserPreviewShortcutEvent
+  }
+  'browser-preview:key-event': {
+    payload: BrowserPreviewKeyEvent
+  }
+  'browser-preview:recording-request': {
+    payload: BrowserPreviewRecordingRequest
+  }
+  'browser-preview:recording-cancel': {
+    payload: BrowserPreviewRecordingCancelRequest
+  }
   /** Pi-shaped runtime events for the renderer's live transcript runtime */
   'agent:event': {
     payload: { sessionId: SessionId; event: AgentTransportEvent }
   }
   'terminal:event': {
     payload: TerminalEventPayload
+  }
+  /** Global terminal child-process metadata, including terminals with no mounted pane. */
+  'terminal:activity-snapshot': {
+    payload: TerminalActivitySnapshot
   }
   'agent:phase': {
     payload: AgentPhaseEventPayload

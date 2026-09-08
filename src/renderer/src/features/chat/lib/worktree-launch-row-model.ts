@@ -1,15 +1,34 @@
 import {
   WORKTREE_CREATED_CUSTOM_EVENT,
   type WorktreeLaunchSnapshot,
+  type WorktreeSetupActionTerminal,
 } from '@shared/types/background-run'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
+import { isRecord } from '@shared/utils/validation'
 import type { ChatRow } from './types-chat-row'
 
 export function isWorktreeCreatedEvent(event: AgentTransportCustomEvent) {
   return event.name === WORKTREE_CREATED_CUSTOM_EVENT
 }
 
-function launchFromCustomEvent(event: AgentTransportCustomEvent): WorktreeLaunchSnapshot | null {
+function setupActionFromValue(value: unknown): WorktreeSetupActionTerminal | undefined {
+  if (!isRecord(value)) return undefined
+  const { terminalId, actionId, actionName, projectRoot, cwd } = value
+  if (
+    typeof terminalId !== 'string' ||
+    typeof actionId !== 'string' ||
+    typeof actionName !== 'string' ||
+    typeof projectRoot !== 'string' ||
+    typeof cwd !== 'string'
+  ) {
+    return undefined
+  }
+  return { terminalId, actionId, actionName, projectRoot, cwd }
+}
+
+export function worktreeLaunchFromCustomEvent(
+  event: AgentTransportCustomEvent,
+): WorktreeLaunchSnapshot | null {
   if (
     !isWorktreeCreatedEvent(event) ||
     typeof event.value !== 'object' ||
@@ -30,6 +49,7 @@ function launchFromCustomEvent(event: AgentTransportCustomEvent): WorktreeLaunch
   const worktreePath = stringValue('worktreePath')
   const branch = stringValue('branch')
   const baseRef = stringValue('baseRef')
+  const setupAction = setupActionFromValue(eventValue.setupAction)
   return {
     status: 'complete',
     stage: 'starting-task',
@@ -39,6 +59,7 @@ function launchFromCustomEvent(event: AgentTransportCustomEvent): WorktreeLaunch
     ...(worktreePath ? { worktreePath } : {}),
     ...(branch ? { branch } : {}),
     ...(baseRef ? { baseRef } : {}),
+    ...(setupAction ? { setupAction } : {}),
   }
 }
 
@@ -60,7 +81,7 @@ export function createWorktreeLaunchRows(input: {
     ]
   }
   return input.customMessages.flatMap((event) => {
-    const launch = launchFromCustomEvent(event)
+    const launch = worktreeLaunchFromCustomEvent(event)
     return launch
       ? [
           {

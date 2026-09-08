@@ -2,17 +2,13 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  getBranchSummarySkipPromptMock,
   getSettingsMock,
-  getTreeFilterModeMock,
   getTypedEffectInvokeHandler,
   loadSettingsHandlers,
   reconcileTrustedMainExtensionsMock,
   resetSettingsHandlerMocks,
-  setTreeFilterModeMock,
   typedHandleMock,
   updateSettingsMock,
 } from './settings-handler.test-harness'
@@ -86,6 +82,41 @@ describe('registerSettingsHandlers', () => {
 
       const result = await handler?.({}, { thinkingLevel: 'invalid-mode' })
       expect(result).toEqual({ ok: false, error: expect.any(String) })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
+    it('validates browser defaults before they reach persistence', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      const valid = await handler?.(
+        {},
+        {
+          browserDefaultViewport: {
+            mode: 'fixed',
+            width: 390,
+            height: 844,
+            presetId: 'iphone-12-pro',
+          },
+          browserDefaultZoomFactor: 1.25,
+          browserDefaultAppearance: 'dark',
+          browserRecordingFrameRate: 60,
+          browserAutoShowFloatingPreview: false,
+        },
+      )
+
+      expect(valid).toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          browserDefaultZoomFactor: 1.25,
+          browserRecordingFrameRate: 60,
+          browserAutoShowFloatingPreview: false,
+        }),
+      )
+
+      updateSettingsMock.mockClear()
+      const invalid = await handler?.({}, { browserRecordingFrameRate: 120 })
+      expect(invalid).toEqual({ ok: false, error: expect.any(String) })
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
@@ -190,137 +221,6 @@ describe('registerSettingsHandlers', () => {
       )
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
-    })
-
-    it('validates and applies appearance and session-default settings', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
-
-      const update = {
-        defaultSessionEnvironmentMode: 'worktree',
-        diffSyntaxTheme: 'pierre-dark-vibrant',
-        syntaxThemeSelections: {
-          light: 'bundled:github-light',
-          dark: 'bundled:github-dark',
-          'high-contrast-light': 'bundled:github-light-high-contrast',
-          'high-contrast-dark': 'bundled:github-dark-high-contrast',
-        },
-        diffView: 'split',
-        diffWrapLines: true,
-        appearancePreferences: {
-          typography: {
-            ...DEFAULT_SETTINGS.appearancePreferences.typography,
-            interfaceFontFamily: 'Inter, system-ui, sans-serif',
-            codeFontSize: 14,
-          },
-          motion: 'reduced',
-        },
-      } as const
-
-      const result = await handler?.({}, update)
-
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(update))
-    })
-
-    it('rejects incomplete syntax theme selections', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      const result = await handler?.(
-        {},
-        {
-          syntaxThemeSelections: {
-            light: 'bundled:github-light',
-            dark: 'bundled:github-dark',
-          },
-        },
-      )
-
-      expect(result).toEqual({ ok: false, error: expect.any(String) })
-      expect(updateSettingsMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects duplicate shortcut bindings without replacing existing customizations', async () => {
-      const currentSettings = {
-        ...DEFAULT_SETTINGS,
-        shortcutBindings: {
-          ...DEFAULT_SHORTCUT_BINDINGS,
-          'diff.toggle': null,
-          'sidebar.toggle': { key: 'D', mod: true },
-          'terminal.toggle': { key: 'T', mod: true, shift: true },
-        },
-      }
-      getSettingsMock.mockReturnValue(currentSettings)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      const result = await handler?.(
-        {},
-        {
-          shortcutBindings: {
-            ...currentSettings.shortcutBindings,
-            'diff.toggle': DEFAULT_SHORTCUT_BINDINGS['diff.toggle'],
-          },
-        },
-      )
-
-      expect(result).toEqual({ ok: false, error: expect.stringContaining('already assigned') })
-      expect(updateSettingsMock).not.toHaveBeenCalled()
-      expect(currentSettings.shortcutBindings['terminal.toggle']).toEqual({
-        key: 'T',
-        mod: true,
-        shift: true,
-      })
-    })
-  })
-
-  describe('pi tree preferences', () => {
-    it('returns the persisted Pi tree filter mode', async () => {
-      getTreeFilterModeMock.mockReturnValue('no-tools')
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('pi-settings:get-tree-filter-mode')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({}, null)
-      expect(result).toBe('no-tools')
-      expect(getTreeFilterModeMock).toHaveBeenCalledWith(undefined)
-    })
-
-    it('validates and persists a Pi tree filter mode', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('pi-settings:set-tree-filter-mode')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({}, 'labeled-only', null)
-      expect(result).toBeUndefined()
-      expect(setTreeFilterModeMock).toHaveBeenCalledWith('labeled-only', undefined)
-    })
-
-    it('rejects invalid Pi tree filter modes', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('pi-settings:set-tree-filter-mode')
-      expect(handler).toBeDefined()
-
-      await expect(handler?.({}, 'bad-mode', null)).rejects.toThrow('Invalid tree filter mode')
-      expect(setTreeFilterModeMock).not.toHaveBeenCalled()
-    })
-
-    it('returns the Pi branch-summary skip-prompt preference', async () => {
-      getBranchSummarySkipPromptMock.mockReturnValue(true)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('pi-settings:get-branch-summary-skip-prompt')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({}, null)
-      expect(result).toBe(true)
-      expect(getBranchSummarySkipPromptMock).toHaveBeenCalledWith(undefined)
     })
   })
 })

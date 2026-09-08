@@ -33,10 +33,10 @@ export function TerminalSearchBar({ addon, onDismiss }: TerminalSearchBarProps) 
         value={query}
         placeholder="Find in terminal"
         onChange={(event) => {
-          setQuery(event.target.value)
-          if (event.target.value.length >= MIN_QUERY_LENGTH) {
-            runSearch('next', event.target.value)
-          }
+          const nextQuery = event.target.value
+          setQuery(nextQuery)
+          if (nextQuery.length >= MIN_QUERY_LENGTH) runSearch('next', nextQuery)
+          else addon?.clearDecorations()
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
@@ -56,7 +56,15 @@ export function TerminalSearchBar({ addon, onDismiss }: TerminalSearchBarProps) 
         size="xs"
         variant={caseSensitive ? 'accent' : 'ghost'}
         title="Match case"
-        onClick={() => setCaseSensitive((value) => !value)}
+        aria-label="Match case"
+        aria-pressed={caseSensitive}
+        onClick={() => {
+          const next = !caseSensitive
+          setCaseSensitive(next)
+          if (addon !== null && query.length >= MIN_QUERY_LENGTH) {
+            addon.findNext(query, { caseSensitive: next })
+          }
+        }}
       >
         Aa
       </Button>
@@ -64,6 +72,7 @@ export function TerminalSearchBar({ addon, onDismiss }: TerminalSearchBarProps) 
         size="icon-xs"
         variant="ghost"
         title="Previous match"
+        aria-label="Previous terminal search match"
         onClick={() => runSearch('previous', query)}
       >
         ↑
@@ -72,6 +81,7 @@ export function TerminalSearchBar({ addon, onDismiss }: TerminalSearchBarProps) 
         size="icon-xs"
         variant="ghost"
         title="Next match"
+        aria-label="Next terminal search match"
         onClick={() => runSearch('next', query)}
       >
         ↓
@@ -80,6 +90,7 @@ export function TerminalSearchBar({ addon, onDismiss }: TerminalSearchBarProps) 
         size="icon-xs"
         variant="ghost"
         title="Close search"
+        aria-label="Close terminal search"
         onClick={() => {
           addon?.clearDecorations()
           onDismiss()

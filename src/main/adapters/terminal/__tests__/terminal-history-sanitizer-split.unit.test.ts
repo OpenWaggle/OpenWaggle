@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createTerminalHistorySanitizer } from '../terminal-history-sanitizer'
 
 describe('split OSC query residue', () => {
+  it('strips an ST-terminated query at every possible chunk boundary', () => {
+    const query = '\x1b]11;?\x1b\\'
+    for (let cut = 0; cut <= query.length; cut += 1) {
+      const sanitizer = createTerminalHistorySanitizer()
+      const first = sanitizer.feed(`before${query.slice(0, cut)}`)
+      const second = sanitizer.feed(`${query.slice(cut)}after`)
+      expect(first + second, `split at ${cut}`).toBe('beforeafter')
+    }
+  })
+
   it('holds an OSC query split before its ST terminator', () => {
     const sanitizer = createTerminalHistorySanitizer()
     const first = sanitizer.feed('plain\x1b]11;?')

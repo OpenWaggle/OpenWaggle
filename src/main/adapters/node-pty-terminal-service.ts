@@ -1,10 +1,8 @@
 import path from 'node:path'
 import type {
+  TerminalActivitySnapshot,
   TerminalAttachResult,
-  TerminalId,
   TerminalKey,
-  TerminalOpenInput,
-  TerminalOwnerKey,
 } from '@shared/types/terminal'
 import { terminalKeyOf } from '@shared/types/terminal'
 import * as Effect from 'effect/Effect'
@@ -13,8 +11,18 @@ import { app } from 'electron'
 import { TerminalEventSink } from '../ports/terminal-event-sink'
 import type { TerminalServiceShape } from '../ports/terminal-service'
 import { TerminalService } from '../ports/terminal-service'
+import { broadcastToWindows } from '../utils/broadcast'
 import { ElectronTerminalEventSinkLive } from './electron-terminal-event-sink'
+import {
+  makeTerminalActivitySnapshotPublisher,
+  terminalEventCanChangeActivitySummary,
+} from './terminal/terminal-activity-snapshot'
+import { makeTerminalAttachmentTracker } from './terminal/terminal-attachment-tracker'
 import { makeTerminalHistoryStore } from './terminal/terminal-history-store'
+import { makeTerminalInactiveRecordRetention } from './terminal/terminal-inactive-record-retention'
+import type { PendingTerminalInput } from './terminal/terminal-input-idempotency'
+import { resolveTerminalAlias } from './terminal/terminal-key-aliases'
+import { makeTerminalOperationQueue } from './terminal/terminal-operation-queue'
 import {
   makeTerminalProcessInspector,
   type TerminalProcessInspector,
@@ -22,24 +30,34 @@ import {
 import { makePtyRunner } from './terminal/terminal-pty-runner'
 import type { TerminalRecord } from './terminal/terminal-records'
 import { makeTerminalRuntime } from './terminal/terminal-runtime'
+import type { TerminalActionContext } from './terminal/terminal-service-actions'
 import {
-  clearTerminalAction,
-  closeAllTerminalsAction,
-  closeOwnerTerminalsAction,
-  closeTerminalAction,
-  closeTerminalsUnderPathAction,
-  openTerminalAction,
-  resizeTerminalAction,
-  restartTerminalAction,
-  type TerminalActionContext,
-  writeTerminalAction,
-} from './terminal/terminal-service-actions'
+  disposeTerminalResources,
+  startTerminalActivityInspection,
+} from './terminal/terminal-service-coordination'
+import { makeTerminalServiceFacade } from './terminal/terminal-service-facade'
 
 const TERMINAL_LOGS_DIR_NAME = 'terminal-logs'
+const FALLBACK_APP_VERSION = '0.0.0'
+
+function getElectronAppVersion() {
+  const getVersion: unknown = Reflect.get(app, 'getVersion')
+  if (typeof getVersion !== 'function') return FALLBACK_APP_VERSION
+
+  try {
+    const version: unknown = Reflect.apply(getVersion, app, [])
+    return typeof version === 'string' && version.length > 0 ? version : FALLBACK_APP_VERSION
+  } catch {
+    return FALLBACK_APP_VERSION
+  }
+}
 
 export interface NodePtyTerminalServiceOptions {
   readonly logsDir: string
-  readonly onRecordChanged?: () => void
+  readonly appVersion: string
+  readonly onRecordChanged?: (snapshot: TerminalActivitySnapshot) => void
+  readonly maxInactiveRecords?: number
+  readonly maxInactiveScrollbackBytes?: number
 }
 
 export interface TerminalServiceInternals {
@@ -49,87 +67,135 @@ export interface TerminalServiceInternals {
   readonly dispose: () => Promise<void>
 }
 
+function inspectorTargets(record: TerminalRecord) {
+  if (record.live === null || record.termination !== null) return []
+  return [
+    {
+      key: record.key,
+      pid: record.live.pid,
+      tty: record.live.tty,
+      ttyIdentity: record.live.ttyIdentity,
+      processIdentity: record.live.processIdentity,
+    },
+  ]
+}
+
 export function makeNodePtyTerminalService(
   sink: TerminalEventSink['Type'],
   options: NodePtyTerminalServiceOptions,
 ): TerminalServiceShape & TerminalServiceInternals {
   const history = makeTerminalHistoryStore(options.logsDir)
   const inspector: TerminalProcessInspector = makeTerminalProcessInspector()
-  const runner = makePtyRunner()
+  const runner = makePtyRunner({ appVersion: options.appVersion })
   const inFlightOpens = new Map<TerminalKey, Promise<TerminalAttachResult>>()
+  const operationQueue = makeTerminalOperationQueue()
+  const pendingInputByKey = new Map<TerminalKey, PendingTerminalInput>()
+  const terminalKeyAliases = new Map<TerminalKey, TerminalKey>()
+  const attachments = makeTerminalAttachmentTracker()
   let closing = false
+  let retention: ReturnType<typeof makeTerminalInactiveRecordRetention> | null = null
+  const activityPublisher = makeTerminalActivitySnapshotPublisher(
+    () => runtime.records.values(),
+    options.onRecordChanged,
+  )
+  const notifyRecordChanged = activityPublisher.notify
+
+  const resolveAlias = (requestedKey: TerminalKey) =>
+    resolveTerminalAlias(terminalKeyAliases, requestedKey)
+
+  const acknowledgeCurrentOutput = (key: TerminalKey) => {
+    const record = runtime.records.get(resolveAlias(key))
+    const event = record?.inFlightOutput?.event
+    if (record === undefined || event === undefined) return
+    runtime.acknowledgeOutput(record, event.outputGeneration, event.endOffset)
+  }
+
+  const refreshInspectorTargets = () => {
+    inspector.setTargets([...runtime.records.values()].flatMap(inspectorTargets))
+    notifyRecordChanged()
+  }
 
   const runtime = makeTerminalRuntime({
     runner,
     history,
-    emit: (payload) => Effect.runPromise(sink.emit(payload)).catch(() => undefined),
-    onLivePidsChanged: () => {
-      inspector.setTargets(
-        [...runtime.records.values()].flatMap((record) =>
-          record.live === null ? [] : [{ key: record.key, pid: record.live.pid }],
-        ),
-      )
+    emit: (payload) => {
+      const key = terminalKeyOf(payload.ownerKey, payload.terminalId)
+      const capturedAttachment = attachments.capture(key)
+      const delivered = Effect.runPromise(sink.emit(payload))
+        .catch(() => 0)
+        .then((count) => {
+          if (count === 0 && attachments.orphanIfUnchanged(key, capturedAttachment)) {
+            retention?.prune()
+          }
+          return count
+        })
+      // Output is the terminal hot path and cannot change child-process
+      // metadata. Lifecycle/readiness/inspector events are infrequent and
+      // still reconcile record creation, activity, exit, and removal.
+      if (terminalEventCanChangeActivitySummary(payload.event)) notifyRecordChanged()
+      return delivered
     },
+    onLivePidsChanged: refreshInspectorTargets,
+    onRecordActive: (record) => retention?.markActive(record),
+    onRecordInactive: (record) => retention?.markInactive(record),
+    onOutputDrained: () => retention?.outputDrained(),
+    onRecordMetadataChanged: () => notifyRecordChanged(),
+  })
+
+  retention = makeTerminalInactiveRecordRetention({
+    runtime,
+    attachments,
+    aliases: terminalKeyAliases,
+    pendingInputByKey,
+    onRecordsChanged: refreshInspectorTargets,
+    ...(options.maxInactiveRecords === undefined ? {} : { maxRecords: options.maxInactiveRecords }),
+    ...(options.maxInactiveScrollbackBytes === undefined
+      ? {}
+      : { maxScrollbackBytes: options.maxInactiveScrollbackBytes }),
   })
 
   const context: TerminalActionContext = {
     runtime,
     isClosing: () => closing,
     inFlightOpens,
+    operationQueue,
+    pendingInputByKey,
+    terminalKeyAliases,
+    moveAttachments: async (fromKey, toKey) => {
+      await Effect.runPromise(sink.move(fromKey, toKey))
+      attachments.move(fromKey, toKey)
+    },
+    onRecordsRekeyed: refreshInspectorTargets,
   }
 
-  inspector.start((key, snapshot) => {
-    const record = runtime.records.get(key)
-    if (record === undefined) return
-    // Emit on every change, including a transition to zero ports, so stale
-    // port-preview chips disappear when their server stops. The sink's
-    // change detection keeps repeated identical snapshots cheap.
-    runtime.emitEvent(record, { type: 'ports', ports: snapshot.ports })
-    runtime.emitEvent(record, { type: 'activity', processName: snapshot.processName })
-  })
+  startTerminalActivityInspection(inspector, runtime)
 
-  const dispose = async () => {
+  const dispose = () => {
     closing = true
-    await Effect.runPromise(closeAllTerminalsAction(context)).catch(() => undefined)
-    inspector.stop()
+    return disposeTerminalResources(
+      context,
+      terminalKeyAliases,
+      notifyRecordChanged,
+      inspector,
+    ).finally(() => attachments.clear())
   }
 
+  const facade = makeTerminalServiceFacade({
+    sink,
+    context,
+    attachments,
+    resolveAlias,
+    acknowledgeCurrentOutput,
+    pruneInactive: () => retention?.prune(),
+    getActivitySnapshot: activityPublisher.getSnapshot,
+    notifyRecordChanged,
+  })
   const service: TerminalServiceShape & TerminalServiceInternals = {
     records: runtime.records,
     history,
     flushOutputs: runtime.flushOutputs,
     dispose,
-
-    attachSurface: (terminalKey, surfaceId) => sink.attach(terminalKey, surfaceId),
-
-    detachTerminal: (ownerKey: TerminalOwnerKey, terminalId: TerminalId, surfaceId: number) =>
-      sink.detach(terminalKeyOf(ownerKey, terminalId), surfaceId),
-
-    detachSurface: (surfaceId) => sink.detachSurface(surfaceId),
-
-    open: (input: TerminalOpenInput) => openTerminalAction(context, input),
-
-    write: (ownerKey: TerminalOwnerKey, terminalId: TerminalId, data: string) =>
-      writeTerminalAction(context, ownerKey, terminalId, data),
-
-    resize: (ownerKey: TerminalOwnerKey, terminalId: TerminalId, cols: number, rows: number) =>
-      resizeTerminalAction(context, ownerKey, terminalId, cols, rows),
-
-    clear: (ownerKey: TerminalOwnerKey, terminalId: TerminalId) =>
-      clearTerminalAction(context, ownerKey, terminalId),
-
-    restart: (input: TerminalOpenInput) => restartTerminalAction(context, input),
-
-    close: (ownerKey: TerminalOwnerKey, terminalId: TerminalId, deleteHistory: boolean) =>
-      closeTerminalAction(context, ownerKey, terminalId, deleteHistory),
-
-    closeAllForOwner: (ownerKey: TerminalOwnerKey, deleteHistory: boolean) =>
-      closeOwnerTerminalsAction(context, ownerKey, deleteHistory),
-
-    closeAllUnderPath: (directoryPath: string, deleteHistory: boolean) =>
-      closeTerminalsUnderPathAction(context, directoryPath, deleteHistory),
-
-    closeAll: () => closeAllTerminalsAction(context),
+    ...facade,
   }
 
   return service
@@ -141,6 +207,13 @@ export const NodePtyTerminalServiceLive = Layer.scoped(
     const sink = yield* TerminalEventSink
     const service = makeNodePtyTerminalService(sink, {
       logsDir: path.join(app.getPath('userData'), TERMINAL_LOGS_DIR_NAME),
+      // Electron always supplies getVersion in production. The defensive
+      // fallback keeps the service layer usable in Node-only test harnesses
+      // and degraded Electron startup environments.
+      appVersion: getElectronAppVersion(),
+      onRecordChanged: (snapshot) => {
+        broadcastToWindows('terminal:activity-snapshot', snapshot)
+      },
     })
     // The inspector interval and pending history writes belong to this
     // service's lifetime, so they stop when the runtime disposes.

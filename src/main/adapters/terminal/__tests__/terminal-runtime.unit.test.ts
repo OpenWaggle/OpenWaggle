@@ -1,266 +1,145 @@
-import { promises as fs } from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { TERMINAL } from '@shared/constants/resource-limits'
-import type { TerminalEventPayload, TerminalOpenInput } from '@shared/types/terminal'
-import { fromPartial } from '@total-typescript/shoehorn'
-import type { IPty } from 'node-pty'
+import { fromAny } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { makeTerminalHistoryStore } from '../terminal-history-store'
-import type { PtyRunner, PtySpawnOutcome, PtySpawnRequest } from '../terminal-pty-runner'
-import type { TerminalRuntime } from '../terminal-runtime'
-import { makeTerminalRuntime } from '../terminal-runtime'
+import type { PtySpawnOutcome } from '../terminal-pty-runner'
+import {
+  addRecord,
+  BEL,
+  ESC,
+  FAKE_PID,
+  INPUT,
+  makeFakePty,
+  makeRuntime,
+  setupTerminalRuntimeTest,
+  successfulOutcome,
+  teardownTerminalRuntimeTest,
+} from './terminal-runtime-test-harness'
 
-const ESC = '\x1b'
-const FAKE_PID = 4242
+describe('makeTerminalRuntime spawn lifecycle', () => {
+  beforeEach(setupTerminalRuntimeTest)
+  afterEach(teardownTerminalRuntimeTest)
 
-const INPUT: TerminalOpenInput = {
-  ownerKey: 'session-1',
-  terminalId: 'main',
-  cwd: '/worktrees/session-1',
-  cols: 120,
-  rows: 40,
-}
-
-interface FakePty {
-  readonly pty: IPty
-  readonly dataListeners: Array<(data: string) => void>
-  readonly exitListeners: Array<(event: { readonly exitCode: number }) => void>
-  readonly write: ReturnType<typeof vi.fn>
-  readonly kill: ReturnType<typeof vi.fn>
-  readonly resize: ReturnType<typeof vi.fn>
-}
-
-function makeFakePty(pid: number): FakePty {
-  const dataListeners: Array<(data: string) => void> = []
-  const exitListeners: Array<(event: { readonly exitCode: number }) => void> = []
-  const write = vi.fn()
-  const kill = vi.fn()
-  const resize = vi.fn()
-  const pty = fromPartial<IPty>({
-    pid,
-    onData: (listener: (data: string) => void) => {
-      dataListeners.push(listener)
-      return { dispose: () => undefined }
-    },
-    onExit: (listener: (event: { exitCode: number }) => void) => {
-      exitListeners.push(listener)
-      return { dispose: () => undefined }
-    },
-    write,
-    kill,
-    resize,
-  })
-  return { pty, dataListeners, exitListeners, write, kill, resize }
-}
-
-type EmitMock = ReturnType<typeof vi.fn<(payload: TerminalEventPayload) => void>>
-
-describe('makeTerminalRuntime', () => {
-  let logsDir: string
-  let store: ReturnType<typeof makeTerminalHistoryStore>
-
-  function makeRuntime(pty: IPty) {
-    const spawn = vi.fn(
-      async (_request: PtySpawnRequest): Promise<PtySpawnOutcome> => ({
-        ok: true,
-        pty,
-        pid: pty.pid,
-        shell: 'zsh',
-      }),
-    )
-    const runner: PtyRunner = {
-      spawn,
-      load: () => Promise.resolve({ spawn: () => pty }),
-    }
-    const emit = vi.fn<(payload: TerminalEventPayload) => void>()
-    const onLivePidsChanged = vi.fn()
-    const runtime = makeTerminalRuntime({ runner, history: store, emit, onLivePidsChanged })
-    return { runtime, spawn, emit, onLivePidsChanged }
-  }
-
-  /** The spawn-time activity event is always first; grab later events by index. */
-  function eventAt(emit: EmitMock, index: number) {
-    return emit.mock.calls[index]?.[0]?.event
-  }
-
-  function addRecord(runtime: TerminalRuntime) {
-    const record = runtime.makeRecord(INPUT, INPUT.cwd)
-    runtime.records.set(record.key, record)
-    return record
-  }
-
-  beforeEach(async () => {
-    logsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-terminal-runtime-'))
-    store = makeTerminalHistoryStore(logsDir)
-    vi.useFakeTimers()
-  })
-
-  afterEach(async () => {
-    vi.useRealTimers()
-    await fs.rm(logsDir, { recursive: true, force: true })
-  })
-
-  it('builds a registry record from the open input', () => {
-    const { runtime } = makeRuntime(makeFakePty(FAKE_PID).pty)
+  it('builds a generation-aware registry record', () => {
+    const { runtime } = makeRuntime(makeFakePty(FAKE_PID))
 
     const record = runtime.makeRecord(INPUT, INPUT.cwd)
 
-    expect(record.key).toBe('session-1::main')
-    expect(record.ownerKey).toBe('session-1')
-    expect(record.terminalId).toBe('main')
-    expect(record.cwd).toBe(INPUT.cwd)
-    expect(record.live).toBeNull()
-    expect(record.exitCode).toBeNull()
-    expect(record.spawnGeneration).toBe(0)
-    expect(record.pendingOutput).toBe('')
-    expect(record.scrollback.toString()).toBe('')
-  })
-
-  it('coalesces output chunks into one emit after the flush window', async () => {
-    const fake = makeFakePty(FAKE_PID)
-    const { runtime, emit, onLivePidsChanged } = makeRuntime(fake.pty)
-    const record = addRecord(runtime)
-
-    runtime.spawn(record, INPUT.cols, INPUT.rows)
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(record.live).not.toBeNull()
-    expect(onLivePidsChanged).toHaveBeenCalledOnce()
-
-    // The spawn-time activity event names the shell; it precedes all output.
-    expect(emit).toHaveBeenCalledOnce()
-    expect(eventAt(emit, 0)).toEqual({ type: 'activity', processName: 'zsh' })
-
-    fake.dataListeners[0]?.('hello')
-    expect(record.pendingOutput).toBe('hello')
-    expect(emit).toHaveBeenCalledOnce()
-
-    fake.dataListeners[0]?.(' world')
-    expect(record.pendingOutput).toBe('hello world')
-
-    await vi.advanceTimersByTimeAsync(TERMINAL.OUTPUT_FLUSH_MS)
-
-    expect(emit).toHaveBeenCalledTimes(2)
-    expect(eventAt(emit, 1)).toEqual({
-      type: 'output',
-      data: 'hello world',
-      startOffset: 0,
-      endOffset: 11,
-    })
-    expect(record.pendingOutput).toBe('')
-    expect(record.scrollback.toString()).toBe('hello world')
-  })
-
-  it('appends sanitized output to scrollback and persisted history', async () => {
-    const fake = makeFakePty(FAKE_PID)
-    const { runtime, emit } = makeRuntime(fake.pty)
-    const record = addRecord(runtime)
-
-    runtime.spawn(record, INPUT.cols, INPUT.rows)
-    await vi.advanceTimersByTimeAsync(0)
-
-    fake.dataListeners[0]?.(`hidden${ESC}[6nvisible`)
-    await vi.advanceTimersByTimeAsync(TERMINAL.OUTPUT_FLUSH_MS)
-
-    expect(emit).toHaveBeenCalledWith({
+    expect(record).toMatchObject({
+      key: 'session-1::main',
       ownerKey: 'session-1',
       terminalId: 'main',
-      event: {
-        type: 'output',
-        data: `hidden${ESC}[6nvisible`,
-        startOffset: 0,
-        endOffset: 17,
-      },
+      cwd: INPUT.cwd,
+      live: null,
+      exitCode: null,
+      spawnGeneration: 0,
+      outputGeneration: 0,
+      readinessPhase: 'spawning',
+      readinessGeneration: 0,
+      pendingInput: [],
+      pendingInputBytes: 0,
+      inputGeneration: null,
+      lastInputReceipt: null,
+      pendingOutput: '',
+      pendingOutputBytes: 0,
     })
-    expect(record.scrollback.toString()).toBe('hiddenvisible')
-
-    await store.flush()
-    await expect(store.read(record.key)).resolves.toBe('hiddenvisible')
   })
 
-  it('emits the exit event on the current generation', async () => {
+  it('retains the bounded spawn metadata as shutdown identity and tty fallback', async () => {
     const fake = makeFakePty(FAKE_PID)
-    const { runtime, emit, onLivePidsChanged } = makeRuntime(fake.pty)
+    const { runtime, spawn } = makeRuntime(fake)
+    const outcome = successfulOutcome(fake)
+    if (!outcome.ok) throw outcome.error
+    spawn.mockResolvedValue({
+      ...outcome,
+      processIdentity: { pid: FAKE_PID, startedAt: 'darwin:123:456' },
+      ttyIdentity: 'darwin:16:456',
+      processMetadata: Promise.resolve({
+        pid: FAKE_PID,
+        startedAt: 'darwin:123:456',
+        tty: 'ttys456',
+        ttyIdentity: 'darwin:16:456',
+      }),
+    })
     const record = addRecord(runtime)
 
-    runtime.spawn(record, INPUT.cols, INPUT.rows)
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'spawn-metadata')
     await vi.advanceTimersByTimeAsync(0)
 
-    fake.exitListeners[0]?.({ exitCode: 7 })
-
-    expect(emit).toHaveBeenCalledTimes(2)
-    expect(eventAt(emit, 1)).toEqual({ type: 'exited', exitCode: 7 })
-    expect(record.exitCode).toBe(7)
-    expect(record.live).toBeNull()
-    expect(onLivePidsChanged).toHaveBeenCalledTimes(2)
+    expect(record.live).toMatchObject({
+      processIdentity: { pid: FAKE_PID, startedAt: 'darwin:123:456' },
+      ttyIdentity: 'darwin:16:456',
+      tty: 'ttys456',
+    })
   })
 
-  it('ignores a late exit after killLive bumps the generation', async () => {
-    const fake = makeFakePty(FAKE_PID)
-    const { runtime, emit, onLivePidsChanged } = makeRuntime(fake.pty)
+  it('generation-guards late data as well as late exit', async () => {
+    const first = makeFakePty(FAKE_PID)
+    const second = makeFakePty(FAKE_PID + 1)
+    const { runtime, spawn, emitted, onLivePidsChanged } = makeRuntime(first)
+    spawn
+      .mockResolvedValueOnce(successfulOutcome(first, 'openwaggle-definitely-closed-test-tty'))
+      .mockResolvedValueOnce(successfulOutcome(second))
     const record = addRecord(runtime)
 
-    runtime.spawn(record, INPUT.cols, INPUT.rows)
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'first-generation')
     await vi.advanceTimersByTimeAsync(0)
+    first.dataListeners[0]?.('first')
+    await runtime.killLive(record)
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'second-generation')
+    await vi.advanceTimersByTimeAsync(0)
+    const beforeLateData = record.scrollback.toString()
+    const outputBytesBeforeLateData = record.outputBytes
 
-    runtime.killLive(record)
-    expect(fake.kill).toHaveBeenCalledOnce()
-    expect(record.live).toBeNull()
+    first.dataListeners[0]?.(`stale${ESC}]633;B${BEL}`)
+    first.exitListeners[0]?.({ exitCode: 9 })
 
-    fake.exitListeners[0]?.({ exitCode: 0 })
-
-    // Only the spawn-time shell-name activity event fired; the stale exit
-    // after killLive bumped the generation must not emit.
-    expect(emit).toHaveBeenCalledOnce()
-    expect(eventAt(emit, 0)).toEqual({ type: 'activity', processName: 'zsh' })
-    expect(record.exitCode).toBeNull()
-    expect(onLivePidsChanged).toHaveBeenCalledTimes(2)
+    expect(record.scrollback.toString()).toBe(beforeLateData)
+    expect(record.outputBytes).toBe(outputBytesBeforeLateData)
+    expect(record.readinessPhase).toBe('awaiting-prompt')
+    expect(record.live?.pty).toBe(second.pty)
+    expect(emitted.some((payload) => payload.event.type === 'exited')).toBe(false)
+    expect(onLivePidsChanged).toHaveBeenCalledTimes(4)
   })
 
-  it('drops pending output for a terminal via discardPendingOutput', async () => {
+  it('emits failed exit only for the current spawn generation', async () => {
     const fake = makeFakePty(FAKE_PID)
-    const { runtime, emit } = makeRuntime(fake.pty)
-    const record = addRecord(runtime)
-
-    runtime.spawn(record, INPUT.cols, INPUT.rows)
-    await vi.advanceTimersByTimeAsync(0)
-
-    fake.dataListeners[0]?.('buffered')
-    runtime.discardPendingOutput(record.key)
-    await vi.advanceTimersByTimeAsync(TERMINAL.OUTPUT_FLUSH_MS)
-
-    // Only the spawn-time shell-name activity event fired; the discarded
-    // output batch never reached the sink.
-    expect(emit).toHaveBeenCalledOnce()
-    expect(eventAt(emit, 0)).toEqual({ type: 'activity', processName: 'zsh' })
-  })
-
-  it('emits a failed exit when the runner cannot spawn a shell', async () => {
-    const fake = makeFakePty(FAKE_PID)
-    const { runtime, spawn, emit } = makeRuntime(fake.pty)
+    const { runtime, spawn, emitted } = makeRuntime(fake)
     spawn.mockResolvedValue({ ok: false, error: new Error('no shell available') })
     const record = addRecord(runtime)
 
     runtime.spawn(record, INPUT.cols, INPUT.rows)
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(emit).toHaveBeenCalledOnce()
-    expect(emit).toHaveBeenCalledWith({
-      ownerKey: 'session-1',
-      terminalId: 'main',
+    expect(record.exitCode).toBe(-1)
+    expect(emitted).toContainEqual({
+      ownerKey: INPUT.ownerKey,
+      terminalId: INPUT.terminalId,
       event: { type: 'exited', exitCode: -1 },
     })
-    expect(record.exitCode).toBe(-1)
-    expect(record.live).toBeNull()
   })
 
-  it('kills a stale spawn outcome when a newer generation wins', async () => {
-    const first = makeFakePty(111)
-    const second = makeFakePty(FAKE_PID)
-    const { runtime, spawn } = makeRuntime(second.pty)
+  it('normalizes a malformed native exit payload before storing or emitting it', async () => {
+    const fake = makeFakePty(FAKE_PID)
+    const { runtime, emitted } = makeRuntime(fake)
     const record = addRecord(runtime)
 
+    runtime.spawn(record, INPUT.cols, INPUT.rows)
+    await vi.advanceTimersByTimeAsync(0)
+    fake.exitListeners[0]?.(fromAny({ exitCode: undefined }))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(record.exitCode).toBe(-1)
+    expect(emitted).toContainEqual({
+      ownerKey: INPUT.ownerKey,
+      terminalId: INPUT.terminalId,
+      event: { type: 'exited', exitCode: -1 },
+    })
+  })
+
+  it('kills a stale asynchronous spawn outcome when a newer generation wins', async () => {
+    const first = makeFakePty(111)
+    const second = makeFakePty(FAKE_PID)
+    const { runtime, spawn } = makeRuntime(second)
+    const record = addRecord(runtime)
     let resolveFirst: ((outcome: PtySpawnOutcome) => void) | undefined
     spawn.mockImplementationOnce(
       () =>
@@ -272,14 +151,156 @@ describe('makeTerminalRuntime', () => {
     runtime.spawn(record, INPUT.cols, INPUT.rows)
     runtime.spawn(record, INPUT.cols, INPUT.rows)
     await vi.advanceTimersByTimeAsync(0)
-
-    expect(record.spawnGeneration).toBe(2)
-    expect(record.live?.pty).toBe(second.pty)
-
-    resolveFirst?.({ ok: true, pty: first.pty, pid: 111, shell: 'zsh' })
+    resolveFirst?.(successfulOutcome(first))
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(first.kill).toHaveBeenCalledOnce()
+    // Detached stale spawns are inspected before shutdown so their children
+    // cannot escape. The process-table probe is asynchronous even though the
+    // stale generation was identified synchronously.
+    await vi.waitFor(() => expect(first.destroy).toHaveBeenCalledOnce())
+    expect(first.kill).not.toHaveBeenCalled()
     expect(record.live?.pty).toBe(second.pty)
+  })
+
+  it('retains an unconfirmed stale spawn for app-shutdown retry', async () => {
+    const first = makeFakePty(111)
+    const second = makeFakePty(FAKE_PID)
+    const shutdownDetachedProcess = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        first.emitExit(0)
+        return true
+      })
+    const { runtime, spawn } = makeRuntime(second, 1, { shutdownDetachedProcess })
+    const record = addRecord(runtime)
+    let resolveFirst: ((outcome: PtySpawnOutcome) => void) | undefined
+    spawn.mockImplementationOnce(
+      () =>
+        new Promise<PtySpawnOutcome>((resolve) => {
+          resolveFirst = resolve
+        }),
+    )
+
+    runtime.spawn(record, INPUT.cols, INPUT.rows)
+    runtime.spawn(record, INPUT.cols, INPUT.rows)
+    await vi.advanceTimersByTimeAsync(0)
+    resolveFirst?.(successfulOutcome(first))
+    await vi.waitFor(() => expect(shutdownDetachedProcess).toHaveBeenCalledOnce())
+
+    await expect(runtime.shutdownDetachedProcesses()).resolves.toBe(true)
+    expect(shutdownDetachedProcess).toHaveBeenCalledTimes(2)
+    expect(shutdownDetachedProcess.mock.calls[1]?.[0].live.pty).toBe(first.pty)
+  })
+
+  it('transfers a naturally exited PTY and every observed identity into retained ownership', async () => {
+    const fake = makeFakePty(FAKE_PID)
+    const shutdownDetachedProcess = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const { runtime } = makeRuntime(fake, 1, { shutdownDetachedProcess })
+    const record = addRecord(runtime)
+
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'retained-natural-exit')
+    await vi.advanceTimersByTimeAsync(0)
+    record.activity = {
+      processName: 'worker',
+      processNames: ['worker'],
+      ports: [],
+      processPids: [FAKE_PID, FAKE_PID + 1],
+      processIdentities: [FAKE_PID, FAKE_PID + 1].map((pid) => ({
+        pid,
+        startedAt: `start-${pid}`,
+      })),
+      tty: null,
+      processReliable: true,
+      reliable: true,
+    }
+
+    fake.emitExit(7)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(record.live).toBeNull()
+    expect(record.exitCode).toBe(7)
+    expect(runtime.hasDetachedProcesses(record)).toBe(true)
+    expect(shutdownDetachedProcess).toHaveBeenCalledOnce()
+    expect(shutdownDetachedProcess.mock.calls[0]?.[0]).toMatchObject({
+      live: { pty: fake.pty },
+      processPids: [FAKE_PID, FAKE_PID + 1],
+      processIdentities: [
+        { pid: FAKE_PID, startedAt: `start-${FAKE_PID}` },
+        { pid: FAKE_PID + 1, startedAt: `start-${FAKE_PID + 1}` },
+      ],
+    })
+    expect(runtime.writeInput(record, 'too late')).toEqual({
+      status: 'rejected',
+      acceptedBytes: 0,
+      reason: 'terminal-not-open',
+    })
+    expect(fake.write).not.toHaveBeenCalled()
+
+    await expect(runtime.shutdownDetachedProcesses()).resolves.toBe(true)
+    expect(shutdownDetachedProcess).toHaveBeenCalledTimes(2)
+    expect(runtime.hasDetachedProcesses(record)).toBe(false)
+  })
+
+  it('shares one retained cleanup attempt between natural exit and concurrent close', async () => {
+    const fake = makeFakePty(FAKE_PID)
+    const cleanup = Promise.withResolvers<boolean>()
+    const shutdownDetachedProcess = vi.fn(() => cleanup.promise)
+    const { runtime } = makeRuntime(fake, 1, { shutdownDetachedProcess })
+    const record = addRecord(runtime)
+
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'shared-retained-cleanup')
+    await vi.advanceTimersByTimeAsync(0)
+    fake.emitExit(0)
+    await vi.advanceTimersByTimeAsync(0)
+
+    const close = runtime.killLive(record)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(shutdownDetachedProcess).toHaveBeenCalledOnce()
+
+    cleanup.resolve(true)
+    await expect(close).resolves.toBe(true)
+    expect(runtime.hasDetachedProcesses(record)).toBe(false)
+    expect(shutdownDetachedProcess).toHaveBeenCalledOnce()
+  })
+
+  it('retains ownership when native resource drain fails after process-tree exit', async () => {
+    const fake = makeFakePty(FAKE_PID)
+    const shutdownDetachedProcess = vi.fn().mockResolvedValue(true)
+    const { runtime } = makeRuntime(fake, 1, { shutdownDetachedProcess })
+    const record = addRecord(runtime)
+
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'failed-resource-drain')
+    await vi.advanceTimersByTimeAsync(0)
+    fake.emitProcessTreeExit(0)
+    fake.rejectResourceDrain(new Error('native worker teardown failed'))
+    fake.emitPublicExit(0)
+    await vi.waitFor(() => expect(shutdownDetachedProcess).toHaveBeenCalledOnce())
+
+    await expect(runtime.shutdownDetachedProcesses([record])).resolves.toBe(false)
+    expect(record.live).toBeNull()
+    expect(runtime.hasDetachedProcesses(record)).toBe(true)
+  })
+
+  it('retains and stops a spawned PTY when stream attachment fails', async () => {
+    const fake = makeFakePty(FAKE_PID)
+    Reflect.set(fake.pty, 'onData', () => {
+      throw new Error('stream listener unavailable')
+    })
+    const shutdownDetachedProcess = vi.fn(async () => {
+      fake.emitExit(0)
+      return true
+    })
+    const { runtime } = makeRuntime(fake, 1, { shutdownDetachedProcess })
+    const record = addRecord(runtime)
+
+    runtime.spawn(record, INPUT.cols, INPUT.rows, 'failed-stream-attachment')
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => expect(shutdownDetachedProcess).toHaveBeenCalledOnce())
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(record.live).toBeNull()
+    expect(record.exitCode).toBe(-1)
+    expect(runtime.hasDetachedProcesses(record)).toBe(false)
   })
 })

@@ -1,5 +1,11 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state'
+import {
+  DIFF_RIGHT_SIDEBAR_REQUEST,
+  type RightSidebarClaim,
+  SESSION_TREE_RIGHT_SIDEBAR_REQUEST,
+  useRightSidebarCoordinator,
+} from '@/shared/lib/right-sidebar-coordinator'
 import { useUIStore } from '@/shell/ui-store'
 
 type RightPanelMode = 'diff' | 'session-tree' | null
@@ -28,6 +34,15 @@ function routeSessionId(pathname: string) {
   return sessionsSegment === 'sessions' && sessionId ? sessionId : null
 }
 
+function requestKey(panel: Exclude<RightPanelMode, null>) {
+  return panel === 'diff' ? DIFF_RIGHT_SIDEBAR_REQUEST : SESSION_TREE_RIGHT_SIDEBAR_REQUEST
+}
+
+function routePanelIsVisible(panel: RightPanelMode, activeClaim: RightSidebarClaim) {
+  if (panel === null || activeClaim === null) return panel !== null
+  return activeClaim.kind === 'route' && activeClaim.requestKey === requestKey(panel)
+}
+
 export function useDiffRouteNavigation(): DiffRouteNavigation {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
@@ -43,18 +58,26 @@ export function useDiffRouteNavigation(): DiffRouteNavigation {
     },
   })
   const activeSessionId = useChatStore((state) => state.activeSessionId)
+  const activeRightSidebarClaim = useRightSidebarCoordinator((state) => state.activeClaim)
   const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
   const isChatRoute = isChatPath(pathname)
   const currentRouteSessionId = routeSessionId(pathname)
   const targetSessionId =
     currentRouteSessionId ?? (activeSessionId ? String(activeSessionId) : null)
 
-  const diffOpen = rightPanel === 'diff'
-  const sessionTreeOpen = rightPanel === 'session-tree'
+  const routePanelVisible = routePanelIsVisible(rightPanel, activeRightSidebarClaim)
+  const diffOpen = routePanelVisible && rightPanel === 'diff'
+  const sessionTreeOpen = routePanelVisible && rightPanel === 'session-tree'
 
   function setRightPanel(panel: RightPanelMode) {
     if (!isChatRoute) {
       return
+    }
+
+    if (panel === null) {
+      useRightSidebarCoordinator.getState().releaseRoute()
+    } else {
+      useRightSidebarCoordinator.getState().claimRoute(requestKey(panel))
     }
 
     const panelToRemember = panel ?? rightPanel

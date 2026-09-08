@@ -1,3 +1,4 @@
+import '@xterm/xterm/css/xterm.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AppErrorBoundary } from '@/shared/ui/AppErrorBoundary'

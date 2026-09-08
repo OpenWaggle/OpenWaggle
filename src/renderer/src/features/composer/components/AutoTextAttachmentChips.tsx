@@ -4,6 +4,7 @@ import { Check, FileDown, FileText, ImageIcon, Loader2, X } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { PendingTextAttachmentChip } from '../hooks/useAutoTextAttachment'
+import { BrowserPreviewAttachmentChip } from './BrowserPreviewAttachmentChip'
 
 const KIND_ICON: Record<AttachmentKind, typeof FileText> = {
   image: ImageIcon,
@@ -144,13 +145,21 @@ export function AutoTextAttachmentChips({
           </span>
         </span>
       ))}
-      {visibleAttachments.map((attachment) => (
-        <AttachmentFileChip
-          key={attachment.id}
-          attachment={attachment}
-          onRemove={() => onRemoveAttachment(attachment.id)}
-        />
-      ))}
+      {visibleAttachments.map((attachment) =>
+        attachment.browserPreview ? (
+          <BrowserPreviewAttachmentChip
+            key={attachment.id}
+            attachment={{ ...attachment, browserPreview: attachment.browserPreview }}
+            onRemove={() => onRemoveAttachment(attachment.id)}
+          />
+        ) : (
+          <AttachmentFileChip
+            key={attachment.id}
+            attachment={attachment}
+            onRemove={() => onRemoveAttachment(attachment.id)}
+          />
+        ),
+      )}
     </div>
   )
 }

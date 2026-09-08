@@ -45,7 +45,12 @@ vi.mock('../../utils/stream-bridge', () => ({
 }))
 vi.mock('../run-handler-utils', () => ({ emitErrorAndFinish: mocks.emitErrorAndFinish }))
 
-import { activeRuns, activeWaggleRuns, cancelAllSessionRuns } from '../active-agent-runs'
+import {
+  acquireSessionRemovalFence,
+  activeRuns,
+  activeWaggleRuns,
+  cancelAllSessionRuns,
+} from '../active-agent-runs'
 import { registerAgentHandlers } from '../agent-handler'
 
 const SESSION_ID = SessionId('agent-handoff-session')
@@ -93,6 +98,7 @@ function registerHandlers() {
   registerAgentHandlers()
   return {
     cancel: registeredHandler('agent:cancel'),
+    compact: registeredHandler('agent:compact-session'),
     send: registeredHandler('agent:send-message'),
   }
 }
@@ -131,6 +137,45 @@ describe('agent handler Waggle handoff lifecycle', () => {
     expect(activeRuns.has(SESSION_ID)).toBe(false)
     expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
     expect(mocks.emitRunCompleted).toHaveBeenCalledOnce()
+  })
+
+  it('refuses standard and compaction starts while session removal owns admission', async () => {
+    const { compact, send } = registerHandlers()
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      await expect(Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))).rejects.toThrow(
+        'being archived or deleted',
+      )
+      await expect(Effect.runPromise(compact({}, SESSION_ID, MODEL))).rejects.toThrow(
+        'being archived or deleted',
+      )
+      expect(mocks.executeAgentRun).not.toHaveBeenCalled()
+      expect(mocks.compactAgentSession).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
+  })
+
+  it('refuses a handoff start that races with session removal', async () => {
+    const standardRun = Promise.withResolvers<{
+      readonly outcome: 'success'
+      readonly newMessages: readonly Message[]
+    }>()
+    mocks.executeAgentRun.mockReturnValue(Effect.promise(() => standardRun.promise))
+    const { send } = registerHandlers()
+    const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+    await vi.waitFor(() => expect(activeRuns.has(SESSION_ID)).toBe(true))
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      standardRun.resolve({ outcome: 'success', newMessages: [handoffMessage()] })
+      await expect(run).rejects.toThrow('being archived or deleted')
+      expect(mocks.executeWaggleRun).not.toHaveBeenCalled()
+      expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
+    } finally {
+      release()
+    }
   })
 
   it('does not chain aborted or malformed standard outcomes', async () => {

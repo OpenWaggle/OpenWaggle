@@ -1,124 +1,158 @@
-import { TERMINAL } from '@shared/constants/resource-limits'
-import type { SearchAddon } from '@xterm/addon-search'
-import { useEffect, useRef } from 'react'
-import { api } from '@/shared/lib/ipc'
-import { Button } from '@/shared/ui/Button'
+import { useRef } from 'react'
+import { cn } from '@/shared/lib/cn'
+import { useTerminalPaneContextMenu } from '../hooks/useTerminalPaneContextMenu'
+import { useTerminalPaneFocus } from '../hooks/useTerminalPaneFocus'
 import { useTerminalPaneSession } from '../hooks/useTerminalPaneSession'
+import {
+  useTerminalLinkActivation,
+  useTerminalPaneUiActions,
+} from '../hooks/useTerminalPaneUiActions'
+import { useTerminalSelectionToolbar } from '../hooks/useTerminalSelectionToolbar'
+import { rememberTerminalLayoutFocus } from '../lib/terminal-focus-location'
 import { runtimeKeyOf } from '../lib/terminal-owner'
 import { useTerminalStore } from '../state/terminal-store'
+import {
+  OriginalCheckoutBanner,
+  TerminalPortPreviews,
+  TerminalStatusLayers,
+} from './TerminalPaneLayers'
+import { TerminalPaneMenus } from './TerminalPaneMenus'
+import type { TerminalPaneModel, TerminalPaneProps } from './terminal-pane-model'
 
-interface TerminalPaneProps {
-  readonly ownerKey: string
-  readonly terminalId: string
-  readonly cwd: string
-  readonly focused: boolean
-  readonly onFocus: () => void
-  readonly onSearchAddon: (addon: SearchAddon | null) => void
+function createPaneFocusHandler(pane: TerminalPaneModel, onFocus: () => void) {
+  return () => {
+    rememberTerminalLayoutFocus(pane.runtimeOwnerKey, pane.ownerKey)
+    onFocus()
+  }
 }
 
-const OVERLAY_BACKDROP =
-  'absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-bg/85 text-center'
+function useTerminalRuntimeLayers(ownerKey: string, terminalId: string) {
+  const runtimeKey = runtimeKeyOf(ownerKey, terminalId)
+  return {
+    exitCode: useTerminalStore((state) => state.exits[runtimeKey]),
+    ports: useTerminalStore((state) => state.portPreviews[runtimeKey]),
+  }
+}
 
 /** One split pane showing a single Session terminal's viewport. */
 export function TerminalPane(props: TerminalPaneProps) {
+  const { pane } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const paneRef = useRef<HTMLDivElement>(null)
-  const onFocusRef = useRef(props.onFocus)
-  const { ownerKey, terminalId, cwd } = props
-
-  const { status, errorMessage, restart, focus } = useTerminalPaneSession({
-    ownerKey,
-    terminalId,
-    cwd,
+  const selectionToolbarRef = useRef<HTMLDivElement>(null)
+  const activateTerminalLink = useTerminalLinkActivation(pane.runtimeOwnerKey)
+  const session = useTerminalPaneSession({
+    ownerKey: pane.runtimeOwnerKey,
+    terminalId: pane.terminalId,
+    cwd: pane.cwd,
+    launchEnv: pane.launchEnv,
+    projectRoot: pane.defaultCwd,
     containerRef,
     onSearchAddon: props.onSearchAddon,
+    onActivateLink: activateTerminalLink,
   })
-  const focusRef = useRef(focus)
-
-  useEffect(() => {
-    focusRef.current = focus
+  const actions = useTerminalPaneUiActions({ pane, session })
+  const selectionToolbar = useTerminalSelectionToolbar({
+    surfaceRef: containerRef,
+    toolbarRef: selectionToolbarRef,
+    selectionText: session.selectionText,
+    getSelectionEndRect: session.getSelectionEndClientRect,
+  })
+  const focusPane = createPaneFocusHandler(pane, props.onFocus)
+  useTerminalPaneFocus({
+    containerRef,
+    paneRef,
+    focused: props.focused,
+    focus: session.focus,
+    onFocus: focusPane,
   })
 
-  const runtimeKey = runtimeKeyOf(ownerKey, terminalId)
-  const exitCode = useTerminalStore((state) => state.exits[runtimeKey])
-  const ports = useTerminalStore((state) => state.portPreviews[runtimeKey])
-
-  useEffect(() => {
-    onFocusRef.current = props.onFocus
+  const { exitCode, ports } = useTerminalRuntimeLayers(pane.runtimeOwnerKey, pane.terminalId)
+  const contextMenu = useTerminalPaneContextMenu({
+    focusPane,
+    focusTerminal: session.focus,
+    getSelection: session.getSelection,
+    getSelectionRange: session.getSelectionRange,
+    shouldOpen: session.shouldOpenContextMenu,
   })
-
-  useEffect(() => {
-    const pane = paneRef.current
-    if (pane === null) return
-    // Focus the terminal directly on interaction: state-driven focus alone
-    // misses clicks when the focused prop does not change (e.g. after the
-    // user clicked a header button, which steals focus from the pane).
-    const handleMouseDown = () => {
-      onFocusRef.current()
-      focusRef.current()
-    }
-    pane.addEventListener('mousedown', handleMouseDown)
-    return () => pane.removeEventListener('mousedown', handleMouseDown)
-  }, [])
-
-  useEffect(() => {
-    if (!props.focused) return
-    // Focus after mount layout; xterm needs visible geometry to show the caret.
-    const frame = requestAnimationFrame(() => {
-      const helper = containerRef.current?.querySelector('textarea.xterm-helper-textarea')
-      if (helper instanceof HTMLTextAreaElement) helper.focus()
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [props.focused])
 
   return (
-    <div
+    <section
       ref={paneRef}
-      className={
-        props.focused
-          ? 'relative h-full min-w-0 flex-1 ring-1 ring-inset ring-accent/30'
-          : 'relative h-full min-w-0 flex-1'
-      }
-      data-terminal-pane={terminalId}
+      className={cn(
+        'relative h-full min-w-0 flex-1',
+        props.focused && 'ring-1 ring-inset ring-accent/30',
+      )}
+      data-terminal-pane={pane.terminalId}
       data-focused={props.focused ? 'true' : 'false'}
+      data-readiness={session.readiness?.phase ?? 'unavailable'}
+      aria-label={pane.label}
+      onContextMenu={contextMenu.openContextMenu}
     >
-      <div ref={containerRef} className="absolute inset-0 px-2 py-1" />
-      {status === 'cwd-missing' && (
-        <div className={OVERLAY_BACKDROP}>
-          <p className="text-sm font-medium text-text-primary">Working path no longer exists</p>
-          <p className="max-w-full truncate px-6 text-xs text-text-muted">{cwd}</p>
-        </div>
+      {actions.runsInOriginalCheckout && (
+        <OriginalCheckoutBanner
+          cwd={pane.cwd}
+          restarting={actions.restartingInWorktree}
+          onRestart={() => void actions.restartInWorktree()}
+        />
       )}
-      {status === 'error' && (
-        <div className={OVERLAY_BACKDROP}>
-          <p className="text-sm text-error">{errorMessage ?? 'Terminal error'}</p>
-        </div>
-      )}
-      {status === 'ready' && exitCode !== undefined && (
-        <div className="absolute inset-x-2 bottom-1 z-10 flex items-center justify-between rounded border border-border bg-bg-hover px-2 py-1">
-          <span className="text-xs text-text-tertiary">
-            Shell exited{exitCode !== 0 ? ` (code ${exitCode})` : ''}
-          </span>
-          <Button size="xs" variant="secondary" onClick={restart}>
-            Restart
-          </Button>
-        </div>
-      )}
-      {ports !== undefined && ports.length > 0 && (
-        <div className="absolute right-2 top-1 z-10 flex gap-1">
-          {ports.slice(0, TERMINAL.MAX_PORT_PREVIEWS_SHOWN).map((port) => (
-            <Button
-              key={port}
-              size="xs"
-              variant="secondary"
-              title={`Open http://localhost:${port}`}
-              onClick={() => void api.openExternal(`http://localhost:${port}`)}
-            >
-              :{port} ↗
-            </Button>
-          ))}
-        </div>
-      )}
-    </div>
+      <div
+        ref={containerRef}
+        className={cn(
+          'absolute inset-x-0 bottom-0 px-2 py-1',
+          actions.runsInOriginalCheckout ? 'top-7' : 'top-0',
+        )}
+      />
+      <TerminalStatusLayers
+        model={{
+          cwd: pane.cwd,
+          errorMessage: session.errorMessage,
+          exitCode,
+          inputError: session.inputError,
+          inputWaiting: session.inputWaiting,
+          status: session.status,
+        }}
+        actions={{
+          onRestart: () => void actions.restartShell(),
+          onSendInputNow: () => void session.sendInputNow(),
+        }}
+      />
+      <TerminalPortPreviews
+        ports={ports}
+        runsInOriginalCheckout={actions.runsInOriginalCheckout}
+        onOpen={actions.openPort}
+      />
+      <TerminalPaneMenus
+        toolbarRef={selectionToolbarRef}
+        model={{
+          contextMenu: contextMenu.contextMenu,
+          selectionText: session.selectionText,
+          toolbarPosition: selectionToolbar.position,
+        }}
+        actions={{
+          addToolbarSelection: () =>
+            void actions.addSelectionToChat(session.selectionText, session.getSelectionRange()),
+          copyToolbarSelection: () => {
+            actions.copySelection(session.selectionText)
+            selectionToolbar.dismiss()
+          },
+          addContextSelection: () => {
+            if (contextMenu.contextMenu !== null) {
+              void actions.addSelectionToChat(
+                contextMenu.contextMenu.selectedText,
+                contextMenu.contextMenu.range,
+              )
+            }
+          },
+          copyContextSelection: () => {
+            if (contextMenu.contextMenu !== null) {
+              actions.copySelection(contextMenu.contextMenu.selectedText)
+            }
+          },
+          paste: actions.pasteFromClipboard,
+          closeContextMenu: contextMenu.closeContextMenu,
+        }}
+      />
+    </section>
   )
 }
