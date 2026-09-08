@@ -32,6 +32,10 @@ export class SessionHostEventReplayWindow {
     return this.#size === 0 ? undefined : this.#entries.get(this.#head)
   }
 
+  usage() {
+    return { entries: this.#size, bytes: this.#bytes }
+  }
+
   clear() {
     this.#entries.clear()
     this.#head = 0
@@ -40,12 +44,16 @@ export class SessionHostEventReplayWindow {
   }
 
   push(entry: RetainedSessionHostEvent) {
-    if (this.#size === this.capacity) this.#evictOldest()
+    let lastEvicted: RetainedSessionHostEvent | undefined
+    if (this.#size === this.capacity) lastEvicted = this.#evictOldest()
     const index = (this.#head + this.#size) % this.capacity
     this.#entries.set(index, entry)
     this.#size += 1
     this.#bytes += entry.bytes
-    while (this.#bytes > this.byteCapacity) this.#evictOldest()
+    while (this.#bytes > this.byteCapacity) {
+      lastEvicted = this.#evictOldest() ?? lastEvicted
+    }
+    return lastEvicted
   }
 
   after(sequence: number) {
@@ -64,5 +72,6 @@ export class SessionHostEventReplayWindow {
     this.#head = (this.#head + 1) % this.capacity
     this.#size -= 1
     if (entry) this.#bytes = Math.max(0, this.#bytes - entry.bytes)
+    return entry
   }
 }

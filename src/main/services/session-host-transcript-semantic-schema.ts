@@ -1,5 +1,15 @@
 export const SESSION_TRANSCRIPT_SEMANTIC_SCHEMA_STATEMENTS = [
   `
+  CREATE TABLE session_transcript_search_stats (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    searchable_node_count INTEGER NOT NULL DEFAULT 0 CHECK (searchable_node_count >= 0)
+  ) WITHOUT ROWID
+  `,
+  `
+  INSERT INTO session_transcript_search_stats (session_id, searchable_node_count)
+  SELECT id, 0 FROM sessions
+  `,
+  `
   CREATE TABLE session_transcript_semantic_scopes (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     requested_at INTEGER NOT NULL,
@@ -66,6 +76,10 @@ export const SESSION_TRANSCRIPT_SEMANTIC_SCHEMA_STATEMENTS = [
   `
   CREATE INDEX idx_session_transcript_embedding_queue_order
   ON session_transcript_embedding_queue (queued_at, session_id, node_id)
+  `,
+  `
+  CREATE INDEX idx_session_transcript_embedding_queue_session
+  ON session_transcript_embedding_queue (session_id, node_id)
   `,
   `
   CREATE TABLE session_semantic_transcript_state (

@@ -179,6 +179,31 @@ describe('useWorkspaceLifecycle', () => {
     expect(useSessionStatusStore.getState().completedAt.has(SessionId('session-2'))).toBe(false)
   })
 
+  it('refreshes the selected tree when deleting another Session can change its Hive identity', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.refreshSession.mockClear()
+    lifecycleMocks.refreshSessionTree.mockClear()
+    const eventHandler = lifecycleMocks.getSessionHostEventHandler()
+    if (!eventHandler) throw new Error('Expected Session Host event subscription')
+
+    act(() =>
+      eventHandler({
+        cursor: { hostInstanceId: 'host-worker-delete', sequence: 1 },
+        timestamp: 1,
+        payload: {
+          kind: 'session-list-changed',
+          sessionId: 'deleted-worker',
+          change: 'deleted',
+        },
+      }),
+    )
+
+    await waitFor(() => expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
+  })
+
   it('loads project syntax resources when direct review changes working trees', async () => {
     const { rerender } = renderHook(() => useWorkspaceLifecycle())
 

@@ -3,6 +3,7 @@ import type { LocalSessionServerFrame } from '@shared/types/local-session-protoc
 import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import type { LocalSessionAdmissionGate } from './local-session-admission-gate'
 import { createLocalSessionEventAdmissionFilter } from './local-session-event-admission'
+import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
 import { subscriptionLimitReached } from './local-session-resource-policy'
 import type {
   AuthenticatedLocalSessionCaller,
@@ -18,6 +19,7 @@ import {
 interface LocalSessionConnectionSubscriptionsInput {
   readonly dependencies: LocalSessionServerDependencies
   readonly admission: LocalSessionAdmissionGate
+  readonly cursorProjection: LocalSessionEventCursorProjection
   readonly caller: () => AuthenticatedLocalSessionCaller | null
   readonly closed: () => boolean
   readonly send: (frame: LocalSessionServerFrame | unknown) => Promise<void>
@@ -53,7 +55,25 @@ export class LocalSessionConnectionSubscriptions {
       const caller = this.input.caller()
       if (!caller) return true
       const admissionEpoch = this.input.admission.currentEpoch()
-      const snapshotCursor = cursor ?? this.input.dependencies.eventHub.cursor()
+      const cursorResolution = cursor
+        ? this.input.cursorProjection.resolve(caller, cursor)
+        : {
+            status: 'ready' as const,
+            cursor: this.input.cursorProjection.bindReplayCursor(
+              caller,
+              this.input.dependencies.eventHub.cursor(),
+            ),
+          }
+      if (cursorResolution.status === 'resync-required') {
+        await this.input.send({
+          kind: 'resync-required',
+          requestId,
+          reason: cursorResolution.reason,
+          cursor: cursorResolution.cursor,
+        })
+        return true
+      }
+      const snapshotCursor = cursorResolution.cursor
       releaseBudget = this.input.dependencies.subscriptionBudget?.reserve()
       if (!releaseBudget) {
         await this.sendLimitReached(requestId)
@@ -71,7 +91,7 @@ export class LocalSessionConnectionSubscriptions {
           kind: 'resync-required',
           requestId,
           reason: result.reason,
-          cursor: result.cursor,
+          cursor: this.input.cursorProjection.expose(caller, result.cursor),
         })
         return true
       }
@@ -95,7 +115,7 @@ export class LocalSessionConnectionSubscriptions {
         kind: 'subscribed',
         requestId,
         subscriptionId,
-        cursor: snapshotCursor,
+        cursor: this.input.cursorProjection.expose(caller, snapshotCursor),
         ...(activeRuns ? { activeRuns } : {}),
       })
       void this.pump(subscriptionId, active)
@@ -161,19 +181,55 @@ export class LocalSessionConnectionSubscriptions {
     this.subscriptions.clear()
   }
 
+  requireResync() {
+    for (const active of this.subscriptions.values()) {
+      active.subscription.requireResync('cursor-expired')
+    }
+  }
+
   private async sendFrame(subscriptionId: string, frame: LocalSessionSubscriptionPumpFrame) {
-    if (frame.kind !== 'event') return this.input.send({ ...frame, subscriptionId })
+    if (frame.kind === 'subscription-closed') {
+      const caller = this.input.caller()
+      if (!caller) return
+      return this.input.send({ ...frame, subscriptionId })
+    }
+    if (frame.kind === 'resync-required') {
+      while (!this.input.closed()) {
+        await this.input.admission.waitUntilReady()
+        const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
+        if (!releaseAdmissionReader) continue
+        try {
+          const caller = this.input.caller()
+          if (!caller) return
+          return await this.input.send({
+            ...frame,
+            subscriptionId,
+            cursor: this.input.cursorProjection.expose(caller, frame.cursor),
+          })
+        } finally {
+          releaseAdmissionReader()
+        }
+      }
+      return
+    }
     const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
     if (!releaseAdmissionReader) return
     try {
+      const caller = this.input.caller()
       const denied =
         this.input.admission.isFenced() ||
         (await localSessionEventIsDenied(
-          this.input.caller(),
+          caller,
           this.input.dependencies.authorizeEvent,
           frame.event,
         ))
-      if (!denied) await this.input.send({ ...frame, subscriptionId })
+      if (!denied && caller) {
+        await this.input.send({
+          ...frame,
+          subscriptionId,
+          event: this.input.cursorProjection.exposeEvent(caller, frame.event),
+        })
+      }
     } finally {
       releaseAdmissionReader()
     }

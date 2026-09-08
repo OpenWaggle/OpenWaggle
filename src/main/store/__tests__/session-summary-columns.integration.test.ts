@@ -12,6 +12,7 @@ import {
   listSessionCatalogPage,
 } from '../sessions/session-catalog'
 import { listSessions } from '../sessions/session-list'
+import { getSessionTree } from '../sessions/session-tree'
 import { updateSessionTreeUiState } from '../sessions/tree-ui-state'
 import { SESSION_SUMMARY_COLUMN_NAMES } from '../sessions/types'
 import { runStoreEffect } from '../store-runtime'
@@ -123,6 +124,61 @@ describe('session summary columns survive the live SQL path', () => {
         }),
       ),
     ).resolves.toEqual([{ count: 1 }])
+  })
+
+  it('carries exact Hive and Agent identity through the selected Session tree', async () => {
+    const queen = await createSession({
+      projectPath: '/repo/openwaggle',
+      piSessionId: 'pi-queen-tree-identity',
+    })
+    const worker = await createSession({
+      projectPath: '/repo/openwaggle',
+      piSessionId: 'pi-worker-tree-identity',
+    })
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+          VALUES (${'queen-tree-run'}, ${queen.id}, ${'completed'}, ${1}, ${1})
+        `
+        yield* sql`
+          INSERT INTO session_spawn_lineage (
+            child_session_id, parent_session_id, parent_run_id,
+            hive_root_session_id, depth, created_at
+          ) VALUES (
+            ${worker.id}, ${queen.id}, ${'queen-tree-run'}, ${queen.id}, ${1}, ${1}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_execution_profiles (
+            session_id, profile_json, authority_origin_caller_id,
+            authorization_ceiling, created_at, updated_at
+          ) VALUES (
+            ${worker.id},
+            ${JSON.stringify({
+              modelId: 'openai/gpt-5.4',
+              agentDefinitionName: 'security-reviewer',
+            })},
+            ${'gui:local-user'}, ${'ask-for-approval'}, ${1}, ${1}
+          )
+        `
+      }),
+    )
+
+    const queenTree = await getSessionTree(queen.id)
+    const workerTree = await getSessionTree(worker.id)
+
+    expect(queenTree?.session.lineage).toMatchObject({
+      role: 'queen',
+      directWorkerCount: 1,
+    })
+    expect(workerTree?.session.lineage).toMatchObject({
+      role: 'worker',
+      parentSessionId: queen.id,
+      hiveRootSessionId: queen.id,
+      agentDefinitionName: 'security-reviewer',
+    })
   })
 
   /**

@@ -9,6 +9,21 @@ import { encodeLocalSessionFrame } from '../local-session-framing'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
 
+function cursorFromResponse(frame: unknown) {
+  if (typeof frame !== 'object' || frame === null) throw new Error('Expected a response frame.')
+  const payload = Reflect.get(frame, 'payload')
+  if (typeof payload !== 'object' || payload === null)
+    throw new Error('Expected a response payload.')
+  const cursor = Reflect.get(payload, 'cursor')
+  if (typeof cursor !== 'object' || cursor === null) throw new Error('Expected an event cursor.')
+  const hostInstanceId = Reflect.get(cursor, 'hostInstanceId')
+  const sequence = Reflect.get(cursor, 'sequence')
+  if (typeof hostInstanceId !== 'string' || typeof sequence !== 'number') {
+    throw new Error('Expected a valid event cursor.')
+  }
+  return { hostInstanceId, sequence }
+}
+
 function within<T>(promise: Promise<T>, stage: string) {
   return Promise.race([
     promise,
@@ -60,12 +75,20 @@ describe('Local Session server profile revocation', () => {
           authorizationCeiling: 'ask-for-approval',
         },
       }),
-      dispatch: async () => ({
-        contract: 'local-access-v1',
-        response: {
-          outcome: { effect: 'profile-revoked', profile: { id: 'worker', name: 'worker' } },
-        },
-      }),
+      dispatch: async ({ eventCursor, payload }) =>
+        typeof payload === 'object' &&
+        payload !== null &&
+        Reflect.get(payload, 'operation') === 'snapshot'
+          ? { cursor: eventCursor }
+          : {
+              contract: 'local-access-v1',
+              response: {
+                outcome: {
+                  effect: 'profile-revoked',
+                  profile: { id: 'worker', name: 'worker' },
+                },
+              },
+            },
       profileInvalidationCloseTimeoutMs: 25,
     })
     const first = await connectLocalSessionTestClient(endpoint)
@@ -74,7 +97,7 @@ describe('Local Session server profile revocation', () => {
     const secondReader = new TestFrameReader(second)
     const hello = encodeLocalSessionFrame({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [2],
+      supportedRevisions: [7],
       clientKind: 'cli',
       clientVersion: 'test',
     })
@@ -83,6 +106,16 @@ describe('Local Session server profile revocation', () => {
     await within(
       Promise.all([firstReader.next(), secondReader.next()]),
       'authenticating old sockets',
+    )
+    first.write(
+      encodeLocalSessionFrame({
+        kind: 'command',
+        requestId: 'snapshot-cursor',
+        payload: { operation: 'snapshot' },
+      }),
+    )
+    const oldCursor = cursorFromResponse(
+      await within(firstReader.next(), 'receiving the snapshot cursor'),
     )
     const firstClosed = new Promise<void>((resolve) => first.once('close', () => resolve()))
     const secondEnded = new Promise<void>((resolve) => second.once('end', () => resolve()))
@@ -107,6 +140,26 @@ describe('Local Session server profile revocation', () => {
     }
     expect(liveness.ownerCount()).toBe(0)
     second.destroy()
+
+    const replacement = await connectLocalSessionTestClient(endpoint)
+    const replacementReader = new TestFrameReader(replacement)
+    replacement.write(hello)
+    await within(replacementReader.next(), 'authenticating the replacement socket')
+    replacement.write(
+      encodeLocalSessionFrame({
+        kind: 'subscribe',
+        requestId: 'resume-revoked-view',
+        after: oldCursor,
+      }),
+    )
+    await expect(
+      within(replacementReader.next(), 'rejecting the revoked replay view'),
+    ).resolves.toMatchObject({
+      kind: 'resync-required',
+      requestId: 'resume-revoked-view',
+      reason: 'cursor-expired',
+    })
+    replacement.destroy()
   })
 
   it('disconnects old authenticated sockets after rotation and accepts only the new secret', async () => {
@@ -152,7 +205,7 @@ describe('Local Session server profile revocation', () => {
     const hello = (credential: string) =>
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
         profile: 'worker',

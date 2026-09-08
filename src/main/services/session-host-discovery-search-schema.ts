@@ -20,9 +20,10 @@ export const SESSION_DISCOVERY_SEARCH_ROW_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
-export function refreshSessionLexicalDiscoverySql(sessionIdSql: string) {
+export function refreshSessionLexicalDiscoverySql(sessionIdSql: string, whenSql = 'true') {
   return `
-    DELETE FROM session_discovery_search_rows WHERE session_id = ${sessionIdSql};
+    DELETE FROM session_discovery_search_rows
+    WHERE session_id = ${sessionIdSql} AND ${whenSql};
     INSERT INTO session_node_discovery_search (
       session_id, archived, initial_objective, current_preview
     )
@@ -40,11 +41,12 @@ export function refreshSessionLexicalDiscoverySql(sessionIdSql: string) {
           AND preview_node.role IN ('user', 'assistant')
         ORDER BY preview_node.created_order DESC, preview_node.id DESC LIMIT 1
       ), '')
-    FROM sessions WHERE sessions.id = ${sessionIdSql};
+    FROM sessions WHERE sessions.id = ${sessionIdSql} AND ${whenSql};
     INSERT INTO session_discovery_search_rows (
       session_id, search_rowid, initial_objective, current_preview
     )
     SELECT session_id, rowid, initial_objective, current_preview
-    FROM session_node_discovery_search WHERE rowid = last_insert_rowid();
+    FROM session_node_discovery_search
+    WHERE rowid = last_insert_rowid() AND session_id = ${sessionIdSql} AND ${whenSql};
   `
 }

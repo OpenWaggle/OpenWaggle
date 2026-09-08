@@ -57,6 +57,12 @@ export interface SessionHostEventEnvelope {
   readonly payload: SessionHostEventPayload
 }
 
+export type SessionHostEventResyncReason =
+  | 'host-restarted'
+  | 'cursor-expired'
+  | 'cursor-ahead'
+  | 'slow-consumer'
+
 export type SessionHostEventReplayResult =
   | {
       readonly status: 'ready'
@@ -65,7 +71,7 @@ export type SessionHostEventReplayResult =
     }
   | {
       readonly status: 'resync-required'
-      readonly reason: 'host-restarted' | 'cursor-expired' | 'cursor-ahead' | 'slow-consumer'
+      readonly reason: SessionHostEventResyncReason
       readonly cursor: SessionHostEventCursor
     }
 
@@ -74,7 +80,7 @@ export type SessionHostEventDelivery =
   | { readonly status: 'cursor-advanced'; readonly cursor: SessionHostEventCursor }
   | {
       readonly status: 'resync-required'
-      readonly reason: 'slow-consumer'
+      readonly reason: SessionHostEventResyncReason
       readonly cursor: SessionHostEventCursor
     }
   | { readonly status: 'closed' }

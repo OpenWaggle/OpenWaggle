@@ -6,6 +6,7 @@ import type { SessionExportManifest } from '@shared/types/session-export'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionQueryRepository } from '../../ports/session-query-repository'
+import { SESSION_EXPORT_PATH_CHECKPOINT_STRIDE } from '../../services/session-host-export-schema'
 import { exportNodeReadStrategy } from '../sqlite-session-export-node-reader'
 import {
   executeSessionQuery as executeQuery,
@@ -43,7 +44,7 @@ describe('SQLite Session export node reads', () => {
         selectedHeadNodeId: 'node-head',
         branchHeadNodeId: 'node-head',
       }),
-    ).toBe('recursive-branch')
+    ).toBe('checkpointed-branch')
     expect(
       exportNodeReadStrategy({
         tree: false,
@@ -52,7 +53,7 @@ describe('SQLite Session export node reads', () => {
         selectedHeadNodeId: 'node-ancestor',
         branchHeadNodeId: 'node-head',
       }),
-    ).toBe('recursive-branch')
+    ).toBe('checkpointed-branch')
     expect(
       exportNodeReadStrategy({
         tree: true,
@@ -125,7 +126,7 @@ describe('SQLite Session export node reads', () => {
     expect(mismatchedHead.outcome).toMatchObject({ error: { code: 'branch_not_found' } })
   })
 
-  it('materializes a long historical branch once across every export page', async () => {
+  it('keeps durable historical-path storage and per-page writes independent of path length', async () => {
     const runtime = makeRuntime(path.join(temporaryRoot, 'export-materialized-path.sqlite'))
     runtimes.push(runtime)
     const operationId = 'export-historical-branch'
@@ -143,7 +144,7 @@ describe('SQLite Session export node reads', () => {
           )
           INSERT INTO session_nodes (
             id, session_id, parent_id, kind, role, timestamp_ms,
-            content_json, metadata_json, branch_hint_id, created_order
+            content_json, metadata_json, branch_hint_id, path_depth, created_order
           )
           SELECT
             'node-worker-history-' || printf('%04d', value),
@@ -153,7 +154,7 @@ describe('SQLite Session export node reads', () => {
               ELSE 'node-worker-history-' || printf('%04d', value - 1)
             END,
             'message', 'assistant', value + 2, '{"text":"historical"}', '{}',
-            '${historicalBranchId}', value + 1
+            '${historicalBranchId}', value, value + 1
           FROM sequence
         `)
         yield* sql`
@@ -174,28 +175,22 @@ describe('SQLite Session export node reads', () => {
             ${historicalBranchId}, ${0}, ${'[]'}, ${'running'}, ${1}, ${1}
           )
         `
-        yield* sql.unsafe(`
-          CREATE TABLE export_path_insert_probe (
-            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-            attempts INTEGER NOT NULL
-          )
-        `)
-        yield* sql`INSERT INTO export_path_insert_probe (singleton, attempts) VALUES (${1}, ${0})`
-        yield* sql.unsafe(`
-          CREATE TRIGGER count_export_path_insert
-          BEFORE INSERT ON session_export_selected_path_nodes
-          BEGIN
-            UPDATE export_path_insert_probe SET attempts = attempts + 1 WHERE singleton = 1;
-          END
-        `)
       }),
     )
 
     let manifest: SessionExportManifest | undefined
     let afterCreatedOrder: number | undefined
     const exportedNodeIds: string[] = []
+    const pageWriteDeltas: number[] = []
     let pageCount = 0
     while (true) {
+      const changesBefore = await runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          const rows = yield* sql<{ readonly changes: number }>`SELECT total_changes() AS changes`
+          return rows[0]?.changes ?? 0
+        }),
+      )
       const response = await runtime.runPromise(
         Effect.gen(function* () {
           const repository = yield* SessionQueryRepository
@@ -217,6 +212,14 @@ describe('SQLite Session export node reads', () => {
           })
         }),
       )
+      const changesAfter = await runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          const rows = yield* sql<{ readonly changes: number }>`SELECT total_changes() AS changes`
+          return rows[0]?.changes ?? 0
+        }),
+      )
+      pageWriteDeltas.push(changesAfter - changesBefore)
       if (response.outcome.operation !== 'export' || !('records' in response.outcome)) {
         throw new Error('Expected export outcome.')
       }
@@ -240,24 +243,26 @@ describe('SQLite Session export node reads', () => {
       }
     }
 
-    const materialization = await runtime.runPromise(
+    const pathStorage = await runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         const headers = yield* sql<{ readonly count: number }>`
           SELECT COUNT(*) AS count FROM session_export_selected_paths
           WHERE export_operation_id = ${operationId}
         `
-        const nodes = yield* sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count FROM session_export_selected_path_nodes
-          WHERE export_operation_id = ${operationId}
+        const checkpoints = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM session_export_path_checkpoints
+          WHERE session_id = ${'worker'}
         `
-        const attempts = yield* sql<{ readonly attempts: number }>`
-          SELECT attempts FROM export_path_insert_probe WHERE singleton = ${1}
+        const obsoleteTables = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count
+          FROM sqlite_master
+          WHERE type = ${'table'} AND name = ${'session_export_selected_path_nodes'}
         `
         return {
           headers: headers[0]?.count,
-          nodes: nodes[0]?.count,
-          attempts: attempts[0]?.attempts,
+          checkpoints: checkpoints[0]?.count,
+          obsoleteTables: obsoleteTables[0]?.count,
         }
       }),
     )
@@ -267,10 +272,14 @@ describe('SQLite Session export node reads', () => {
     expect(new Set(exportedNodeIds).size).toBe(exportedNodeIds.length)
     expect(exportedNodeIds[0]).toBe('node-worker-1')
     expect(exportedNodeIds.at(-1)).toBe('node-worker-history-1200')
-    expect(materialization).toEqual({
+    expect(pageWriteDeltas[0]).toBe(1)
+    expect(pageWriteDeltas.slice(1)).toEqual(
+      Array.from({ length: pageWriteDeltas.length - 1 }, () => 0),
+    )
+    expect(pathStorage).toEqual({
       headers: 1,
-      nodes: historicalNodeCount + 1,
-      attempts: historicalNodeCount + 1,
+      checkpoints: Math.floor(historicalNodeCount / SESSION_EXPORT_PATH_CHECKPOINT_STRIDE) + 1,
+      obsoleteTables: 0,
     })
 
     const retainedAfterCompletion = await runtime.runPromise(
@@ -285,13 +294,16 @@ describe('SQLite Session export node reads', () => {
           SELECT COUNT(*) AS count FROM session_export_selected_paths
           WHERE export_operation_id = ${operationId}
         `
-        const nodes = yield* sql<{ readonly count: number }>`
-          SELECT COUNT(*) AS count FROM session_export_selected_path_nodes
-          WHERE export_operation_id = ${operationId}
+        const checkpoints = yield* sql<{ readonly count: number }>`
+          SELECT COUNT(*) AS count FROM session_export_path_checkpoints
+          WHERE session_id = ${'worker'}
         `
-        return { headers: headers[0]?.count, nodes: nodes[0]?.count }
+        return { headers: headers[0]?.count, checkpoints: checkpoints[0]?.count }
       }),
     )
-    expect(retainedAfterCompletion).toEqual({ headers: 0, nodes: 0 })
+    expect(retainedAfterCompletion).toEqual({
+      headers: 0,
+      checkpoints: Math.floor(historicalNodeCount / SESSION_EXPORT_PATH_CHECKPOINT_STRIDE) + 1,
+    })
   })
 })

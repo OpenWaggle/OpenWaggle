@@ -12,7 +12,11 @@ import {
   refreshLocalSessionProfileAdmissions,
 } from '../local-session-profile-invalidation'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  sessionHostCursorFromTestFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
 
 describe('Local Session subscription admission fences', () => {
   let temporaryRoot = ''
@@ -74,7 +78,7 @@ describe('Local Session subscription admission fences', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -84,7 +88,6 @@ describe('Local Session subscription admission fences', () => {
       encodeLocalSessionFrame({
         kind: 'subscribe',
         requestId: 'request-subscribe',
-        after: eventHub.cursor(),
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -104,6 +107,23 @@ describe('Local Session subscription admission fences', () => {
     })
     releaseSecondRefresh()
     await secondRefresh
+    const resync = await reader.next()
+    expect(resync).toMatchObject({ kind: 'resync-required', reason: 'cursor-expired' })
+    client.write(
+      encodeLocalSessionFrame({
+        kind: 'subscribe',
+        requestId: 'subscribe-after-concurrent-refresh',
+        after: sessionHostCursorFromTestFrame(resync),
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
+    await expect(reader.next()).resolves.toMatchObject({
+      kind: 'event',
+      event: {
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+        payload: { stateRevision: 1 },
+      },
+    })
     const visibleEvent = eventHub.publish({
       kind: 'session-state-changed',
       sessionId: 'session-allowed',
@@ -113,11 +133,14 @@ describe('Local Session subscription admission fences', () => {
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
-      event: visibleEvent,
+      event: {
+        ...visibleEvent,
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+      },
     })
   })
 
-  it('admits no events between a durable profile mutation fence and refresh or disconnect', async () => {
+  it('invalidates the stream at a durable profile fence and replays only after refresh', async () => {
     const endpoint = path.join(temporaryRoot, 'fence.sock')
     const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
     const liveness = new SessionHostLiveness({
@@ -147,7 +170,7 @@ describe('Local Session subscription admission fences', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -157,7 +180,6 @@ describe('Local Session subscription admission fences', () => {
       encodeLocalSessionFrame({
         kind: 'subscribe',
         requestId: 'request-subscribe',
-        after: eventHub.cursor(),
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -170,13 +192,36 @@ describe('Local Session subscription admission fences', () => {
       operation: 'message',
     })
     await refreshLocalSessionProfileAdmissions('mutable', { consumeExistingFence: true })
+    const resync = await reader.next()
+    expect(resync).toMatchObject({ kind: 'resync-required', reason: 'cursor-expired' })
+    client.write(
+      encodeLocalSessionFrame({
+        kind: 'subscribe',
+        requestId: 'subscribe-after-fence',
+        after: sessionHostCursorFromTestFrame(resync),
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
+    await expect(reader.next()).resolves.toMatchObject({
+      kind: 'event',
+      event: {
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+        payload: { stateRevision: 1 },
+      },
+    })
     const refreshedEvent = eventHub.publish({
       kind: 'session-state-changed',
       sessionId: 'session-allowed',
       stateRevision: 2,
       operation: 'message',
     })
-    await expect(reader.next()).resolves.toMatchObject({ kind: 'event', event: refreshedEvent })
+    await expect(reader.next()).resolves.toMatchObject({
+      kind: 'event',
+      event: {
+        ...refreshedEvent,
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+      },
+    })
 
     await fenceLocalSessionProfileAdmissions('mutable')
     eventHub.publish({

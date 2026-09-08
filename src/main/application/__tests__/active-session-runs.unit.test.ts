@@ -3,20 +3,62 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   activeRuns,
   cancelAllSessionRuns,
+  cancelSessionRuns,
   claimSessionWriterSuccessor,
   claimSessionWriterSuccessorAndWait,
+  getAllActiveRunSessionIds,
   interruptExactSessionRun,
   interruptSessionWriterAndWait,
   releaseClaimedSessionWriterSuccessor,
   requestExactSessionRunInterruption,
   reserveActiveSessionRun,
   reserveCompactionSessionWriter,
+  reservePendingWaggleSessionRun,
   reserveSessionTreeMutation,
   reserveWaggleSessionWriter,
 } from '../active-session-runs'
+import { registerPreAdmissionWaggleAttempt } from '../pre-admission-waggle-attempts'
 
 describe('active Session Runs', () => {
   afterEach(() => cancelAllSessionRuns())
+
+  it('enumerates and interrupts a Waggle attempt before durable admission', () => {
+    const sessionId = SessionId('session-pre-admission-waggle')
+    const controller = new AbortController()
+    const release = registerPreAdmissionWaggleAttempt(sessionId, controller)
+
+    expect(getAllActiveRunSessionIds()).toContain(sessionId)
+    expect(cancelSessionRuns(sessionId)).toBe(true)
+    expect(controller.signal.aborted).toBe(true)
+    expect(getAllActiveRunSessionIds()).toContain(sessionId)
+
+    release()
+    expect(getAllActiveRunSessionIds()).not.toContain(sessionId)
+
+    const shutdownController = new AbortController()
+    const releaseShutdownAttempt = registerPreAdmissionWaggleAttempt(sessionId, shutdownController)
+    expect(cancelAllSessionRuns()).toContain(sessionId)
+    expect(shutdownController.signal.aborted).toBe(true)
+    expect(getAllActiveRunSessionIds()).toContain(sessionId)
+    releaseShutdownAttempt()
+    expect(getAllActiveRunSessionIds()).not.toContain(sessionId)
+  })
+
+  it('retains pending Waggle ownership across global cancellation until teardown', () => {
+    const sessionId = SessionId('session-global-cancelled-waggle')
+    const controller = new AbortController()
+    const pending = reservePendingWaggleSessionRun(sessionId, controller, 'pending-waggle')
+
+    expect(cancelAllSessionRuns()).toContain(sessionId)
+    expect(controller.signal.aborted).toBe(true)
+    expect(getAllActiveRunSessionIds()).toContain(sessionId)
+    expect(() =>
+      reservePendingWaggleSessionRun(sessionId, new AbortController(), 'racing-waggle'),
+    ).toThrow('already has a pending Waggle run')
+
+    pending.release()
+    expect(getAllActiveRunSessionIds()).not.toContain(sessionId)
+  })
 
   it('waits for the exact interrupted Run to finish cleanup', async () => {
     const sessionId = SessionId('session-target')

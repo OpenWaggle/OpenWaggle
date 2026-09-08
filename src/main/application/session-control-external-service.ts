@@ -20,6 +20,7 @@ import { AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
 import { SessionDescendantRunRepository } from '../ports/session-descendant-run-repository'
+import { releaseSessionControlAttachments } from './session-attachment-cleanup'
 import { authorizeDescendantInterruptionSnapshot } from './session-control-descendant-authorization'
 
 const DESCENDANT_INTERRUPTION_CONCURRENCY = 8
@@ -224,15 +225,11 @@ export function steerSessionRun(input: SteerSessionRunInput) {
         }
     yield* journal.complete({ callerId: input.callerId, request: input.request, outcome })
     if (steering.accepted) {
-      yield* SessionControlAttachmentService.pipe(
-        Effect.flatMap((service) =>
-          service.release({
-            attachmentIds: input.request.command.input.attachmentIds,
-            sessionId: input.request.command.sessionId,
-            ownerCallerId: input.callerId,
-          }),
-        ),
-      )
+      yield* releaseSessionControlAttachments({
+        attachmentIds: input.request.command.input.attachmentIds,
+        sessionId: input.request.command.sessionId,
+        ownerCallerId: input.callerId,
+      })
     }
     return response(input.request, false, outcome)
   })

@@ -34,7 +34,7 @@ describe('Local Session server concurrency', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -182,12 +182,12 @@ describe('Local Session server concurrency', () => {
     third.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'budget-released',
       }),
     )
-    await expect(thirdReader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(thirdReader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
   })
 
   it('bounds authentication work across all connections', async () => {
@@ -228,7 +228,7 @@ describe('Local Session server concurrency', () => {
       socket.write(
         encodeLocalSessionFrame({
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [2],
+          supportedRevisions: [7],
           clientKind: 'cli',
           clientVersion: 'authentication-budget',
           profile: 'worker',
@@ -245,7 +245,7 @@ describe('Local Session server concurrency', () => {
     releases.shift()?.()
     await Promise.all(
       readers.map((reader) =>
-        expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 }),
+        expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 }),
       ),
     )
     expect(peak).toBe(1)

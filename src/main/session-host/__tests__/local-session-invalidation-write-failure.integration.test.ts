@@ -121,7 +121,7 @@ describe('Local Session invalidation response failures', () => {
       const peerReader = new TestFrameReader(peer)
       const hello = encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       })

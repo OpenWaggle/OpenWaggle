@@ -109,13 +109,30 @@ describe('SQLite transcript semantic prepared scopes', () => {
           WHERE session_id = ${'worker'}
           ORDER BY node_id
         `
-        // Leave the cached eligible count at its cap so the reuse guard must inspect membership.
+        // Simulate an indexed node whose semantic invalidation revision was missed so the bounded
+        // hot-tier membership guard, rather than the revision fast path, must detect it.
         yield* sql`DROP TRIGGER session_node_search_insert`
         yield* addSearchableNode(sql, {
           id: 'node-worker-uncovered',
           sessionId: 'worker',
           order: 10,
         })
+        yield* sql`
+          INSERT INTO session_node_search (session_id, node_id, content)
+          VALUES (${'worker'}, ${'node-worker-uncovered'}, ${'semantic node uncovered'})
+        `
+        yield* sql`
+          INSERT INTO session_node_search_rows (
+            node_id, session_id, search_rowid, created_order, searchable
+          ) VALUES (
+            ${'node-worker-uncovered'}, ${'worker'}, last_insert_rowid(), ${10}, ${1}
+          )
+        `
+        yield* sql`
+          UPDATE session_transcript_search_stats
+          SET searchable_node_count = searchable_node_count + 1
+          WHERE session_id = ${'worker'}
+        `
         const ensured = yield* ensureTranscriptSemanticSessions({
           sql,
           model,

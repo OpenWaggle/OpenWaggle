@@ -1,10 +1,6 @@
 import type {
   LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_REVISION_2_CAPABILITIES,
-  LOCAL_SESSION_REVISION_3_CAPABILITIES,
-  LOCAL_SESSION_REVISION_4_CAPABILITIES,
-  LOCAL_SESSION_REVISION_5_CAPABILITIES,
   LOCAL_SESSION_REVISION_6_CAPABILITIES,
 } from './local-session-protocol-revisions'
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
@@ -243,10 +239,6 @@ export type LocalSessionNegotiationResult =
       typeof LOCAL_SESSION_CAPABILITIES
     >
   | AcceptedLocalSessionNegotiation<6, typeof LOCAL_SESSION_REVISION_6_CAPABILITIES>
-  | AcceptedLocalSessionNegotiation<5, typeof LOCAL_SESSION_REVISION_5_CAPABILITIES>
-  | AcceptedLocalSessionNegotiation<4, typeof LOCAL_SESSION_REVISION_4_CAPABILITIES>
-  | AcceptedLocalSessionNegotiation<3, typeof LOCAL_SESSION_REVISION_3_CAPABILITIES>
-  | AcceptedLocalSessionNegotiation<2, typeof LOCAL_SESSION_REVISION_2_CAPABILITIES>
   | {
       readonly accepted: false
       readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME

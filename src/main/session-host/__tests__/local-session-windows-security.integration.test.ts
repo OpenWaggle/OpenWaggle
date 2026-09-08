@@ -87,12 +87,12 @@ describe('Windows Local Session user-only admission', () => {
     admitted.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'windows-user-only-test',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
   })
 
   itWindows('starts only after PowerShell verifies the protected user-SID-only DACL', async () => {
@@ -110,11 +110,11 @@ describe('Windows Local Session user-only admission', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'windows-user-dacl-test',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
   })
 })

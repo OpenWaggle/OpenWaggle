@@ -64,12 +64,12 @@ describe('Local Session outbound byte budget', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: version,
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
     return { socket, reader }
   }
 

@@ -12,7 +12,7 @@ import { exportBaseOutcome } from './sqlite-session-export-manifest'
 import { exportNodeReadStrategy, readExportNodes } from './sqlite-session-export-node-reader'
 import { prepareExportSelectedPath } from './sqlite-session-export-path-reader'
 import { exportNodeRecord } from './sqlite-session-export-record'
-import { hasMaterializedExportSelectedPath } from './sqlite-session-export-selected-path'
+import { hasDurableExportSelectedPathIdentity } from './sqlite-session-export-selected-path'
 import {
   type ExportSnapshotRow,
   readExportSnapshot,
@@ -47,7 +47,7 @@ function exportSelectedPathIsPrepared(
 ) {
   if (cache.has(identity)) return Effect.succeed(true)
   if (!exportOperationId) return Effect.succeed(false)
-  return hasMaterializedExportSelectedPath(sql, { ...identity, exportOperationId })
+  return hasDurableExportSelectedPathIdentity(sql, { ...identity, exportOperationId })
 }
 
 function exportSelection(
@@ -233,16 +233,13 @@ export function readSessionExport(
       query.snapshotStateRevision ??
       snapshot.state_revision
     const capturedAt = query.snapshotManifest?.snapshot.capturedAt ?? query.capturedAt ?? Date.now()
-    const selectedPath = yield* prepareExportSelectedPath(sql, exportSelectedPaths, {
+    yield* prepareExportSelectedPath(sql, exportSelectedPaths, {
       readStrategy,
       exportOperationId: exportMaterializationOperationId,
       sessionId: query.sessionId,
       selectedBranchId,
       selectedHeadNodeId,
       nodeMutationRevision: snapshot.node_mutation_revision,
-      afterCreatedOrder: query.afterCreatedOrder ?? -1,
-      throughCreatedOrder: highWaterMark,
-      limit: query.limit,
     })
     const queueRows = yield* readExportQueueRows(sql, request)
     const nodePage = yield* readExportNodes(sql, {
@@ -250,7 +247,6 @@ export function readSessionExport(
       headNodeId: selectedHeadNodeId,
       tree: branchScope === 'tree',
       indexedBranchId: readStrategy === 'indexed-active-branch' ? selectedBranchId : null,
-      ...selectedPath,
       afterCreatedOrder: query.afterCreatedOrder ?? -1,
       throughCreatedOrder: highWaterMark,
       limit: query.limit,

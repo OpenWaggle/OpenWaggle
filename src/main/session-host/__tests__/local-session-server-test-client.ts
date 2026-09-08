@@ -1,4 +1,5 @@
 import net, { type Socket } from 'node:net'
+import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import { LocalSessionFrameDecoder } from '../local-session-framing'
 
 export class TestFrameReader {
@@ -29,4 +30,20 @@ export function connectLocalSessionTestClient(endpoint: string) {
     socket.once('connect', () => resolve(socket))
     socket.once('error', reject)
   })
+}
+
+export function sessionHostCursorFromTestFrame(frame: unknown): SessionHostEventCursor {
+  if (typeof frame !== 'object' || frame === null) {
+    throw new Error('Expected a Local Session frame with a cursor.')
+  }
+  const cursor = Reflect.get(frame, 'cursor')
+  if (typeof cursor !== 'object' || cursor === null) {
+    throw new Error('Expected a Local Session frame with a valid cursor.')
+  }
+  const hostInstanceId = Reflect.get(cursor, 'hostInstanceId')
+  const sequence = Reflect.get(cursor, 'sequence')
+  if (typeof hostInstanceId !== 'string' || typeof sequence !== 'number') {
+    throw new Error('Expected a Local Session frame with a valid cursor.')
+  }
+  return { hostInstanceId, sequence }
 }

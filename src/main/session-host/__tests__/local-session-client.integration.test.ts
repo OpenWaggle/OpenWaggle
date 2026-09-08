@@ -109,28 +109,18 @@ describe('Local Session client', () => {
         paths,
         clientKind: 'gui',
         clientVersion: 'test',
-        supportedRevisions: [2],
+        supportedRevisions: [6],
         payload: {
-          contract: 'session-waggle-v1',
+          contract: 'host-ui-v1',
           request: {
             contractVersion: 1,
-            requestId: 'request-waggle',
-            idempotencyKey: 'waggle-once',
-            sessionId: 'session-target',
-            payload: { text: 'Review.', thinkingLevel: 'medium', attachments: [] },
-            model: 'openai/gpt-5.4',
-            config: {
-              mode: 'sequential',
-              agents: [
-                { label: 'A', model: '$inherit', roleDescription: 'Plan', color: 'blue' },
-                { label: 'B', model: '$inherit', roleDescription: 'Review', color: 'amber' },
-              ],
-              stop: { primary: 'consensus', maxTurnsSafety: 4 },
-            },
+            requestId: 'request-mcp-authorization',
+            channel: 'mcp:authorize-server',
+            args: [],
           },
         },
       }),
-    ).rejects.toThrow(/does not support explicit Waggle/)
+    ).rejects.toThrow(/does not support Host UI requests/)
     expect(calls).toHaveLength(1)
   })
 

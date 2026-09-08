@@ -35,6 +35,7 @@ const headerMocks = vi.hoisted(() => {
     omitSessionFromCatalog: false,
     useArchivedSession: false,
     useIndependentSession: false,
+    useWorkerSession: false,
   }
 })
 
@@ -43,19 +44,10 @@ vi.mock('@/features/chat/hooks', () => ({
     activeSession: {
       id: SessionId('session-1'),
       title: 'Fallback title',
-      lineage: headerMocks.useIndependentSession
-        ? {
-            role: 'independent' as const,
-            directWorkerCount: 0,
-            activeDirectWorkerCount: 0,
-            agentDefinitionName: 'security-reviewer',
-          }
-        : {
-            role: 'queen' as const,
-            directWorkerCount: 2,
-            activeDirectWorkerCount: 1,
-            agentDefinitionName: 'release-lead',
-          },
+      projectPath: headerMocks.projectPath,
+      messages: [],
+      createdAt: 1,
+      updatedAt: 2,
     },
     activeSessionId: SessionId('session-1'),
   }),
@@ -123,12 +115,21 @@ vi.mock('@/features/sessions/hooks', () => ({
             activeDirectWorkerCount: 0,
             agentDefinitionName: 'security-reviewer',
           }
-        : {
-            role: 'queen' as const,
-            directWorkerCount: 2,
-            activeDirectWorkerCount: 1,
-            agentDefinitionName: 'release-lead',
-          },
+        : headerMocks.useWorkerSession
+          ? {
+              role: 'worker' as const,
+              parentSessionId: SessionId('session-parent'),
+              hiveRootSessionId: SessionId('session-parent'),
+              directWorkerCount: 0,
+              activeDirectWorkerCount: 0,
+              agentDefinitionName: 'release-lead',
+            }
+          : {
+              role: 'queen' as const,
+              directWorkerCount: 2,
+              activeDirectWorkerCount: 1,
+              agentDefinitionName: 'release-lead',
+            },
     }
     return {
       sessions:
@@ -143,6 +144,7 @@ vi.mock('@/features/sessions/hooks', () => ({
           createdAt: 1,
           updatedAt: 2,
           lastActiveBranchId: SessionBranchId('branch-1'),
+          lineage: session.lineage,
         },
         branches: [
           {
@@ -181,6 +183,7 @@ describe('Header', () => {
     headerMocks.toggleSessionTree.mockClear()
     headerMocks.useArchivedSession = false
     headerMocks.useIndependentSession = false
+    headerMocks.useWorkerSession = false
     headerMocks.omitSessionFromCatalog = false
   })
 
@@ -235,13 +238,25 @@ describe('Header', () => {
     expect(screen.queryByText('Worker')).not.toBeInTheDocument()
   })
 
-  it('uses selected Session detail when an archived Session is beyond the first catalog page', () => {
+  it('uses the exact selected tree for every identity outside the bounded catalog page', () => {
     headerMocks.useArchivedSession = true
     headerMocks.omitSessionFromCatalog = true
 
-    render(<Header />)
+    const header = render(<Header />)
 
     expect(screen.getByText('Queen')).toBeInTheDocument()
     expect(screen.getByText('release-lead')).toBeInTheDocument()
+
+    headerMocks.useWorkerSession = true
+    header.rerender(<Header />)
+    expect(screen.getByText('Worker')).toBeInTheDocument()
+    expect(screen.getByText('release-lead')).toBeInTheDocument()
+
+    headerMocks.useWorkerSession = false
+    headerMocks.useIndependentSession = true
+    header.rerender(<Header />)
+    expect(screen.getByText('security-reviewer')).toBeInTheDocument()
+    expect(screen.queryByText('Queen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Worker')).not.toBeInTheDocument()
   })
 })

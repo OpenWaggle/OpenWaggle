@@ -1,15 +1,21 @@
 import { randomUUID } from 'node:crypto'
 import type {
   SessionHostEventCursor,
-  SessionHostEventDelivery,
   SessionHostEventEnvelope,
   SessionHostEventPayload,
   SessionHostEventReplayResult,
 } from '@shared/types/session-host-event'
 import {
+  type SessionHostEventReplayView,
+  SessionHostEventReplayViews,
+} from './session-host-event-replay-views'
+import {
   type RetainedReplayResult,
   SessionHostEventReplayWindow,
 } from './session-host-event-replay-window'
+import { SessionHostEventSubscription } from './session-host-event-subscription'
+
+export { SessionHostEventSubscription } from './session-host-event-subscription'
 
 const DEFAULT_REPLAY_CAPACITY = 4096
 const DEFAULT_SUBSCRIBER_CAPACITY = 256
@@ -25,121 +31,6 @@ export interface SessionHostEventHubOptions {
   readonly subscriberByteCapacity?: number
   readonly subscriberAggregateByteCapacity?: number
   readonly now?: () => number
-}
-
-export class SessionHostEventSubscription {
-  private readonly pending: (
-    | { readonly status: 'event'; readonly event: SessionHostEventEnvelope; readonly bytes: number }
-    | { readonly status: 'cursor-advanced'; readonly cursor: SessionHostEventCursor }
-  )[] = []
-  private pendingEventCount = 0
-  private pendingBytes = 0
-  private waiter: ((delivery: SessionHostEventDelivery) => void) | null = null
-  private terminal: SessionHostEventDelivery | null = null
-
-  constructor(
-    private readonly capacity: number,
-    private readonly byteCapacity: number,
-    private readonly currentCursor: () => SessionHostEventCursor,
-    private readonly onClose: () => void,
-    private readonly accepts: (event: SessionHostEventEnvelope) => boolean,
-    private readonly advanceFilteredCursor: boolean,
-    private readonly reserveAggregateBytes: (bytes: number) => boolean,
-    private readonly releaseAggregateBytes: (bytes: number) => void,
-  ) {}
-
-  enqueue(event: SessionHostEventEnvelope, bytes: number): void {
-    if (this.terminal) return
-    if (!this.accepts(event)) {
-      if (this.advanceFilteredCursor) this.enqueueCursorAdvance(event.cursor)
-      return
-    }
-    if (bytes > this.byteCapacity) {
-      this.requireResync()
-      return
-    }
-    if (this.waiter) {
-      const waiter = this.waiter
-      this.waiter = null
-      waiter({ status: 'event', event })
-      return
-    }
-    if (this.pendingEventCount >= this.capacity || this.pendingBytes + bytes > this.byteCapacity) {
-      this.requireResync()
-      return
-    }
-    if (!this.reserveAggregateBytes(bytes)) {
-      this.requireResync()
-      return
-    }
-    this.pending.push({ status: 'event', event, bytes })
-    this.pendingEventCount += 1
-    this.pendingBytes += bytes
-  }
-
-  private enqueueCursorAdvance(cursor: SessionHostEventCursor): void {
-    if (this.waiter) {
-      const waiter = this.waiter
-      this.waiter = null
-      waiter({ status: 'cursor-advanced', cursor })
-      return
-    }
-    const last = this.pending.at(-1)
-    if (last?.status === 'cursor-advanced') {
-      this.pending[this.pending.length - 1] = { status: 'cursor-advanced', cursor }
-      return
-    }
-    this.pending.push({ status: 'cursor-advanced', cursor })
-  }
-
-  private requireResync() {
-    this.releaseAggregateBytes(this.pendingBytes)
-    this.pending.length = 0
-    this.pendingEventCount = 0
-    this.pendingBytes = 0
-    this.terminal = {
-      status: 'resync-required',
-      reason: 'slow-consumer',
-      cursor: this.currentCursor(),
-    }
-    this.onClose()
-    if (this.waiter) {
-      const waiter = this.waiter
-      this.waiter = null
-      waiter(this.terminal)
-    }
-  }
-
-  next(): Promise<SessionHostEventDelivery> {
-    const pending = this.pending.shift()
-    if (pending) {
-      if (pending.status === 'cursor-advanced') return Promise.resolve(pending)
-      this.pendingEventCount -= 1
-      this.pendingBytes -= pending.bytes
-      this.releaseAggregateBytes(pending.bytes)
-      return Promise.resolve({ status: 'event', event: pending.event })
-    }
-    if (this.terminal) return Promise.resolve(this.terminal)
-    if (this.waiter) throw new Error('Only one pending Session Host subscription read is allowed.')
-    return new Promise((resolve) => {
-      this.waiter = resolve
-    })
-  }
-
-  close(): void {
-    if (this.terminal) return
-    this.releaseAggregateBytes(this.pendingBytes)
-    this.pending.length = 0
-    this.pendingEventCount = 0
-    this.pendingBytes = 0
-    this.terminal = { status: 'closed' }
-    this.onClose()
-    if (this.waiter) {
-      const waiter = this.waiter
-      this.waiter = null
-      waiter(this.terminal)
-    }
-  }
 }
 
 export type SessionHostSubscriptionResult =
@@ -158,6 +49,7 @@ export class SessionHostEventHub {
   private readonly replayWindow: SessionHostEventReplayWindow
   private retainedSubscriberBytes = 0
   private readonly subscribers = new Set<SessionHostEventSubscription>()
+  private readonly replayViews: SessionHostEventReplayViews
 
   constructor(options: SessionHostEventHubOptions = {}) {
     this.hostInstanceId = options.hostInstanceId ?? randomUUID()
@@ -168,6 +60,7 @@ export class SessionHostEventHub {
     this.subscriberAggregateByteCapacity =
       options.subscriberAggregateByteCapacity ?? DEFAULT_SUBSCRIBER_AGGREGATE_BYTE_CAPACITY
     this.now = options.now ?? Date.now
+    this.replayViews = new SessionHostEventReplayViews(this.hostInstanceId)
     this.assertPositiveCapacity(this.replayCapacity, 'replay')
     this.assertPositiveCapacity(this.subscriberCapacity, 'subscriber')
     this.assertPositiveCapacity(this.replayByteCapacity, 'replay bytes')
@@ -189,6 +82,21 @@ export class SessionHostEventHub {
     return { hostInstanceId: this.hostInstanceId, sequence: this.sequence }
   }
 
+  replayLimits() {
+    return { capacity: this.replayCapacity, byteCapacity: this.replayByteCapacity }
+  }
+
+  createReplayView(
+    accepts: (event: SessionHostEventEnvelope) => boolean,
+    limits: { readonly capacity: number; readonly byteCapacity: number },
+  ) {
+    return this.replayViews.create(this.sequence, accepts, limits)
+  }
+
+  rotateReplayView(view: SessionHostEventReplayView) {
+    return this.replayViews.rotate(view)
+  }
+
   subscriberCount(): number {
     return this.subscribers.size
   }
@@ -206,6 +114,7 @@ export class SessionHostEventHub {
     } else {
       this.replayWindow.clear()
     }
+    this.replayViews.record(event, bytes)
     for (const subscriber of this.subscribers) subscriber.enqueue(event, bytes)
     return event
   }
@@ -223,6 +132,8 @@ export class SessionHostEventHub {
 
   #retainedReplayAfter(cursor: SessionHostEventCursor): RetainedReplayResult {
     const current = this.cursor()
+    const restricted = this.replayViews.retainedReplayAfter(cursor, current)
+    if (restricted) return restricted
     if (cursor.hostInstanceId !== this.hostInstanceId) {
       return { status: 'resync-required', reason: 'host-restarted', cursor: current }
     }
@@ -247,7 +158,11 @@ export class SessionHostEventHub {
   ): SessionHostSubscriptionResult {
     const replay = this.#retainedReplayAfter(cursor)
     if (replay.status === 'resync-required') return replay
-    const visibleReplay = replay.entries.filter((entry) => accepts(entry.event))
+    const replayView = this.replayViews.viewFor(cursor)
+    const effectiveAccepts = replayView
+      ? (event: SessionHostEventEnvelope) => replayView.acceptsEvent(event) && accepts(event)
+      : accepts
+    const visibleReplay = replay.entries.filter((entry) => effectiveAccepts(entry.event))
     const replayBytes = visibleReplay.reduce((total, entry) => total + entry.bytes, 0)
     if (
       visibleReplay.length > this.subscriberCapacity ||
@@ -265,8 +180,11 @@ export class SessionHostEventHub {
       this.subscriberCapacity,
       this.subscriberByteCapacity,
       () => this.cursor(),
-      () => this.subscribers.delete(subscription),
-      accepts,
+      () => {
+        this.subscribers.delete(subscription)
+        replayView?.detach(subscription)
+      },
+      effectiveAccepts,
       options.advanceFilteredCursor ?? false,
       (bytes) => {
         if (this.retainedSubscriberBytes + bytes > this.subscriberAggregateByteCapacity) {
@@ -283,10 +201,12 @@ export class SessionHostEventHub {
       subscription.enqueue(entry.event, entry.bytes)
     }
     this.subscribers.add(subscription)
+    replayView?.attach(subscription)
     return { status: 'ready', subscription }
   }
 
   close(): void {
     for (const subscription of [...this.subscribers]) subscription.close()
+    this.replayViews.close()
   }
 }

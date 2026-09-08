@@ -1,5 +1,7 @@
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import * as Effect from 'effect/Effect'
+import { SettingsService } from '../services/settings-service'
 import { executeExplicitWaggleCancellation } from './explicit-waggle-command-cancellation'
 import { executeExplicitWaggleCommand } from './explicit-waggle-command-service'
 import {
@@ -14,7 +16,15 @@ export function dispatchOwnerLocalSessionCommand(input: {
 }) {
   const payload = input.payload
   if (payload.contract === 'session-waggle-v1') {
-    return executeExplicitWaggleCommand({ caller: input.caller, payload })
+    return Effect.gen(function* () {
+      const settings = yield* SettingsService
+      const snapshot = yield* settings.get()
+      return yield* executeExplicitWaggleCommand({
+        caller: input.caller,
+        payload,
+        hostRunCeiling: snapshot.sessionHostRunCeiling,
+      })
+    })
   }
   if (payload.contract === 'session-waggle-cancel-v1') {
     return executeExplicitWaggleCancellation({ caller: input.caller, payload })

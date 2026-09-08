@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import type { McpEventRecord, McpRuntimeNotice } from '@shared/types/mcp'
+import type { McpRuntimeNotice } from '@shared/types/mcp'
 import { Effect, Ref } from 'effect'
+import { resolveMcpRuntimeNamespace } from '../../../domain/mcp/runtime-namespace'
 import { InMemoryMcpRemoteTaskStore, type McpRemoteTaskStore } from './remote-task-store'
 import {
   discardSupersededSessionConnections,
@@ -11,12 +12,15 @@ import {
   recordRemoteTasks,
 } from './runtime-catalog'
 import { makeMcpRuntimeConnections } from './runtime-connections'
+import { clearSessionEvents, emptyMcpEventInboxState } from './runtime-event-inbox'
 import { getEventSubscriptions, getEvents, setEventSubscription } from './runtime-events'
 import { addNotice, getNotices, removeNotice } from './runtime-notices'
 import type {
   ActiveEventSubscription,
   CatalogCacheEntry,
   CatalogTool,
+  EventSubscriptionCell,
+  EventSubscriptionLifecycleState,
   McpRuntimeStateService,
   RuntimeStateContext,
 } from './runtime-state-types'
@@ -25,6 +29,70 @@ import type { McpConnectionFactory } from './types'
 export type { CatalogTool, McpRuntimeStateService } from './runtime-state-types'
 
 const HANDLE_KEY_BYTES = 32
+
+function activateEventSubscriptionNamespace(ctx: RuntimeStateContext, runtimeNamespace: string) {
+  return Ref.update(ctx.eventSubscriptionLifecycle, (current) => {
+    const existing = current.namespaces.get(runtimeNamespace)
+    if (existing?.active) return current
+    const next = new Map(current.namespaces)
+    next.set(runtimeNamespace, {
+      active: true,
+      generation: existing ? existing.generation + 1 : 0,
+    })
+    return { ...current, namespaces: next }
+  })
+}
+
+function retireEventSubscriptionNamespace(ctx: RuntimeStateContext, runtimeNamespace: string) {
+  return Ref.update(ctx.eventSubscriptionLifecycle, (current) => {
+    const existing = current.namespaces.get(runtimeNamespace)
+    const next = new Map(current.namespaces)
+    next.set(runtimeNamespace, {
+      active: false,
+      generation: existing ? existing.generation + 1 : 0,
+    })
+    return { ...current, namespaces: next }
+  })
+}
+
+function retireAllEventSubscriptionNamespaces(ctx: RuntimeStateContext) {
+  return Ref.update(ctx.eventSubscriptionLifecycle, (current) => ({
+    acceptUnknownNamespaces: false,
+    namespaces: new Map(
+      [...current.namespaces].map(([runtimeNamespace, entry]) => [
+        runtimeNamespace,
+        { active: false, generation: entry.generation + 1 },
+      ]),
+    ),
+  }))
+}
+
+function retireEventSubscriptionCells(
+  ctx: RuntimeStateContext,
+  shouldRetire: (cell: EventSubscriptionCell) => boolean,
+) {
+  return Ref.modify(ctx.eventSubscriptionCells, (current) => {
+    const retired: ActiveEventSubscription[] = []
+    const next = new Map(current)
+    for (const [key, cell] of current) {
+      if (!shouldRetire(cell)) continue
+      if (cell.active) retired.push(cell.active)
+      if (cell.users === 0) next.delete(key)
+      else next.set(key, { ...cell, generation: cell.generation + 1, active: undefined })
+    }
+    return [retired, next] as const
+  })
+}
+
+function closeEventSubscriptions(
+  subscriptions: readonly { readonly close: () => Promise<void> }[],
+) {
+  return Effect.forEach(
+    subscriptions,
+    (subscription) => Effect.promise(() => subscription.close().catch(() => undefined)),
+    { discard: true },
+  )
+}
 
 function invalidateSessionConnections(ctx: RuntimeStateContext, sessionId: string) {
   return ctx.connections.closeRuntimeNamespace(sessionId).pipe(
@@ -48,11 +116,17 @@ function invalidateSessionConnections(ctx: RuntimeStateContext, sessionId: strin
 }
 
 function disposeSession(ctx: RuntimeStateContext, sessionId: string) {
-  return invalidateSessionConnections(ctx, sessionId).pipe(
-    Effect.zipRight(
-      Effect.promise(() => ctx.remoteTasks.setDisabled({ sessionId, disabled: true })),
-    ),
-  )
+  return Effect.gen(function* () {
+    yield* retireEventSubscriptionNamespace(ctx, sessionId)
+    const subscriptions = yield* retireEventSubscriptionCells(
+      ctx,
+      (cell) => cell.runtimeNamespace === sessionId,
+    )
+    yield* closeEventSubscriptions(subscriptions)
+    yield* invalidateSessionConnections(ctx, sessionId)
+    yield* clearSessionEvents(ctx, sessionId)
+    yield* Effect.promise(() => ctx.remoteTasks.setDisabled({ sessionId, disabled: true }))
+  })
 }
 
 function reconcileIdleConnections(
@@ -84,15 +158,16 @@ function reconcileIdleConnections(
 }
 
 function disposeAll(ctx: RuntimeStateContext) {
-  return ctx.connections
-    .closeAll()
-    .pipe(
-      Effect.zipRight(Ref.set(ctx.handles, new Map())),
-      Effect.zipRight(Ref.set(ctx.notices, new Map())),
-      Effect.zipRight(Ref.set(ctx.events, new Map())),
-      Effect.zipRight(Ref.set(ctx.eventSubscriptions, new Map())),
-      Effect.zipRight(Effect.promise(() => ctx.remoteTasks.setAllDisabled())),
-    )
+  return Effect.gen(function* () {
+    yield* retireAllEventSubscriptionNamespaces(ctx)
+    const subscriptions = yield* retireEventSubscriptionCells(ctx, () => true)
+    yield* closeEventSubscriptions(subscriptions)
+    yield* ctx.connections.closeAll()
+    yield* Ref.set(ctx.handles, new Map())
+    yield* Ref.set(ctx.notices, new Map())
+    yield* Ref.set(ctx.events, emptyMcpEventInboxState())
+    yield* Effect.promise(() => ctx.remoteTasks.setAllDisabled())
+  })
 }
 
 /**
@@ -109,8 +184,12 @@ export function makeMcpRuntimeState(input: {
     const catalogs = yield* Ref.make(new Map<string, CatalogCacheEntry>())
     const handles = yield* Ref.make(new Map<string, CatalogTool>())
     const notices = yield* Ref.make(new Map<string, McpRuntimeNotice[]>())
-    const eventSubscriptions = yield* Ref.make(new Map<string, ActiveEventSubscription>())
-    const events = yield* Ref.make(new Map<string, McpEventRecord[]>())
+    const eventSubscriptionCells = yield* Ref.make(new Map<string, EventSubscriptionCell>())
+    const eventSubscriptionLifecycle = yield* Ref.make<EventSubscriptionLifecycleState>({
+      acceptUnknownNamespaces: true,
+      namespaces: new Map(),
+    })
+    const events = yield* Ref.make(emptyMcpEventInboxState())
 
     // The connection pool's teardown/connect callbacks touch state Refs directly
     // (the connection key doubles as the subscription/catalog key).
@@ -118,11 +197,19 @@ export function makeMcpRuntimeState(input: {
       connect: input.connect,
       onClose: (key) =>
         Effect.gen(function* () {
-          const subscription = (yield* Ref.get(eventSubscriptions)).get(key)
-          yield* Ref.update(eventSubscriptions, (current) => {
+          const subscription = yield* Ref.modify(eventSubscriptionCells, (current) => {
+            const existing = current.get(key)
+            if (!existing) return [undefined, current] as const
             const next = new Map(current)
-            next.delete(key)
-            return next
+            if (existing.users === 0) next.delete(key)
+            else {
+              next.set(key, {
+                ...existing,
+                generation: existing.generation + 1,
+                active: undefined,
+              })
+            }
+            return [existing.active, next] as const
           })
           if (subscription) yield* Effect.promise(() => subscription.close().catch(() => undefined))
           yield* Ref.update(catalogs, (current) => {
@@ -149,7 +236,8 @@ export function makeMcpRuntimeState(input: {
       catalogs,
       handles,
       notices,
-      eventSubscriptions,
+      eventSubscriptionCells,
+      eventSubscriptionLifecycle,
       events,
       connections,
       remoteTasks: input.remoteTaskStore ?? new InMemoryMcpRemoteTaskStore(),
@@ -160,7 +248,9 @@ export function makeMcpRuntimeState(input: {
       addNotice: (sessionId, notice) => addNotice(ctx, sessionId, notice),
       removeNotice: (sessionId, noticeId) => removeNotice(ctx, sessionId, noticeId),
       discardSupersededSessionConnections: (snapshot) =>
-        discardSupersededSessionConnections(ctx, snapshot),
+        activateEventSubscriptionNamespace(ctx, resolveMcpRuntimeNamespace(snapshot)).pipe(
+          Effect.zipRight(discardSupersededSessionConnections(ctx, snapshot)),
+        ),
       getConnectionForServer: (snapshot, serverInstanceId) =>
         getConnectionForServer(ctx, snapshot, serverInstanceId),
       loadCatalog: (snapshot, selectServer) => loadCatalog(ctx, snapshot, selectServer),

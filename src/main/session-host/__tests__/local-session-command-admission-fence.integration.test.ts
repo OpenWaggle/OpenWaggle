@@ -67,7 +67,7 @@ describe('Local Session command admission fences', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -133,7 +133,7 @@ describe('Local Session command admission fences', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -212,7 +212,7 @@ describe('Local Session command admission fences', () => {
       client.write(
         encodeLocalSessionFrame({
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [2],
+          supportedRevisions: [7],
           clientKind: 'cli',
           clientVersion: 'test',
         }),

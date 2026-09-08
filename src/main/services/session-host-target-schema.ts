@@ -1,6 +1,9 @@
 import { SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS } from './session-host-attachment-schema'
 import { SESSION_DELEGATION_TARGET_SCHEMA_STATEMENTS } from './session-host-delegation-schema'
-import { SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS } from './session-host-export-schema'
+import {
+  SESSION_EXPORT_PATH_CHECKPOINT_SCHEMA_STATEMENTS,
+  SESSION_EXPORT_TARGET_SCHEMA_STATEMENTS,
+} from './session-host-export-schema'
 import { SESSION_LIFECYCLE_RESOURCE_SCHEMA_STATEMENTS } from './session-host-lifecycle-resource-schema'
 import { SESSION_ORCHESTRATION_TARGET_SCHEMA_STATEMENTS } from './session-host-orchestration-schema'
 import { SESSION_PROFILE_TARGET_SCHEMA_STATEMENTS } from './session-host-profile-schema'
@@ -271,6 +274,7 @@ export const SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS = [
   CREATE INDEX IF NOT EXISTS idx_session_nodes_active_branch_created_order
   ON session_nodes (session_id, branch_hint_id, created_order)
   `,
+  ...SESSION_EXPORT_PATH_CHECKPOINT_SCHEMA_STATEMENTS,
   ...SESSION_NODE_MUTATION_REVISION_SCHEMA_STATEMENTS,
 ] as const
 

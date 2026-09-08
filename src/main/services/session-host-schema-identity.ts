@@ -9,7 +9,7 @@ export const SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME =
   'session-host-query-time-transcript-term-normalization'
 export const SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_ID = 29
 export const SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION_NAME =
-  'session-host-export-selected-path-materialization'
+  'session-host-export-path-checkpoints'
 export const SESSION_HOST_FRESH_REVISION = 'fresh-v14'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 

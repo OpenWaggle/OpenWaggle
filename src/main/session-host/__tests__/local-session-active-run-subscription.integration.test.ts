@@ -83,7 +83,7 @@ describe('Local Session active-run subscriptions', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),

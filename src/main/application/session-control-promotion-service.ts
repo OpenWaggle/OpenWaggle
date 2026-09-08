@@ -15,7 +15,10 @@ import { SessionControlOperationPendingError } from '../errors'
 import { type AgentSteeringInput, AgentSteeringService } from '../ports/agent-steering-service'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SessionControlOperationJournal } from '../ports/session-control-operation-journal'
-import { preserveOutcomeAfterAttachmentCleanup } from './session-attachment-cleanup'
+import {
+  preserveOutcomeAfterAttachmentCleanup,
+  releaseSessionControlAttachments,
+} from './session-attachment-cleanup'
 import { fenceFailedClaimedSessionOperation } from './session-control-claimed-operation-recovery'
 
 export interface PromoteSessionFollowUpInput {
@@ -28,7 +31,7 @@ function releasePromotedAttachments(input: {
   readonly sessionId: string
   readonly ownerCallerId: string
 }) {
-  return SessionControlAttachmentService.pipe(Effect.flatMap((service) => service.release(input)))
+  return releaseSessionControlAttachments(input)
 }
 
 function promotedSteeringInput(

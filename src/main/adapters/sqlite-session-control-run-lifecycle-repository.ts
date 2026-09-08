@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { RunId, SessionId } from '@shared/types/brand'
 import type { SessionControlMutationCommand } from '@shared/types/session-control'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import {
@@ -32,7 +33,7 @@ interface ActiveStateRow {
 
 interface PendingOperationRow {
   readonly id: number
-  readonly operation: SessionControlMutationCommand['operation']
+  readonly operation: SessionControlMutationCommand['operation'] | 'waggle'
   readonly target_scope: string
 }
 
@@ -41,6 +42,27 @@ const PROMOTION_SETTLEMENT_RETRY_LIMIT = 10
 
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
+}
+
+function externalRunAdmission(
+  sql: SqlClient.SqlClient,
+  input: { readonly sessionId: SessionId; readonly hostRunCeiling?: number },
+) {
+  return Effect.gen(function* () {
+    const parentAdmission = yield* directWorkerRunAdmission(sql, input.sessionId)
+    if (!parentAdmission.admitted) {
+      return { accepted: false, code: 'parent_concurrency_limit_reached' } as const
+    }
+    const rows = yield* sql<{ readonly count: number }>`
+      SELECT COUNT(*) AS count
+      FROM session_control_states
+      WHERE active_run_id IS NOT NULL
+    `
+    const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_SETTINGS.sessionHostRunCeiling
+    return (rows[0]?.count ?? 0) >= hostRunCeiling
+      ? ({ accepted: false, code: 'host_run_ceiling_reached' } as const)
+      : undefined
+  })
 }
 
 function settledRunResponse(
@@ -105,6 +127,8 @@ function startExternal(
         const state = yield* loadSessionControlState(sql, input.sessionId)
         const started = startExternalSessionRun(state, input.runId, input.intent)
         if (!started.accepted) return started
+        const admission = yield* externalRunAdmission(sql, input)
+        if (admission) return admission
         yield* persistSessionControlState(sql, started.state, Date.now())
         const activated = activateStartingRun(started.state, input.runId)
         if (!activated.accepted) return activated
@@ -142,6 +166,10 @@ function replaceWithExternal(
           input.intent,
         )
         if (!replaced.accepted) return replaced
+        if (state.run.state === 'idle') {
+          const admission = yield* externalRunAdmission(sql, input)
+          if (admission) return admission
+        }
         const now = Date.now()
         if (state.run.state !== 'idle') {
           yield* sql`
@@ -261,12 +289,20 @@ function recoverHostLoss(sql: SqlClient.SqlClient) {
           ORDER BY id ASC
         `
         for (const operation of pendingOperations) {
-          const outcome = JSON.stringify({
-            operation: operation.operation,
-            effect: 'rejected',
-            sessionId: operation.target_scope,
-            code: 'host_lost',
-          })
+          const outcome = JSON.stringify(
+            operation.operation === 'waggle'
+              ? {
+                  outcome: 'cancelled',
+                  message: 'The Session Host stopped before the Waggle outcome was confirmed.',
+                  code: 'host_lost',
+                }
+              : {
+                  operation: operation.operation,
+                  effect: 'rejected',
+                  sessionId: operation.target_scope,
+                  code: 'host_lost',
+                },
+          )
           yield* sql`
             UPDATE session_operations
             SET status = ${'completed'}, outcome_json = ${outcome}, updated_at = ${now}

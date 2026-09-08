@@ -32,7 +32,7 @@ describe('Local Session global subscription budget', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'subscription-budget',
       }),

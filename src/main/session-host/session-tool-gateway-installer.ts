@@ -8,6 +8,7 @@ import type { AgentSteeringService } from '../ports/agent-steering-service'
 import type { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import type { ExtensionManagerService } from '../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
+import type { ExplicitWaggleOperationJournal } from '../ports/explicit-waggle-operation-journal'
 import type { LocalSessionProfileRepository } from '../ports/local-session-profile-repository'
 import type { ProviderService } from '../ports/provider-service'
 import type { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
@@ -57,6 +58,7 @@ type SessionToolDependencies =
   | ExtensionLifecycleRepository
   | ExtensionManagerService
   | ExtensionProjectOverridesRepository
+  | ExplicitWaggleOperationJournal
   | LocalSessionProfileRepository
   | SessionAuthorizationTargetRepository
   | SessionControlAttachmentService

@@ -8,7 +8,11 @@ import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { refreshLocalSessionProfileAdmissions } from '../local-session-profile-invalidation'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  sessionHostCursorFromTestFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
 
 describe('Local Session subscription admission refresh', () => {
   let temporaryRoot = ''
@@ -25,7 +29,7 @@ describe('Local Session subscription admission refresh', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('keeps refresh fenced until in-flight event authorization and delivery finish', async () => {
+  it('drains in-flight authorization then forces an explicit resumable resync', async () => {
     const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
     const authorizationStarted = Promise.withResolvers<void>()
     const releaseAuthorization = Promise.withResolvers<void>()
@@ -62,7 +66,7 @@ describe('Local Session subscription admission refresh', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -72,7 +76,6 @@ describe('Local Session subscription admission refresh', () => {
       encodeLocalSessionFrame({
         kind: 'subscribe',
         requestId: 'subscribe',
-        after: eventHub.cursor(),
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -95,6 +98,20 @@ describe('Local Session subscription admission refresh', () => {
     releaseAuthorization.resolve()
     await refresh
     expect(refreshCompleted).toBe(true)
+    const resync = await reader.next()
+    expect(resync).toMatchObject({
+      kind: 'resync-required',
+      reason: 'cursor-expired',
+      cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+    })
+    client.write(
+      encodeLocalSessionFrame({
+        kind: 'subscribe',
+        requestId: 'subscribe-after-refresh',
+        after: sessionHostCursorFromTestFrame(resync),
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
     authorized = true
     const visible = eventHub.publish({
       kind: 'session-state-changed',
@@ -105,7 +122,10 @@ describe('Local Session subscription admission refresh', () => {
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
-      event: visible,
+      event: {
+        ...visible,
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+      },
     })
   })
 })

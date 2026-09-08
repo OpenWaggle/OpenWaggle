@@ -40,6 +40,7 @@ function makeLayer(filename: string, model?: SessionEmbeddingModel) {
           content_json TEXT NOT NULL,
           metadata_json TEXT NOT NULL,
           branch_hint_id TEXT,
+          path_depth INTEGER NOT NULL DEFAULT -1,
           created_order INTEGER NOT NULL
         )
       `)
@@ -183,21 +184,21 @@ function makeLayer(filename: string, model?: SessionEmbeddingModel) {
       yield* sql`
         INSERT INTO session_nodes (
           id, session_id, kind, role, timestamp_ms, content_json,
-          metadata_json, branch_hint_id, created_order
+          metadata_json, branch_hint_id, path_depth, created_order
         ) VALUES (
           ${'node-worker-1'}, ${'worker'}, ${'message'}, ${'assistant'}, ${1},
           ${'{"text":"neural handshake verifier"}'},
-          ${'{"openWaggle":{"runId":"run-worker"}}'}, ${'worker:branch:main'}, ${0}
+          ${'{"openWaggle":{"runId":"run-worker"}}'}, ${'worker:branch:main'}, ${0}, ${0}
         )
       `
       yield* sql`
         INSERT INTO session_nodes (
           id, session_id, parent_id, kind, role, timestamp_ms, content_json,
-          metadata_json, branch_hint_id, created_order
+          metadata_json, branch_hint_id, path_depth, created_order
         ) VALUES (
           ${'node-worker-2'}, ${'worker'}, ${'node-worker-1'}, ${'message'}, ${'assistant'}, ${2},
           ${'{"parts":[{"type":"text","text":"second page"},{"type":"reasoning","text":"private chain marker"},{"type":"tool-call","toolCall":{"name":"write_file","args":{"token":"private tool marker"}}}]}'},
-          ${'{"openWaggle":{"runId":"run-worker-2"}}'}, ${'worker:branch:main'}, ${1}
+          ${'{"openWaggle":{"runId":"run-worker-2"}}'}, ${'worker:branch:main'}, ${1}, ${1}
         )
       `
       yield* sql`

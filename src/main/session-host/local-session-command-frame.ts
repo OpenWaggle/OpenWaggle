@@ -2,9 +2,11 @@ import type {
   LocalSessionClientFrame,
   LocalSessionServerFrame,
 } from '@shared/types/local-session-protocol'
+import type { SessionHostEventCursor } from '@shared/types/session-host-event'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
 import * as Runtime from 'effect/Runtime'
+import type { LocalSessionCursorResolution } from './local-session-event-cursor-projection'
 import {
   disconnectLocalSessionProfile,
   refreshLocalSessionProfileAdmissions,
@@ -58,6 +60,9 @@ export async function executeLocalSessionCommandFrame(input: {
   readonly caller: AuthenticatedLocalSessionCaller
   readonly negotiatedRevision: number
   readonly dependencies: LocalSessionServerDependencies
+  readonly eventCursor: SessionHostEventCursor
+  readonly resolveEventCursor: (cursor: SessionHostEventCursor) => LocalSessionCursorResolution
+  readonly exposeEventCursor: (cursor: SessionHostEventCursor) => SessionHostEventCursor
   readonly signal: AbortSignal
   readonly send: (frame: LocalSessionServerFrame) => Promise<void>
   readonly releaseAdmissionReader?: () => void
@@ -69,7 +74,9 @@ export async function executeLocalSessionCommandFrame(input: {
       payload = await input.dependencies.dispatch({
         caller: input.caller,
         negotiatedRevision: input.negotiatedRevision,
-        eventCursor: input.dependencies.eventHub.cursor(),
+        eventCursor: input.eventCursor,
+        resolveEventCursor: input.resolveEventCursor,
+        exposeEventCursor: input.exposeEventCursor,
         payload: input.frame.payload,
         signal: input.signal,
         releaseAdmissionReader: () => input.releaseAdmissionReader?.(),

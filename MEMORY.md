@@ -432,11 +432,21 @@ object path or that Windows returns the expected DACL.
 Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
 project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that
 is refreshed on authentication, profile changes, and lineage-producing lifecycle changes. Events
-outside that snapshot, or whose event kind lacks the required base or derived capability, become
-payload-free cursor advances. This preserves global cursor ordering and resume semantics without
-allowing unrelated or capability-denied payloads to consume subscriber capacity. Per-event live
-authorization still refreshes revocation, capability, and derived grants, but must not rebuild the
-filesystem/workspace/catalog admission snapshot for every streamed token.
+outside that snapshot, or whose event kind lacks the required base or derived capability, consume
+no subscriber capacity and expose no cursor advance. Query, subscription, event-envelope, and
+resynchronization cursors are fresh authenticated opaque capabilities bound to the caller authority;
+they resume statelessly on the same Host without revealing its global sequence or hidden-event gaps.
+Restricted replay uses at most 128 LRU authority views, each capped at 256 visible events and 256
+KiB, for at most 32 MiB of retained serialized payload and 32,768 envelope references; publishing
+therefore performs at most 128 synchronous admission checks. Views retain shared envelope references,
+not payload copies. Hidden events never enter a view or advance its expiry floor. Authority-view LRU
+eviction, refresh, or revocation expires its cursors and forces attached subscriptions to resynchronize.
+Requested Session filters are intersected again for replay and live delivery, but the replay floor is
+authority-wide: traffic from another Session visible to that authority may expire a narrower consumer.
+Per-event live authorization still refreshes revocation, capability, and derived grants, but must
+not rebuild the filesystem/workspace/catalog admission snapshot for every streamed token. An
+admission refresh explicitly invalidates existing streams; clients resynchronize from canonical
+state or retained replay rather than silently losing events that race the fence.
 
 A lineage-producing lifecycle command must release its issuing socket's admission reader after the
 mutation commits and before it refreshes every profile admission. Refreshing while the command still

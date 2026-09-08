@@ -16,6 +16,7 @@ export function AgentDefinitionIdentityFields({ state }: { readonly state: Edito
         <label className="space-y-1 text-xs text-text-secondary" htmlFor="agent-name">
           Name
           <TextInput
+            disabled={!state.identityEditable}
             id="agent-name"
             value={state.name}
             onChange={(event) => state.setName(event.currentTarget.value)}
@@ -25,6 +26,7 @@ export function AgentDefinitionIdentityFields({ state }: { readonly state: Edito
           Scope
           <Select
             className="w-full"
+            disabled={!state.identityEditable}
             id="agent-scope"
             value={state.scope}
             onChange={(event) => {
@@ -38,6 +40,11 @@ export function AgentDefinitionIdentityFields({ state }: { readonly state: Edito
           </Select>
         </label>
       </div>
+      {!state.identityEditable ? (
+        <p className="text-xs text-text-tertiary">
+          Name and scope stay fixed while editing. Duplicate this definition to change either.
+        </p>
+      ) : null}
       <label className="block space-y-1 text-xs text-text-secondary" htmlFor="agent-description">
         Description
         <TextInput

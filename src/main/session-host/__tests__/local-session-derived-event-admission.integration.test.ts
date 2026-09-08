@@ -64,7 +64,7 @@ describe('Local Session derived event admission', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -74,7 +74,6 @@ describe('Local Session derived event admission', () => {
       encodeLocalSessionFrame({
         kind: 'subscribe',
         requestId: 'request-subscribe',
-        after: eventHub.cursor(),
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -95,7 +94,10 @@ describe('Local Session derived event admission', () => {
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
-      event: visible,
+      event: {
+        ...visible,
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+      },
     })
     expect(authorizeEvent).toHaveBeenCalledOnce()
     expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)

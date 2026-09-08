@@ -188,6 +188,18 @@ describe('AgentDefinitionsCard', () => {
     render(<AgentDefinitionsCard />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit locked-down-reviewer' }))
+    expect(screen.getByLabelText('Name')).toBeDisabled()
+    expect(screen.getByLabelText('Scope')).toBeDisabled()
+    expect(
+      screen.getByText(
+        'Name and scope stay fixed while editing. Duplicate this definition to change either.',
+      ),
+    ).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'renamed-reviewer' } })
+    fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'user' } })
+    fireEvent.change(screen.getByLabelText('Description'), {
+      target: { value: 'Updated without changing identity.' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
@@ -195,9 +207,11 @@ describe('AgentDefinitionsCard', () => {
         expect.objectContaining({
           operation: 'write',
           projectPath: PROJECT,
+          scope: LOCKED_DOWN_REVIEWER.scope,
           expectedContentDigest: LOCKED_DOWN_REVIEWER.contentDigest,
           document: expect.objectContaining({
             name: 'locked-down-reviewer',
+            description: 'Updated without changing identity.',
             tools: [],
             skills: [],
             mcpServers: [],
@@ -206,6 +220,17 @@ describe('AgentDefinitionsCard', () => {
         }),
       )
     })
+  })
+
+  it('keeps identity editable when duplicating a definition', async () => {
+    render(<AgentDefinitionsCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Duplicate reviewer' }))
+
+    expect(screen.getByLabelText('Name')).toBeEnabled()
+    expect(screen.getByLabelText('Name')).toHaveValue('reviewer-copy')
+    expect(screen.getByLabelText('Scope')).toBeEnabled()
+    expect(screen.queryByText(/Name and scope stay fixed/)).not.toBeInTheDocument()
   })
 
   it('requires reviewing foreign field mappings before import', async () => {

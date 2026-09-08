@@ -99,6 +99,7 @@ function joined(value: readonly string[] | undefined) {
 }
 
 function initialName(props: AgentDefinitionEditorDialogProps, definition: AgentDefinitionDocument) {
+  if (props.source && !props.duplicate) return props.source.name
   return props.duplicate && props.source?.definition ? `${definition.name}-copy` : definition.name
 }
 
@@ -213,6 +214,16 @@ function document(values: EditorValues): AgentDefinitionDocument {
   }
 }
 
+function savedIdentity(
+  props: AgentDefinitionEditorDialogProps,
+  fields: { readonly name: string; readonly scope: AgentDefinitionScope },
+) {
+  if (props.source && !props.duplicate) {
+    return { name: props.source.name, scope: props.source.scope }
+  }
+  return { name: fields.name, scope: fields.scope }
+}
+
 export function useAgentDefinitionEditor(props: AgentDefinitionEditorDialogProps) {
   const fields = useEditorFields(initialValues(props))
   const [saving, setSaving] = useState(false)
@@ -222,14 +233,15 @@ export function useAgentDefinitionEditor(props: AgentDefinitionEditorDialogProps
     setSaving(true)
     setError(null)
     try {
+      const identity = savedIdentity(props, fields)
       await props.onSave({
-        scope: fields.scope,
+        scope: identity.scope,
         replaceExisting: Boolean(props.source && !props.duplicate),
         ...(props.source?.contentDigest && !props.duplicate
           ? { expectedContentDigest: props.source.contentDigest }
           : {}),
         document: document({
-          name: fields.name,
+          name: identity.name,
           description: fields.description,
           model: fields.model,
           reasoning: fields.reasoning,
@@ -256,6 +268,7 @@ export function useAgentDefinitionEditor(props: AgentDefinitionEditorDialogProps
 
   return {
     title: editorTitle(props),
+    identityEditable: !props.source || Boolean(props.duplicate),
     ...fields,
     saving,
     error,

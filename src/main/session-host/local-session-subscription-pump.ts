@@ -1,4 +1,7 @@
-import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import type {
+  SessionHostEventEnvelope,
+  SessionHostEventResyncReason,
+} from '@shared/types/session-host-event'
 import type { SessionHostEventSubscription } from '../application/session-host-event-hub'
 import type {
   AuthenticatedLocalSessionCaller,
@@ -15,7 +18,7 @@ export type LocalSessionSubscriptionPumpFrame =
   | { readonly kind: 'event'; readonly event: SessionHostEventEnvelope }
   | {
       readonly kind: 'resync-required'
-      readonly reason: 'slow-consumer'
+      readonly reason: SessionHostEventResyncReason
       readonly cursor: SessionHostEventEnvelope['cursor']
     }
   | { readonly kind: 'subscription-closed' }

@@ -13,6 +13,7 @@ import {
 import { executeLocalSessionCommandFrame } from './local-session-command-frame'
 import { bindLocalSessionConnectionInput } from './local-session-connection-input'
 import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
+import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
 import { establishLocalSessionHandshake } from './local-session-handshake'
 import { LocalSessionInboundRetention } from './local-session-inbound-retention'
 import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
@@ -55,6 +56,7 @@ export class LocalSessionConnection {
     inboundBudget: LocalSessionInboundByteBudget,
     private readonly authenticationBudget: LocalSessionAuthenticationBudget,
     outboundBudget: LocalSessionOutboundByteBudget,
+    private readonly cursorProjection: LocalSessionEventCursorProjection,
   ) {
     this.inbound = new LocalSessionInboundRetention(inboundBudget)
     this.outbound = new LocalSessionOutboundWriter(
@@ -67,6 +69,7 @@ export class LocalSessionConnection {
     this.subscriptions = new LocalSessionConnectionSubscriptions({
       dependencies,
       admission: this.admission,
+      cursorProjection,
       caller: () => this.caller,
       closed: () => this.closed,
       send: (frame) => this.send(frame),
@@ -103,6 +106,7 @@ export class LocalSessionConnection {
   fenceProfileAdmission(profileName: string): Promise<void> {
     if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
     const drained = this.admission.fence()
+    this.subscriptions.requireResync()
     for (const command of this.commandControllers.values()) {
       if (command.abortOnProfileFence) {
         command.controller.abort(new LocalSessionProfileAdmissionChangedError())
@@ -120,6 +124,7 @@ export class LocalSessionConnection {
     const consumesExistingFence =
       options?.consumeExistingFence === true && this.admission.hasFence()
     const drained = consumesExistingFence ? this.admission.waitForReaders() : this.admission.fence()
+    this.subscriptions.requireResync()
     const refresh = async () => {
       await this.drainProfileAdmission(drained)
       if (this.closed) return
@@ -130,6 +135,7 @@ export class LocalSessionConnection {
       }
       try {
         this.caller = await this.dependencies.refreshCaller(caller)
+        this.cursorProjection.refreshCaller(this.caller)
         this.admission.releaseFence()
       } catch {
         this.socket.end()
@@ -240,6 +246,9 @@ export class LocalSessionConnection {
             caller,
             negotiatedRevision,
             dependencies: this.dependencies,
+            eventCursor: this.cursorProjection.expose(caller, this.dependencies.eventHub.cursor()),
+            resolveEventCursor: (cursor) => this.cursorProjection.resolve(caller, cursor),
+            exposeEventCursor: (cursor) => this.cursorProjection.expose(caller, cursor),
             signal: controller.signal,
             send: (response) => this.send(response),
             ...(!selfCredentialMutation ? { releaseAdmissionReader: releaseAdmissionReader } : {}),

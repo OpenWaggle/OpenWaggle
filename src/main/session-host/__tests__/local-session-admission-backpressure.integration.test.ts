@@ -84,7 +84,7 @@ describe('Local Session admission backpressure', () => {
       client.write(
         encodeLocalSessionFrame({
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [2],
+          supportedRevisions: [7],
           clientKind: 'cli',
           clientVersion: 'test',
         }),
@@ -94,7 +94,6 @@ describe('Local Session admission backpressure', () => {
         encodeLocalSessionFrame({
           kind: 'subscribe',
           requestId: 'request-subscribe',
-          after: eventHub.cursor(),
         }),
       )
       await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })

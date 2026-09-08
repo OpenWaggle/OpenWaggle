@@ -127,4 +127,108 @@ describe('SQLite external Session Run lifecycle', () => {
       { id: 'run-after-waggle', status: 'starting' },
     ])
   })
+
+  it('does not start idle external Waggle when the Host Run ceiling is full', async () => {
+    const layer = makeSessionControlRunLifecycleTestLayer(
+      path.join(temporaryRoot, 'host-ceiling.sqlite'),
+    )
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'busy'}, ${'/project'})`
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+          VALUES (${'busy-run'}, ${'busy'}, ${'active'}, ${1000}, ${1000})
+        `
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+          ) VALUES (${'busy'}, ${1}, ${'busy-run'}, ${'running'}, ${0}, ${1000})
+        `
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        if (!lifecycle.replaceWithExternal) {
+          return yield* Effect.die('external replacement lifecycle unavailable')
+        }
+        const replacement = yield* lifecycle.replaceWithExternal({
+          sessionId: SessionId('session-target'),
+          runId: RunId('waggle-blocked'),
+          hostRunCeiling: 1,
+          intent: {
+            text: 'Do not start.',
+            attachmentIds: [],
+            callerId: 'gui:local-user',
+            acceptedAt: 2000,
+            idempotencyKey: 'waggle-host-ceiling',
+          },
+        })
+        const target = yield* sql<{ readonly active_run_id: string | null }>`
+          SELECT active_run_id FROM session_control_states WHERE session_id = ${'session-target'}
+        `
+        return { replacement, activeRunId: target[0]?.active_run_id }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual({
+      replacement: { accepted: false, code: 'host_run_ceiling_reached' },
+      activeRunId: null,
+    })
+  })
+
+  it('does not start idle Worker Waggle when its parent concurrency limit is full', async () => {
+    const layer = makeSessionControlRunLifecycleTestLayer(
+      path.join(temporaryRoot, 'parent-ceiling.sqlite'),
+    )
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO sessions (id, project_path)
+          VALUES (${'queen'}, ${'/project'}), (${'busy-worker'}, ${'/project'})
+        `
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+          VALUES
+            (${'queen-run'}, ${'queen'}, ${'active'}, ${1000}, ${1000}),
+            (${'busy-worker-run'}, ${'busy-worker'}, ${'active'}, ${1000}, ${1000})
+        `
+        yield* sql`
+          INSERT INTO session_control_states (
+            session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+          ) VALUES
+            (${'queen'}, ${1}, ${'queen-run'}, ${'running'}, ${0}, ${1000}),
+            (${'busy-worker'}, ${1}, ${'busy-worker-run'}, ${'running'}, ${0}, ${1000})
+        `
+        yield* sql`
+          INSERT INTO session_spawn_lineage (
+            child_session_id, parent_session_id, parent_run_id,
+            hive_root_session_id, depth, created_at
+          ) VALUES
+            (${'session-target'}, ${'queen'}, ${'queen-run'}, ${'queen'}, ${1}, ${1000}),
+            (${'busy-worker'}, ${'queen'}, ${'queen-run'}, ${'queen'}, ${1}, ${1000})
+        `
+        yield* sql`
+          INSERT INTO settings_store (key, value_json, updated_at)
+          VALUES (${'sessionHostParentConcurrencyLimit'}, ${'1'}, ${1000})
+        `
+        const lifecycle = yield* SessionControlRunLifecycleRepository
+        if (!lifecycle.replaceWithExternal) {
+          return yield* Effect.die('external replacement lifecycle unavailable')
+        }
+        return yield* lifecycle.replaceWithExternal({
+          sessionId: SessionId('session-target'),
+          runId: RunId('waggle-blocked'),
+          hostRunCeiling: 10,
+          intent: {
+            text: 'Do not start.',
+            attachmentIds: [],
+            callerId: 'gui:local-user',
+            acceptedAt: 2000,
+            idempotencyKey: 'waggle-parent-ceiling',
+          },
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual({ accepted: false, code: 'parent_concurrency_limit_reached' })
+  })
 })

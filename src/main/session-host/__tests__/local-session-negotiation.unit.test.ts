@@ -25,6 +25,38 @@ describe('Local Session protocol negotiation', () => {
     })
   })
 
+  it('accepts the immediately previous revision with its exact capability tuple', () => {
+    expect(
+      negotiateLocalSessionProtocol(
+        {
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [6, 5],
+          clientKind: 'cli',
+          clientVersion: 'previous',
+        },
+        'host-current',
+      ),
+    ).toEqual({
+      accepted: true,
+      protocol: 'openwaggle-local-session',
+      revision: 6,
+      hostInstanceId: 'host-current',
+      capabilities: [
+        'events:subscribe',
+        'events:replay',
+        'sessions:mutate-v2',
+        'sessions:query-v2',
+        'sessions:snapshot',
+        'access:profiles-v1',
+        'ui:mutate-v1',
+        'waggle:run-v1',
+        'waggle:cancel-v1',
+        'ui:compact-v1',
+        'host-ui:invoke-v1',
+      ],
+    })
+  })
+
   it('requests an authenticated safe handoff from an incompatible newer client', () => {
     expect(
       negotiateLocalSessionProtocol(
@@ -74,84 +106,32 @@ describe('Local Session protocol negotiation', () => {
     ).toThrow()
   })
 
-  it('preserves exact revision-five through revision-two capability tuples', () => {
+  it('rejects negotiation outside the current and immediately previous revision window', () => {
+    expect(
+      negotiateLocalSessionProtocol(
+        {
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [5, 4, 3, 2],
+          clientKind: 'cli',
+          clientVersion: 'too-old',
+        },
+        'host-current',
+      ),
+    ).toEqual({
+      accepted: false,
+      protocol: 'openwaggle-local-session',
+      code: 'incompatible_protocol',
+      supportedRevisions: [7, 6],
+    })
     expect(() =>
       decodeLocalSessionNegotiationResult({
         accepted: true,
         protocol: 'openwaggle-local-session',
         revision: 5,
-        hostInstanceId: 'host-ui',
-        capabilities: [
-          'events:subscribe',
-          'events:replay',
-          'sessions:mutate-v2',
-          'sessions:query-v2',
-          'sessions:snapshot',
-          'access:profiles-v1',
-          'ui:mutate-v1',
-          'waggle:run-v1',
-          'waggle:cancel-v1',
-          'ui:compact-v1',
-          'host-ui:invoke-v1',
-        ],
+        hostInstanceId: 'host-too-old',
+        capabilities: [],
       }),
-    ).not.toThrow()
-    expect(() =>
-      decodeLocalSessionNegotiationResult({
-        accepted: true,
-        protocol: 'openwaggle-local-session',
-        revision: 4,
-        hostInstanceId: 'host-compaction',
-        capabilities: [
-          'events:subscribe',
-          'events:replay',
-          'sessions:mutate-v2',
-          'sessions:query-v2',
-          'sessions:snapshot',
-          'access:profiles-v1',
-          'ui:mutate-v1',
-          'waggle:run-v1',
-          'waggle:cancel-v1',
-          'ui:compact-v1',
-        ],
-      }),
-    ).not.toThrow()
-    expect(() =>
-      decodeLocalSessionNegotiationResult({
-        accepted: true,
-        protocol: 'openwaggle-local-session',
-        revision: 3,
-        hostInstanceId: 'host-previous',
-        capabilities: [
-          'events:subscribe',
-          'events:replay',
-          'sessions:mutate-v2',
-          'sessions:query-v2',
-          'sessions:snapshot',
-          'access:profiles-v1',
-          'ui:mutate-v1',
-          'waggle:run-v1',
-          'waggle:cancel-v1',
-        ],
-      }),
-    ).not.toThrow()
-    expect(() =>
-      decodeLocalSessionNegotiationResult({
-        accepted: true,
-        protocol: 'openwaggle-local-session',
-        revision: 2,
-        hostInstanceId: 'host-legacy',
-        capabilities: [
-          'events:subscribe',
-          'events:replay',
-          'sessions:mutate-v2',
-          'sessions:query-v2',
-          'sessions:snapshot',
-          'access:profiles-v1',
-          'ui:mutate-v1',
-        ],
-      }),
-    ).not.toThrow()
+    ).toThrow()
   })
 
   it('decodes an older Host upgrade response before the Host drains', () => {

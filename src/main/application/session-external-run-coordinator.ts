@@ -13,6 +13,7 @@ export function startExternalSessionRun(input: {
   readonly sessionId: SessionId
   readonly runId: RunId
   readonly intent: SessionControlIntentSnapshot
+  readonly hostRunCeiling?: number
 }) {
   return Effect.gen(function* () {
     const lifecycle = yield* SessionControlRunLifecycleRepository
@@ -37,6 +38,7 @@ export function prepareExternalSessionRunReplacement(input: {
   readonly previousRunId?: RunId
   readonly runId: RunId
   readonly intent: SessionControlIntentSnapshot
+  readonly hostRunCeiling?: number
 }) {
   return Effect.gen(function* () {
     const lifecycle = yield* SessionControlRunLifecycleRepository

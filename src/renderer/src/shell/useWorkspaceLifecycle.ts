@@ -30,6 +30,7 @@ interface PendingSessionHostRefresh {
   readonly sessionIds: Set<string>
   readonly queueSessionIds: Set<string>
   catalog: boolean
+  relationshipMayHaveChanged: boolean
   scheduled: boolean
 }
 
@@ -42,6 +43,28 @@ function acceptsHostEvent(
     cursor.sequence > previous.sequence
     ? cursor
     : null
+}
+
+function takePendingSessionHostRefresh(
+  pending: PendingSessionHostRefresh,
+  activeSessionId: ChatLifecycle['activeSessionId'],
+) {
+  const refreshActiveSession = activeSessionId ? pending.sessionIds.has(activeSessionId) : false
+  const refresh = {
+    catalog: pending.catalog,
+    catalogSessionIds: [...pending.sessionIds].map(SessionId),
+    queueSessionIds: [...pending.queueSessionIds],
+    refreshActiveSession,
+    refreshActiveTree: Boolean(
+      activeSessionId && (refreshActiveSession || pending.relationshipMayHaveChanged),
+    ),
+  }
+  pending.catalog = false
+  pending.relationshipMayHaveChanged = false
+  pending.scheduled = false
+  pending.sessionIds.clear()
+  pending.queueSessionIds.clear()
+  return refresh
 }
 
 function useSessionHostRefresh(input: {
@@ -71,6 +94,7 @@ function useSessionHostRefresh(input: {
     sessionIds: new Set(),
     queueSessionIds: new Set(),
     catalog: false,
+    relationshipMayHaveChanged: false,
     scheduled: false,
   })
   useEffect(
@@ -84,23 +108,17 @@ function useSessionHostRefresh(input: {
     let active = true
     const flush = () => {
       if (!active) return
-      const pending = pendingRefresh.current
-      pending.scheduled = false
-      const refreshCatalog = pending.catalog
-      const catalogSessionIds = [...pending.sessionIds].map(SessionId)
-      const refreshActive = activeSessionId ? pending.sessionIds.has(activeSessionId) : false
-      const queueSessionIds = [...pending.queueSessionIds]
-      pending.catalog = false
-      pending.sessionIds.clear()
-      pending.queueSessionIds.clear()
-      for (const sessionId of queueSessionIds) {
+      const refresh = takePendingSessionHostRefresh(pendingRefresh.current, activeSessionId)
+      for (const sessionId of refresh.queueSessionIds) {
         void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
       }
-      if (refreshCatalog) {
-        void refreshCatalogSessions(catalogSessionIds)
+      if (refresh.catalog) {
+        void refreshCatalogSessions(refresh.catalogSessionIds)
       }
-      if (refreshActive && activeSessionId) {
+      if (refresh.refreshActiveSession && activeSessionId) {
         void refreshSession(activeSessionId)
+      }
+      if (refresh.refreshActiveTree && activeSessionId) {
         void refreshSessionTree(SessionId(String(activeSessionId)))
       }
     }
@@ -121,6 +139,9 @@ function useSessionHostRefresh(input: {
       ) {
         useSessionStatusStore.getState().clearStatus(SessionId(sessionId))
       }
+      if (event.payload.kind === 'session-list-changed' && event.payload.change === 'deleted') {
+        pendingRefresh.current.relationshipMayHaveChanged = true
+      }
       pendingRefresh.current.sessionIds.add(sessionId)
       if (
         event.payload.kind === 'session-state-changed' ||
@@ -135,6 +156,7 @@ function useSessionHostRefresh(input: {
       active = false
       pendingRefresh.current.scheduled = false
       pendingRefresh.current.catalog = false
+      pendingRefresh.current.relationshipMayHaveChanged = false
       pendingRefresh.current.sessionIds.clear()
       pendingRefresh.current.queueSessionIds.clear()
       unsubscribe()

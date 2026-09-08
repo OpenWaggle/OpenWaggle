@@ -10,6 +10,7 @@ import {
 } from '../../ports/session-workspace-handoff-service'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
+import { SqliteExplicitWaggleOperationJournalLive } from '../sqlite-explicit-waggle-operation-journal'
 import { SqliteSessionControlOperationJournalLive } from '../sqlite-session-control-operation-journal'
 import { SqliteSessionControlRepositoryLive } from '../sqlite-session-control-repository'
 import { SqliteSessionControlRunLifecycleRepositoryLive } from '../sqlite-session-control-run-lifecycle-repository'
@@ -67,6 +68,9 @@ export function makeSessionControlTestLayer(
   const operationJournalLayer = SqliteSessionControlOperationJournalLive.pipe(
     Layer.provide(sqliteLayer),
   )
+  const waggleOperationJournalLayer = SqliteExplicitWaggleOperationJournalLive.pipe(
+    Layer.provide(sqliteLayer),
+  )
   const organizationLayer = SqliteSessionOrganizationRepositoryLive.pipe(Layer.provide(sqliteLayer))
   const runLifecycleLayer = SqliteSessionControlRunLifecycleRepositoryLive.pipe(
     Layer.provide(sqliteLayer),
@@ -92,6 +96,7 @@ export function makeSessionControlTestLayer(
     schemaLayer,
     repositoryLayer,
     operationJournalLayer,
+    waggleOperationJournalLayer,
     organizationLayer,
     runLifecycleLayer,
     handoffLayer,

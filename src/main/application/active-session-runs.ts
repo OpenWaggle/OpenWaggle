@@ -1,6 +1,11 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { ActiveRunManager } from './active-run-manager'
+import {
+  preAdmissionWaggleSessionIds,
+  requestAllPreAdmissionWaggleInterruptions,
+  requestPreAdmissionWaggleInterruptions,
+} from './pre-admission-waggle-attempts'
 
 interface AgentRunMetadata {
   readonly model?: SupportedModelId
@@ -245,14 +250,18 @@ export function cancelSessionRuns(sessionId: SessionId): boolean {
   writer?.controller.abort()
   const cancelledAgent = activeRuns.cancel(sessionId)
   const cancelledCompaction = activeCompactions.cancel(sessionId)
-  const cancelledWaggle = activeWaggleRuns.cancel(sessionId)
-  const cancelledPendingWaggle = pendingWaggleRuns.cancel(sessionId)
+  // Waggle ownership is also a teardown fence. Keep its registry entries until the owning
+  // command has settled persistent state and completed attachment cleanup.
+  const cancelledWaggle = activeWaggleRuns.requestInterrupt(sessionId, () => true)
+  const cancelledPendingWaggle = pendingWaggleRuns.requestInterrupt(sessionId, () => true)
+  const cancelledPreAdmissionWaggle = requestPreAdmissionWaggleInterruptions(sessionId)
   return (
     writer !== undefined ||
     cancelledAgent ||
     cancelledCompaction ||
     cancelledWaggle ||
-    cancelledPendingWaggle
+    cancelledPendingWaggle ||
+    cancelledPreAdmissionWaggle
   )
 }
 
@@ -289,6 +298,7 @@ export function getAllActiveRunSessionIds(): SessionId[] {
       ...activeCompactions.keys(),
       ...activeWaggleRuns.keys(),
       ...pendingWaggleRuns.keys(),
+      ...preAdmissionWaggleSessionIds(),
     ]),
   ]
 }
@@ -298,8 +308,13 @@ export function cancelAllSessionRuns(): SessionId[] {
   for (const writer of activeSessionWriters.values()) writer.controller.abort()
   activeRuns.cancelAll()
   activeCompactions.cancelAll()
-  activeWaggleRuns.cancelAll()
-  pendingWaggleRuns.cancelAll()
+  for (const sessionId of activeWaggleRuns.keys()) {
+    activeWaggleRuns.requestInterrupt(sessionId, () => true)
+  }
+  for (const sessionId of pendingWaggleRuns.keys()) {
+    pendingWaggleRuns.requestInterrupt(sessionId, () => true)
+  }
+  requestAllPreAdmissionWaggleInterruptions()
   return sessionIds
 }
 

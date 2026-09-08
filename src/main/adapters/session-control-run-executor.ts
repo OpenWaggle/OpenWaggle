@@ -3,7 +3,10 @@ import type { Settings } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { registerAgentLoopInteractionDeadline } from '../application/agent-loop-interaction-broker'
-import { preserveOutcomeAfterAttachmentCleanup } from '../application/session-attachment-cleanup'
+import {
+  preserveOutcomeAfterAttachmentCleanup,
+  withSessionAttachmentTransition,
+} from '../application/session-attachment-cleanup'
 import { loadProjectConfig } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
@@ -61,10 +64,13 @@ export function withRunAttachmentCleanup<A, E, R>(input: {
 }) {
   return preserveOutcomeAfterAttachmentCleanup({
     effect: input.effect,
-    cleanup: input.attachments.release({
-      attachmentIds: input.attachmentIds,
+    cleanup: withSessionAttachmentTransition({
       sessionId: input.sessionId,
-      ownerCallerId: input.ownerCallerId,
+      effect: input.attachments.release({
+        attachmentIds: input.attachmentIds,
+        sessionId: input.sessionId,
+        ownerCallerId: input.ownerCallerId,
+      }),
     }),
     operation: 'run',
     sessionId: input.sessionId,

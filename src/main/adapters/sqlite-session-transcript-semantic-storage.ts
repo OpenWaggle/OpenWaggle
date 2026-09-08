@@ -1,7 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as POLICY } from '../domain/session-transcript-semantic-storage-policy'
-import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import {
   emptyTranscriptSemanticStorageUsage,
@@ -31,7 +30,15 @@ interface ScopeCoverageRow {
   readonly queued_count: number
 }
 
-const TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
+const SEMANTIC_SCOPE_WRITE_BATCH_SIZE = 32
+
+function batches<A>(values: readonly A[], size: number) {
+  const result: A[][] = []
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size))
+  }
+  return result
+}
 
 export function refreshTranscriptScopeCoverage(
   sql: SqlClient.SqlClient,
@@ -40,37 +47,25 @@ export function refreshTranscriptScopeCoverage(
 ) {
   if (sessionIds.length === 0) return Effect.void
   return Effect.gen(function* () {
-    const rows = yield* sql<ScopeCoverageRow>`
-      WITH ranked AS (
-        SELECT nodes.id AS node_id, nodes.session_id,
-          ROW_NUMBER() OVER (
-            PARTITION BY nodes.session_id
-            ORDER BY nodes.created_order DESC, nodes.id DESC
-          ) AS scope_rank,
-          scopes.node_limit
-        FROM session_transcript_semantic_scopes AS scopes
-        CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
-        WHERE nodes.session_id IN ${sql.in(sessionIds)}
-          AND trim(${sql.literal(TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
-      )
-      SELECT ranked.session_id, COUNT(*) AS searchable_count,
-        SUM(CASE WHEN scope_rank <= node_limit THEN 1 ELSE 0 END) AS eligible_count,
-        SUM(CASE WHEN scope_rank <= node_limit
-          AND embeddings.node_id IS NOT NULL
-          AND embeddings.model_id = ${model.metadata.id}
-          AND embeddings.model_revision = ${model.metadata.revision}
-          AND embeddings.dimensions = ${model.metadata.dimensions}
-          AND queue.node_id IS NULL THEN 1 ELSE 0 END) AS prepared_count,
-        SUM(CASE WHEN scope_rank <= node_limit AND queue.node_id IS NOT NULL
-          THEN 1 ELSE 0 END) AS queued_count
-      FROM ranked
-      LEFT JOIN session_transcript_embeddings AS embeddings ON embeddings.node_id = ranked.node_id
-      LEFT JOIN session_transcript_embedding_queue AS queue ON queue.node_id = ranked.node_id
-      GROUP BY ranked.session_id
-    `
-    const coverage = new Map(rows.map((row) => [row.session_id, row]))
     for (const sessionId of sessionIds) {
-      const row = coverage.get(sessionId) ?? {
+      const rows = yield* sql<ScopeCoverageRow>`
+        SELECT scopes.session_id,
+          COALESCE(stats.searchable_node_count, 0) AS searchable_count,
+          MIN(COALESCE(stats.searchable_node_count, 0), scopes.node_limit) AS eligible_count,
+          (SELECT COUNT(*) FROM session_transcript_embeddings AS embeddings
+            WHERE embeddings.session_id = scopes.session_id
+              AND embeddings.model_id = ${model.metadata.id}
+              AND embeddings.model_revision = ${model.metadata.revision}
+              AND embeddings.dimensions = ${model.metadata.dimensions}) AS prepared_count,
+          (SELECT COUNT(*) FROM session_transcript_embedding_queue AS queue
+            WHERE queue.session_id = scopes.session_id) AS queued_count
+        FROM session_transcript_semantic_scopes AS scopes
+        LEFT JOIN session_transcript_search_stats AS stats
+          ON stats.session_id = scopes.session_id
+        WHERE scopes.session_id = ${sessionId}
+        LIMIT 1
+      `
+      const row = rows[0] ?? {
         session_id: sessionId,
         searchable_count: 0,
         eligible_count: 0,
@@ -96,6 +91,7 @@ export function refreshTranscriptScopeCoverage(
           coverage_limit_reason = ${reason}
         WHERE session_id = ${sessionId}
       `
+      yield* Effect.yieldNow()
     }
   })
 }
@@ -113,95 +109,114 @@ export function ensureTranscriptSemanticSessions(input: {
   const now = input.now ?? Date.now()
   const policy = input.policy ?? POLICY
   const vectorBytes = input.model.metadata.dimensions * Float32Array.BYTES_PER_ELEMENT
-  return input.sql.withTransaction(
-    Effect.gen(function* () {
-      const existingSessions = yield* input.sql<{ readonly session_id: string }>`
-        SELECT id AS session_id FROM sessions
-        WHERE id IN ${input.sql.in(requestedSessionIds)}
-      `
-      const existingSessionIds = new Set(existingSessions.map((row) => row.session_id))
-      const sessionIds = requestedSessionIds.filter((sessionId) =>
-        existingSessionIds.has(sessionId),
+  return Effect.gen(function* () {
+    const existingSessions = yield* input.sql<{ readonly session_id: string }>`
+      SELECT id AS session_id FROM sessions
+      WHERE id IN ${input.sql.in(requestedSessionIds)}
+    `
+    const existingSessionIds = new Set(existingSessions.map((row) => row.session_id))
+    const sessionIds = requestedSessionIds.filter((sessionId) => existingSessionIds.has(sessionId))
+    if (sessionIds.length === 0) {
+      return { refreshedSessionCount: 0, reusedSessionCount: 0 }
+    }
+    yield* input.sql.withTransaction(reclaimExpiredTranscriptSemanticScopesInTransaction(input.sql, now))
+    for (const sessionBatch of batches(sessionIds, SEMANTIC_SCOPE_WRITE_BATCH_SIZE)) {
+      yield* input.sql.withTransaction(
+        Effect.gen(function* () {
+          yield* input.sql`
+            INSERT INTO session_transcript_semantic_scopes (
+              session_id, requested_at, last_accessed_at, expires_at, node_limit,
+              vector_bytes_per_node, searchable_node_count, eligible_node_count,
+              coverage_limited, coverage_limit_reason
+            )
+            SELECT sessions.id, ${now}, ${now}, ${now + policy.scopeTtlMs},
+              ${policy.perSessionNodeLimit}, ${vectorBytes}, ${0}, ${0}, ${0}, NULL
+            FROM sessions WHERE sessions.id IN ${input.sql.in(sessionBatch)}
+            ON CONFLICT(session_id) DO UPDATE SET
+              requested_at = excluded.requested_at,
+              last_accessed_at = excluded.last_accessed_at,
+              expires_at = excluded.expires_at,
+              node_limit = excluded.node_limit,
+              vector_bytes_per_node = excluded.vector_bytes_per_node
+          `
+          if (input.operationId) {
+            yield* input.sql`
+              INSERT INTO session_transcript_semantic_leases (
+                operation_id, session_id, acquired_at, expires_at
+              ) SELECT ${input.operationId}, sessions.id, ${now}, ${now + policy.leaseTtlMs}
+              FROM sessions WHERE sessions.id IN ${input.sql.in(sessionBatch)}
+              ON CONFLICT(operation_id, session_id) DO UPDATE SET expires_at = excluded.expires_at
+            `
+          }
+        }),
       )
-      if (sessionIds.length === 0) {
-        return { refreshedSessionCount: 0, reusedSessionCount: 0 }
-      }
-      const reusableRows = yield* reusableTranscriptSemanticScopes({
-        sql: input.sql,
-        model: input.model,
-        sessionIds,
-        now,
-        policy,
-        vectorBytes,
-      })
-      const reusableIds = new Set(reusableRows.map((row) => row.session_id))
-      const refreshSessionIds = sessionIds.filter((sessionId) => !reusableIds.has(sessionId))
-      yield* input.sql`
-        INSERT INTO session_transcript_semantic_scopes (
-          session_id, requested_at, last_accessed_at, expires_at, node_limit,
-          vector_bytes_per_node, searchable_node_count, eligible_node_count,
-          coverage_limited, coverage_limit_reason
-        )
-        SELECT sessions.id, ${now}, ${now}, ${now + policy.scopeTtlMs},
-          ${policy.perSessionNodeLimit}, ${vectorBytes}, ${0}, ${0}, ${0}, NULL
-        FROM sessions WHERE sessions.id IN ${input.sql.in(sessionIds)}
-        ON CONFLICT(session_id) DO UPDATE SET
-          requested_at = excluded.requested_at,
-          last_accessed_at = excluded.last_accessed_at,
-          expires_at = excluded.expires_at,
-          node_limit = excluded.node_limit,
-          vector_bytes_per_node = excluded.vector_bytes_per_node
-      `
-      if (input.operationId) {
-        yield* input.sql`
-          INSERT INTO session_transcript_semantic_leases (
-            operation_id, session_id, acquired_at, expires_at
-          ) SELECT ${input.operationId}, sessions.id, ${now}, ${now + policy.leaseTtlMs}
-          FROM sessions WHERE sessions.id IN ${input.sql.in(sessionIds)}
-          ON CONFLICT(operation_id, session_id) DO UPDATE SET expires_at = excluded.expires_at
-        `
-      }
-      yield* reclaimExpiredTranscriptSemanticScopesInTransaction(input.sql, now)
-      yield* enforceTranscriptSemanticScopeLimit(input.sql, now, policy)
-      if (refreshSessionIds.length === 0) {
-        return { refreshedSessionCount: 0, reusedSessionCount: reusableIds.size }
-      }
-      yield* input.sql`
-        DELETE FROM session_transcript_embeddings
-        WHERE session_id IN ${input.sql.in(refreshSessionIds)}
-          AND (
-            model_id <> ${input.model.metadata.id}
-            OR model_revision <> ${input.model.metadata.revision}
-            OR dimensions <> ${input.model.metadata.dimensions}
+      yield* Effect.yieldNow()
+    }
+    yield* input.sql.withTransaction(enforceTranscriptSemanticScopeLimit(input.sql, now, policy))
+    // Classify only after reclamation/upsert/LRU enforcement. Otherwise a candidate observed as
+    // reusable can be deleted and recreated empty, or evicted, between the optimistic read and
+    // refresh planning.
+    const reusableRows = yield* reusableTranscriptSemanticScopes({
+      sql: input.sql,
+      model: input.model,
+      sessionIds,
+      now,
+      policy,
+      vectorBytes,
+    })
+    const reusableIds = new Set(reusableRows.map((row) => row.session_id))
+    const survivingRows = yield* input.sql<{ readonly session_id: string }>`
+      SELECT session_id FROM session_transcript_semantic_scopes
+      WHERE session_id IN ${input.sql.in(sessionIds)}
+    `
+    const survivingIds = new Set(survivingRows.map((row) => row.session_id))
+    const refreshSessionIds = sessionIds.filter(
+      (sessionId) => survivingIds.has(sessionId) && !reusableIds.has(sessionId),
+    )
+
+    for (const sessionId of refreshSessionIds) {
+      yield* input.sql.withTransaction(
+        Effect.gen(function* () {
+          yield* input.sql`
+            DELETE FROM session_transcript_embeddings
+            WHERE session_id = ${sessionId}
+              AND (
+                model_id <> ${input.model.metadata.id}
+                OR model_revision <> ${input.model.metadata.revision}
+                OR dimensions <> ${input.model.metadata.dimensions}
+              )
+          `
+          yield* pruneTranscriptSemanticSessionOverflow(input.sql, [sessionId])
+          const usageRows = yield* transcriptSemanticStorageUsage(input.sql)
+          const usage = usageRows[0] ?? emptyTranscriptSemanticStorageUsage
+          const availableNodes = Math.max(0, policy.totalNodeLimit - usage.node_count)
+          const availableQueue = Math.max(0, policy.queuedNodeLimit - usage.queued_count)
+          const availableBytes = Math.max(
+            0,
+            Math.floor(
+              (policy.vectorByteLimit - usage.vector_bytes - usage.reserved_bytes) / vectorBytes,
+            ),
           )
-      `
-      yield* pruneTranscriptSemanticSessionOverflow(input.sql, refreshSessionIds)
-      const usageRows = yield* transcriptSemanticStorageUsage(input.sql)
-      const usage = usageRows[0] ?? emptyTranscriptSemanticStorageUsage
-      const availableNodes = Math.max(0, policy.totalNodeLimit - usage.node_count)
-      const availableQueue = Math.max(0, policy.queuedNodeLimit - usage.queued_count)
-      const availableBytes = Math.max(
-        0,
-        Math.floor(
-          (policy.vectorByteLimit - usage.vector_bytes - usage.reserved_bytes) / vectorBytes,
-        ),
+          const admissionLimit = Math.min(availableNodes, availableQueue, availableBytes)
+          if (admissionLimit > 0) {
+            yield* admitTranscriptSemanticNodes({
+              sql: input.sql,
+              sessionId,
+              nodeLimit: policy.perSessionNodeLimit,
+              now,
+              limit: admissionLimit,
+            })
+          }
+          yield* refreshTranscriptScopeCoverage(input.sql, input.model, [sessionId])
+        }),
       )
-      const admissionLimit = Math.min(availableNodes, availableQueue, availableBytes)
-      if (admissionLimit > 0) {
-        yield* admitTranscriptSemanticNodes({
-          sql: input.sql,
-          sessionIds: refreshSessionIds,
-          now,
-          limit: admissionLimit,
-        })
-      }
-      yield* refreshTranscriptScopeCoverage(input.sql, input.model, refreshSessionIds)
-      return {
-        refreshedSessionCount: refreshSessionIds.length,
-        reusedSessionCount: reusableIds.size,
-      }
-    }),
-  )
+      yield* Effect.yieldNow()
+    }
+    return {
+      refreshedSessionCount: refreshSessionIds.length,
+      reusedSessionCount: reusableIds.size,
+    }
+  })
 }
 
 export function touchTranscriptSemanticLease(input: {

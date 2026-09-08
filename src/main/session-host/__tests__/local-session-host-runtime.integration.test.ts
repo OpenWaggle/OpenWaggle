@@ -111,12 +111,12 @@ describe('Local Session Host runtime', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'gui',
         clientVersion: 'test',
       }),
     )
-    await expect(negotiated).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(negotiated).resolves.toMatchObject({ accepted: true, revision: 7 })
     expect(startupOrder).toEqual(['recovered', 'authenticated'])
     expect(runtime.liveness.ownerCount('client')).toBe(1)
 

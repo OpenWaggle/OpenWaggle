@@ -38,14 +38,14 @@ describe('Local Session hello boundaries', () => {
     expect(() =>
       decodeLocalSessionClientHello({
         ...base,
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientVersion: 'v'.repeat(LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH + 1),
       }),
     ).toThrow()
     expect(() =>
       decodeLocalSessionClientHello({
         ...base,
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientVersion: 'current',
         profile: ' worker ',
       }),
@@ -55,7 +55,7 @@ describe('Local Session hello boundaries', () => {
   it('bounds transient profile roots at the hello framing boundary', () => {
     const base = {
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [2],
+      supportedRevisions: [7],
       clientKind: 'mcp',
       clientVersion: 'current',
       transientAuthority: {

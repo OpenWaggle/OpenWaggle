@@ -146,4 +146,98 @@ describe('secure MCP network policy', () => {
       'Bearer retained',
     )
   })
+
+  it('rejects an oversized declared MCP response before its body is parsed', async () => {
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://mcp.example/mcp'),
+      maxResponseBytes: 4,
+      fetchFn: vi.fn(async () => new Response('oversized', { headers: { 'content-length': '9' } })),
+      resolveHostname: publicLookup,
+    })
+
+    await expect(secureFetch('https://mcp.example/mcp')).rejects.toThrow(
+      'exceeded the 4 byte safety limit',
+    )
+  })
+
+  it('stops a chunked MCP response as soon as its byte limit is crossed', async () => {
+    const cancelled = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('1234'))
+        controller.enqueue(new TextEncoder().encode('5'))
+      },
+      cancel: cancelled,
+    })
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://mcp.example/mcp'),
+      maxResponseBytes: 4,
+      fetchFn: vi.fn(
+        async () => new Response(body, { headers: { 'content-type': 'application/json' } }),
+      ),
+      resolveHostname: publicLookup,
+    })
+
+    const response = await secureFetch('https://mcp.example/mcp')
+    await expect(response.text()).rejects.toThrow('exceeded the 4 byte safety limit')
+    await vi.waitFor(() => expect(cancelled).toHaveBeenCalledOnce())
+  })
+
+  it('bounds each SSE event without limiting the lifetime stream total', async () => {
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://mcp.example/mcp'),
+      maxResponseBytes: 12,
+      fetchFn: vi.fn(
+        async () =>
+          new Response('data: 123\n\ndata: 456\n\n', {
+            headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+          }),
+      ),
+      resolveHostname: publicLookup,
+    })
+
+    const response = await secureFetch('https://mcp.example/mcp')
+    await expect(response.text()).resolves.toBe('data: 123\n\ndata: 456\n\n')
+  })
+
+  it('resets the SSE event budget across chunked CRLF delimiters', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: 1\r\n\r'))
+        controller.enqueue(new TextEncoder().encode('\ndata: 2\r\n\r\n'))
+        controller.close()
+      },
+    })
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://mcp.example/mcp'),
+      maxResponseBytes: 11,
+      fetchFn: vi.fn(
+        async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } }),
+      ),
+      resolveHostname: publicLookup,
+    })
+
+    const response = await secureFetch('https://mcp.example/mcp')
+    await expect(response.text()).resolves.toBe('data: 1\r\n\r\ndata: 2\r\n\r\n')
+  })
+
+  it('stops an SSE response when one event crosses the byte limit', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: 1234'))
+        controller.enqueue(new TextEncoder().encode('567890\n\n'))
+      },
+    })
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://mcp.example/mcp'),
+      maxResponseBytes: 12,
+      fetchFn: vi.fn(
+        async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } }),
+      ),
+      resolveHostname: publicLookup,
+    })
+
+    const response = await secureFetch('https://mcp.example/mcp')
+    await expect(response.text()).rejects.toThrow('exceeded the 12 byte safety limit')
+  })
 })

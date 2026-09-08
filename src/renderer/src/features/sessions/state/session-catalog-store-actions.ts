@@ -155,13 +155,17 @@ async function refreshCatalogSessions(
       ),
     }))
     const hiveContextSessionId = get().hiveContextSessionId
+    const missingRequestedSession = [...requested].some(
+      (sessionId) => !currentRefreshed.some((session) => String(session.id) === sessionId),
+    )
     if (
       hiveContextSessionId &&
-      currentRefreshed.some(
-        (session) =>
-          session.id === hiveContextSessionId ||
-          session.lineage?.parentSessionId === hiveContextSessionId,
-      )
+      (missingRequestedSession ||
+        currentRefreshed.some(
+          (session) =>
+            session.id === hiveContextSessionId ||
+            session.lineage?.parentSessionId === hiveContextSessionId,
+        ))
     ) {
       await get().loadHiveSessions(hiveContextSessionId)
     }

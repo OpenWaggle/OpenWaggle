@@ -40,6 +40,7 @@ import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
+import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteLocalSessionProfileRepositoryLive } from './adapters/sqlite-local-session-profile-repository'
 import { SqliteSessionAuthorizationTargetRepositoryLive } from './adapters/sqlite-session-authorization-target-repository'
 import { SqliteSessionControlOperationJournalLive } from './adapters/sqlite-session-control-operation-journal'
@@ -124,6 +125,7 @@ const SessionControlPersistenceLive = Layer.mergeAll(
   SqliteLocalSessionProfileRepositoryLive,
   SqliteSessionAuthorizationTargetRepositoryLive,
   SqliteSessionControlOperationJournalLive,
+  SqliteExplicitWaggleOperationJournalLive,
   SqliteSessionControlRepositoryLive,
   SqliteSessionControlRunLifecycleRepositoryLive,
   SqliteSessionHostRecoveryRepositoryLive,

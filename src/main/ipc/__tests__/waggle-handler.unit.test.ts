@@ -16,6 +16,8 @@ const {
   dispatchLocalSessionCommandMock,
   attachmentResolveMock,
   attachmentCleanupMock,
+  journalClaimMock,
+  journalCompleteMock,
   typedHandleMock,
   typedOnMock,
 } = vi.hoisted(() => ({
@@ -31,6 +33,8 @@ const {
   dispatchLocalSessionCommandMock: vi.fn(),
   attachmentResolveMock: vi.fn(),
   attachmentCleanupMock: vi.fn(),
+  journalClaimMock: vi.fn(),
+  journalCompleteMock: vi.fn(),
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
 }))
@@ -83,6 +87,7 @@ vi.mock('../../session-host/session-host-events', () => ({
 import { cancelAllSessionRuns } from '../../application/active-session-runs'
 import { executeExplicitWaggleCancellation } from '../../application/explicit-waggle-command-cancellation'
 import { executeExplicitWaggleCommand } from '../../application/explicit-waggle-command-service'
+import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { registerWaggleHandlers } from '../waggle-handler'
 
@@ -95,6 +100,17 @@ const attachmentService = SessionControlAttachmentService.of({
   resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
+const operationJournal = ExplicitWaggleOperationJournal.of({
+  claim: journalClaimMock,
+  complete: journalCompleteMock,
+})
+
+function provideExplicitWaggleServices<A, E, R>(effect: Effect.Effect<A, E, R>) {
+  return effect.pipe(
+    Effect.provideService(SessionControlAttachmentService, attachmentService),
+    Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
+  )
+}
 
 function inheritedFirstAgentConfig(): WaggleConfig {
   return {
@@ -172,12 +188,12 @@ describe('registerWaggleHandlers', () => {
     dispatchLocalSessionCommandMock
       .mockReset()
       .mockImplementation((input) =>
-        executeExplicitWaggleCommand(input).pipe(
-          Effect.provideService(SessionControlAttachmentService, attachmentService),
-        ),
+        provideExplicitWaggleServices(executeExplicitWaggleCommand(input)),
       )
     attachmentResolveMock.mockReset().mockReturnValue(Effect.succeed([]))
     attachmentCleanupMock.mockReset().mockReturnValue(Effect.void)
+    journalClaimMock.mockReset().mockReturnValue(Effect.succeed({ status: 'claimed' }))
+    journalCompleteMock.mockReset().mockReturnValue(Effect.void)
     typedHandleMock.mockReset()
     typedOnMock.mockReset()
   })
@@ -256,8 +272,8 @@ describe('registerWaggleHandlers', () => {
     dispatchLocalSessionCommandMock.mockImplementation((input) => {
       const command = input.payload
       if (command.contract === 'session-waggle-v1') {
-        return executeExplicitWaggleCommand({ caller: input.caller, payload: command }).pipe(
-          Effect.provideService(SessionControlAttachmentService, attachmentService),
+        return provideExplicitWaggleServices(
+          executeExplicitWaggleCommand({ caller: input.caller, payload: command }),
         )
       }
       if (command.contract === 'session-waggle-cancel-v1') {

@@ -10,14 +10,11 @@ import {
 } from './runtime-connection-status'
 import type { McpClientConnection, McpConnectionFactory } from './types'
 
-/**
- * A pending or resolved connection, deduplicated per key via a Deferred. The
- * connection status lives on the cell so status and lifetime mutate atomically
- * under one `SynchronizedRef` (no cross-ref check-then-act windows).
- */
+/** A per-key Deferred with atomically coordinated connection status and lifetime. */
 interface ConnectionCell {
   readonly deferred: Deferred.Deferred<McpClientConnection, McpRuntimeFailure>
   readonly status: McpRuntimeConnectionStatus
+  readonly connection?: McpClientConnection
 }
 
 type ConnectionSlot =
@@ -42,6 +39,8 @@ export interface McpRuntimeConnectionsService {
     server: McpTurnSnapshotServer,
   ): Effect.Effect<McpClientConnection, McpRuntimeFailure>
   closeSuperseded(runtimeNamespace: string, snapshotRevision: string): Effect.Effect<void>
+  closeKey(key: string): Effect.Effect<void>
+  closeIfCurrent(key: string, connection: McpClientConnection): Effect.Effect<void>
   closeRuntimeNamespace(runtimeNamespace: string): Effect.Effect<void>
   closeIdle(
     isActive: (runtimeNamespace: string) => boolean,
@@ -50,7 +49,6 @@ export interface McpRuntimeConnectionsService {
   closeAll(): Effect.Effect<void>
   getStatuses(): Effect.Effect<readonly McpRuntimeConnectionStatus[]>
 }
-
 function removeCell(ctx: ConnectionsCtx, key: string, deferred: ConnectionCell['deferred']) {
   return SynchronizedRef.update(ctx.cells, (current) => {
     const existing = current.get(key)
@@ -60,7 +58,6 @@ function removeCell(ctx: ConnectionsCtx, key: string, deferred: ConnectionCell['
     return next
   })
 }
-
 function runConnect(
   ctx: ConnectionsCtx,
   key: string,
@@ -74,9 +71,7 @@ function runConnect(
   }).pipe(
     Effect.matchCauseEffect({
       onSuccess: (connection) =>
-        // Atomically publish "connected" only if this cell is still current
-        // (not superseded/closed by a concurrent turn). Status + presence check
-        // happen in one modify, so a concurrent close cannot leave a ghost status.
+        // Publish status only while this exact cell is still current.
         SynchronizedRef.modify(ctx.cells, (current) => {
           const existing = current.get(key)
           if (existing?.type !== 'active' || existing.cell.deferred !== cell.deferred) {
@@ -88,6 +83,7 @@ function runConnect(
               type: 'active',
               cell: {
                 ...existing.cell,
+                connection,
                 status: mcpConnectedStatus(snapshot, server, connection),
               },
             }),
@@ -156,17 +152,14 @@ function getConnection(
       return yield* getConnection(ctx, snapshot, server)
     }
     if (decision.fresh) {
-      // Fork as a daemon so the Deferred is ALWAYS resolved (success or failure)
-      // even if this calling fiber is interrupted (e.g. turn cancellation) before
-      // runConnect completes. Otherwise the cell's Deferred would orphan and wedge
-      // every later getConnection/closeKey (and Layer teardown) on this key.
+      // The daemon always settles the shared Deferred if this caller is interrupted.
       yield* Effect.forkDaemon(runConnect(ctx, key, snapshot, server, decision.cell))
     }
     return yield* Deferred.await(decision.cell.deferred)
   })
 }
 
-function closeKey(ctx: ConnectionsCtx, key: string) {
+function closeKey(ctx: ConnectionsCtx, key: string, expectedConnection?: McpClientConnection) {
   return Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       type CloseDecision =
@@ -181,7 +174,12 @@ function closeKey(ctx: ConnectionsCtx, key: string) {
         ctx.cells,
         (current): Effect.Effect<readonly [CloseDecision, Map<string, ConnectionSlot>]> => {
           const existing = current.get(key)
-          if (!existing) return Effect.succeed([{ type: 'missing' }, current] as const)
+          if (
+            !existing ||
+            (expectedConnection && existing.cell.connection !== expectedConnection)
+          ) {
+            return Effect.succeed([{ type: 'missing' }, current] as const)
+          }
           if (existing.type === 'closing') {
             return Effect.succeed([{ type: 'waiting', done: existing.done }, current] as const)
           }
@@ -219,9 +217,7 @@ function closeKey(ctx: ConnectionsCtx, key: string) {
         ),
         Effect.ensuring(finish),
       )
-      // The tombstone owner must outlive the caller. In particular, cancellation
-      // of a Host request cannot admit a replacement while the old MCP client is
-      // still live or its close hook is still running.
+      // Keep the tombstone until cleanup settles, even if its caller is cancelled.
       yield* Effect.forkDaemon(cleanup)
       yield* restore(Deferred.await(decision.done))
     }),
@@ -267,13 +263,7 @@ function closeIdle(
   })
 }
 
-/**
- * Build the Effect-native MCP connection pool. All mutable coordination lives in
- * a single `SynchronizedRef` (cell = deferred + status); in-flight connects are
- * deduplicated through a per-key `Deferred` so concurrent turns share one
- * connection. The SDK connect factory is the only Promise edge, wrapped once via
- * `Effect.tryPromise`.
- */
+/** Effect-native, per-key connection pool with deduplicated in-flight connects. */
 export function makeMcpRuntimeConnections(input: {
   readonly connect: McpConnectionFactory
   readonly onClose: (key: string) => Effect.Effect<void>
@@ -292,6 +282,8 @@ export function makeMcpRuntimeConnections(input: {
             status.runtimeNamespace === runtimeNamespace &&
             status.snapshotRevision !== snapshotRevision,
         ).pipe(Effect.flatMap((keys) => closeKeys(ctx, keys))),
+      closeKey: (key) => closeKey(ctx, key),
+      closeIfCurrent: (key, connection) => closeKey(ctx, key, connection),
       closeRuntimeNamespace: (runtimeNamespace) =>
         matchingKeys(ctx, (status) => status.runtimeNamespace === runtimeNamespace).pipe(
           Effect.flatMap((keys) => closeKeys(ctx, keys)),

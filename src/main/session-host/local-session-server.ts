@@ -15,6 +15,10 @@ import {
   removeLocalSessionEndpoint,
   secureLocalSessionEndpoint,
 } from './local-session-endpoint'
+import {
+  type LocalSessionCursorResolution,
+  LocalSessionEventCursorProjection,
+} from './local-session-event-cursor-projection'
 import { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
 import type { LocalSessionSocketFrameWriter } from './local-session-outbound-writer'
 import {
@@ -45,6 +49,8 @@ export interface LocalSessionServerDependencies {
     readonly caller: AuthenticatedLocalSessionCaller
     readonly negotiatedRevision: number
     readonly eventCursor: SessionHostEventCursor
+    readonly resolveEventCursor: (cursor: SessionHostEventCursor) => LocalSessionCursorResolution
+    readonly exposeEventCursor: (cursor: SessionHostEventCursor) => SessionHostEventCursor
     readonly payload: unknown
     readonly signal: AbortSignal
     readonly releaseAdmissionReader: () => void
@@ -161,12 +167,15 @@ export async function listenLocalSessionServer(
       : {}),
   })
   const subscriptionBudget = new LocalSessionSubscriptionBudget(dependencies.maxSubscriptionsGlobal)
+  const cursorProjection = new LocalSessionEventCursorProjection(dependencies.eventHub)
   const invalidateProfile = (profileId: string) => {
+    cursorProjection.invalidateProfile(profileId)
     for (const connection of connections) connection.disconnectRevokedProfile(profileId)
   }
   const releaseProfileInvalidator = installLocalSessionProfileInvalidator(invalidateProfile)
   const releaseProfileAdmissionRefresher = installLocalSessionProfileAdmissionRefresher(
     async (profileId, options) => {
+      cursorProjection.rotateProfile(profileId)
       await Promise.all(
         [...connections].map((connection) =>
           connection.refreshProfileAdmission(profileId, options),
@@ -205,6 +214,7 @@ export async function listenLocalSessionServer(
       inboundBudget,
       authenticationBudget,
       outboundBudget,
+      cursorProjection,
     )
     connections.add(connection)
     socket.once('close', () => connections.delete(connection))

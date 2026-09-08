@@ -44,22 +44,25 @@ function statusForUnfinishedRequest(input: {
   readonly headers: Readonly<Record<string, string>>
   readonly firstChunk?: string
 }) {
-  return new Promise<number>((resolve, reject) => {
-    const request = sendHttpRequest(
-      input.url,
-      { method: 'POST', headers: input.headers },
-      (response) => {
-        response.resume()
-        response.once('end', () => {
-          request.destroy()
-          resolve(response.statusCode ?? 0)
-        })
-      },
-    )
+  return startUnfinishedRequest(input).status
+}
+
+function startUnfinishedRequest(input: {
+  readonly url: string
+  readonly headers: Readonly<Record<string, string>>
+  readonly firstChunk?: string
+}) {
+  const request = sendHttpRequest(input.url, { method: 'POST', headers: input.headers })
+  const status = new Promise<number>((resolve, reject) => {
+    request.once('response', (response) => {
+      response.resume()
+      response.once('end', () => resolve(response.statusCode ?? 0))
+    })
     request.once('error', reject)
-    request.flushHeaders()
-    if (input.firstChunk !== undefined) request.write(input.firstChunk)
   })
+  request.flushHeaders()
+  if (input.firstChunk !== undefined) request.write(input.firstChunk)
+  return { request, status }
 }
 
 function statusForRawRequest(url: string, request: string) {
@@ -195,6 +198,97 @@ describe('OpenWaggle loopback Streamable HTTP server', () => {
           firstChunk: 'x'.repeat(TEST_REQUEST_BODY_LIMIT_BYTES + 1),
         }),
       ).resolves.toBe(413)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('rejects a concurrent request before reading another body', async () => {
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory: server,
+      port: 0,
+      bearerToken: TOKEN,
+      maxConcurrentRequestBodies: 1,
+      requestBodyReadTimeoutMs: 2_000,
+    })
+    try {
+      const authorization = { Authorization: `Bearer ${TOKEN}` }
+      const first = startUnfinishedRequest({
+        url: handle.url,
+        headers: { ...authorization, 'Transfer-Encoding': 'chunked' },
+        firstChunk: '{',
+      })
+      await expect(
+        statusForUnfinishedRequest({
+          url: handle.url,
+          headers: { ...authorization, 'Content-Length': '0' },
+        }),
+      ).resolves.toBe(429)
+
+      first.request.end('}')
+      await expect(first.status).resolves.not.toBe(429)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('reserves declared bodies against one aggregate byte budget', async () => {
+    const aggregateBytes = 10
+    const body = '{"x":1}'
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory: server,
+      port: 0,
+      bearerToken: TOKEN,
+      maxConcurrentRequestBodies: 4,
+      maxRequestBodyBytes: aggregateBytes,
+      maxAggregateRequestBodyBytes: aggregateBytes,
+      requestBodyReadTimeoutMs: 2_000,
+    })
+    try {
+      const headers = {
+        Authorization: `Bearer ${TOKEN}`,
+        'Content-Length': String(body.length),
+      }
+      const first = startUnfinishedRequest({
+        url: handle.url,
+        headers,
+        firstChunk: body.slice(0, 1),
+      })
+      await expect(statusForUnfinishedRequest({ url: handle.url, headers })).resolves.toBe(429)
+
+      first.request.end(body.slice(1))
+      await expect(first.status).resolves.not.toBe(429)
+    } finally {
+      await handle.close()
+    }
+  })
+
+  it('ends a slow request at the body read deadline and releases its admission', async () => {
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory: server,
+      port: 0,
+      bearerToken: TOKEN,
+      maxConcurrentRequestBodies: 1,
+      requestBodyReadTimeoutMs: 100,
+    })
+    try {
+      const pending = startUnfinishedRequest({
+        url: handle.url,
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          'Transfer-Encoding': 'chunked',
+        },
+        firstChunk: '{',
+      })
+      await expect(pending.status).resolves.toBe(408)
+      const client = await connect(handle.url, '2026-07-28')
+      try {
+        await expect(client.listTools()).resolves.toMatchObject({
+          tools: [expect.objectContaining({ name: 'echo' })],
+        })
+      } finally {
+        await client.close()
+      }
     } finally {
       await handle.close()
     }

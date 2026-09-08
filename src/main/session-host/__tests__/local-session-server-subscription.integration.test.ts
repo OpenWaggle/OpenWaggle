@@ -9,7 +9,11 @@ import { SessionHostLiveness } from '../../application/session-host-liveness'
 import { encodeLocalSessionFrame } from '../local-session-framing'
 import { refreshLocalSessionProfileAdmissions } from '../local-session-profile-invalidation'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
-import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+import {
+  connectLocalSessionTestClient,
+  sessionHostCursorFromTestFrame,
+  TestFrameReader,
+} from './local-session-server-test-client'
 
 const SCOPE_REFRESH_CASES: readonly {
   readonly label: string
@@ -81,7 +85,7 @@ describe('Local Session server subscriptions', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
@@ -91,7 +95,6 @@ describe('Local Session server subscriptions', () => {
       encodeLocalSessionFrame({
         kind: 'subscribe',
         requestId: 'request-subscribe',
-        after: eventHub.cursor(),
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -118,7 +121,10 @@ describe('Local Session server subscriptions', () => {
     await expect(reader.next()).resolves.toEqual({
       kind: 'event',
       subscriptionId: expect.any(String),
-      event: visible,
+      event: {
+        ...visible,
+        cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+      },
     })
     expect(authorizeEvent).toHaveBeenCalledOnce()
     expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
@@ -174,7 +180,7 @@ describe('Local Session server subscriptions', () => {
       client.write(
         encodeLocalSessionFrame({
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [2],
+          supportedRevisions: [7],
           clientKind: 'cli',
           clientVersion: 'test',
         }),
@@ -184,7 +190,6 @@ describe('Local Session server subscriptions', () => {
         encodeLocalSessionFrame({
           kind: 'subscribe',
           requestId: 'request-subscribe',
-          after: eventHub.cursor(),
         }),
       )
       await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
@@ -212,27 +217,56 @@ describe('Local Session server subscriptions', () => {
       await expect(reader.next()).resolves.toEqual({
         kind: 'event',
         subscriptionId: expect.any(String),
-        event: original,
+        event: {
+          ...original,
+          cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+        },
       })
-
       liveSessionIds.add('session-newly-authorized')
       await refreshLocalSessionProfileAdmissions(refreshId)
+      const expandedResync = await reader.next()
+      expect(expandedResync).toMatchObject({
+        kind: 'resync-required',
+        reason: 'cursor-expired',
+      })
+      client.write(
+        encodeLocalSessionFrame({
+          kind: 'subscribe',
+          requestId: 'subscribe-expanded',
+          after: sessionHostCursorFromTestFrame(expandedResync),
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
       const visible = eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-newly-authorized',
         stateRevision: 1,
         operation: 'spawn',
       })
-
       await expect(reader.next()).resolves.toEqual({
         kind: 'event',
         subscriptionId: expect.any(String),
-        event: visible,
+        event: {
+          ...visible,
+          cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+        },
       })
       expect(authorizeEvent).toHaveBeenCalledWith(expect.any(Object), visible)
-
       liveSessionIds.delete('session-original')
       await refreshLocalSessionProfileAdmissions(refreshId)
+      const reducedResync = await reader.next()
+      expect(reducedResync).toMatchObject({
+        kind: 'resync-required',
+        reason: 'cursor-expired',
+      })
+      client.write(
+        encodeLocalSessionFrame({
+          kind: 'subscribe',
+          requestId: 'subscribe-reduced',
+          after: sessionHostCursorFromTestFrame(reducedResync),
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ kind: 'subscribed' })
       eventHub.publish({
         kind: 'session-state-changed',
         sessionId: 'session-original',
@@ -256,7 +290,10 @@ describe('Local Session server subscriptions', () => {
       await expect(reader.next()).resolves.toEqual({
         kind: 'event',
         subscriptionId: expect.any(String),
-        event: stillVisible,
+        event: {
+          ...stillVisible,
+          cursor: { hostInstanceId: expect.any(String), sequence: 0 },
+        },
       })
     },
   )

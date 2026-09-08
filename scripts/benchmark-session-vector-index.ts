@@ -21,6 +21,7 @@ const P50 = 0.5
 const P95 = 0.95
 const BYTES_PER_MEBIBYTE = 1_048_576
 const MAXIMUM_P95_MS = 250
+const MAXIMUM_RESIDENT_MEMORY_MB = 640
 
 function makeVector(seed: number) {
   const vector = new Float32Array(DIMENSIONS)
@@ -68,6 +69,7 @@ function benchmarkSize(size: number) {
     if (run >= WARMUP_RUNS) timings.push(elapsed)
   }
   const sorted = timings.toSorted((left, right) => left - right)
+  const residentMemoryMb = process.memoryUsage().rss / BYTES_PER_MEBIBYTE
   return {
     size,
     dimensions: DIMENSIONS,
@@ -76,10 +78,12 @@ function benchmarkSize(size: number) {
     loadMs,
     searchP50Ms: percentile(sorted, P50),
     searchP95Ms: percentile(sorted, P95),
-    residentMemoryMb: process.memoryUsage().rss / BYTES_PER_MEBIBYTE,
+    residentMemoryMb,
+    maximumResidentMemoryMb: MAXIMUM_RESIDENT_MEMORY_MB,
     passed:
       index.size <= SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit &&
-      percentile(sorted, P95) < MAXIMUM_P95_MS,
+      percentile(sorted, P95) < MAXIMUM_P95_MS &&
+      residentMemoryMb < MAXIMUM_RESIDENT_MEMORY_MB,
   }
 }
 

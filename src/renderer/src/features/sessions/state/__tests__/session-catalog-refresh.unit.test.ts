@@ -135,6 +135,38 @@ describe('Session catalog targeted refresh', () => {
     expect(useSessionStore.getState().hiveSessions).toEqual([queen, worker])
   })
 
+  it('refreshes the focused Hive when a deleted Worker no longer has a summary', async () => {
+    const queenBeforeDeletion = {
+      ...summary('queen'),
+      lineage: { role: 'queen' as const, directWorkerCount: 1, activeDirectWorkerCount: 0 },
+    }
+    const queenAfterDeletion = {
+      ...summary('queen'),
+      lineage: { role: 'independent' as const, directWorkerCount: 0, activeDirectWorkerCount: 0 },
+    }
+    const deletedWorker = {
+      ...summary('worker'),
+      archived: true,
+      lineage: {
+        role: 'worker' as const,
+        parentSessionId: SessionId('queen'),
+        hiveRootSessionId: SessionId('queen'),
+        directWorkerCount: 0,
+        activeDirectWorkerCount: 0,
+      },
+    }
+    apiMocks.listHiveSessionCatalogPage
+      .mockResolvedValueOnce({ context: [queenBeforeDeletion], workers: [deletedWorker] })
+      .mockResolvedValueOnce({ context: [queenAfterDeletion], workers: [] })
+    apiMocks.listSessionsByIds.mockResolvedValue([])
+    await useSessionStore.getState().loadHiveSessions(SessionId('queen'))
+
+    await useSessionStore.getState().refreshCatalogSessions([SessionId('worker')])
+
+    expect(apiMocks.listHiveSessionCatalogPage).toHaveBeenCalledTimes(2)
+    expect(useSessionStore.getState().hiveSessions).toEqual([queenAfterDeletion])
+  })
+
   it('preserves a targeted refresh that completes before an older full catalog load', async () => {
     const staleActive = deferred<{ sessions: readonly SessionSummary[]; nextCursor?: string }>()
     apiMocks.listSessionCatalogPage.mockImplementation(async (archived: boolean) => {

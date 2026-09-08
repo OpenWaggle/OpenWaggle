@@ -28,7 +28,10 @@ import {
   executeLocalUiSessionCommand,
   prepareLocalGuiAttachments,
 } from './local-ui-session-service'
-import { preserveOutcomeAfterAttachmentCleanup } from './session-attachment-cleanup'
+import {
+  preserveOutcomeAfterAttachmentCleanup,
+  withSessionAttachmentTransition,
+} from './session-attachment-cleanup'
 import { bindSessionControlAttachments } from './session-control-command-attachments'
 import { executeSessionControlMutation } from './session-control-command-service'
 import { publishControlResponse } from './session-control-event-projection'
@@ -95,6 +98,45 @@ interface NonHostUiLocalSessionCommandInput {
   readonly beforeProfileRefresh?: () => void
 }
 
+export function dispatchAdmittedSessionControlCommand(input: {
+  readonly caller: LocalSessionCallerIdentity
+  readonly payload: Extract<LocalSessionCommandPayload, { readonly contract: 'session-control-v2' }>
+}) {
+  const sessionId = input.payload.request.command.sessionId
+  return Effect.gen(function* () {
+    const attachmentService = yield* SessionControlAttachmentService
+    return yield* preserveOutcomeAfterAttachmentCleanup({
+      effect: withSessionAttachmentTransition({
+        sessionId,
+        effect: Effect.gen(function* () {
+          yield* bindSessionControlAttachments(input.caller, input.payload)
+          const settings = yield* SettingsService
+          const snapshot = yield* settings.get()
+          const authority = profileAuthorityForCapabilities(
+            input.caller,
+            requiredSessionControlCapabilities(input.payload.request.command),
+          )
+          const response = yield* executeSessionControlMutation({
+            callerId: input.caller.callerId,
+            caller: input.caller,
+            hostRunCeiling: snapshot.sessionHostRunCeiling,
+            ...(authority ? { authority } : {}),
+            request: input.payload.request,
+          })
+          publishControlResponse(response)
+          return { contract: 'session-control-v2', response } as const
+        }),
+      }),
+      cleanup: withSessionAttachmentTransition({
+        sessionId,
+        effect: attachmentService.cleanupUnreferenced({ sessionId }),
+      }),
+      operation: 'command',
+      sessionId,
+    })
+  }).pipe(Effect.uninterruptible)
+}
+
 type NonHostUiLocalSessionQueryInput = NonHostUiLocalSessionCommandInput & {
   readonly payload: Extract<LocalSessionCommandPayload, { readonly contract: 'session-query-v2' }>
 }
@@ -154,32 +196,10 @@ function dispatchNonHostUiLocalSessionCommandImplementation(
         )
       }
       if (admittedPayload.contract === 'session-control-v2') {
-        const attachmentService = yield* SessionControlAttachmentService
-        return yield* preserveOutcomeAfterAttachmentCleanup({
-          effect: Effect.gen(function* () {
-            yield* bindSessionControlAttachments(admittedCaller, admittedPayload)
-            const settings = yield* SettingsService
-            const snapshot = yield* settings.get()
-            const authority = profileAuthorityForCapabilities(
-              admittedCaller,
-              requiredSessionControlCapabilities(admittedPayload.request.command),
-            )
-            const response = yield* executeSessionControlMutation({
-              callerId: admittedCaller.callerId,
-              caller: admittedCaller,
-              hostRunCeiling: snapshot.sessionHostRunCeiling,
-              ...(authority ? { authority } : {}),
-              request: admittedPayload.request,
-            })
-            publishControlResponse(response)
-            return { contract: 'session-control-v2', response } as const
-          }),
-          cleanup: attachmentService.cleanupUnreferenced({
-            sessionId: admittedPayload.request.command.sessionId,
-          }),
-          operation: 'command',
-          sessionId: admittedPayload.request.command.sessionId,
-        }).pipe(Effect.uninterruptible)
+        return yield* dispatchAdmittedSessionControlCommand({
+          caller: admittedCaller,
+          payload: admittedPayload,
+        })
       }
       const callerCapabilities = yield* lifecycleCallerCapabilities(admittedCaller, admittedPayload)
       return yield* Effect.gen(function* () {

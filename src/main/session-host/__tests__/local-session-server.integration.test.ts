@@ -47,14 +47,14 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2, 1],
+        supportedRevisions: [7, 6],
         clientKind: 'cli',
         clientVersion: 'test',
       }),
     )
     await expect(reader.next()).resolves.toMatchObject({
       accepted: true,
-      revision: 2,
+      revision: 7,
       hostInstanceId: 'host-current',
     })
     expect(authenticate).toHaveBeenCalledOnce()
@@ -77,10 +77,12 @@ describe('Local Session server', () => {
     })
     expect(dispatch).toHaveBeenCalledWith({
       caller: { callerId: 'local-user' },
-      negotiatedRevision: 2,
+      negotiatedRevision: 7,
       eventCursor: { hostInstanceId: 'host-current', sequence: 0 },
+      exposeEventCursor: expect.any(Function),
       payload: { operation: 'status', sessionId: 'session-target' },
       releaseAdmissionReader: expect.any(Function),
+      resolveEventCursor: expect.any(Function),
       signal: expect.any(AbortSignal),
     })
 
@@ -142,7 +144,7 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'mcp',
         clientVersion: 'test',
       }),
@@ -175,12 +177,12 @@ describe('Local Session server', () => {
     client.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [6],
         clientKind: 'cli',
         clientVersion: 'previous',
       }),
     )
-    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true, revision: 6 })
     client.write(
       encodeLocalSessionFrame({ kind: 'command', requestId: 'previous-command', payload: {} }),
     )
@@ -189,7 +191,7 @@ describe('Local Session server', () => {
       requestId: 'previous-command',
       payload: { compatible: true },
     })
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ negotiatedRevision: 2 }))
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ negotiatedRevision: 6 }))
   })
 
   it('authenticates a newer client, reports blockers, and requests a safe drain', async () => {

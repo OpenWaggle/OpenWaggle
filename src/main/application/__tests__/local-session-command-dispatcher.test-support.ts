@@ -72,7 +72,7 @@ export function controlPayload(
     LocalSessionCommandPayload,
     { readonly contract: 'session-control-v2' }
   >['request']['command'],
-): LocalSessionCommandPayload {
+): Extract<LocalSessionCommandPayload, { readonly contract: 'session-control-v2' }> {
   return {
     contract: 'session-control-v2',
     request: {

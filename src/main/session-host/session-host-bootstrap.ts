@@ -20,6 +20,10 @@ import type { AppServices } from '../runtime'
 import { SettingsService } from '../services/settings-service'
 import { listStreamBufferSnapshots } from '../utils/stream-buffer'
 import { createLocalSessionAuthenticator } from './local-session-authenticator'
+import {
+  exposeLocalSessionCommandResultCursor,
+  resolveLocalSessionCommandCursor,
+} from './local-session-command-event-cursors'
 import { isWindowsPipe } from './local-session-endpoint'
 import { startLocalSessionHost } from './local-session-host-runtime'
 import type { LocalSessionHostPaths } from './local-session-paths'
@@ -133,19 +137,30 @@ export async function startAppSessionHost(input: {
       payload,
       signal,
       releaseAdmissionReader,
+      resolveEventCursor,
+      exposeEventCursor,
     }) => {
-      const result = await input.runEffect(
-        dispatchLocalSessionCommand({
-          caller,
-          negotiatedRevision,
-          payload: decodeLocalSessionCommandPayloadForRevision(payload, negotiatedRevision),
-          signal,
-          beforeProfileRefresh: releaseAdmissionReader,
-        }),
+      const decodedPayload = decodeLocalSessionCommandPayloadForRevision(
+        payload,
+        negotiatedRevision,
       )
-      return result.contract === 'session-query-v2'
-        ? { ...result, response: { ...result.response, eventCursor } }
-        : result
+      const cursorResolution = resolveLocalSessionCommandCursor(decodedPayload, resolveEventCursor)
+      const result =
+        cursorResolution.status === 'resync-required'
+          ? cursorResolution.result
+          : await input.runEffect(
+              dispatchLocalSessionCommand({
+                caller,
+                negotiatedRevision,
+                payload: cursorResolution.payload,
+                signal,
+                beforeProfileRefresh: releaseAdmissionReader,
+              }),
+            )
+      const exposedResult = exposeLocalSessionCommandResultCursor(result, exposeEventCursor)
+      return exposedResult.contract === 'session-query-v2'
+        ? { ...exposedResult, response: { ...exposedResult.response, eventCursor } }
+        : exposedResult
     },
   })
 }

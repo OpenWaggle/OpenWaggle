@@ -224,6 +224,7 @@ async function main() {
     const passed = sessionDiscoveryBenchmarkPassed({
       mode,
       corpus,
+      databaseSizeMb,
       cutoverMs,
       backfills,
       commonTermIncremental,
@@ -266,6 +267,7 @@ async function main() {
           discoveryBackfillMs: mode.discoveryBackfillLimitMs,
           transcriptBackfillMs: mode.transcriptBackfillLimitMs,
           semanticDiscoveryRecords: SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY.recordLimit,
+          databaseSizeMb: mode.databaseSizeLimitMb,
           commonTermIncrementalMs: COMMON_TERM_INCREMENTAL_LIMIT_MS,
           warmP95Ms: WARM_P95_LIMIT_MS,
           hybridP95Ms: HYBRID_P95_LIMIT_MS,

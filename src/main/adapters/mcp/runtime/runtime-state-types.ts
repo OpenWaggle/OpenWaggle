@@ -39,6 +39,31 @@ export interface ActiveEventSubscription {
   readonly close: () => Promise<void>
 }
 
+export interface EventSubscriptionCell {
+  readonly semaphore: Effect.Semaphore
+  readonly users: number
+  readonly generation: number
+  readonly runtimeNamespace: string
+  readonly active: ActiveEventSubscription | undefined
+}
+
+export interface EventSubscriptionLifecycleState {
+  readonly acceptUnknownNamespaces: boolean
+  readonly namespaces: Map<string, { readonly active: boolean; readonly generation: number }>
+}
+
+export interface RetainedMcpEvent {
+  readonly record: McpEventRecord
+  readonly bytes: number
+}
+
+export interface McpEventInboxState {
+  readonly bySession: Map<string, readonly RetainedMcpEvent[]>
+  readonly sessionBytes: Map<string, number>
+  readonly insertionOrder: Map<string, { readonly sessionId: string; readonly bytes: number }>
+  readonly retainedBytes: number
+}
+
 /**
  * Shared mutable context for the Effect-native runtime state. All coordination
  * lives in these `Ref`s; the connection pool is an Effect service and the
@@ -48,8 +73,9 @@ export interface RuntimeStateContext {
   readonly catalogs: Ref.Ref<Map<string, CatalogCacheEntry>>
   readonly handles: Ref.Ref<Map<string, CatalogTool>>
   readonly notices: Ref.Ref<Map<string, McpRuntimeNotice[]>>
-  readonly eventSubscriptions: Ref.Ref<Map<string, ActiveEventSubscription>>
-  readonly events: Ref.Ref<Map<string, McpEventRecord[]>>
+  readonly eventSubscriptionCells: Ref.Ref<Map<string, EventSubscriptionCell>>
+  readonly eventSubscriptionLifecycle: Ref.Ref<EventSubscriptionLifecycleState>
+  readonly events: Ref.Ref<McpEventInboxState>
   readonly connections: McpRuntimeConnectionsService
   readonly remoteTasks: McpRemoteTaskStore
   readonly handleKey: Buffer

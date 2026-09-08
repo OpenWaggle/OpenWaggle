@@ -9,6 +9,9 @@ import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from './session-host-transc
 import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
 
 const NEW_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('new')
+const OLD_TRANSCRIPT_SEARCH_CONTENT = sessionTranscriptSearchContentSql('old')
+const NEW_TRANSCRIPT_SEARCHABLE = `CASE WHEN trim(${NEW_TRANSCRIPT_SEARCH_CONTENT}) <> '' THEN 1 ELSE 0 END`
+const OLD_TRANSCRIPT_SEARCHABLE = `CASE WHEN trim(${OLD_TRANSCRIPT_SEARCH_CONTENT}) <> '' THEN 1 ELSE 0 END`
 export const SESSION_DISCOVERY_DELETION_TOMBSTONE_LIMIT = 1_024
 
 export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
@@ -16,8 +19,16 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
   CREATE TRIGGER session_node_search_insert AFTER INSERT ON session_nodes BEGIN
     INSERT INTO session_node_search (session_id, node_id, content)
     VALUES (new.session_id, new.id, ${NEW_TRANSCRIPT_SEARCH_CONTENT});
-    INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
-    VALUES (new.id, new.session_id, last_insert_rowid());
+    INSERT INTO session_node_search_rows (
+      node_id, session_id, search_rowid, created_order, searchable
+    ) VALUES (
+      new.id, new.session_id, last_insert_rowid(), new.created_order,
+      ${NEW_TRANSCRIPT_SEARCHABLE}
+    );
+    INSERT INTO session_transcript_search_stats (session_id, searchable_node_count)
+    VALUES (new.session_id, ${NEW_TRANSCRIPT_SEARCHABLE})
+    ON CONFLICT(session_id) DO UPDATE SET
+      searchable_node_count = searchable_node_count + excluded.searchable_node_count;
     ${refreshSessionLexicalDiscoverySql('new.session_id')}
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
@@ -29,7 +40,7 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
   `,
   `
   CREATE TRIGGER session_node_search_update
-  AFTER UPDATE OF content_json, role, created_order ON session_nodes BEGIN
+  AFTER UPDATE OF session_id, content_json, kind, role, created_order ON session_nodes BEGIN
     DELETE FROM session_node_search
     WHERE rowid = (SELECT search_rowid FROM session_node_search_rows WHERE node_id = old.id);
     DELETE FROM session_node_search_rows WHERE node_id = old.id;
@@ -37,15 +48,31 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
     INSERT INTO session_node_search (session_id, node_id, content)
     VALUES (new.session_id, new.id, ${NEW_TRANSCRIPT_SEARCH_CONTENT});
-    INSERT INTO session_node_search_rows (node_id, session_id, search_rowid)
-    VALUES (new.id, new.session_id, last_insert_rowid());
+    INSERT INTO session_node_search_rows (
+      node_id, session_id, search_rowid, created_order, searchable
+    ) VALUES (
+      new.id, new.session_id, last_insert_rowid(), new.created_order,
+      ${NEW_TRANSCRIPT_SEARCHABLE}
+    );
+    UPDATE session_transcript_search_stats
+    SET searchable_node_count = MAX(0, searchable_node_count - ${OLD_TRANSCRIPT_SEARCHABLE})
+    WHERE session_id = old.session_id;
+    INSERT INTO session_transcript_search_stats (session_id, searchable_node_count)
+    VALUES (new.session_id, ${NEW_TRANSCRIPT_SEARCHABLE})
+    ON CONFLICT(session_id) DO UPDATE SET
+      searchable_node_count = searchable_node_count + excluded.searchable_node_count;
     ${refreshSessionLexicalDiscoverySql('new.session_id')}
+    ${refreshSessionLexicalDiscoverySql('old.session_id', 'old.session_id <> new.session_id')}
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
+    INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
+    SELECT old.session_id, unixepoch('subsec') * 1000
+    WHERE old.session_id <> new.session_id
+    ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
     UPDATE session_transcript_semantic_scopes
     SET source_revision = source_revision + 1
-    WHERE session_id = new.session_id;
+    WHERE session_id = old.session_id OR session_id = new.session_id;
   END
   `,
   `
@@ -55,6 +82,9 @@ export const SESSION_NODE_SEARCH_TRIGGER_SCHEMA_STATEMENTS = [
     DELETE FROM session_node_search_rows WHERE node_id = old.id;
     DELETE FROM session_transcript_embedding_queue WHERE node_id = old.id;
     DELETE FROM session_transcript_embeddings WHERE node_id = old.id;
+    UPDATE session_transcript_search_stats
+    SET searchable_node_count = MAX(0, searchable_node_count - ${OLD_TRANSCRIPT_SEARCHABLE})
+    WHERE session_id = old.session_id;
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (old.session_id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;
@@ -196,6 +226,9 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
     INSERT INTO session_discovery_search_rows (
       session_id, search_rowid, initial_objective, current_preview
     ) VALUES (new.id, last_insert_rowid(), '', '');
+    INSERT INTO session_transcript_search_stats (session_id, searchable_node_count)
+    VALUES (new.id, 0)
+    ON CONFLICT(session_id) DO NOTHING;
     INSERT INTO session_discovery_embedding_queue (session_id, queued_at)
     VALUES (new.id, unixepoch('subsec') * 1000)
     ON CONFLICT(session_id) DO UPDATE SET queued_at = excluded.queued_at;

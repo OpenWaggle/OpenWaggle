@@ -1,7 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as POLICY } from '../domain/session-transcript-semantic-storage-policy'
-import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 
 export interface TranscriptSemanticStoragePolicy {
   readonly scopeTtlMs: number
@@ -32,7 +31,15 @@ export const emptyTranscriptSemanticStorageUsage: TranscriptSemanticStorageUsage
   reserved_bytes: 0,
 }
 
-const TRANSCRIPT_SEARCH_CONTENT_SQL = sessionTranscriptSearchContentSql('nodes')
+interface ScopeLimitRow {
+  readonly session_id: string
+  readonly node_limit: number
+}
+
+interface HotBoundaryRow {
+  readonly created_order: number
+  readonly node_id: string
+}
 
 export function transcriptSemanticStorageUsage(sql: SqlClient.SqlClient) {
   return sql<TranscriptSemanticStorageUsage>`
@@ -99,30 +106,52 @@ export function pruneTranscriptSemanticSessionOverflow(
   sessionIds?: readonly string[],
 ) {
   if (sessionIds?.length === 0) return Effect.void
-  const sessionFilter = sessionIds ? sql`AND nodes.session_id IN ${sql.in(sessionIds)}` : sql``
-  const rankedNodes = sql`
-    SELECT nodes.id AS node_id, nodes.session_id,
-      ROW_NUMBER() OVER (
-        PARTITION BY nodes.session_id
-        ORDER BY nodes.created_order DESC, nodes.id DESC
-      ) AS scope_rank,
-      scopes.node_limit
-    FROM session_transcript_semantic_scopes AS scopes
-    CROSS JOIN session_nodes AS nodes ON nodes.session_id = scopes.session_id
-    WHERE trim(${sql.literal(TRANSCRIPT_SEARCH_CONTENT_SQL)}) <> ''
-      ${sessionFilter}
-  `
   return Effect.gen(function* () {
-    yield* sql`
-      WITH ranked AS (${rankedNodes})
-      DELETE FROM session_transcript_embedding_queue
-      WHERE node_id IN (SELECT node_id FROM ranked WHERE scope_rank > node_limit)
+    const scopes = yield* sql<ScopeLimitRow>`
+      SELECT session_id, node_limit
+      FROM session_transcript_semantic_scopes
+      ${sessionIds ? sql`WHERE session_id IN ${sql.in(sessionIds)}` : sql``}
+      ORDER BY session_id
     `
-    yield* sql`
-      WITH ranked AS (${rankedNodes})
-      DELETE FROM session_transcript_embeddings
-      WHERE node_id IN (SELECT node_id FROM ranked WHERE scope_rank > node_limit)
-    `
+    for (const scope of scopes) {
+      const boundaries = yield* sql<HotBoundaryRow>`
+        SELECT created_order, node_id
+        FROM session_node_search_rows
+        WHERE session_id = ${scope.session_id} AND searchable = ${1}
+        ORDER BY created_order DESC, node_id DESC
+        LIMIT 1 OFFSET ${scope.node_limit - 1}
+      `
+      const boundary = boundaries[0]
+      const outsideHotTier = boundary
+        ? sql`AND NOT EXISTS (
+            SELECT 1 FROM session_node_search_rows AS hot
+            WHERE hot.node_id = candidate.node_id
+              AND hot.session_id = ${scope.session_id}
+              AND hot.searchable = ${1}
+              AND (
+                hot.created_order > ${boundary.created_order}
+                OR (hot.created_order = ${boundary.created_order}
+                  AND hot.node_id >= ${boundary.node_id})
+              )
+          )`
+        : sql`AND NOT EXISTS (
+            SELECT 1 FROM session_node_search_rows AS hot
+            WHERE hot.node_id = candidate.node_id
+              AND hot.session_id = ${scope.session_id}
+              AND hot.searchable = ${1}
+          )`
+      yield* sql`
+        DELETE FROM session_transcript_embedding_queue AS candidate
+        WHERE candidate.session_id = ${scope.session_id}
+          ${outsideHotTier}
+      `
+      yield* sql`
+        DELETE FROM session_transcript_embeddings AS candidate
+        WHERE candidate.session_id = ${scope.session_id}
+          ${outsideHotTier}
+      `
+      yield* Effect.yieldNow()
+    }
   })
 }
 
@@ -211,7 +240,6 @@ export function maintainTranscriptSemanticStorageInTransaction(
   return Effect.gen(function* () {
     yield* reclaimExpiredTranscriptSemanticScopesInTransaction(sql, now)
     yield* enforceTranscriptSemanticScopeLimit(sql, now, policy)
-    yield* pruneTranscriptSemanticSessionOverflow(sql)
     const usageRows = yield* transcriptSemanticStorageUsage(sql)
     const usage = { ...(usageRows[0] ?? emptyTranscriptSemanticStorageUsage) }
     if (overBudget(usage, policy)) {

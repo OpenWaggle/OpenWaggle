@@ -21,6 +21,11 @@ export function makeSessionControlRunLifecycleTestLayer(databasePath: string) {
     Effect.gen(function* () {
       const sql = yield* SqlClientTag
       yield* sql.unsafe('CREATE TABLE sessions (id TEXT PRIMARY KEY, project_path TEXT)')
+      yield* sql.unsafe(`CREATE TABLE settings_store (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )`)
       for (const statement of SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS) {
         yield* sql.unsafe(statement)
       }

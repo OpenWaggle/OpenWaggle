@@ -16,9 +16,17 @@ interface BenchmarkLimits {
   readonly warmP95Ms: number
 }
 
+export function sessionDiscoveryDatabaseSizePassed(
+  sizeMb: number,
+  mode: ReturnType<typeof sessionDiscoveryBenchmarkMode>,
+) {
+  return Number.isFinite(sizeMb) && sizeMb >= 0 && sizeMb < mode.databaseSizeLimitMb
+}
+
 export function sessionDiscoveryBenchmarkPassed(input: {
   readonly mode: ReturnType<typeof sessionDiscoveryBenchmarkMode>
   readonly corpus: ReturnType<typeof sessionDiscoveryBenchmarkCounts>
+  readonly databaseSizeMb: number
   readonly cutoverMs: number
   readonly backfills: Awaited<ReturnType<typeof benchmarkSessionDiscoveryBackfills>>
   readonly commonTermIncremental: Awaited<
@@ -49,6 +57,7 @@ export function sessionDiscoveryBenchmarkPassed(input: {
       input.corpus.discoveryEmbeddings === expectedDiscoveryEmbeddings &&
       input.corpus.discoveryEmbeddingQueue === 0 &&
       input.corpus.activeBranchMessages === targetMessages,
+    sessionDiscoveryDatabaseSizePassed(input.databaseSizeMb, input.mode),
     input.cutoverMs < input.mode.cutoverLimitMs &&
       input.backfills.discovery.elapsedMs < input.mode.discoveryBackfillLimitMs,
     input.backfills.discovery.prepared === expectedDiscoveryEmbeddings &&

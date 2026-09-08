@@ -207,9 +207,10 @@ export class OpenWaggleOAuthProvider implements OAuthClientProvider {
   }
 
   async assertCallbackState(received: string | null) {
-    const expected = (await this.read()).state
+    const expected = this.authorizationState
     if (!expected || !received || !constantTimeEqual(expected, received)) {
       throw new Error('MCP OAuth callback state did not match the authorization request.')
     }
+    this.authorizationState = undefined
   }
 }

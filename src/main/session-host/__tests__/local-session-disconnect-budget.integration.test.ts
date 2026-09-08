@@ -33,7 +33,7 @@ describe('Local Session disconnected dispatch budget', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion,
       }),
@@ -66,7 +66,7 @@ describe('Local Session disconnected dispatch budget', () => {
       dispatch,
     })
     const first = await connect(endpoint, 'retained-command')
-    await expect(first.reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(first.reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
     first.socket.write(command)
     await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce())
     const firstClosed = new Promise<void>((resolve) => first.socket.once('close', resolve))
@@ -82,6 +82,6 @@ describe('Local Session disconnected dispatch budget', () => {
     releaseDispatch?.()
     await new Promise<void>((resolve) => setImmediate(resolve))
     const admitted = await connect(endpoint, 'budget-released-after-dispatch')
-    await expect(admitted.reader.next()).resolves.toMatchObject({ accepted: true, revision: 2 })
+    await expect(admitted.reader.next()).resolves.toMatchObject({ accepted: true, revision: 7 })
   })
 })

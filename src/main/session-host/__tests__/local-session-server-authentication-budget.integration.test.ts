@@ -32,7 +32,7 @@ describe('Local Session authentication budget', () => {
     socket.write(
       encodeLocalSessionFrame({
         protocol: 'openwaggle-local-session',
-        supportedRevisions: [2],
+        supportedRevisions: [7],
         clientKind: 'cli',
         clientVersion: 'authentication-throttle',
         profile,
@@ -79,7 +79,7 @@ describe('Local Session authentication budget', () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     await expect(attempt(endpoint, 'worker')).resolves.toMatchObject({
       accepted: true,
-      revision: 2,
+      revision: 7,
     })
     expect(authenticate).toHaveBeenCalledTimes(2)
   })
@@ -111,7 +111,7 @@ describe('Local Session authentication budget', () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     await expect(attempt(endpoint, 'worker')).resolves.toMatchObject({
       accepted: true,
-      revision: 2,
+      revision: 7,
     })
     expect(authenticate).toHaveBeenCalledTimes(3)
   })

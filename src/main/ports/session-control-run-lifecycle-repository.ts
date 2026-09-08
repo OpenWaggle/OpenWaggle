@@ -17,7 +17,12 @@ export type SessionControlRunActivationResult =
     }
   | {
       readonly accepted: false
-      readonly code: 'run_not_starting' | 'run_not_active' | 'run_changed'
+      readonly code:
+        | 'run_not_starting'
+        | 'run_not_active'
+        | 'run_changed'
+        | 'parent_concurrency_limit_reached'
+        | 'host_run_ceiling_reached'
     }
 
 export type SessionControlRunSettlementResult =
@@ -54,12 +59,14 @@ export interface SessionControlRunLifecycleRepositoryShape {
     readonly sessionId: SessionId
     readonly runId: RunId
     readonly intent: SessionControlIntentSnapshot
+    readonly hostRunCeiling?: number
   }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
   readonly replaceWithExternal?: (input: {
     readonly sessionId: SessionId
     readonly previousRunId?: RunId
     readonly runId: RunId
     readonly intent: SessionControlIntentSnapshot
+    readonly hostRunCeiling?: number
   }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
   readonly activate: (input: {
     readonly sessionId: SessionId

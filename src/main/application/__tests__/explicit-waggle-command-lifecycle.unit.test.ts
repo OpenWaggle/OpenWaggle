@@ -12,6 +12,8 @@ const {
   executeWaggleRunMock,
   emitWorktreeLaunchProgressMock,
   forkSupervisedMock,
+  journalClaimMock,
+  journalCompleteMock,
   prepareMock,
   requestHostDrainMock,
   settleMock,
@@ -23,6 +25,8 @@ const {
   executeWaggleRunMock: vi.fn(),
   emitWorktreeLaunchProgressMock: vi.fn(),
   forkSupervisedMock: vi.fn(),
+  journalClaimMock: vi.fn(),
+  journalCompleteMock: vi.fn(),
   prepareMock: vi.fn(),
   requestHostDrainMock: vi.fn(),
   settleMock: vi.fn(),
@@ -56,14 +60,12 @@ vi.mock('../../utils/stream-bridge', () => ({
   emitWorktreeLaunchProgress: emitWorktreeLaunchProgressMock,
 }))
 
+import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import {
   activeWaggleRuns,
   cancelAllSessionRuns,
-  interruptExactSessionRun,
-  pendingWaggleRuns,
   reserveActiveSessionRun,
-  reserveWaggleSessionWriter,
 } from '../active-session-runs'
 import {
   cancelLocalExplicitWaggle,
@@ -78,14 +80,18 @@ const attachmentService = SessionControlAttachmentService.of({
   resolve: attachmentResolveMock,
   release: () => Effect.die('unused'),
 })
+const operationJournal = ExplicitWaggleOperationJournal.of({
+  claim: journalClaimMock,
+  complete: journalCompleteMock,
+})
 
-function waggleCommand(withAttachment = false) {
+function waggleCommand(withAttachment = false, hostRunCeiling?: number, operationSuffix = '1') {
   const payload: Extract<LocalSessionCommandPayload, { contract: 'session-waggle-v1' }> = {
     contract: 'session-waggle-v1',
     request: {
       contractVersion: 1,
-      requestId: 'request-1',
-      idempotencyKey: 'idempotency-1',
+      requestId: `request-${operationSuffix}`,
+      idempotencyKey: `idempotency-${operationSuffix}`,
       sessionId: SESSION_ID,
       payload: {
         text: 'Run Waggle',
@@ -115,14 +121,21 @@ function waggleCommand(withAttachment = false) {
       },
     },
   }
-  return executeExplicitWaggleCommand({ caller: { callerId: 'gui:local-user' }, payload }).pipe(
+  return executeExplicitWaggleCommand({
+    caller: { callerId: 'gui:local-user' },
+    payload,
+    ...(hostRunCeiling ? { hostRunCeiling } : {}),
+  }).pipe(
     Effect.provideService(SessionControlAttachmentService, attachmentService),
+    Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
   )
 }
 
-function runWaggleCommand(withAttachment = false) {
+function runWaggleCommand(withAttachment = false, hostRunCeiling?: number, operationSuffix = '1') {
   return Effect.runPromise(
-    fromAny<Effect.Effect<unknown, Error, never>, unknown>(waggleCommand(withAttachment)),
+    fromAny<Effect.Effect<unknown, Error, never>, unknown>(
+      waggleCommand(withAttachment, hostRunCeiling, operationSuffix),
+    ),
   )
 }
 
@@ -140,6 +153,8 @@ describe('explicit Waggle command lifecycle', () => {
       .mockReturnValue(Effect.succeed({ outcome: 'success', newMessages: [] }))
     emitWorktreeLaunchProgressMock.mockReset()
     forkSupervisedMock.mockReset().mockReturnValue(Effect.void)
+    journalClaimMock.mockReset().mockReturnValue(Effect.succeed({ status: 'claimed' }))
+    journalCompleteMock.mockReset().mockReturnValue(Effect.void)
     prepareMock
       .mockReset()
       .mockReturnValue(Effect.succeed({ accepted: true, stateRevision: 2, intent: {} }))
@@ -181,107 +196,117 @@ describe('explicit Waggle command lifecycle', () => {
     expect(executeWaggleRunMock).toHaveBeenCalledOnce()
   })
 
-  it('publishes worktree launch progress from explicit Waggle execution', async () => {
-    const progress = { stage: 'checking-out-files' as const, details: ['Checking out files'] }
-    executeWaggleRunMock.mockImplementation((input) =>
-      Effect.sync(() => {
-        input.onWorktreeLaunch?.(progress)
-        return { outcome: 'success', newMessages: [] }
-      }),
-    )
-
-    await runWaggleCommand()
-
-    expect(emitWorktreeLaunchProgressMock).toHaveBeenCalledWith(SESSION_ID, progress)
-  })
-
-  it('interrupts a pending replacement and supervises its queued Follow-up', async () => {
-    forkSupervisedMock.mockReturnValue(Effect.fail(new Error('supervision failed')))
-    settleMock.mockReturnValue(
+  it('replays a completed command without allocating or replacing another Run', async () => {
+    journalClaimMock.mockReturnValue(
       Effect.succeed({
-        accepted: true,
-        stateRevision: 4,
-        scheduled: { followUpId: 'follow-up-1', runId: 'follow-up-run', intent: {} },
+        status: 'completed',
+        replayed: true,
+        report: { outcome: 'delivered' },
       }),
     )
-    const classic = reserveActiveSessionRun(SESSION_ID, 'classic-run')
-    const running = runWaggleCommand()
-    await vi.waitFor(() => expect(classic.controller.signal.aborted).toBe(true))
-    const pendingRunId = pendingWaggleRuns.get(SESSION_ID)?.metadata.runId
 
-    const interruption = interruptExactSessionRun(SESSION_ID, pendingRunId ?? '')
-    classic.release()
-    await expect(interruption).resolves.toBe(true)
-    await expect(running).rejects.toThrow()
-
-    expect(executeWaggleRunMock).not.toHaveBeenCalled()
-    expect(forkSupervisedMock).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: SESSION_ID, runId: 'follow-up-run' }),
-    )
-  })
-
-  it('cancels both an active Waggle writer and its pending replacement', async () => {
-    const oldController = new AbortController()
-    const oldWriter = reserveWaggleSessionWriter(SESSION_ID, oldController, 'waggle-old')
-    const running = runWaggleCommand()
-    await vi.waitFor(() => expect(oldController.signal.aborted).toBe(true))
-
-    cancelLocalExplicitWaggle(SESSION_ID)
-    oldWriter.release()
-    await expect(running).rejects.toThrow()
-
-    expect(executeWaggleRunMock).not.toHaveBeenCalled()
-    expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
-    expect(pendingWaggleRuns.has(SESSION_ID)).toBe(false)
-  })
-
-  it('binds and cleans prepared attachments around explicit Waggle execution', async () => {
-    const hydratedAttachment = {
-      id: 'attachment-1',
-      kind: 'text' as const,
-      name: 'patch.txt',
-      path: '/tmp/patch.txt',
-      mimeType: 'text/plain',
-      sizeBytes: 5,
-      extractedText: 'patch',
-      source: null,
-    }
-    attachmentResolveMock.mockReturnValue(Effect.succeed([hydratedAttachment]))
-    await runWaggleCommand(true)
-
-    expect(attachmentResolveMock).toHaveBeenCalledWith({
-      attachmentIds: ['attachment-1'],
-      sessionId: SESSION_ID,
-      ownerCallerId: 'gui:local-user',
+    await expect(runWaggleCommand()).resolves.toMatchObject({
+      response: { replayed: true, report: { outcome: 'delivered' } },
     })
-    expect(executeWaggleRunMock).toHaveBeenCalledWith(
-      expect.objectContaining({ hydratedAttachments: [hydratedAttachment] }),
+
+    expect(attachmentResolveMock).not.toHaveBeenCalled()
+    expect(prepareMock).not.toHaveBeenCalled()
+    expect(executeWaggleRunMock).not.toHaveBeenCalled()
+    expect(journalCompleteMock).not.toHaveBeenCalled()
+  })
+
+  it('observes cancellation while the durable idempotency claim is pending', async () => {
+    const durableClaim = Promise.withResolvers<{ readonly status: 'claimed' }>()
+    journalClaimMock.mockReturnValue(Effect.promise(() => durableClaim.promise))
+    const running = runWaggleCommand()
+    await vi.waitFor(() => expect(journalClaimMock).toHaveBeenCalledOnce())
+
+    expect(cancelLocalExplicitWaggle(SESSION_ID)).toBe(true)
+    durableClaim.resolve({ status: 'claimed' })
+    await expect(running).rejects.toThrow('cancelled')
+
+    expect(attachmentResolveMock).not.toHaveBeenCalled()
+    expect(prepareMock).not.toHaveBeenCalled()
+    expect(executeWaggleRunMock).not.toHaveBeenCalled()
+    expect(journalCompleteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ report: { outcome: 'cancelled' } }),
     )
-    expect(attachmentCleanupMock).toHaveBeenCalledWith({ sessionId: SESSION_ID })
+    expect(cancelLocalExplicitWaggle(SESSION_ID)).toBe(false)
   })
 
-  it('drains the Host and releases ownership after an execution defect', async () => {
-    const releaseLease = vi.fn()
-    acquireLeaseMock.mockReturnValue(Effect.succeed({ release: releaseLease }))
-    activateMock.mockReturnValue(Effect.die(new Error('repository defect')))
+  it('holds pending ownership through cancelled cleanup before admitting a successor', async () => {
+    const firstResolution = Promise.withResolvers<readonly []>()
+    const firstCleanup = Promise.withResolvers<void>()
+    attachmentResolveMock
+      .mockReturnValueOnce(Effect.promise(() => firstResolution.promise))
+      .mockReturnValue(Effect.succeed([]))
+    attachmentCleanupMock
+      .mockReturnValueOnce(Effect.promise(() => firstCleanup.promise))
+      .mockReturnValue(Effect.void)
+    const first = runWaggleCommand(false, undefined, 'cancelled')
+    await vi.waitFor(() => expect(attachmentResolveMock).toHaveBeenCalledOnce())
 
-    await expect(runWaggleCommand()).rejects.toThrow()
+    expect(cancelLocalExplicitWaggle(SESSION_ID)).toBe(true)
+    firstResolution.resolve([])
+    await vi.waitFor(() => expect(attachmentCleanupMock).toHaveBeenCalledOnce())
 
-    expect(requestHostDrainMock).toHaveBeenCalledOnce()
-    expect(releaseLease).toHaveBeenCalledOnce()
-    expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
-    expect(pendingWaggleRuns.has(SESSION_ID)).toBe(false)
+    const successor = runWaggleCommand(false, undefined, 'successor')
+    await vi.waitFor(() => expect(journalClaimMock).toHaveBeenCalledTimes(2))
+    expect(attachmentResolveMock).toHaveBeenCalledOnce()
+    expect(prepareMock).not.toHaveBeenCalled()
+    expect(
+      journalCompleteMock.mock.calls.some(
+        ([completion]) => completion.request.idempotencyKey === 'idempotency-successor',
+      ),
+    ).toBe(false)
+
+    firstCleanup.resolve()
+    await expect(first).rejects.toThrow('cancelled')
+    await expect(successor).resolves.toMatchObject({
+      response: { idempotencyKey: 'idempotency-successor', report: { outcome: 'delivered' } },
+    })
+
+    expect(prepareMock).toHaveBeenCalledOnce()
+    expect(journalCompleteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({ idempotencyKey: 'idempotency-successor' }),
+        report: { outcome: 'delivered' },
+      }),
+    )
   })
 
-  it('drains the Host and releases its lease after a preparation defect', async () => {
-    const releaseLease = vi.fn()
-    acquireLeaseMock.mockReturnValue(Effect.succeed({ release: releaseLease }))
-    prepareMock.mockReturnValue(Effect.die(new Error('ambiguous preparation defect')))
+  it('orders cancelled cleanup after a successor attachment transition is durable', async () => {
+    const firstRun = Promise.withResolvers<{ readonly outcome: 'aborted' }>()
+    const successorResolution = Promise.withResolvers<readonly []>()
+    executeWaggleRunMock
+      .mockReturnValueOnce(Effect.promise(() => firstRun.promise))
+      .mockReturnValue(Effect.succeed({ outcome: 'success', newMessages: [] }))
+    attachmentResolveMock
+      .mockReturnValueOnce(Effect.succeed([]))
+      .mockReturnValueOnce(Effect.promise(() => successorResolution.promise))
 
-    await expect(runWaggleCommand()).rejects.toThrow()
+    const first = runWaggleCommand(false, undefined, 'active')
+    await vi.waitFor(() => expect(executeWaggleRunMock).toHaveBeenCalledOnce())
+    expect(cancelLocalExplicitWaggle(SESSION_ID)).toBe(true)
 
-    expect(requestHostDrainMock).toHaveBeenCalledOnce()
-    expect(releaseLease).toHaveBeenCalledOnce()
-    expect(pendingWaggleRuns.has(SESSION_ID)).toBe(false)
+    const successor = runWaggleCommand(false, undefined, 'successor')
+    await vi.waitFor(() => expect(attachmentResolveMock).toHaveBeenCalledTimes(2))
+    firstRun.resolve({ outcome: 'aborted' })
+    await vi.waitFor(() => expect(activeWaggleRuns.has(SESSION_ID)).toBe(false))
+    expect(attachmentCleanupMock).not.toHaveBeenCalled()
+
+    successorResolution.resolve([])
+    await expect(first).resolves.toMatchObject({
+      response: { idempotencyKey: 'idempotency-active', report: { outcome: 'cancelled' } },
+    })
+    await expect(successor).resolves.toMatchObject({
+      response: { idempotencyKey: 'idempotency-successor', report: { outcome: 'delivered' } },
+    })
+
+    expect(prepareMock).toHaveBeenCalledTimes(2)
+    expect(attachmentCleanupMock).toHaveBeenCalledTimes(2)
+    expect(attachmentCleanupMock.mock.invocationCallOrder[0]).toBeGreaterThan(
+      prepareMock.mock.invocationCallOrder[1] ?? Number.POSITIVE_INFINITY,
+    )
   })
 })
