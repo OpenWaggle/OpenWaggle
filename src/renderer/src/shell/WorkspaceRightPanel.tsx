@@ -116,7 +116,6 @@ function useWorkspaceRightPanelModel() {
   const { activeSession } = useChat()
   const { projectPath } = useProject()
   const owner = terminalOwnerContext(activeSession, projectPath)
-  useBrowserPreviewOwnerRegistration(owner.ownerKey)
   const sidePanelKey = terminalSidePanelLayoutKey(owner.ownerKey)
   const sideGroup = useTerminalStore((state) => state.groups[sidePanelKey])
   const hasTerminal = hasOpenTerminalGroup(sideGroup)
@@ -219,9 +218,7 @@ function useCurrentBrowserPreview(
     tabs.some((tab) => tab.id === selectedSurface.previewId && tab.kind === 'preview')
       ? selectedSurface.previewId
       : null
-  useEffect(() => {
-    void api.setCurrentBrowserPreview(ownerKey, selectedPreviewId).catch(() => undefined)
-  }, [ownerKey, selectedPreviewId])
+  useBrowserPreviewOwnerRegistration(ownerKey, selectedPreviewId)
 }
 
 function useCoordinatedWorkspaceSurface(

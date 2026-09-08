@@ -17,6 +17,12 @@ const mocks = getTerminalPaneMocks()
 describe('TerminalPane lifecycle and visible actions', () => {
   beforeEach(resetTerminalPaneHarness)
 
+  it('fits the viewport during mount without starting the PTY before stable geometry', () => {
+    renderPane()
+    expect(mocks.fitTerminal).toHaveBeenCalledOnce()
+    expect(mocks.openTerminal).not.toHaveBeenCalled()
+  })
+
   it('replays attach history into the terminal', async () => {
     mocks.openTerminal.mockResolvedValue({
       history: 'replay-text',

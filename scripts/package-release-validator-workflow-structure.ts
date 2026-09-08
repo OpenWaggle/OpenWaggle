@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const EMPTY_COUNT = 0
-const CI_WORKFLOW_AST_CONTRACT = '600c10be72bce9aae48b417ad2deb94566009b66742d406c684ae2b18e117869'
+const CI_WORKFLOW_AST_CONTRACT = '7027fd8112ec4fd6414069f99f029ac23acf69161e83bd4cff3fbf09f52edc2a'
 
 export interface WorkflowActionUse {
   readonly ref?: string

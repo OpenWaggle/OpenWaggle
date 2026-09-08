@@ -34,6 +34,16 @@ describe('release CI policy', () => {
     }
   })
 
+  it.each([
+    '            sudo chown root -- "$insecure_path"\n',
+    '            sudo chmod go-w -- "$insecure_path"\n',
+    "          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'\n",
+  ])('requires secure completion directories and a successful final audit: %s', (command) => {
+    expect(compliantWorkflow.split(command)).toHaveLength(3)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(command, ''))).not.toEqual([])
+    expect(validateReleaseCiPolicy(compliantWorkflow.replaceAll(command, ''))).not.toEqual([])
+  })
+
   it('rejects a workflow that skips release commits or omits dispatched-ref checkout', () => {
     const violations = validateReleaseCiPolicy(
       compliantWorkflow

@@ -258,6 +258,13 @@ export function ensureBrowserPreviewOwnerRegistered(ownerKey: string): Promise<v
   return registration
 }
 
+export function hasPendingBrowserPreviewOwnerWork(ownerKey: string) {
+  return (
+    ownerQueues.has(ownerKey) ||
+    [...operationByRequestId.values()].some((operation) => operation.request.ownerKey === ownerKey)
+  )
+}
+
 export async function unregisterBrowserPreviewOwner(ownerKey: string): Promise<void> {
   if (ownerKey.length === 0) return
   registeredOwnerKeys.delete(ownerKey)

@@ -8,6 +8,7 @@ import { isRebuildMode, type RebuildMode } from './native-rebuild-cache'
 
 const MODE_ARG_INDEX = 2
 const MODULE_ROOT_ARG_INDEX = 3
+const CONSOLE_EXECUTABLE_ARG_INDEX = 4
 const localRequire = createRequire(import.meta.url)
 
 type DatabaseConstructor = new (filename: string) => unknown
@@ -98,9 +99,14 @@ export async function assertNativeModulesLoad(
 async function main() {
   const mode = process.argv[MODE_ARG_INDEX]
   if (!isRebuildMode(mode)) {
-    throw new Error('Usage: native-load-probe.ts <node|electron> [module-root]')
+    throw new Error('Usage: native-load-probe.ts <node|electron> [module-root] [console-executable]')
   }
-  await assertNativeModulesLoad(mode, moduleLoader(process.argv[MODULE_ROOT_ARG_INDEX]))
+  await assertNativeModulesLoad(
+    mode,
+    moduleLoader(process.argv[MODULE_ROOT_ARG_INDEX]),
+    process.platform,
+    process.argv[CONSOLE_EXECUTABLE_ARG_INDEX] ?? process.execPath,
+  )
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

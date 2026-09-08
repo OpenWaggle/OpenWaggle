@@ -42,6 +42,7 @@ describe('packaged app smoke', () => {
         '/workspace/scripts/native-load-probe.ts',
         'electron',
         '/release/OpenWaggle.app/Contents/Resources/app.asar',
+        process.execPath,
       ],
     })
     expect(

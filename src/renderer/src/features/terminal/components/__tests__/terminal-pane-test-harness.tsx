@@ -38,6 +38,7 @@ type SearchAddonMethod = 'clearDecorations' | 'dispose' | 'findNext' | 'findPrev
 type SearchAddonInstanceMock = Record<SearchAddonMethod, Mock>
 
 interface TerminalPaneMocks {
+  readonly fitTerminal: Mock
   readonly terminalInstances: TerminalInstanceMock[]
   readonly searchAddonInstances: SearchAddonInstanceMock[]
   readonly getEventHandler: () => ((payload: TerminalEventPayload) => void) | null
@@ -78,6 +79,7 @@ const mocks: TerminalPaneMocks = vi.hoisted(() => {
   let selectionHandler: (() => void) | null = null
   let selection = ''
   return {
+    fitTerminal: vi.fn(),
     terminalInstances,
     searchAddonInstances,
     getEventHandler: () => eventHandler,
@@ -127,9 +129,7 @@ const mocks: TerminalPaneMocks = vi.hoisted(() => {
   }
 })
 
-export function getTerminalPaneMocks(): typeof mocks {
-  return mocks
-}
+export const getTerminalPaneMocks = () => mocks
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -207,7 +207,7 @@ vi.mock('@xterm/xterm', () => ({
 
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
-    fit() {}
+    fit = mocks.fitTerminal
     dispose() {}
   },
 }))

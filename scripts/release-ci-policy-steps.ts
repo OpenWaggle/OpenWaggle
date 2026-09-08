@@ -143,11 +143,23 @@ const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration
         run: |
           sudo apt-get update
           sudo apt-get install --yes zsh
-          /bin/zsh --version`
+          /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
 const LINUX_E2E_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
         run: |
           sudo apt-get install --yes zsh
-          /bin/zsh --version`
+          /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
 /*
  * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release

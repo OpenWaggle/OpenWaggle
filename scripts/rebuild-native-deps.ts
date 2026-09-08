@@ -236,7 +236,9 @@ export function nativeLoadProbeCommandForMode(
       }
     : {
         command: electronExecutablePath(projectRoot, platform),
-        args: ['--import', 'tsx', probeScriptPath, mode],
+        // Load the addon in Electron, but exercise a console executable inside
+        // the PTY. Windows Electron is a GUI binary, even in RunAsNode mode.
+        args: ['--import', 'tsx', probeScriptPath, mode, projectRoot, nodeExecutable],
         environment: suppressDependencyDeprecationWarnings({ ELECTRON_RUN_AS_NODE: '1' }),
       }
 }
@@ -319,12 +321,8 @@ async function rebuildNativeDependencies(options: RebuildOptions) {
   await writeNativeRebuildMarker(NATIVE_REBUILD_CACHE_PATHS, plan)
 }
 
-async function main() {
-  await rebuildNativeDependencies(parseRebuildOptions())
-}
-
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main().catch((error) => {
+  void rebuildNativeDependencies(parseRebuildOptions()).catch((error) => {
     console.error(errorMessage(error))
     process.exitCode = 1
   })

@@ -41,6 +41,9 @@ export function createTerminalViewport(options: TerminalViewportOptions) {
   term.loadAddon(fitAddon)
   term.loadAddon(searchAddon)
   term.open(options.container)
+  // Size the first paint now; the geometry controller still requires two
+  // stable frames before spawning the PTY and handles subsequent resizes.
+  fitAddon.fit()
   const linkProvider = term.registerLinkProvider(
     createTerminalLinkProvider({
       buffer: term.buffer,

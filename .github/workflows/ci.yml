@@ -181,6 +181,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes zsh
           /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'
 
       - run: pnpm test:integration && pnpm test:component
 
@@ -361,6 +367,12 @@ jobs:
         run: |
           sudo apt-get install --yes zsh
           /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'
 
       - run: xvfb-run --auto-servernum pnpm test:e2e:functional
 

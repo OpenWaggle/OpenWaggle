@@ -3,6 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
+import { captureTerminalPresentation } from './support/terminal-presentation'
 import {
   runTerminalPaneUsableGate,
   runTerminalReadyKeyDispatchGate,
@@ -21,6 +22,7 @@ function platformFloodShell(): TerminalFloodShell {
 test('terminal meets ready-key, pane-usability, flood, and active-restart release gates', async () => {
   test.setTimeout(240_000)
   const app = await OpenWaggleApp.launch('openwaggle-terminal-performance-e2e-')
+  let stopPresentation = async () => {}
 
   try {
     const projectPath = path.join(app.userDataDir, PROJECT_LABEL)
@@ -39,6 +41,7 @@ test('terminal meets ready-key, pane-usability, flood, and active-restart releas
       ],
     })
     await app.restart()
+    stopPresentation = await captureTerminalPresentation(app.electronApplication())
 
     const page = app.window()
     const mainWindow = app.mainWindow()
@@ -97,6 +100,10 @@ test('terminal meets ready-key, pane-usability, flood, and active-restart releas
       console.info(`[terminal-performance] fallback geometry ${flood.fallbackGeometry}`)
     }
   } finally {
-    await app.cleanup()
+    try {
+      await stopPresentation()
+    } finally {
+      await app.cleanup()
+    }
   }
 })

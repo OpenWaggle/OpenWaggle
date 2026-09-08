@@ -440,6 +440,14 @@ New settings must join `CURRENT_SETTINGS_KEYS` as well as the shared update sche
 
 Linux terminal integration and E2E jobs explicitly install zsh. Shell-specific PTY tests assert the selected shell because the production fallback chain can otherwise exercise Bash while a test claims to cover zsh startup files. CI step changes also need the exact step contract and workflow AST hash updated without weakening the existing required gates.
 
+GitHub's Linux runner completion directories can fail `compaudit`, leaving interactive zsh blocked on a trust question. Repair ownership/write permissions only on audited paths in disposable CI runners, then require a clean audit. Do not bypass the user's completion security check in production.
+
+Electron native-addon probes load the addon in Electron but pass the invoking console Node executable for the PTY child. On Windows, an Electron RunAsNode child reached JavaScript with neither stdin nor stdout attached as a TTY, producing no ConPTY output. The console child preserves the identity, I/O, containment, drain, and final-output assertions across all three Windows backends.
+
+Browser owner registrations are leases, not navigation history. Release idle owners before allocating the next binding; retain owners with previews, pending materialization, or active agent runs. Serialize unregister/register so a rapid A→B→A navigation cannot unregister the new A binding, and publish selected-preview intent only after registration succeeds. A real-Electron regression visits 70 sessions without reloading the renderer or exhausting the 64-owner limit.
+
+Hidden Linux compositor timing is separate from background timer throttling. Even with `getBackgroundThrottling() === false`, the full app produced roughly 1,016 ms animation-frame intervals under Xvfb. A native presentation subscription restored roughly 16 ms frames, including after idle. Terminal performance QA owns and disposes that subscription; it never replaces animation callbacks, reveals a window, or relaxes budgets. Fit the initial xterm viewport synchronously after `open()` so its first paint is correctly sized; retain the two-frame geometry gate before PTY spawn.
+
 On the local macOS host, login-shell probes with long `-c` arguments exited via signal before producing output, including a harmless `printf` followed by a long comment. Keep the allowlisted capture command compact with one loop, not one expanded capture block per variable. The compact probe preserves markers, shell startup, timeout, output bound, and process-tree cleanup. The exact OS-level signal source was not established.
 
 ### Reserved shortcuts have to be declared where the conflict check looks

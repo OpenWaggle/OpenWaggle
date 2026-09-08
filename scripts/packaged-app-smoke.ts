@@ -216,6 +216,7 @@ export function packagedPtyProbeInvocation(
       path.join(projectRoot, 'scripts', 'native-load-probe.ts'),
       'electron',
       asarPath,
+      process.execPath,
     ],
   }
 }
