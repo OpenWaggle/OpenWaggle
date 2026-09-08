@@ -43,8 +43,13 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
     pendingContextKey
 
   useLayoutEffect(() => {
+    const previous = useComposerStore.getState()
+    if (previous.activeDraftContextKey === contextKey) return
+
+    // Lexical batches edits. Commit them through SyncPlugin before taking the draft
+    // snapshot or changing its owner, otherwise hydration can overwrite a pending edit.
+    previous.lexicalEditor?.read(() => undefined)
     const store = useComposerStore.getState()
-    if (store.activeDraftContextKey === contextKey) return
 
     const pendingIsActive = store.activeDraftContextKey === pendingContextKey
     // Hydration assigns an edited pending draft, including an intentionally empty one,

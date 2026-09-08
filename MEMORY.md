@@ -177,6 +177,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.
 - Waggle and standard mode share session, branch, draft, archive, transcript, active-run, composer, settings, diff, and git semantics unless Pi imposes a narrow technical constraint.
 - Composer branch/config changes are branch-scoped; child branches inherit parent config by default.
+- Before changing composer draft ownership, flush pending Lexical updates with `editor.read()` and then read the composer store. Lexical batches edits, so a workspace hydration or session switch can otherwise snapshot stale store text and overwrite the newest edit. Regression coverage must use a real editor with an update pending during hydration, clearing, and session switching, not just direct store writes.
 - Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
