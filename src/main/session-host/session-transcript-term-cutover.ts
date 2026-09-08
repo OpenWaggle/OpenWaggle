@@ -57,6 +57,8 @@ function prepareBatchTables(database: DatabaseSync) {
       previous_occurrences INTEGER NOT NULL,
       PRIMARY KEY (term, session_id)
     ) WITHOUT ROWID;
+    CREATE INDEX temp.idx_session_transcript_cutover_term_groups_session
+      ON ${CUTOVER_TERM_GROUPS_TABLE} (session_id, occurrences);
   `)
 }
 
@@ -199,9 +201,9 @@ function validateBatch(database: DatabaseSync) {
     )
     SELECT 1 AS mismatch
     FROM expected
-    JOIN session_transcript_term_documents AS documents
+    LEFT JOIN session_transcript_term_documents AS documents
       ON documents.session_id = expected.session_id
-    WHERE documents.token_count <> expected.token_count
+    WHERE documents.session_id IS NULL OR documents.token_count <> expected.token_count
     LIMIT 1`,
   )?.mismatch
   if (documentMismatch === 1) {

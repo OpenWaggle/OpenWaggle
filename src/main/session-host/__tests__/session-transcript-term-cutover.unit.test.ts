@@ -1,81 +1,17 @@
-import { DatabaseSync } from 'node:sqlite'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from '../../services/session-host-transcript-term-schema'
+import type { DatabaseSync } from 'node:sqlite'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { populateSessionTranscriptTermCatalog } from '../session-transcript-term-cutover'
-
-function createDatabase() {
-  const database = new DatabaseSync(':memory:')
-  database.exec(`
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE sessions (id TEXT PRIMARY KEY);
-    CREATE TABLE session_nodes (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES sessions(id),
-      created_order INTEGER NOT NULL,
-      kind TEXT NOT NULL,
-      role TEXT,
-      content_json TEXT NOT NULL,
-      metadata_json TEXT NOT NULL
-    );
-    CREATE VIRTUAL TABLE session_node_search USING fts5(
-      session_id UNINDEXED,
-      node_id UNINDEXED,
-      content,
-      tokenize = 'unicode61 remove_diacritics 2'
-    );
-    ${SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS.join(';')};
-    INSERT INTO sessions (id) VALUES ('worker');
-    INSERT INTO session_nodes (
-      id, session_id, created_order, kind, role, content_json, metadata_json
-    ) VALUES
-      ('node-a', 'worker', 1, 'message', 'user',
-        '{"parts":[{"type":"text","text":"Alpha beta alpha"}]}',
-        '{"openWaggle":{"runId":"run-a"}}'),
-      ('node-b', 'worker', 2, 'message', 'assistant',
-        '{"parts":[{"type":"text","text":"beta gamma"}]}', '{}');
-    INSERT INTO session_node_search (session_id, node_id, content) VALUES
-      ('worker', 'node-a', 'Alpha beta alpha'),
-      ('worker', 'node-b', 'beta gamma');
-  `)
-  return database
-}
+import { createTranscriptTermCutoverDatabase } from './session-transcript-term-cutover.test-support'
 
 describe('Session transcript term cutover', () => {
   let database: DatabaseSync
 
   beforeEach(() => {
-    database = createDatabase()
+    database = createTranscriptTermCutoverDatabase()
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     database.close()
-  })
-
-  it('seeks the node cursor instead of rescanning the corpus for each batch', () => {
-    database.exec(`
-      CREATE UNIQUE INDEX idx_session_nodes_session_created_order_unique
-      ON session_nodes (session_id, created_order);
-    `)
-    const prepare = database.prepare.bind(database)
-    const plans: unknown[] = []
-    vi.spyOn(database, 'prepare').mockImplementation((query) => {
-      if (query.includes('WITH candidates AS MATERIALIZED')) {
-        plans.push(...prepare(`EXPLAIN QUERY PLAN ${query}`).all())
-      }
-      return prepare(query)
-    })
-
-    populateSessionTranscriptTermCatalog(database)
-
-    expect(plans).toContainEqual(
-      expect.objectContaining({
-        detail: expect.stringMatching(/^SEARCH nodes USING INDEX .*\(.*session_id/),
-      }),
-    )
-    expect(plans).not.toContainEqual(
-      expect.objectContaining({ detail: expect.stringMatching(/^SCAN nodes\b/) }),
-    )
   })
 
   it('builds and verifies an exact catalog from bounded Session batches', () => {
@@ -264,6 +200,20 @@ describe('Session transcript term cutover', () => {
         occurrences: 1,
         first_node_id: `large-node-${String(index).padStart(3, '0')}`,
       })),
+    )
+  })
+
+  it('rejects a missing Session document before discarding its batch ground truth', () => {
+    database.exec(`
+      CREATE TRIGGER remove_cutover_document AFTER INSERT ON session_transcript_terms
+      WHEN new.term = 'alpha'
+      BEGIN
+        DELETE FROM session_transcript_term_documents WHERE session_id = new.session_id;
+      END;
+    `)
+
+    expect(() => populateSessionTranscriptTermCatalog(database)).toThrow(
+      'Session Host transcript document counts do not match the FTS vocabulary.',
     )
   })
 

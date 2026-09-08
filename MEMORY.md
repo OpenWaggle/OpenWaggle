@@ -471,6 +471,12 @@ Expanding that comparison into OR predicates made SQLite rewind the node index f
 batch, producing quadratic prefix scans. Keep the production-query plan regression requiring an
 indexed seek, along with tied-order and content-byte-boundary traversal coverage.
 
+Batch document validation must start from the requested Session ids and left-join persisted
+documents. An inner join let SQLite scan all 100,000 documents for every 512-node batch; the
+left join also catches missing documents explicitly. Keep a temporary covering index on grouped
+terms `(session_id, occurrences)` so per-Session token totals do not rescan every batch term.
+Production-query plan regressions protect both boundaries without relaxing integrity checks.
+
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
 its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;
