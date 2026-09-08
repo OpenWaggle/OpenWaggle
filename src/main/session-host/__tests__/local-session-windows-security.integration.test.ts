@@ -51,7 +51,10 @@ describe('Windows Local Session user-only admission', () => {
   })
 
   it('fails closed and releases the endpoint when security verification fails', async () => {
-    const endpoint = path.join(temporaryRoot, 'security-failure.sock')
+    const endpoint =
+      process.platform === 'win32'
+        ? `\\\\.\\pipe\\openwaggle-security-failure-${crypto.randomUUID()}`
+        : path.join(temporaryRoot, 'security-failure.sock')
     await expect(
       listenLocalSessionServer(endpoint, {
         ...serverDependencies(),
@@ -66,21 +69,26 @@ describe('Windows Local Session user-only admission', () => {
 
   itWindows('destroys connections accepted before the user-only DACL is verified', async () => {
     const endpoint = `\\\\.\\pipe\\openwaggle-security-gate-${crypto.randomUUID()}`
-    let releaseSecurity: (() => void) | undefined
-    const securityPending = new Promise<void>((resolve) => {
-      releaseSecurity = resolve
-    })
+    const securityEntered = Promise.withResolvers<void>()
+    const securityPending = Promise.withResolvers<void>()
     const starting = listenLocalSessionServer(endpoint, {
       ...serverDependencies(),
-      secureEndpoint: async () => securityPending,
+      secureEndpoint: async () => {
+        securityEntered.resolve()
+        await securityPending.promise
+      },
     })
-    const quarantined = await connect(endpoint)
-    sockets.push(quarantined)
-    await expect(
-      new Promise<void>((resolve) => quarantined.once('close', resolve)),
-    ).resolves.toBeUndefined()
-    releaseSecurity?.()
-    handle = await starting
+    await securityEntered.promise
+    try {
+      const quarantined = await connect(endpoint)
+      sockets.push(quarantined)
+      await expect(
+        new Promise<void>((resolve) => quarantined.once('close', resolve)),
+      ).resolves.toBeUndefined()
+    } finally {
+      securityPending.resolve()
+      handle = await starting
+    }
 
     const admitted = await connectLocalSessionTestClient(endpoint)
     sockets.push(admitted)
