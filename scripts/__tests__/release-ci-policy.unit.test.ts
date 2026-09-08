@@ -25,7 +25,7 @@ describe('release CI policy', () => {
 
   it('rejects removal of the real zsh dependency from either Linux test job', () => {
     const installCommand = '          sudo apt-get install --yes zsh\n'
-    const positions = [...compliantWorkflow.matchAll(/          sudo apt-get install --yes zsh\n/gu)]
+    const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]
     expect(positions).toHaveLength(2)
     for (const match of positions) {
       const index = match.index
