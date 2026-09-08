@@ -1,10 +1,15 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import { createTempProject, fs, path, writeJson } from './pi-provider-catalog.test-utils'
 
 const tempProjects: string[] = []
 
+beforeEach(async () => {
+  vi.stubEnv('PI_CODING_AGENT_DIR', await tempProject())
+})
+
 afterEach(async () => {
+  vi.unstubAllEnvs()
   await Promise.all(
     tempProjects
       .splice(0)

@@ -110,7 +110,7 @@ When OpenWaggle validates image bytes, it stores them in session-owned managed s
 
 Adding a gallery image to the composer reads it through that managed-store boundary and creates a private registered attachment copy. A stored resource path is never handed to the renderer as reusable file authority.
 
-Copy, add-to-chat, and download become available after the current image loads. If the image becomes unavailable, use **Retry image**. A failed remote fetch remains visible as an error and does not silently open the remote URL. Switching sessions while an action is running cancels its result for the old viewer or draft.
+Copy, add-to-chat, and download become available after the current image loads. If the image becomes unavailable or cannot be decoded, use **Retry image** to request a fresh copy. A failed remote fetch remains visible as an error and does not silently open the remote URL. Switching sessions while an action is running cancels its result for the old viewer or draft.
 
 The viewer closes when you change sessions. Its short-lived image and download links are revoked at the same transition, even if the next session never opens the Summary or Resource Browser.
 

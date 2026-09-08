@@ -28,7 +28,6 @@ import {
 } from '../application/agent-loop-interaction-broker'
 import { executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
-import { captureSuccessfulRunResources } from '../application/session-resource-capture'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -52,6 +51,7 @@ import {
   hasAnyActiveRun,
   listActiveCompactions,
 } from './active-agent-runs'
+import { captureRunResultResources } from './agent-run-resources'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
 import { registerAgentSteeringHandler } from './agent-steering-handler'
 import { runAgentRequestedWaggle } from './agent-waggle-handoff'
@@ -128,16 +128,7 @@ function registerAgentRunHandlers() {
             },
           })
 
-          if (result.resourceMessages !== undefined) {
-            yield* captureSuccessfulRunResources({
-              sessionId,
-              runId,
-              payload: validatedPayload,
-              messages: result.resourceMessages,
-              nodeIdByMessageId: result.resourceNodeIds ?? {},
-              branchIdByMessageId: result.resourceBranchIds ?? {},
-            }).pipe(Effect.catchAll(() => Effect.void))
-          }
+          yield* captureRunResultResources(sessionId, runId, validatedPayload, result)
 
           const handoff =
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null

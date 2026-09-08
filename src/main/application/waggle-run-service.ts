@@ -21,7 +21,6 @@ import {
   type WaggleTurnEvent,
 } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
-import { makeErrorInfo } from '../agent/error-classifier'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
 import { createLogger } from '../logger'
 import { type AgentKernelRunControl, AgentKernelService } from '../ports/agent-kernel-service'
@@ -38,7 +37,14 @@ import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-r
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
-import { createWaggleSuccessOutcome, recoverWaggleRunFailure } from './waggle-run/outcome'
+import {
+  createWaggleSuccessOutcome,
+  noInheritedModelOutcome,
+  noProjectOutcome,
+  notFoundOutcome,
+  recoverWaggleRunFailure,
+  validationErrorOutcome,
+} from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
 import { loadPersistedWaggleResourceProvenanceTree } from './waggle-run/resource-provenance'
 import {
@@ -74,39 +80,6 @@ interface PreparedWaggleRun {
   readonly session: SessionDetail
   readonly skillToggles: Record<string, boolean> | undefined
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
-}
-
-function validationErrorOutcome() {
-  return {
-    outcome: 'validation-error' as const,
-    message: 'Invalid Waggle mode configuration',
-    code: 'validation-error',
-  }
-}
-
-function notFoundOutcome() {
-  const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
-  return {
-    outcome: 'not-found' as const,
-    message: errorInfo.userMessage,
-    code: errorInfo.code,
-  }
-}
-
-function noProjectOutcome() {
-  return {
-    outcome: 'no-project' as const,
-    message: 'Please select a project folder before starting Waggle mode.',
-    code: 'no-project',
-  }
-}
-
-function noInheritedModelOutcome() {
-  return {
-    outcome: 'validation-error' as const,
-    message: 'Select a model before starting Waggle mode.',
-    code: 'validation-error',
-  }
 }
 
 function resolveInitialWaggleRuntimeModel(input: {
