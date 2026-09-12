@@ -92,6 +92,9 @@ test('GUI project approvals and preferences persist with a CLI-owned Host', asyn
     expect(
       await page.evaluate((directory) => window.api.getProjectPreferences(directory), projectPath),
     ).toMatchObject({ authorizationMode: 'ask-for-approval' })
+    await page
+      .getByText('This project has no saved approvals. Approvals you keep will appear here.')
+      .scrollIntoViewIfNeeded()
     expect(errors).toEqual([])
     if (app.hidden) expect(await app.desktopState()).toMatchObject({ focused: false, visible: false })
   } finally {

@@ -7,6 +7,21 @@ import {
   type SessionHostOwnership,
 } from '../../../src/main/session-host/session-host-ownership'
 import { prepareQaProfileRemoval } from '../session-host-shutdown'
+import { probeWindowsDetachedHandleIsolation } from './windows-detached-process-probe'
+
+it.runIf(process.platform === 'win32')(
+  'detached Electron authorities do not retain the launching client control pipes',
+  async () => {
+    const result = await probeWindowsDetachedHandleIsolation()
+    expect(result.exited).toBe(true)
+    expect(result.exitCode).toBe(0)
+    expect(result.childStoppedBeforeRelease).toBe(false)
+    expect(result.childAliveAfterParentClose).toBe(true)
+    expect(result.pipesClosedBeforeChildRelease).toBe(true)
+    expect(result.closedPipes).toEqual([0, 1, 2, 3, 4])
+  },
+  90_000,
+)
 
 describe('QA Session Host profile removal', () => {
   let userDataRoot: string | undefined
