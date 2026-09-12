@@ -636,6 +636,12 @@ Unclean GUI ownership and orphan active Host mutation fences remain in doubt, no
 prove an old filesystem mutation settled. Browser screenshots become composer attachments only
 after Host preparation returns a durable capability, including immutable bytes/context/provenance.
 
+Desktop shutdown needs both a fresh post-drain fence snapshot and the in-flight poll to settle.
+Two normal five-second polls exhausted Electron's ten-second quit budget and quarantined the next
+GUI after forced cleanup. Keep normal polls at five seconds, but pace draining polls at 100 ms.
+The real broker/bridge regression verifies prompt idle shutdown and that active fences still block
+the clean receipt. Shortened mock polls alone did not expose this integration failure.
+
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
 its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;
