@@ -159,7 +159,15 @@ export function captureBackfilledAssistantResources(
         workingPath,
         state: toolState,
       })
-      if (!groups) continue
+      if (!groups) {
+        // A deferred metadata write must not renumber later persisted image/link occurrences.
+        for (const group of toolResultOutputGroups(part.toolResult)) {
+          const deferred = collectExplicitResources(group.result)
+          imageIndex += deferred.images.length
+          linkIndex += deferred.links.length
+        }
+        continue
+      }
       for (const group of groups) {
         const captured = collectExplicitResources(group.result)
         for (const image of captured.images) {

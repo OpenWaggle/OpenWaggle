@@ -173,6 +173,19 @@ export function sessionResourceTestLayer(
               ),
             ),
           ),
+        findByOccurrences: (_sessionId, selectors) =>
+          Effect.succeed(
+            (options.listedResources ?? []).flatMap((resource) => {
+              const occurrences = resource.occurrences.filter((occurrence) =>
+                selectors.some((selector) =>
+                  selector.prefix
+                    ? occurrence.id.startsWith(selector.value)
+                    : occurrence.id === selector.value,
+                ),
+              )
+              return occurrences.length > 0 ? [{ ...resource, occurrences }] : []
+            }),
+          ),
         listByNodeIds: (_sessionId, nodeIds, kind, limit) =>
           Effect.succeed(
             (options.listedResources ?? [])

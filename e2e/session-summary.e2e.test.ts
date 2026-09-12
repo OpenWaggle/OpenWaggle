@@ -435,6 +435,14 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await summary.getByRole('button', { name: 'Branch: main' }).click()
     await expect(page.getByRole('dialog', { name: 'Choose a session branch' })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Search branches' })).toBeVisible()
+    await page.getByRole('textbox', { name: 'Search branches' }).fill('summary-menu-hit-test')
+    for (const name of ['Create summary-menu-hit-test', 'Copy branch name']) {
+      await expect.poll(() => page.getByRole('button', { name, exact: true }).evaluate((button) => {
+        const rect = button.getBoundingClientRect()
+        return button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+      })).toBe(true)
+    }
+    await app.captureEvidence('session-summary-branch-menu-unclipped')
     await page.keyboard.press('Escape')
 
     await summary.getByRole('button', { name: 'Environment actions' }).click()
@@ -534,6 +542,12 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
       (element) => element.getBoundingClientRect().width,
     )
     expect(Math.abs(narrowTranscriptWidth - narrowOverlayTranscriptWidth)).toBeLessThan(1)
+
+    await summary.getByRole('button', { name: 'Environment actions' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Open working folder' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('menuitem', { name: 'Open working folder' })).toHaveCount(0)
+    await expect(summary).toBeVisible()
 
     await summary.getByRole('button', { name: /Changes/ }).click()
     await expect(summary).toHaveCount(0)
@@ -657,11 +671,19 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
     await page.keyboard.press('Escape')
 
+    await app.resizeMainWindow(720, 700)
     await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await summary.getByRole('button', { name: /Sources/ }).click()
     await summary.getByRole('button', { name: 'user-reference.png' }).click()
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toBeVisible()
+    await page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })
+      .getByRole('button', { name: 'Zoom in', exact: true }).click()
+    await app.captureEvidence('session-summary-narrow-image-overlay')
     await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toHaveCount(0)
+    await expect(summary).toBeVisible()
+    await app.resizeMainWindow(1_800, 800)
+    await expect(summary).toBeVisible()
     await summary.locator('#session-summary-section-sources').getByRole('button', { name: 'Show all' }).click()
 
     const resources = page.getByRole('region', { name: 'Session resources' })
@@ -684,9 +706,26 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(viewer.getByLabel('Image provenance')).toContainText(
       'Source · Provided by you · Branch main',
     )
+    const imageCanvas = viewer.getByLabel('Image canvas')
+    // Exercise the production Electron listener, where React's passive wheel handler cannot
+    // prevent the browser's default zoom. The canvas must consume only modifier-wheel gestures.
+    const pinchCancelled = await imageCanvas.evaluate((element) => {
+      const event = new WheelEvent('wheel', {
+        bubbles: true, cancelable: true, ctrlKey: true, deltaY: -100,
+      })
+      element.dispatchEvent(event)
+      return event.defaultPrevented
+    })
+    expect(pinchCancelled).toBe(true)
+    await expect(viewer.getByLabel('Image zoom', { exact: true })).toHaveValue('100')
+    const ordinaryScrollCancelled = await imageCanvas.evaluate((element) => {
+      const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100 })
+      element.dispatchEvent(event)
+      return event.defaultPrevented
+    })
+    expect(ordinaryScrollCancelled).toBe(false)
     await viewer.getByLabel('Image zoom', { exact: true }).selectOption('200')
     await expect(viewer.getByLabel('Image zoom', { exact: true })).toHaveValue('200')
-    const imageCanvas = viewer.getByLabel('Image canvas')
     await expect
       .poll(() =>
         imageCanvas.evaluate(

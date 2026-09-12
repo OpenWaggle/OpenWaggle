@@ -29,10 +29,6 @@ const ENVIRONMENT_LABEL: Record<SessionEnvironmentMode, string> = {
   worktree: 'Worktree',
 }
 
-async function copyTextToClipboard(value: string) {
-  await navigator.clipboard.writeText(value)
-}
-
 export function SessionEnvironmentRow({
   environmentMode,
   workingPath,
@@ -47,6 +43,7 @@ export function SessionEnvironmentRow({
 
   return (
     <Popover
+      escapeClipping
       open={open}
       onOpenChange={setOpen}
       placement="bottom-end"
@@ -104,6 +101,7 @@ export function SessionEnvironmentActions({
 
   return (
     <Popover
+      escapeClipping
       open={open}
       onOpenChange={setOpen}
       placement="bottom-end"
@@ -161,9 +159,9 @@ export function SessionEnvironmentActions({
             className={DENSE_MENU_ITEM_CLASS}
             onClick={() => {
               setOpen(false)
-              void copyTextToClipboard(workingPath).catch((cause: unknown) =>
-                reportFailure(cause, 'Could not copy the working path.'),
-              )
+              void navigator.clipboard
+                .writeText(workingPath)
+                .catch((cause: unknown) => reportFailure(cause, 'Could not copy the working path.'))
             }}
           >
             <Copy aria-hidden="true" className="size-4 shrink-0" />
@@ -218,6 +216,7 @@ export function SessionBranchRow({
 
   return (
     <Popover
+      escapeClipping
       open={open}
       onOpenChange={changeOpen}
       placement="bottom-end"
@@ -295,7 +294,7 @@ export function SessionBranchRow({
           className={DENSE_MENU_ITEM_CLASS}
           onClick={() => {
             changeOpen(false)
-            void copyTextToClipboard(branch).catch((cause: unknown) => {
+            void navigator.clipboard.writeText(branch).catch((cause: unknown) => {
               showToast(
                 cause instanceof Error ? cause.message : 'Could not copy the branch name.',
                 'error',

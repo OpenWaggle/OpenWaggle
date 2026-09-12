@@ -65,6 +65,47 @@ describe('SessionResourceViewer', () => {
     expect(screen.getByRole('combobox', { name: 'Image zoom' })).toHaveValue('fit')
   })
 
+  it('cancels native modifier-wheel gestures while leaving ordinary scrolling available', async () => {
+    useUIStore.getState().openResourceViewer('session-1', 'image-1')
+    renderViewer('session-1')
+    await screen.findByRole('img', { name: 'first.png' })
+    const canvas = screen.getByLabelText('Image canvas')
+    const pinch = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: -1,
+    })
+
+    fireEvent(canvas, pinch)
+
+    expect(pinch.defaultPrevented).toBe(true)
+    expect(screen.getByRole('combobox', { name: 'Image zoom' })).toHaveValue('100')
+    const scroll = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 1 })
+    fireEvent(canvas, scroll)
+    expect(scroll.defaultPrevented).toBe(false)
+    expect(screen.getByRole('combobox', { name: 'Image zoom' })).toHaveValue('100')
+
+    const metaPinch = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      metaKey: true,
+      deltaY: -1,
+    })
+    fireEvent(canvas, metaPinch)
+    expect(metaPinch.defaultPrevented).toBe(true)
+    expect(screen.getByRole('combobox', { name: 'Image zoom' })).toHaveValue('150')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close image viewer' }))
+    const afterClosing = new WheelEvent('wheel', {
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: -1,
+    })
+    fireEvent(canvas, afterClosing)
+    expect(afterClosing.defaultPrevented).toBe(false)
+  })
+
   it('copies and adds the owning session image through secure resource actions', async () => {
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
     renderViewer('session-1')

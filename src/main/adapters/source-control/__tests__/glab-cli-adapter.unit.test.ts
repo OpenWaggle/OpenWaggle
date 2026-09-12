@@ -141,6 +141,20 @@ describe('gitlab adapter defaults', () => {
     })
   })
 
+  it('lists open merge requests using the supported GitLab CLI default state', async () => {
+    runCliMock.mockResolvedValue(cli({ stdout: '[]' }))
+
+    await expect(gitlabProvider()?.listChangeRequests('/repo')).resolves.toEqual({
+      ok: true,
+      changeRequests: [],
+    })
+    expect(runCliMock).toHaveBeenCalledWith(
+      'glab',
+      ['mr', 'list', '--repo', 'https://gitlab.com/o/r', '--per-page', '50', '-F', 'json'],
+      '/repo',
+    )
+  })
+
   it('omits --target-branch when the repository default could not be resolved locally', async () => {
     runCliMock.mockResolvedValueOnce(cli({ stdout: '' })).mockResolvedValueOnce(
       cli({

@@ -117,6 +117,7 @@ export function makeSessionResourceRepositoryTestLayer(
           ),
         ),
       ),
+    findByOccurrences: () => Effect.succeed([]),
     listByNodeIds: (sessionId, nodeIds, kind, limit) =>
       Effect.succeed(
         resources

@@ -1,5 +1,12 @@
 import type { SessionResource } from '@shared/types/session-resource'
-import { type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from 'react'
+import {
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
@@ -90,6 +97,28 @@ function useCanvasDrag(pannable: boolean, canvasRef: RefObject<HTMLElement | nul
   return { dragging, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }
 }
 
+function useCanvasPinchZoom(
+  canvasRef: RefObject<HTMLElement | null>,
+  zoom: ImageViewerZoom,
+  onZoomChange: (zoom: ImageViewerZoom) => void,
+) {
+  const handleWheel = useEffectEvent((event: WheelEvent) => {
+    // Chromium exposes trackpad pinch as a modifier-wheel gesture in Electron.
+    if ((!event.ctrlKey && !event.metaKey) || event.deltaY === 0) return
+    event.preventDefault()
+    onZoomChange(stepImageViewerZoom(zoom, event.deltaY < 0 ? 'in' : 'out'))
+  })
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    // React delegates wheel events through passive listeners, which cannot cancel
+    // Chromium's own zoom/scroll action. Only the image canvas needs this listener.
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [canvasRef])
+}
+
 export function SessionResourceViewerCanvas({
   resource,
   source,
@@ -114,6 +143,7 @@ export function SessionResourceViewerCanvas({
   const imageSize = intrinsicSize?.resourceId === resource.id ? intrinsicSize : null
   const pannable = source !== null && zoom !== 'fit'
   const drag = useCanvasDrag(pannable, canvasRef)
+  useCanvasPinchZoom(canvasRef, zoom, onZoomChange)
 
   return (
     <section
@@ -126,12 +156,6 @@ export function SessionResourceViewerCanvas({
       onPointerMove={drag.onPointerMove}
       onPointerUp={drag.onPointerUp}
       onPointerCancel={drag.onPointerCancel}
-      onWheel={(event) => {
-        // Chromium exposes trackpad pinch as a modifier-wheel gesture in Electron.
-        if ((!event.ctrlKey && !event.metaKey) || event.deltaY === 0) return
-        event.preventDefault()
-        onZoomChange(stepImageViewerZoom(zoom, event.deltaY < 0 ? 'in' : 'out'))
-      }}
     >
       {source ? (
         <div

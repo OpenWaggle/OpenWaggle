@@ -65,4 +65,34 @@ describe('SqliteSessionResourceRepositoryLive targeted catalog lookups', () => {
     expect(result.repeatedImage.resources).toHaveLength(1)
     expect(result.repeatedImage.resources[0]?.occurrences).toHaveLength(12)
   })
+
+  it('loads every selected backfill occurrence across chunks without crossing sessions', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        const selectors = Array.from({ length: 450 }, (_, index) => ({
+          value: `occurrence-${String(Math.floor(index / 2))}-${String(index % 2)}`,
+          prefix: false,
+        }))
+        const selected = yield* repository.findByOccurrences(SessionId('session-1'), selectors)
+        const prefix = yield* repository.findByOccurrences(SessionId('session-1'), [
+          { value: 'occurrence-2-1', prefix: true },
+        ])
+        const foreign = yield* repository.findByOccurrences(SessionId('session-2'), selectors)
+        const literalWildcard = yield* repository.findByOccurrences(SessionId('session-1'), [
+          { value: 'occurrence-%', prefix: true },
+        ])
+        return { selected, prefix, foreign, literalWildcard }
+      }).pipe(
+        Effect.provide(makeSessionResourceCatalogTestLayer(path.join(tmpRoot, 'progress.sqlite'))),
+      ),
+    )
+
+    expect(result.selected).toHaveLength(225)
+    expect(result.selected.every(({ occurrences }) => occurrences.length === 2)).toBe(true)
+    expect(result.selected.flatMap(({ occurrences }) => occurrences)).toHaveLength(450)
+    expect(result.prefix[0]?.occurrences.map(({ id }) => id)).toEqual(['occurrence-2-11'])
+    expect(result.foreign).toEqual([])
+    expect(result.literalWildcard).toEqual([])
+  })
 })

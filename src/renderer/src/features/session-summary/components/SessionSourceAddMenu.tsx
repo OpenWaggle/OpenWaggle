@@ -49,6 +49,7 @@ export function SessionSourceAddMenu({
 
   return (
     <Popover
+      escapeClipping
       className="w-72 p-1"
       onOpenChange={setOpen}
       open={open}

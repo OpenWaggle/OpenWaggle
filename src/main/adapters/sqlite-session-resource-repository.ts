@@ -23,6 +23,7 @@ import {
   listResourcesByNodeIdsPage,
   locateSessionImage,
 } from './sqlite-session-resource-catalog'
+import { findResourcesByOccurrences } from './sqlite-session-resource-occurrence-progress'
 import { listResources } from './sqlite-session-resource-reader'
 import { rekeyResource, upsertResource } from './sqlite-session-resource-writer'
 
@@ -126,6 +127,10 @@ export const SqliteSessionResourceRepositoryLive = Layer.effect(
         findExistingOccurrences(sql, sessionId, occurrenceIds).pipe(
           Effect.mapError((cause) => repositoryError('hasOccurrences', cause)),
         ),
+      findByOccurrences: (sessionId, selectors) =>
+        sql
+          .withTransaction(findResourcesByOccurrences(sql, sessionId, selectors))
+          .pipe(Effect.mapError((cause) => repositoryError('findByOccurrences', cause))),
       listByNodeIds: (sessionId, nodeIds, kind, limit) =>
         sql
           .withTransaction(listResourcesByNodeIds(sql, sessionId, nodeIds, kind, limit))

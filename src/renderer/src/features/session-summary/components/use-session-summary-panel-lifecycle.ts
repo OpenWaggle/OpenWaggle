@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import {
   isSessionSummaryPanelVisible,
   type SessionSummaryPanelState,
@@ -97,27 +98,29 @@ function useDismissTransientPanel(input: {
 }) {
   const dismissTransientPanel = useSessionSummaryUIStore((state) => state.dismissTransientPanel)
 
+  useEscapeHotkey(() => dismissTransientPanel(input.sessionId), {
+    enabled: input.transient,
+    // Native modal dialogs own their Escape default. Cancelling it here would hide the
+    // background Summary but leave the foreground image viewer or Git dialog open.
+    shouldHandle: (event) =>
+      !(event.target instanceof Element && event.target.closest('dialog[open]')),
+  })
+
   useEffect(() => {
     if (!input.transient) return
 
-    const dismissOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      dismissTransientPanel(input.sessionId)
-    }
     const dismissOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
+      if (target instanceof Element && target.closest('dialog[open]')) return
       const panel = document.getElementById(input.panelId)
       const toggle = document.getElementById(`${input.panelId}-toggle`)
       if (panel?.contains(target) || toggle?.contains(target)) return
       dismissTransientPanel(input.sessionId)
     }
 
-    document.addEventListener('keydown', dismissOnEscape)
     document.addEventListener('pointerdown', dismissOnOutsidePointer)
     return () => {
-      document.removeEventListener('keydown', dismissOnEscape)
       document.removeEventListener('pointerdown', dismissOnOutsidePointer)
     }
   }, [dismissTransientPanel, input.panelId, input.sessionId, input.transient])

@@ -16,7 +16,10 @@ import {
 import * as AttachmentRepairs from './session-resource-backfill-attachment-repairs'
 import type { BackfillLinkState } from './session-resource-backfill-link'
 import { projectResourceMessages } from './session-resource-backfill-messages'
-import { backfillCandidateOccurrenceIds } from './session-resource-backfill-occurrences'
+import {
+  backfillCandidateOccurrenceIds,
+  backfillProgressOccurrenceSelectors,
+} from './session-resource-backfill-occurrences'
 import { loadSessionResourceBackfillProgress } from './session-resource-backfill-progress'
 import {
   attemptBackfilledAttachment,
@@ -47,8 +50,6 @@ interface CaptureProjectedSessionResourcesInput {
   readonly nodes?: readonly SessionNode[]
   readonly retryUnavailableResourceId?: string
 }
-
-const SESSION_RESOURCE_BACKFILL_LOOKUP_LIMIT = 512
 
 function capturedOccurrenceIds(resources: readonly SessionResource[]) {
   return new Set(resources.flatMap((resource) => resource.occurrences.map(({ id }) => id)))
@@ -178,12 +179,9 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
         const session = workspace?.tree.session ?? null
         const workingPath = resolveSessionWorkingDir(session, session?.projectPath ?? null)
         const projectedMessages = projectResourceMessages(input)
-        const nodeIds = projectedMessages.map(({ nodeId }) => nodeId)
-        const resources = yield* repository.listByNodeIds(
+        const resources = yield* repository.findByOccurrences(
           input.sessionId,
-          nodeIds,
-          null,
-          SESSION_RESOURCE_BACKFILL_LOOKUP_LIMIT,
+          backfillProgressOccurrenceSelectors(input.sessionId, projectedMessages),
         )
         const knownOccurrenceIds = yield* repository.hasOccurrences(
           input.sessionId,

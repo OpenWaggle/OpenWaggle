@@ -167,8 +167,6 @@ async function listMergeRequests(
       'list',
       '--repo',
       gitlabRepositorySelector(repository),
-      '--state',
-      'opened',
       '--per-page',
       '50',
       '-F',

@@ -4,6 +4,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerActionStore, useComposerStore } from '@/features/composer/state'
 import { createRendererQueryClient } from '@/queries/query-client'
+import { Button } from '@/shared/ui/Button'
+import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionSummaryUIStore } from '../../state/session-summary-ui-store'
 import {
@@ -139,6 +141,45 @@ describe('SessionSummaryHub', () => {
     fireEvent.pointerDown(document.body)
 
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+  })
+
+  it('closes a nested menu before dismissing the transient Summary', () => {
+    renderHub({ autoHidden: true }, true)
+    fireEvent.click(screen.getByText('Session Summary toggle'))
+    fireEvent.click(screen.getByRole('button', { name: 'Environment actions' }))
+    const menuItem = screen.getByRole('menuitem', { name: 'Toggle terminal' })
+
+    fireEvent.keyDown(menuItem, { key: 'Escape' })
+
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
+  })
+
+  it('leaves native image-dialog Escape uncancelled while the transient Summary stays open', () => {
+    renderHub({ autoHidden: true }, true)
+    fireEvent.click(screen.getByText('Session Summary toggle'))
+    const closeImage = vi.fn()
+    render(
+      <ModalDialog label="Image viewer: reference.png" onClose={closeImage}>
+        <Button onClick={closeImage}>Close image viewer</Button>
+      </ModalDialog>,
+    )
+    const imageClose = screen.getByRole('button', { name: 'Close image viewer' })
+    imageClose.focus()
+    fireEvent.pointerDown(imageClose)
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+
+    // jsdom cannot perform native Escape dismissal. Check that the key's default remains
+    // available to Chromium, then deliver the resulting native dialog cancel event.
+    expect(fireEvent.keyDown(imageClose, { key: 'Escape' })).toBe(true)
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    fireEvent(
+      screen.getByRole('dialog', { name: 'Image viewer: reference.png' }),
+      new Event('cancel', { cancelable: true }),
+    )
+    expect(closeImage).toHaveBeenCalledOnce()
   })
 
   it('hard-hides the panel while a right sidebar is open', () => {

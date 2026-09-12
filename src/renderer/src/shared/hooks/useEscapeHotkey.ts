@@ -24,6 +24,8 @@ function topmostEnabledEscapeId() {
 
 interface EscapeHotkeyOptions {
   readonly enabled?: boolean
+  /** Defer without cancelling the key's native default, such as a foreground dialog's Escape. */
+  readonly shouldHandle?: (event: KeyboardEvent) => boolean
 }
 
 export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptions = {}): void {
@@ -51,7 +53,7 @@ export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptio
   useHotkey(
     'Escape',
     (event) => {
-      if (!enabled || topmostEnabledEscapeId() !== id) {
+      if (!enabled || topmostEnabledEscapeId() !== id || options.shouldHandle?.(event) === false) {
         return
       }
       event.preventDefault()

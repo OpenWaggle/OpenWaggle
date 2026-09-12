@@ -118,6 +118,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - A completed run can refresh `SessionDetail` before `SessionWorkspace`. If those snapshots have no shared message ids, append the replacement detail only when its `updatedAt` proves the active-head workspace is stale; never merge a disjoint current selected-branch workspace. If a replacement Pi snapshot no longer contains the previous main head, branch derivation must adopt the new active head as the sole main branch instead of creating duplicate main/non-main branches at one head.
 - TanStack Router uses hash history in Electron QA; navigate to `http://localhost:5173/#/<route>`.
 - TanStack Hotkeys same-target callbacks do not stop each other via `event.stopPropagation`; independent overlays need explicit topmost ordering.
+- A transient Session Summary must join the shared Escape stack and defer both Escape and pointer dismissal to foreground native dialogs. Image pinch zoom needs a canvas-local non-passive wheel listener because React delegates wheel events passively. Summary popovers must escape section clipping without losing their DOM ownership or viewport bounds; visible text alone does not prove a lower menu action can receive a click.
 - Composer slash selection is owned by Lexical: keep focus in the editor, derive the active `/query` from its collapsed selection, replace or consume only that token, and serialize skill decorator nodes as `/skill-id`. Do not route `/` through a second-input global palette.
 - Waggle presets in the desktop composer are one-shot invocation metadata, not idle global mode state. A standard agent hands off through the terminating `waggle_invoke` Pi tool, and the main handler chains Waggle only after the standard result is durable.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
@@ -488,6 +489,8 @@ work before run completion. Managed previews use the thumbnail IPC path, which r
 256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
 transcript thumbnails. Full bytes are reserved for an explicit viewer or download action and reach the
 renderer only through the managed streaming protocol, never through an IPC base64 payload.
+
+Resource backfill progress must use session-scoped exact occurrence or image-slot selectors, never the bounded, deduplicated UI thumbnail projection. Otherwise repeated images or catalogs over the display limit can consume every retry budget without advancing. Deferred tool metadata must still reserve its image and link indices so later occurrences keep stable identities across retries.
 
 ### Hive state comes from the session projection
 

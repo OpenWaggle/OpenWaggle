@@ -39,6 +39,7 @@ function recordingLayer(
         rekey: () => Effect.dieMessage('rekey is not used'),
         hasOccurrence: () => Effect.succeed(false),
         hasOccurrences: () => Effect.succeed(new Set()),
+        findByOccurrences: () => Effect.succeed([]),
         listByNodeIds: () => Effect.succeed([]),
         listByNodeIdsPage: () =>
           Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),

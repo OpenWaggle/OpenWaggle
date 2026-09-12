@@ -126,7 +126,13 @@ test('Session Summary Hive shows only the opened session direct lineage and rema
     await queenRow.getByRole('button', { name: `Open session actions for ${QUEEN_TITLE}` }).click()
     await page.getByRole('button', { name: 'Delete session' }).click()
 
-    await expect(page.getByText(/Failed to delete session:.*Workers.*Queen session/u)).toBeVisible()
+    await expect(
+      page.getByText(
+        "Failed to delete session: Delete this session's Workers before deleting their Queen session.",
+        { exact: true },
+      ),
+    ).toBeVisible()
+    await expect(page.getByText(/Error invoking remote method/u)).toHaveCount(0)
     await expect(page.locator('[data-qa="header-session-title"]')).toHaveText(QUEEN_TITLE)
     await expect(queenRow).toBeVisible()
     await expect(hive).toContainText('1 active · 3 total')

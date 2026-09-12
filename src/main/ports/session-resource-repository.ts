@@ -43,6 +43,11 @@ export interface RekeySessionResourceInput {
   readonly updatedAt: number
 }
 
+export interface SessionResourceOccurrenceSelector {
+  readonly value: string
+  readonly prefix: boolean
+}
+
 export interface SessionResourceRepositoryShape {
   readonly upsert: (
     input: UpsertSessionResourceInput,
@@ -94,6 +99,11 @@ export interface SessionResourceRepositoryShape {
     sessionId: SessionId,
     occurrenceIds: readonly string[],
   ) => Effect.Effect<ReadonlySet<string>, SessionResourceRepositoryError>
+  /** Exact backfill slots, including occurrences omitted from bounded UI projections. */
+  readonly findByOccurrences: (
+    sessionId: SessionId,
+    selectors: readonly SessionResourceOccurrenceSelector[],
+  ) => Effect.Effect<readonly SessionResource[], SessionResourceRepositoryError>
   readonly listByNodeIds: (
     sessionId: SessionId,
     nodeIds: readonly string[],

@@ -132,6 +132,8 @@ Each resource belongs to exactly one session, including resources produced on al
 
 A Queen session cannot be permanently deleted while it still has direct Workers, including completed or archived Workers. Delete those Workers first. Removing an entire project handles this automatically by deleting each Hive from its leaves toward its Queen. This keeps surviving Worker sessions from losing their visible parent relationship.
 
+If deletion is blocked, the app explains that the Workers must be deleted first and keeps the Queen open. This is a safety check, not a failed Hive connection.
+
 Recoverable resources from older sessions are backfilled lazily in bounded batches. The Summary and Resource Browser remain usable while that work completes.
 
 Extension authors can publish session Sources and Outputs or add Summary sections through the brokered extension SDK. See [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).
