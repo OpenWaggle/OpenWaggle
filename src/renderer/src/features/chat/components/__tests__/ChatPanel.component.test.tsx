@@ -10,7 +10,7 @@ import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
-import { createSections, makeMessage } from './ChatPanel.test-utils'
+import { createSections, makeMessage, seedHydratedSessionComposer } from './ChatPanel.test-utils'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
 
@@ -54,7 +54,7 @@ function renderPanel(
 describe('ChatPanel', () => {
   beforeEach(() => {
     useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
-    useComposerStore.setState(useComposerStore.getInitialState())
+    seedHydratedSessionComposer()
     useMessageQueueStore.setState({ queues: new Map() })
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),

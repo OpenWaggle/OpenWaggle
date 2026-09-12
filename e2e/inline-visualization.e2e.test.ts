@@ -418,6 +418,7 @@ async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
 async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const page = app.window()
   const input = app.mainWindow().messageInput()
+  await expect(input).toBeEditable()
   await input.fill('/vis')
   const menu = page.getByRole('menu', { name: 'Slash command menu' })
   await expect(menu).toBeVisible()

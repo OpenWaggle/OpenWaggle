@@ -52,6 +52,7 @@ export function RightSidebarDockedLayout({
       <aside
         ref={captureSidebar}
         inert={!open}
+        aria-hidden={!open}
         className={cn(
           'relative h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
           open ? 'pointer-events-auto' : 'pointer-events-none',

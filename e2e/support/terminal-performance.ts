@@ -1405,7 +1405,9 @@ export async function runTerminalRestartUnderFloodGate(options: {
     const inputResults = await page.evaluate(
       async ({ command, ownerKey, terminalId }) => {
         const release = await window.api.sendTerminalInputNow(ownerKey, terminalId)
-        const write = await window.api.writeTerminal(ownerKey, terminalId, `${command}\n`)
+        // This writes PTY input, not a text file. Enter sends CR on every
+        // platform; Windows console line input does not submit on LF.
+        const write = await window.api.writeTerminal(ownerKey, terminalId, `${command}\r`)
         return { release, write }
       },
       {

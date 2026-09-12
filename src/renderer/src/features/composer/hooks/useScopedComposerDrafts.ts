@@ -37,6 +37,7 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
+  const activeDraftContextKey = useComposerStore((state) => state.activeDraftContextKey)
   const contextKey = buildScopedComposerContextKey(
     projectPath,
     activeSessionId,
@@ -70,6 +71,10 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
       }
     }
   }, [])
+
+  // A visible composer can precede the selected Session's workspace response.
+  // Keep editing/submission blocked until restoring that Session's draft finishes.
+  return contextKey !== null && activeDraftContextKey === contextKey
 }
 
 function buildScopedComposerContextKey(
@@ -82,7 +87,11 @@ function buildScopedComposerContextKey(
   if (!workspaceBelongsToSession(activeWorkspace, scopedSessionId)) return null
 
   return buildComposerDraftContextKey({
-    projectPath,
+    // Global project settings hydrate separately from the Session workspace.
+    // Using them here can restore one key, then erase new input when they catch up.
+    projectPath: scopedSessionId
+      ? (activeWorkspace?.tree.session.projectPath ?? null)
+      : projectPath,
     sessionId: scopedSessionId,
     activeBranchId: activeWorkspace?.activeBranchId ?? null,
     activeNodeId: activeWorkspace?.activeNodeId ?? null,
