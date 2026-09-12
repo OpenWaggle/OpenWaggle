@@ -43,13 +43,16 @@ async function openTerminalPanel(page: Page) {
   await expect(terminalPanel(page)).toBeVisible()
 }
 
-/** The first PTY output (prompt or echo) proves the shell is attached. */
+/** Wait for terminal readiness and rendered output, not xterm's blank row. */
 async function expectShellAttached(pane: Locator) {
   await expect
-    .poll(async () => (await paneRows(pane).textContent()) ?? '', {
+    .poll(async () => ({
+      readiness: await pane.getAttribute('data-readiness'),
+      hasOutput: ((await paneRows(pane).textContent()) ?? '').trim().length > 0,
+    }), {
       timeout: SHELL_OUTPUT_TIMEOUT_MS,
     })
-    .not.toHaveLength(0)
+    .toEqual({ readiness: 'ready', hasOutput: true })
 }
 
 async function runTerminalCommand(page: Page, pane: Locator, command: string) {
@@ -220,6 +223,30 @@ test('terminal output survives hiding and re-showing the panel', async () => {
     await expect(paneRows(pane)).toContainText(AFTER_RESHOW_MARKER, {
       timeout: SHELL_OUTPUT_TIMEOUT_MS,
     })
+  } catch (error) {
+    // Record the failed attempt too; Playwright's configured trace starts only on retry.
+    try {
+      const diagnostics = await page.evaluate(() => ({
+        routeSessionId: document.querySelector('[data-chat-route-session-id]')
+          ?.getAttribute('data-chat-route-session-id'),
+        panelCount: document.querySelectorAll('[data-testid="workspace-terminal"]').length,
+        panes: Array.from(document.querySelectorAll('[data-terminal-pane]'), (pane) => ({
+          terminalId: pane.getAttribute('data-terminal-pane'),
+          readiness: pane.getAttribute('data-readiness'),
+          focused: pane.getAttribute('data-focused'),
+          inputFocused: pane.querySelector('textarea.xterm-helper-textarea') === document.activeElement,
+          rows: pane.querySelector('.xterm-rows')?.textContent?.slice(-8_000) ?? '',
+          status: pane.querySelector('[role="status"]')?.textContent ?? null,
+        })),
+      }))
+      await test.info().attach('terminal-hide-show-failure-state', {
+        body: JSON.stringify({ attempt: test.info().retry, platform: process.platform, ...diagnostics }, null, 2),
+        contentType: 'application/json',
+      })
+    } catch (diagnosticError) {
+      console.error('Could not capture terminal failure state:', diagnosticError)
+    }
+    throw error
   } finally {
     await app.cleanup()
   }
