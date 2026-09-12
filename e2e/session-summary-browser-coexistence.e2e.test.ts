@@ -38,7 +38,8 @@ test('Session Summary coordinates native floating previews and inspectors across
         sessionIds.push(await seedSingleSession(app.userDataDir, {
           title,
           projectPath,
-          messages: [{ id: `${title}-message`, role: 'user', createdAt: Date.now(), parts: [{ type: 'text', text: title }] }],
+          updatedAt: Date.now(),
+          messages: [{ id: `summary-preview-${sessionIds.length}-message`, role: 'user', createdAt: Date.now(), parts: [{ type: 'text', text: title }] }],
         }))
       }
       const [alpha, beta] = sessionIds
@@ -51,6 +52,7 @@ test('Session Summary coordinates native floating previews and inspectors across
       await page.evaluate((id) => { location.hash = `/sessions/${id}` }, alpha)
       const summary = page.getByRole('complementary', { name: 'Session Summary' })
       await expect(summary).toBeVisible()
+      await expect(summary.getByText('Could not load session resources.')).toHaveCount(0)
       const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
       await page.keyboard.press(`${modifier}+Shift+J`)
       await page.getByRole('textbox', { name: 'Preview address' }).fill(url)
@@ -81,11 +83,24 @@ test('Session Summary coordinates native floating previews and inspectors across
       await expect(floating).toBeVisible()
       await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: true })
       await page.getByRole('button', { name: 'Open Session Summary', exact: true }).click()
-      await summary.getByRole('button', { name: 'Show all', exact: true }).last().click()
-      await expect(page.getByRole('region', { name: 'Session resources' })).toBeVisible()
+      await summary.getByRole('button', { name: /Sources/ }).click()
+      await summary.getByRole('button', { name: 'Show all', exact: true }).click()
+      const resources = page.getByRole('region', { name: 'Session resources' })
+      await expect(resources).toBeVisible()
+      await expect(resources.getByText('No resources in this view.')).toBeVisible()
+      await expect(resources.getByRole('alert')).toHaveCount(0)
       await expect(summary).toHaveCount(0)
       await expect(page.getByTestId('workspace-right-panel')).toBeHidden()
+      await expect(floating).toBeHidden()
+      await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: false })
       await testInfo.attach('resources-inspector-owns-sidebar', { path: await app.captureEvidence('session-summary-resources-inspector'), contentType: 'image/png' })
+      await resources.getByRole('button', { name: 'Close resources' }).click()
+      await expect(summary).toBeVisible()
+      await expect(floating).toBeHidden()
+      await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: false })
+      await page.getByRole('button', { name: 'Hide Session Summary', exact: true }).click()
+      await expect(floating).toBeVisible()
+      await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: true })
       expect(errors).toEqual([])
       expect(await app.desktopState()).toMatchObject({ focused: false, visible: false })
     } finally {

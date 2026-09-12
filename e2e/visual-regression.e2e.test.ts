@@ -4,6 +4,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import sharp from 'sharp'
+import {
+  assertFixtureCliEnvironment,
+  createFixtureCliEnvironment,
+} from './support/fixture-cli-environment'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSessionResources, seedSessions } from './support/session-fixtures'
 
@@ -157,12 +161,13 @@ function expectGeometryUnchanged(actual: ElementGeometry, expected: ElementGeome
 
 test('Session Summary and primary surfaces match their visual baselines', { tag: '@visual' }, async () => {
   const fakeGhPath = await installVisualGhClient()
-  const originalPath = process.env.PATH
-  process.env.PATH = `${fakeGhPath}${path.delimiter}${originalPath ?? ''}`
   let app: OpenWaggleApp | null = null
 
   try {
-    app = await OpenWaggleApp.launch('openwaggle-visual-regression-e2e-')
+    app = await OpenWaggleApp.launch('openwaggle-visual-regression-e2e-', {
+      environment: await createFixtureCliEnvironment(fakeGhPath),
+    })
+    await assertFixtureCliEnvironment(app, fakeGhPath)
     const projectPath = path.join(app.userDataDir, PROJECT_LABEL)
     await createChangedRepository(projectPath)
     const [primarySessionId] = await seedSessions(app.userDataDir, [
@@ -257,6 +262,7 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
       },
     ])
     await app.restart()
+    await assertFixtureCliEnvironment(app, fakeGhPath)
     await app.installRemoteVcsStatusProbe({
       ok: true,
       status: {
@@ -487,7 +493,6 @@ test('Session Summary and primary surfaces match their visual baselines', { tag:
     await expect(settingsRoot).toHaveScreenshot('settings.png', SETTINGS_SCREENSHOT_OPTIONS)
   } finally {
     await app?.cleanup()
-    process.env.PATH = originalPath
     await fs.rm(fakeGhPath, { recursive: true, force: true })
   }
 })

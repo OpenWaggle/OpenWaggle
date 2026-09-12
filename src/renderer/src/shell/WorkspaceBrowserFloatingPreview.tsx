@@ -70,6 +70,7 @@ export function WorkspaceBrowserFloatingPreview() {
   const summaryVisible = useSessionSummaryUIStore((state) =>
     isSessionSummaryPanelVisible(state.panels[ownerKey]),
   )
+  const inspectorVisible = activeClaim?.kind === 'route' && activeClaim.scopeKey === ownerKey
   const showToast = useUIStore((state) => state.showToast)
   const candidate = group?.browserTabs.find((tab) => tab.id === floating?.previewId)
   const tab = isMaterializedTab(candidate) ? candidate : undefined
@@ -97,7 +98,7 @@ export function WorkspaceBrowserFloatingPreview() {
   return (
     <BrowserPreviewFloatingPanel
       key={tab.id}
-      suspended={summaryVisible}
+      suspended={summaryVisible || inspectorVisible}
       tab={tab}
       onCloseBrowser={() => void closeFloatingBrowser(ownerKey, tab, onError)}
       onError={onError}

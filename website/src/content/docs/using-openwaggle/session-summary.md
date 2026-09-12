@@ -15,6 +15,8 @@ At narrow widths, an explicit reopen is temporary. Press `Escape` or click outsi
 
 Authorization mode and context usage stay in the composer. They are not duplicated in the Summary.
 
+A floating browser preview also takes precedence over automatic Summary display. Explicitly opening the Summary hides that session's preview without closing its tab. Resources and other session inspectors keep the preview hidden while they are open. Closing an inspector restores the Summary if it was open before; hiding the Summary then restores the same preview. These choices never expose another session's preview.
+
 ## What the Summary shows
 
 Sections appear only when their session has relevant data:

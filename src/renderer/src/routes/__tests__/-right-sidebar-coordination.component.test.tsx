@@ -42,6 +42,9 @@ describe('right sidebar route coordination', () => {
       expect(view.result.current).toBe(false)
       act(() => coordinate(true))
       expect(view.result.current).toBe(true)
+      expect(useRightSidebarCoordinator.getState().activeClaim).toMatchObject({
+        scopeKey: 'session-1',
+      })
       act(() => coordinate(false))
       expect(view.result.current).toBe(false)
     },
@@ -85,6 +88,7 @@ describe('right sidebar route coordination', () => {
     expect(useRightSidebarCoordinator.getState().activeClaim).toEqual({
       kind: 'route',
       requestKey: DIFF_RIGHT_SIDEBAR_REQUEST,
+      scopeKey: 'session-2',
     })
   })
 })

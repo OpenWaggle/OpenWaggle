@@ -221,6 +221,7 @@ export function BrowserPreviewFloatingPanel({
       aria-label="Floating browser preview"
       aria-hidden={suspended}
       inert={suspended}
+      data-native-preview-occluder={suspended ? tab.ownerKey : undefined}
       className="group pointer-events-auto absolute z-40 flex min-h-0 select-none flex-col rounded-lg border border-border/80 bg-bg p-1 shadow-2xl"
       data-browser-preview-floating={tab.id}
       style={{ ...layout.style, visibility: suspended ? 'hidden' : undefined }}

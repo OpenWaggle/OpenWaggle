@@ -73,4 +73,23 @@ describe('Session Summary and native floating preview coexistence', () => {
     )
     expect(useWorkspacePanelStore.getState().groups['session-1']?.browserTabs).toHaveLength(1)
   })
+
+  it('suspends for the current Session inspector and restores the same tab without affecting another owner', () => {
+    const previewId = openFloating()
+    const coordinator = useRightSidebarCoordinator.getState()
+    render(<WorkspaceBrowserFloatingPreview />)
+    const preview = screen.getByTestId('floating-preview')
+    act(() => coordinator.claimRoute('resources', 'session-2'))
+    expect(preview).toHaveAttribute('data-suspended', 'false')
+    act(() => coordinator.claimRoute('resources', 'session-1'))
+    expect(preview).toHaveAttribute('data-suspended', 'true')
+    act(() => coordinator.releaseRoute('resources', 'session-2'))
+    expect(preview).toHaveAttribute('data-suspended', 'true')
+    act(() => coordinator.releaseRoute('resources', 'session-1'))
+    expect(preview).toHaveAttribute('data-suspended', 'false')
+    expect(useBrowserPreviewFloatingStore.getState().byOwnerKey['session-1']?.previewId).toBe(
+      previewId,
+    )
+    expect(useWorkspacePanelStore.getState().groups['session-1']?.browserTabs).toHaveLength(1)
+  })
 })

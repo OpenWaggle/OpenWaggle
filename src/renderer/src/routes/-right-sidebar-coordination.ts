@@ -96,11 +96,27 @@ export function useRoutePanelClaim(requestKey: string | null, scopeKey: string |
   useEffect(() => {
     if (requestKey === null) return
     if (scopeKey !== null && scopeKey.length === 0) return
-    useRightSidebarCoordinator.getState().claimRoute(requestKey)
-    return () => useRightSidebarCoordinator.getState().releaseRoute(requestKey)
+    useRightSidebarCoordinator.getState().claimRoute(requestKey, scopeKey)
+    return () => useRightSidebarCoordinator.getState().releaseRoute(requestKey, scopeKey)
   }, [requestKey, scopeKey])
 
+  // Commands can reclaim an already-requested route panel from a workspace
+  // panel. Bind that transient claim to this route without stealing other claims.
+  useEffect(() => {
+    if (
+      requestKey !== null &&
+      activeClaim?.kind === 'route' &&
+      activeClaim.requestKey === requestKey &&
+      activeClaim.scopeKey === undefined
+    ) {
+      useRightSidebarCoordinator.getState().claimRoute(requestKey, scopeKey)
+    }
+  }, [activeClaim, requestKey, scopeKey])
+
   return (
-    requestKey !== null && activeClaim?.kind === 'route' && activeClaim.requestKey === requestKey
+    requestKey !== null &&
+    activeClaim?.kind === 'route' &&
+    activeClaim.requestKey === requestKey &&
+    activeClaim.scopeKey === scopeKey
   )
 }

@@ -5,7 +5,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import sharp from 'sharp'
-import { buildSafeElectronEnvironment } from '../scripts/safe-electron-environment'
+import {
+  assertFixtureCliEnvironment,
+  createFixtureCliEnvironment,
+} from './support/fixture-cli-environment'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
 
@@ -314,13 +317,13 @@ interface ChangeRequestFixtureInput {
 
 async function launchChangeRequestFixture(input: ChangeRequestFixtureInput) {
   const cliBinPath = await createFakeSourceControlCliBin()
-  const inheritedPath = buildSafeElectronEnvironment({}).PATH ?? ''
   const app = await OpenWaggleApp.launch(input.prefix, {
-    environment: { PATH: `${cliBinPath}${path.delimiter}${inheritedPath}` },
+    environment: await createFixtureCliEnvironment(cliBinPath),
   })
   const projectPath = path.join(app.userDataDir, input.projectName)
 
   try {
+    await assertFixtureCliEnvironment(app, cliBinPath)
     const now = Date.now()
     await createGitProject(projectPath, input.provider)
     await seedSingleSession(app.userDataDir, {
@@ -330,6 +333,7 @@ async function launchChangeRequestFixture(input: ChangeRequestFixtureInput) {
       messages: [message(input.messageId, 'user', input.messageText, now)],
     })
     await app.restart()
+    await assertFixtureCliEnvironment(app, cliBinPath)
     await app.resizeMainWindow(1_800, 850)
     return { app, cliBinPath, projectPath }
   } catch (error) {

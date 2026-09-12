@@ -8,6 +8,8 @@ The header toggle remains available independently of available chat width. The S
 
 Resources and change-request details participate in the same right-sidebar coordinator as terminals and browser tabs. Opening one claims the inspector without deleting the other Session-owned tabs. Authorization remains in the dock.
 
+Route claims carry their Session scope. A matching inspector suspends the floating preview and marks it as a native-view occluder, so a bounds-observer callback cannot make the native view reappear over the inspector. Closing Resources restores a previously open Summary first. Hiding that Summary restores the retained preview with the same native view identity.
+
 ## Database upgrades
 
 Main's migration IDs 26 and 27 remain assigned to worktree Setup dispatch and receipts. Summary lineage starts at 28; Summary resources and indexes continue through 45.
@@ -25,5 +27,9 @@ Individual deletion closes admission to new lineage writes and waits for already
 ## Verification boundary
 
 Component regressions cover overlay restoration, session isolation, sidebar ownership, and native-view occlusion requests. The native coexistence E2E checks the actual Electron browser view's visibility and identity while operating the Summary and preview controls.
+
+The September 12 macOS retest passed the complete coexistence sequence and all visual baselines, including the request composer and Settings. Provider scenarios passed GitHub ready requests, GitLab draft requests, and unauthenticated browser fallback. Their fake CLI environment now remains first in PATH after desktop login-shell hydration, without changing the app's production shell behavior.
+
+The Linux integration failure on the preceding revision was a PTY fixture surviving its first SIGHUP. Fixture teardown now escalates after one second through the identity-checked native kill and descriptor-close methods. It retains the original ten-second deadline and requires both process exit and successful resource drain before deleting its temporary home. An isolated Linux probe passed 100 runs, including six escalations. A deterministic native regression starts a Bash shell that ignores SIGHUP.
 
 This integration does not merge the unfinished Session Host orchestration branch. Its separate compatibility contract and live integration gate are documented in [Session Summary and Session Host compatibility](session-summary-hive-integration.md).
