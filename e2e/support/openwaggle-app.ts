@@ -5,9 +5,17 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
 import electronExecutablePath from 'electron'
+import { probeLocalSessionHost } from '../../src/main/session-host/local-session-client'
+import {
+  refreshLocalSessionHostEndpoint,
+  resolveLocalSessionHostPaths,
+} from '../../src/main/session-host/local-session-paths'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { applicationCliStdout } from '../../scripts/electron-cli-stdout'
-import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
+import {
+  buildPlaywrightElectronEnvironment,
+  launchOpenWaggleElectron,
+} from '../../scripts/playwright-electron-launcher'
 import {
   captureElectronStartupDiagnostics,
   electronStartupErrorMessage,
@@ -17,7 +25,6 @@ import {
   prepareQaProfileRemoval,
   shutdownSessionHostForQa,
 } from '../../scripts/qa/session-host-shutdown'
-import { buildSafeElectronEnvironment } from '../../scripts/safe-electron-environment'
 import { MainWindowPage } from '../page-models/main-window.page'
 import { closeElectronApplication } from './electron-process-tree'
 
@@ -76,6 +83,28 @@ function runRoutedElectronCli(
   })
 }
 
+async function runProfileCli(
+  profile: { readonly userDataDir: string; readonly hidden: boolean; readonly piAgentDir?: string },
+  args: readonly string[],
+): Promise<{ readonly stdout: string; readonly stderr: string }> {
+  const electronArguments = [
+    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-logging', '--log-level=3'] : []),
+    '.',
+    ...args,
+  ]
+  const environment = buildPlaywrightElectronEnvironment(profile)
+  if (process.platform === 'linux') {
+    return runRoutedElectronCli(electronArguments, environment)
+  }
+  const result = await execFileAsync(electronExecutablePath, electronArguments, {
+    cwd: process.cwd(),
+    env: environment,
+    maxBuffer: CLI_MAX_OUTPUT_BYTES,
+    timeout: CLI_TIMEOUT_MS,
+  })
+  return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
+}
+
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
     (directory) => {
@@ -101,6 +130,18 @@ function reportRetainedProfile(userDataDir: string) {
   console.error(`[electron-qa] retained profile: ${userDataDir}`)
 }
 
+async function hostInstanceId(userDataDir: string) {
+  const paths = await refreshLocalSessionHostEndpoint(
+    resolveLocalSessionHostPaths({ userDataRoot: userDataDir }),
+  )
+  const negotiation = await probeLocalSessionHost({
+    paths,
+    clientKind: 'internal',
+    clientVersion: 'qa-cli-host-ownership',
+  })
+  return negotiation.hostInstanceId
+}
+
 export class OpenWaggleApp {
   private constructor(
     readonly userDataDir: string,
@@ -109,11 +150,12 @@ export class OpenWaggleApp {
     readonly hidden: boolean,
     private readonly evidencePrefix: string,
     readonly piAgentDir?: string,
+    private readonly cliOwnerHostInstanceId?: string,
   ) {}
 
   static async launch(
     prefix = 'openwaggle-e2e-',
-    options: { readonly isolatedPiAgent?: boolean } = {},
+    options: { readonly isolatedPiAgent?: boolean; readonly startHostViaCli?: boolean } = {},
   ): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
@@ -121,12 +163,31 @@ export class OpenWaggleApp {
     let app: ElectronApplication | null = null
     let window: Page | null = null
     let startupDiagnostics: ReturnType<typeof captureElectronStartupDiagnostics> | null = null
+    let cliOwnerHostInstanceId: string | undefined
     try {
+      if (options.startHostViaCli) {
+        await runProfileCli({ userDataDir, hidden, piAgentDir }, [
+          'sessions',
+          'list',
+          '--all',
+          '--json',
+        ])
+        cliOwnerHostInstanceId = await hostInstanceId(userDataDir)
+      }
       app = await launchOpenWaggleElectron({ userDataDir, hidden, piAgentDir })
       startupDiagnostics = captureElectronStartupDiagnostics(app.process())
       window = await app.firstWindow()
-      const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix, piAgentDir)
+      const instance = new OpenWaggleApp(
+        userDataDir,
+        app,
+        window,
+        hidden,
+        prefix,
+        piAgentDir,
+        cliOwnerHostInstanceId,
+      )
       await instance.mainWindow().waitUntilReady()
+      await instance.assertCliHostOwnership()
       return instance
     } catch (error) {
       const secondaryErrors: unknown[] = []
@@ -201,6 +262,15 @@ export class OpenWaggleApp {
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()
+    await this.assertCliHostOwnership()
+  }
+
+  private async assertCliHostOwnership(): Promise<void> {
+    if (this.cliOwnerHostInstanceId !== undefined) {
+      expect(await hostInstanceId(this.userDataDir), 'GUI must retain the CLI-started Host').toBe(
+        this.cliOwnerHostInstanceId,
+      )
+    }
   }
 
   async close(): Promise<void> {
@@ -208,27 +278,7 @@ export class OpenWaggleApp {
   }
 
   async runCli(args: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }> {
-    const electronArguments = [
-      ...(process.platform === 'linux'
-        ? ['--no-sandbox', '--disable-logging', '--log-level=3']
-        : []),
-      '.',
-      ...args,
-    ]
-    const environment = buildSafeElectronEnvironment({
-      OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
-      OPENWAGGLE_USER_DATA_DIR: this.userDataDir,
-    })
-    if (process.platform === 'linux') {
-      return runRoutedElectronCli(electronArguments, environment)
-    }
-    const result = await execFileAsync(electronExecutablePath, electronArguments, {
-      cwd: process.cwd(),
-      env: environment,
-      maxBuffer: CLI_MAX_OUTPUT_BYTES,
-      timeout: CLI_TIMEOUT_MS,
-    })
-    return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
+    return runProfileCli(this, args)
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {

@@ -9,7 +9,9 @@ The `openwaggle` CLI is a client of the same local Session Host as the desktop a
 
 On macOS and Linux, install or update the command from Settings > Agent Access > OpenWaggle CLI. The managed user shim is written to `~/.local/bin/openwaggle`; OpenWaggle reports when that directory is missing from `PATH` and never overwrites an unrelated file. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
 
-The current Local Session protocol revision is 9; the Host also accepts revision 8. The GUI requires revision 9 for Host-authorized workspace access and visualization source preparation. This covers file search, project syntax themes, and recovery of saved visualizations after a crash. Older Hosts must complete the authenticated upgrade handoff before serving those requests. The GUI does not fall back to its own Session database or grant access when the Host is unavailable. Steering receipts require revision 8 or later; the MCP authorization command was introduced in revision 7.
+The current Local Session protocol revision is 10; the Host also accepts revision 9. Saving and revoking project approvals from the GUI requires revision 10. The owning Host serializes those changes with project preferences, including when a CLI command started the Host before the GUI opened. These approval controls remain available only to the local GUI, not to external agent profiles.
+
+Host-authorized workspace access and visualization source preparation require revision 9 or later. This covers file search, project syntax themes, and recovery of saved visualizations after a crash. Older Hosts must complete the authenticated upgrade handoff before serving requests they do not support. The GUI does not fall back to its own Session database, save approvals locally, or grant access when the Host is unavailable. Steering receipts require revision 8 or later; the MCP authorization command was introduced in revision 7.
 
 ## Discover and read
 

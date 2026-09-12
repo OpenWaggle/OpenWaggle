@@ -12,14 +12,14 @@ describe('Local Session protocol negotiation', () => {
   it('selects the highest mutually supported revision and its exact capabilities', () => {
     const hello = decodeLocalSessionClientHello({
       protocol: 'openwaggle-local-session',
-      supportedRevisions: [9, 8, 7, 6, 5, 4, 3, 2, 1],
+      supportedRevisions: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
       clientKind: 'cli',
       clientVersion: '0.4.0-alpha.1',
     })
 
     expect(negotiateLocalSessionProtocol(hello, 'host-current')).toMatchObject({
       accepted: true,
-      revision: 9,
+      revision: 10,
       hostInstanceId: 'host-current',
       capabilities: expect.arrayContaining([
         'waggle:run-v1',
@@ -28,6 +28,7 @@ describe('Local Session protocol negotiation', () => {
         'sessions:steer-receipt-v1',
         'host-ui:workspace-authorization-v1',
         'host-ui:visualization-source-v1',
+        'host-ui:authorization-grants-v1',
       ]),
     })
   })
@@ -37,7 +38,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [8, 7],
+          supportedRevisions: [9, 8],
           clientKind: 'cli',
           clientVersion: 'previous',
         },
@@ -46,7 +47,7 @@ describe('Local Session protocol negotiation', () => {
     ).toEqual({
       accepted: true,
       protocol: 'openwaggle-local-session',
-      revision: 8,
+      revision: 9,
       hostInstanceId: 'host-current',
       capabilities: [
         'events:subscribe',
@@ -62,6 +63,8 @@ describe('Local Session protocol negotiation', () => {
         'host-ui:invoke-v1',
         'host-ui:mcp-auth-v2',
         'sessions:steer-receipt-v1',
+        'host-ui:workspace-authorization-v1',
+        'host-ui:visualization-source-v1',
       ],
     })
   })
@@ -71,7 +74,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [11, 10],
+          supportedRevisions: [12, 11],
           clientKind: 'gui',
           clientVersion: 'future',
         },
@@ -120,7 +123,7 @@ describe('Local Session protocol negotiation', () => {
       negotiateLocalSessionProtocol(
         {
           protocol: 'openwaggle-local-session',
-          supportedRevisions: [5, 4, 3, 2],
+          supportedRevisions: [8, 7, 6, 5, 4, 3, 2],
           clientKind: 'cli',
           clientVersion: 'too-old',
         },
@@ -130,13 +133,13 @@ describe('Local Session protocol negotiation', () => {
       accepted: false,
       protocol: 'openwaggle-local-session',
       code: 'incompatible_protocol',
-      supportedRevisions: [9, 8],
+      supportedRevisions: [10, 9],
     })
     expect(() =>
       decodeLocalSessionNegotiationResult({
         accepted: true,
         protocol: 'openwaggle-local-session',
-        revision: 5,
+        revision: 8,
         hostInstanceId: 'host-too-old',
         capabilities: [],
       }),

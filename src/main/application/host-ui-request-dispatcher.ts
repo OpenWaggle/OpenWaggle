@@ -41,6 +41,10 @@ import {
 import { dispatchHostUiSkillsOperation } from './host-ui-skill-operation-dispatcher'
 import { createHostUiWorktree, removeHostUiWorktree } from './host-ui-worktree-operation'
 import { prepareInlineVisualizationSourceOwner } from './inline-visualization-source-owner'
+import {
+  grantProjectAuthorizationOperation,
+  revokeProjectAuthorizationOperation,
+} from './project-authorization-grant-operation'
 import { setProjectPreferencesOperation } from './project-preferences-operation'
 import {
   getSettingsOperation,
@@ -209,6 +213,18 @@ function dispatchHostUiChannel(
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
         return yield* setProjectPreferencesOperation(args[0], args[1])
+      }),
+    )
+    .with('authorization-grants:grant', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* grantProjectAuthorizationOperation(args[0], args[1])
+      }),
+    )
+    .with('authorization-grants:revoke', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* revokeProjectAuthorizationOperation(args[0], args[1])
       }),
     )
     .with('docs:discover', () =>

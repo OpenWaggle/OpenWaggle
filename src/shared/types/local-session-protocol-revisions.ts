@@ -1,4 +1,5 @@
-export const LOCAL_SESSION_CURRENT_REVISION = 9 as const
+export const LOCAL_SESSION_CURRENT_REVISION = 10 as const
+export const LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION = 10 as const
 export const LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION = 9 as const
 export const LOCAL_SESSION_STEERING_RECEIPT_REVISION = 8 as const
 export const LOCAL_SESSION_MCP_AUTH_REVISION = 7 as const
@@ -9,7 +10,7 @@ export const LOCAL_SESSION_WAGGLE_REVISION = 3 as const
 /** The Host accepts only the current wire contract and its immediate predecessor. */
 export const LOCAL_SESSION_SUPPORTED_REVISIONS = [
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_STEERING_RECEIPT_REVISION,
+  LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
 ] as const
 
 export const LOCAL_SESSION_REVISION_2_CAPABILITIES = [
@@ -52,8 +53,13 @@ export const LOCAL_SESSION_REVISION_8_CAPABILITIES = [
   'sessions:steer-receipt-v1',
 ] as const
 
-export const LOCAL_SESSION_CAPABILITIES = [
+export const LOCAL_SESSION_REVISION_9_CAPABILITIES = [
   ...LOCAL_SESSION_REVISION_8_CAPABILITIES,
   'host-ui:workspace-authorization-v1',
   'host-ui:visualization-source-v1',
+] as const
+
+export const LOCAL_SESSION_CAPABILITIES = [
+  ...LOCAL_SESSION_REVISION_9_CAPABILITIES,
+  'host-ui:authorization-grants-v1',
 ] as const

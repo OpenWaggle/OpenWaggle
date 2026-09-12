@@ -7,7 +7,7 @@ import { supportedRevisionsForCommand } from '../local-session-client'
 
 describe('Local Session workspace authorization revision', () => {
   it.each(['workspace-files:authorize-project', 'inline-visualization:prepare-source'])(
-    'requires revision nine for %s without downgrading to the previous Host',
+    'keeps revision nine as the minimum for %s',
     (channel) => {
       const payload = decodeLocalSessionCommandPayload({
         contract: 'host-ui-v1',
@@ -19,7 +19,7 @@ describe('Local Session workspace authorization revision', () => {
         },
       })
 
-      expect(supportedRevisionsForCommand(payload)).toEqual([9])
+      expect(supportedRevisionsForCommand(payload)).toEqual([10, 9])
       expect(() => decodeLocalSessionCommandPayloadForRevision(payload, 8)).toThrow(/revision 9/)
       expect(decodeLocalSessionCommandPayloadForRevision(payload, 9)).toEqual(payload)
     },

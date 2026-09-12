@@ -452,6 +452,13 @@ The consequence that outlives the ring: anything hidden behind `group-focus-with
 
 ### Session Host authority and subscriptions are live boundaries
 
+Project approval grants and revocations must use the same owning Host as project preference
+writes. Both update `.openwaggle/settings.json`, and the write queue is process-local. A GUI-local
+write can otherwise race a CLI-owned Host and restore a successfully revoked grant. Route both
+mutations through the Host's validated application operation, require protocol revision 10, and
+retain GUI-only caller authority. A remote Host failure must not fall back to a local write.
+Deterministic tests hold a real config rename to verify overlapping writes preserve both changes.
+
 Session authority stores canonical project and workspace paths as a durable snapshot, then checks
 the live Run scope again for long-running operations such as exports. Tests for these boundaries
 must use real canonical directories; invented paths exercise rejection rather than the intended

@@ -5,12 +5,15 @@ import {
   HOST_BACKED_MCP_GUI_CHANNELS,
   HOST_UI_REVISION_7_NEW_CHANNELS,
   HOST_UI_REVISION_9_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_10_REQUIRED_CHANNELS,
+  type HostBackedGuiChannel,
 } from '@shared/types/host-ui-protocol'
 import {
   isLocalSessionProfileCredential,
   LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
 } from '@shared/types/local-session-profile'
 import {
+  LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH,
@@ -257,6 +260,21 @@ export function decodeLocalSessionCommandPayload(value: unknown) {
   return decodeUnknownExactOrThrow(localSessionCommandPayloadSchema, value)
 }
 
+function requiredHostUiRevision(channel: HostBackedGuiChannel) {
+  if (HOST_UI_REVISION_10_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION
+  }
+  if (HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION
+  }
+  if (HOST_UI_REVISION_7_NEW_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_MCP_AUTH_REVISION
+  }
+  return HOST_BACKED_MCP_GUI_CHANNELS.some((candidate) => candidate === channel)
+    ? LOCAL_SESSION_MCP_HOST_UI_REVISION
+    : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
+}
+
 export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
   const payload = decodeLocalSessionCommandPayload(value)
   if (
@@ -271,13 +289,7 @@ export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revi
   }
   const requiredRevision =
     payload.contract === 'host-ui-v1'
-      ? HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
-        ? LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION
-        : HOST_UI_REVISION_7_NEW_CHANNELS.some((channel) => channel === payload.request.channel)
-          ? LOCAL_SESSION_MCP_AUTH_REVISION
-          : HOST_BACKED_MCP_GUI_CHANNELS.some((channel) => channel === payload.request.channel)
-            ? LOCAL_SESSION_MCP_HOST_UI_REVISION
-            : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
+      ? requiredHostUiRevision(payload.request.channel)
       : payload.contract === 'local-compaction-v1' ||
           payload.contract === 'local-compaction-cancel-v1'
         ? LOCAL_SESSION_COMPACTION_REVISION

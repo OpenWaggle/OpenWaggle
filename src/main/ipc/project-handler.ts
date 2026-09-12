@@ -1,12 +1,10 @@
-import { safeDecodeUnknown } from '@shared/schema'
-import { authorizationScopeKeySchema } from '@shared/schemas/validation'
 import * as Effect from 'effect/Effect'
 import type { OpenDialogOptions } from 'electron'
+import { listGrantsForProject } from '../application/agent-authorization-grants'
 import {
-  grantForProject,
-  listGrantsForProject,
-  revokeForProject,
-} from '../application/agent-authorization-grants'
+  grantProjectAuthorizationOperation,
+  revokeProjectAuthorizationOperation,
+} from '../application/project-authorization-grant-operation'
 import { setProjectPreferencesOperation } from '../application/project-preferences-operation'
 import { getProjectPreferences } from '../config/project-config'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
@@ -18,32 +16,6 @@ function createProjectFolderDialogOptions(): OpenDialogOptions {
     properties: ['openDirectory'],
     title: 'Select Project Folder',
   }
-}
-
-function validateAuthorizationScopeKey(key: unknown) {
-  const result = safeDecodeUnknown(authorizationScopeKeySchema, key)
-  if (!result.success) {
-    return Effect.fail(new Error(`Invalid authorization scope key: ${result.issues.join('; ')}`))
-  }
-
-  const requester = result.data.requester.trim()
-  if (!requester) {
-    return Effect.fail(new Error('Authorization scope key requires a requester.'))
-  }
-
-  // Identity, so an empty one would make every grant for that capability look alike.
-  const requesterId = result.data.requesterId.trim()
-  if (!requesterId) {
-    return Effect.fail(new Error('Authorization scope key requires a requester id.'))
-  }
-
-  const resource = result.data.resource?.trim()
-  return Effect.succeed({
-    requester,
-    requesterId,
-    capability: result.data.capability,
-    ...(resource ? { resource } : {}),
-  })
 }
 
 export function registerProjectHandlers(): void {
@@ -85,26 +57,12 @@ export function registerProjectHandlers(): void {
     }),
   )
 
-  typedHandle('authorization-grants:grant', (_event, projectPath: string, key: unknown) =>
-    Effect.gen(function* () {
-      const validatedProjectPath = yield* validateProjectPath(projectPath)
-      if (!validatedProjectPath) {
-        return yield* Effect.fail(new Error('Project path is required.'))
-      }
-      const validatedKey = yield* validateAuthorizationScopeKey(key)
-      yield* Effect.promise(() => grantForProject(validatedProjectPath, validatedKey))
-    }),
+  hostHandle('authorization-grants:grant', (_event, projectPath: string, key: unknown) =>
+    grantProjectAuthorizationOperation(projectPath, key),
   )
 
-  typedHandle('authorization-grants:revoke', (_event, projectPath: string, key: unknown) =>
-    Effect.gen(function* () {
-      const validatedProjectPath = yield* validateProjectPath(projectPath)
-      if (!validatedProjectPath) {
-        return yield* Effect.fail(new Error('Project path is required.'))
-      }
-      const validatedKey = yield* validateAuthorizationScopeKey(key)
-      yield* Effect.promise(() => revokeForProject(validatedProjectPath, validatedKey))
-    }),
+  hostHandle('authorization-grants:revoke', (_event, projectPath: string, key: unknown) =>
+    revokeProjectAuthorizationOperation(projectPath, key),
   )
 
   typedHandle('dialog:confirm', (_event, message: string, detail?: string) =>

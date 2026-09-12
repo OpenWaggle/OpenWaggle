@@ -41,6 +41,7 @@ const [
   steerReceiptCapability,
   workspaceAuthCapability,
   visualizationSourceCapability,
+  authorizationGrantsCapability,
 ] = LOCAL_SESSION_CAPABILITIES
 
 const supportedRevisionListSchema = Schema.Array(
@@ -63,6 +64,7 @@ const currentCapabilitySchema = Schema.Tuple(
   Schema.Literal(steerReceiptCapability),
   Schema.Literal(workspaceAuthCapability),
   Schema.Literal(visualizationSourceCapability),
+  Schema.Literal(authorizationGrantsCapability),
 )
 
 const previousCapabilitySchema = Schema.Tuple(
@@ -79,6 +81,8 @@ const previousCapabilitySchema = Schema.Tuple(
   Schema.Literal(hostUiCapability),
   Schema.Literal(mcpAuthCapability),
   Schema.Literal(steerReceiptCapability),
+  Schema.Literal(workspaceAuthCapability),
+  Schema.Literal(visualizationSourceCapability),
 )
 
 export const localSessionNegotiationResultSchema: Schema.Schema<LocalSessionNegotiationResult> =

@@ -4,12 +4,14 @@ import {
   HOST_BACKED_MCP_GUI_CHANNELS,
   HOST_UI_REVISION_7_REQUIRED_CHANNELS,
   HOST_UI_REVISION_9_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_10_REQUIRED_CHANNELS,
 } from '@shared/types/host-ui-protocol'
 import type {
   LocalSessionCommandPayload,
   LocalSessionCommandResult,
 } from '@shared/types/local-session-protocol'
 import {
+  LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
@@ -53,6 +55,11 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
     return LOCAL_SESSION_COMPACTION_REVISION
   }
   if (payload.contract === 'host-ui-v1') {
+    if (
+      HOST_UI_REVISION_10_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
+    ) {
+      return LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION
+    }
     if (
       HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
     ) {
