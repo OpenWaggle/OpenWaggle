@@ -65,7 +65,7 @@ describe('native dependency rebuild cache', () => {
   })
 
   it('tracks the native packages that can overwrite artifacts for each ABI mode', () => {
-    expect(nativeArtifactPackagesForMode('node')).toEqual(['better-sqlite3'])
+    expect(nativeArtifactPackagesForMode('node')).toEqual(['node-pty', 'better-sqlite3'])
     expect(nativeArtifactPackagesForMode('electron')).toEqual([
       'sharp',
       'node-pty',
@@ -84,7 +84,7 @@ describe('native dependency rebuild cache', () => {
       nativeLoadProbeCommandForMode('electron', 'C:\\workspace', 'win32', 'C:\\node.exe'),
     ).toMatchObject({
       command: 'C:\\workspace\\node_modules\\electron\\dist\\electron.exe',
-      args: ['--import', 'tsx', 'C:\\workspace\\scripts\\native-load-probe.ts', 'electron'],
+      args: ['--import', 'tsx', 'C:\\workspace\\scripts\\native-load-probe.ts', 'electron', 'C:\\workspace', 'C:\\node.exe'],
       environment: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }),
     })
   })

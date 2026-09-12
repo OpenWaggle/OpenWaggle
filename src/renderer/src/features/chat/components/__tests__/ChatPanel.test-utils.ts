@@ -1,10 +1,29 @@
 import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { SessionWorkspace } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { vi } from 'vitest'
+import { useComposerStore } from '@/features/composer/state'
+import { useSessionStore } from '@/features/sessions/state'
 import type { ChatPanelSections } from '../../model/chat-panel-sections'
 
 export const PROJECT_PATH = '/test/project'
+
+/** Opt in when interaction tests start after the selected Session draft hydrated. */
+export function seedHydratedSessionComposer() {
+  useComposerStore.setState(useComposerStore.getInitialState())
+  useComposerStore
+    .getState()
+    .setActiveDraftContextKey(`project:${PROJECT_PATH}:session:session-1:main`)
+  useSessionStore.setState({
+    activeWorkspace: fromPartial<SessionWorkspace>({
+      tree: { session: { id: SessionId('session-1'), projectPath: PROJECT_PATH } },
+      activeBranchId: null,
+      activeNodeId: null,
+    }),
+    draftBranch: null,
+  })
+}
 
 export function makeMessage(
   overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' },

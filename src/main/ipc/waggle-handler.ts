@@ -21,7 +21,11 @@ import {
   emitWorktreeLaunchProgress,
   startStreamBuffer,
 } from '../utils/stream-bridge'
-import { activeWaggleRuns, cancelSessionRuns } from './active-agent-runs'
+import {
+  activeWaggleRuns,
+  cancelSessionRuns,
+  ensureSessionRunStartAllowed,
+} from './active-agent-runs'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -118,6 +122,7 @@ function handleSendWaggleMessage(
     const validatedPayload = toAgentSendPayload(
       decodeUnknownOrThrow(agentSendPayloadSchema, payload),
     )
+    yield* ensureSessionRunStartAllowed(sessionId)
     cancelExistingWaggleWork(sessionId)
 
     const abortController = new AbortController()

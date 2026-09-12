@@ -66,8 +66,10 @@ import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
+import type { OpenWaggleBrowserPreviewApi } from './openwaggle-browser-preview-api'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
+import type { OpenWaggleTerminalApi } from './openwaggle-terminal-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
@@ -95,6 +97,8 @@ import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voic
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
+    OpenWaggleBrowserPreviewApi,
+    OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
     OpenWaggleProjectConfigApi,
     OpenWaggleUpdaterApi,
@@ -213,13 +217,6 @@ export interface OpenWaggleApi
     callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
   ): () => void
 
-  // Terminal
-  createTerminal(projectPath: string): Promise<string>
-  closeTerminal(terminalId: string): Promise<void>
-  resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>
-  writeTerminal(terminalId: string, data: string): void
-  onTerminalData(callback: (payload: IpcEventPayload<'terminal:data'>) => void): () => void
-
   // Window
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 
@@ -291,6 +288,7 @@ export interface OpenWaggleApi
 
   // Shell / App
   copyToClipboard(text: string): void
+  readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>

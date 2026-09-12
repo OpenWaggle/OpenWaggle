@@ -1,6 +1,14 @@
 import type { Settings } from '@shared/types/settings'
 import {
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
+  SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+  SETTINGS_KEY_BROWSER_DEFAULT_APPEARANCE,
+  SETTINGS_KEY_BROWSER_DEFAULT_PROFILE_ID,
+  SETTINGS_KEY_BROWSER_DEFAULT_VIEWPORT,
+  SETTINGS_KEY_BROWSER_DEFAULT_ZOOM_FACTOR,
+  SETTINGS_KEY_BROWSER_LINK_TARGET,
+  SETTINGS_KEY_BROWSER_PROFILES,
+  SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE,
   SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
@@ -8,12 +16,14 @@ import {
   SETTINGS_KEY_DIFF_SYNTAX_THEME,
   SETTINGS_KEY_DIFF_VIEW,
   SETTINGS_KEY_DIFF_WRAP_LINES,
+  SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
+  SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
@@ -49,6 +59,67 @@ export function getInvalidThinkingLevel(partial: Partial<Settings>) {
   }
 
   return partial.thinkingLevel
+}
+
+function appendBrowserSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
+  appendChangedSetting(
+    writes,
+    partial.browserLinkTarget !== undefined,
+    SETTINGS_KEY_BROWSER_LINK_TARGET,
+    next.browserLinkTarget,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserProfiles !== undefined,
+    SETTINGS_KEY_BROWSER_PROFILES,
+    next.browserProfiles,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultProfileId !== undefined || partial.browserProfiles !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_PROFILE_ID,
+    next.browserDefaultProfileId,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultViewport !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_VIEWPORT,
+    next.browserDefaultViewport,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultZoomFactor !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_ZOOM_FACTOR,
+    next.browserDefaultZoomFactor,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultAppearance !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_APPEARANCE,
+    next.browserDefaultAppearance,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserRecordingFrameRate !== undefined,
+    SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE,
+    next.browserRecordingFrameRate,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserAutoShowFloatingPreview !== undefined,
+    SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+    next.browserAutoShowFloatingPreview,
+  )
+  appendChangedSetting(
+    writes,
+    partial.enableAgentBrowserAccess !== undefined,
+    SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
+    next.enableAgentBrowserAccess,
+  )
 }
 
 export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
@@ -99,9 +170,15 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   )
   appendChangedSetting(
     writes,
-    partial.shortcutBindings !== undefined,
+    partial.shortcutBindings !== undefined || partial.shortcutRules !== undefined,
     SETTINGS_KEY_SHORTCUT_BINDINGS,
     next.shortcutBindings,
+  )
+  appendChangedSetting(
+    writes,
+    partial.shortcutBindings !== undefined || partial.shortcutRules !== undefined,
+    SETTINGS_KEY_SHORTCUT_RULES,
+    next.shortcutRules,
   )
   appendChangedSetting(
     writes,
@@ -151,6 +228,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_APPEARANCE_PREFERENCES,
     next.appearancePreferences,
   )
+  appendBrowserSettingsWrites(writes, partial, next)
 
   return writes
 }

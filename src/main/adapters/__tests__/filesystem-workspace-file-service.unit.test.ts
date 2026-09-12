@@ -1,46 +1,22 @@
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
-import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  WorkspaceFileService,
-  type WorkspaceFileServiceShape,
-} from '../../ports/workspace-file-service'
-import { FilesystemWorkspaceFileLive } from '../filesystem-workspace-file-service'
-import { encodeWorkspaceText } from '../workspace-file-content'
-
-function runWithWorkspaceFiles<A>(
-  useService: (service: WorkspaceFileServiceShape) => Effect.Effect<A, unknown>,
-) {
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      const service = yield* WorkspaceFileService
-      return yield* useService(service)
-    }).pipe(Effect.provide(FilesystemWorkspaceFileLive)),
-  )
-}
+  createWorkspaceFileFixture,
+  removeWorkspaceFileFixture,
+  runWithWorkspaceFiles,
+} from './filesystem-workspace-file-service-test-harness'
 
 describe('FilesystemWorkspaceFileLive', () => {
   let temporaryRoot = ''
   let projectPath = ''
 
   beforeEach(async () => {
-    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-workspace-files-'))
-    projectPath = path.join(temporaryRoot, 'project')
-    await fs.mkdir(path.join(projectPath, 'src'), { recursive: true })
-    await fs.mkdir(path.join(projectPath, '.agents'), { recursive: true })
-    await fs.mkdir(path.join(projectPath, 'node_modules', 'ignored'), { recursive: true })
-    await Promise.all([
-      fs.writeFile(path.join(projectPath, 'src', 'alpha.ts'), 'export const alpha = 1\n'),
-      fs.writeFile(path.join(projectPath, 'src', 'beta.ts'), 'const needle = true\n'),
-      fs.writeFile(path.join(projectPath, '.agents', 'guide.md'), '# Guide\n'),
-      fs.writeFile(path.join(projectPath, 'node_modules', 'ignored', 'package.js'), 'ignored\n'),
-    ])
+    ;({ temporaryRoot, projectPath } = await createWorkspaceFileFixture())
   })
 
   afterEach(async () => {
-    await fs.rm(temporaryRoot, { recursive: true, force: true })
+    await removeWorkspaceFileFixture(temporaryRoot)
   })
 
   it('fuzzy-searches source and dot files while excluding generated dependencies', async () => {
@@ -54,6 +30,20 @@ describe('FilesystemWorkspaceFileLive', () => {
     expect(sourceResults[0]?.path).toBe('src/alpha.ts')
     expect(allResults.map((entry) => entry.path)).toContain('.agents/guide.md')
     expect(allResults.map((entry) => entry.path)).not.toContain('node_modules/ignored/package.js')
+  })
+
+  it('accepts only absolute regular-file targets for external-editor launches', async () => {
+    await expect(
+      runWithWorkspaceFiles((service) =>
+        service.openAbsoluteFile({ path: 'src/alpha.ts', editor: 'vscode' }),
+      ),
+    ).rejects.toThrow('File path must be absolute')
+
+    await expect(
+      runWithWorkspaceFiles((service) =>
+        service.openAbsoluteFile({ path: projectPath, editor: 'vscode' }),
+      ),
+    ).rejects.toThrow('Path must resolve to a file')
   })
 
   it('applies nested generated-directory and gitignore rules with re-inclusions', async () => {
@@ -179,164 +169,5 @@ describe('FilesystemWorkspaceFileLive', () => {
     expect(nestedTemplate).toMatchObject({ previewKind: 'text', language: 'html' })
     expect(largeTheme).toMatchObject({ previewKind: 'oversized', language: 'typescript' })
     expect(largeThemePage).toMatchObject({ language: 'typescript' })
-  })
-
-  it('infers extensionless scripts from their shebang', async () => {
-    await fs.writeFile(
-      path.join(projectPath, 'src', 'release'),
-      '#!/usr/bin/env python3\nprint(1)\n',
-    )
-
-    const result = await runWithWorkspaceFiles((service) =>
-      service.readFile({ projectPath, path: 'src/release' }),
-    )
-
-    expect(result).toMatchObject({ previewKind: 'text', language: 'python' })
-  })
-
-  it.each(['utf-8', 'utf-8-bom', 'utf-16le', 'utf-16be'] as const)(
-    'pages %s text only on complete encoded-character boundaries',
-    async (encoding) => {
-      const content = 'alpha 😀 café\nβeta 🌍 done\n'
-      await fs.writeFile(
-        path.join(projectPath, 'src', 'encoded.txt'),
-        encodeWorkspaceText(content, encoding),
-      )
-
-      let nextOffset: number | null = 0
-      let assembled = ''
-      let previousEnd = 0
-      while (nextOffset !== null) {
-        const page = await runWithWorkspaceFiles((service) =>
-          service.readPage({
-            projectPath,
-            path: 'src/encoded.txt',
-            offset: nextOffset ?? 0,
-            limit: 7,
-          }),
-        )
-        expect(page.offset).toBe(previousEnd)
-        expect(page.endOffset).toBeGreaterThan(page.offset)
-        expect(page.encoding).toBe(encoding)
-        assembled += page.content
-        previousEnd = page.endOffset
-        nextOffset = page.nextOffset
-      }
-
-      expect(assembled).toBe(content)
-      expect(previousEnd).toBe((await fs.stat(path.join(projectPath, 'src', 'encoded.txt'))).size)
-    },
-  )
-
-  it('rejects binary files from the paged source view', async () => {
-    await fs.writeFile(path.join(projectPath, 'src', 'binary.bin'), Buffer.from([0, 1, 2, 3]))
-
-    await expect(
-      runWithWorkspaceFiles((service) =>
-        service.readPage({ projectPath, path: 'src/binary.bin', offset: 0, limit: 16 }),
-      ),
-    ).rejects.toThrow('Binary files cannot be opened')
-  })
-
-  it('returns line-targeted content matches', async () => {
-    const matches = await runWithWorkspaceFiles((service) =>
-      service.searchContent({ projectPath, query: 'needle', limit: 20 }),
-    )
-
-    expect(matches).toContainEqual({
-      path: 'src/beta.ts',
-      basename: 'beta.ts',
-      lineNumber: 1,
-      lineText: 'const needle = true',
-      matchStart: 6,
-      matchLength: 6,
-    })
-  })
-
-  it('stops an in-progress content scan when the project search is cancelled', async () => {
-    const search = runWithWorkspaceFiles((service) =>
-      service.searchContent({ projectPath, query: 'needle', limit: 20 }),
-    )
-
-    await runWithWorkspaceFiles((service) => service.cancelContentSearch({ projectPath }))
-
-    await expect(search).resolves.toEqual([])
-  })
-
-  it('writes only when the optimistic revision matches', async () => {
-    const initial = await runWithWorkspaceFiles((service) =>
-      service.readFile({ projectPath, path: 'src/alpha.ts' }),
-    )
-    const result = await runWithWorkspaceFiles((service) =>
-      service.writeFile({
-        projectPath,
-        path: 'src/alpha.ts',
-        content: 'export const alpha = 2\n',
-        expectedRevision: initial.revision,
-      }),
-    )
-    expect(result.status).toBe('saved')
-    if (result.status !== 'saved') throw new Error('Expected the workspace file write to succeed.')
-
-    const conflict = await runWithWorkspaceFiles((service) =>
-      service.writeFile({
-        projectPath,
-        path: 'src/alpha.ts',
-        content: 'stale write\n',
-        expectedRevision: initial.revision,
-      }),
-    )
-    expect(conflict).toEqual({
-      status: 'conflict',
-      message: 'The file changed on disk. Reload it before saving your edits.',
-    })
-    expect(result.revision).not.toBe(initial.revision)
-    expect(await fs.readFile(path.join(projectPath, 'src', 'alpha.ts'), 'utf8')).toBe(
-      'export const alpha = 2\n',
-    )
-  })
-
-  it('rejects a same-size external edit whose modification time is preserved', async () => {
-    const filePath = path.join(projectPath, 'src', 'alpha.ts')
-    const fixedMtimeSeconds = 1_700_000_000
-    await fs.utimes(filePath, fixedMtimeSeconds, fixedMtimeSeconds)
-    const initial = await runWithWorkspaceFiles((service) =>
-      service.readFile({ projectPath, path: 'src/alpha.ts' }),
-    )
-    const initialStats = await fs.stat(filePath)
-    const externalContent = 'export const omega = 9\n'
-    expect(Buffer.byteLength(externalContent)).toBe(initial.size)
-
-    await fs.writeFile(filePath, externalContent)
-    await fs.utimes(filePath, initialStats.atime, initialStats.mtime)
-
-    const result = await runWithWorkspaceFiles((service) =>
-      service.writeFile({
-        projectPath,
-        path: 'src/alpha.ts',
-        content: 'export const alpha = 2\n',
-        expectedRevision: initial.revision,
-      }),
-    )
-
-    expect(result.status).toBe('conflict')
-    expect(await fs.readFile(filePath, 'utf8')).toBe(externalContent)
-  })
-
-  it('rejects traversal and symlinks that resolve outside the project', async () => {
-    const externalFile = path.join(temporaryRoot, 'external.txt')
-    await fs.writeFile(externalFile, 'secret\n')
-    await fs.symlink(externalFile, path.join(projectPath, 'external-link.txt'))
-
-    await expect(
-      runWithWorkspaceFiles((service) =>
-        service.readFile({ projectPath, path: '../external.txt' }),
-      ),
-    ).rejects.toThrow('cannot leave the project root')
-    await expect(
-      runWithWorkspaceFiles((service) =>
-        service.readFile({ projectPath, path: 'external-link.txt' }),
-      ),
-    ).rejects.toThrow('symlink resolves outside')
   })
 })

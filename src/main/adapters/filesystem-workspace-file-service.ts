@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { WorkspaceContentMatch, WorkspaceFileEntry } from '@shared/types/workspace-files'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
@@ -229,9 +230,26 @@ export const FilesystemWorkspaceFileLive = Layer.succeed(
             editor: input.editor,
             filePath,
             ...(input.line === undefined ? {} : { line: input.line }),
+            ...(input.column === undefined ? {} : { column: input.column }),
           })
         },
         catch: (cause) => workspaceFileError('open-file', cause),
+      }),
+    openAbsoluteFile: (input) =>
+      Effect.tryPromise({
+        try: async () => {
+          if (!path.isAbsolute(input.path)) throw new Error('File path must be absolute.')
+          const filePath = await fs.realpath(input.path)
+          const stats = await fs.stat(filePath)
+          if (!stats.isFile()) throw new Error('Path must resolve to a file.')
+          await openWorkspaceFileInExternalEditor({
+            editor: input.editor,
+            filePath,
+            ...(input.line === undefined ? {} : { line: input.line }),
+            ...(input.column === undefined ? {} : { column: input.column }),
+          })
+        },
+        catch: (cause) => workspaceFileError('open-absolute-file', cause),
       }),
     createEntry: (input) =>
       Effect.tryPromise({

@@ -2,9 +2,15 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import type { Settings } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
+import { SettingsStoreReadError } from '../errors'
 import { createLogger } from '../logger'
-import { SETTINGS_KEY_DEFAULT_MODEL } from './settings/keys'
-import { collectSettingsPatchWrites, getInvalidThinkingLevel } from './settings/persistence-plan'
+import { CURRENT_SETTINGS_KEYS, SETTINGS_KEY_DEFAULT_MODEL } from './settings/keys'
+import { validatePersistedSettings } from './settings/persisted-validation'
+import {
+  collectSettingsPatchWrites,
+  getInvalidThinkingLevel,
+  type SettingsPatchWrite,
+} from './settings/persistence-plan'
 import {
   buildNextSettingsSnapshot,
   buildSettingsSnapshot,
@@ -13,6 +19,7 @@ import {
 import { runStoreEffect } from './store-runtime'
 
 const logger = createLogger('settings')
+const currentSettingsKeys = new Set<string>(CURRENT_SETTINGS_KEYS)
 
 interface SettingsStoreRow {
   readonly key: string
@@ -21,6 +28,8 @@ interface SettingsStoreRow {
 
 let settingsCache = createDefaultSettingsSnapshot()
 let initializationPromise: Promise<void> | null = null
+let settingsReadError: SettingsStoreReadError | null = null
+let settingsReady = false
 let writeQueue: Promise<void> = Promise.resolve()
 
 function describeError(error: unknown) {
@@ -40,16 +49,40 @@ async function listStoredSettings() {
 
   const stored: Record<string, unknown> = {}
   for (const row of rows) {
+    if (!currentSettingsKeys.has(row.key)) continue
     try {
       stored[row.key] = parseJsonUnknown(row.value_json)
     } catch (error) {
-      logger.warn('Failed to parse stored setting JSON', {
+      throw new SettingsStoreReadError({
+        operation: 'decode',
         key: row.key,
-        error: describeError(error),
+        message: `Saved setting "${row.key}" is not valid JSON.`,
+        cause: error,
       })
     }
   }
   return stored
+}
+
+function toSettingsReadError(error: unknown) {
+  return error instanceof SettingsStoreReadError
+    ? error
+    : new SettingsStoreReadError({
+        operation: 'read',
+        message: 'OpenWaggle could not read the saved settings database.',
+        cause: error,
+      })
+}
+
+function assertSettingsReady() {
+  if (settingsReady) return
+  throw (
+    settingsReadError ??
+    new SettingsStoreReadError({
+      operation: 'read',
+      message: 'OpenWaggle settings have not finished loading.',
+    })
+  )
 }
 
 async function writeStoredSettingToDb(key: string, value: unknown) {
@@ -67,12 +100,40 @@ async function writeStoredSettingToDb(key: string, value: unknown) {
   )
 }
 
-function queueStoredSettingWrite(key: string, value: unknown) {
-  writeQueue = writeQueue
-    .then(() => writeStoredSettingToDb(key, value))
-    .catch((error) => {
-      logger.warn('Failed to write setting to SQLite', { key, error: describeError(error) })
+async function writeStoredSettingsToDb(writes: readonly SettingsPatchWrite[]) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql.withTransaction(
+        Effect.forEach(
+          writes,
+          (write) => sql`
+            INSERT INTO settings_store (key, value_json, updated_at)
+            VALUES (${write.key}, ${JSON.stringify(write.value)}, ${Date.now()})
+            ON CONFLICT(key) DO UPDATE SET
+              value_json = excluded.value_json,
+              updated_at = excluded.updated_at
+          `,
+          { discard: true },
+        ),
+      )
+    }),
+  )
+}
+
+function enqueueSettingsWrite(operation: () => Promise<void>, description: string) {
+  const pending = writeQueue.then(operation)
+  writeQueue = pending.catch((error) => {
+    logger.warn('Failed to write setting to SQLite', {
+      setting: description,
+      error: describeError(error),
     })
+  })
+  return pending
+}
+
+function queueStoredSettingWrite(key: string, value: unknown) {
+  void enqueueSettingsWrite(() => writeStoredSettingToDb(key, value), key)
 }
 
 export async function initializeSettingsStore(): Promise<void> {
@@ -80,24 +141,35 @@ export async function initializeSettingsStore(): Promise<void> {
     return initializationPromise
   }
 
-  initializationPromise = (async () => {
+  if (settingsReady) return
+
+  const attempt = (async () => {
     try {
       const storedSettings = await listStoredSettings()
+      validatePersistedSettings(storedSettings)
       const built = buildSettingsSnapshot(storedSettings)
       settingsCache = built.settings
+      settingsReadError = null
+      settingsReady = true
 
       if (built.settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
         queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.selectedModel)
       }
     } catch (error) {
-      logger.warn('Failed to initialize settings cache from SQLite', {
-        error: describeError(error),
+      settingsReadError = toSettingsReadError(error)
+      settingsReady = false
+      logger.error('Failed to initialize settings cache from SQLite', {
+        operation: settingsReadError.operation,
+        key: settingsReadError.key,
+        error: settingsReadError.message,
+        cause: describeError(settingsReadError.cause),
       })
-      settingsCache = createDefaultSettingsSnapshot()
     }
   })()
+  initializationPromise = attempt
 
-  await initializationPromise
+  await attempt
+  if (!settingsReady && initializationPromise === attempt) initializationPromise = null
 }
 
 export async function flushSettingsStoreForTests(): Promise<void> {
@@ -116,14 +188,18 @@ export async function flushSettingsStoreForTests(): Promise<void> {
 export async function resetSettingsStoreForTests(): Promise<void> {
   await writeQueue
   initializationPromise = null
+  settingsReadError = null
+  settingsReady = false
   settingsCache = createDefaultSettingsSnapshot()
 }
 
 export function getSettings(): Settings {
+  assertSettingsReady()
   return settingsCache
 }
 
 export function updateSettings(partial: Partial<Settings>): void {
+  assertSettingsReady()
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
   settingsCache = nextSettings
 
@@ -135,4 +211,27 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (invalidThinkingLevel !== undefined) {
     logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
   }
+}
+
+/**
+ * Persists one settings patch in queue order before publishing it to readers.
+ * Reserved for workflows whose rollback depends on knowing the new identity is
+ * durable, such as publishing a browser profile after its cookies are written.
+ */
+export function updateSettingsDurably(partial: Partial<Settings>): Promise<void> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(async () => {
+    const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
+    const writes = collectSettingsPatchWrites(partial, nextSettings)
+    await writeStoredSettingsToDb(writes)
+    // A normal settings update may have changed another field while SQLite was
+    // writing. Re-apply only this patch to the latest cache instead of
+    // publishing the older full snapshot.
+    settingsCache = buildNextSettingsSnapshot(settingsCache, partial)
+
+    const invalidThinkingLevel = getInvalidThinkingLevel(partial)
+    if (invalidThinkingLevel !== undefined) {
+      logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
+    }
+  }, 'durable settings patch')
 }

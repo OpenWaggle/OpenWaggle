@@ -15,6 +15,7 @@ interface DockedLayoutCaptures {
 
 interface DockedLayoutShell {
   readonly mainMinWidth: number
+  readonly maximized: boolean
   readonly open: boolean
   readonly shouldRenderSidebar: boolean
   readonly width: number
@@ -32,12 +33,15 @@ export function RightSidebarDockedLayout({
   captures: { captureMain, capturePanel, captureRoot },
   content: { children, sidebar },
   rail,
-  shell: { captureSidebar, mainMinWidth, open, shouldRenderSidebar, width },
+  shell: { captureSidebar, mainMinWidth, maximized, open, shouldRenderSidebar, width },
 }: RightSidebarDockedLayoutProps) {
+  const mainCollapsed = open && maximized
   return (
     <div ref={captureRoot} className="relative flex h-full min-w-0 flex-1 overflow-hidden">
       <div
         ref={captureMain}
+        inert={mainCollapsed}
+        aria-hidden={mainCollapsed}
         className="min-w-0 flex-1 overflow-hidden"
         data-right-sidebar-main="true"
         tabIndex={-1}
@@ -48,14 +52,16 @@ export function RightSidebarDockedLayout({
       <aside
         ref={captureSidebar}
         inert={!open}
+        aria-hidden={!open}
         className={cn(
           'relative h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
           open ? 'pointer-events-auto' : 'pointer-events-none',
         )}
         data-right-sidebar-main-min-width={mainMinWidth}
+        data-right-sidebar-maximized={mainCollapsed}
         data-right-sidebar-preferred-width={width}
         data-right-sidebar-shell="true"
-        style={sidebarShellStyle(open, width, mainMinWidth)}
+        style={sidebarShellStyle(open, width, mainMinWidth, maximized)}
       >
         {shouldRenderSidebar ? (
           <div

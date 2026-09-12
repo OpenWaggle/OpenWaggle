@@ -1,54 +1,6 @@
-import type {
-  IpcEventChannel,
-  IpcEventPayload,
-  IpcInvokeArgs,
-  IpcInvokeChannel,
-  IpcInvokeReturn,
-  IpcSendArgs,
-  IpcSendChannel,
-  OpenWaggleApi,
-} from '@shared/types/ipc'
-import { ipcRenderer, webUtils } from 'electron'
-
-function invoke<C extends IpcInvokeChannel>(
-  channel: C,
-): (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeReturn<C>> {
-  return (...args: IpcInvokeArgs<C>) => ipcRenderer.invoke(channel, ...args)
-}
-
-function send<C extends IpcSendChannel>(channel: C): (...args: IpcSendArgs<C>) => void {
-  return (...args: IpcSendArgs<C>) => {
-    ipcRenderer.send(channel, ...args)
-  }
-}
-
-function on<C extends IpcEventChannel>(
-  channel: C,
-): (callback: (payload: IpcEventPayload<C>) => void) => () => void {
-  return (callback: (payload: IpcEventPayload<C>) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload<C>) => {
-      callback(payload)
-    }
-    ipcRenderer.on(channel, handler)
-    return () => ipcRenderer.removeListener(channel, handler)
-  }
-}
-
-const invokePrepareAttachments = invoke('attachments:prepare')
-
-function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const paths: string[] = []
-  for (const file of files) {
-    const filePath = webUtils.getPathForFile(file)
-    if (filePath.length > 0) paths.push(filePath)
-  }
-
-  if (paths.length === 0) {
-    return Promise.resolve([])
-  }
-
-  return invokePrepareAttachments(projectPath, paths)
-}
+import type { OpenWaggleApi } from '@shared/types/ipc'
+import { browserPreviewApi } from './browser-preview-api'
+import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
@@ -132,6 +84,12 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
+  listProjectActions: invoke('project-actions:list'),
+  addProjectAction: invoke('project-actions:add'),
+  updateProjectAction: invoke('project-actions:update'),
+  deleteProjectAction: invoke('project-actions:delete'),
+  discoverT3ProjectActions: invoke('project-actions:discover-t3'),
+  importT3ProjectAction: invoke('project-actions:import-t3'),
   listAuthorizationGrants: invoke('authorization-grants:list'),
   grantAuthorization: invoke('authorization-grants:grant'),
   revokeAuthorization: invoke('authorization-grants:revoke'),
@@ -169,11 +127,23 @@ export const api: OpenWaggleApi = {
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
 
   // Terminal
-  createTerminal: invoke('terminal:create'),
-  closeTerminal: invoke('terminal:close'),
+  getTerminalActivitySnapshot: invoke('terminal:get-activity-snapshot'),
+  openTerminal: invoke('terminal:open'),
+  detachTerminal: invoke('terminal:detach'),
   resizeTerminal: invoke('terminal:resize'),
-  writeTerminal: send('terminal:write'),
-  onTerminalData: on('terminal:data'),
+  clearTerminal: invoke('terminal:clear'),
+  restartTerminal: invoke('terminal:restart'),
+  assessTerminalClose: invoke('terminal:assess-close'),
+  closeTerminal: invoke('terminal:close'),
+  writeTerminal: invoke('terminal:write'),
+  sendTerminalInputNow: invoke('terminal:send-input-now'),
+  acknowledgeTerminalOutput: send('terminal:ack-output'),
+  migrateTerminalOwner: invoke('terminal:migrate-owner'),
+  onTerminalEvent: on('terminal:event'),
+  onTerminalActivitySnapshot: on('terminal:activity-snapshot'),
+
+  // Browser preview
+  ...browserPreviewApi,
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),
@@ -215,6 +185,7 @@ export const api: OpenWaggleApi = {
 
   // Shell / App
   copyToClipboard: send('clipboard:write-text'),
+  readFromClipboard: invoke('clipboard:read-text'),
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
   openPath: invoke('shell:open-path'),
@@ -267,6 +238,7 @@ export const api: OpenWaggleApi = {
   applyWorkspaceDocumentEdits: invoke('workspace-files:apply-document-edits'),
   listWorkspaceExternalEditors: invoke('workspace-files:list-external-editors'),
   openWorkspaceFileExternal: invoke('workspace-files:open-external'),
+  openAbsoluteFileExternal: invoke('workspace-files:open-absolute-external'),
   createWorkspaceEntry: invoke('workspace-files:create-entry'),
   moveWorkspaceEntry: invoke('workspace-files:move-entry'),
   duplicateWorkspaceEntry: invoke('workspace-files:duplicate-entry'),

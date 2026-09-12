@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { captureHiddenWindowPresentation } from './support/hidden-window-presentation'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { seedSingleSession } from './support/session-fixtures'
 
@@ -153,6 +154,15 @@ function visualizationSource() {
 }
 
 async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionId: string) {
+  const stopPresentation = await captureHiddenWindowPresentation(app.electronApplication())
+  try {
+    await assertSecureInteractiveVisualization(app, sessionId)
+  } finally {
+    await stopPresentation()
+  }
+}
+
+async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionId: string) {
   const page = app.window()
   await app.resizeMainWindow(760, 620)
   const iframe = page.locator(`iframe[title="${FRAME_TITLE}"]`)
@@ -408,6 +418,7 @@ async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
 async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const page = app.window()
   const input = app.mainWindow().messageInput()
+  await expect(input).toBeEditable()
   await input.fill('/vis')
   const menu = page.getByRole('menu', { name: 'Slash command menu' })
   await expect(menu).toBeVisible()

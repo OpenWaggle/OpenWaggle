@@ -14,6 +14,10 @@ const QA_SCREENSHOT_SETTLE_MS = 250
 const USER_DATA_REMOVE_RETRIES = 3
 const USER_DATA_REMOVE_RETRY_DELAY_MS = 500
 
+interface OpenWaggleAppLaunchOptions {
+  readonly environment?: Readonly<Record<string, string>>
+}
+
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
     (directory) => {
@@ -37,17 +41,32 @@ export class OpenWaggleApp {
     private currentWindow: Page,
     readonly hidden: boolean,
     private readonly evidencePrefix: string,
+    private readonly environment: Readonly<Record<string, string>> | undefined,
   ) {}
 
-  static async launch(prefix = 'openwaggle-e2e-'): Promise<OpenWaggleApp> {
+  static async launch(
+    prefix = 'openwaggle-e2e-',
+    options: OpenWaggleAppLaunchOptions = {},
+  ): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
     let app: ElectronApplication | null = null
     let window: Page | null = null
     try {
-      app = await launchOpenWaggleElectron({ userDataDir, hidden })
+      app = await launchOpenWaggleElectron({
+        userDataDir,
+        hidden,
+        ...(options.environment === undefined ? {} : { environment: options.environment }),
+      })
       window = await app.firstWindow()
-      const instance = new OpenWaggleApp(userDataDir, app, window, hidden, prefix)
+      const instance = new OpenWaggleApp(
+        userDataDir,
+        app,
+        window,
+        hidden,
+        prefix,
+        options.environment,
+      )
       await instance.mainWindow().waitUntilReady()
       return instance
     } catch (error) {
@@ -84,6 +103,7 @@ export class OpenWaggleApp {
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
+      ...(this.environment === undefined ? {} : { environment: this.environment }),
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()
@@ -203,6 +223,10 @@ export class OpenWaggleApp {
 
   window(): Page {
     return this.currentWindow
+  }
+
+  electronApplication(): ElectronApplication {
+    return this.app
   }
 
   async resizeMainWindow(width: number, height: number): Promise<void> {

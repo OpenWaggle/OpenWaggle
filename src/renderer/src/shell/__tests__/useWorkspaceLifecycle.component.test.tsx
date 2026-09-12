@@ -1,10 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
+import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
+import { useTerminalStore } from '@/features/terminal'
 import { useUIStore } from '../ui-store'
 import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
 
@@ -12,7 +13,7 @@ type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
 interface HotkeyBinding {
   readonly hotkey: ShortcutBinding
-  readonly callback: () => void
+  readonly callback: (event: KeyboardEvent) => void
 }
 
 const lifecycleMocks = vi.hoisted(() => {
@@ -75,6 +76,12 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({
     activeSessionId: lifecycleMocks.activeSessionId,
+    activeSession: {
+      id: SessionId(lifecycleMocks.activeSessionId),
+      projectPath: lifecycleMocks.projectPath,
+      environmentMode: 'worktree',
+      worktreePath: lifecycleMocks.workingPath,
+    },
     startDraftSession: lifecycleMocks.startDraftSession,
     loadSessions: lifecycleMocks.loadChatSessions,
     refreshSession: lifecycleMocks.refreshSession,
@@ -100,6 +107,12 @@ vi.mock('@/features/git/hooks', () => ({
   useGitRefresh: lifecycleMocks.useGitRefresh,
 }))
 
+vi.mock('@/features/project-actions', () => ({
+  useProjectActions: () => ({ data: [] }),
+  useRunProjectAction: () => vi.fn(),
+  useProjectActionShortcutCapture: vi.fn(),
+}))
+
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
   useSessions: () => ({
@@ -114,15 +127,24 @@ vi.mock('@/features/sessions/hooks', () => ({
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
+    setBrowserPreviewShortcutBindings: vi.fn().mockResolvedValue(undefined),
+    onBrowserPreviewKeyEvent: vi.fn(() => vi.fn()),
   },
 }))
 
-function runHotkey(hotkey: string) {
-  const binding = lifecycleMocks.hotkeys.find(
-    (candidate) => shortcutBindingKey(candidate.hotkey) === hotkey,
-  )
-  if (!binding) throw new Error(`Expected hotkey ${hotkey}`)
-  binding.callback()
+function runHotkey(hotkey: string, target?: Element) {
+  const parts = hotkey.split('+')
+  const key = parts.at(-1) ?? ''
+  const event = new KeyboardEvent('keydown', {
+    key: key.toLowerCase(),
+    code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+    ctrlKey: parts.includes('Mod'),
+    altKey: parts.includes('Alt'),
+    shiftKey: parts.includes('Shift'),
+    cancelable: true,
+    bubbles: true,
+  })
+  ;(target ?? window).dispatchEvent(event)
 }
 
 describe('useWorkspaceLifecycle', () => {
@@ -133,6 +155,7 @@ describe('useWorkspaceLifecycle', () => {
       isLoaded: true,
       loadError: null,
     })
+    useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
     lifecycleMocks.loadChatSessions.mockClear()
     lifecycleMocks.startDraftSession.mockClear()
     lifecycleMocks.loadSessionTrees.mockClear()
@@ -194,7 +217,7 @@ describe('useWorkspaceLifecycle', () => {
     act(() => runHotkey('Mod+N'))
     expect(useUIStore.getState().commandSurface).toBeNull()
 
-    expect(useUIStore.getState().terminalOpen).toBe(true)
+    expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().sidebarOpen).toBe(false)
     expect(lifecycleMocks.startDraftSession).toHaveBeenCalledWith('/repo')
     expect(lifecycleMocks.navigate).toHaveBeenCalledWith({ to: '/' })
@@ -218,5 +241,67 @@ describe('useWorkspaceLifecycle', () => {
     await waitFor(() =>
       expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-2'),
     )
+  })
+
+  it('does not route application shortcuts while terminal input owns focus', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    const pane = document.createElement('div')
+    pane.dataset.terminalPane = 'term-1'
+    const textarea = document.createElement('textarea')
+    pane.append(textarea)
+
+    act(() => runHotkey('Mod+N', textarea))
+    act(() => runHotkey('Mod+D', textarea))
+
+    expect(lifecycleMocks.startDraftSession).not.toHaveBeenCalled()
+    expect(lifecycleMocks.toggleDiff).not.toHaveBeenCalled()
+  })
+
+  it('captures global chords before xterm and suppresses the paired key release', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    const pane = document.createElement('div')
+    pane.dataset.terminalPane = 'term-1'
+    const textarea = document.createElement('textarea')
+    pane.append(textarea)
+    document.body.append(pane)
+    const terminalKeyDown = vi.fn()
+    const terminalKeyUp = vi.fn()
+    textarea.addEventListener('keydown', terminalKeyDown)
+    textarea.addEventListener('keyup', terminalKeyUp)
+
+    const press = new KeyboardEvent('keydown', {
+      key: 'b',
+      code: 'KeyB',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => textarea.dispatchEvent(press))
+
+    expect(useUIStore.getState().sidebarOpen).toBe(false)
+    expect(press.defaultPrevented).toBe(true)
+    expect(terminalKeyDown).not.toHaveBeenCalled()
+
+    // The physical shortcut key may be released after its modifier.
+    const release = new KeyboardEvent('keyup', {
+      key: 'b',
+      code: 'KeyB',
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => textarea.dispatchEvent(release))
+    expect(release.defaultPrevented).toBe(true)
+    expect(terminalKeyUp).not.toHaveBeenCalled()
+
+    const laterRelease = new KeyboardEvent('keyup', {
+      key: 'b',
+      code: 'KeyB',
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => textarea.dispatchEvent(laterRelease))
+    expect(laterRelease.defaultPrevented).toBe(false)
+    expect(terminalKeyUp).toHaveBeenCalledOnce()
+    pane.remove()
   })
 })

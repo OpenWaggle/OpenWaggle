@@ -1,6 +1,7 @@
 import {
   APPEARANCE_MOTION_PREFERENCES,
   type AppearancePreferences,
+  type AppearanceTerminalPalettePreferences,
   type AppearanceTypographyPreferences,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
@@ -14,8 +15,10 @@ import {
   FONT_FAMILY_MAX_LENGTH,
   INTERFACE_SCALE_MAX,
   INTERFACE_SCALE_MIN,
+  normalizeTerminalPaletteColor,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
+  TERMINAL_PALETTE_ROLES,
 } from '@shared/types/appearance-preferences'
 import { includes } from '@shared/utils/validation'
 
@@ -106,6 +109,21 @@ function resolveAppearanceTypography(raw: unknown): AppearanceTypographyPreferen
   }
 }
 
+function resolveTerminalPalette(raw: unknown): AppearanceTerminalPalettePreferences {
+  const defaults = DEFAULT_APPEARANCE_PREFERENCES.terminalPalette
+  if (!isObjectRecord(raw)) return defaults
+
+  const resolved = { ...defaults }
+  for (const role of TERMINAL_PALETTE_ROLES) {
+    if (raw[role] === null) {
+      resolved[role] = null
+      continue
+    }
+    resolved[role] = normalizeTerminalPaletteColor(raw[role])
+  }
+  return resolved
+}
+
 export function resolveAppearancePreferences(raw: unknown): AppearancePreferences {
   if (!isObjectRecord(raw)) return DEFAULT_APPEARANCE_PREFERENCES
   const motion =
@@ -115,6 +133,7 @@ export function resolveAppearancePreferences(raw: unknown): AppearancePreference
 
   return {
     typography: resolveAppearanceTypography(raw.typography),
+    terminalPalette: resolveTerminalPalette(raw.terminalPalette),
     motion,
   }
 }

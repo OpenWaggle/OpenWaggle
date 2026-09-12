@@ -1,6 +1,11 @@
+import { SessionId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { describe, expect, it, vi } from 'vitest'
-import { type CoreCommandActions, createCoreCommandItems } from '../global-command-core-items'
+import {
+  type CoreCommandActions,
+  createCoreCommandItems,
+  createRecentSessionItems,
+} from '../global-command-core-items'
 
 function actions(): CoreCommandActions {
   return {
@@ -17,6 +22,12 @@ function actions(): CoreCommandActions {
     setProjectPath: vi.fn().mockResolvedValue(undefined),
     toggleSidebar: vi.fn(),
     toggleTerminal: vi.fn(),
+    newTerminal: vi.fn(),
+    newSideTerminal: vi.fn(),
+    splitTerminal: vi.fn(),
+    splitTerminalVertical: vi.fn(),
+    toggleSidePanelMaximized: vi.fn(),
+    closeActiveTerminal: vi.fn(async () => undefined),
   }
 }
 
@@ -30,5 +41,45 @@ describe('global command core items', () => {
     expect(compact?.label).toBe('Compact session')
     compact?.action()
     expect(commandActions.compactSession).toHaveBeenCalledOnce()
+  })
+
+  it('offers side-panel terminal creation and maximize routes without an existing terminal', () => {
+    const commandActions = actions()
+    const items = createCoreCommandItems('/repo', DEFAULT_SETTINGS, commandActions)
+
+    items.find((item) => item.id === 'new-side-terminal')?.action()
+    items.find((item) => item.id === 'toggle-side-panel-maximized')?.action()
+
+    expect(commandActions.newSideTerminal).toHaveBeenCalledOnce()
+    expect(commandActions.toggleSidePanelMaximized).toHaveBeenCalledOnce()
+  })
+
+  it('shows running-terminal status on the matching recent session only', () => {
+    const commandActions = actions()
+    const items = createRecentSessionItems(
+      [
+        {
+          id: SessionId('session-running'),
+          title: 'Dev server',
+          projectPath: '/repo',
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          id: SessionId('session-idle'),
+          title: 'Idle task',
+          projectPath: '/repo',
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      commandActions,
+      new Map([['session-running', 2]]),
+    )
+
+    expect(items.find((item) => item.id === 'session:session-running')?.trailingBadge).toBe(
+      '2 terminals running',
+    )
+    expect(items.find((item) => item.id === 'session:session-idle')?.trailingBadge).toBeUndefined()
   })
 })

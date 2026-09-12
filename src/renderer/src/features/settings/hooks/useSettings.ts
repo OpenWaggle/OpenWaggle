@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { useSyntaxThemeCatalogStore } from '@/features/settings/state/syntax-theme-store'
@@ -7,21 +7,30 @@ import { api } from '@/shared/lib/ipc'
 /**
  * Load settings and provider models on mount. Call once at the app root.
  */
-export function useSettingsSetup(): void {
+export function useSettingsSetup(): () => void {
   const loadSettings = usePreferencesStore((s) => s.loadSettings)
   const loadSyntaxThemeCatalog = useSyntaxThemeCatalogStore((s) => s.load)
   const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
   const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
+  const [attempt, setAttempt] = useState(0)
+
+  const retry = useCallback(() => {
+    usePreferencesStore.setState({ isLoaded: false, loadError: null })
+    setAttempt((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     let active = true
 
     async function initialize() {
-      await loadSyntaxThemeCatalog(null)
-      if (!active) return
+      if (attempt === 0) {
+        await loadSyntaxThemeCatalog(null)
+        if (!active) return
+      }
 
       await loadSettings()
       if (!active) return
+      if (usePreferencesStore.getState().loadError !== null) return
 
       const updatedSettings = await loadProviderModels(usePreferencesStore.getState().settings)
       if (!active) return
@@ -43,7 +52,7 @@ export function useSettingsSetup(): void {
     return () => {
       active = false
     }
-  }, [loadSyntaxThemeCatalog, loadSettings, loadProviderModels, loadAllAuthAccounts])
+  }, [attempt, loadSyntaxThemeCatalog, loadSettings, loadProviderModels, loadAllAuthAccounts])
 
   // Subscribe to OAuth status events from main process (per-provider)
   useEffect(() => {
@@ -56,6 +65,8 @@ export function useSettingsSetup(): void {
       }
     })
   }, [])
+
+  return retry
 }
 
 /**

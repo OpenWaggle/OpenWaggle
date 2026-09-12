@@ -21,6 +21,7 @@ import type {
   SyntaxWorkerResponse,
 } from './protocol'
 import { isSyntaxWorkerRequest } from './protocol'
+import { SyntaxSourceTokenization } from './syntax-source-tokenization'
 import { importedLanguageRegistration, loadImportedTheme } from './syntax-worker-registrations'
 import { syntaxTokens } from './syntax-worker-tokens'
 
@@ -31,33 +32,16 @@ const importedLanguages = new Map<string, SyntaxLanguageResource>()
 let resourceRegistrationPromise = Promise.resolve()
 
 interface WorkerTokenCacheEntry {
-  readonly sourceBytes: number
   readonly estimatedBytes: number
   readonly language: string
   readonly theme: string
-  readonly foreground?: string
-  readonly background?: string
-  readonly tokens: ReturnType<HighlighterCore['codeToTokens']>['tokens']
+  readonly tokenization: SyntaxSourceTokenization
   readonly elapsedMs: number
 }
 
 const tokenCache = new Map<string, WorkerTokenCacheEntry>()
 let tokenCacheSourceBytes = 0
-const ESTIMATED_TOKEN_LINE_BYTES = 24
-const ESTIMATED_TOKEN_BASE_BYTES = 48
-const UTF16_CODE_UNIT_BYTES = 2
 const VALIDATION_SAMPLE_REPEAT_COUNT = 32
-
-function estimatedTokenBytes(tokens: WorkerTokenCacheEntry['tokens']) {
-  let bytes = 0
-  for (const line of tokens) {
-    bytes += ESTIMATED_TOKEN_LINE_BYTES
-    for (const token of line) {
-      bytes += ESTIMATED_TOKEN_BASE_BYTES + token.content.length * UTF16_CODE_UNIT_BYTES
-    }
-  }
-  return bytes
-}
 
 function cachedTokens(sourceKey: string) {
   const cached = tokenCache.get(sourceKey)
@@ -169,41 +153,36 @@ async function resolveHighlighter(language: string, theme: string) {
 async function highlight(
   message: SyntaxWorkerHighlightMessage,
 ): Promise<SyntaxHighlightResult | null> {
-  let highlighted = cachedTokens(message.sourceKey)
-  if (!highlighted) {
+  const cached = cachedTokens(message.sourceKey)
+  let tokenization = cached?.tokenization
+  if (!tokenization) {
     if (message.source === undefined) return null
-    const startedAt = performance.now()
-    const { instance, resolvedLanguage } = await resolveHighlighter(message.language, message.theme)
-    const result = instance.codeToTokens(message.source, {
-      lang: resolvedLanguage,
-      theme: message.theme,
-    })
-    const sourceBytes = new TextEncoder().encode(message.source).byteLength
-    highlighted = {
-      sourceBytes,
-      language: message.language,
-      theme: message.theme,
-      ...(result.fg ? { foreground: result.fg } : {}),
-      ...(result.bg ? { background: result.bg } : {}),
-      tokens: result.tokens,
-      estimatedBytes: sourceBytes + estimatedTokenBytes(result.tokens),
-      elapsedMs: performance.now() - startedAt,
-    }
-    cacheTokens(message.sourceKey, highlighted)
+    tokenization = new SyntaxSourceTokenization(message.source)
   }
-  const start = Math.max(0, Math.min(message.lineRange?.start ?? 0, highlighted.tokens.length))
+  const startedAt = performance.now()
+  const { instance, resolvedLanguage } = await resolveHighlighter(message.language, message.theme)
+  tokenization.highlightThrough(instance, resolvedLanguage, message.theme, message.lineRange?.end)
+  const highlighted: WorkerTokenCacheEntry = {
+    language: message.language,
+    theme: message.theme,
+    tokenization,
+    estimatedBytes: tokenization.estimatedBytes,
+    elapsedMs: (cached?.elapsedMs ?? 0) + performance.now() - startedAt,
+  }
+  cacheTokens(message.sourceKey, highlighted)
+  const start = Math.max(0, Math.min(message.lineRange?.start ?? 0, tokenization.tokens.length))
   const end = Math.max(
     start,
-    Math.min(message.lineRange?.end ?? highlighted.tokens.length, highlighted.tokens.length),
+    Math.min(message.lineRange?.end ?? tokenization.tokens.length, tokenization.tokens.length),
   )
 
   return {
     status: 'highlighted',
     language: highlighted.language,
     theme: highlighted.theme,
-    ...(highlighted.foreground ? { foreground: highlighted.foreground } : {}),
-    ...(highlighted.background ? { background: highlighted.background } : {}),
-    lines: syntaxTokens(highlighted.tokens.slice(start, end)),
+    ...(tokenization.foreground ? { foreground: tokenization.foreground } : {}),
+    ...(tokenization.background ? { background: tokenization.background } : {}),
+    lines: syntaxTokens(tokenization.tokens.slice(start, end)),
     ...(start > 0 ? { lineOffset: start } : {}),
     elapsedMs: highlighted.elapsedMs,
   }

@@ -51,6 +51,9 @@ describe('renderer import boundaries', () => {
 
     expect(isRendererImportAllowed('@/shell/ui-store', importer)).toBe(true)
     expect(isRendererImportAllowed('@/shell/useFullscreen', importer)).toBe(true)
+    expect(isRendererImportAllowed('@/shell/open-workspace-web-link', importer)).toBe(true)
+    expect(isRendererImportAllowed('@/shell/workspace-panel-cleanup', importer)).toBe(true)
+    expect(isRendererImportAllowed('@/shell/workspace-panel-store', importer)).toBe(false)
     expect(isRendererImportAllowed('@/shell/WorkspaceShell', importer)).toBe(false)
   })
 })

@@ -2,6 +2,12 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import {
+  createProjectActionCommandItems,
+  useProjectActions,
+  useRunProjectAction,
+} from '@/features/project-actions'
+import { useRunningTerminalCounts } from '@/features/terminal'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { CommandDialog } from '@/shared/ui/CommandDialog'
 import { TextInput } from '@/shared/ui/TextInput'
@@ -63,6 +69,9 @@ function handlePaletteKeyDown(
 export function GlobalCommandPalette() {
   const { actions, close, projectPath, sessionId, sessions, settings } = useGlobalCommandActions()
   const extensionActions = useGlobalExtensionActions({ projectPath, sessionId })
+  const projectActions = useProjectActions(projectPath).data ?? []
+  const runProjectAction = useRunProjectAction(projectPath)
+  const runningTerminalCounts = useRunningTerminalCounts()
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -83,10 +92,19 @@ export function GlobalCommandPalette() {
         resolveExtensionCommandInvocationScope({ entry, projectPath, sessionId }) !== null,
     }),
   ]
+  const projectActionItems = createProjectActionCommandItems(
+    projectActions,
+    settings.shortcutRules,
+    (action) => {
+      close()
+      void runProjectAction(action)
+    },
+  )
   const items = [
     ...createCoreCommandItems(projectPath, settings, actions),
+    ...projectActionItems,
     ...createRecentProjectItems(settings, sessions, actions),
-    ...createRecentSessionItems(sessions, actions),
+    ...createRecentSessionItems(sessions, actions, runningTerminalCounts),
     ...extensionItems,
   ].filter((item) => itemMatches(item, query))
   const boundedHighlightIndex = Math.min(highlightIndex, Math.max(0, items.length - 1))

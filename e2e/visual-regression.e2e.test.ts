@@ -177,6 +177,22 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
     await waitForVisualReadiness(page)
     await expect(welcome).toHaveScreenshot('welcome.png', SCREENSHOT_OPTIONS)
 
+    // Opening the panel creates its first terminal. Capture its chrome and
+    // pane geometry, masking only the shell screen because prompts, paths,
+    // startup output, and cursor blinking vary between hosts.
+    await page.keyboard.press('Meta+j')
+    const terminalPanel = page.getByTestId('workspace-terminal')
+    await expect(terminalPanel.getByRole('tab', { name: 'Terminal 1' })).toBeVisible()
+    await expect(terminalPanel.locator('[data-terminal-pane]')).toHaveCount(1)
+    await expect(terminalPanel.locator('.xterm-screen')).toBeVisible()
+    await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2)
+    await waitForVisualReadiness(page)
+    await expect(terminalPanel).toHaveScreenshot('terminal-panel.png', {
+      ...SCREENSHOT_OPTIONS,
+      mask: [terminalPanel.locator('.xterm-screen')],
+    })
+    await page.keyboard.press('Meta+j')
+
     await app.mainWindow().openThread(PRIMARY_TITLE)
 
     const sidebar = page.locator('nav[aria-label="Sidebar"]')
@@ -208,7 +224,9 @@ test('six primary surfaces match their visual baselines', { tag: '@visual' }, as
 
     const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
     await diffToggle.click()
-    const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]')
+    const diffPanel = page.locator('aside[data-right-sidebar-shell="true"]').filter({
+      has: page.getByRole('button', { name: 'Close diff sidebar' }),
+    })
     await expect(diffPanel).not.toHaveAttribute('inert', '')
     await expect(
       diffPanel.getByText('visual-regression.ts', { exact: true }).first(),

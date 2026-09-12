@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
 import { useSessionStatusStore } from '@/features/sessions/state'
+import { useTerminalActivityStore } from '@/features/terminal'
 import type { SidebarSessionActions } from '../../model'
 import { SessionListItem } from '../SessionListItem'
 
@@ -91,6 +92,7 @@ describe('two-line session row', () => {
       lastVisitedAt: new Map(),
       phases: new Map(),
     })
+    useTerminalActivityStore.getState().reset()
   })
 
   it('renders a title line and a detail line', () => {
@@ -183,6 +185,49 @@ describe('two-line session row', () => {
       renderRow(session({ branches: [branch('main')] }))
 
       expect(screen.queryByRole('img', { name: /conversation branches/ })).not.toBeInTheDocument()
+    })
+
+    it('shows one semantic running status per terminal with an observed subprocess', () => {
+      useTerminalActivityStore.getState().applySnapshot({
+        revision: 1,
+        summaries: [
+          {
+            ownerKey: String(SESSION_ID),
+            terminalId: 'main',
+            activityStatus: 'running',
+            processName: 'pnpm',
+            ports: [],
+            projectActionPending: false,
+          },
+          {
+            ownerKey: String(SESSION_ID),
+            terminalId: 'side',
+            activityStatus: 'idle',
+            processName: null,
+            ports: [],
+            projectActionPending: false,
+          },
+          {
+            ownerKey: String(SESSION_ID),
+            terminalId: 'right',
+            activityStatus: 'unknown',
+            processName: null,
+            ports: [],
+            projectActionPending: false,
+          },
+        ],
+        truncated: false,
+      })
+
+      renderRow()
+
+      const indicator = screen.getByRole('img', { name: '1 terminal running a subprocess' })
+      expect(indicator).toHaveTextContent('1')
+      expect(indicator.className).toContain('text-progress')
+      expect(qaOne('sidebar-session-row')).toHaveAttribute(
+        'title',
+        expect.stringContaining('1 terminal running a subprocess'),
+      )
     })
 
     /** Cloning is real but the lineage is never persisted, so the row must not claim it. */

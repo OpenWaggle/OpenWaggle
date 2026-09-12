@@ -24,6 +24,21 @@ export {
   listSessionWorkspaceRoots,
 } from './session-details/session-queries'
 export type {
+  ClaimedSessionWorktreeSetup,
+  PendingSessionWorktreeSetup,
+  SessionWorktreeSetupDispatch,
+} from './session-details/session-worktree-setup'
+export {
+  adoptSessionWorktreeForSetup,
+  claimSessionWorktreeSetup,
+  completeSessionWorktreeSetup,
+  getPendingSessionWorktreeSetup,
+  getSessionWorktreeSetupDispatch,
+  releaseSessionWorktreeSetupClaim,
+  resetRecordedSessionWorktreeSetup,
+  resetSessionWorktreeSetup,
+} from './session-details/session-worktree-setup'
+export type {
   CreateSessionInput,
   SessionNodeRow,
   UpdateSessionRuntimeInput,

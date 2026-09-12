@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
-import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { installDevToolsShortcut } from './application-menu'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
@@ -11,7 +11,7 @@ import {
   prepareDesktopUi,
   revealWindow,
 } from './desktop-window-policy'
-import { env } from './env'
+import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
@@ -20,6 +20,7 @@ import { installInlineVisualizationNavigationGuard } from './inline-visualizatio
 import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
+import { isTrustedRendererDocument } from './renderer-document-trust'
 import {
   configureInlineVisualizationProcessIsolation,
   devRendererUrl,
@@ -67,7 +68,6 @@ const appIconPath = is.dev
 const logger = createLogger('main/index')
 const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
-let beforeQuitCleanupDone = false
 let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
 let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
@@ -88,7 +88,6 @@ function getRuntimeModule() {
   runtimeModulePromise ??= importRuntimeModule()
   return runtimeModulePromise
 }
-
 async function registerIpcHandlersOnce() {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
@@ -122,14 +121,10 @@ async function persistActiveRunsBeforeQuit() {
     getRuntimeModule(),
     persistAllActiveRunsOnce ? Promise.resolve(null) : importAgentHandlerModule(),
   ])
-  const persistAllActiveRuns =
-    persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  const resolved = persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  if (!resolved) return
 
-  if (!persistAllActiveRuns) {
-    return
-  }
-
-  await runtimeModule.runAppEffect(persistAllActiveRuns())
+  await runtimeModule.runAppEffect(resolved())
 }
 
 async function bootstrapServicesAndWindow() {
@@ -139,7 +134,9 @@ async function bootstrapServicesAndWindow() {
     getRuntimeModule(),
     importSettingsStoreModule(),
     importAgentRunServiceModule(),
+    installDesktopShellEnvironment(),
   ])
+  startupMark('desktop-shell-environment-installed')
   startupMark('startup-modules-imported')
 
   await runtimeModule.initializeAppRuntime()
@@ -227,10 +224,8 @@ function createWindow() {
   })
 
   // Prevent in-app navigation — all external URLs open in the user's default browser
-  const rendererOrigin =
-    is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : RENDERER_PROTOCOL_ORIGIN
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(rendererOrigin)) {
+    if (!isTrustedRendererDocument(url)) {
       event.preventDefault()
       openExternalFromRenderer(url)
     }
@@ -272,11 +267,7 @@ function createWindow() {
 
 function focusExistingWindow() {
   const existingWindow = getAllBrowserWindows()[0]
-  if (!existingWindow) {
-    return
-  }
-
-  focusWindow(existingWindow)
+  if (existingWindow) focusWindow(existingWindow)
 }
 
 function registerAppLifecycle() {
@@ -303,29 +294,21 @@ function registerAppLifecycle() {
     })
 
   app.on('window-all-closed', () => {
-    cleanupTerminalsOnce?.()
+    // Session terminals outlive window closes; shells die in the quit shutdown.
     if (process.platform !== 'darwin') {
       app.quit()
     }
   })
 
-  app.on('before-quit', (e) => {
-    disposeAutoUpdaterOnce?.()
-    if (!beforeQuitCleanupDone) {
-      e.preventDefault()
-      completeAppRuntimeShutdown({
-        persistActiveRuns: persistActiveRunsBeforeQuit,
-        disposeRuntime: async () => (await getRuntimeModule()).disposeAppRuntime(),
-      })
-        .then(() => {
-          beforeQuitCleanupDone = true
-          app.quit()
-        })
-        .catch(() => {
-          beforeQuitCleanupDone = true
-          app.quit()
-        })
-    }
+  registerAppQuitCleanup({
+    disposeAutoUpdater: () => disposeAutoUpdaterOnce?.(),
+    persistActiveRuns: persistActiveRunsBeforeQuit,
+    cleanupTerminals: async () => {
+      await cleanupTerminalsOnce?.()
+    },
+    disposeRuntime: async () => {
+      await (await getRuntimeModule()).disposeAppRuntime()
+    },
   })
 }
 

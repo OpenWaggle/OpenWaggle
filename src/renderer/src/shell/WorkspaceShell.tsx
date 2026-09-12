@@ -1,11 +1,16 @@
 import { lazy, type ReactNode, Suspense } from 'react'
-import { useBackgroundRunMonitor } from '@/features/chat/hooks'
+import {
+  useBackgroundRunMonitor,
+  useSetupActionTerminalReconciliation,
+} from '@/features/chat/hooks'
 import { Sidebar } from '@/features/sidebar/components'
+import { useTerminalActivityMonitor } from '@/features/terminal'
 import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
+import { WorkspaceRightPanel } from './WorkspaceRightPanel'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
 
 const LazyGlobalCommandPalette = lazy(() =>
@@ -28,6 +33,11 @@ const LazyProjectFilePicker = lazy(() =>
     default: module.ProjectFilePicker,
   })),
 )
+const LazyWorkspaceBrowserFloatingPreview = lazy(() =>
+  import('./WorkspaceBrowserFloatingPreview').then((module) => ({
+    default: module.WorkspaceBrowserFloatingPreview,
+  })),
+)
 
 interface WorkspaceShellProps {
   readonly children: ReactNode
@@ -36,6 +46,8 @@ interface WorkspaceShellProps {
 export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useWorkspaceLifecycle()
   useBackgroundRunMonitor()
+  useTerminalActivityMonitor()
+  useSetupActionTerminalReconciliation()
   useAutoUpdater()
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
   const commandSurface = useUIStore((s) => s.commandSurface)
@@ -46,8 +58,15 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
-        {children}
-        <WorkspaceTerminal />
+        <WorkspaceRightPanel>
+          <div className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden">
+            {children}
+            <WorkspaceTerminal />
+            <Suspense fallback={null}>
+              <LazyWorkspaceBrowserFloatingPreview />
+            </Suspense>
+          </div>
+        </WorkspaceRightPanel>
       </div>
 
       <ToastOverlay />

@@ -2,6 +2,7 @@ import { match } from '@diegogbrisa/ts-match'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
+import { ProjectActionsSettings } from '@/features/project-actions'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
@@ -9,6 +10,7 @@ import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { ArchivedSection } from './sections/ArchivedSection'
+import { BrowserProfilesSection } from './sections/BrowserProfilesSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
@@ -84,6 +86,8 @@ function SettingsTabContent({
 }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
+    .with('browser', () => <BrowserProfilesSection />)
+    .with('actions', () => <ProjectActionsSettings />)
     .with('shortcuts', () => <ShortcutsSection />)
     .with('appearance', () => <AppearanceSection />)
     .with('waggle', () => <WaggleSection />)

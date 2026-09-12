@@ -15,7 +15,13 @@ const PUBLIC_FEATURE_SEGMENTS = new Set([
   'model',
   'state',
 ])
-const PUBLIC_SHELL_SEGMENTS = new Set(['ui-store', 'useFullscreen'])
+const PUBLIC_SHELL_SEGMENTS = new Set([
+  'open-workspace-web-link',
+  'ui-store',
+  'useFullscreen',
+  'workspace-panel-actions',
+  'workspace-panel-cleanup',
+])
 
 type RendererPathInfo =
   | {

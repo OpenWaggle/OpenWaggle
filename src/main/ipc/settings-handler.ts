@@ -1,12 +1,6 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import { PERCENT_BASE } from '@shared/constants/math'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
-import { APPEARANCE_MOTION_PREFERENCES } from '@shared/types/appearance-preferences'
+import { safeDecodeUnknown } from '@shared/schema'
 import { SupportedModelId } from '@shared/types/brand'
-import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import type { SessionTreeFilterMode } from '@shared/types/session'
-import { DIFF_SYNTAX_THEMES, DIFF_VIEWS, THINKING_LEVELS } from '@shared/types/settings'
 import {
   isMandatoryShortcutCommand,
   SHORTCUT_COMMANDS,
@@ -14,6 +8,7 @@ import {
   type ShortcutBindings,
   type ShortcutCommand,
   shortcutBindingKey,
+  shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
@@ -24,14 +19,13 @@ import { ActiveProjectChangeService } from '../ports/active-project-change-servi
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
 import { SettingsService } from '../services/settings-service'
 import { validateProjectPath } from './project-path-validation'
+import { settingsUpdateSchema } from './settings-update-schema'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
 const MAX_SHORTCUT_KEY_LENGTH = 20
 
-function isString(value: string | undefined) {
-  return value !== undefined
-}
+const isString = (value: string | undefined): value is string => value !== undefined
 
 function validateSettingsProjectPath(projectPath: string | null | undefined) {
   return validateProjectPath(projectPath).pipe(
@@ -65,14 +59,11 @@ function validateRecentProjectPaths(projects: readonly string[] | undefined) {
   ).pipe(Effect.map((validatedProjects) => validatedProjects.filter(isString)))
 }
 
-function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
-  return isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)
-}
-
 function validateTreeFilterMode(value: unknown) {
-  return isTreeFilterMode(value)
-    ? Effect.succeed(value)
-    : Effect.fail(new Error('Invalid tree filter mode'))
+  if (isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)) {
+    return Effect.succeed(value)
+  }
+  return Effect.fail(new Error('Invalid tree filter mode'))
 }
 
 type ShortcutBindingsPatch = Readonly<Partial<Record<ShortcutCommand, ShortcutBinding | null>>>
@@ -88,7 +79,7 @@ function validateShortcutBindingsUpdate(
     if (Object.hasOwn(patch, command)) candidate[command] = patch[command] ?? null
   }
 
-  const owners = new Map<string, ShortcutCommand>()
+  const owners = new Map<string, ShortcutCommand[]>()
   for (const command of SHORTCUT_COMMANDS) {
     const binding = candidate[command]
     if (!binding) {
@@ -102,98 +93,15 @@ function validateShortcutBindingsUpdate(
     }
 
     const key = shortcutBindingKey(binding)
-    const owner = owners.get(key)
-    if (owner) {
+    const owner = owners.get(key)?.find((candidate) => shortcutScopesOverlap(command, candidate))
+    if (owner !== undefined) {
       return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
     }
-    owners.set(key, command)
+    owners.set(key, [...(owners.get(key) ?? []), command])
   }
 
   return { ok: true, value: candidate }
 }
-
-const compactionThresholdSchema = Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE))
-
-const settingsUpdateSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  compactionThresholdPercent: Schema.optional(compactionThresholdSchema),
-  recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  skillTogglesByProject: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.String,
-        value: Schema.mutable(
-          Schema.Record({
-            key: Schema.String,
-            value: Schema.Boolean,
-          }),
-        ),
-      }),
-    ),
-  ),
-  projectDisplayNames: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.String,
-        value: Schema.String,
-      }),
-    ),
-  ),
-  defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  defaultSessionEnvironmentMode: Schema.optional(Schema.Literal(...SESSION_ENVIRONMENT_MODES)),
-  diffSyntaxTheme: Schema.optional(Schema.Literal(...DIFF_SYNTAX_THEMES)),
-  syntaxThemeSelections: Schema.optional(
-    Schema.Struct({
-      light: Schema.String,
-      dark: Schema.String,
-      'high-contrast-light': Schema.String,
-      'high-contrast-dark': Schema.String,
-    }),
-  ),
-  diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
-  diffWrapLines: Schema.optional(Schema.Boolean),
-  appearancePreferences: Schema.optional(
-    Schema.Struct({
-      typography: Schema.Struct({
-        interfaceFontFamily: Schema.String,
-        documentFontFamily: Schema.String,
-        codeFontFamily: Schema.String,
-        terminalFontFamily: Schema.String,
-        terminalUsesCodeFont: Schema.Boolean,
-        interfaceScale: Schema.Number,
-        documentFontSize: Schema.Number,
-        documentLineHeight: Schema.Number,
-        codeFontSize: Schema.Number,
-        codeLineHeight: Schema.Number,
-        terminalFontSize: Schema.Number,
-        codeLigatures: Schema.Boolean,
-      }),
-      motion: Schema.Literal(...APPEARANCE_MOTION_PREFERENCES),
-    }),
-  ),
-  shortcutBindings: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.Literal(...SHORTCUT_COMMANDS),
-        value: Schema.Union(
-          Schema.Struct({
-            key: Schema.String,
-            mod: Schema.optional(Schema.Boolean),
-            ctrl: Schema.optional(Schema.Boolean),
-            shift: Schema.optional(Schema.Boolean),
-            alt: Schema.optional(Schema.Boolean),
-            meta: Schema.optional(Schema.Boolean),
-          }),
-          Schema.Null,
-        ),
-      }),
-    ),
-  ),
-})
 
 function registerSettingsCrudHandlers() {
   typedHandle('settings:get', () =>

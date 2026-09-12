@@ -1,9 +1,8 @@
-import { BUILT_IN_WAGGLE_PRESETS } from '@openwaggle/waggle-core'
-import type { AgentSteerDeliveryResult, Message } from '@shared/types/agent'
-import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import type { Message } from '@shared/types/agent'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { toJsonValue } from '../../adapters/pi/pi-message-mapper'
+import { handoffMessage, installPendingAgentRun } from './agent-handler-waggle-handoff.fixtures'
 
 const mocks = vi.hoisted(() => ({
   clearAgentPhase: vi.fn(),
@@ -49,7 +48,12 @@ vi.mock('../../utils/stream-bridge', () => ({
 }))
 vi.mock('../run-handler-utils', () => ({ emitErrorAndFinish: mocks.emitErrorAndFinish }))
 
-import { activeRuns, activeWaggleRuns, cancelAllSessionRuns } from '../active-agent-runs'
+import {
+  acquireSessionRemovalFence,
+  activeRuns,
+  activeWaggleRuns,
+  cancelAllSessionRuns,
+} from '../active-agent-runs'
 import { registerAgentHandlers } from '../agent-handler'
 
 const SESSION_ID = SessionId('agent-handoff-session')
@@ -57,37 +61,6 @@ const MODEL = SupportedModelId('openai/gpt-5.4')
 const PAYLOAD = { text: 'Review this', thinkingLevel: 'medium', attachments: [] } as const
 const STEER_DELIVERY = { delivery: 'queued', durableText: PAYLOAD.text } as const
 const STEER_RESULT = { preserved: true, delivery: STEER_DELIVERY } as const
-
-function handoffMessage(): Message {
-  const preset = BUILT_IN_WAGGLE_PRESETS[0]
-  if (!preset) throw new Error('Expected a built-in Waggle preset')
-  return {
-    id: MessageId('handoff-message'),
-    role: 'assistant',
-    createdAt: 1,
-    parts: [
-      {
-        type: 'tool-result',
-        toolResult: {
-          id: ToolCallId('waggle-invoke-call'),
-          name: 'waggle_invoke',
-          args: {},
-          result: null,
-          isError: false,
-          duration: 1,
-          details: toJsonValue({
-            kind: 'waggle-handoff',
-            presetId: preset.id,
-            presetName: preset.name,
-            source: 'agent',
-            config: preset.config,
-            prompt: 'Review the durable result.',
-          }),
-        },
-      },
-    ],
-  }
-}
 
 function registeredHandler(channel: string) {
   const handler = mocks.typedHandle.mock.calls.find((call) => call[0] === channel)?.[1]
@@ -99,20 +72,10 @@ function registerHandlers() {
   registerAgentHandlers()
   return {
     cancel: registeredHandler('agent:cancel'),
+    compact: registeredHandler('agent:compact-session'),
     send: registeredHandler('agent:send-message'),
     steer: registeredHandler('agent:steer'),
   }
-}
-
-function installPendingAgentRun(nativeSteer: () => Promise<AgentSteerDeliveryResult>) {
-  mocks.executeAgentRun.mockImplementation((input) =>
-    Effect.async((resume) => {
-      input.onControlAvailable?.({ steer: nativeSteer })
-      input.signal.addEventListener('abort', () => resume(Effect.succeed({ outcome: 'aborted' })), {
-        once: true,
-      })
-    }),
-  )
 }
 
 describe('agent handler Waggle handoff lifecycle', () => {
@@ -150,6 +113,45 @@ describe('agent handler Waggle handoff lifecycle', () => {
     expect(activeRuns.has(SESSION_ID)).toBe(false)
     expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
     expect(mocks.emitRunCompleted).toHaveBeenCalledOnce()
+  })
+
+  it('refuses standard and compaction starts while session removal owns admission', async () => {
+    const { compact, send } = registerHandlers()
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      await expect(Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))).rejects.toThrow(
+        'being archived or deleted',
+      )
+      await expect(Effect.runPromise(compact({}, SESSION_ID, MODEL))).rejects.toThrow(
+        'being archived or deleted',
+      )
+      expect(mocks.executeAgentRun).not.toHaveBeenCalled()
+      expect(mocks.compactAgentSession).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
+  })
+
+  it('refuses a handoff start that races with session removal', async () => {
+    const standardRun = Promise.withResolvers<{
+      readonly outcome: 'success'
+      readonly newMessages: readonly Message[]
+    }>()
+    mocks.executeAgentRun.mockReturnValue(Effect.promise(() => standardRun.promise))
+    const { send } = registerHandlers()
+    const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+    await vi.waitFor(() => expect(activeRuns.has(SESSION_ID)).toBe(true))
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      standardRun.resolve({ outcome: 'success', newMessages: [handoffMessage()] })
+      await expect(run).rejects.toThrow('being archived or deleted')
+      expect(mocks.executeWaggleRun).not.toHaveBeenCalled()
+      expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
+    } finally {
+      release()
+    }
   })
 
   it('does not chain aborted or malformed standard outcomes', async () => {
@@ -247,7 +249,7 @@ describe('agent handler Waggle handoff lifecycle', () => {
 
   it('delivers steering through the active run control without cancelling the run', async () => {
     const nativeSteer = vi.fn(async () => STEER_DELIVERY)
-    installPendingAgentRun(nativeSteer)
+    installPendingAgentRun(mocks.executeAgentRun, nativeSteer)
     const { cancel, send, steer } = registerHandlers()
     const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
     await vi.waitFor(() => expect(mocks.executeAgentRun).toHaveBeenCalledOnce())
@@ -304,7 +306,7 @@ describe('agent handler Waggle handoff lifecycle', () => {
         return payload
       }),
     )
-    installPendingAgentRun(nativeSteer)
+    installPendingAgentRun(mocks.executeAgentRun, nativeSteer)
     const { cancel, send, steer } = registerHandlers()
     const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
     await vi.waitFor(() => expect(mocks.executeAgentRun).toHaveBeenCalledOnce())

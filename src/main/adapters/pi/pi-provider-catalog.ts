@@ -276,6 +276,8 @@ export async function createPiProjectModelRuntime(input: {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
@@ -290,6 +292,12 @@ export async function createPiProjectModelRuntime(input: {
       ? { enabledOpenWaggleExtensionResourceRoots: input.enabledOpenWaggleExtensionResourceRoots }
       : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: input.trustedExtensionFactories }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: input.systemPromptAppendices }
+      : {}),
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),

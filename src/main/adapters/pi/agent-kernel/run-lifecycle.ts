@@ -57,6 +57,8 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
   readonly steeringInputHook?: boolean
 }
@@ -117,6 +119,12 @@ export async function createPiRunSessionRuntime(
     compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),

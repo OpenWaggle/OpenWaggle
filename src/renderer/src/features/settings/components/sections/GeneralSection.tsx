@@ -3,6 +3,7 @@ import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
+import { cn } from '@/shared/lib/cn'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
@@ -59,6 +60,65 @@ const UP_TO_DATE: StatusRow = {
   subtitle: 'You are up to date',
   subtitleClass: 'text-text-tertiary',
   dotClass: null,
+}
+
+function BrowserLinkTargetSettings() {
+  const target = usePreferencesStore((state) => state.settings.browserLinkTarget)
+  const setTarget = usePreferencesStore((state) => state.setBrowserLinkTarget)
+  const [saving, setSaving] = useState(false)
+
+  const choose = (next: 'system' | 'app') => {
+    if (saving || next === target) return
+    setSaving(true)
+    void setTarget(next)
+      .catch((error: unknown) => {
+        logger.warn('Failed to update browser link target', { error: String(error) })
+      })
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-text-primary">Links</h3>
+      <div className="flex min-h-14 items-center justify-between gap-4 rounded-lg border border-border bg-bg px-5 py-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-text-primary">Open web links in</div>
+          <div className="mt-0.5 text-xs text-text-tertiary">
+            Terminal links and detected local ports use this destination.
+          </div>
+        </div>
+        <div
+          role="radiogroup"
+          aria-label="Open web links in"
+          className="flex shrink-0 rounded-md border border-border bg-bg-secondary p-0.5"
+        >
+          {(
+            [
+              ['system', 'System browser'],
+              ['app', 'OpenWaggle'],
+            ] as const
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={target === value}
+              size="xs"
+              variant="ghost"
+              disabled={saving}
+              className={cn(
+                'h-7 px-2.5 text-xs',
+                target === value && 'bg-bg-hover text-text-primary shadow-sm',
+              )}
+              onClick={() => choose(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function getStatusRow(status: UpdateStatus) {
@@ -159,6 +219,7 @@ export function GeneralSection() {
   return (
     <div className="space-y-6">
       <AgentAccessSection />
+      <BrowserLinkTargetSettings />
 
       <CompactionThresholdSetting />
 

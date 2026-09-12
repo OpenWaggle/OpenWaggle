@@ -53,6 +53,11 @@ export interface SessionProjectionRepositoryShape {
     id: SessionId,
     plan: SessionWorktreePlan,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Mark a recorded Session worktree recreation as needing Setup action dispatch. */
+  readonly resetWorktreeSetup: (
+    id: SessionId,
+    worktreePath: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   /** `null` clears the session override so the session inherits its project and global default. */
   readonly setAuthorizationMode: (
     id: SessionId,

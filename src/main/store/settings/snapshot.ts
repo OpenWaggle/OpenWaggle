@@ -1,5 +1,14 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import {
+  shortcutBindingsFromRules,
+  shortcutRulesFromBindings,
+  shortcutRulesWithDefaults,
+} from '@shared/types/shortcuts'
 import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
+import {
+  resolveNextBrowserSettings,
+  resolveStoredBrowserSettings,
+} from './browser-settings-snapshot'
 import {
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
@@ -15,6 +24,7 @@ import {
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
+  SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
@@ -43,6 +53,7 @@ import {
   sanitizeProjectDisplayNames,
   sanitizeRecentProjects,
   sanitizeShortcutBindings,
+  sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
 
@@ -80,10 +91,22 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
-  const shortcutBindings = sanitizeShortcutBindings(
-    getStoredValue(storedSettings, SETTINGS_KEY_SHORTCUT_BINDINGS) ??
-      DEFAULT_SETTINGS.shortcutBindings,
+  const storedLegacyShortcutBindings = getStoredValue(
+    storedSettings,
+    SETTINGS_KEY_SHORTCUT_BINDINGS,
   )
+  const legacyShortcutBindings = sanitizeShortcutBindings(
+    storedLegacyShortcutBindings ?? DEFAULT_SETTINGS.shortcutBindings,
+  )
+  const storedShortcutRules = getStoredValue(storedSettings, SETTINGS_KEY_SHORTCUT_RULES)
+  const sanitizedShortcutRules = sanitizeShortcutRules(storedShortcutRules)
+  const shortcutRules = shortcutRulesWithDefaults(
+    sanitizedShortcutRules ??
+      (storedLegacyShortcutBindings === undefined
+        ? DEFAULT_SETTINGS.shortcutRules
+        : shortcutRulesFromBindings(legacyShortcutBindings)),
+  )
+  const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
   const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
   )
@@ -106,6 +129,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const appearancePreferences = resolveAppearancePreferences(
     getStoredValue(storedSettings, SETTINGS_KEY_APPEARANCE_PREFERENCES),
   )
+  const browserSettings = resolveStoredBrowserSettings(storedSettings)
 
   return {
     settings: {
@@ -117,6 +141,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       recentProjects,
       skillTogglesByProject,
       projectDisplayNames,
+      shortcutRules,
       shortcutBindings,
       defaultSessionEnvironmentMode,
       defaultAuthorizationMode,
@@ -126,6 +151,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       diffWrapLines,
       compactionThresholdPercent,
       appearancePreferences,
+      ...browserSettings,
     } satisfies Settings,
   }
 }
@@ -159,55 +185,96 @@ function resolveNextAppearanceSettings(current: Settings, partial: Partial<Setti
   }
 }
 
+function resolveUpdatedSetting<Input, Output>(
+  candidate: Input | undefined,
+  current: Output,
+  resolve: (value: Input) => Output,
+): Output {
+  if (candidate === undefined) return current
+  return resolve(candidate)
+}
+
+function resolveValidatedSetting<Value>(
+  candidate: Value | undefined,
+  current: Value,
+  isValid: (value: Value) => boolean,
+): Value {
+  if (candidate === undefined) return current
+  return isValid(candidate) ? candidate : current
+}
+
+function resolveNextShortcutRules(current: Settings, partial: Partial<Settings>) {
+  if (partial.shortcutRules !== undefined) {
+    return shortcutRulesWithDefaults(
+      sanitizeShortcutRules(partial.shortcutRules) ?? current.shortcutRules,
+    )
+  }
+  if (partial.shortcutBindings === undefined) return current.shortcutRules
+  return shortcutRulesWithDefaults(
+    shortcutRulesFromBindings(sanitizeShortcutBindings(partial.shortcutBindings)),
+  )
+}
+
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
-  const enabledModels =
-    partial.enabledModels !== undefined
-      ? sanitizeEnabledModels(partial.enabledModels)
-      : current.enabledModels
-  const selectedModel =
-    partial.selectedModel !== undefined
-      ? resolveSelectedModel(partial.selectedModel, enabledModels)
-      : current.selectedModel
-  const favoriteModels =
-    partial.favoriteModels !== undefined
-      ? sanitizeFavoriteModels(partial.favoriteModels)
-      : current.favoriteModels
-  const projectPath = partial.projectPath !== undefined ? partial.projectPath : current.projectPath
-  const thinkingLevel =
-    partial.thinkingLevel !== undefined && isValidThinkingLevel(partial.thinkingLevel)
-      ? partial.thinkingLevel
-      : current.thinkingLevel
-  const recentProjects =
-    partial.recentProjects !== undefined
-      ? sanitizeRecentProjects(partial.recentProjects)
-      : current.recentProjects
-  const skillTogglesByProject =
-    partial.skillTogglesByProject !== undefined
-      ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
-      : current.skillTogglesByProject
-  const projectDisplayNames =
-    partial.projectDisplayNames !== undefined
-      ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
-      : current.projectDisplayNames
-  const shortcutBindings =
-    partial.shortcutBindings !== undefined
-      ? sanitizeShortcutBindings(partial.shortcutBindings)
-      : current.shortcutBindings
-  const defaultSessionEnvironmentMode =
-    partial.defaultSessionEnvironmentMode !== undefined &&
-    isValidSessionEnvironmentMode(partial.defaultSessionEnvironmentMode)
-      ? partial.defaultSessionEnvironmentMode
-      : current.defaultSessionEnvironmentMode
-  const defaultAuthorizationMode =
-    partial.defaultAuthorizationMode !== undefined
-      ? resolveDefaultAuthorizationMode(partial.defaultAuthorizationMode)
-      : current.defaultAuthorizationMode
+  const enabledModels = resolveUpdatedSetting(
+    partial.enabledModels,
+    current.enabledModels,
+    sanitizeEnabledModels,
+  )
+  const selectedModel = resolveUpdatedSetting(
+    partial.selectedModel,
+    current.selectedModel,
+    (value) => resolveSelectedModel(value, enabledModels),
+  )
+  const favoriteModels = resolveUpdatedSetting(
+    partial.favoriteModels,
+    current.favoriteModels,
+    sanitizeFavoriteModels,
+  )
+  const projectPath = resolveUpdatedSetting(
+    partial.projectPath,
+    current.projectPath,
+    (value) => value,
+  )
+  const thinkingLevel = resolveValidatedSetting(
+    partial.thinkingLevel,
+    current.thinkingLevel,
+    isValidThinkingLevel,
+  )
+  const recentProjects = resolveUpdatedSetting(
+    partial.recentProjects,
+    current.recentProjects,
+    sanitizeRecentProjects,
+  )
+  const skillTogglesByProject = resolveUpdatedSetting(
+    partial.skillTogglesByProject,
+    current.skillTogglesByProject,
+    sanitizeSkillTogglesByProject,
+  )
+  const projectDisplayNames = resolveUpdatedSetting(
+    partial.projectDisplayNames,
+    current.projectDisplayNames,
+    sanitizeProjectDisplayNames,
+  )
+  const shortcutRules = shortcutRulesWithDefaults(resolveNextShortcutRules(current, partial))
+  const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const defaultSessionEnvironmentMode = resolveValidatedSetting(
+    partial.defaultSessionEnvironmentMode,
+    current.defaultSessionEnvironmentMode,
+    isValidSessionEnvironmentMode,
+  )
+  const defaultAuthorizationMode = resolveUpdatedSetting(
+    partial.defaultAuthorizationMode,
+    current.defaultAuthorizationMode,
+    resolveDefaultAuthorizationMode,
+  )
   const diffSettings = resolveNextDiffSettings(current, partial)
   const compactionThresholdPercent =
     partial.compactionThresholdPercent !== undefined
       ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
       : current.compactionThresholdPercent
   const appearanceSettings = resolveNextAppearanceSettings(current, partial)
+  const browserSettings = resolveNextBrowserSettings(current, partial)
 
   return {
     ...current,
@@ -219,11 +286,13 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     recentProjects,
     skillTogglesByProject,
     projectDisplayNames,
+    shortcutRules,
     shortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
     ...diffSettings,
     compactionThresholdPercent,
     ...appearanceSettings,
+    ...browserSettings,
   } satisfies Settings
 }

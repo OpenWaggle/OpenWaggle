@@ -2,11 +2,21 @@ import { PERCENT_BASE } from '@shared/constants/math'
 import {
   type AppearancePreferences,
   DEFAULT_APPEARANCE_PREFERENCES,
+  TERMINAL_PALETTE_ROLES,
+  type TerminalPaletteRole,
 } from '@shared/types/appearance-preferences'
 import { create } from 'zustand'
 
 interface AppearancePreferencesRuntimeState {
   readonly preferences: AppearancePreferences
+}
+
+const TERMINAL_OVERRIDE_PROPERTY: Readonly<Record<TerminalPaletteRole, string>> = {
+  background: '--terminal-background-override',
+  foreground: '--terminal-foreground-override',
+  cursor: '--terminal-cursor-override',
+  selection: '--terminal-selection-override',
+  scrollbar: '--terminal-scrollbar-override',
 }
 
 export const useAppearancePreferencesRuntimeStore = create<AppearancePreferencesRuntimeState>(
@@ -98,6 +108,13 @@ function applyAppearancePreferences(preferences: AppearancePreferences) {
   )
   root.style.fontSize =
     typography.interfaceScale === defaults.interfaceScale ? '' : `${typography.interfaceScale}%`
+
+  for (const role of TERMINAL_PALETTE_ROLES) {
+    const value = preferences.terminalPalette[role]
+    const property = TERMINAL_OVERRIDE_PROPERTY[role]
+    if (value === null) root.style.removeProperty(property)
+    else root.style.setProperty(property, value)
+  }
 
   if (preferences.motion === 'reduced') {
     root.dataset.motion = 'reduced'

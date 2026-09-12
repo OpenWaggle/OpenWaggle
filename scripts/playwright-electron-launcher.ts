@@ -6,17 +6,27 @@ interface PlaywrightElectronLaunchInput {
   readonly hidden: boolean
   readonly cwd?: string
   readonly executablePath?: string
+  /** Test-only child environment overrides applied after the safe inherited baseline. */
+  readonly environment?: Readonly<Record<string, string>>
 }
 
 export function buildPlaywrightElectronEnvironment(input: {
   readonly userDataDir: string
   readonly hidden: boolean
+  readonly environment?: Readonly<Record<string, string>>
 }) {
-  return buildSafeElectronEnvironment({
+  const appControls = {
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: input.userDataDir,
     ...(input.hidden ? { OPENWAGGLE_AUTOMATION: '1' } : {}),
-  })
+  }
+  return {
+    ...buildSafeElectronEnvironment(appControls),
+    ...input.environment,
+    // A fixture may change its shell startup environment, but never the app's
+    // automation or storage authority.
+    ...appControls,
+  }
 }
 
 export function launchOpenWaggleElectron(

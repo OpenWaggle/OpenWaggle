@@ -40,6 +40,7 @@ function useStoredSidebarWidth({
 
 export function RightSidebarLayout({
   children,
+  maximized = false,
   open,
   sizing,
   sidebar,
@@ -65,10 +66,14 @@ export function RightSidebarLayout({
     widthRef.current = width
     sidebarRef.current?.style.setProperty(
       'width',
-      open ? sidebarWidthValue(width, mainMinWidth) : pixelValue(0),
+      open && !isSheet
+        ? maximized
+          ? '100%'
+          : sidebarWidthValue(width, mainMinWidth)
+        : pixelValue(0),
     )
     panelRef.current?.style.setProperty('width', '100%')
-  }, [mainMinWidth, open, width, widthRef])
+  }, [isSheet, mainMinWidth, maximized, open, width, widthRef])
 
   useEffect(() => {
     const panel = panelRef.current
@@ -96,37 +101,45 @@ export function RightSidebarLayout({
 
   function applyWidth(nextWidth: number) {
     widthRef.current = nextWidth
-    sidebarRef.current?.style.setProperty('width', sidebarWidthValue(nextWidth, mainMinWidth))
+    sidebarRef.current?.style.setProperty(
+      'width',
+      maximized ? '100%' : sidebarWidthValue(nextWidth, mainMinWidth),
+    )
     panelRef.current?.style.setProperty('width', '100%')
   }
 
-  if (isSheet) {
-    return (
-      <>
-        {children}
-        {shouldRenderSidebar ? (
-          <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
-            {sidebar}
-          </RightSidebarSheet>
-        ) : null}
-      </>
-    )
-  }
-
   return (
-    <RightSidebarDockedLayout
-      captures={{ captureMain, capturePanel, captureRoot }}
-      content={{ children, sidebar }}
-      rail={
-        <RightSidebarResizeRail
-          actions={{ applyWidth, commitWidth }}
-          bounds={{ maxWidth, mainMinWidth, minWidth }}
-          handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
-          state={{ open, width }}
-          shouldAcceptWidth={shouldAcceptWidth}
-        />
-      }
-      shell={{ mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
-    />
+    <>
+      {/* Keep the main subtree at the same position across breakpoints. Remounting
+        it resets editor state and lets composer autofocus steal terminal input. */}
+      <RightSidebarDockedLayout
+        captures={{ captureMain, capturePanel, captureRoot }}
+        content={{ children, sidebar }}
+        rail={
+          isSheet || maximized ? null : (
+            <RightSidebarResizeRail
+              actions={{ applyWidth, commitWidth }}
+              bounds={{ maxWidth, mainMinWidth, minWidth }}
+              handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
+              state={{ open, width }}
+              shouldAcceptWidth={shouldAcceptWidth}
+            />
+          )
+        }
+        shell={{
+          mainMinWidth,
+          maximized,
+          open: open && !isSheet,
+          shouldRenderSidebar: shouldRenderSidebar && !isSheet,
+          width,
+          captureSidebar,
+        }}
+      />
+      {isSheet && shouldRenderSidebar ? (
+        <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
+          {sidebar}
+        </RightSidebarSheet>
+      ) : null}
+    </>
   )
 }

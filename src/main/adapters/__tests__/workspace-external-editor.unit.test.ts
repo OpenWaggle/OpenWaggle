@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { discoverWorkspaceExternalEditors } from '../workspace-external-editor'
-import { workspaceExternalEditorLaunchArguments } from '../workspace-external-editor-launcher'
+import {
+  workspaceExternalEditorLaunchArguments,
+  workspaceExternalEditorMacApplicationLaunchArguments,
+} from '../workspace-external-editor-launcher'
 
 describe('workspace external editor discovery', () => {
   it('returns installed command-line editors in the curated order', async () => {
@@ -40,27 +43,66 @@ describe('workspace external editor discovery', () => {
 })
 
 describe('workspace external editor launch arguments', () => {
-  it('uses VS Code-style goto arguments without splitting the file path', () => {
+  it('uses VS Code-style goto arguments without splitting the positioned file path', () => {
     expect(
       workspaceExternalEditorLaunchArguments(
         'vscode',
         '/Users/tester/Project Folder/src/example.ts',
         27,
+        4,
       ),
-    ).toEqual(['--goto', '/Users/tester/Project Folder/src/example.ts:27'])
+    ).toEqual(['--goto', '/Users/tester/Project Folder/src/example.ts:27:4'])
   })
 
-  it('uses direct paths for editors without a portable line flag', () => {
-    expect(workspaceExternalEditorLaunchArguments('zed', '/tmp/example.ts', 9)).toEqual([
-      '/tmp/example.ts',
+  it('keeps positions on direct targets', () => {
+    expect(workspaceExternalEditorLaunchArguments('zed', '/tmp/example.ts', 9, 2)).toEqual([
+      '/tmp/example.ts:9:2',
     ])
   })
 
-  it('uses JetBrains line arguments when a line is available', () => {
-    expect(workspaceExternalEditorLaunchArguments('idea', '/tmp/example.ts', 9)).toEqual([
+  it('uses JetBrains line and column arguments when a position is available', () => {
+    expect(workspaceExternalEditorLaunchArguments('idea', '/tmp/example.ts', 9, 3)).toEqual([
       '--line',
       '9',
+      '--column',
+      '3',
       '/tmp/example.ts',
     ])
+  })
+
+  it('prepends editor-specific base arguments', () => {
+    expect(workspaceExternalEditorLaunchArguments('kiro', '/tmp/example.ts', 9, 3)).toEqual([
+      'ide',
+      '--goto',
+      '/tmp/example.ts:9:3',
+    ])
+  })
+
+  it('preserves file positions through a macOS app-bundle fallback', () => {
+    expect(
+      workspaceExternalEditorMacApplicationLaunchArguments(
+        'Visual Studio Code',
+        'vscode',
+        '/Users/tester/Project Folder/src/example.ts',
+        27,
+        4,
+      ),
+    ).toEqual([
+      '-a',
+      'Visual Studio Code',
+      '--args',
+      '--goto',
+      '/Users/tester/Project Folder/src/example.ts:27:4',
+    ])
+  })
+
+  it('uses the native macOS file-open path when there is no position', () => {
+    expect(
+      workspaceExternalEditorMacApplicationLaunchArguments(
+        'Visual Studio Code',
+        'vscode',
+        '/Users/tester/example.ts',
+      ),
+    ).toEqual(['-a', 'Visual Studio Code', '/Users/tester/example.ts'])
   })
 })

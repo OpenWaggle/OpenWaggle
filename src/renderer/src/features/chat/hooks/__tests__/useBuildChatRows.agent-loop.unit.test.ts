@@ -45,6 +45,13 @@ describe('buildChatRows agent-loop events', () => {
             stage: 'starting-task',
             details: ['Created ow/session-a from main'],
             worktreePath: '/tmp/session-a',
+            setupAction: {
+              terminalId: 'setup-terminal-1',
+              actionId: 'setup-action-1',
+              actionName: 'Install',
+              projectRoot: '/tmp/project',
+              cwd: '/tmp/session-a',
+            },
           },
         },
       ],
@@ -61,7 +68,11 @@ describe('buildChatRows agent-loop events', () => {
     expect(rows).toMatchObject([
       {
         type: 'worktree-launch',
-        launch: { status: 'complete', details: ['Created ow/session-a from main'] },
+        launch: {
+          status: 'complete',
+          details: ['Created ow/session-a from main'],
+          setupAction: { terminalId: 'setup-terminal-1', projectRoot: '/tmp/project' },
+        },
       },
     ])
   })

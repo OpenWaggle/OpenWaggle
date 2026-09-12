@@ -1,3 +1,5 @@
+import { fromPartial } from '@total-typescript/shoehorn'
+import type { WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => {
@@ -22,10 +24,17 @@ const electronMocks = vi.hoisted(() => {
       return []
     }
   }
+  class Menu {
+    static buildFromTemplate() {
+      return new Menu()
+    }
+    popup() {}
+  }
 
   return {
     BaseWindow,
     BrowserWindow,
+    Menu,
     dialog: {
       showCertificateTrustDialog: vi.fn(),
       showErrorBox: vi.fn(),
@@ -61,6 +70,9 @@ import {
   launchExternalApplication,
   openExternal,
   openPath,
+  popupWebContentsMenu,
+  revealBrowserWindowInactive,
+  showErrorBox,
   showItemInFolder,
   showMessageBox,
   trashItem,
@@ -80,12 +92,19 @@ describe('automation desktop UI policy', () => {
     )
     await expect(openPath('/tmp/openwaggle')).rejects.toBeInstanceOf(AutomationDesktopUiError)
     expect(() => showItemInFolder('/tmp/openwaggle')).toThrow(AutomationDesktopUiError)
+    expect(() => showErrorBox('Shutdown failed', 'A terminal remains alive')).toThrow(
+      AutomationDesktopUiError,
+    )
     await expect(trashItem('/tmp/openwaggle')).rejects.toBeInstanceOf(AutomationDesktopUiError)
     await expect(showMessageBox(null, { message: 'Continue?' })).rejects.toBeInstanceOf(
       AutomationDesktopUiError,
     )
     expect(() => assertExternalApplicationLaunchAllowed()).toThrow(AutomationDesktopUiError)
     expect(() => launchExternalApplication('code', ['/tmp/openwaggle'])).toThrow(
+      AutomationDesktopUiError,
+    )
+    const guest = fromPartial<WebContents>({ focus: vi.fn() })
+    expect(() => popupWebContentsMenu(createBrowserWindow({}), guest, [], null)).toThrow(
       AutomationDesktopUiError,
     )
   })
@@ -99,6 +118,7 @@ describe('automation desktop UI policy', () => {
     expect(window.isVisible()).toBe(false)
     expect(() => window.show()).toThrow(AutomationDesktopUiError)
     expect(() => window.focus()).toThrow(AutomationDesktopUiError)
+    expect(() => revealBrowserWindowInactive(window)).toThrow(AutomationDesktopUiError)
     expect(baseWindow.isVisible()).toBe(false)
     expect(() => baseWindow.show()).toThrow(AutomationDesktopUiError)
     expect(() => baseWindow.focus()).toThrow(AutomationDesktopUiError)
@@ -112,6 +132,17 @@ describe('automation desktop UI policy', () => {
 
     await expect(showMessageBox(null, { message: 'Continue?' })).resolves.toMatchObject({
       response: 1,
+    })
+  })
+
+  it('keeps hidden automation rendering at foreground rate without losing secure preferences', () => {
+    const window = createBrowserWindow({
+      webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: true },
+    })
+
+    expect(Reflect.get(window, 'options')).toMatchObject({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, backgroundThrottling: false },
     })
   })
 })

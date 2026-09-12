@@ -39,8 +39,11 @@ export function sidebarShellStyle(
   open: boolean,
   width: number,
   mainMinWidth: number,
+  maximized = false,
 ): CSSProperties {
-  return { width: open ? sidebarWidthValue(width, mainMinWidth) : ZERO_WIDTH_PX }
+  return {
+    width: open ? (maximized ? '100%' : sidebarWidthValue(width, mainMinWidth)) : ZERO_WIDTH_PX,
+  }
 }
 
 export function sidebarPanelStyle(): CSSProperties {
