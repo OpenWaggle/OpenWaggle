@@ -9,6 +9,7 @@ import {
 import { prepareQaProfileRemoval } from '../session-host-shutdown'
 import { probeWindowsDetachedHandleIsolation } from './windows-detached-process-probe'
 import { WINDOWS_DETACHED_PROCESS_ARGUMENTS } from './windows-detached-process-values'
+import { probeWindowsProtectedStaging } from './windows-protected-staging-probe'
 
 it.runIf(process.platform === 'win32')(
   'detached Electron authorities do not retain the launching client control pipes',
@@ -22,6 +23,17 @@ it.runIf(process.platform === 'win32')(
     expect(result.childEnvironmentSentinel).toBe(result.expectedEnvironmentSentinel)
     expect(result.pipesClosedBeforeChildRelease).toBe(true)
     expect(result.closedPipes).toEqual([0, 1, 2, 3, 4])
+  },
+  90_000,
+)
+
+it.runIf(process.platform === 'win32')(
+  'protected credentials stage, commit, and read through the Windows Electron runtime',
+  async () => {
+    const result = await probeWindowsProtectedStaging()
+    expect(result.directorySharing.closed.ok).toBe(true)
+    expect(result.descriptor.ok).toBe(true)
+    expect(result.protectedStaging.ok).toBe(true)
   },
   90_000,
 )
