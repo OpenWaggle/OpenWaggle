@@ -15,6 +15,10 @@ import {
   unregisterBrowserPreviewOwner,
 } from './browser-preview-owner-runtime'
 import { releaseOwnerHandoffAfterCommit } from './terminal-owner-handoff-release'
+import {
+  closeMigratingBrowserPreviews,
+  retainDraftBrowsersAfterTerminalMigration,
+} from './workspace-browser-owner-migration'
 import { collectOwnerReconciliationErrors } from './workspace-owner-reconciliation'
 import { useWorkspacePanelStore } from './workspace-panel-store'
 
@@ -72,22 +76,33 @@ async function commitTerminalOwnerMigration(
     // Later renderer persistence failures cannot move native ownership back.
     onNativeOwnershipCommitted()
     nativeOwnershipCommitted = true
-    await Promise.allSettled(
-      migratingPreviewIds.map((previewId) => api.closeBrowserPreview(previewId)),
+    const errors: unknown[] = await closeMigratingBrowserPreviews(migratingPreviewIds)
+    const browserOwnershipCanMove = errors.length === 0
+    errors.push(
+      ...collectOwnerReconciliationErrors([
+        () =>
+          terminalInputDispatcher.migrateOwner(
+            previousOwnerKey,
+            nextOwnerKey,
+            migratingTerminalIds,
+          ),
+        () => migrateTerminalSurfaceLeases(previousOwnerKey, nextOwnerKey),
+        () => terminalStore.rekeyRuntimeMetadata(previousOwnerKey, nextOwnerKey, sideTerminalIds),
+        () => terminalStore.migrateGroup(previousOwnerKey, nextOwnerKey),
+        () =>
+          terminalStore.migrateGroup(
+            previousSidePanelKey,
+            terminalSidePanelLayoutKey(nextOwnerKey),
+          ),
+        () =>
+          browserOwnershipCanMove
+            ? useWorkspacePanelStore.getState().migrateGroup(previousOwnerKey, nextOwnerKey)
+            : retainDraftBrowsersAfterTerminalMigration(previousOwnerKey, nextOwnerKey),
+        () => migrateTerminalLayoutFocus(previousOwnerKey, nextOwnerKey),
+      ]),
     )
-    const errors = collectOwnerReconciliationErrors([
-      () =>
-        terminalInputDispatcher.migrateOwner(previousOwnerKey, nextOwnerKey, migratingTerminalIds),
-      () => migrateTerminalSurfaceLeases(previousOwnerKey, nextOwnerKey),
-      () => terminalStore.rekeyRuntimeMetadata(previousOwnerKey, nextOwnerKey, sideTerminalIds),
-      () => terminalStore.migrateGroup(previousOwnerKey, nextOwnerKey),
-      () =>
-        terminalStore.migrateGroup(previousSidePanelKey, terminalSidePanelLayoutKey(nextOwnerKey)),
-      () => useWorkspacePanelStore.getState().migrateGroup(previousOwnerKey, nextOwnerKey),
-      () => migrateTerminalLayoutFocus(previousOwnerKey, nextOwnerKey),
-    ])
     try {
-      await unregisterBrowserPreviewOwner(previousOwnerKey)
+      if (browserOwnershipCanMove) await unregisterBrowserPreviewOwner(previousOwnerKey)
     } catch (error) {
       errors.push(error)
     }

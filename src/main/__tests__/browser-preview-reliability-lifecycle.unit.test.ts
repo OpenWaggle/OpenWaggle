@@ -123,7 +123,7 @@ describe('browser preview reliability and lifecycle', () => {
     expect(ownerWindow.removeChildView).toHaveBeenCalledTimes(2)
     for (const view of electronMocks.createdViews)
       expect(view.webContents.close).toHaveBeenCalledOnce()
-    expect(() => manager.close(owner, 'preview-1')).toThrow('owner was not found')
+    expect(() => manager.close(owner, 'preview-1')).not.toThrow()
   })
 
   it('destroys every native view when owner listener cleanup throws', () => {
@@ -195,7 +195,7 @@ describe('browser preview reliability and lifecycle', () => {
     expect(ownerWindow.removeChildView).toHaveBeenCalledTimes(2)
     for (const view of electronMocks.createdViews)
       expect(view.webContents.close).toHaveBeenCalledOnce()
-    expect(() => manager.close(owner, 'preview-1')).toThrow('owner was not found')
+    expect(() => manager.close(owner, 'preview-1')).not.toThrow()
   })
 
   it('reports and detaches native content unexpectedly closed by a page', () => {
@@ -231,7 +231,7 @@ describe('browser preview reliability and lifecycle', () => {
 
     expect(ownerWindow.removeChildView).toHaveBeenCalledOnce()
     expect(firstView().webContents.close).toHaveBeenCalledOnce()
-    expect(() => manager.close(owner, 'preview-1')).toThrow('was not found')
+    expect(() => manager.close(owner, 'preview-1')).not.toThrow()
   })
 
   it('atomically releases a new native view when attachment fails', () => {

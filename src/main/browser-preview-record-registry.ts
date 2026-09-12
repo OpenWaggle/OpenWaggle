@@ -113,6 +113,25 @@ export class BrowserPreviewRecordRegistry {
     return owner?.sender === sender ? owner.previews.get(previewId) : undefined
   }
 
+  disposePreview(sender: WebContents, previewId: string): void {
+    const record = this.findForDisposal(sender, previewId)
+    if (record) this.options.disposeRecord(record)
+  }
+
+  private findForDisposal(
+    sender: WebContents,
+    previewId: string,
+  ): BrowserPreviewRecord | undefined {
+    const owned = this.findForRenderer(sender, previewId)
+    if (owned) return owned
+    for (const owner of this.owners.values()) {
+      if (owner.previews.has(previewId)) {
+        throw new Error('Browser preview is not owned by this renderer.')
+      }
+    }
+    return undefined
+  }
+
   add(record: BrowserPreviewRecord): void {
     const existing = this.recordsByOwnerKey.get(record.ownerKey)?.get(record.previewId)
     if (existing !== undefined) {

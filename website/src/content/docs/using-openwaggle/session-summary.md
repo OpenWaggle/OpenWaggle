@@ -23,6 +23,8 @@ Before the first message, opening Diff or a file inspector also hides the curren
 
 Switching from an unsent draft to an existing session keeps each one's terminal and browser tabs separate. Only creating a session from that draft moves its tabs into the new session. While that handoff finishes, tab creation and moves are temporarily unavailable; unrelated sessions remain usable.
 
+If browser tabs cannot be moved safely, OpenWaggle keeps them in the project draft and reports the failure. Use the project's **New session** action to return to that draft. Terminal tabs that already moved remain in the new session; OpenWaggle does not undo their completed handoff.
+
 ## What the Summary shows
 
 Sections appear only when their session has relevant data:

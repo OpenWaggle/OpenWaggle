@@ -164,7 +164,7 @@ export class BrowserPreviewManager {
   }
 
   close(sender: WebContents, previewId: string): void {
-    this.lifecycle.dispose(this.requirePreview(sender, previewId))
+    this.records.disposePreview(sender, previewId)
   }
 
   replaceForCapacity(
