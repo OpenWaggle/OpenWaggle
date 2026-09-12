@@ -1,4 +1,5 @@
 import type { LocalSessionProfileManagementOutcome } from '@shared/types/local-session-profile-management'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { AcceptedProfileCredentialRecoveryError } from './access-cli-credential-settlement'
 import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 import {
@@ -8,6 +9,32 @@ import {
 } from './sessions-cli-output'
 
 export const ACCESS_CLI_OUTPUT_SCHEMA_VERSION = SESSIONS_CLI_OUTPUT_SCHEMA_VERSION
+
+export class AmbiguousProfileOperationError extends Error {
+  readonly preserveStagedCredential = true
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'AmbiguousProfileOperationError'
+  }
+}
+
+export function preservedProfileCredentialError(error: unknown, recoveryLocation: string) {
+  return new AmbiguousProfileOperationError(
+    `${formatErrorMessage(error)} A previously staged credential remains protected at ${recoveryLocation}; verify its prior operation before removing it.`,
+    { cause: error },
+  )
+}
+
+export function writeAccessCliCleanupError(error: unknown, cleanupError: unknown, json: boolean) {
+  return writeAccessCliError(
+    new AggregateError(
+      [error, cleanupError],
+      `${formatErrorMessage(error)} Staged credential cleanup also failed: ${formatErrorMessage(cleanupError)}`,
+    ),
+    json,
+  )
+}
 
 export function classifyAccessCliError(error: unknown): SessionsCliErrorKind {
   if (error instanceof AcceptedProfileCredentialRecoveryError) return 'internal'

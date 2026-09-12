@@ -4,6 +4,10 @@ import path from 'node:path'
 import { ensureDirectoryPathPinned } from '../utils/pinned-directory-creation'
 import { installCredentialInBoundDirectory } from './profile-credential-bound-installer'
 import {
+  ProfileCredentialCleanupError,
+  ProfileCredentialCommitError,
+} from './profile-credential-destination-errors'
+import {
   assertReplaceable,
   credentialContent,
   credentialFingerprint,
@@ -29,19 +33,9 @@ export {
   readStoredProfileCredential,
   removeStoredProfileCredential,
 } from './profile-credential-storage'
+export { ProfileCredentialCleanupError, ProfileCredentialCommitError }
 
 const OWNER_DIRECTORY_MODE = 0o700
-
-export class ProfileCredentialCommitError extends Error {
-  constructor(
-    message: string,
-    readonly recoveryLocation: string,
-    options?: ErrorOptions,
-  ) {
-    super(message, options)
-    this.name = 'ProfileCredentialCommitError'
-  }
-}
 
 export type ProfileCredentialDestination =
   | { readonly kind: 'credential-store'; readonly stateRoot: string }
@@ -77,6 +71,7 @@ async function preparePendingCredential(input: CredentialStagingInput) {
     if (pending[0]) temporaryName = pending[0]
   }
   let pendingFile = await readOwnedFile(input.stagingDirectory, temporaryName)
+  let recoveredPending = pendingFile.content !== undefined
   if (!pendingFile.content) {
     const contentHandle = await openUnlinkedCredentialSource(
       credentialContent(input.destination, input.credential),
@@ -91,6 +86,7 @@ async function preparePendingCredential(input: CredentialStagingInput) {
     } catch (error) {
       pendingFile = await readOwnedFile(input.stagingDirectory, temporaryName)
       if (!pendingFile.content) throw error
+      recoveredPending = true
     } finally {
       await contentHandle.close()
     }
@@ -106,6 +102,7 @@ async function preparePendingCredential(input: CredentialStagingInput) {
     selectedCredential,
     stagedContent: pendingFile.content,
     pendingIdentity: pendingFile.fileIdentity,
+    recoveredPending,
   }
 }
 
@@ -171,7 +168,7 @@ async function persistCredentialReceipt(input: {
   }
 }
 
-export async function stageProfileCredential(input: {
+interface ProfileCredentialStagingOptions {
   readonly destination: ProfileCredentialDestination
   readonly stateRoot?: string
   readonly profileName: string
@@ -185,7 +182,9 @@ export async function stageProfileCredential(input: {
   readonly beforeReceiptWrite?: () => Promise<void>
   readonly beforeStagingWrite?: () => Promise<void>
   readonly beforeReceiptMutation?: () => Promise<void>
-}) {
+}
+
+export async function stageProfileCredential(input: ProfileCredentialStagingOptions) {
   validateCredential(input.credential)
   const targetPath = destinationPath(input.destination, input.profileName)
   const stateRoot = ownerStateRoot(input.destination, input.stateRoot)
@@ -219,6 +218,8 @@ export async function stageProfileCredential(input: {
     return {
       credential: installedCredential,
       metadata: destinationMetadata(input.destination, input.profileName, targetPath),
+      recoveryLocation: targetPath,
+      recoveredPending: false,
       commit: async () => undefined,
       discard: async () => undefined,
     }
@@ -244,6 +245,8 @@ export async function stageProfileCredential(input: {
   return {
     credential: pending.selectedCredential,
     metadata: destinationMetadata(input.destination, input.profileName, targetPath),
+    recoveryLocation: temporaryPath,
+    recoveredPending: pending.recoveredPending,
     commit: async () => {
       const sourceHandle = await openUnlinkedCredentialSource(pending.stagedContent)
       try {
@@ -285,9 +288,12 @@ export async function stageProfileCredential(input: {
         await sourceHandle.close()
       }
     },
-    discard: () =>
-      unlinkOwnedFile(stagingDirectory, pending.temporaryName, pending.pendingIdentity).catch(
-        () => undefined,
-      ),
+    discard: async () => {
+      try {
+        await unlinkOwnedFile(stagingDirectory, pending.temporaryName, pending.pendingIdentity)
+      } catch (cause) {
+        throw new ProfileCredentialCleanupError(temporaryPath, { cause })
+      }
+    },
   }
 }

@@ -6,8 +6,14 @@ import {
 } from '@shared/types/local-session-profile-management'
 import { app } from 'electron'
 import { commitAcceptedProfileCredential } from './access-cli-credential-settlement'
+import { settleAccessCliFailure } from './access-cli-failure'
 import { validateAccessCliOptions } from './access-cli-option-contract'
-import { accessCliRejectedOutcomeKind, writeAccessCliError } from './access-cli-output'
+import {
+  AmbiguousProfileOperationError,
+  accessCliRejectedOutcomeKind,
+  preservedProfileCredentialError,
+  writeAccessCliError,
+} from './access-cli-output'
 import { parseProfilePolicy } from './access-cli-policy'
 import { writeCliStdout } from './cli-stdout'
 import { validateImplicitCliHelp } from './command-cli-option-contract'
@@ -104,15 +110,6 @@ function writeOutput(value: unknown, json: boolean) {
 
 type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
 
-class AmbiguousProfileOperationError extends Error {
-  readonly preserveStagedCredential = true
-
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options)
-    this.name = 'AmbiguousProfileOperationError'
-  }
-}
-
 async function prepareProfileCredential(input: {
   readonly operation: string
   readonly arguments_: ReturnType<typeof parseMcpCliArguments>
@@ -168,7 +165,7 @@ async function reconcileProfileOperation(input: {
       return await requestProfileOperation({ ...input, client })
     } catch (retryError) {
       throw new AmbiguousProfileOperationError(
-        `The profile operation outcome is unknown. Its credential remains protected; retry with --idempotency-key ${input.idempotencyKey}.`,
+        `The profile operation outcome is unknown. Its credential remains protected at ${input.staged.recoveryLocation}; retry with --idempotency-key ${input.idempotencyKey}.`,
         { cause: retryError },
       )
     }
@@ -183,6 +180,12 @@ async function finalizeProfileResponse(input: {
   readonly idempotencyKey: string
 }) {
   if (input.response.outcome.effect === 'rejected') {
+    if (input.staged?.recoveredPending) {
+      throw preservedProfileCredentialError(
+        new Error(`The profile operation was rejected (${input.response.outcome.code}).`),
+        input.staged.recoveryLocation,
+      )
+    }
     await input.staged?.discard()
     await writeOutput(input.response, input.json)
     return sessionCliExitCodeForError(accessCliRejectedOutcomeKind(input.response.outcome))
@@ -240,14 +243,7 @@ async function executeProfileOperation(input: {
       idempotencyKey,
     })
   } catch (error) {
-    if (
-      !accepted &&
-      !(error instanceof AmbiguousProfileOperationError && error.preserveStagedCredential)
-    ) {
-      await staged?.discard()
-    }
-    const kind = writeAccessCliError(error, hasFlag(arguments_, 'json'))
-    return sessionCliExitCodeForError(kind)
+    return settleAccessCliFailure({ error, accepted, staged, json: hasFlag(arguments_, 'json') })
   }
 }
 

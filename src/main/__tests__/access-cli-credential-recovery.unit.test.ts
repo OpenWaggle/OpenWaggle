@@ -118,6 +118,8 @@ describe('Access CLI credential recovery', () => {
     removeCredentialMock.mockReset().mockResolvedValue(undefined)
     stageCredentialMock.mockReset().mockResolvedValue({
       credential: 'generated-credential',
+      recoveryLocation: '/state/credential-staging/reviewer.pending',
+      recoveredPending: false,
       metadata: { kind: 'file', path: '/tmp/reviewer.secret' },
       commit: commitMock,
       discard: discardMock,
@@ -193,6 +195,9 @@ describe('Access CLI credential recovery', () => {
     expect(commitMock).not.toHaveBeenCalled()
     expect(discardMock).not.toHaveBeenCalled()
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining('--idempotency-key stable-key'))
+    expect(stderr).toHaveBeenCalledWith(
+      expect.stringContaining('/state/credential-staging/reviewer.pending'),
+    )
   })
 
   it('reports generated create recovery identity after an accepted credential commit failure', async () => {

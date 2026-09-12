@@ -14,6 +14,7 @@ vi.mock('electron', () => ({
 
 import { generateProfileCredential } from '../profile-credential'
 import {
+  ProfileCredentialCleanupError,
   readProfileCredentialFile,
   readStoredProfileCredential,
   stageProfileCredential,
@@ -139,8 +140,79 @@ describe('profile credential destination', () => {
     })
 
     expect(retry.credential).toBe(firstCredential)
+    expect(first.recoveredPending).toBe(false)
+    expect(retry.recoveredPending).toBe(true)
+    expect(retry.recoveryLocation).toBe(first.recoveryLocation)
+    expect(path.dirname(first.recoveryLocation)).toBe(path.join(root, 'profile-credential-staging'))
     await first.discard()
     await retry.discard()
+  })
+
+  it('surfaces identity-bound discard failure without deleting a replacement or exposing a bearer', async () => {
+    const credential = generateProfileCredential()
+    const staged = await stageProfileCredential({
+      destination: { kind: 'credential-store', stateRoot: root },
+      profileName: 'reviewer',
+      credential,
+      replace: false,
+    })
+    const directory = path.join(root, 'profile-credential-staging')
+    const [pendingName] = await fs.readdir(directory)
+    if (pendingName === undefined) throw new Error('Expected a staged credential file.')
+    const pendingPath = path.join(directory, pendingName)
+    await fs.writeFile(pendingPath, 'replacement user-owned content')
+
+    const failure = await staged.discard().catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(ProfileCredentialCleanupError)
+    if (!(failure instanceof ProfileCredentialCleanupError))
+      throw new Error('Expected cleanup failure.')
+    expect(failure.recoveryLocation).toBe(pendingPath)
+    expect(failure.message).toContain(pendingPath)
+    expect(failure.message).not.toContain(credential)
+    expect(failure.cause).toBeInstanceOf(Error)
+    await expect(fs.readFile(pendingPath, 'utf8')).resolves.toBe('replacement user-owned content')
+  })
+
+  it('marks a credential adopted after a staging-write race as recovered pending content', async () => {
+    const destination = { kind: 'credential-store' as const, stateRoot: root }
+    const competingCredential = generateProfileCredential()
+    let competing: Awaited<ReturnType<typeof stageProfileCredential>> | undefined
+    const staged = await stageProfileCredential({
+      destination,
+      profileName: 'reviewer',
+      credential: generateProfileCredential(),
+      stagingKey: 'competing-staging-request',
+      replace: false,
+      beforeStagingWrite: async () => {
+        competing = await stageProfileCredential({
+          destination,
+          profileName: 'reviewer',
+          credential: competingCredential,
+          stagingKey: 'competing-staging-request',
+          replace: false,
+        })
+      },
+    })
+
+    expect(competing?.recoveredPending).toBe(false)
+    expect(staged.credential).toBe(competingCredential)
+    expect(staged.recoveredPending).toBe(true)
+    expect(staged.recoveryLocation).toBe(competing?.recoveryLocation)
+    await staged.discard()
+  })
+
+  it('treats an already-removed pending credential as successfully discarded', async () => {
+    const staged = await stageProfileCredential({
+      destination: { kind: 'credential-store', stateRoot: root },
+      profileName: 'reviewer',
+      credential: generateProfileCredential(),
+      replace: false,
+    })
+    const directory = path.join(root, 'profile-credential-staging')
+
+    await expect(staged.discard()).resolves.toBeUndefined()
+    await expect(fs.readdir(directory)).resolves.toEqual([])
+    await expect(staged.discard()).resolves.toBeUndefined()
   })
 
   it('reuses the installed credential after an idempotent operation committed', async () => {
@@ -164,6 +236,8 @@ describe('profile credential destination', () => {
     })
 
     expect(retry.credential).toBe(firstCredential)
+    expect(retry.recoveredPending).toBe(false)
+    expect(path.dirname(retry.recoveryLocation)).toBe(path.join(root, 'profile-credentials'))
     await expect(retry.commit()).resolves.toBeUndefined()
   })
 
@@ -187,6 +261,8 @@ describe('profile credential destination', () => {
     })
 
     expect(retry.credential).toBe(firstCredential)
+    expect(retry.recoveredPending).toBe(true)
+    expect(retry.recoveryLocation).toBe(first.recoveryLocation)
     await first.discard()
     await retry.discard()
   })

@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { decodeLocalSessionProfileUiCommand } from '@shared/schemas/local-session-profile-management'
+import {
+  decodeLocalSessionProfileManagementResponse,
+  decodeLocalSessionProfileUiCommand,
+} from '@shared/schemas/local-session-profile-management'
 import {
   LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
   type LocalSessionProfileManagementCommand,
@@ -39,6 +42,45 @@ function managementCommand(
 
 type StagedProfileCredential = Awaited<ReturnType<typeof stageProfileCredential>>
 
+class UnknownProfileCredentialOutcomeError extends Error {
+  readonly code = 'profile_credential_outcome_unknown'
+
+  constructor(
+    readonly operation: LocalSessionProfileUiCommand['operation'],
+    readonly profileName: string,
+    readonly idempotencyKey: string,
+    readonly recoveryLocation: string,
+  ) {
+    super(
+      `The ${operation} outcome for profile "${profileName}" is unknown. ` +
+        `Operation reference: ${idempotencyKey}. ` +
+        `Its credential remains protected at ${recoveryLocation}. ` +
+        'Confirm the Host outcome and recover the credential before removing it. ' +
+        'A new GUI or CLI request is not a replay of this operation.',
+    )
+    this.name = 'UnknownProfileCredentialOutcomeError'
+  }
+}
+
+class RetainedProfileCredentialRecoveryError extends Error {
+  readonly code = 'profile_credential_recovery_required'
+  readonly outcome = 'rejected'
+
+  constructor(
+    readonly operation: LocalSessionProfileUiCommand['operation'],
+    readonly idempotencyKey: string,
+    readonly recoveryLocation: string,
+  ) {
+    super(
+      `The ${operation} request was rejected (operation reference: ${idempotencyKey}). ` +
+        `A credential from an earlier request remains protected at ${recoveryLocation}. ` +
+        'The earlier outcome is unknown; confirm it and recover the credential before removing it. ' +
+        'This reference belongs to the rejected request, not the earlier operation.',
+    )
+    this.name = 'RetainedProfileCredentialRecoveryError'
+  }
+}
+
 export class AcceptedProfileCredentialRecoveryError extends Error {
   readonly code = 'profile_credential_recovery_required'
 
@@ -52,7 +94,8 @@ export class AcceptedProfileCredentialRecoveryError extends Error {
     super(
       `Profile "${profileName}" was created, but its credential installation did not finish. ` +
         `The protected secret remains recoverable at ${recoveryLocation}. ` +
-        `Retry the accepted operation with idempotency key ${idempotencyKey}.`,
+        `Operation reference: ${idempotencyKey}. ` +
+        'Recover the credential before removing it; a new GUI or CLI request is not a replay.',
       options,
     )
     this.name = 'AcceptedProfileCredentialRecoveryError'
@@ -109,6 +152,15 @@ function settleProfileCredential(input: {
   return Effect.gen(function* () {
     const staged = input.staged
     if (outcome.effect === 'rejected') {
+      if (staged?.recoveredPending) {
+        return yield* Effect.fail(
+          new RetainedProfileCredentialRecoveryError(
+            outcome.operation,
+            input.response.idempotencyKey,
+            staged.recoveryLocation,
+          ),
+        )
+      }
       if (staged) yield* Effect.promise(() => staged.discard())
       return
     }
@@ -164,7 +216,7 @@ export function registerProfileAccessHandlers() {
         idempotencyKey,
       })
       const dispatch = Effect.gen(function* () {
-        return yield* dispatchLocalSessionCommand({
+        const result = yield* dispatchLocalSessionCommand({
           caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
           payload: {
             contract: 'local-access-v1',
@@ -176,18 +228,34 @@ export function registerProfileAccessHandlers() {
             },
           },
         })
+        return yield* Effect.try({
+          try: () => {
+            if (result.contract !== 'local-access-v1') {
+              throw new Error('Session Host returned an invalid profile response.')
+            }
+            const response = decodeLocalSessionProfileManagementResponse(result.response)
+            if (response.outcome.operation !== command.operation) {
+              throw new Error('Session Host returned an invalid profile response.')
+            }
+            return response
+          },
+          catch: () => new Error('Session Host returned an invalid profile response.'),
+        })
       })
-      const result = yield* dispatch.pipe(
-        Effect.tapError(() =>
-          staged
-            ? Effect.promise(() => staged.discard()).pipe(Effect.orDie, Effect.asVoid)
-            : Effect.void,
+      const response = yield* dispatch.pipe(
+        Effect.catchAllCause((cause) =>
+          staged && profileName
+            ? Effect.fail(
+                new UnknownProfileCredentialOutcomeError(
+                  command.operation,
+                  profileName,
+                  idempotencyKey,
+                  staged.recoveryLocation,
+                ),
+              )
+            : Effect.failCause(cause),
         ),
       )
-      if (result.contract !== 'local-access-v1') {
-        return yield* Effect.fail(new Error('Session Host returned an invalid profile response.'))
-      }
-      const response = result.response
       yield* settleProfileCredential({ response, staged, stateRoot: paths.stateRoot })
       return response
     }),
