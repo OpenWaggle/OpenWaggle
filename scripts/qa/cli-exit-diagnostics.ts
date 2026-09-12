@@ -1,4 +1,4 @@
-import { isMatching, P } from '@diegogbrisa/ts-match'
+import { isMatching, match, P } from '@diegogbrisa/ts-match'
 import { redactSensitiveText } from '../../src/main/utils/redact'
 
 const CLI_DIAGNOSTIC_CHARACTER_LIMIT = 1_000
@@ -10,11 +10,18 @@ function rejectionDiagnostic(stdout: string) {
   if (stdout.length > CLI_DIAGNOSTIC_JSON_LIMIT) return ' stdout: omitted (size limit).'
   try {
     const parsed: unknown = JSON.parse(stdout)
-    if (!isMatching({ outcome: { effect: 'rejected', code: P.string } }, parsed)) {
+    const outcome = match(parsed)
+      .with({ outcome: { effect: 'rejected', code: P.string } }, (value) => value.outcome)
+      .with(
+        { result: { response: { outcome: { effect: 'rejected', code: P.string } } } },
+        (value) => value.result.response.outcome,
+      )
+      .otherwise(() => undefined)
+    if (!outcome) {
       return ' stdout: omitted (unrecognized response).'
     }
-    if (!/^[a-z][a-z0-9_]{0,63}$/u.test(parsed.outcome.code)) return ' outcome: rejected.'
-    const code = parsed.outcome.code.replace(POSSIBLE_PROFILE_CREDENTIAL, '[REDACTED_CREDENTIAL]')
+    if (!/^[a-z][a-z0-9_]{0,63}$/u.test(outcome.code)) return ' outcome: rejected.'
+    const code = outcome.code.replace(POSSIBLE_PROFILE_CREDENTIAL, '[REDACTED_CREDENTIAL]')
     return ` outcome: rejected (${code}).`
   } catch {
     return ' stdout: omitted (invalid JSON).'

@@ -24,6 +24,28 @@ describe('QA CLI exit diagnostics', () => {
     )
   })
 
+  it.each([
+    { command: 'start', contract: 'session-control-v2' },
+    { command: 'fork', contract: 'session-lifecycle-v2' },
+    { command: 'accept', contract: 'session-control-v2' },
+  ])(
+    'extracts a safe rejection from a wrapped $command response', ({ command, contract }) => {
+      const stdout = JSON.stringify({
+        schemaVersion: 1,
+        type: 'response',
+        command,
+        result: {
+          contract,
+          response: { outcome: { effect: 'rejected', code: 'not_authorized' } },
+          credential: 'a'.repeat(43),
+        },
+      })
+      expect(cliExitError(4, null, '', stdout).message).toBe(
+        'OpenWaggle CLI exited with 4. outcome: rejected (not_authorized).',
+      )
+    },
+  )
+
   it('converts execFile failures without retaining secret arguments or the original error', () => {
     const credential = 'a'.repeat(43)
     const error = Object.assign(new Error(`Command failed: executable --credential ${credential}`), {
