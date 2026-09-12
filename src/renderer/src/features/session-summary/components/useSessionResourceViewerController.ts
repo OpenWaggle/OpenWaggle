@@ -1,5 +1,6 @@
 import type { SessionResource, SessionResourceImageLocation } from '@shared/types/session-resource'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionResourceBranchNames } from '../hooks/useSessionResourceBranchNames'
 import { useSessionImageLocation, useSessionResourceCatalog } from '../hooks/useSessionResources'
@@ -159,6 +160,7 @@ export function useSessionResourceViewerController(
   const identity = viewerIdentity(viewer)
   const viewerSessionId = identity.sessionId
   const sessionIsActive = viewerSessionId !== null && viewerSessionId === activeSessionId
+  useEscapeHotkey(close, { enabled: sessionIsActive })
   const querySessionId = sessionIsActive ? viewerSessionId : null
   const branchNames = useSessionResourceBranchNames(querySessionId)
   const catalog = useSessionResourceCatalog(querySessionId, 'images', {

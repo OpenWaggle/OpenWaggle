@@ -77,9 +77,10 @@ function captureImages(input: {
   readonly state: AssistantCaptureState
 }) {
   return Effect.gen(function* () {
-    for (const image of input.images) {
-      const index = input.context.imageIndex
-      input.context.imageIndex += 1
+    const startIndex = input.context.imageIndex
+    input.context.imageIndex += input.images.length
+    for (const [localIndex, image] of input.images.entries()) {
+      const index = startIndex + localIndex
       const prepared = prepareGeneratedImageForCapture(input.state.generatedImageBudget, image)
       if (!prepared) return
       input.state.generatedImageBudget = prepared.budget
@@ -109,10 +110,11 @@ function captureLinks(input: {
   readonly state: LinkCaptureState
 }) {
   return Effect.gen(function* () {
-    for (const link of input.links) {
+    const startIndex = input.context.linkIndex
+    input.context.linkIndex += input.links.length
+    for (const [localIndex, link] of input.links.entries()) {
       if (input.state.count >= SESSION_LINK_CAPTURE_LIMIT) return
-      const index = input.context.linkIndex
-      input.context.linkIndex += 1
+      const index = startIndex + localIndex
       input.state.count += 1
       yield* captureLink({
         ...input.run,
@@ -138,7 +140,16 @@ function captureCompletedToolResult(input: {
 }) {
   return Effect.gen(function* () {
     const groups = toolResultOutputGroups(input.toolResult)
-    if (groups.length === 0 || input.state.toolCount >= SESSION_TOOL_CAPTURE_LIMIT) return
+    if (groups.length === 0) return
+    if (input.state.toolCount >= SESSION_TOOL_CAPTURE_LIMIT) {
+      // Backfill enumerates every group. Reserve deferred slots before later assistant content.
+      for (const group of groups) {
+        const resources = collectExplicitResources(group.result)
+        input.context.imageIndex += resources.images.length
+        input.context.linkIndex += resources.links.length
+      }
+      return
+    }
     input.state.toolCount += 1
     yield* captureToolResultMetadata({
       sessionId: input.run.sessionId,
