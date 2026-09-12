@@ -13,6 +13,7 @@ export {
   archiveSession,
   clearSessionWorktree,
   deleteSession,
+  getSessionDeletionBlocker,
   listSessionWorktreeRefs,
   setSessionAuthorizationMode,
   setSessionWorktree,

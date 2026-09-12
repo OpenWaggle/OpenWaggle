@@ -134,6 +134,8 @@ A Queen session cannot be permanently deleted while it still has direct Workers,
 
 If deletion is blocked, the app explains that the Workers must be deleted first and keeps the Queen open. This is a safety check, not a failed Hive connection.
 
+An active Worker must be stopped before its session can be deleted, including during project removal. Attempting to delete a Working or Waiting Worker leaves its run and session intact and explains what to do next.
+
 Recoverable resources from older sessions are backfilled lazily in bounded batches. The Summary and Resource Browser remain usable while that work completes.
 
 Extension authors can publish session Sources and Outputs or add Summary sections through the brokered extension SDK. See [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).

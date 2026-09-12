@@ -151,7 +151,7 @@ export function makeBrokerLayer(input: {
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
-      hasDirectWorkers: () => Effect.succeed(false),
+      getDeletionBlocker: () => Effect.succeed(null),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,

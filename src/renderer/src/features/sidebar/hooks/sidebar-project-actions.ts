@@ -97,12 +97,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   if (!confirmed) return
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
-  const activeRuns = await api.listActiveRuns()
-  await Promise.all(
-    activeRuns.flatMap((run) =>
-      projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
-    ),
-  )
+  // Each deletion checks Hive eligibility before cancelling its run or releasing session state.
   await deleteProjectSessionsChildrenFirst(projectSessions, api.deleteSession)
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)

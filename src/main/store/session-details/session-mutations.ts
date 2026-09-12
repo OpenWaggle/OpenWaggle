@@ -116,13 +116,20 @@ export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Pr
   )
 }
 
-export async function deleteSession(id: SessionId): Promise<void> {
+/** Read-only preflight shared by IPC cleanup and the persisted deletion path. */
+export async function getSessionDeletionBlocker(id: SessionId): Promise<string | null> {
   if (await hasDirectSessionWorkers(id)) {
-    throw new Error(SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE)
+    return SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE
   }
   if (await hasActiveSessionWorker(id)) {
-    throw new Error(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE)
+    return SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE
   }
+  return null
+}
+
+export async function deleteSession(id: SessionId): Promise<void> {
+  const blocker = await getSessionDeletionBlocker(id)
+  if (blocker) throw new Error(blocker)
 
   const piSessionFile = await runStoreEffect(
     Effect.gen(function* () {

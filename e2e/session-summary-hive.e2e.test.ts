@@ -137,6 +137,31 @@ test('Session Summary Hive shows only the opened session direct lineage and rema
     await expect(queenRow).toBeVisible()
     await expect(hive).toContainText('1 active · 3 total')
     await app.captureEvidence('session-summary-hive-queen-delete-blocked')
+
+    // This leaf Worker has no children: its own active delegation, not the Queen guard,
+    // must reject deletion while preserving the opened Session and its Hive navigation.
+    await app.mainWindow().openThread(GRANDCHILD_TITLE)
+    await app.confirmNativeDialogs(1)
+    const activeLeafRow = page
+      .locator('[data-qa="sidebar-session-row"]')
+      .filter({ hasText: GRANDCHILD_TITLE })
+    await activeLeafRow
+      .getByRole('button', { name: `Open session actions for ${GRANDCHILD_TITLE}` })
+      .click()
+    await page.getByRole('button', { name: 'Delete session' }).click()
+    await expect(
+      page.getByText(
+        'Failed to delete session: Stop this active Worker task before deleting its Session.',
+        { exact: true },
+      ),
+    ).toBeVisible()
+    await expect(page.getByText(/Error invoking remote method/u)).toHaveCount(0)
+    await expect(page.locator('[data-qa="header-session-title"]')).toHaveText(GRANDCHILD_TITLE)
+    await expect(activeLeafRow).toBeVisible()
+    await expect(
+      summary.getByRole('button', { name: new RegExp(ACTIVE_WORKER_TITLE) }),
+    ).toBeVisible()
+    await app.captureEvidence('session-summary-hive-active-worker-delete-blocked')
   } finally {
     await app.cleanup()
   }

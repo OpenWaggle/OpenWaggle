@@ -1,16 +1,22 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/features/chat/state'
-import { useProviderStore } from '@/features/providers/state'
-import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
+import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient as render } from '@/test-utils/query-test-utils'
 import { useSidebarViewStore } from '../../state/sidebar-view-store'
 import { Sidebar } from '../Sidebar'
+import {
+  ARCHIVED_SESSION_ID,
+  makeArchivedSession,
+  makeSession,
+  PROJECT_PATH,
+  resetStores,
+  SESSION_ID,
+} from './sidebar-project-actions.test-fixtures'
 
 const {
   archiveSessionMock,
@@ -72,81 +78,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     updateSettings: updateSettingsMock,
   },
 }))
-
-const PROJECT_PATH = '/repo/openwaggle'
-const SESSION_ID = SessionId('session-project-1')
-const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
-
-function createDeferred() {
-  let resolveDeferred = () => {}
-  const promise = new Promise<void>((resolve) => {
-    resolveDeferred = resolve
-  })
-  return { promise, resolve: resolveDeferred }
-}
-
-function makeSession(): SessionSummary {
-  return {
-    id: SESSION_ID,
-    title: 'Existing project session',
-    projectPath: PROJECT_PATH,
-    createdAt: 10,
-    updatedAt: 20,
-  }
-}
-
-function makeArchivedSession(): SessionSummary {
-  return {
-    ...makeSession(),
-    id: ARCHIVED_SESSION_ID,
-    title: 'Archived project session',
-    updatedAt: 5,
-  }
-}
-
-function resetStores(session = makeSession()) {
-  usePreferencesStore.setState({
-    ...usePreferencesStore.getInitialState(),
-    settings: {
-      ...DEFAULT_SETTINGS,
-      projectPath: PROJECT_PATH,
-      selectedModel: SupportedModelId('openai/gpt-5'),
-      recentProjects: [PROJECT_PATH],
-    },
-    isLoaded: true,
-  })
-  useProviderStore.setState({
-    ...useProviderStore.getInitialState(),
-    baseProviderModels: [],
-    providerModels: [],
-  })
-  useChatStore.setState({
-    sessions: [session],
-    sessionById: new Map(),
-    missingSessionIds: new Set(),
-    draftSession: null,
-    activeSessionId: SESSION_ID,
-    activeSession: null,
-    error: null,
-  })
-  useSessionStore.setState({
-    ...useSessionStore.getInitialState(),
-    sessions: [session],
-    activeSessionTree: null,
-    activeWorkspace: null,
-    draftBranch: null,
-  })
-  useSessionStatusStore.setState({
-    statuses: new Map(),
-    completedAt: new Map(),
-    lastVisitedAt: new Map(),
-  })
-  useUIStore.setState({
-    ...useUIStore.getInitialState(),
-    sidebarOpen: true,
-  })
-  useSidebarViewStore.setState({ sessionSortMode: 'recent', projectExpandedByPath: {} })
-}
 
 describe('Sidebar project actions', () => {
   beforeEach(() => {
@@ -280,13 +211,7 @@ describe('Sidebar project actions', () => {
   })
 
   it('permanently removes all project sessions and project references', async () => {
-    const cancellation = createDeferred()
     const callOrder: string[] = []
-    cancelAgentMock.mockImplementationOnce(async () => {
-      callOrder.push('cancel:start')
-      await cancellation.promise
-      callOrder.push('cancel:end')
-    })
     deleteSessionMock.mockImplementation(async () => {
       callOrder.push('delete')
     })
@@ -314,19 +239,12 @@ describe('Sidebar project actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /remove/i }))
 
     await waitFor(() => {
-      expect(callOrder).toEqual(['cancel:start'])
-    })
-    expect(deleteSessionMock).not.toHaveBeenCalled()
-
-    cancellation.resolve()
-
-    await waitFor(() => {
       expect(showConfirmMock).toHaveBeenCalledWith(
         expect.stringContaining('permanently delete 2 sessions'),
         'Project: OpenWaggle Local\nThis cannot be undone.',
       )
       expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
-      expect(cancelAgentMock).toHaveBeenCalledWith(SESSION_ID)
+      expect(cancelAgentMock).not.toHaveBeenCalled()
       expect(deleteSessionMock).toHaveBeenCalledWith(SESSION_ID)
       expect(deleteSessionMock).toHaveBeenCalledWith(ARCHIVED_SESSION_ID)
       expect(updateSettingsMock).toHaveBeenCalledWith({
@@ -338,6 +256,37 @@ describe('Sidebar project actions', () => {
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
-    expect(callOrder).toEqual(['cancel:start', 'cancel:end', 'delete', 'delete'])
+    expect(callOrder).toEqual(['delete', 'delete'])
+  })
+
+  it('does not cancel a Worker before project deletion eligibility is checked', async () => {
+    const blocked = 'Stop this active Worker task before deleting its Session.'
+    const worker: SessionSummary = {
+      ...makeSession(),
+      lineage: {
+        role: 'worker',
+        parentSessionId: SessionId('parent-session'),
+        directWorkerCount: 0,
+        activeDirectWorkerCount: 0,
+        agentDefinitionName: 'worker',
+        delegationState: 'working',
+      },
+    }
+    useChatStore.setState({ sessions: [worker] })
+    useSessionStore.setState({ sessions: [worker] })
+    listActiveRunsMock.mockResolvedValue([{ sessionId: SESSION_ID }])
+    cancelAgentMock.mockResolvedValue(undefined)
+    deleteSessionMock.mockRejectedValue(new Error(blocked))
+    showConfirmMock.mockResolvedValue(true)
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /open project actions for openwaggle/i }))
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }))
+
+    await waitFor(() => expect(useUIStore.getState().toastMessage).toContain(blocked))
+    expect(cancelAgentMock).not.toHaveBeenCalled()
+    expect(updateSettingsMock).not.toHaveBeenCalled()
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(useChatStore.getState().activeSessionId).toBe(SESSION_ID)
   })
 })

@@ -1,4 +1,3 @@
-import { SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE } from '@shared/constants/session-lifecycle'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -158,9 +157,8 @@ function registerSessionMutationHandlers() {
   typedHandle('sessions:delete', (_event, id: SessionId) =>
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
-      if (yield* repo.hasDirectWorkers(id)) {
-        return yield* Effect.fail(new Error(SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE))
-      }
+      const blocker = yield* repo.getDeletionBlocker(id)
+      if (blocker) return yield* Effect.fail(new Error(blocker))
 
       yield* Effect.sync(() => cleanupBeforeSessionRemoval(id))
       const visualizations = yield* InlineVisualizationService

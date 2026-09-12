@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
   getSessionDetailMock: vi.fn(),
   getHiveRelationsMock: vi.fn(),
   createSessionMock: vi.fn(),
-  hasDirectWorkersMock: vi.fn(async () => false),
+  getDeletionBlockerMock: vi.fn(async () => null),
   deleteSessionMock: vi.fn(),
   archiveSessionMock: vi.fn(),
   unarchiveSessionMock: vi.fn(),
@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
   deleteVisualizationSessionMock: vi.fn(),
+  stageVisualizationSessionDeletionMock: vi.fn(),
   rollbackVisualizationSessionDeletionMock: vi.fn(),
 }))
 
@@ -61,7 +62,7 @@ export const listSessionDetailsMock: TestMock = mocks.listSessionDetailsMock
 export const getSessionDetailMock: TestMock = mocks.getSessionDetailMock
 export const getHiveRelationsMock: TestMock = mocks.getHiveRelationsMock
 export const createSessionMock: TestMock = mocks.createSessionMock
-export const hasDirectWorkersMock: TestMock = mocks.hasDirectWorkersMock
+export const getDeletionBlockerMock: TestMock = mocks.getDeletionBlockerMock
 export const deleteSessionMock: TestMock = mocks.deleteSessionMock
 export const archiveSessionMock: TestMock = mocks.archiveSessionMock
 export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
@@ -77,6 +78,8 @@ export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
 export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
 export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
 export const deleteVisualizationSessionMock: TestMock = mocks.deleteVisualizationSessionMock
+export const stageVisualizationSessionDeletionMock: TestMock =
+  mocks.stageVisualizationSessionDeletionMock
 export const rollbackVisualizationSessionDeletionMock: TestMock =
   mocks.rollbackVisualizationSessionDeletionMock
 
@@ -116,8 +119,8 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
     listDetails: (limit) =>
       projectionOperation('listDetails', async () => listSessionDetailsMock(limit)),
     create: (input) => projectionOperation('create', async () => createSessionMock(input)),
-    hasDirectWorkers: (id) =>
-      projectionOperation('hasDirectWorkers', async () => hasDirectWorkersMock(id)),
+    getDeletionBlocker: (id) =>
+      projectionOperation('getDeletionBlocker', async () => getDeletionBlockerMock(id)),
     delete: (id) => projectionOperation('delete', async () => deleteSessionMock(id)),
     archive: (id) => projectionOperation('archive', async () => archiveSessionMock(id)),
     unarchive: (id) => projectionOperation('unarchive', async () => unarchiveSessionMock(id)),
@@ -213,13 +216,16 @@ const TestInlineVisualizationLayer = Layer.succeed(
         deleteVisualizationSessionMock(sessionId)
       }),
     stageSessionDeletion: (sessionId) =>
-      Effect.succeed({
-        commit: Effect.sync(() => {
-          deleteVisualizationSessionMock(sessionId)
-        }),
-        rollback: Effect.sync(() => {
-          rollbackVisualizationSessionDeletionMock(sessionId)
-        }),
+      Effect.sync(() => {
+        stageVisualizationSessionDeletionMock(sessionId)
+        return {
+          commit: Effect.sync(() => {
+            deleteVisualizationSessionMock(sessionId)
+          }),
+          rollback: Effect.sync(() => {
+            rollbackVisualizationSessionDeletionMock(sessionId)
+          }),
+        }
       }),
     readSource: () => Effect.succeed({ status: 'unavailable', reason: 'missing' }),
   }),
@@ -257,7 +263,7 @@ export function resetSessionDetailsHandlerMocks() {
   pinSessionMock.mockResolvedValue(undefined)
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
-  hasDirectWorkersMock.mockResolvedValue(false)
+  getDeletionBlockerMock.mockResolvedValue(null)
   cancelSessionRunsMock.mockReturnValue(false)
   SessionResourceTest.resetSessionResourceTestMocks()
 }

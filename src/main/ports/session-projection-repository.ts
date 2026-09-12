@@ -44,10 +44,10 @@ export interface SessionProjectionRepositoryShape {
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
-  /** True while this Queen owns any direct Worker, archived Workers included. */
-  readonly hasDirectWorkers: (
+  /** Preflight before runtime teardown. Delete still revalidates eligibility transactionally. */
+  readonly getDeletionBlocker: (
     id: SessionId,
-  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
+  ) => Effect.Effect<string | null, SessionProjectionRepositoryError>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>

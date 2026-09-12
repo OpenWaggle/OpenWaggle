@@ -16,7 +16,7 @@ export function makeTrustedMainSessionLayers(projectPath: string) {
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath: createdProjectPath }) =>
         Effect.succeed(makeSessionDetail(createdProjectPath)),
-      hasDirectWorkers: () => Effect.succeed(false),
+      getDeletionBlocker: () => Effect.succeed(null),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,

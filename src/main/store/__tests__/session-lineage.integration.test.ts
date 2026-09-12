@@ -1,6 +1,10 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import {
+  SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE,
+  SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE,
+} from '@shared/constants/session-lifecycle'
 import { SessionId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -8,6 +12,7 @@ import {
   createSession,
   deleteSession,
   establishSessionLineage,
+  getSessionDeletionBlocker,
   getSessionHiveRelations,
   hasDirectSessionWorkers,
   listArchivedSessions,
@@ -45,6 +50,54 @@ afterEach(async () => {
 })
 
 describe('session Hive lineage projection', () => {
+  it('preflights active Workers and Queens without blocking eligible leaf Sessions', async () => {
+    const queen = await createSession({ projectPath: '/tmp/hive', piSessionId: 'preflight-queen' })
+    const worker = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'preflight-worker',
+    })
+    const independent = await createSession({
+      projectPath: '/tmp/hive',
+      piSessionId: 'preflight-root',
+    })
+    await establishSessionLineage({
+      sessionId: worker.id,
+      parentSessionId: queen.id,
+      agentDefinitionName: 'worker',
+      delegationState: 'working',
+    })
+    expect(await getSessionDeletionBlocker(independent.id)).toBeNull()
+    for (const state of ['working', 'waiting'] as const) {
+      await setSessionDelegationState(worker.id, state)
+      expect(await getSessionDeletionBlocker(worker.id)).toBe(
+        SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE,
+      )
+      await expect(deleteSession(worker.id)).rejects.toThrow(
+        SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE,
+      )
+    }
+    for (const state of [
+      'needs_attention',
+      'ready_for_review',
+      'revision_requested',
+      'accepted',
+      'cancelled',
+    ] as const) {
+      await setSessionDelegationState(worker.id, state)
+      expect(await getSessionDeletionBlocker(worker.id)).toBeNull()
+    }
+    await archiveSession(worker.id)
+    expect(await getSessionDeletionBlocker(queen.id)).toBe(
+      SESSION_DELETE_BLOCKED_BY_WORKERS_MESSAGE,
+    )
+    expect(await getSessionDeletionBlocker(worker.id)).toBeNull()
+    await deleteSession(worker.id)
+    expect(await getSessionDeletionBlocker(queen.id)).toBeNull()
+    await deleteSession(queen.id)
+    await deleteSession(independent.id)
+    expect(await listSessions()).toEqual([])
+  })
+
   it('returns only the opened Session and its immediate Hive relatives', async () => {
     const queen = await createSession({
       projectPath: '/tmp/hive',

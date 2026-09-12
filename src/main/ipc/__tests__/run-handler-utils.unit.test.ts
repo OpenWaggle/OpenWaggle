@@ -45,7 +45,7 @@ const makeTestSessionProjectionLayer = () =>
     list: () => Effect.succeed([]),
     listDetails: () => Effect.succeed([]),
     create: () => Effect.succeed(makeSessionDetail()),
-    hasDirectWorkers: () => Effect.succeed(false),
+    getDeletionBlocker: () => Effect.succeed(null),
     delete: () => Effect.void,
     archive: () => Effect.void,
     unarchive: () => Effect.void,

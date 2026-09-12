@@ -42,7 +42,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       createProjectionMock(input)
       return forkedSession
     }),
-  hasDirectWorkers: () => Effect.succeed(false),
+  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,

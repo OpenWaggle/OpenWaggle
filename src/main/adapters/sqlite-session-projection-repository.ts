@@ -8,6 +8,7 @@
  */
 
 import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { Effect, Layer } from 'effect'
 import { sessionTreeReferencesWorktreeVisualization } from '../application/worktree-visualization-retention'
 import { SessionProjectionRepositoryError } from '../errors'
@@ -23,7 +24,7 @@ type RepoOperation =
   | 'list'
   | 'listDetails'
   | 'create'
-  | 'hasDirectWorkers'
+  | 'getDeletionBlocker'
   | 'delete'
   | 'archive'
   | 'unarchive'
@@ -46,6 +47,21 @@ function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
     try: thunk,
     catch: (cause: unknown) => new SessionProjectionRepositoryError({ operation, cause }),
   })
+}
+
+function requireSessionProjection(id: SessionId, read: () => Promise<SessionDetail | null>) {
+  return repoOp('get', read).pipe(
+    Effect.flatMap((session) =>
+      session
+        ? Effect.succeed(session)
+        : Effect.fail(
+            new SessionProjectionRepositoryError({
+              operation: 'get',
+              cause: `Session projection ${id} not found`,
+            }),
+          ),
+    ),
+  )
 }
 
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
@@ -98,22 +114,7 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   return Layer.succeed(
     SessionProjectionRepository,
     SessionProjectionRepository.of({
-      get: (id) =>
-        Effect.tryPromise({
-          try: () => store.getSessionDetail(id),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
-        }).pipe(
-          Effect.flatMap((session) =>
-            session
-              ? Effect.succeed(session)
-              : Effect.fail(
-                  new SessionProjectionRepositoryError({
-                    operation: 'get',
-                    cause: `Session projection ${id} not found`,
-                  }),
-                ),
-          ),
-        ),
+      get: (id) => requireSessionProjection(id, () => store.getSessionDetail(id)),
 
       getOptional: (id) => repoOp('getOptional', () => store.getSessionDetail(id)),
 
@@ -126,7 +127,8 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       create: (input) => repoOp('create', () => store.createSession(input)),
 
-      hasDirectWorkers: (id) => repoOp('hasDirectWorkers', () => store.hasDirectSessionWorkers(id)),
+      getDeletionBlocker: (id) =>
+        repoOp('getDeletionBlocker', () => store.getSessionDeletionBlocker(id)),
 
       delete: (id) =>
         repoOp('delete', async () => {
