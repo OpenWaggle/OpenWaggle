@@ -10,6 +10,8 @@ import type { DesktopOwnerRepositoryShape } from '../ports/desktop-owner-reposit
 import type { DesktopServiceCommandQueue } from './desktop-service-command-queue'
 import { desktopUnavailableError } from './desktop-service-errors'
 
+const DRAINING_POLL_TIMEOUT_MS = 100
+
 interface DesktopLease {
   readonly id: string
   readonly guiInstanceId: string
@@ -153,7 +155,13 @@ export class DesktopServiceLeases {
       const revision = this.input.queue.revision()
       let commands = this.input.queue.take(leaseId)
       if (commands.length === 0 && this.input.queue.cancelledFor(leaseId).length === 0) {
-        await this.input.queue.wait(signal, revision)
+        // Shutdown still requires a fresh snapshot after admission closes. Keep these
+        // polls paced but prompt: two normal long polls consume the entire quit budget.
+        await this.input.queue.wait(
+          signal,
+          revision,
+          owner.draining ? DRAINING_POLL_TIMEOUT_MS : DESKTOP_SERVICE_LIMITS.pollTimeoutMs,
+        )
         signal.throwIfAborted()
         this.require(leaseId, true)
         commands = this.input.queue.take(leaseId)

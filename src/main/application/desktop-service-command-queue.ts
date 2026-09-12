@@ -163,7 +163,11 @@ export class DesktopServiceCommandQueue {
     for (const wake of this.wakeups) wake()
   }
 
-  wait(signal: AbortSignal, afterRevision: number) {
+  wait(
+    signal: AbortSignal,
+    afterRevision: number,
+    timeoutMs: number = DESKTOP_SERVICE_LIMITS.pollTimeoutMs,
+  ) {
     if (signal.aborted || afterRevision !== this.wakeRevision) return Promise.resolve()
     return new Promise<void>((resolve) => {
       const finish = () => {
@@ -172,7 +176,7 @@ export class DesktopServiceCommandQueue {
         signal.removeEventListener('abort', finish)
         resolve()
       }
-      const timer = setTimeout(finish, DESKTOP_SERVICE_LIMITS.pollTimeoutMs)
+      const timer = setTimeout(finish, timeoutMs)
       timer.unref?.()
       this.wakeups.add(finish)
       signal.addEventListener('abort', finish, { once: true })
