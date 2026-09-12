@@ -136,6 +136,8 @@ If deletion is blocked, the app explains that the Workers must be deleted first 
 
 An active Worker must be stopped before its session can be deleted, including during project removal. Attempting to delete a Working or Waiting Worker leaves its run and session intact and explains what to do next.
 
+Project removal refreshes the session list after confirmation and checks the whole Hive before deleting anything. An active Worker, missing descendant, or invalid lineage blocks removal without deleting siblings. If the session list changed while the confirmation was open, review it and confirm again. A later deletion error stops further deletions and refreshes the sidebar; project references remain available.
+
 Recoverable resources from older sessions are backfilled lazily in bounded batches. The Summary and Resource Browser remain usable while that work completes.
 
 Extension authors can publish session Sources and Outputs or add Summary sections through the brokered extension SDK. See [OpenWaggle Extensions](/docs/extending/openwaggle-extensions).

@@ -240,7 +240,7 @@ describe('registerSessionDetailsHandlers', () => {
     )
   })
 
-  it('cleans up the active run before deleting a session', async () => {
+  it('cleans up the active run after committing session deletion', async () => {
     deleteSessionMock.mockResolvedValue(undefined)
     cancelSessionRunsMock.mockReturnValue(true)
 

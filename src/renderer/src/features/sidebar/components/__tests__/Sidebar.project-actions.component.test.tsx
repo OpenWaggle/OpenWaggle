@@ -3,7 +3,6 @@ import type { SessionSummary } from '@shared/types/session'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/features/chat/state'
-import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient as render } from '@/test-utils/query-test-utils'
@@ -28,6 +27,7 @@ const {
   listActiveRunsMock,
   listArchivedSessionsMock,
   listGitBranchesMock,
+  listSessionsMock,
   navigateMock,
   openPathMock,
   routerState,
@@ -43,6 +43,7 @@ const {
   listActiveRunsMock: vi.fn(),
   listArchivedSessionsMock: vi.fn(),
   listGitBranchesMock: vi.fn(),
+  listSessionsMock: vi.fn(),
   navigateMock: vi.fn(),
   openPathMock: vi.fn(),
   routerState: { pathname: '/' },
@@ -73,6 +74,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     listActiveRuns: listActiveRunsMock,
     listArchivedSessions: listArchivedSessionsMock,
     listGitBranches: listGitBranchesMock,
+    listSessions: listSessionsMock,
     openPath: openPathMock,
     showConfirm: showConfirmMock,
     updateSettings: updateSettingsMock,
@@ -90,6 +92,7 @@ describe('Sidebar project actions', () => {
     getProviderModelsMock.mockResolvedValue([])
     listActiveRunsMock.mockResolvedValue([])
     listArchivedSessionsMock.mockResolvedValue([])
+    listSessionsMock.mockResolvedValue([makeSession()])
     listGitBranchesMock.mockResolvedValue({ ok: true, branches: [] })
     openPathMock.mockResolvedValue(undefined)
     showConfirmMock.mockResolvedValue(false)
@@ -215,7 +218,7 @@ describe('Sidebar project actions', () => {
     deleteSessionMock.mockImplementation(async () => {
       callOrder.push('delete')
     })
-    listArchivedSessionsMock.mockResolvedValueOnce([makeArchivedSession()])
+    listArchivedSessionsMock.mockResolvedValue([makeArchivedSession()])
     listActiveRunsMock.mockResolvedValueOnce([
       {
         sessionId: SESSION_ID,
@@ -259,7 +262,7 @@ describe('Sidebar project actions', () => {
     expect(callOrder).toEqual(['delete', 'delete'])
   })
 
-  it('does not cancel a Worker before project deletion eligibility is checked', async () => {
+  it('preflights fresh Worker state before deleting any project sibling', async () => {
     const blocked = 'Stop this active Worker task before deleting its Session.'
     const worker: SessionSummary = {
       ...makeSession(),
@@ -272,8 +275,8 @@ describe('Sidebar project actions', () => {
         delegationState: 'working',
       },
     }
-    useChatStore.setState({ sessions: [worker] })
-    useSessionStore.setState({ sessions: [worker] })
+    listSessionsMock.mockResolvedValue([worker])
+    listArchivedSessionsMock.mockResolvedValue([makeArchivedSession()])
     listActiveRunsMock.mockResolvedValue([{ sessionId: SESSION_ID }])
     cancelAgentMock.mockResolvedValue(undefined)
     deleteSessionMock.mockRejectedValue(new Error(blocked))
@@ -285,6 +288,7 @@ describe('Sidebar project actions', () => {
 
     await waitFor(() => expect(useUIStore.getState().toastMessage).toContain(blocked))
     expect(cancelAgentMock).not.toHaveBeenCalled()
+    expect(deleteSessionMock).not.toHaveBeenCalled()
     expect(updateSettingsMock).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalled()
     expect(useChatStore.getState().activeSessionId).toBe(SESSION_ID)

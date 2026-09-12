@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionSummary } from '@shared/types/session'
+import type { SessionDelegationState, SessionSummary } from '@shared/types/session'
 import { describe, expect, it, vi } from 'vitest'
 import { deleteProjectSessionsChildrenFirst } from '../sidebar-project-session-deletion'
 
@@ -7,6 +7,7 @@ function session(
   id: string,
   parentSessionId: SessionId | null,
   directWorkerCount: number,
+  delegationState: SessionDelegationState = 'accepted',
 ): SessionSummary {
   return {
     id: SessionId(id),
@@ -20,13 +21,13 @@ function session(
       directWorkerCount,
       activeDirectWorkerCount: directWorkerCount,
       agentDefinitionName: parentSessionId ? 'worker' : null,
-      delegationState: parentSessionId ? 'working' : null,
+      delegationState: parentSessionId ? delegationState : null,
     },
   }
 }
 
 describe('project Session deletion order', () => {
-  it('deletes independent Sessions in parallel and Hives from leaves to Queen', async () => {
+  it('deletes independent Sessions and Hives from leaves to Queen', async () => {
     const queen = session('queen', null, 1)
     const worker = session('worker', queen.id, 1)
     const grandchild = session('grandchild', worker.id, 0)
@@ -50,8 +51,38 @@ describe('project Session deletion order', () => {
     const deleteSession = vi.fn(async () => undefined)
 
     await expect(
-      deleteProjectSessionsChildrenFirst([first, second], deleteSession),
+      deleteProjectSessionsChildrenFirst(
+        [session('sibling', null, 0), first, second],
+        deleteSession,
+      ),
     ).rejects.toThrow('Hive lineage contains a cycle')
+    expect(deleteSession).not.toHaveBeenCalled()
+  })
+
+  it.each(['working', 'waiting'] as const)(
+    'does not delete any sibling when a Worker is %s',
+    async (delegationState) => {
+      const activeWorker = session('worker', SessionId('queen'), 0, delegationState)
+      const deleteSession = vi.fn(async () => undefined)
+
+      await expect(
+        deleteProjectSessionsChildrenFirst(
+          [session('sibling', null, 0), activeWorker],
+          deleteSession,
+        ),
+      ).rejects.toThrow('Stop this active Worker task')
+      expect(deleteSession).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects missing project Workers before deleting a sibling', async () => {
+    const deleteSession = vi.fn(async () => undefined)
+    await expect(
+      deleteProjectSessionsChildrenFirst(
+        [session('sibling', null, 0), session('queen', null, 1)],
+        deleteSession,
+      ),
+    ).rejects.toThrow('Workers outside the confirmed project')
     expect(deleteSession).not.toHaveBeenCalled()
   })
 })

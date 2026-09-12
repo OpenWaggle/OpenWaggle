@@ -160,10 +160,11 @@ function registerSessionMutationHandlers() {
       const blocker = yield* repo.getDeletionBlocker(id)
       if (blocker) return yield* Effect.fail(new Error(blocker))
 
-      yield* Effect.sync(() => cleanupBeforeSessionRemoval(id))
       const visualizations = yield* InlineVisualizationService
       const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
-      yield* repo.delete(id).pipe(Effect.tapError(() => stagedDeletion.rollback))
+      yield* repo
+        .delete(id, () => cleanupBeforeSessionRemoval(id))
+        .pipe(Effect.tapError(() => stagedDeletion.rollback))
       yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
       yield* stagedDeletion.commit.pipe(
         Effect.catchAll((error) => {

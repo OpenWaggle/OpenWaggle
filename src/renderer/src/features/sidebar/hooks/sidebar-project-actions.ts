@@ -5,7 +5,11 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
-import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
+import {
+  clearComposerDraftForSession,
+  clearComposerDraftsForSessions,
+  errorMessage,
+} from './sidebar-action-utils'
 import { deleteProjectSessionsChildrenFirst } from './sidebar-project-session-deletion'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -97,8 +101,37 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   if (!confirmed) return
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
-  // Each deletion checks Hive eligibility before cancelling its run or releasing session state.
-  await deleteProjectSessionsChildrenFirst(projectSessions, api.deleteSession)
+  try {
+    const [currentSessions, currentArchivedSessions] = await Promise.all([
+      api.listSessions(),
+      api.listArchivedSessions(),
+    ])
+    const currentProjectSessions = projectSessionsForPath(
+      currentSessions,
+      currentArchivedSessions,
+      path,
+    )
+    if (
+      currentProjectSessions.length !== projectSessionIds.size ||
+      currentProjectSessions.some((session) => !projectSessionIds.has(String(session.id)))
+    ) {
+      throw new Error(
+        'Project sessions changed while confirming removal. Review them and try again.',
+      )
+    }
+    await deleteProjectSessionsChildrenFirst(currentProjectSessions, async (id) => {
+      await api.deleteSession(id)
+      clearComposerDraftForSession(id)
+    })
+  } catch (error) {
+    // A later repository failure can follow successful deletions. Reconcile rows before reporting it.
+    await Promise.allSettled([
+      deps.loadChatSessions(),
+      deps.loadSessionTrees(),
+      refreshArchivedSessions(deps.queryClient),
+    ])
+    throw error
+  }
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])

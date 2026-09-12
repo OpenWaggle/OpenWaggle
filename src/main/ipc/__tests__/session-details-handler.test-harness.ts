@@ -121,7 +121,11 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
     create: (input) => projectionOperation('create', async () => createSessionMock(input)),
     getDeletionBlocker: (id) =>
       projectionOperation('getDeletionBlocker', async () => getDeletionBlockerMock(id)),
-    delete: (id) => projectionOperation('delete', async () => deleteSessionMock(id)),
+    delete: (id, onCommitted) =>
+      projectionOperation('delete', async () => {
+        await deleteSessionMock(id)
+        onCommitted?.()
+      }),
     archive: (id) => projectionOperation('archive', async () => archiveSessionMock(id)),
     unarchive: (id) => projectionOperation('unarchive', async () => unarchiveSessionMock(id)),
     listArchived: () => projectionOperation('listArchived', async () => listArchivedSessionsMock()),
@@ -216,8 +220,8 @@ const TestInlineVisualizationLayer = Layer.succeed(
         deleteVisualizationSessionMock(sessionId)
       }),
     stageSessionDeletion: (sessionId) =>
-      Effect.sync(() => {
-        stageVisualizationSessionDeletionMock(sessionId)
+      Effect.tryPromise(async () => {
+        await stageVisualizationSessionDeletionMock(sessionId)
         return {
           commit: Effect.sync(() => {
             deleteVisualizationSessionMock(sessionId)

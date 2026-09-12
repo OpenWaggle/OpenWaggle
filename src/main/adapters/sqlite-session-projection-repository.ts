@@ -130,12 +130,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
       getDeletionBlocker: (id) =>
         repoOp('getDeletionBlocker', () => store.getSessionDeletionBlocker(id)),
 
-      delete: (id) =>
+      delete: (id, onCommitted) =>
         repoOp('delete', async () => {
           const session = await store.getSessionDetail(id)
           // Commit the lineage-guarded delete before pruning, so a concurrent Worker cannot leave
           // a surviving Queen with a removed checkout after the atomic guard rejects the delete.
-          await store.deleteSession(id)
+          await store.deleteSession(id, onCommitted)
           await pruneWorktreeForSession(id, 'delete', session)
         }),
 

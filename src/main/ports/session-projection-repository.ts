@@ -48,7 +48,11 @@ export interface SessionProjectionRepositoryShape {
   readonly getDeletionBlocker: (
     id: SessionId,
   ) => Effect.Effect<string | null, SessionProjectionRepositoryError>
-  readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Invoke synchronous runtime cleanup after the guarded commit, before file/worktree cleanup. */
+  readonly delete: (
+    id: SessionId,
+    onCommitted?: () => void,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listArchived: () => Effect.Effect<

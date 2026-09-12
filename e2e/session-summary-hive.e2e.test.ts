@@ -162,6 +162,20 @@ test('Session Summary Hive shows only the opened session direct lineage and rema
       summary.getByRole('button', { name: new RegExp(ACTIVE_WORKER_TITLE) }),
     ).toBeVisible()
     await app.captureEvidence('session-summary-hive-active-worker-delete-blocked')
+
+    await app.confirmNativeDialogs(1)
+    await page.getByRole('button', { name: /^Open project actions for /u }).click()
+    await page.getByRole('button', { name: 'Remove...', exact: true }).click()
+    await expect(page.getByText(
+      'Failed to remove project: Stop this active Worker task before deleting its Session.',
+      { exact: true },
+    )).toBeVisible()
+    await expect(page.locator('[data-qa="sidebar-session-row"]')).toHaveCount(4)
+    await app.mainWindow().openThread(QUEEN_TITLE)
+    await expect(hive).toContainText('1 active · 3 total')
+    await expect(hive.getByText(DONE_WORKER_TITLE)).toBeVisible()
+    await expect(hive.getByText(ARCHIVED_WORKER_TITLE)).toBeVisible()
+    await app.captureEvidence('session-summary-hive-project-delete-blocked')
   } finally {
     await app.cleanup()
   }

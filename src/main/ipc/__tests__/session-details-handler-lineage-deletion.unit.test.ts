@@ -1,6 +1,6 @@
 import { SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE } from '@shared/constants/session-lifecycle'
 import { SessionId } from '@shared/types/brand'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cancelSessionRunsMock,
   cleanupSessionRunMock,
@@ -90,15 +90,56 @@ describe('session Hive deletion', () => {
     expect(deleteSessionMock).not.toHaveBeenCalled()
   })
 
-  it('keeps repository revalidation and rolls back staged assets after a late rejection', async () => {
+  it('preserves runtime state when repository revalidation rejects after async staging', async () => {
     const id = SessionId('late-worker')
+    const staging = Promise.withResolvers<void>()
+    stageVisualizationSessionDeletionMock.mockReturnValue(staging.promise)
     getDeletionBlockerMock.mockResolvedValue(null)
     deleteSessionMock.mockRejectedValue(new Error(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE))
     registerSessionDetailsHandlers()
-    await expect(getInvokeHandler('sessions:delete')?.({}, id)).rejects.toThrow()
+    const deletion = getInvokeHandler('sessions:delete')?.({}, id)
+    const rejected = expect(deletion).rejects.toThrow()
+    await vi.waitFor(() => expect(stageVisualizationSessionDeletionMock).toHaveBeenCalledWith(id))
+    staging.resolve()
+    await rejected
     expect(deleteSessionMock).toHaveBeenCalledWith(id)
     expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith(id)
+    expect(cancelSessionRunsMock).not.toHaveBeenCalled()
+    expect(clearAgentPhaseMock).not.toHaveBeenCalled()
+    expect(clearStreamBufferMock).not.toHaveBeenCalled()
+    expect(cleanupSessionRunMock).not.toHaveBeenCalled()
+    expect(emitRunCompletedMock).not.toHaveBeenCalled()
     expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
     expect(removeSessionResourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves the run untouched when visualization staging fails', async () => {
+    stageVisualizationSessionDeletionMock.mockRejectedValue(new Error('Files are locked'))
+    registerSessionDetailsHandlers()
+    await expect(
+      getInvokeHandler('sessions:delete')?.({}, SessionId('stage-failure')),
+    ).rejects.toThrow()
+    expect(cancelSessionRunsMock).not.toHaveBeenCalled()
+    expect(clearAgentPhaseMock).not.toHaveBeenCalled()
+    expect(clearStreamBufferMock).not.toHaveBeenCalled()
+    expect(cleanupSessionRunMock).not.toHaveBeenCalled()
+    expect(deleteSessionMock).not.toHaveBeenCalled()
+  })
+
+  it('waits for authoritative deletion before cancelling an eligible Session run', async () => {
+    const id = SessionId('eligible-running-session')
+    const commit = Promise.withResolvers<void>()
+    deleteSessionMock.mockReturnValue(commit.promise)
+    registerSessionDetailsHandlers()
+    const deletion = getInvokeHandler('sessions:delete')?.({}, id)
+    await vi.waitFor(() => expect(deleteSessionMock).toHaveBeenCalledWith(id))
+    expect(cancelSessionRunsMock).not.toHaveBeenCalled()
+    expect(cleanupSessionRunMock).not.toHaveBeenCalled()
+    commit.resolve()
+    await deletion
+    expect(cancelSessionRunsMock).toHaveBeenCalledWith(id)
+    expect(clearAgentPhaseMock).toHaveBeenCalledWith(id)
+    expect(clearStreamBufferMock).toHaveBeenCalledWith(id)
+    expect(cleanupSessionRunMock).toHaveBeenCalledWith(id)
   })
 })
