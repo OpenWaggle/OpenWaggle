@@ -211,7 +211,16 @@ export async function assertFinalPayload(label: string, output: string, platform
   const text = platform === 'win32' ? await renderConsoleOutput(output) : output
   const start = text.indexOf(FINAL_PREFIX)
   const end = text.indexOf(FINAL_SUFFIX, start + FINAL_PREFIX.length)
-  if (start === -1 || end === -1) throw new Error(`${label} dropped final output markers.`)
+  if (start === -1 || end === -1) {
+    throw new Error(
+      `${label} dropped final output markers (start ${start}, end ${end}; ` +
+        `${output.length} raw characters; ${text.length} visible characters; ` +
+        `raw head ${JSON.stringify(output.slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT))}; ` +
+        `raw tail ${JSON.stringify(output.slice(-UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT))}; ` +
+        `visible head ${JSON.stringify(text.slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT))}; ` +
+        `visible tail ${JSON.stringify(text.slice(-UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT))}).`,
+    )
+  }
   const payload = text.slice(start + FINAL_PREFIX.length, end)
   if (payload.length !== FINAL_PAYLOAD_BYTES || payload.replaceAll(FINAL_CHARACTER, '') !== '') {
     const unexpected = payload.replaceAll(FINAL_CHARACTER, '').slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT)

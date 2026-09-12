@@ -16,6 +16,22 @@ function conptyOutput(payload: string) {
 }
 
 describe('native final output integrity', () => {
+  it('reports bounded raw and rendered evidence when a Windows marker is missing', async () => {
+    const output = `\x1b[?25l${PAYLOAD}${SUFFIX}`
+    await expect(assertFinalPayload('WinPTY', output, 'win32')).rejects.toThrow(
+      `WinPTY dropped final output markers (start -1, end ${PAYLOAD.length}; ${output.length} raw characters; ${PAYLOAD.length + SUFFIX.length} visible characters;`,
+    )
+    try {
+      await assertFinalPayload('WinPTY', output, 'win32')
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error)
+      if (!(error instanceof Error)) throw error
+      expect(error.message.length).toBeLessThan(1_000)
+      expect(error.message).toContain('raw head "\\u001b[?25l')
+      expect(error.message).toContain(`${SUFFIX}"`)
+    }
+  })
+
   it('accepts an exact Unix byte payload', async () => {
     await expect(assertFinalPayload('Unix PTY', `${PREFIX}${PAYLOAD}${SUFFIX}`, 'linux')).resolves.toBeUndefined()
   })
