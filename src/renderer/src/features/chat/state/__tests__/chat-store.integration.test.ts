@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionCatalogPage, SessionDetail, SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
 
@@ -10,8 +10,11 @@ import { useChatStore } from '../chat-store'
  */
 
 const mockApi = {
-  listSessionDetails: vi.fn(),
-  listSessions: vi.fn(async (..._args: unknown[]) => []),
+  listSessionCatalogPage: vi.fn(
+    async (..._args: [boolean, number, string?]): Promise<SessionCatalogPage> => ({ sessions: [] }),
+  ),
+  listPinnedSessions: vi.fn(async () => []),
+  listSessionsByIds: vi.fn(async (_ids: readonly SessionId[]): Promise<SessionSummary[]> => []),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
@@ -20,8 +23,10 @@ const mockApi = {
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
-    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listSessionCatalogPage: (archived: boolean, limit: number, cursor?: string) =>
+      mockApi.listSessionCatalogPage(archived, limit, cursor),
+    listPinnedSessions: () => mockApi.listPinnedSessions(),
+    listSessionsByIds: (ids: readonly SessionId[]) => mockApi.listSessionsByIds(ids),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),
@@ -61,9 +66,24 @@ function makeSessionDetail(id: SessionId, title = 'Session') {
   }
 }
 
+function makeSessionSummary(session: SessionDetail) {
+  return {
+    id: session.id,
+    title: session.title,
+    projectPath: session.projectPath,
+    messageCount: session.messages.length,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  }
+}
+
 describe('useChatStore integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockApi.listSessionCatalogPage.mockResolvedValue({ sessions: [] })
+    mockApi.listPinnedSessions.mockResolvedValue([])
+    mockApi.listSessionsByIds.mockResolvedValue([])
+    mockApi.getSessionTree.mockResolvedValue(null)
     resetStore()
   })
 
@@ -104,20 +124,81 @@ describe('useChatStore integration', () => {
     expect(useChatStore.getState().draftSession).toEqual({ projectPath: '/repo/draft' })
   })
 
-  it('loads full sessions and switches between them without fetching on click', async () => {
+  it('loads lightweight summaries and fetches a transcript only when selected', async () => {
     const first = makeSessionDetail(SessionId('session-first'), 'First')
     const second = makeSessionDetail(SessionId('session-second'), 'Second')
-    mockApi.listSessionDetails.mockResolvedValue([first, second])
+    mockApi.listSessionCatalogPage.mockImplementation(async (archived: boolean) => ({
+      sessions: archived ? [] : [makeSessionSummary(first), makeSessionSummary(second)],
+    }))
+    mockApi.getSessionDetail.mockResolvedValue(second)
 
     await useChatStore.getState().loadSessions()
     useChatStore.getState().setActiveSessionId(second.id)
+
+    await vi.waitFor(() => {
+      expect(useChatStore.getState().activeSession).toBe(second)
+    })
 
     expect(useChatStore.getState().sessions.map((session) => session.id)).toEqual([
       first.id,
       second.id,
     ])
-    expect(useChatStore.getState().activeSession).toBe(second)
-    expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
+    expect(mockApi.getSessionDetail).toHaveBeenCalledWith(second.id)
+  })
+
+  it('does not let an older transcript request overwrite a newer refresh', async () => {
+    const id = SessionId('session-race')
+    const older = makeSessionDetail(id, 'Older')
+    const newer = makeSessionDetail(id, 'Newer')
+    let resolveOlder: (session: SessionDetail | null) => void = () => undefined
+    const olderRequest = new Promise<SessionDetail | null>((resolve) => {
+      resolveOlder = resolve
+    })
+    mockApi.getSessionDetail.mockImplementationOnce(() => olderRequest)
+    mockApi.getSessionDetail.mockResolvedValueOnce(newer)
+
+    const first = useChatStore.getState().refreshSession(id)
+    const second = useChatStore.getState().refreshSession(id)
+    await second
+    resolveOlder(older)
+    await first
+
+    expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer')
+  })
+
+  it('does not let an older bulk load overwrite a newer Host-event refresh', async () => {
+    const id = SessionId('session-bulk-race')
+    const older = makeSessionDetail(id, 'Older bulk snapshot')
+    const newer = makeSessionDetail(id, 'Newer Host refresh')
+    let resolveBulk: (sessions: readonly ReturnType<typeof makeSessionSummary>[]) => void = () =>
+      undefined
+    const bulkRequest = new Promise<readonly ReturnType<typeof makeSessionSummary>[]>((resolve) => {
+      resolveBulk = resolve
+    })
+    mockApi.listSessionCatalogPage.mockImplementationOnce(() =>
+      bulkRequest.then((sessions) => ({ sessions })),
+    )
+    mockApi.getSessionDetail.mockResolvedValueOnce(newer)
+
+    const load = useChatStore.getState().loadSessions()
+    await useChatStore.getState().refreshSession(id)
+    resolveBulk([makeSessionSummary(older)])
+    await load
+
+    expect(useChatStore.getState().sessionById.get(id)?.title).toBe('Newer Host refresh')
+  })
+
+  it('retains an archived Worker deep link without showing it in the normal catalog', async () => {
+    const worker = makeSessionDetail(SessionId('archived-worker'), 'Archived Worker')
+    useChatStore.setState({ activeSessionId: worker.id })
+    mockApi.getSessionDetail.mockResolvedValue({ ...worker, archived: true })
+
+    await useChatStore.getState().loadSessions()
+    await vi.waitFor(() => expect(useChatStore.getState().activeSession?.id).toBe(worker.id))
+
+    expect(useChatStore.getState().activeSessionId).toBe(worker.id)
+    expect(useChatStore.getState().missingSessionIds.has(worker.id)).toBe(false)
+    expect(useChatStore.getState().sessions).toEqual([])
   })
 
   it('throws and preserves state on createSession failure', async () => {

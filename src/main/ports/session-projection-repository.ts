@@ -39,6 +39,8 @@ export interface SessionProjectionRepositoryShape {
     readonly authorizationMode?: AgentAuthorizationMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Resume crash-interrupted Session deletions before the Host starts accepting clients. */
+  readonly recoverPendingDeletions?: () => Effect.Effect<void, never>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listArchived: () => Effect.Effect<

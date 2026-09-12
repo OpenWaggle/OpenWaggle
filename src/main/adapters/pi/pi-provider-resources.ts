@@ -12,6 +12,7 @@ import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly compactionThresholdPercent?: number
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
@@ -85,11 +86,20 @@ function filterDisabledCatalogSkills(
   projectPath: string,
   skillToggles: Readonly<Record<string, boolean>>,
   base: PiSkillsOverrideInput,
+  skillAllowlist?: readonly string[],
 ) {
+  const allowedSkills = skillAllowlist
+    ? new Set(skillAllowlist.map((skillId) => normalizeSkillId(skillId)))
+    : null
   return {
     skills: base.skills.filter((skill) => {
       const skillId = getCatalogSkillIdForPiSkill(projectPath, skill.filePath)
-      return skillId === null || skillToggles[skillId] !== false
+      const normalizedName = normalizeSkillId(skill.name)
+      const toggleId = skillId ?? normalizedName
+      return (
+        skillToggles[toggleId] !== false &&
+        (allowedSkills === null || allowedSkills.has(skillId ?? normalizedName))
+      )
     }),
     diagnostics: base.diagnostics,
   }
@@ -97,6 +107,10 @@ function filterDisabledCatalogSkills(
 
 function disableExecutableExtensionsForAutomation() {
   return env.OPENWAGGLE_AUTOMATION === '1'
+}
+
+function allowFirstPartyExtensionFactoriesForAutomation() {
+  return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
 }
 
 function systemPromptAppendices(options: PiRuntimeServicesOptions) {
@@ -118,7 +132,9 @@ function configuredExtensionFactories(
   disableExtensions: boolean,
 ) {
   return [
-    ...(disableExtensions ? [] : (options.extensionFactories ?? [])),
+    ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
+      ? (options.extensionFactories ?? [])
+      : []),
     ...(options.trustedExtensionFactories ?? []),
   ]
 }
@@ -173,7 +189,8 @@ export function createOpenWagglePiResourceLoaderOptions(
       builtInSkillPaths,
       disableExtensions,
     ),
-    skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
+    skillsOverride: (base) =>
+      filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
     ...(appendSystemPrompt.length > 0 ? { appendSystemPrompt } : {}),
     ...(disableExtensions ? { noExtensions: true } : {}),
     ...(extensionFactories.length > 0 ? { extensionFactories } : {}),

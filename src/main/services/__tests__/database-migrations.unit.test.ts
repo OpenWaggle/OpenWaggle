@@ -62,12 +62,13 @@ function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
       `
       if (existing.length > 0) continue
 
-      const skip = migration.skipIfColumn
+      const skip = migration.skipIfColumns
       if (skip) {
         const columns = yield* sql<{ name: string }>`
           SELECT name FROM pragma_table_info(${skip.table})
         `
-        if (columns.some((column) => column.name === skip.column)) {
+        const existingColumns = new Set(columns.map((column) => column.name))
+        if (skip.columns.every((column) => existingColumns.has(column))) {
           yield* sql`
             INSERT INTO _migrations (id, name, applied_at)
             VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
@@ -98,7 +99,7 @@ function insertSession(sql: SqlClient.SqlClient, id: string) {
   `
 }
 
-describe('session authorization-mode migration', () => {
+describe('database migrations', () => {
   beforeEach(async () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-migrations-'))
   })

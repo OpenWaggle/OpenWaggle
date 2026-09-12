@@ -91,6 +91,16 @@ function buildExistingUserQueuesByText(existingMessages: readonly UIMessage[]) {
   return existingUserQueuesByText
 }
 
+export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage): UIMessage {
+  const sessionNodeCreatedOrder = snapshot.metadata?.sessionNodeCreatedOrder
+  if (
+    sessionNodeCreatedOrder === undefined ||
+    current.metadata?.sessionNodeCreatedOrder === sessionNodeCreatedOrder
+  )
+    return current
+  return { ...current, metadata: { ...current.metadata, sessionNodeCreatedOrder } }
+}
+
 /**
  * Replaces persisted user rows with matching in-memory optimistic rows so React row
  * identity remains stable across the post-run snapshot refresh.
@@ -119,7 +129,8 @@ export function reconcileSnapshotUserMessages(
       return message
     }
     didReplace = true
-    return replacement
+    // Preserve the React row identity, but retain the authoritative source boundary for steering.
+    return retainSnapshotMessageOrder(replacement, message)
   })
 
   return didReplace ? reconciled : snapshotMessages

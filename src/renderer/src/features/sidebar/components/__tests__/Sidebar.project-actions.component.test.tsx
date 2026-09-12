@@ -1,5 +1,6 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,9 +22,9 @@ const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
     getProjectPreferences: vi.fn(),
     getProviderModels: vi.fn(),
     listActiveRuns: vi.fn(),
-    listArchivedSessions: vi.fn(),
     listGitBranches: vi.fn(),
-    listPinnedSessions: vi.fn(),
+    listSessionsByIds: vi.fn(),
+    querySessionControl: vi.fn(),
     onGitWorkingTreeChanged: () => () => {},
     openPath: vi.fn(),
     showConfirm: vi.fn(),
@@ -50,15 +51,6 @@ vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 const PROJECT_PATH = '/repo/openwaggle'
 const SESSION_ID = SessionId('session-project-1')
 const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
-
-function createDeferred() {
-  let resolveDeferred = () => {}
-  const promise = new Promise<void>((resolve) => {
-    resolveDeferred = resolve
-  })
-  return { promise, resolve: resolveDeferred }
-}
-
 function makeSession(): SessionSummary {
   return {
     id: SESSION_ID,
@@ -70,12 +62,38 @@ function makeSession(): SessionSummary {
 }
 
 function makeArchivedSession(): SessionSummary {
-  return {
-    ...makeSession(),
-    id: ARCHIVED_SESSION_ID,
-    title: 'Archived project session',
-    updatedAt: 5,
-  }
+  return { ...makeSession(), id: ARCHIVED_SESSION_ID, archived: true }
+}
+
+function mockProjectSessions(sessions: readonly SessionSummary[]) {
+  apiMock.listSessionsByIds.mockImplementation(async (ids: readonly SessionId[]) =>
+    sessions.filter((session) => ids.includes(session.id)),
+  )
+  apiMock.querySessionControl.mockImplementation(
+    async (request: { query: { archived?: boolean; interrupted?: boolean } }) => ({
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: 'project-sessions',
+      outcome: {
+        operation: 'list',
+        sessions: sessions
+          .filter(
+            (session) =>
+              !request.query.interrupted &&
+              Boolean(session.archived) === Boolean(request.query.archived),
+          )
+          .map((session) => ({
+            sessionId: session.id,
+            title: session.title,
+            projectPath: session.projectPath,
+            archived: Boolean(session.archived),
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            lineageRole: 'independent',
+            directWorkerCount: 0,
+          })),
+      },
+    }),
+  )
 }
 
 function resetStores(session = makeSession()) {
@@ -133,9 +151,8 @@ describe('Sidebar project actions', () => {
     apiMock.getProjectPreferences.mockResolvedValue(null)
     apiMock.getProviderModels.mockResolvedValue([])
     apiMock.listActiveRuns.mockResolvedValue([])
-    apiMock.listArchivedSessions.mockResolvedValue([])
     apiMock.listGitBranches.mockResolvedValue({ ok: true, branches: [] })
-    apiMock.listPinnedSessions.mockResolvedValue([])
+    mockProjectSessions([makeSession()])
     apiMock.openPath.mockResolvedValue(undefined)
     apiMock.showConfirm.mockResolvedValue(false)
     apiMock.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
@@ -155,10 +172,6 @@ describe('Sidebar project actions', () => {
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
-  /**
-   * Collapsing was useState only, so a restart undid it. The state now lives in the persisted
-   * view store, which is what makes it survive.
-   */
   it('records a collapsed project in the persisted view store', () => {
     render(<Sidebar />)
 
@@ -169,7 +182,6 @@ describe('Sidebar project actions', () => {
     })
   })
 
-  /** A fresh mount with restored state is what the user sees after relaunching. */
   it('renders a project collapsed when the restored state says so', () => {
     useSidebarViewStore.setState({ projectExpandedByPath: { [PROJECT_PATH]: false } })
 
@@ -258,7 +270,7 @@ describe('Sidebar project actions', () => {
   })
 
   it('permanently removes all project sessions and project references', async () => {
-    const cancellation = createDeferred()
+    const cancellation = Promise.withResolvers<void>()
     const callOrder: string[] = []
     apiMock.cancelAgent.mockImplementationOnce(async () => {
       callOrder.push('cancel:start')
@@ -268,7 +280,7 @@ describe('Sidebar project actions', () => {
     apiMock.deleteSession.mockImplementation(async () => {
       callOrder.push('delete')
     })
-    apiMock.listArchivedSessions.mockResolvedValueOnce([makeArchivedSession()])
+    mockProjectSessions([makeSession(), makeArchivedSession()])
     apiMock.listActiveRuns.mockResolvedValueOnce([
       {
         sessionId: SESSION_ID,

@@ -1,242 +1,273 @@
 import { SessionId } from '@shared/types/brand'
-import { Layer } from 'effect'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TerminalService } from '../../ports/terminal-service'
-import { ensureSessionRunStartAllowed, isSessionRemovalFenced } from '../active-agent-runs'
+import { SessionProjectionRepositoryError } from '../../errors'
+import { DesktopServiceBroker } from '../../ports/desktop-service-broker'
+import { InlineVisualizationService } from '../../ports/inline-visualization-service'
+import type { SessionOrganizationRequest } from '../../ports/session-organization-repository'
+import { SessionOrganizationRepository } from '../../ports/session-organization-repository'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { SessionRepository } from '../../ports/session-repository'
+import { type TerminalMutationScope, TerminalService } from '../../ports/terminal-service'
+
+const { waitForSessionRunsMock } = vi.hoisted(() => ({
+  waitForSessionRunsMock: vi.fn(async () => true),
+}))
+vi.mock('../../application/active-session-runs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../application/active-session-runs')>()),
+  waitForSessionRuns: waitForSessionRunsMock,
+}))
+
 import {
-  archiveSessionMock,
-  deleteSessionMock,
-  deleteVisualizationSessionMock,
-  loadSessionDetailsHandlers,
-  resetSessionDetailsHandlerMocks,
-  rollbackVisualizationSessionDeletionMock,
-  waitForSessionRunsMock,
-} from './session-details-handler.test-harness'
-import { getInvokeHandler } from './session-details-handler.test-layers'
+  ensureSessionRunStartAllowed,
+  isSessionRemovalFenced,
+} from '../../application/active-session-runs'
+import { executeLocalUiSessionCommand } from '../../application/local-ui-session-service'
+import { organizeSession } from '../../application/session-organization-service'
 
-const recordedCloseAllForOwner: Array<readonly [string, boolean]> = []
-const lifecycleOrder: string[] = []
-const mutationScopes: unknown[] = []
-let terminalCleanupError: Error | null = null
-let terminalHistoryCleanupError: Error | null = null
-let terminalStopBarrier: Promise<void> | null = null
+const closed: Array<readonly [string, boolean]> = []
+const order: string[] = []
+const scopes: unknown[] = []
+let terminalError: Error | null = null
+let historyError: Error | null = null
+let browserError: Error | null = null
+let mutationError: Error | null = null
+let stopBarrier: Promise<void> | null = null
+let ownerDeleted = false
+const commitVisualization = vi.fn()
+const rollbackVisualization = vi.fn()
 
-const RecordingTerminalServiceLayer = Layer.succeed(
-  TerminalService,
-  TerminalService.of({
-    getActivitySnapshot: () => Effect.succeed({ revision: 0, summaries: [], truncated: false }),
-    open: () =>
-      Effect.succeed({
-        history: '',
-        outputBytes: 0,
-        outputGeneration: 0,
-        readiness: null,
-        running: false,
-        processName: null,
-        ports: [],
-        projectActionPending: false,
+function testLayer() {
+  return Layer.mergeAll(
+    Layer.succeed(
+      TerminalService,
+      fromPartial<TerminalService['Type']>({
+        closeAllForOwner: (ownerKey: string, deleteHistory: boolean) =>
+          Effect.gen(function* () {
+            closed.push([ownerKey, deleteHistory])
+            order.push(deleteHistory ? 'terminal:delete-history' : 'terminal:stop')
+            if (!deleteHistory && stopBarrier !== null)
+              yield* Effect.promise(() => stopBarrier ?? Promise.resolve())
+            const failure = deleteHistory ? historyError : terminalError
+            if (failure !== null) return yield* Effect.fail(failure)
+          }),
+        runWithMutationFence: <A, E, R>(
+          scope: TerminalMutationScope,
+          operation: Effect.Effect<A, E, R>,
+        ) => {
+          scopes.push(scope)
+          return operation
+        },
       }),
-    write: () => Effect.succeed({ status: 'written', acceptedBytes: 0 }),
-    sendInputNow: () => Effect.succeed({ status: 'already-ready', releasedBytes: 0 }),
-    acknowledgeOutput: () => Effect.void,
-    migrateOwner: () => Effect.succeed({ terminalIds: [] }),
-    resize: () => Effect.void,
-    clear: () => Effect.void,
-    restart: () =>
-      Effect.succeed({
-        history: '',
-        outputBytes: 0,
-        outputGeneration: 0,
-        readiness: null,
-        running: false,
-        processName: null,
-        ports: [],
-        projectActionPending: false,
+    ),
+    Layer.succeed(
+      DesktopServiceBroker,
+      fromPartial<DesktopServiceBroker['Type']>({
+        execute: () =>
+          Effect.gen(function* () {
+            order.push('browser:stop')
+            if (browserError !== null) return yield* Effect.fail(browserError)
+            return { service: 'browser', operation: 'deleteOwner', value: null } as const
+          }),
       }),
-    assessClose: () => Effect.succeed({ disposition: 'safe', reason: 'dead' }),
-    close: () => Effect.void,
-    closeAllForOwner: (ownerKey, deleteHistory) => {
-      recordedCloseAllForOwner.push([ownerKey, deleteHistory])
-      lifecycleOrder.push(deleteHistory ? 'terminal:delete-history' : 'terminal:stop')
-      const failure = deleteHistory ? terminalHistoryCleanupError : terminalCleanupError
-      const result = failure === null ? Effect.void : Effect.fail(failure)
-      return !deleteHistory && terminalStopBarrier !== null
-        ? Effect.promise(() => terminalStopBarrier ?? Promise.resolve()).pipe(
-            Effect.zipRight(result),
-          )
-        : result
-    },
-    closeAllUnderPath: () => Effect.void,
-    runWithMutationFence: (scope, operation) => {
-      mutationScopes.push(scope)
-      return operation
-    },
-    attachSurface: () => Effect.void,
-    detachTerminal: () => Effect.void,
-    detachSurface: () => Effect.void,
-    closeAll: () => Effect.void,
-  }),
-)
+    ),
+    Layer.succeed(
+      InlineVisualizationService,
+      fromPartial<InlineVisualizationService['Type']>({
+        stageSessionDeletion: () =>
+          Effect.succeed({
+            commit: Effect.sync(commitVisualization),
+            rollback: Effect.sync(rollbackVisualization),
+          }),
+      }),
+    ),
+    Layer.succeed(
+      SessionProjectionRepository,
+      fromPartial<SessionProjectionRepository['Type']>({
+        delete: () =>
+          Effect.gen(function* () {
+            order.push('delete')
+            if (mutationError !== null) {
+              return yield* Effect.fail(
+                new SessionProjectionRepositoryError({ operation: 'delete', cause: mutationError }),
+              )
+            }
+            ownerDeleted = true
+          }),
+      }),
+    ),
+    Layer.succeed(
+      SessionRepository,
+      fromPartial<SessionRepository['Type']>({
+        listByIds: (ids: readonly SessionId[]) =>
+          Effect.succeed(
+            ownerDeleted
+              ? []
+              : ids.map((id) => ({
+                  id,
+                  title: 'Session',
+                  projectPath: null,
+                  createdAt: 1,
+                  updatedAt: 1,
+                })),
+          ),
+      }),
+    ),
+    Layer.succeed(
+      SessionOrganizationRepository,
+      fromPartial<SessionOrganizationRepository['Type']>({
+        prepareArchive: () => Effect.succeed({ status: 'ready' }),
+        execute: (input: { readonly request: SessionOrganizationRequest }) =>
+          Effect.sync(() => {
+            order.push('archive')
+            return {
+              contractVersion: input.request.contractVersion,
+              requestId: input.request.requestId,
+              idempotencyKey: input.request.idempotencyKey,
+              replayed: false,
+              outcome: {
+                operation: 'archive',
+                effect: 'session-archived',
+                sessionId: input.request.command.sessionId,
+              },
+            } as const
+          }),
+      }),
+    ),
+  )
+}
 
-describe('session terminal cleanup', () => {
-  let registerSessionDetailsHandlers: Awaited<
-    ReturnType<typeof loadSessionDetailsHandlers>
-  >['registerSessionDetailsHandlers']
+function invoke(mutation: 'delete' | 'archive', id = 'session-target') {
+  const effect: Effect.Effect<void, unknown, unknown> =
+    mutation === 'delete'
+      ? executeLocalUiSessionCommand({
+          caller: { callerId: 'gui:local-user' },
+          payload: {
+            contract: 'local-ui-v1',
+            request: {
+              requestId: 'delete-request',
+              command: { operation: 'delete', sessionId: id },
+            },
+          },
+        }).pipe(Effect.asVoid)
+      : organizeSession({
+          callerId: 'gui:local-user',
+          request: {
+            contractVersion: 2,
+            requestId: 'archive-request',
+            idempotencyKey: 'archive-key',
+            command: { operation: 'archive', sessionId: id },
+          },
+        }).pipe(Effect.asVoid)
+  const provided = effect.pipe(Effect.provide(testLayer()))
+  return Effect.runPromise(fromAny<Effect.Effect<void, unknown, never>, typeof provided>(provided))
+}
 
-  beforeEach(async () => {
-    resetSessionDetailsHandlerMocks()
-    deleteSessionMock.mockImplementation(async () => {
-      lifecycleOrder.push('delete')
-    })
-    archiveSessionMock.mockImplementation(async () => {
-      lifecycleOrder.push('archive')
-    })
-    recordedCloseAllForOwner.length = 0
-    lifecycleOrder.length = 0
-    mutationScopes.length = 0
-    terminalCleanupError = null
-    terminalHistoryCleanupError = null
-    terminalStopBarrier = null
-    ;({ registerSessionDetailsHandlers } = await loadSessionDetailsHandlers())
+describe('Host-owned Session terminal cleanup', () => {
+  beforeEach(() => {
+    closed.length = 0
+    order.length = 0
+    scopes.length = 0
+    terminalError = null
+    historyError = null
+    browserError = null
+    mutationError = null
+    stopBarrier = null
+    ownerDeleted = false
+    commitVisualization.mockReset()
+    rollbackVisualization.mockReset()
+    waitForSessionRunsMock.mockReset().mockResolvedValue(true)
   })
 
-  it('closes the deleted session terminals and deletes their scrollback', async () => {
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
-
-    await handler?.({}, 'session-delete')
-
-    expect(recordedCloseAllForOwner).toEqual([
-      ['session-delete', false],
-      ['session-delete', true],
+  it('stops owned terminals and browser before deletion, then deletes scrollback', async () => {
+    await invoke('delete')
+    expect(closed).toEqual([
+      ['session-target', false],
+      ['session-target', true],
     ])
-    expect(deleteSessionMock).toHaveBeenCalledWith('session-delete')
-    expect(lifecycleOrder).toEqual(['terminal:stop', 'delete', 'terminal:delete-history'])
-    expect(mutationScopes).toEqual([{ kind: 'owner', ownerKey: 'session-delete' }])
+    expect(order).toEqual(['terminal:stop', 'browser:stop', 'delete', 'terminal:delete-history'])
+    expect(scopes).toEqual([{ kind: 'owner', ownerKey: 'session-target' }])
+    expect(commitVisualization).toHaveBeenCalledOnce()
   })
 
-  it('stops archived session terminals without deleting their scrollback', async () => {
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:archive', [RecordingTerminalServiceLayer])
-
-    await handler?.({}, 'session-archive')
-
-    expect(recordedCloseAllForOwner).toEqual([['session-archive', false]])
-    expect(archiveSessionMock).toHaveBeenCalledWith('session-archive')
-    expect(lifecycleOrder).toEqual(['terminal:stop', 'archive'])
-    expect(mutationScopes).toEqual([{ kind: 'owner', ownerKey: 'session-archive' }])
+  it('stops archived Session terminals and browser without deleting retained history', async () => {
+    await invoke('archive')
+    expect(closed).toEqual([['session-target', false]])
+    expect(order).toEqual(['terminal:stop', 'browser:stop', 'archive'])
+    expect(scopes).toEqual([{ kind: 'owner', ownerKey: 'session-target' }])
   })
 
-  it.each([
-    ['delete', false, deleteSessionMock],
-    ['archive', false, archiveSessionMock],
-  ] as const)(
-    'keeps the session when terminal cleanup blocks %s',
-    async (mutation, deleteHistory, repositoryMutation) => {
-      terminalCleanupError = new Error('process tree still running')
-      registerSessionDetailsHandlers()
-      const handler = getInvokeHandler(`sessions:${mutation}`, [RecordingTerminalServiceLayer])
-
-      await expect(handler?.({}, `session-${mutation}`)).rejects.toThrow(
-        'process tree still running',
-      )
-
-      expect(recordedCloseAllForOwner).toEqual([[`session-${mutation}`, deleteHistory]])
-      expect(repositoryMutation).not.toHaveBeenCalled()
-      expect(lifecycleOrder).toEqual(['terminal:stop'])
-      expect(isSessionRemovalFenced(SessionId(`session-${mutation}`))).toBe(false)
+  it.each(['delete', 'archive'] as const)(
+    'does not %s when native terminal shutdown fails',
+    async (mutation) => {
+      terminalError = new Error('process tree still running')
+      await expect(invoke(mutation)).rejects.toThrow('process tree still running')
+      expect(order).toEqual(['terminal:stop'])
+      expect(isSessionRemovalFenced(SessionId('session-target'))).toBe(false)
     },
   )
 
-  it('waits for cancelled work to settle before terminal cleanup and deletion', async () => {
+  it('does not delete when the owned browser cleanup cannot be acknowledged', async () => {
+    browserError = new Error('desktop disconnected')
+    await expect(invoke('delete')).rejects.toThrow('desktop disconnected')
+    expect(order).toEqual(['terminal:stop', 'browser:stop'])
+    expect(ownerDeleted).toBe(false)
+  })
+
+  it('waits for cancelled work before native cleanup or deletion', async () => {
     const settlement = Promise.withResolvers<boolean>()
     waitForSessionRunsMock.mockReturnValue(settlement.promise)
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
-
-    const deletion = handler?.({}, 'session-delete')
+    const deletion = invoke('delete')
     await vi.waitFor(() => expect(waitForSessionRunsMock).toHaveBeenCalledOnce())
-    expect(recordedCloseAllForOwner).toEqual([])
-    expect(deleteSessionMock).not.toHaveBeenCalled()
-
+    expect(order).toEqual([])
     settlement.resolve(true)
     await deletion
-    expect(lifecycleOrder).toEqual(['terminal:stop', 'delete', 'terminal:delete-history'])
+    expect(ownerDeleted).toBe(true)
   })
 
-  it('rejects a run racing after settlement until durable deletion finishes', async () => {
+  it('holds Host run admission until the desktop fence and durable mutation settle', async () => {
     const stopped = Promise.withResolvers<void>()
-    terminalStopBarrier = stopped.promise
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
-    const sessionId = SessionId('session-delete-race')
-
-    const deletion = handler?.({}, sessionId)
-    await vi.waitFor(() => expect(recordedCloseAllForOwner).toEqual([[sessionId, false]]))
-
-    expect(isSessionRemovalFenced(sessionId)).toBe(true)
-    expect(deleteSessionMock).not.toHaveBeenCalled()
-    await expect(Effect.runPromise(ensureSessionRunStartAllowed(sessionId))).rejects.toThrow(
-      'being archived or deleted',
-    )
-
+    stopBarrier = stopped.promise
+    const deletion = invoke('delete')
+    await vi.waitFor(() => expect(closed).toEqual([['session-target', false]]))
+    expect(isSessionRemovalFenced(SessionId('session-target'))).toBe(true)
+    await expect(
+      Effect.runPromise(ensureSessionRunStartAllowed(SessionId('session-target'))),
+    ).rejects.toThrow('being archived or deleted')
     stopped.resolve()
     await deletion
-    expect(isSessionRemovalFenced(sessionId)).toBe(false)
+    expect(isSessionRemovalFenced(SessionId('session-target'))).toBe(false)
   })
 
-  it.each([
-    ['delete', deleteSessionMock],
-    ['archive', archiveSessionMock],
-  ] as const)(
-    'leaves the session untouched when cancelled %s work does not settle',
-    async (mutation, repositoryMutation) => {
+  it.each(['delete', 'archive'] as const)(
+    'leaves %s unchanged when a run does not settle',
+    async (mutation) => {
       waitForSessionRunsMock.mockResolvedValue(false)
-      registerSessionDetailsHandlers()
-      const handler = getInvokeHandler(`sessions:${mutation}`, [RecordingTerminalServiceLayer])
-
-      await expect(handler?.({}, `session-${mutation}`)).rejects.toThrow('left unchanged')
-
-      expect(recordedCloseAllForOwner).toEqual([])
-      expect(repositoryMutation).not.toHaveBeenCalled()
-      expect(lifecycleOrder).toEqual([])
-      expect(isSessionRemovalFenced(SessionId(`session-${mutation}`))).toBe(false)
+      await expect(invoke(mutation)).rejects.toThrow('session was left unchanged')
+      expect(order).toEqual([])
+      expect(isSessionRemovalFenced(SessionId('session-target'))).toBe(false)
     },
   )
 
-  it('retains terminal history when durable session deletion fails', async () => {
-    deleteSessionMock.mockImplementation(async () => {
-      lifecycleOrder.push('delete')
-      throw new Error('repository refused deletion')
-    })
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
-
-    await expect(handler?.({}, 'session-delete')).rejects.toThrow()
-
-    expect(recordedCloseAllForOwner).toEqual([['session-delete', false]])
-    expect(lifecycleOrder).toEqual(['terminal:stop', 'delete'])
-    expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith('session-delete')
-    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
-    expect(isSessionRemovalFenced(SessionId('session-delete'))).toBe(false)
+  it('restores visualization staging and retains history if durable deletion fails', async () => {
+    mutationError = new Error('database unavailable')
+    await expect(invoke('delete')).rejects.toThrow()
+    expect(rollbackVisualization).toHaveBeenCalledOnce()
+    expect(commitVisualization).not.toHaveBeenCalled()
+    expect(closed).toEqual([['session-target', false]])
   })
 
-  it('keeps the deleted projection coherent when post-delete history cleanup fails', async () => {
-    terminalHistoryCleanupError = new Error('history cleanup failed')
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
-
-    await expect(handler?.({}, 'session-delete')).resolves.toBeUndefined()
-
-    expect(deleteSessionMock).toHaveBeenCalledWith('session-delete')
-    expect(deleteVisualizationSessionMock).toHaveBeenCalledWith('session-delete')
-    expect(rollbackVisualizationSessionDeletionMock).not.toHaveBeenCalled()
-    expect(recordedCloseAllForOwner).toEqual([
-      ['session-delete', false],
-      ['session-delete', true],
+  it('keeps a committed deletion when deferred history cleanup fails', async () => {
+    historyError = new Error('history file busy')
+    await invoke('delete')
+    expect(ownerDeleted).toBe(true)
+    expect(commitVisualization).toHaveBeenCalledOnce()
+    expect(rollbackVisualization).not.toHaveBeenCalled()
+    expect(closed).toEqual([
+      ['session-target', false],
+      ['session-target', true],
     ])
-    expect(lifecycleOrder).toEqual(['terminal:stop', 'delete', 'terminal:delete-history'])
-    expect(isSessionRemovalFenced(SessionId('session-delete'))).toBe(false)
   })
 })

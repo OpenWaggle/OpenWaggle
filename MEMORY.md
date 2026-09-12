@@ -17,7 +17,19 @@ A 2026-09-01 audit of ~300 CI runs (~36h) found 51% green / 21% failed / 27% can
 
 Fixes shipped: Fast gate per push (static checks split into Unit / Integration & Component / MCP Conformance jobs + macOS E2E with `retries: 2` and `PLAYWRIGHT_WORKERS: '2'`), Full gate on `merge_group` results (adds Windows/Linux E2E plus path-scoped rehearsals: package consumer smoke when `packages/**`/lockfile/release tooling changed; website/docs rehearsal when website/docs **or package** surfaces changed). `scripts/package-release-gate.ts` encodes tier semantics (`full|fast|fast-no-e2e|visual`); required-but-skipped is an error, skipped-conditional is fine. `e2e/support/electron-process-tree.ts` bounds `app.close()` at 10s, names surviving descendants into `$GITHUB_STEP_SUMMARY`, and force-kills the tree (`taskkill /T /F` on Windows) — a safety net whose forensics feed the root-cause hunt for non-clean Windows exits. The settings-side half (enable merge queue + update the required-check list to the new job names) is a maintainer runbook step in `docs/release-and-versioning.md`. It must be applied in the same admin window as the merge: the rename retires the `Unit & Component Tests` context, so between merge and ruleset swap open PRs show a forever-pending required check until an admin applies the swap or merges with the routine bypass.
 
+Adding a reusable CI job requires a deliberate update to the stable job-name list,
+caller AST contract, and exact local-workflow reference allowlist. Validate the callee's
+AST through the production file validator too, including its immutable SHA preflight,
+checkout, permissions, and required commands. Do not exempt reusable jobs generically
+or accept their success without the selected gate dependency and result check.
+
 ### The commit policy was invisible to agents
+
+Manual CI has no pull-request base SHA. Resolve its exact candidate's merge base
+with the fetched `origin/main` before invoking Commit Policy, and fail on missing
+or ambiguous ancestry. Queue runs use their event `merge_group.base_sha`. An empty
+`--from` falls back to bootstrap history and loses
+the ancestry needed to recognize already-released upstream package syncs.
 
 `scripts/check-conventional-commits.ts` rejected a `mockup:` subject in CI after the agent pushed — the check was deterministic, ~1s, and documented nowhere agents read. Now `pnpm verify` (commit policy vs the `origin/main` merge base + typecheck + lint + unit tests) runs in the husky pre-push hook for feature branches; `prepush:main` still guards pushes to `main`.
 
@@ -55,6 +67,9 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 - MCP activation resolves session → project → global and defaults off globally. Disabled servers must not connect, inject instructions/capabilities, or remain attached after the safe turn boundary; the UI must distinguish desired, applied, and pending state.
 - Interoperate with current MCP (`2026-07-28`) and the supported legacy revisions (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`, `2024-10-07`) across both client and hosted-server paths. Preserve protocol/transport negotiation diagnostics instead of silently dropping older servers.
 - Treat remote MCP content as untrusted: require explicit trust and capability opt-ins, keep Event Inbox and server instructions out of context until reviewed, sandbox MCP Apps, isolate sampling, keep roots read-only, validate Remote Skills, and surface every required user or agent follow-up as a durable notice.
+- The owning Session Host is also the authority for MCP configuration, pooled connection status, capability browsing, Tasks, Events, secrets, logout, and interactive OAuth. GUI and CLI clients route every MCP mutation through Host-backed operations; OAuth may open the browser from the detached Electron Host, but resolving the server definition, committing credentials, and reconciling clients stay under one owner-process writer lease. Expanding Host-backed MCP channels requires a new Local Session protocol revision so an older detached Host is upgraded before the GUI sends a channel it cannot decode.
+- MCP credential or configuration reconciliation must not interrupt an active turn, but it must mark every active runtime namespace for deferred invalidation. Close those connections immediately after turn completion so the next turn reconnects; preserving them merely because the config-derived snapshot revision is unchanged can reuse revoked credentials indefinitely. Management reads hold a reader lease until external MCP work actually settles, connection-closing tombstones outlive cancelled callers, and Session calls must match the authoritative snapshot identity established at lifecycle boundaries. MCP App calls and resource discovery additionally bind to the server config hash captured in the App descriptor so approval cannot retarget after configuration replacement.
+- Runtime OAuth refresh, explicit authorization, and logout share a per-server generation authority. Logout advances a revocation tombstone before its serialized vault removal, so a refresh already committing is removed afterward and an older provider cannot recreate credentials. Interactive authorization owns the next generation and cancellation must abort the callback listener and network exchange before releasing the MCP management writer.
 
 ## Electron Runtime Memory
 
@@ -73,7 +88,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Hidden agent QA owns CDP port 9223; port 9222 remains available for visible/manual debugging. The hidden launcher preflights 9223 and fails before launching Electron if another process owns it.
 - Hidden QA also requires a per-run identity in the renderer URL before accepting a CDP page. Port preflight alone is racy and must never be treated as proof that the connected process belongs to the launcher.
 - The non-disruption contract is enforced inside the main process, not only by launch scripts. OS-visible Electron actions go through an automation policy that fails closed, and repository standards reject new unguarded window-show/focus, native-dialog, and external-application call sites.
-- Trusted-main and Pi runtime extensions are not loaded during non-disruptive automation. Electron exposes its window constructors as non-configurable module properties, so dynamically imported extension code cannot be brought inside the repository's static hidden-window construction boundary. Pi skills, prompts, themes, context, models, and auth metadata still load.
+- Trusted-main and discovered Pi runtime extensions are not loaded during non-disruptive automation. Electron exposes its window constructors as non-configurable module properties, so dynamically imported extension code cannot be brought inside the repository's static hidden-window construction boundary. Pi skills, prompts, themes, context, models, and auth metadata still load. Packaged Hive QA may explicitly retain host-supplied first-party inline factories so the native Sessions tool is exercised while discovered global/project extensions remain disabled.
 - Agent-run headed Electron QA requires the maintainer's explicit approval for that exact run. An agent cannot infer permission from a task needing native-UI coverage or from approval granted to an earlier run.
 - `pnpm dev:debug` is a managed hidden-QA launcher. It owns the Electron child process, exclusive port-9223 lease, ephemeral profile, log forwarding, signal handling, stale-dead-process metadata recovery, and profile cleanup.
 - Managed launchers serialize lease recovery and acquisition, quarantine stale leases before deletion, pass only an allowlisted child environment, and always continue through process-tree cleanup when screenshot capture fails. Windows cleanup uses `taskkill /T /F`; POSIX cleanup signals the detached process group.
@@ -82,6 +97,9 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Regression coverage proves hidden windows remain invisible and unfocused, guarded OS-UI calls fail, Playwright headed intent reaches Electron, port conflicts fail before launch, managed cleanup removes the ephemeral profile, and repository checks reject new unguarded OS-UI call sites.
 - Every completed agent-run Electron QA captures representative screenshots from the hidden window, stores the evidence outside the repository, and renders the images in the final user response. QA evidence is never committed; intentional visual-regression baselines remain a separate test asset.
 - CI runs hidden-window functional Electron E2E on macOS, Linux under Xvfb, and Windows. Xvfb requires both `DISPLAY` and `XAUTHORITY` in the safe Electron child environment. Native pixel baselines stay Darwin-only and are selected with the `@visual` tag; do not copy them across operating systems.
+- Linux launches forward an explicit parent `--no-sandbox` switch to the detached Session Host without disabling the sandbox by default. Electron retains runtime switches in `process.argv`; normalize only recognized leading runtime switches before the development app path or canonical command. Never search payloads for command words or remove application options. Startup QA records a bounded tail from the existing GUI stderr pipe and detaches on settlement, leaving detached Host stdio and lifetime independent.
+- Linux Electron 43.2 can pass client control pipes and Chromium sockets to detached children despite `stdio: 'ignore'`; explicit ignored entries for descriptors 3 and 4 also failed real Ubuntu QA. Detached launch maps descriptors 3 through a validated `/proc/self/fd` snapshot maximum to an owned null-device handle, including holes. Reserve the null source at or above that maximum: mapping a low source repeatedly makes libuv allocate temporary duplicates and fails with `EMFILE` for a valid sparse descriptor set under a low file limit. Release the intermediate owned reservations before spawn so libuv has room for its launch pipe; retaining them failed with descriptor 62 under a 64-descriptor limit. Keep only the high source through synchronous spawn and release it in the finalizer. Failure cleanup never closes original parent descriptors. Missing or invalid snapshots fail closed; this descriptor remapping is Linux-only. The synchronous snapshot does not prevent native threads opening higher descriptors before spawn. A pending Playwright close is not proof that the GUI process remains alive; the detached Host can retain its control and CDP sockets after GUI exit.
+- Windows Electron 43.2 also leaks inherited client handles through a detached `stdio: 'ignore'` launch. A native regression through the production launch function proves that the parent exits successfully while stdout, stderr and control pipes 3/4 stay open until its detached child exits. The Windows headless launcher uses a short-lived hidden PowerShell helper and `CreateProcessW` with handle inheritance disabled. The helper inherits the intended Host environment; dynamic arguments travel through UTF-8 stdin, never interpolated helper code or diagnostics. Decode that input with an explicit UTF-8 reader, since detached Windows PowerShell cannot rely on a console code page. Do not override the helper's execution policy or silently fall back to direct Electron spawn. Keep the native regression's child alive while asserting both parent exit and all five pipe closures, plus exact Unicode argument and environment round trips. Playwright's Windows process PID belongs to its `cmd.exe` wrapper; a missing wrapper PID is not sufficient evidence about Electron or its inherited handles.
 - Renderer project labels receive native filesystem paths. Derive their final segment through the shared `projectName` formatter, which handles both `/` and `\\`; splitting only on `/` exposes full Windows paths and breaks project-scoped controls.
 - Playwright pointer delivery into a sandboxed iframe is not portable when the Electron window is hidden: macOS can activate a framed button while Linux/Windows silently leave its handler untouched. For framed controls, dispatch the DOM activation inside the frame, assert synchronously that the handler entered its busy state, then poll a durable boundary such as the project-scoped extension-storage row. Main-renderer controls should keep using normal Playwright pointer actions, and the fixture unit test should cover transient banner text.
 - Electron 43 can stall a secure custom-protocol iframe indefinitely when its document response includes `Origin-Agent-Cluster: ?1`. Inline visualizations isolate siblings with a fresh UUID custom-protocol host per frame instead; do not restore the header without proving navigation in real Electron.
@@ -90,6 +108,8 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - A hidden screenshot failure does not authorize headed QA. The agent reports the incomplete evidence and asks for exact-run approval before using any headed fallback.
 - CDP file upload can produce `File` objects without native paths; native file-path behavior needs preload/unit coverage or real OS selection QA.
 - **The Windows NSIS script is only compiled when electron-builder packages Windows, which happens in the release workflow, not CI.** An installer-variant StrFunc call inside `customUnInstall` broke two consecutive releases across six days before anyone noticed, because NSIS only rejects it at compile time. `build/installer.nsh` is now compile-checked by `pnpm check:installer` inside `pnpm check`, so it fails a pull request in seconds instead of a release in minutes. Two NSIS rules worth remembering: StrFunc helpers must be declared before use, and an uninstall section can only Call `un.`-prefixed functions, so `customUnInstall` needs the `Un` variants (`${UnStrRep}`, not `${StrRep}`).
+- Electron's `app.exit()` is forceful and does not wait for piped `process.stdout` or `process.stderr` writes. Every Electron CLI entrypoint must await the shared output barrier before exiting; otherwise Linux automation and real machine consumers can receive only Electron's empty startup payload while the versioned OpenWaggle response is lost.
+- Windows Electron 43 rejects a URI-like argument followed by another token before any literal `--` boundary, returning unsigned exit `4294967295` before application JavaScript runs. Capability names such as `sessions:read` trigger this native URL guard just like URLs. The installed `.cmd` shim must invoke `OpenWaggle.exe -- ...`; development automation uses `electron <app-path> -- ...`. Application routing consumes exactly that one canonical transport separator and preserves subsequent payloads and user terminators. Keep the native raw-versus-bounded fixture: this failure is not a Session Host policy or credential-storage rejection.
 
 ## Pi Compaction Memory
 
@@ -104,16 +124,37 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Compaction progress belongs in the transcript, not in a composer dock. Match Codex's running and completed copy, retain manual-versus-automatic reason through Pi session projection, and use motion only on the active label with a reduced-motion fallback.
 - Keep the message queue generic during compaction. A normal send remains queued; only an explicit Steer moves that item into the transcript as a pending preview, and Pi's live run control delivers it with `sendUserMessage(..., { deliverAs: 'steer' })` after compaction finishes without cancelling or replacing the active turn.
 - Filter transient one-turn visualization context at every compaction boundary: Native checkpoints, Portable summaries, and Native endpoint fallback. Use a pure compaction-only transform rather than replaying Pi's general `context` extension chain; Portable splits the turn into summary and prefix arrays, so the filter needs the full prepared context as a reference, and overflow retry must explicitly retain the active prompt's state. Transform a Portable fallback lazily only after the Native endpoint selects it.
-- Standalone manual compactions are main-owned active activities even though they have no agent stream buffer. Include them in active-activity restoration, rebuild their running transcript state after renderer remounts, discard stale snapshots when a live lifecycle event wins during async initialization, and emit the normal run-completed settlement after the compaction registry entry is released.
+- Standalone manual compactions are Host-owned active activities even though they have no agent stream buffer. Route activity restoration to the owner, rebuild their running transcript state after renderer remounts, and discard stale snapshots when a live lifecycle event wins during async initialization. Publish the terminal event after releasing the writer but synchronously before its successor resumes; the GUI bridge emits normal run-completed even if it missed compaction_start. Preflight failures must also settle restored activity.
 - These changes require Pi core/provider patches, not an extension. On each Pi upgrade, regenerate both pnpm patches and re-audit generated model capability metadata, cold resume, repeated native replay, malformed native output, portable tail fit, and tool-loop scheduling.
 
 ## Renderer And Session Memory
 
+- Composer editing must wait until the selected Session workspace and its scoped draft context are applied. Session detail can arrive earlier; accepting input in that gap lets workspace hydration replace a new draft. A new-session composer does not require a workspace.
+- Persisted Session draft keys use the matching workspace's canonical nullable project path, not asynchronously updated global project preferences. Otherwise a late preference update can clear text after the composer is already editable. Branch-summary prompts capture that nullable owner at creation. Keep exact draft/prompt identity through preference reads, summarization, and final workspace refresh before restoring or clearing a draft. Only new-Session drafts follow the global selected project.
+- Branch-from-message must resolve a canonical node in the active Session before creating a draft. User retries use that node's real parent, including hidden nodes; a missing projection is not a root-user node. Reconciled optimistic rows retain their UI IDs, so their canonical `sessionNodeCreatedOrder` metadata can identify the persisted node. Late workspace reads must not replace a different Session, route, or draft selected meanwhile.
+- Prepared attachment metadata must fit the strict renderer transport schema, including any truncation marker. Long-paste previews stay bounded; submission resolves the complete original UTF-8 text from the Host-owned immutable snapshot, never from a renderer-provided preview or a reopened source file.
+- Session Host authority uses an OS-held exclusive lock in a dedicated persistent `<databasePath>.ownership.sqlite` file. Never delete or replace this file during ownership or recovery. SQLite releases the lock on process death and retains it during synchronous cutovers with no JS heartbeat. An authenticated older Host draining for upgrade must close before replacement.
+- Detached startup's 10-second orphan check applies only before the Host has accepted any authenticated client. Record adoption monotonically in liveness; a later GUI restart gap must follow the configured idle grace, not the startup deadline. A one-time owner-count check killed already-adopted Hosts during otherwise clean GUI restarts. The real CLI regression authenticates once, disconnects for 12 seconds, and checks that the same Host still answers. Never-adopted, ownerless Hosts must still stop at the orphan deadline.
+- QA profile cleanup removes private data while ownership is held and retains the tiny ownership-file skeleton permanently. Preserve its exact SQLite `-journal`, `-wal`, and `-shm` companions too: exclusive locking can retain an open rollback journal after COMMIT, and unlinking it fails with `EBUSY` on Windows or removes a live SQLite file on POSIX. Let SQLite manage those files. Cleanup must not unlink the ownership inode or its companions after release either: a successor may already have acquired them. Similar-prefix files and the transcript database's separate journals are not part of this preserved skeleton.
+- A classic Run deferred behind another writer still needs an exact Run-ID cancellation reservation. Cancellation releases its successor claim and settles the durable Run without aborting the preceding writer. Stop bypasses the attachment/command serialization locks held by pending steering, but retains admission, authorization, and journal fences; completion of an accepted promotion removes the delivered item from the same stopping Run to prevent duplicate replay.
+- Export recovery must not scan history or touch artifacts before the Host listener opens. Capture a rowid watermark, fence execution claims, and recover bounded source-row pages in a scoped background worker. A cancelled page retains cleanup receipts; Host drain stops retries and releases the recovery lease.
+- Selected-path export checkpoints use revisioned, resumable repair with bounded source reads and checkpoint writes per transaction. Yield between batches and preserve cancellation; never expose a partly rebuilt revision. Semantic scope reuse and refresh must be atomic, including policy shrink and expired-lease eviction.
+- Compaction integration must preserve Session Control as the owner of durable Follow-ups and steering. Carry compaction/retry activity snapshots through the Local Session transport so an attached GUI restores the same activity as the Host.
+- Pi steering acceptance is not transcript delivery. Session Control carries a bounded queued/handled receipt with the first eligible native entry order captured after compaction, before queueing, and a hash of the projected first user text block after Pi transformations. Visible transcript indexes shrink during compaction and optimistic user IDs change on reconnect; neither is an authoritative delivery boundary. Preserve canonical node order through UI conversion and React row-identity reconciliation. Keep previews through long tools and consult session-scoped activity before clearing on idle during navigation. Historical journal successes without receipts remain explicit unavailable receipts, never re-executed mutations.
+- Sidebar Git refresh effects must depend on the semantic working-path set, not the identity of a rebuilt Session array. Concurrent Git status reads share a pending request only within the same invalidation generation; loading-state publication must not trigger another refresh. A real Electron diff fixture exposed thousands of Git processes from this feedback loop despite completed-result caching.
+- Sidebar stabilization and status deduplication do not stop a route-level read-receipt loop. Persisting a visit broadcasts a Host Session update, which replaces the renderer detail object. Mark visits on navigation, not detail identity, and refresh route Git data only when its working or repository path changes. A bounded replay previously produced six receipt writes and six branch-list reads from five echoed receipts; it now produces one of each.
 - Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.
+- The attached GUI uses isolated in-memory persistence. Workspace authorization and visualization ownership must read the authoritative Host, not GUI-local Session repositories. Root checks use indexed exact lookups with bounded legacy-alias pages; a failed or retired Host never authorizes a fallback from stale local data. Client visualization reads must not recover deletion tombstones, because only the owner knows which deletions are active. Serialize owner preparation and staged deletion per Session, independently of the Pi tree writer so active-run visualizations can still load. Canonical Host deletion must perform visualization cleanup; an IPC-only wrapper is bypassed by remote routing. Its protected finalizer also publishes deletion invalidation after cancellation. Projection errors can follow a committed database deletion, so probe owner existence before restoring staged files; a failed probe keeps files quarantined for owner recovery.
+- Interrupted E2E fixtures seed both `session_runs` and `session_active_runs` within the Session transaction. Sidebar rows can read the branch projection while exact filter counts read the canonical Run; seeding only one produces contradictory UI state.
+- Restoring an archived Session can make its archived branches visible in the separate paginated branch query. Invalidate that exact query after successful restoration as well as refreshing the Session catalog; failed restoration preserves both caches.
+- Interrupted sidebar pages are authoritative for Run state, not for text matching. After hydration, apply the same title/project-alias and archived predicates as terminal-state pages, and preserve pagination even when a page has no text matches.
+- Every Session creation path, including Session Control `create`, `launch`, and `spawn`, must persist the canonical empty `main` branch, its branch state, tree UI state, and `last_active_branch_id` before a Run can start. `session_active_runs.branch_id` is a foreign key; a metadata-only Session is visible in discovery but fails before Pi receives its first prompt.
+- Local Session command transport timeouts must cover the operation's declared long-poll window plus a response grace period. The default 10-second socket timeout is correct for ordinary commands but must not truncate `wait`, `exports-wait`, or freshness-blocking search requests that legitimately wait longer. Steer and Promote may await automatic compaction; like manual compaction, they have no default response deadline, while preserving an explicitly requested client deadline.
+- E2E and diagnostic code that opens the application database must use the canonical Session Host database path (`session-host/session-host.sqlite`) through the shared fixture/path helper. `userData/openwaggle.db` is only the pre-cutover source and is absent for a fresh profile.
 - Switching away from a foreground run should demote it to background state, not reject the send promise as an error.
 - Active-run UI continuity needs a renderer-owned render snapshot keyed by session id; persisted run metadata alone does not prove visible reasoning/tool rows remain continuous.
 - First-message sends must bind to the concrete newly created session before async send begins; do not enqueue by current active session after users can switch projects.
-- First-send worktree recovery must retain the exact submitted payload, Waggle config, and model until main reports delivery. Retry and Work locally replay that retained turn once; reading current composer preferences during recovery changes the user's request.
+- First-send worktree recovery must retain the exact submitted payload, Waggle config, and model until terminal transcript reconciliation proves delivery. Session Host command acceptance only means the supervised Run was scheduled; worktree birth and Pi execution can still fail asynchronously. Retry and Work locally replay that retained turn once; reading current composer preferences during recovery changes the user's request.
 - Session tree/header refreshes for background sessions must not overwrite the active session tree/header.
 - Session-native transcript rendering reads from the active `SessionWorkspace.transcriptPath`; preserve live tails only at active branch head.
 - A completed run can refresh `SessionDetail` before `SessionWorkspace`. If those snapshots have no shared message ids, append the replacement detail only when its `updatedAt` proves the active-head workspace is stale; never merge a disjoint current selected-branch workspace. If a replacement Pi snapshot no longer contains the previous main head, branch derivation must adopt the new active head as the sole main branch instead of creating duplicate main/non-main branches at one head.
@@ -121,6 +162,8 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - TanStack Hotkeys same-target callbacks do not stop each other via `event.stopPropagation`; independent overlays need explicit topmost ordering.
 - Composer slash selection is owned by Lexical: keep focus in the editor, derive the active `/query` from its collapsed selection, replace or consume only that token, and serialize skill decorator nodes as `/skill-id`. Do not route `/` through a second-input global palette.
 - Waggle presets in the desktop composer are one-shot invocation metadata, not idle global mode state. A standard agent hands off through the terminating `waggle_invoke` Pi tool, and the main handler chains Waggle only after the standard result is durable.
+- A queued composer submission preserves its complete one-shot Waggle invocation in the durable Session Control intent and replays it through the Waggle executor under the Session's current authorization ceiling, Agent-definition allowlists, identity, capabilities, and pending upstream/downstream context. Never downgrade a queued Waggle submission into a classic Run.
+- Follow-up acknowledgement is Host acceptance, not optimistic local dispatch. Pending draft ownership must survive composer unmounts and navigation; deduplicate by scoped draft identity and clear the currently mounted editor only after acknowledgement, without erasing a newer draft.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
 - **React Compiler runs in the app build (`electron.vite.config.ts` -> `reactCompilerPreset()`) and, since this work, in the component test config too — but not in the node unit config, which renders nothing.** Any component that reads render data from a library-owned *mutable* instance can pass a suite that does not run the compiler and still render permanently stale in the real app: the compiler memoizes on referential identity, and the instance is mutated in place so its identity never changes. Hit for real with `@headless-tree` in the Changed-file navigator — `tree.getItems()` returned 262 items while zero rows reached the DOM. Fix is the scoped `'use no memo'` directive on the component that maps the mutable instance (an official compiler escape hatch, not a lint-ignore comment). See "The React Compiler now runs in component tests" below for the mechanism that now catches this class; for anything outside component tests, still treat a green suite as no evidence and verify in real Electron over CDP.
 - Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
@@ -205,7 +248,7 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Do not show a count of uncommitted files on a session row. Every session sharing a working tree reports the same number, so it says nothing about the session, and a large number implies a severity it does not carry. Divergence (`↑n ↓n`) is the useful part.
 - Provenance icons are a separate family from status icons and share no glyph with them (ADR 0020). At the size line two renders, a user reads silhouette rather than detail, so two node-graph glyphs are the same glyph.
 - Sidebar view preferences (session sort, collapsed projects) persist; sidebar filters (state chip, text query) do not. A filter that subtracts sessions must not outlive the intent behind it.
-- A list passed to `useSessionGitIndicators` must keep reference identity when nothing changed. The hook memoises on the array, so a freshly filtered copy every render re-runs its effect every render and spins the renderer.
+- `useSessionGitIndicators` keys refreshes by the semantic working-path set. Freshly filtered Session arrays must not restart its effect; route-level Git effects likewise use resolved path values instead of Session DTO identity.
 
 ## Access Modes And Authorization Memory
 
@@ -418,6 +461,10 @@ jsdom has no hit testing, so a component test passes whether or not the fix is p
 
 `git worktree` operations can leave worktree backlinks dangling after nested git-fixture tests run; `git worktree repair <path>` from the main checkout fixes them. Git hooks export `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`, so hook scripts that invoke the test suite must unset those first or git-spawning fixtures fail with "this operation must be run in a work tree".
 
+CDP becoming reachable does not mean Electron has created its renderer page. Packaged restart QA can
+connect to the browser endpoint while `contexts().flatMap(...pages())` is still empty; poll for the
+`openwaggle://` page before asserting UI state or the same healthy restart will fail intermittently.
+
 The dev server rewrites `src/renderer/src/routeTree.gen.ts` (import ordering only, no route change). Any script that checks out commits in sequence fails on every checkout while that file is dirty. Stop the dev server before such a loop.
 
 ### Focus draws nothing, by decision
@@ -491,3 +538,194 @@ The reuse barrier must observe every successful process sample, including an unc
 ### The menu role and its keyboard model are one decision
 
 `role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.
+
+### Session Host authority and subscriptions are live boundaries
+
+Project approval grants and revocations must use the same owning Host as project preference
+writes. Both update `.openwaggle/settings.json`, and the write queue is process-local. A GUI-local
+write can otherwise race a CLI-owned Host and restore a successfully revoked grant. Route both
+mutations through the Host's validated application operation, require protocol revision 10, and
+retain GUI-only caller authority. A remote Host failure must not fall back to a local write.
+Deterministic tests hold a real config rename to verify overlapping writes preserve both changes.
+
+Session authority stores canonical project and workspace paths as a durable snapshot, then checks
+the live Run scope again for long-running operations such as exports. Tests for these boundaries
+must use real canonical directories; invented paths exercise rejection rather than the intended
+authorization branch.
+
+Native Session capabilities constrain OpenWaggle tools and the Session Host API. They are not an
+OS sandbox against arbitrary commands from another process running as the same user. A hostile or
+YOLO shell needs a separate account, container, or operating-system sandbox for containment.
+
+Session semantic discovery keeps vectors only for the 100,000 most recently updated Sessions and
+enforces the same limit in the resident exact index. A larger corpus is terminally `partial` once
+that hot tier is prepared; hybrid discovery then uses the complete lexical index, while
+semantic-only discovery may search the explicitly partial tier. Tier rotation must prune cold queue
+rows and advance the deletion-compaction watermark so an evicted Session is neither re-embedded in
+a loop nor retained by a stale resident snapshot.
+
+Transcript term cutover must page with the three-column `(session_id, created_order, id)` tuple.
+Expanding that comparison into OR predicates made SQLite rewind the node index for every 512-node
+batch, producing quadratic prefix scans. Keep the production-query plan regression requiring an
+indexed seek, along with tied-order and content-byte-boundary traversal coverage.
+
+Batch document validation must start from the requested Session ids and left-join persisted
+documents. An inner join let SQLite scan all 100,000 documents for every 512-node batch; the
+left join also catches missing documents explicitly. Keep a temporary covering index on grouped
+terms `(session_id, occurrences)` so per-Session token totals do not rescan every batch term.
+Production-query plan regressions protect both boundaries without relaxing integrity checks.
+
+Stage transcript terms by grouping FTS occurrences before looking up their previous persistent
+counts. Joining the persistent term table first performed the same primary-key lookup once per
+occurrence instead of once per distinct term/Session pair. Preserve the earliest node/Run evidence
+and cumulative counts across batch boundaries; production-query instrumentation and a multi-batch
+cutover fixture cover both. The paired production trial retained identical term, document, and
+node-search rows with every cutover validation enabled.
+
+Unscoped transcript-term ranking excludes the archived Session id set instead of looking up
+the full Session row for every posting. Project and working-path filters still require that join;
+authority and archive filtering must stay before the bounded ranking window. Exclude null ids
+from the archive set so malformed legacy rows cannot poison SQL `NOT IN` semantics.
+
+Discovery ranking reads Session id/archive metadata through the FTS5 content table's integer
+rowid. SQLite documents `c0`/`c1` as the exact stored values of the first two FTS columns; this
+avoids repeated FTS content callbacks without copying metadata or changing BM25 scores. Keep
+that join read-only, preserve the FTS column order, and compare scores, ties, live mutations,
+and pre-limit authority/archive filtering against the public FTS interface in regression tests.
+
+Dense single-ASCII-token discovery can rank one native FTS representative per exact signature
+of objective frequency, preview frequency, and total native token length. Do not copy BM25
+arithmetic or persist scores: even equivalent arithmetic changed a score by one ULP. Bound the
+signature probe and candidate work, retain native fallback for sparse/diverse signatures, and use
+one SQL snapshot for admission, scoring, archive filtering, and the final Session-ID tie order.
+Scoped, phrase, multiword, non-ASCII, and full-transcript requests retain their existing paths.
+
+Discovery term postings follow the canonical discovery-row mapping through foreign-key cascades.
+Incremental updates tokenize one document in a shared staging FTS inside the same transaction,
+using the same native tokenizer. The staging table must be empty after success or rollback. A live
+instance vocabulary filtered by document does not seek that document and would scan the entire
+corpus per edit.
+Migration 33 and legacy cutover group a single native vocabulary traversal, validate mappings
+(including empty documents), postings and signatures, then install incremental triggers. Keep
+schema revision 18 and the one-time cutover contract; existing targets apply migration 33 once.
+
+Lexical evidence prepares query clauses and snippet terms once per result batch, lazily on the
+first discovery match. Entirely ASCII input skips per-character Unicode normalization but retains
+the same lowercasing and token regex. Mixed or non-ASCII text uses the original Unicode path;
+do not broaden this fast path without token-sequence parity tests.
+
+Node-delete search triggers must requeue semantic work only while the owning Session still
+exists. During a Session cascade, the parent row is already gone; unconditional queue inserts
+recreated a foreign-key dependency and made deletion preflight reject populated Sessions.
+Migration 32 replaces that trigger in existing targets without repeating the legacy cutover or
+changing schema revision 18. Standalone node deletion must still invalidate the surviving Session.
+
+The September 2026 terminal/browser merge preserves released setup migrations 26/27 and moves
+the prerelease Hive identities 26–31 to 28–33. `session-host-ledger-compatibility.ts` plans only
+exact known-name mappings, and the owner applies them descending in one transaction, preserving
+timestamps. Read-only completion preflight recognizes old alpha ledgers without mutating them.
+Unknown or mixed identities fail closed. Desktop owner/fence journals are migration 34; immutable
+browser attachment metadata is migration 35. Never reuse the old bare numeric Hive IDs in tests.
+
+Session Host authority does not imply native desktop ownership: GUI owns actual PTYs/WebContents,
+Host owns canonical mutations and uses the revision-11 authenticated desktop reverse bridge.
+Native fences and exact GUI/Host closure receipts are durable. A released token remains until its
+GUI native hold is acknowledged; lease expiry or PID absence never establishes process settlement.
+Unclean GUI ownership and orphan active Host mutation fences remain in doubt, not auto-released.
+`execFile` Git children have no kill-on-Host-death guardian, so closing GUI resources alone cannot
+prove an old filesystem mutation settled. Browser screenshots become composer attachments only
+after Host preparation returns a durable capability, including immutable bytes/context/provenance.
+
+Desktop shutdown needs both a fresh post-drain fence snapshot and the in-flight poll to settle.
+Two normal five-second polls exhausted Electron's ten-second quit budget and quarantined the next
+GUI after forced cleanup. Keep normal polls at five seconds, but pace draining polls at 100 ms.
+The real broker/bridge regression verifies prompt idle shutdown and that active fences still block
+the clean receipt. Shortened mock polls alone did not expose this integration failure.
+
+Hidden terminal panes retain renderer input ordering after their viewport detaches. Host archive
+can delete the corresponding native record without an attached pane receiving its close event.
+Reopening the same owner/terminal ID therefore needs an attach-time native record identity, not
+just the retained renderer generation or numeric shell generation. Keep that identity stable for
+ordinary Restart and viewport moves, but reject late writes and readiness from a deleted record.
+The combined real TerminalService/dispatcher regression reproduces the sequence-gap failure;
+the hidden Electron archive test also verifies actual shell input after reopening.
+
+Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
+and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
+its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;
+evaluate that condition inside the same SQL snapshot and recheck membership after model inference
+so a concurrent insertion cannot publish a newly cold Session.
+
+Phrase search should retain its earliest matching node during the initial FTS scan. Rechecking
+every candidate node repeats FTS posting traversal and scales with transcript length. SQLite's
+single-MIN bare-column selection preserves the matching node here because Session created_order
+is unique; keep the regression asserting earliest node/Run attribution and the query-plan guard
+against correlated rowid-plus-MATCH re-probes.
+
+Windows libuv named pipes use the operating system's default security descriptor, which grants
+Everyone read access and lets another account occupy a duplex server's read-only connections.
+Session Host pipe names therefore rotate after canonical database ownership is acquired, clients
+reread the protected endpoint capability while attaching, and the Host applies and verifies a
+protected current-user-SID DACL before opening admission. Keep the Windows CI integration test for
+this boundary. Named pipes require handle-based `SetSecurityInfo`/`GetSecurityInfo`, using
+`CreateFile` with security-metadata rights only. Keep pre-admission rejection active while the
+helper runs. Bounded stage diagnostics distinguish helper startup, input, and native API stalls;
+Unix unit tests cannot prove live Windows handle behavior or DACL readback.
+Use the explicit `System.IO.Pipes.PipeAccessRights.FullControl` mask (`0x001F019F`) in
+both the requested pipe descriptor and its readback check: generic access bits are mapped
+by Windows and are not a stable readback representation. Require one unconditional,
+non-inherited Allow ACE for the current user, a protected DACL, and that exact mask.
+Native regression probes must validate later pipe instances without reapplying protection;
+descriptor fixtures also check that narrower rights, extra principals and extra rights fail.
+
+After profile revocation, stored credential and receipt cleanup may ignore only `ENOENT`.
+Permission, locked-file, and directory-read failures must reach the CLI/GUI so retained files
+can be removed. Cleanup failure does not undo revocation or prevent admission disconnection.
+
+Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
+project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that
+is refreshed on authentication, profile changes, and lineage-producing lifecycle changes. Events
+outside that snapshot, or whose event kind lacks the required base or derived capability, consume
+no subscriber capacity and expose no cursor advance. Query, subscription, event-envelope, and
+resynchronization cursors are fresh authenticated opaque capabilities bound to the caller authority;
+they resume statelessly on the same Host without revealing its global sequence or hidden-event gaps.
+Restricted replay uses at most 128 LRU authority views, each capped at 256 visible events and 256
+KiB, for at most 32 MiB of retained serialized payload and 32,768 envelope references; publishing
+therefore performs at most 128 synchronous admission checks. Views retain shared envelope references,
+not payload copies. Hidden events never enter a view or advance its expiry floor. Authority-view LRU
+eviction, refresh, or revocation expires its cursors and forces attached subscriptions to resynchronize.
+Requested Session filters are intersected again for replay and live delivery, but the replay floor is
+authority-wide: traffic from another Session visible to that authority may expire a narrower consumer.
+Per-event live authorization still refreshes revocation, capability, and derived grants, but must
+not rebuild the filesystem/workspace/catalog admission snapshot for every streamed token. An
+admission refresh explicitly invalidates existing streams; clients resynchronize from canonical
+state or retained replay rather than silently losing events that race the fence.
+
+A lineage-producing lifecycle command must release its issuing socket's admission reader after the
+mutation commits and before it refreshes every profile admission. Refreshing while the command still
+holds that reader fences and waits on itself, eventually disconnecting the CLI after a successful
+create, fork, launch, or spawn. The release hook is idempotent, input on one socket remains serialized,
+and the global refresh still completes before the lifecycle response is written or a new Run starts.
+
+Paginated active-branch exports must pin the selected branch head on the first page and carry that
+immutable node through every continuation. Re-reading `session_branches.head_node_id` per page lets
+concurrent tree navigation silently truncate or mix the exported artifact.
+
+Credential-verifier work may deduplicate only an exact canonical operation. A caller id and
+idempotency key are insufficient because persistence scopes idempotency by operation and target;
+include the normalized target and credential fingerprint so concurrent profile operations cannot
+share the wrong verifier.
+
+Agent-definition semantic catalogs must load the same enabled OpenWaggle-managed Pi packages and
+resource roots as a real Session Run, including runtime load-failure isolation. A catalog built from
+bare project Pi resources incorrectly rejects valid managed-extension tools and skills.
+
+Restricted CLI profile edits must preserve undisplayed export/attachment roots and the existing
+delegation management envelope, including its absence. Initialize an envelope only when granting
+profile management explicitly; remove it when that capability is removed. GUI update requests use
+`profileName`, not the create-only `name` field. Component tests should decode submitted commands
+through the real shared strict schema so an API mock cannot hide invalid wire payloads.
+
+GUI-only `/compact`, `/fork`, and `/clone` commands require an idle Session. Busy submissions retain
+the draft and attachments and explain that requirement; they must not enter the durable model-message
+queue. Promotion also rejects legacy queued GUI commands instead of sending them to the model.

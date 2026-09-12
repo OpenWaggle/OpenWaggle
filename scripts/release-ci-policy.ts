@@ -6,6 +6,10 @@ import {
 } from './release-ci-policy-workflow'
 import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
 import {
+  SESSION_PERFORMANCE_WORKFLOW_PATH,
+  validateSessionPerformanceCiPolicy,
+} from './release-ci-performance-policy'
+import {
   CHECKOUT_STEP,
   COMMIT_POLICY_CHECKOUT_STEP,
   CONCURRENCY_CANCEL_LINE,
@@ -31,6 +35,7 @@ export const REQUIRED_CI_CHECKS = [
 ] as const
 const EXPECTED_CI_JOBS = [
   ...REQUIRED_CI_CHECKS,
+  'Session Performance',
   'Detect Changed Surfaces',
   'Package Consumer Rehearsal (Node 22.19.0)',
   'Website & Docs Rehearsal (Node 24.14.0)',
@@ -301,7 +306,15 @@ export function validateReleaseCiPolicy(workflow: string) {
 
 async function main() {
   const workflowPath = path.join(process.cwd(), CI_WORKFLOW_PATH)
-  const violations = validateReleaseCiPolicy(await readFile(workflowPath, 'utf8'))
+  const performancePath = path.join(process.cwd(), SESSION_PERFORMANCE_WORKFLOW_PATH)
+  const [workflow, performanceWorkflow] = await Promise.all([
+    readFile(workflowPath, 'utf8'),
+    readFile(performancePath, 'utf8'),
+  ])
+  const violations = [
+    ...validateReleaseCiPolicy(workflow),
+    ...validateSessionPerformanceCiPolicy(performanceWorkflow),
+  ]
 
   if (violations.length === 0) {
     console.log('Release CI policy passed.')

@@ -22,6 +22,13 @@ export interface ExtensionListContributionsInput {
   readonly sessionId?: string
 }
 
+export interface ExtensionRuntimeModuleAccessInput {
+  readonly packagePath: string
+  readonly contentHash: string
+  readonly projectPaths: readonly string[]
+  readonly sessionId?: string
+}
+
 export interface ExtensionContributionEligibilityView {
   readonly runtimeEnabled: boolean
   readonly enabled: boolean

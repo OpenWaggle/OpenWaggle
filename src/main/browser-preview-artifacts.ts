@@ -11,6 +11,10 @@ import type {
 import { BROWSER_PREVIEW_CAPTURE_LIMITS } from '@shared/types/browser-preview-controls'
 import type { NativeImage, Rectangle, WebContents } from 'electron'
 import { app, clipboard, nativeImage } from 'electron'
+import {
+  type BrowserPreviewAnnotationAttachmentInput,
+  prepareBrowserPreviewAnnotationAttachment,
+} from './browser-preview-annotation-attachment'
 import { BrowserPreviewArtifactStorage } from './browser-preview-artifact-storage'
 import { captureBrowserPreviewPage } from './browser-preview-capture'
 import { showItemInFolder } from './desktop-ui'
@@ -144,7 +148,12 @@ function annotationAttachmentMetadata(
 }
 
 export class BrowserPreviewArtifactStore {
-  constructor(private readonly storage: BrowserPreviewArtifactStorage) {}
+  constructor(
+    private readonly storage: BrowserPreviewArtifactStorage,
+    private readonly prepareAnnotation: (
+      input: BrowserPreviewAnnotationAttachmentInput,
+    ) => Promise<PreparedAttachment> = prepareBrowserPreviewAnnotationAttachment,
+  ) {}
 
   async captureScreenshot(
     previewId: string,
@@ -216,18 +225,13 @@ export class BrowserPreviewArtifactStore {
     if (!stats.isFile() || stats.size !== screenshot.sizeBytes) {
       throw new Error('Browser preview annotation screenshot changed before it was attached.')
     }
-    const attachment: PreparedAttachment = {
-      id: screenshot.id,
-      kind: 'image',
+    const attachment = await this.prepareAnnotation({
       origin: 'browser-preview',
-      name: path.basename(resolvedPath),
       path: resolvedPath,
-      mimeType: PNG_MIME_TYPE,
-      sizeBytes: screenshot.sizeBytes,
-      extractedText: browserPreviewAnnotationText(payload),
+      browserAnnotationText: browserPreviewAnnotationText(payload),
       browserPreview: annotationAttachmentMetadata(payload),
-    }
-    await rememberPreparedAttachment(attachment, resolvedPath)
+    })
+    await rememberPreparedAttachment(attachment, attachment.path)
     return attachment
   }
 

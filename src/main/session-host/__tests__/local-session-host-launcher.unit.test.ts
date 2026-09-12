@@ -1,0 +1,295 @@
+import {
+  LOCAL_SESSION_CAPABILITIES,
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_PROTOCOL_NAME,
+} from '@shared/types/local-session-protocol'
+import { describe, expect, it, vi } from 'vitest'
+import { LocalSessionHostUpgradePendingError } from '../local-session-client-connection'
+import {
+  ensureLocalSessionHost,
+  isLocalSessionHostUnavailable,
+  type LocalSessionHostLauncherDependencies,
+  sessionHostChildEnvironment,
+  sessionHostLaunchArguments,
+  sessionHostLaunchCommand,
+} from '../local-session-host-launcher'
+
+const paths = {
+  stateRoot: '/state',
+  legacyDatabasePath: '/state/legacy.sqlite',
+  databasePath: '/state/host.sqlite',
+  recoveryDatabasePath: '/state/recovery.sqlite',
+  credentialPath: '/state/credential',
+  endpoint: '/state/host.sock',
+  endpointDirectory: '/state',
+  endpointCapabilityPath: null,
+}
+
+const accepted = {
+  accepted: true as const,
+  protocol: LOCAL_SESSION_PROTOCOL_NAME,
+  revision: LOCAL_SESSION_CURRENT_REVISION,
+  hostInstanceId: 'host-current',
+  capabilities: LOCAL_SESSION_CAPABILITIES,
+}
+
+function dependencies(input?: {
+  readonly canConnect?: LocalSessionHostLauncherDependencies['canConnect']
+  readonly probe?: LocalSessionHostLauncherDependencies['probe']
+  readonly refreshPaths?: LocalSessionHostLauncherDependencies['refreshPaths']
+  readonly tryAcquireOwnership?: LocalSessionHostLauncherDependencies['tryAcquireOwnership']
+}) {
+  let now = 0
+  return {
+    canConnect: input?.canConnect ?? vi.fn(async () => true),
+    probe: input?.probe ?? vi.fn(async () => accepted),
+    tryAcquireOwnership:
+      input?.tryAcquireOwnership ??
+      vi.fn(async () => ({
+        targetPath: paths.databasePath,
+        release: vi.fn(async () => undefined),
+      })),
+    launch: vi.fn(),
+    now: () => now,
+    refreshPaths: input?.refreshPaths ?? vi.fn(async (candidate) => candidate),
+    wait: vi.fn(async (milliseconds: number) => {
+      now += milliseconds
+    }),
+  } satisfies LocalSessionHostLauncherDependencies
+}
+
+const client = { paths, clientKind: 'cli' as const, clientVersion: 'current' }
+
+describe('Local Session Host launcher', () => {
+  it.each(['ENOENT', 'ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED', 'EPIPE'])(
+    'classifies %s as a recoverable Host transport failure',
+    (code) => {
+      expect(isLocalSessionHostUnavailable(Object.assign(new Error(code), { code }))).toBe(true)
+    },
+  )
+
+  it('does not classify application errors as Host transport failures', () => {
+    expect(
+      isLocalSessionHostUnavailable(Object.assign(new Error('denied'), { code: 'EACCES' })),
+    ).toBe(false)
+  })
+
+  it('includes the Electron application path for a cold development Host', () => {
+    expect(
+      sessionHostLaunchArguments({ isPackaged: false, appPath: '/workspace/OpenWaggle' }),
+    ).toEqual(['/workspace/OpenWaggle', 'session-host-internal'])
+    expect(
+      sessionHostLaunchArguments({ isPackaged: true, appPath: '/Applications/OpenWaggle.app' }),
+    ).toEqual(['session-host-internal'])
+  })
+
+  it('launches a packaged Linux Host from the stable AppImage mount source', () => {
+    expect(
+      sessionHostLaunchCommand({
+        platform: 'linux',
+        isPackaged: true,
+        executablePath: '/tmp/.mount_openwaggle/openwaggle',
+        appPath: '/tmp/.mount_openwaggle/resources/app.asar',
+        appImagePath: '/opt/OpenWaggle.AppImage',
+      }),
+    ).toEqual({ command: '/opt/OpenWaggle.AppImage', args: ['session-host-internal'] })
+  })
+
+  it('keeps the Electron executable for development and non-AppImage packages', () => {
+    expect(
+      sessionHostLaunchCommand({
+        platform: 'linux',
+        isPackaged: false,
+        executablePath: '/workspace/node_modules/electron/dist/electron',
+        appPath: '/workspace/OpenWaggle',
+        appImagePath: '/opt/OpenWaggle.AppImage',
+      }),
+    ).toEqual({
+      command: '/workspace/node_modules/electron/dist/electron',
+      args: ['/workspace/OpenWaggle', 'session-host-internal'],
+    })
+    expect(
+      sessionHostLaunchCommand({
+        platform: 'darwin',
+        isPackaged: true,
+        executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+        appPath: '/Applications/OpenWaggle.app/Contents/Resources/app.asar',
+      }),
+    ).toEqual({
+      command: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+      args: ['session-host-internal'],
+    })
+  })
+
+  it('adds explicit Host identity settings to the selected runtime environment', () => {
+    const environment = sessionHostChildEnvironment({
+      safeEnvironment: {
+        PATH: '/safe/bin',
+        HOME: '/Users/person',
+      },
+      userDataRoot: '/state/openwaggle-dev',
+      logLevel: 'debug',
+    })
+
+    expect(environment).toEqual({
+      PATH: '/safe/bin',
+      HOME: '/Users/person',
+      OPENWAGGLE_USER_DATA_DIR: '/state/openwaggle-dev',
+      OPENWAGGLE_LOG_LEVEL: 'debug',
+    })
+    expect(environment).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
+    expect(environment).not.toHaveProperty('OPENAI_API_KEY')
+  })
+
+  it('forwards the resolved profile without restoring ambient XDG configuration', () => {
+    const environment = sessionHostChildEnvironment({
+      safeEnvironment: {
+        PATH: '/safe/bin',
+        HOME: '/home/person',
+      },
+      userDataRoot: '/tmp/xdg/OpenWaggle',
+    })
+
+    expect(environment).toMatchObject({
+      HOME: '/home/person',
+      OPENWAGGLE_USER_DATA_DIR: '/tmp/xdg/OpenWaggle',
+    })
+    expect(environment).not.toHaveProperty('XDG_CONFIG_HOME')
+  })
+
+  it('forwards a resolved Windows profile without restoring ambient app-data variables', () => {
+    const environment = sessionHostChildEnvironment({
+      safeEnvironment: {
+        PATH: 'C:\\Windows\\System32',
+        SystemRoot: 'C:\\Windows',
+      },
+      userDataRoot: 'D:\\Profiles\\OpenWaggle',
+    })
+
+    expect(environment.OPENWAGGLE_USER_DATA_DIR).toBe('D:\\Profiles\\OpenWaggle')
+    expect(environment).not.toHaveProperty('APPDATA')
+    expect(environment).not.toHaveProperty('LOCALAPPDATA')
+  })
+
+  it('reuses a compatible authenticated Host without launching another process', async () => {
+    const launcher = dependencies()
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.probe).toHaveBeenCalledOnce()
+    expect(launcher.launch).not.toHaveBeenCalled()
+  })
+
+  it('launches and verifies a Host when no process is listening', async () => {
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const launcher = dependencies({ canConnect })
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(launcher.probe).toHaveBeenCalledTimes(2)
+  })
+
+  it('surfaces launch failures before polling for Host readiness', async () => {
+    const canConnect = vi.fn(async () => false)
+    const launcher = dependencies({ canConnect })
+    const launchError = new Error('spawn failed')
+    launcher.launch = vi.fn(async () => Promise.reject(launchError))
+
+    await expect(ensureLocalSessionHost(client, launcher)).rejects.toBe(launchError)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(canConnect).toHaveBeenCalledOnce()
+    expect(launcher.wait).not.toHaveBeenCalled()
+  })
+
+  it('rereads a rotated Windows endpoint after launching the owning Host', async () => {
+    const rotatedPaths = { ...paths, endpoint: '\\\\.\\pipe\\openwaggle-rotated' }
+    const refreshPaths = vi
+      .fn<LocalSessionHostLauncherDependencies['refreshPaths']>()
+      .mockResolvedValueOnce(paths)
+      .mockResolvedValue(rotatedPaths)
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const probe = vi.fn(async () => accepted)
+    const launcher = dependencies({ canConnect, probe, refreshPaths })
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(refreshPaths).toHaveBeenCalledTimes(3)
+    expect(probe).toHaveBeenCalledTimes(2)
+    expect(probe).toHaveBeenCalledWith(expect.objectContaining({ paths: rotatedPaths }))
+  })
+
+  it('keeps the first CLI attached while a one-time migration exceeds 30 seconds', async () => {
+    let probes = 0
+    const canConnect = vi.fn(async () => {
+      probes += 1
+      return probes > 700
+    })
+    const launcher = dependencies({ canConnect })
+
+    await expect(
+      ensureLocalSessionHost({ ...client, takeoverTimeoutMs: 60_000 }, launcher),
+    ).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(launcher.wait).toHaveBeenCalledTimes(699)
+  })
+
+  it('waits for an incompatible Host to drain before launching its replacement', async () => {
+    const pending = new LocalSessionHostUpgradePendingError(
+      'host-old',
+      [{ sessionId: 'session-live', runId: 'run-live' }],
+      [],
+    )
+    const canConnect = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValue(true)
+    const probe = vi.fn().mockRejectedValueOnce(pending).mockResolvedValue(accepted)
+    const tryAcquireOwnership = vi.fn().mockResolvedValueOnce({
+      targetPath: paths.databasePath,
+      release: vi.fn(async () => undefined),
+    })
+    const launcher = dependencies({ canConnect, probe, tryAcquireOwnership })
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(launcher.wait).toHaveBeenCalled()
+    expect(probe).toHaveBeenCalledTimes(3)
+    expect(tryAcquireOwnership).toHaveBeenCalledOnce()
+  })
+
+  it('attaches when a compatible endpoint appears while ownership stays fenced', async () => {
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const tryAcquireOwnership = vi.fn(async () => null)
+    const launcher = dependencies({ canConnect, tryAcquireOwnership })
+
+    await expect(
+      ensureLocalSessionHost({ ...client, takeoverTimeoutMs: 100 }, launcher),
+    ).resolves.toEqual(accepted)
+    expect(launcher.launch).not.toHaveBeenCalled()
+    expect(tryAcquireOwnership).toHaveBeenCalledOnce()
+  })
+
+  it('preserves upgrade blockers even when an older Host does not use the current ownership file', async () => {
+    const pending = new LocalSessionHostUpgradePendingError(
+      'host-old',
+      [{ sessionId: 'session-live', runId: 'run-live' }],
+      [],
+    )
+    const launcher = dependencies({
+      probe: vi.fn(async () => Promise.reject(pending)),
+    })
+
+    await expect(
+      ensureLocalSessionHost({ ...client, takeoverTimeoutMs: 100 }, launcher),
+    ).rejects.toBe(pending)
+
+    expect(launcher.launch).not.toHaveBeenCalled()
+    expect(launcher.tryAcquireOwnership).not.toHaveBeenCalled()
+  })
+})

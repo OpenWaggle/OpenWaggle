@@ -1,28 +1,14 @@
-import { SessionId } from '@shared/types/brand'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-const { setSessionWorktreePlanMock } = vi.hoisted(() => ({
-  setSessionWorktreePlanMock: vi.fn(async () => {}),
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { setSessionWorktreePlan: setSessionWorktreePlanMock },
-}))
-
-import {
-  flushDraftWorktreePlanToSession,
-  snapshotDraftWorktreePlan,
-  stashDraftWorktreePlan,
-} from '../worktree-plan-draft'
+import { snapshotDraftWorktreePlan, stashDraftWorktreePlan } from '../worktree-plan-draft'
 import { prepareDraftWorktreePlan, useWorktreePlanStore } from '../worktree-plan-store'
 
 describe('draft worktree plan handoff', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     useWorktreePlanStore.setState({ bySessionId: {} })
   })
 
-  it('keeps the submitted plan stable while session creation is in flight', async () => {
+  it('keeps the submitted plan stable while session creation is in flight', () => {
     stashDraftWorktreePlan('/repo', {
       envMode: 'worktree',
       baseRef: 'main',
@@ -34,12 +20,9 @@ describe('draft worktree plan handoff', () => {
     prepareDraftWorktreePlan('/repo', '/repo')
     expect(snapshotDraftWorktreePlan('/repo')).toBeUndefined()
 
-    await flushDraftWorktreePlanToSession(submittedPlan, SessionId('created-session'))
-
-    expect(setSessionWorktreePlanMock).toHaveBeenCalledWith(SessionId('created-session'), {
-      environmentMode: 'worktree',
-      baseRef: 'main',
-      startFromOrigin: true,
+    expect(submittedPlan).toEqual({
+      projectPath: '/repo',
+      plan: { envMode: 'worktree', baseRef: 'main', startFromOrigin: true },
     })
   })
 })

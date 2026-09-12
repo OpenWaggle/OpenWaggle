@@ -1,3 +1,4 @@
+import { registerAgentDefinitionsHandlers } from './agent-definitions-handler'
 import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
@@ -11,9 +12,11 @@ import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
 import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
 import { registerMcpHandlers } from './mcp-handler'
+import { registerProfileAccessHandlers } from './profile-access-handler'
 import { registerProjectActionHandlers } from './project-actions-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
+import { registerSessionControlHandlers } from './session-control-handler'
 import { registerSessionDetailsHandlers } from './session-details-handler'
 import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
@@ -30,9 +33,12 @@ import { registerWorkspaceFileHandlers } from './workspace-files-handler'
 export { cleanupTerminals } from './terminal-handler'
 
 export function registerAllIpcHandlers(): void {
+  registerProfileAccessHandlers()
+  registerAgentDefinitionsHandlers()
   registerAuthHandlers()
   registerBrowserPreviewHandlers()
   registerAgentHandlers()
+  registerSessionControlHandlers()
   registerSettingsHandlers()
   registerSyntaxThemeHandlers()
   registerSessionsHandlers()

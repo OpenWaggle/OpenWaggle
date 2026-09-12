@@ -139,7 +139,10 @@ export function hydrateSessionMessage(row: SessionNodeRow) {
     role: row.role ?? 'assistant',
     parts: parsedContent.data.parts.map(transformPart),
     model: modelId ? SupportedModelId(modelId) : undefined,
-    metadata: hydrateMessageMetadata(row.metadata_json),
+    metadata: {
+      ...hydrateMessageMetadata(row.metadata_json),
+      sessionNodeCreatedOrder: row.created_order,
+    },
     createdAt: row.timestamp_ms,
   }
 }

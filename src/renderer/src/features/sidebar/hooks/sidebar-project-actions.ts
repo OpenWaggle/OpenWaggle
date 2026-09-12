@@ -1,14 +1,75 @@
 import type { RepositoryPath } from '@shared/types/brand'
-import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
+import { RepositoryPath as makeRepositoryPath, SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import {
+  SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_DISCOVERY_LIMIT,
+} from '@shared/types/session-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { api } from '@/shared/lib/ipc'
 import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
+const SESSION_HYDRATION_BATCH_SIZE = 100
+const SESSION_MUTATION_CONCURRENCY = 8
 
-interface SidebarProjectActionDeps {
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  operation: (item: T) => Promise<unknown>,
+) {
+  let completed = 0
+  const failures: unknown[] = []
+  for (let offset = 0; offset < items.length; offset += SESSION_MUTATION_CONCURRENCY) {
+    const results = await Promise.allSettled(
+      items.slice(offset, offset + SESSION_MUTATION_CONCURRENCY).map(operation),
+    )
+    for (const result of results) {
+      if (result.status === 'fulfilled') completed += 1
+      else failures.push(result.reason)
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `${completed} of ${items.length} operations completed; ${failures.length} failed. Retry to finish the remaining work.`,
+      { cause: failures[0] },
+    )
+  }
+}
+
+async function listProjectSessionSummaries(path: string) {
+  const ids: SessionId[] = []
+  for (const archived of [false, true]) {
+    let cursor: string | undefined
+    do {
+      const response = await api.querySessionControl({
+        contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+        requestId: crypto.randomUUID(),
+        query: {
+          operation: 'list',
+          projectPath: path,
+          archived,
+          limit: SESSION_QUERY_DISCOVERY_LIMIT,
+          ...(cursor ? { cursor } : {}),
+        },
+      })
+      if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
+        throw new Error('Project Session listing returned an unexpected response.')
+      }
+      ids.push(...response.outcome.sessions.map((session) => SessionId(session.sessionId)))
+      cursor = response.outcome.nextCursor
+    } while (cursor)
+  }
+  const sessions: SessionSummary[] = []
+  for (let offset = 0; offset < ids.length; offset += SESSION_HYDRATION_BATCH_SIZE) {
+    sessions.push(
+      ...(await api.listSessionsByIds(ids.slice(offset, offset + SESSION_HYDRATION_BATCH_SIZE))),
+    )
+  }
+  return sessions
+}
+
+export interface SidebarProjectActionDeps {
   readonly activeSessionId: string | null
   readonly displayProjectName: (path: string) => string
   readonly expandProject: (path: string) => void
@@ -19,7 +80,6 @@ interface SidebarProjectActionDeps {
   readonly refreshGit: (path: RepositoryPath | null) => void
   readonly removeProjectReferences: (path: string) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
-  readonly sessions: readonly SessionSummary[]
   readonly setProjectDisplayName: (path: string, name: string) => Promise<void>
   readonly setProjectPath: (path: string) => Promise<void>
   readonly showToast: (message: string) => void
@@ -27,19 +87,51 @@ interface SidebarProjectActionDeps {
   readonly clearTransientDraftContext: () => void
 }
 
-function projectSessionsForPath(
-  sessions: readonly SessionSummary[],
-  archivedSessions: readonly SessionSummary[],
-  path: string,
-) {
-  const byId = new Map<string, SessionSummary>()
+function dependentSessionsById(sessions: readonly SessionSummary[]) {
+  const dependentsBySession = new Map<string, SessionSummary[]>()
+  const sessionIds = new Set(sessions.map((session) => String(session.id)))
   for (const session of sessions) {
-    if (session.projectPath === path) byId.set(String(session.id), session)
+    const dependencyIds = new Set([
+      ...(session.lineage?.parentSessionId ? [String(session.lineage.parentSessionId)] : []),
+      ...(session.derivation ? [String(session.derivation.sourceSessionId)] : []),
+    ])
+    for (const dependencyId of dependencyIds) {
+      if (!sessionIds.has(dependencyId)) continue
+      const dependents = dependentsBySession.get(dependencyId) ?? []
+      dependents.push(session)
+      dependentsBySession.set(dependencyId, dependents)
+    }
   }
-  for (const session of archivedSessions) {
-    if (session.projectPath === path) byId.set(String(session.id), session)
+  return dependentsBySession
+}
+
+export function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
+  const dependentsBySession = dependentSessionsById(sessions)
+  const ordered: SessionSummary[] = []
+  const discovered = new Set<string>()
+  for (const root of sessions) {
+    const stack: Array<{ readonly session: SessionSummary; readonly expanded: boolean }> = [
+      { session: root, expanded: false },
+    ]
+    while (stack.length > 0) {
+      const frame = stack.pop()
+      if (!frame) break
+      const sessionId = String(frame.session.id)
+      if (frame.expanded) {
+        ordered.push(frame.session)
+        continue
+      }
+      if (discovered.has(sessionId)) continue
+      discovered.add(sessionId)
+      stack.push({ session: frame.session, expanded: true })
+      const dependents = dependentsBySession.get(sessionId) ?? []
+      for (let index = dependents.length - 1; index >= 0; index -= 1) {
+        const dependent = dependents[index]
+        if (dependent) stack.push({ session: dependent, expanded: false })
+      }
+    }
   }
-  return [...byId.values()]
+  return ordered
 }
 
 function resetToDraftForProject(deps: SidebarProjectActionDeps, projectPath: string | null) {
@@ -55,11 +147,8 @@ async function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
   deps.refreshGit(makeRepositoryPath(path))
 }
 
-async function archiveProjectSessions(
-  deps: SidebarProjectActionDeps,
-  path: string,
-  projectSessions: readonly SessionSummary[],
-) {
+async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: string) {
+  const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   if (sessionCount === 0) return
 
@@ -69,12 +158,10 @@ async function archiveProjectSessions(
   )
   if (!confirmed) return
 
-  await Promise.all(
-    projectSessions.map(async (session) => {
-      await api.archiveSession(session.id)
-      await archiveWorkspaceOwner(String(session.id))
-    }),
-  )
+  await runWithConcurrency(projectSessions, async (session) => {
+    await api.archiveSession(session.id)
+    await archiveWorkspaceOwner(String(session.id))
+  })
   clearComposerDraftsForSessions(projectSessions)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
 
@@ -85,8 +172,7 @@ async function archiveProjectSessions(
 }
 
 async function removeProject(deps: SidebarProjectActionDeps, path: string) {
-  const archivedSessions = await api.listArchivedSessions()
-  const projectSessions = projectSessionsForPath(deps.sessions, archivedSessions, path)
+  const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
     `Remove ${deps.displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
@@ -96,17 +182,14 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
   const activeRuns = await api.listActiveRuns()
-  await Promise.all(
-    activeRuns.flatMap((run) =>
-      projectSessionIds.has(String(run.sessionId)) ? [api.cancelAgent(run.sessionId)] : [],
-    ),
+  await runWithConcurrency(
+    activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
+    (run) => api.cancelAgent(run.sessionId),
   )
-  await Promise.all(
-    projectSessions.map(async (session) => {
-      await api.deleteSession(session.id)
-      await deleteWorkspaceOwner(String(session.id))
-    }),
-  )
+  for (const session of sessionsInDeletionOrder(projectSessions)) {
+    await api.deleteSession(session.id)
+    await deleteWorkspaceOwner(String(session.id))
+  }
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
@@ -120,8 +203,8 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
 
 export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
   return {
-    archiveSessions(path: string, projectSessions: readonly SessionSummary[]) {
-      void archiveProjectSessions(deps, path, projectSessions).catch((error: unknown) => {
+    archiveSessions(path: string, _projectSessions: readonly SessionSummary[]) {
+      void archiveProjectSessions(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to archive project sessions: ${errorMessage(error)}`)
       })
     },

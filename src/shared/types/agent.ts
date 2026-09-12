@@ -100,6 +100,20 @@ export type AgentSteerDeliveryResult =
   | {
       readonly delivery: 'queued'
       readonly durableText: string
+      readonly minimumCreatedOrder: number
+    }
+  | {
+      readonly delivery: 'handled'
+    }
+
+/** Pi acceptance is not durable delivery; queued input is projected as a user node later. */
+export type AgentSteerDeliveryReceipt =
+  | {
+      readonly delivery: 'queued'
+      /** Lowercase SHA-256 of Pi's first text block, encoded as UTF-8 without normalization. */
+      readonly durableTextSha256: string
+      /** First eligible Pi entry index, captured immediately before queuing this steer. */
+      readonly minimumCreatedOrder: number
     }
   | {
       readonly delivery: 'handled'
@@ -122,6 +136,8 @@ export interface BranchSummaryMetadata {
 }
 
 export interface MessageMetadata {
+  /** Authoritative append order in the native Session log, not its visible transcript index. */
+  readonly sessionNodeCreatedOrder?: number
   readonly visualizationSessionId?: SessionId
   readonly waggle?: WaggleMessageMetadata
   readonly waggleInvocation?: WaggleInvocationMetadata

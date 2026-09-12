@@ -9,6 +9,8 @@ const WORKFLOW = fs.readFileSync(
   path.join(PROJECT_ROOT, '.github/workflows/release.yml'),
   'utf8',
 )
+const PNPM_WORKSPACE = fs.readFileSync(path.join(PROJECT_ROOT, 'pnpm-workspace.yaml'), 'utf8')
+const PNPM_LOCK = fs.readFileSync(path.join(PROJECT_ROOT, 'pnpm-lock.yaml'), 'utf8')
 describe('desktop app release workflow', () => {
   it('grants write permissions only to orchestration and publication jobs', () => {
     const parsed: unknown = parse(WORKFLOW)
@@ -29,6 +31,22 @@ describe('desktop app release workflow', () => {
       },
       parsed,
     )
+  })
+
+  it('prepares candidate-derived assets without publication authority', () => {
+    const preparationStart = WORKFLOW.indexOf('\n  prepare-release-assets:')
+    const publicationStart = WORKFLOW.indexOf('\n  release:', preparationStart)
+    const preparation = WORKFLOW.slice(preparationStart, publicationStart)
+    const publication = WORKFLOW.slice(publicationStart)
+
+    expect(preparationStart).toBeGreaterThan(0)
+    expect(publicationStart).toBeGreaterThan(preparationStart)
+    expect(preparation).not.toContain('contents: write')
+    expect(preparation).toContain('persist-credentials: false')
+    expect(preparation).toContain('generate-macos-update-metadata.ts')
+    expect(publication).not.toContain('actions/checkout')
+    expect(publication).not.toContain('\n        run:')
+    expect(publication).not.toContain('generate-macos-update-metadata.ts')
   })
 
   it('leaves the validated version PR open for a maintainer to merge', () => {
@@ -133,14 +151,64 @@ describe('desktop app release workflow', () => {
   })
 
   it('verifies the Windows installer through the typed deterministic verifier', () => {
-    expect(WORKFLOW).toContain('node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"')
+    expect(WORKFLOW).toContain(
+      'pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+    )
+    expect(WORKFLOW).toContain('pnpm install --frozen-lockfile --ignore-scripts')
+    expect(WORKFLOW).not.toContain('node scripts/verify-windows-installer.ts')
     expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
   })
 
+  it('builds and smokes each macOS architecture only on a matching runner', () => {
+    expect(WORKFLOW).toContain('os: macos-15-intel')
+    expect(WORKFLOW).toContain('os: macos-15')
+    expect(WORKFLOW).not.toContain('runs-on: macos-14')
+    expect(WORKFLOW).toContain("test \"$(uname -m)\" = '${{ matrix.machine }}'")
+    expect(WORKFLOW).toContain(
+      'pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never',
+    )
+    expect(WORKFLOW).not.toContain('electron-builder --mac --arm64 --x64')
+    expect(WORKFLOW).toContain('name: macos-${{ matrix.arch }}-artifacts')
+    expect(WORKFLOW).toContain(
+      "node --no-warnings scripts/generate-macos-update-metadata.ts release '${{ needs.version.outputs.new_version }}'",
+    )
+    expect(WORKFLOW).toContain('node-version: 24.14.0')
+    expect(WORKFLOW).toContain("'darwin',")
+    expect(WORKFLOW).toContain('process.env.OPENWAGGLE_ONNX_ARCH')
+    expect(WORKFLOW).toContain("'onnxruntime_binding.node'")
+    expect(PNPM_WORKSPACE).toContain(
+      '"@huggingface/transformers>onnxruntime-node": 1.23.2',
+    )
+    expect(PNPM_LOCK).toContain("'@huggingface/transformers>onnxruntime-node': 1.23.2")
+    expect(PNPM_LOCK).toContain('onnxruntime-node: 1.23.2')
+  })
+
+  it('gates every platform artifact on packaged resources and production startup', () => {
+    expect(WORKFLOW.match(/pnpm packaged-app:smoke --/gu)).toHaveLength(3)
+    expect(WORKFLOW.match(/pnpm qa:packaged-session-host-startup --/gu)).toHaveLength(3)
+    expect(WORKFLOW).toContain('dist/linux-unpacked/openwaggle')
+    expect(WORKFLOW).toContain('dist/win-unpacked/OpenWaggle.exe')
+    expect(WORKFLOW).toContain(
+      'dist/${{ matrix.app_dir }}/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+    )
+  })
+
+  it('executes installed CLIs with isolated lifecycle cleanup on Linux and both Macs', () => {
+    expect(WORKFLOW).toContain('artifact_name: macos-arm64-artifacts')
+    expect(WORKFLOW).toContain('artifact_name: macos-x64-artifacts')
+    expect(WORKFLOW).toContain('OPENWAGGLE_APPLICATIONS_DIR="$RUNNER_TEMP/Applications"')
+    expect(WORKFLOW).toContain(
+      'xvfb-run --auto-servernum pnpm exec tsx scripts/verify-installed-cli.ts',
+    )
+    expect(WORKFLOW).toContain(
+      'pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"',
+    )
+  })
+
   it('runs the semantic packaged PTY smoke after every platform build', () => {
     const buildCommands = [
-      'pnpm exec electron-builder --mac --arm64 --x64 --publish never',
+      'pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never',
       'pnpm exec electron-builder --linux --publish never',
       'pnpm exec electron-builder --win --publish never',
     ]

@@ -87,8 +87,8 @@ function buildScopedComposerContextKey(
   if (!workspaceBelongsToSession(activeWorkspace, scopedSessionId)) return null
 
   return buildComposerDraftContextKey({
-    // Global project settings hydrate separately from the Session workspace.
-    // Using them here can restore one key, then erase new input when they catch up.
+    // Route preferences can hydrate after the workspace has enabled editing.
+    // Persisted Sessions own this path, including an explicit no-project value.
     projectPath: scopedSessionId
       ? (activeWorkspace?.tree.session.projectPath ?? null)
       : projectPath,

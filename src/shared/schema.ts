@@ -36,6 +36,14 @@ export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I, never>, v
   return ParseResult.decodeUnknownSync(schema)(value)
 }
 
+/** Decode an external boundary while rejecting undeclared object properties. */
+export function decodeUnknownExactOrThrow<A, I>(
+  schema: Schema.Schema<A, I, never>,
+  value: unknown,
+): A {
+  return ParseResult.decodeUnknownSync(schema, { onExcessProperty: 'error' })(value)
+}
+
 export function parseJsonUnknown(raw: string): unknown {
   const parsed: unknown = JSON.parse(raw)
   return parsed

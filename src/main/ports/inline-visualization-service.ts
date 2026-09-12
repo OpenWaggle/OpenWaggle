@@ -18,6 +18,8 @@ export interface InlineVisualizationServiceShape {
     readonly sessionId: SessionId
     readonly sourcePath: string
     readonly workspaceRoots: readonly string[]
+    /** Clients must not recover deletion tombstones owned by a different process. */
+    readonly readOnly?: boolean
   }) => EffectType<InlineVisualizationReadResult, never>
 }
 

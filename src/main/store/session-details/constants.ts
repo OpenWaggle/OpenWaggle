@@ -9,4 +9,3 @@ export const TOOL_RESULT_KIND = 'tool_result'
 export const STANDARD_FUTURE_MODE = 'standard'
 export const WAGGLE_FUTURE_MODE = 'waggle'
 export const BRANCH_NAME_TRUNCATE_LENGTH = 48
-export const STAGED_SESSION_DELETE_SUFFIX = 'delete'

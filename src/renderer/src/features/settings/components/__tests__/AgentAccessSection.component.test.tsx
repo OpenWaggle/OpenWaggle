@@ -8,12 +8,16 @@ const {
   listAuthorizationGrantsMock,
   revokeAuthorizationMock,
   updateSettingsMock,
+  manageAccessProfilesMock,
+  getCliShimStatusMock,
 } = vi.hoisted(() => ({
   getProjectPreferencesMock: vi.fn(),
   setProjectPreferencesMock: vi.fn(),
   listAuthorizationGrantsMock: vi.fn(),
   revokeAuthorizationMock: vi.fn(),
   updateSettingsMock: vi.fn(),
+  manageAccessProfilesMock: vi.fn(),
+  getCliShimStatusMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -23,6 +27,8 @@ vi.mock('@/shared/lib/ipc', () => ({
     listAuthorizationGrants: listAuthorizationGrantsMock,
     revokeAuthorization: revokeAuthorizationMock,
     updateSettings: updateSettingsMock,
+    manageAccessProfiles: manageAccessProfilesMock,
+    getCliShimStatus: getCliShimStatusMock,
   },
 }))
 
@@ -62,6 +68,12 @@ describe('AgentAccessSection', () => {
     listAuthorizationGrantsMock.mockResolvedValue([])
     revokeAuthorizationMock.mockResolvedValue(undefined)
     updateSettingsMock.mockResolvedValue(undefined)
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'not-installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: true,
+    })
     setProjectPath(PROJECT)
   })
 
@@ -82,6 +94,30 @@ describe('AgentAccessSection', () => {
       expect(setProjectPreferencesMock).toHaveBeenCalledWith(PROJECT, {
         authorizationMode: null,
       })
+    })
+  })
+
+  it('lets the user configure model delegation and both concurrency ceilings', async () => {
+    render(<AgentAccessSection />)
+
+    const delegation = screen.getByRole('switch', { name: 'Allow agents to create Workers' })
+    expect(delegation).toBeChecked()
+    fireEvent.click(delegation)
+
+    const workers = screen.getByRole('spinbutton', { name: 'Workers per parent' })
+    fireEvent.change(workers, { target: { value: '12' } })
+    fireEvent.blur(workers)
+
+    const hostRuns = screen.getByRole('spinbutton', { name: 'Active agent runs' })
+    fireEvent.change(hostRuns, { target: { value: '32' } })
+    fireEvent.blur(hostRuns)
+
+    await waitFor(() => {
+      expect(updateSettingsMock).toHaveBeenCalledWith({ multiAgentEnabled: false })
+      expect(updateSettingsMock).toHaveBeenCalledWith({
+        sessionHostParentConcurrencyLimit: 12,
+      })
+      expect(updateSettingsMock).toHaveBeenCalledWith({ sessionHostRunCeiling: 32 })
     })
   })
 

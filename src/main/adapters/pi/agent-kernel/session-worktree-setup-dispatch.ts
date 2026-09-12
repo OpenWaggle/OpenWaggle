@@ -2,6 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { isIndeterminateDesktopOperation } from '../../../application/desktop-service-errors'
 import { createLogger } from '../../../logger'
 import type {
   ClaimedSessionWorktreeSetup,
@@ -163,6 +164,10 @@ export async function dispatchPendingSessionWorktreeSetup(
       ...(input.baseRef ? { baseRef: input.baseRef } : {}),
     })
   } catch (error) {
+    if (isIndeterminateDesktopOperation(error)) {
+      reportIndeterminateClaim(input, claim)
+      return
+    }
     await restorePendingAfterFailure(id, input, claim, error)
     return
   }

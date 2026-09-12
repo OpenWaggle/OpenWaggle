@@ -49,6 +49,9 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 
 ## Operating Rules
 
+- Do not use the global `herdr-orchestration` skill in this repository. OpenWaggle Hive QA must
+  create and coordinate Workers through the native Sessions tool and Session Host so tests exercise
+  the product path rather than an external orchestrator.
 - Do not commit, push, reset, clean, checkout, restore, or delete branches unless the maintainer explicitly approves that exact action.
 - Do not use destructive commands to resolve local conflicts. Ask if unrelated work blocks the task.
 - Prefer additive or isolated changes when another agent is active.

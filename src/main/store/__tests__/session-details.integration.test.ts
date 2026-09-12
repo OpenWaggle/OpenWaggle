@@ -1,26 +1,30 @@
-import lifecycleFs from 'node:fs/promises'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
-import lifecycleOs from 'node:os'
-import lifecyclePath from 'node:path'
+import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
+import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import {
   createSession,
   deleteSession,
   getSessionDetail,
   listSessionDetails,
   listSessionSummaries,
+  listSessionWorktreeRefs,
   persistSessionSnapshot,
   updateSessionTitle,
 } from '../session-details'
 import { getSessionTree } from '../sessions'
+import { runStoreEffect } from '../store-runtime'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
   getPathMock: vi.fn(() => ''),
 }))
-
 getPathMock.mockImplementation(() => state.userDataDir)
 
 vi.mock('electron', () => ({
@@ -35,9 +39,7 @@ vi.mock('electron', () => ({
 }))
 
 beforeEach(async () => {
-  state.userDataDir = await lifecycleFs.mkdtemp(
-    lifecyclePath.join(lifecycleOs.tmpdir(), 'ow-session-store-'),
-  )
+  state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-session-store-'))
   const { resetAppRuntimeForTests } = await import('../../runtime')
   await resetAppRuntimeForTests()
 })
@@ -46,7 +48,7 @@ afterEach(async () => {
   const tmpDir = state.userDataDir
   const { resetAppRuntimeForTests } = await import('../../runtime')
   await resetAppRuntimeForTests()
-  await lifecycleFs.rm(tmpDir, { recursive: true, force: true })
+  await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
 describe('session-details integration basics', () => {
@@ -230,17 +232,86 @@ describe('session-details integration basics', () => {
   })
 
   it('removes the Pi session file when deleting a session projection', async () => {
+    await promisify(execFile)('git', ['init', state.userDataDir])
     const sessionFile = path.join(state.userDataDir, 'pi-session-delete.jsonl')
     await fs.writeFile(sessionFile, '{"type":"session_info"}\n', 'utf8')
     const session = await createSession({
-      projectPath: '/tmp/project-delete',
+      projectPath: state.userDataDir,
       piSessionId: 'pi-session-delete',
       piSessionFile: sessionFile,
     })
 
-    await deleteSession(session.id)
+    const { runAppEffect } = await import('../../runtime')
+    await runAppEffect(
+      Effect.gen(function* () {
+        const repository = yield* SessionProjectionRepository
+        yield* repository.delete(session.id)
+      }),
+    )
 
     await expect(fs.stat(sessionFile)).rejects.toThrow()
     await expect(getSessionDetail(session.id)).resolves.toBeNull()
+  })
+
+  it('retains shared Workspace resources until their final Session binding is deleted', async () => {
+    const first = await createSession({
+      projectPath: '/tmp/project-shared',
+      piSessionId: 'session-shared-first',
+    })
+    const second = await createSession({
+      projectPath: '/tmp/project-shared',
+      piSessionId: 'session-shared-second',
+    })
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO workspace_resources (
+            id, project_path, kind, working_path, lifecycle_state,
+            worktree_start_from_origin, created_at, updated_at
+          ) VALUES (
+            ${'workspace-shared'}, ${'/tmp/project-shared'}, ${'managed-worktree'},
+            ${'/tmp/project-shared/.worktrees/shared'}, ${'ready'}, ${0}, ${1}, ${1}
+          )
+        `
+        yield* sql`
+          INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+          VALUES (${first.id}, ${'workspace-shared'}, ${1}),
+                 (${second.id}, ${'workspace-shared'}, ${1})
+        `
+      }),
+    )
+    await expect(listSessionWorktreeRefs()).resolves.toEqual([
+      {
+        sessionId: first.id,
+        worktreePath: '/tmp/project-shared/.worktrees/shared',
+      },
+      {
+        sessionId: second.id,
+        worktreePath: '/tmp/project-shared/.worktrees/shared',
+      },
+    ])
+
+    await deleteSession(first.id)
+    const afterFirstDelete = await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ readonly id: string }>`
+          SELECT id FROM workspace_resources WHERE id = ${'workspace-shared'}
+        `
+      }),
+    )
+    expect(afterFirstDelete).toEqual([{ id: 'workspace-shared' }])
+
+    await deleteSession(second.id)
+    const afterLastDelete = await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ readonly id: string }>`
+          SELECT id FROM workspace_resources WHERE id = ${'workspace-shared'}
+        `
+      }),
+    )
+    expect(afterLastDelete).toEqual([])
   })
 })

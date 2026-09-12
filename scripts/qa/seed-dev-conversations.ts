@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { seedSessions } from '../../e2e/support/session-fixtures'
+import { getDatabasePath, seedSessions } from '../../e2e/support/session-fixtures'
 
 const DEFAULT_MESSAGE_COUNT = 400
 const ROLE_ALTERNATION = 2
@@ -192,7 +192,7 @@ function ensureGitProject(projectPath: string) {
 }
 
 function removeSeededSessions() {
-  const db = new DatabaseSync(path.join(USER_DATA_DIR, 'openwaggle.db'))
+  const db = new DatabaseSync(getDatabasePath(USER_DATA_DIR))
   db.exec('PRAGMA foreign_keys = ON')
   /*
    * Only the sessions this script itself creates, matched by title.

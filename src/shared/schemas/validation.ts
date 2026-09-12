@@ -7,6 +7,7 @@
  */
 
 import { MAX_INLINE_VISUALIZATION_PATH_LENGTH } from '@shared/constants/inline-visualization'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
@@ -18,6 +19,12 @@ import {
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { storedProjectActionsSchema } from './project-actions'
+import {
+  sessionInputIdSchema,
+  sessionInputItemTextSchema,
+  sessionInputPathSchema,
+  sessionInputTextSchema,
+} from './session-input'
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
@@ -35,7 +42,7 @@ const browserPreviewSourcePositionSchema = Schema.NullOr(
   ),
 )
 
-const browserPreviewAttachmentSchema = Schema.Struct({
+export const browserPreviewAttachmentSchema = Schema.Struct({
   pageUrl: Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_PAGE_URL_MAX_LENGTH)),
   pageTitle: Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_PAGE_TITLE_MAX_LENGTH)),
   selector: Schema.String.pipe(
@@ -125,14 +132,14 @@ const jsonLooseRecordSchema = Schema.Record({
 })
 
 export const preparedAttachmentSchema = Schema.Struct({
-  id: Schema.String,
+  id: sessionInputIdSchema,
   kind: attachmentKindSchema,
   origin: Schema.optional(attachmentOriginSchema),
-  name: Schema.String,
-  path: Schema.String,
-  mimeType: Schema.String,
-  sizeBytes: Schema.Number,
-  extractedText: Schema.String,
+  name: sessionInputItemTextSchema,
+  path: sessionInputPathSchema,
+  mimeType: sessionInputItemTextSchema,
+  sizeBytes: Schema.Number.pipe(Schema.int(), Schema.between(0, ATTACHMENT.MAX_SIZE_BYTES)),
+  extractedText: Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)),
   browserPreview: Schema.optional(browserPreviewAttachmentSchema),
 })
 
@@ -151,18 +158,20 @@ const inlineVisualizationStateSchema = jsonValueSchema.pipe(
   }),
 )
 
+export const inlineVisualizationContextSchema = Schema.Struct({
+  title: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_TITLE_LENGTH)),
+  sourcePath: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_PATH_LENGTH)),
+  state: inlineVisualizationStateSchema,
+})
+
 export const agentSendPayloadSchema = Schema.Struct({
-  text: Schema.String,
+  text: sessionInputTextSchema,
   thinkingLevel: Schema.Literal(...THINKING_LEVELS),
-  attachments: Schema.mutable(Schema.Array(preparedAttachmentSchema)),
-  waggle: Schema.optional(waggleInvocationSchema),
-  visualizationContext: Schema.optional(
-    Schema.Struct({
-      title: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_TITLE_LENGTH)),
-      sourcePath: Schema.String.pipe(Schema.maxLength(MAX_INLINE_VISUALIZATION_PATH_LENGTH)),
-      state: inlineVisualizationStateSchema,
-    }),
+  attachments: Schema.mutable(
+    Schema.Array(preparedAttachmentSchema).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
   ),
+  waggle: Schema.optional(waggleInvocationSchema),
+  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
 })
 
 export function toAgentSendPayload(
@@ -190,6 +199,17 @@ export const projectPreferencesUpdateSchema = Schema.Struct({
   authorizationMode: Schema.optional(Schema.NullOr(Schema.Literal(...AGENT_AUTHORIZATION_MODES))),
 })
 
+const positiveSafeIntegerSchema = Schema.Number.pipe(
+  Schema.filter((value) =>
+    Number.isSafeInteger(value) && value > 0 ? true : 'Must be a positive safe integer.',
+  ),
+)
+
+export const projectSessionHostPolicySchema = Schema.Struct({
+  multiAgentEnabled: Schema.optional(Schema.Boolean),
+  parentConcurrencyLimit: Schema.optional(positiveSafeIntegerSchema),
+})
+
 export const authorizationScopeKeySchema = Schema.Struct({
   requester: Schema.String,
   requesterId: Schema.String,
@@ -208,6 +228,7 @@ export const scopedAuthorizationGrantSchema = Schema.Struct({
 export const projectSettingsFileSchema = Schema.Struct(
   {
     preferences: Schema.optional(projectPreferencesSchema),
+    sessionHost: Schema.optional(projectSessionHostPolicySchema),
     authorizationGrants: Schema.optional(
       Schema.mutable(Schema.Array(scopedAuthorizationGrantSchema)),
     ),

@@ -20,12 +20,14 @@ const APPROVED_ACTIONS = [
 ] as const
 
 /*
- * Repo-owned composite actions are source-controlled with the workflow itself, so they
- * cannot drift the way an unpinned third-party ref can. They still cannot hide step
- * changes: the CI policy pins every required job's step sequence byte-for-byte, and the
- * AST contract hash covers the composite action file referenced here.
+ * These exact local references execute source from the caller's commit. CI pins its
+ * required step sequence, and the delegated performance workflow has its own checked
+ * AST contract. This is not a blanket exemption for arbitrary local workflows.
  */
-const REPO_OWNED_ACTION_REFS: readonly string[] = ['./.github/actions/pnpm-install']
+const REPO_OWNED_ACTION_REFS: readonly string[] = [
+  './.github/actions/pnpm-install',
+  './.github/workflows/session-performance.yml',
+]
 
 export function addViolation(condition: boolean, message: string, violations: string[]) {
   if (condition) violations.push(message)

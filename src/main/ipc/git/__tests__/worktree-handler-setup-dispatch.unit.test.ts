@@ -1,19 +1,29 @@
 import type { GitWorktreeMutationResult } from '@shared/types/git'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionProjectionRepositoryError } from '../../../errors'
 import { PINNED_SESSION_REPOSITORY_STUB } from '../../../ports/__tests__/session-projection-pin-stub'
+import { GitWorktreeService } from '../../../ports/git-worktree-service'
 import {
   SessionProjectionRepository,
   type SessionProjectionRepositoryShape,
 } from '../../../ports/session-projection-repository'
+import {
+  SessionWorkspaceResourceRepository,
+  type SessionWorkspaceResourceRepositoryShape,
+} from '../../../ports/session-workspace-resource-repository'
 
 type WorktreeCreateHandler = (
   event: unknown,
   projectPath: unknown,
   payload: unknown,
-) => Effect.Effect<GitWorktreeMutationResult, unknown, SessionProjectionRepository>
+) => Effect.Effect<
+  GitWorktreeMutationResult,
+  unknown,
+  SessionProjectionRepository | SessionWorkspaceResourceRepository | GitWorktreeService
+>
 
 const handlers = new Map<string, WorktreeCreateHandler>()
 const operationOrder: string[] = []
@@ -30,6 +40,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../typed-ipc', () => ({
+  hostHandle: vi.fn((channel: string, handler: WorktreeCreateHandler) => {
+    handlers.set(channel, handler)
+  }),
   typedHandle: vi.fn((channel: string, handler: WorktreeCreateHandler) => {
     handlers.set(channel, handler)
   }),
@@ -41,7 +54,7 @@ vi.mock('../worktree-service', () => ({
   removeGitWorktree: vi.fn(),
 }))
 
-vi.mock('../status-cache', () => ({
+vi.mock('../../../services/git-status-cache', () => ({
   invalidateGitStatusCache: mocks.invalidateGitStatusCache,
 }))
 
@@ -77,7 +90,33 @@ const { registerGitWorktreeHandlers } = await import('../worktree-handler')
 async function invokeCreate(payload: unknown) {
   const handler = handlers.get('git:worktrees:create')
   if (!handler) throw new Error('the worktree create handler was not registered')
-  return Effect.runPromise(Effect.provide(handler({}, '/repo', payload), SessionProjectionLayer))
+  return Effect.runPromise(
+    handler({}, '/repo', payload).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          SessionProjectionLayer,
+          Layer.succeed(
+            SessionWorkspaceResourceRepository,
+            fromPartial<SessionWorkspaceResourceRepositoryShape>({
+              getBound: () =>
+                Effect.succeed({
+                  id: 'workspace-1',
+                  projectPath: '/repo',
+                  workingPath: '/worktree',
+                  kind: 'managed-worktree',
+                  worktreeBranch: 'ow/session-session-1',
+                }),
+            }),
+          ),
+          Layer.succeed(GitWorktreeService, {
+            create: (projectPath, input) =>
+              Effect.promise(() => mocks.createGitWorktree(projectPath, input)),
+            remove: () => Effect.dieMessage('not used'),
+          }),
+        ),
+      ),
+    ),
+  )
 }
 
 describe('git:worktrees:create Setup dispatch durability', () => {
@@ -119,7 +158,7 @@ describe('git:worktrees:create Setup dispatch durability', () => {
     })
   })
 
-  it('does not mutate Git when the Session does not own the recreation path', async () => {
+  it('does not mutate Git when the authoritative projection refuses recreation setup', async () => {
     resetWorktreeSetupMock.mockImplementation(() =>
       Effect.fail(
         new SessionProjectionRepositoryError({
@@ -140,5 +179,22 @@ describe('git:worktrees:create Setup dispatch durability', () => {
     ).rejects.toThrow()
 
     expect(mocks.createGitWorktree).not.toHaveBeenCalled()
+  })
+
+  it('ignores a renderer path override when resetting the authoritative Workspace setup', async () => {
+    registerGitWorktreeHandlers()
+    await expect(
+      invokeCreate({
+        path: '/other-worktree',
+        branch: 'ignored',
+        baseRef: 'main',
+        sessionId: 'session-1',
+      }),
+    ).resolves.toMatchObject({ ok: true })
+    expect(resetWorktreeSetupMock).toHaveBeenCalledWith('session-1', '/worktree')
+    expect(mocks.createGitWorktree).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ path: '/worktree' }),
+    )
   })
 })

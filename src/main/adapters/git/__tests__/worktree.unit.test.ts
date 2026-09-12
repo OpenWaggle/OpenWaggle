@@ -14,9 +14,13 @@ vi.mock('../run-git', () => ({
   runGit: runGitMock,
 }))
 
-const { createGitWorktree, removeGitWorktree, listGitWorktrees, parseWorktreeList } = await import(
-  '../worktree'
-)
+const {
+  createGitWorktree,
+  removeGitWorktree,
+  validateGitWorktreeRemoval,
+  listGitWorktrees,
+  parseWorktreeList,
+} = await import('../worktree')
 
 function gitResult(code: number, stdout = '', stderr = '') {
   return { code, stdout, stderr }
@@ -191,6 +195,26 @@ describe('worktree service', () => {
         ok: false,
         code: 'dirty-worktree',
       })
+    })
+  })
+
+  describe('validateGitWorktreeRemoval', () => {
+    it('rejects a dirty registered worktree without removing it', async () => {
+      runGitMock
+        .mockResolvedValueOnce(
+          gitResult(
+            0,
+            'worktree /repo\0HEAD abc\0branch refs/heads/main\0\0' +
+              'worktree /wt/x\0HEAD def\0branch refs/heads/feat\0\0',
+          ),
+        )
+        .mockResolvedValueOnce(gitResult(0, ' M src/file.ts\n'))
+
+      await expect(validateGitWorktreeRemoval('/repo', { path: '/wt/x' })).resolves.toMatchObject({
+        ok: false,
+        code: 'dirty-worktree',
+      })
+      expect(runGitMock).not.toHaveBeenCalledWith('/repo', ['worktree', 'remove', '/wt/x'])
     })
   })
 

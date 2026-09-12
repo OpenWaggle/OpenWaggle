@@ -12,6 +12,7 @@ import type { TerminalServiceShape } from '../../ports/terminal-service'
 import { runPiSession } from './agent-kernel/classic-run'
 import { launchProjectSetupAction } from './agent-kernel/project-setup-action'
 import { reportAcceptedSetupActionProgress } from './agent-kernel/project-setup-action-progress'
+import { restrictMcpSnapshot } from './agent-kernel/restricted-mcp-snapshot'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import { requireSessionProjectPath } from './agent-kernel/session-manager'
 import { ensureSessionWorktreeProjectPath } from './agent-kernel/session-worktree-birth'
@@ -19,6 +20,7 @@ import { runPiWaggle } from './agent-kernel/waggle-run'
 import { createBrowserPreviewAutomationExtension } from './browser-preview-automation-extension'
 import { BROWSER_PREVIEW_AUTOMATION_SYSTEM_PROMPT } from './browser-preview-automation-system-prompt'
 import { createMcpGatewayExtension } from './mcp-gateway-extension'
+import { createSessionsToolExtension } from './sessions-tool-extension'
 
 const logger = createLogger('pi-agent-kernel')
 
@@ -109,15 +111,36 @@ function resolveMcpTurnPaths(input: AgentKernelRunInput, terminal: TerminalServi
   })
 }
 
+function createRunSessionsExtension(
+  input: AgentKernelRunInput,
+  workingDirectory: string,
+  projectPath: string,
+) {
+  return createSessionsToolExtension({
+    sessionId: input.session.id,
+    runId: input.runId,
+    workingDirectory,
+    projectPath,
+    ...(input.sessionCapabilities ? { sessionCapabilities: input.sessionCapabilities } : {}),
+    ...(input.modelMultiAgentEnabled !== undefined
+      ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }
+      : {}),
+  })
+}
+
 export function prepareMcpTurn(input: {
   readonly projectPath: string
   readonly executionPath: string
   readonly sessionId: string
   readonly config: McpConfigServiceShape
   readonly runtime: McpRuntimeServiceShape
+  readonly serverAllowlist?: readonly string[]
 }) {
   return Effect.gen(function* () {
-    const snapshot = yield* input.config.createTurnSnapshot(input)
+    const snapshot = restrictMcpSnapshot(
+      yield* input.config.createTurnSnapshot(input),
+      input.serverAllowlist,
+    )
     yield* input.runtime.prepareTurn({ sessionId: input.sessionId, snapshot })
     return yield* Effect.gen(function* () {
       const directTools = snapshot ? yield* input.runtime.listDirectTools(snapshot) : []
@@ -137,7 +160,10 @@ export function prepareMcpTurn(input: {
           })
         : undefined
       const finish = Effect.gen(function* () {
-        const nextSnapshot = yield* input.config.createTurnSnapshot(input)
+        const nextSnapshot = restrictMcpSnapshot(
+          yield* input.config.createTurnSnapshot(input),
+          input.serverAllowlist,
+        )
         yield* input.runtime.completeTurn({ sessionId: input.sessionId, nextSnapshot })
       }).pipe(Effect.catchAllCause(() => input.runtime.disposeSession(input.sessionId)))
       return { extensionFactory, finish }
@@ -207,7 +233,11 @@ export function runPiAgentKernel(
       sessionId: input.session.id,
       config: dependencies.mcpConfig,
       runtime: dependencies.mcpRuntime,
+      ...(input.mcpServerAllowlist !== undefined
+        ? { serverAllowlist: input.mcpServerAllowlist }
+        : {}),
     })
+    const sessionsExtensionFactory = createRunSessionsExtension(input, executionPath, projectPath)
     const extensionFactories = mcpTurn.extensionFactory ? [mcpTurn.extensionFactory] : []
     const browserPreviewResources = createBrowserPreviewRuntimeResources({
       enabled: dependencies.enableBrowserPreviewAutomation,
@@ -223,6 +253,7 @@ export function runPiAgentKernel(
               ...input,
               ...dependencies.runtimeExtensionIsolation,
               workingPath: executionPath,
+              sessionsExtensionFactory,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               extensionFactories,
               ...browserPreviewResources,
@@ -231,6 +262,7 @@ export function runPiAgentKernel(
               ...input,
               ...dependencies.runtimeExtensionIsolation,
               workingPath: executionPath,
+              sessionsExtensionFactory,
               ...(visualizationDirectory ? { visualizationDirectory } : {}),
               extensionFactories,
               ...browserPreviewResources,

@@ -1,40 +1,38 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { SessionCatalogPage } from '@shared/types/session'
+import {
+  type InfiniteData,
+  infiniteQueryOptions,
+  type UseInfiniteQueryOptions,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { queryKeys } from './query-keys'
-import type { OpenWaggleQueryOptions } from './query-options'
 
-type ArchivedSessions = Awaited<ReturnType<typeof api.listArchivedSessions>>
-type ArchivedSessionBranches = Awaited<ReturnType<typeof api.listArchivedSessionBranches>>
-
-export function archivedSessionsQueryOptions(): OpenWaggleQueryOptions<
-  ArchivedSessions,
-  Error,
-  ArchivedSessions,
-  typeof queryKeys.archivedSessions
-> {
-  return queryOptions({
-    queryKey: queryKeys.archivedSessions,
-    queryFn: () => api.listArchivedSessions(),
-  })
-}
-
-export function archivedSessionBranchesQueryOptions(): OpenWaggleQueryOptions<
-  ArchivedSessionBranches,
-  Error,
-  ArchivedSessionBranches,
-  typeof queryKeys.archivedSessionBranches
-> {
-  return queryOptions({
-    queryKey: queryKeys.archivedSessionBranches,
-    queryFn: () => api.listArchivedSessionBranches(),
-  })
-}
+const ARCHIVED_PAGE_SIZE = 100
+const INITIAL_CURSOR: string | null = null
 
 interface RestoreSessionBranchInput {
   readonly sessionId: SessionId
   readonly branchId: SessionBranchId
+}
+
+export function archivedSessionBranchesQueryOptions(): UseInfiniteQueryOptions<
+  SessionCatalogPage,
+  Error,
+  InfiniteData<SessionCatalogPage>,
+  typeof queryKeys.archivedSessionBranches,
+  string | null
+> {
+  return infiniteQueryOptions({
+    queryKey: queryKeys.archivedSessionBranches,
+    queryFn: ({ pageParam }) =>
+      api.listArchivedSessionBranches(ARCHIVED_PAGE_SIZE, pageParam ?? undefined),
+    initialPageParam: INITIAL_CURSOR,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? null,
+  })
 }
 
 export function useUnarchiveSessionMutation() {
@@ -44,7 +42,7 @@ export function useUnarchiveSessionMutation() {
     mutationFn: (sessionId: SessionId) => api.unarchiveSession(sessionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessions,
+        queryKey: queryKeys.archivedSessionBranches,
         exact: true,
       })
     },
@@ -67,18 +65,10 @@ export function useRestoreSessionBranchMutation() {
 }
 
 export function useArchivedDeleteSessionMutation() {
-  const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: async (sessionId: SessionId) => {
       await api.deleteSession(sessionId)
       await deleteWorkspaceOwner(String(sessionId))
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessions,
-        exact: true,
-      })
     },
   })
 }

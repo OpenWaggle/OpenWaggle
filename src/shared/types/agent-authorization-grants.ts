@@ -11,6 +11,9 @@ export const AGENT_AUTHORIZATION_CAPABILITIES = [
   'browser.preview',
   'mcp.tool-call',
   'mcp.sampling',
+  'sessions.export-write',
+  'sessions.attachment-read',
+  'sessions.resource-read',
 ] as const
 
 export type AgentAuthorizationCapability = (typeof AGENT_AUTHORIZATION_CAPABILITIES)[number]
@@ -102,6 +105,9 @@ export const AGENT_AUTHORIZATION_CAPABILITY_LABELS = {
   'browser.preview': 'Control browser preview',
   'mcp.tool-call': 'Run a tool',
   'mcp.sampling': 'Use your model',
+  'sessions.export-write': 'Write Session exports',
+  'sessions.attachment-read': 'Read Session attachments',
+  'sessions.resource-read': 'Read Session export resources',
 } satisfies Record<AgentAuthorizationCapability, string>
 
 /** Modes in which a matching grant is consulted at all. */

@@ -40,7 +40,7 @@ afterEach(async () => {
   repositoryPath = null
 })
 
-describe('deleteSessionTurnCheckpointRefs', () => {
+describe('deleteSessionTurnCheckpointRefs', { timeout: 15_000 }, () => {
   it("removes a session's anchor refs so its snapshot objects stop being reachable", async () => {
     /*
      * Anchor refs kept turn snapshots gc-safe on purpose, but the session death path only
@@ -76,8 +76,19 @@ describe('deleteSessionTurnCheckpointRefs', () => {
 
   it('does nothing when the session never captured a checkpoint', async () => {
     const repository = await createRepository()
-    await expect(
-      deleteSessionTurnCheckpointRefs(repository, 'sess-never-ran'),
-    ).resolves.toBeUndefined()
+    await expect(deleteSessionTurnCheckpointRefs(repository, 'sess-never-ran')).resolves.toEqual([])
   })
+
+  it('leaves the complete ref namespace intact when Git cannot prepare the atomic deletion', async () => {
+    const repository = await createRepository()
+    const head = (await git(repository, ['rev-parse', 'HEAD'])).trim()
+    const first = turnCheckpointRef('sess-locked', 'turn-1')
+    const second = turnCheckpointRef('sess-locked', 'turn-2')
+    await git(repository, ['update-ref', first, head])
+    await git(repository, ['update-ref', second, head])
+    await writeFile(path.join(repository, '.git', `${first}.lock`), '')
+
+    await expect(deleteSessionTurnCheckpointRefs(repository, 'sess-locked')).rejects.toThrow()
+    expect(await listOpenWaggleRefs(repository)).toEqual([first, second])
+  }, 15_000)
 })

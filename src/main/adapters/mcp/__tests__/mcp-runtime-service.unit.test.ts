@@ -123,9 +123,11 @@ describe('first-party MCP gateway runtime', () => {
   it('reconciles idle management connections without interrupting an active turn', async () => {
     const closeActive = vi.fn(async () => undefined)
     const closeManagement = vi.fn(async () => undefined)
+    const connect = vi.fn(async ({ snapshot: turn }) =>
+      connection({ close: turn.runtimeNamespace ? closeManagement : closeActive }),
+    )
     const service = createMcpRuntimeService({
-      connect: async ({ snapshot: turn }) =>
-        connection({ close: turn.runtimeNamespace ? closeManagement : closeActive }),
+      connect,
     })
     const activeTurn = snapshot({ sessionId: 'preserved-active-session' })
     const managementView = snapshot({
@@ -147,6 +149,13 @@ describe('first-party MCP gateway runtime', () => {
         capabilities: ['tools'],
       }),
     ])
+
+    await service.completeTurn({ sessionId: activeTurn.sessionId, nextSnapshot: activeTurn })
+    expect(closeActive).toHaveBeenCalledTimes(1)
+
+    await service.prepareTurn({ sessionId: activeTurn.sessionId, snapshot: activeTurn })
+    await service.executeGateway(activeTurn, { operation: 'list' })
+    expect(connect).toHaveBeenCalledTimes(3)
     await service.disposeSession(activeTurn.sessionId)
   })
 

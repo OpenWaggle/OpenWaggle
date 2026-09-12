@@ -1,13 +1,16 @@
 import fs from 'node:fs/promises'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
-import { extractAttachmentText } from '../ipc/attachment-text-extraction'
 import { resolvePreparedAttachmentCapability } from './attachment-registry'
+import { extractAttachmentText } from './attachment-text-extraction'
 
 async function hydrateAttachmentSource(
   attachment: PreparedAttachment,
+  validateCapability: boolean,
 ): Promise<HydratedAttachment> {
-  const preparedAttachment = await resolvePreparedAttachmentCapability(attachment)
+  const preparedAttachment = validateCapability
+    ? await resolvePreparedAttachmentCapability(attachment)
+    : attachment
   const needsBinarySource = preparedAttachment.kind === 'image' || preparedAttachment.kind === 'pdf'
   if (!needsBinarySource && preparedAttachment.extractedText) {
     return { ...preparedAttachment, source: null }
@@ -55,5 +58,11 @@ export async function hydrateAttachmentSources(
   attachments: readonly PreparedAttachment[],
 ): Promise<HydratedAttachment[]> {
   // Independent per-attachment reads; Promise.all preserves input order.
-  return Promise.all(attachments.map(hydrateAttachmentSource))
+  return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, true)))
+}
+
+export async function hydrateTrustedAttachmentSources(
+  attachments: readonly PreparedAttachment[],
+): Promise<HydratedAttachment[]> {
+  return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, false)))
 }

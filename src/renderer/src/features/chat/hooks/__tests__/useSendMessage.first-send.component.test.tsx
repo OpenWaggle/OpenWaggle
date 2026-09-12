@@ -2,13 +2,8 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import { describe, expect, it, vi } from 'vitest'
 
-const {
-  flushDraftAuthorizationModeMock,
-  flushDraftWorktreePlanMock,
-  snapshotDraftWorktreePlanMock,
-} = vi.hoisted(() => ({
+const { flushDraftAuthorizationModeMock, snapshotDraftWorktreePlanMock } = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
-  flushDraftWorktreePlanMock: vi.fn(async () => {}),
   snapshotDraftWorktreePlanMock: vi.fn(() => ({
     projectPath: '/repo',
     plan: { envMode: 'worktree' as const, baseRef: 'main' },
@@ -20,7 +15,6 @@ vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
 }))
 
 vi.mock('@/features/git', () => ({
-  flushDraftWorktreePlanToSession: flushDraftWorktreePlanMock,
   snapshotDraftWorktreePlan: snapshotDraftWorktreePlanMock,
 }))
 
@@ -30,12 +24,13 @@ const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', a
 
 describe("a session's first send", () => {
   it('persists an explicit draft authorization override before dispatching the turn', async () => {
+    const createSession = vi.fn(async () => SessionId('session-a'))
     const sendMessageToSession = vi.fn(async () => {})
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
       thinkingLevel: 'off',
-      createSession: vi.fn(async () => SessionId('session-a')),
+      createSession,
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,
       startWaggleCollaboration: vi.fn(),
@@ -44,15 +39,13 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
+    expect(createSession).toHaveBeenCalledWith('/repo', {
+      environmentMode: 'worktree',
+      baseRef: 'main',
+      startFromOrigin: false,
+    })
     expect(snapshotDraftWorktreePlanMock.mock.invocationCallOrder[0]).toBeLessThan(
-      flushDraftWorktreePlanMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    )
-    expect(flushDraftWorktreePlanMock).toHaveBeenCalledWith(
-      {
-        projectPath: '/repo',
-        plan: { envMode: 'worktree', baseRef: 'main' },
-      },
-      SessionId('session-a'),
+      createSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
     expect(flushDraftAuthorizationModeMock).toHaveBeenCalledWith('/repo', SessionId('session-a'))
     expect(flushDraftAuthorizationModeMock.mock.invocationCallOrder[0]).toBeLessThan(

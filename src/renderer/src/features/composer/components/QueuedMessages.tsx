@@ -1,52 +1,149 @@
 import type { SessionId } from '@shared/types/brand'
-import { ArrowUp, Timer, Trash2 } from 'lucide-react'
-import { selectQueue, useMessageQueueStore } from '@/features/chat/state'
+import { AlertTriangle, ArrowUp, Play, RotateCcw, Timer, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { type SessionFollowUpQueueItem, useSessionFollowUpQueue } from '@/features/chat/hooks'
+import { selectPendingSteerFollowUps, useOptimisticSteerStore } from '@/features/chat/state'
 import { Button } from '@/shared/ui/Button'
 import { ComposerDock } from './ComposerDock'
+import { QueueIntentBadges } from './QueueIntentBadges'
+import { followUpQueueAnnouncement, QueueUnavailableNotice } from './QueueUnavailableNotice'
 
 interface QueuedMessagesProps {
   readonly sessionId: SessionId | null
   readonly onSteer: (messageId: string) => Promise<void>
   readonly isStreaming: boolean
+  readonly onToast: (message: string) => void
 }
 
-/**
- * Queued messages panel that docks above the Composer.
- *
- * The Composer fills 100% of the parent container. The queue stays inset just
- * inside the composer's rounded shoulders so it reads like a docked tab rather
- * than a separate full-width panel.
- */
-export function QueuedMessages({ sessionId, onSteer, isStreaming }: QueuedMessagesProps) {
-  const queue = useMessageQueueStore(selectQueue(sessionId))
-  const dismiss = useMessageQueueStore((s) => s.dismiss)
+const ATTENTION_REASON_COPY = {
+  authorization_ceiling_changed:
+    "Authorization changed. Update this Follow-up's authorization or dismiss it.",
+  profile_revoked:
+    'The submitting access profile was revoked. Restore access or dismiss this Follow-up.',
+  authority_changed:
+    'Session authority changed. Re-submit with current access or dismiss this Follow-up.',
+} as const
 
-  if (queue.length === 0 || !sessionId) return null
+function attentionCopy(item: SessionFollowUpQueueItem) {
+  if (item.deliveryState !== 'needs_attention') return undefined
+  return item.attentionReason
+    ? ATTENTION_REASON_COPY[item.attentionReason]
+    : 'This Follow-up cannot be delivered. Review Session access or dismiss it.'
+}
 
+function QueueHeader({
+  count,
+  headNeedsAttention,
+  isResuming,
+  queueState,
+  onResume,
+}: {
+  readonly count: number
+  readonly headNeedsAttention: boolean
+  readonly isResuming: boolean
+  readonly queueState: 'running' | 'paused'
+  readonly onResume: () => void
+}) {
   return (
-    <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5 opacity-60">
-      {/* Header */}
-      <div className="flex items-center gap-1.5 px-1">
-        <Timer className="size-3 text-text-tertiary" />
-        <span className="text-xs font-semibold text-text-tertiary">Queued</span>
-        <span className="flex size-4.5 items-center justify-center rounded-full bg-text-tertiary/12 text-xs font-semibold text-text-tertiary">
-          {queue.length}
-        </span>
-      </div>
+    <div className="flex items-center gap-1.5 px-1">
+      <Timer className="size-3 text-text-tertiary" />
+      <span className="text-xs font-semibold text-text-tertiary">
+        {queueState === 'paused' ? 'Queue paused' : 'Queued'}
+      </span>
+      <span className="flex size-4.5 items-center justify-center rounded-full bg-text-tertiary/12 text-xs font-semibold text-text-tertiary">
+        {count}
+      </span>
+      {queueState === 'paused' ? (
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => {
+            if (!isResuming && !headNeedsAttention) onResume()
+          }}
+          aria-disabled={isResuming || headNeedsAttention}
+          title={
+            headNeedsAttention
+              ? 'Resolve the first Follow-up before resuming the queue.'
+              : 'Resume Follow-up delivery'
+          }
+          className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-accent hover:bg-accent/8 aria-disabled:text-text-muted aria-disabled:opacity-50"
+        >
+          <Play className="size-3" />
+          <span className="text-xs font-semibold">Resume</span>
+        </Button>
+      ) : null}
+    </div>
+  )
+}
 
-      {/* Message list */}
-      <div className="flex flex-col gap-1">
-        {queue.map((item) => (
-          <div key={item.id} className="flex items-center gap-2 rounded-lg bg-bg/50 px-2.5 py-2">
-            <div className="flex-1 whitespace-pre-wrap text-xs leading-normal text-text-muted">
-              {item.payload.text || `${String(item.payload.attachments.length)} attachment(s)`}
+interface QueueItemsProps {
+  readonly isStreaming: boolean
+  readonly items: readonly SessionFollowUpQueueItem[]
+  readonly resolvingId: string | null
+  readonly onDismiss: (followUpId: string) => void
+  readonly onResolve: (item: SessionFollowUpQueueItem) => void
+  readonly onSteer: (followUpId: string) => void
+}
+
+function QueueItems({
+  isStreaming,
+  items,
+  resolvingId,
+  onDismiss,
+  onResolve,
+  onSteer,
+}: QueueItemsProps) {
+  return (
+    <div className="flex flex-col gap-1">
+      {items.map((item) => {
+        const attention = attentionCopy(item)
+        return (
+          <div
+            key={item.id}
+            className={
+              attention
+                ? 'flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/5 px-2.5 py-2'
+                : 'flex items-center gap-2 rounded-lg bg-bg/50 px-2.5 py-2'
+            }
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="whitespace-pre-wrap text-xs leading-normal text-text-muted">
+                {item.text || `${String(item.attachmentCount)} attachment(s)`}
+              </div>
+              <QueueIntentBadges item={item} />
+              {attention && (
+                <div className="flex items-start gap-1 text-xs leading-normal text-warning">
+                  <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                  <span>{attention}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1">
+              {attention ? (
+                <Button
+                  variant="unstyled"
+                  type="button"
+                  onClick={() => {
+                    if (resolvingId === null) onResolve(item)
+                  }}
+                  aria-disabled={resolvingId !== null}
+                  className="flex items-center gap-1 rounded-md border border-warning/30 bg-warning/8 px-2 py-1 text-warning hover:bg-warning/15 aria-disabled:opacity-50"
+                >
+                  <RotateCcw className="size-3" />
+                  <span className="text-xs font-semibold">
+                    {item.attentionReason === 'authorization_ceiling_changed'
+                      ? 'Use current access'
+                      : 'Re-submit'}
+                  </span>
+                </Button>
+              ) : null}
               {isStreaming && (
                 <Button
                   variant="unstyled"
                   type="button"
-                  onClick={() => void onSteer(item.id)}
+                  onClick={() => onSteer(item.id)}
+                  disabled={item.deliveryState === 'needs_attention'}
+                  title={attention ? 'Resolve this Follow-up before steering it.' : undefined}
                   className="flex items-center gap-1 rounded-md bg-accent/8 px-2 py-1"
                 >
                   <ArrowUp className="size-3 text-accent" />
@@ -56,7 +153,7 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming }: QueuedMessag
               <Button
                 variant="unstyled"
                 type="button"
-                onClick={() => dismiss(sessionId, item.id)}
+                onClick={() => onDismiss(item.id)}
                 className="rounded-md px-1.5 py-1"
                 title="Dismiss"
               >
@@ -64,8 +161,97 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming }: QueuedMessag
               </Button>
             </div>
           </div>
-        ))}
-      </div>
-    </ComposerDock>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Queued messages panel that docks above the Composer.
+ *
+ * The Composer fills 100% of the parent container. The queue stays inset just
+ * inside the composer's rounded shoulders so it reads like a docked tab rather
+ * than a separate full-width panel.
+ */
+export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: QueuedMessagesProps) {
+  const { snapshot, error, refresh, resubmitWithCurrentAccess, setPaused, withdraw } =
+    useSessionFollowUpQueue(sessionId)
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
+  const [isResuming, setIsResuming] = useState(false)
+  const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(sessionId))
+  const pendingIds = new Set(pendingPromotions)
+  const queue = snapshot.items.filter((item) => !pendingIds.has(item.id))
+
+  async function resolveAttention(item: SessionFollowUpQueueItem) {
+    setResolvingId(item.id)
+    try {
+      await resubmitWithCurrentAccess(item.id)
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : String(error))
+    } finally {
+      setResolvingId(null)
+    }
+  }
+
+  async function dismiss(followUpId: string) {
+    try {
+      await withdraw(followUpId)
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  async function resumeQueue() {
+    setIsResuming(true)
+    try {
+      await setPaused(false)
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : String(error))
+    } finally {
+      setIsResuming(false)
+    }
+  }
+
+  const queueUnavailable = sessionId !== null && error !== null
+  const showDock = sessionId !== null && (queue.length > 0 || queueUnavailable)
+
+  return (
+    <>
+      <span aria-live="polite" className="sr-only" role="status">
+        {followUpQueueAnnouncement({
+          hasSession: sessionId !== null,
+          unavailable: queueUnavailable,
+          count: queue.length,
+          queueState: snapshot.state,
+        })}
+      </span>
+      {showDock ? (
+        <ComposerDock className="flex flex-col gap-1.5 px-2.5 pt-2 pb-1.5">
+          {queueUnavailable ? <QueueUnavailableNotice onRetry={refresh} /> : null}
+
+          {queue.length > 0 ? (
+            <>
+              <QueueHeader
+                count={queue.length}
+                headNeedsAttention={queue[0]?.deliveryState === 'needs_attention'}
+                isResuming={isResuming}
+                queueState={snapshot.state}
+                onResume={() => void resumeQueue()}
+              />
+
+              <QueueItems
+                isStreaming={isStreaming}
+                items={queue}
+                resolvingId={resolvingId}
+                onDismiss={(followUpId) => void dismiss(followUpId)}
+                onResolve={(item) => void resolveAttention(item)}
+                onSteer={(followUpId) => void onSteer(followUpId)}
+              />
+            </>
+          ) : null}
+        </ComposerDock>
+      ) : null}
+    </>
   )
 }

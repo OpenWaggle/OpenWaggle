@@ -79,6 +79,7 @@ export interface ChatBranchSummaryMetadata {
 }
 
 export interface UIMessageMetadata {
+  readonly sessionNodeCreatedOrder?: number
   readonly visualizationSessionId?: SessionId
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata

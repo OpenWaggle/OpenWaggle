@@ -10,7 +10,7 @@ import { enqueueIfAllowed } from '../ChatComposerStack'
 const PAYLOAD: AgentSendPayload = { text: 'do the thing', thinkingLevel: 'off', attachments: [] }
 
 describe('enqueueIfAllowed', () => {
-  it('refuses to queue a message the send gate would block, and says why', () => {
+  it('refuses to queue a message the send gate would block, and says why', async () => {
     /*
      * A queued message is dispatched later with the raw send, so queueing walked straight past the
      * worktree gate: main rejected it with a bare thrown error and the message was silently
@@ -19,20 +19,22 @@ describe('enqueueIfAllowed', () => {
     const enqueue = vi.fn()
     const onToast = vi.fn()
 
-    enqueueIfAllowed({
-      payload: PAYLOAD,
-      activeSessionId: SessionId('session-a'),
-      sendBlockedReason: "This session's worktree no longer exists.",
-      enqueue,
-      onToast,
-    })
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: SessionId('session-a'),
+        sendBlockedReason: "This session's worktree no longer exists.",
+        enqueue,
+        onToast,
+      }),
+    ).resolves.toBe(false)
 
     expect(enqueue).not.toHaveBeenCalled()
     expect(onToast).toHaveBeenCalledWith("This session's worktree no longer exists.")
   })
 
-  it('queues against the active session when nothing blocks the send', () => {
-    const enqueue = vi.fn()
+  it('queues against the active session when nothing blocks the send', async () => {
+    const enqueue = vi.fn(async () => undefined)
     const sessionId = SessionId('session-a')
     reportInlineVisualizationState({
       instanceId: 'frame-a',
@@ -42,15 +44,17 @@ describe('enqueueIfAllowed', () => {
       state: { selected: 'api' },
     })
 
-    enqueueIfAllowed({
-      payload: PAYLOAD,
-      activeSessionId: sessionId,
-      sendBlockedReason: null,
-      enqueue,
-      onToast: vi.fn(),
-    })
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: sessionId,
+        sendBlockedReason: null,
+        enqueue,
+        onToast: vi.fn(),
+      }),
+    ).resolves.toBe(true)
 
-    expect(enqueue).toHaveBeenCalledWith(sessionId, {
+    expect(enqueue).toHaveBeenCalledWith({
       ...PAYLOAD,
       visualizationContext: {
         title: 'Map',
@@ -61,16 +65,18 @@ describe('enqueueIfAllowed', () => {
     clearInlineVisualizationStatesForTests()
   })
 
-  it('does nothing without an active session', () => {
+  it('does nothing without an active session', async () => {
     const enqueue = vi.fn()
 
-    enqueueIfAllowed({
-      payload: PAYLOAD,
-      activeSessionId: null,
-      sendBlockedReason: null,
-      enqueue,
-      onToast: vi.fn(),
-    })
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: null,
+        sendBlockedReason: null,
+        enqueue,
+        onToast: vi.fn(),
+      }),
+    ).resolves.toBe(false)
 
     expect(enqueue).not.toHaveBeenCalled()
   })

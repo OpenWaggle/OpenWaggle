@@ -1,24 +1,26 @@
 interface ActiveRunEntry<M> {
   readonly controller: AbortController
   readonly metadata: M
+  readonly settled: Promise<void>
 }
 
 /** Application-owned registry for cancellable work keyed by a domain identifier. */
 export class ActiveRunManager<K, M> {
   private readonly runs = new Map<K, ActiveRunEntry<M>>()
+  private readonly settleRun = new WeakMap<AbortController, () => void>()
   /**
    * Controllers removed from the active slot by cancellation/replacement but
    * whose owning Effect has not reached its ensuring cleanup yet.
    */
-  private readonly settling = new Map<K, Map<AbortController, M>>()
+  private readonly settling = new Map<K, Map<AbortController, ActiveRunEntry<M>>>()
 
   private markSettling(key: K, entry: ActiveRunEntry<M>) {
-    const entries = this.settling.get(key) ?? new Map<AbortController, M>()
-    entries.set(entry.controller, entry.metadata)
+    const entries = this.settling.get(key) ?? new Map<AbortController, ActiveRunEntry<M>>()
+    entries.set(entry.controller, entry)
     this.settling.set(key, entries)
   }
 
-  private settle(key: K, controller: AbortController) {
+  private removeSettling(key: K, controller: AbortController) {
     const entries = this.settling.get(key)
     if (entries === undefined) return false
     const removed = entries.delete(controller)
@@ -28,10 +30,19 @@ export class ActiveRunManager<K, M> {
 
   register(key: K, controller: AbortController, metadata: M) {
     const existing = this.runs.get(key)
+    if (existing?.controller === controller) {
+      this.runs.set(key, { ...existing, metadata })
+      return
+    }
     if (existing !== undefined && existing.controller !== controller) {
       this.markSettling(key, existing)
     }
-    this.runs.set(key, { controller, metadata })
+    let settle: () => void = () => undefined
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve
+    })
+    this.settleRun.set(controller, settle)
+    this.runs.set(key, { controller, metadata, settled })
   }
 
   get(key: K) {
@@ -56,10 +67,24 @@ export class ActiveRunManager<K, M> {
     return true
   }
 
+  async interruptAndWait(key: K, matches: (metadata: M) => boolean) {
+    const entry = this.runs.get(key)
+    if (!entry || !matches(entry.metadata)) return false
+    entry.controller.abort()
+    await entry.settled
+    return true
+  }
+
+  requestInterrupt(key: K, matches: (metadata: M) => boolean) {
+    const entry = this.runs.get(key)
+    if (!entry || !matches(entry.metadata)) return false
+    entry.controller.abort()
+    return true
+  }
+
   cancelAll(predicate?: (entry: ActiveRunEntry<M>, key: K) => boolean) {
     for (const [key, entries] of this.settling) {
-      for (const [controller, metadata] of entries) {
-        const entry = { controller, metadata }
+      for (const [controller, entry] of entries) {
         if ((!predicate || predicate(entry, key)) && !controller.signal.aborted) controller.abort()
       }
     }
@@ -73,7 +98,11 @@ export class ActiveRunManager<K, M> {
   }
 
   delete(key: K) {
+    const entry = this.runs.get(key)
+    if (!entry) return false
     this.runs.delete(key)
+    this.settle(entry.controller)
+    return true
   }
 
   isCurrent(key: K, controller: AbortController) {
@@ -81,15 +110,25 @@ export class ActiveRunManager<K, M> {
   }
 
   deleteIfCurrent(key: K, controller: AbortController) {
-    if (this.isCurrent(key, controller)) {
-      this.runs.delete(key)
-      return true
-    }
-    this.settle(key, controller)
-    return false
+    const current = this.isCurrent(key, controller)
+    if (current) this.runs.delete(key)
+    this.removeSettling(key, controller)
+    this.settle(controller)
+    return current
   }
 
   keys() {
     return this.runs.keys()
+  }
+
+  unsettledKeys() {
+    return new Set([...this.runs.keys(), ...this.settling.keys()]).keys()
+  }
+
+  private settle(controller: AbortController) {
+    const settle = this.settleRun.get(controller)
+    if (!settle) return
+    this.settleRun.delete(controller)
+    settle()
   }
 }

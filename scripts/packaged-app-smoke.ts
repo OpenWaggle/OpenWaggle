@@ -11,12 +11,14 @@ const APP_NAME = 'OpenWaggle.app'
 const RESOURCES_PATH = ['Contents', 'Resources'] as const
 const ASAR_FILE = 'app.asar'
 const DOCS_DIR = 'openwaggle-docs'
+const SESSION_EMBEDDING_MODEL_DIR = 'session-embedding-model'
 const PACKAGE_JSON = 'package.json'
 const NODE_MODULES_DIR = 'node_modules'
 const OUT_DIR = 'out'
 const ASAR_HEADER_PREFIX_BYTES = 16
 const ASAR_JSON_SIZE_OFFSET = 12
 const FIRST_USER_ARGUMENT_INDEX = 2
+const ARGUMENT_SEPARATOR = '--'
 const PREVIEW_LIMIT = 20
 const PACKAGED_PTY_TIMEOUT_MS = 30_000
 const EXEC_MAX_BUFFER_BYTES = 10_000_000
@@ -24,6 +26,14 @@ const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as cons
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
+const REQUIRED_SESSION_EMBEDDING_MODEL_FILES = [
+  'Xenova/multilingual-e5-small/config.json',
+  'Xenova/multilingual-e5-small/tokenizer_config.json',
+  'Xenova/multilingual-e5-small/tokenizer.json',
+  'Xenova/multilingual-e5-small/onnx/model_quantized.onnx',
+  'Xenova/multilingual-e5-small/openwaggle-model-manifest.json',
+  'Xenova/multilingual-e5-small/THIRD_PARTY_NOTICE.md',
+]
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
@@ -66,7 +76,7 @@ export async function findPackagedApps(
 ) {
   const explicitAppPaths = args
     .slice(FIRST_USER_ARGUMENT_INDEX)
-    .filter((argument) => argument !== '--')
+    .filter((argument) => argument !== ARGUMENT_SEPARATOR)
   if (explicitAppPaths.length > 0) return explicitAppPaths.map((appPath) => path.resolve(appPath))
 
   const distEntries = await fs.readdir(distDirectory, { withFileTypes: true })
@@ -251,6 +261,11 @@ async function smokePackagedApp(appPath: string) {
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
+  await assertRequiredFiles(
+    path.join(resourcesPath, SESSION_EMBEDDING_MODEL_DIR),
+    REQUIRED_SESSION_EMBEDDING_MODEL_FILES,
+  )
+
   if (packagedAppMatchesHostArchitecture(appPath)) {
     await runPackagedPtyProbe(appPath, asarPath)
     console.log(`packaged PTY smoke passed: ${appPath}`)

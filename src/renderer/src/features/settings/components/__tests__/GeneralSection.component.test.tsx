@@ -31,6 +31,9 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
+vi.mock('../sections/AgentAccessSection', () => ({ AgentAccessSection: () => null }))
+vi.mock('../sections/AgentDefinitionsCard', () => ({ AgentDefinitionsCard: () => null }))
+
 import { usePreferencesStore } from '../../state/preferences-store'
 import { GeneralSection } from '../sections/GeneralSection'
 

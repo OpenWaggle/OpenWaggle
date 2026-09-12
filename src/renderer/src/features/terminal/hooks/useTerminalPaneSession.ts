@@ -11,6 +11,10 @@ import { createTerminalCustomKeyHandler } from '../lib/terminal-custom-key-handl
 import { terminalEventMatchesOwner } from '../lib/terminal-event-owner-alias'
 import { ensureTerminalSymbolsFont } from '../lib/terminal-fonts'
 import { createTerminalGeometryController } from '../lib/terminal-geometry-controller'
+import {
+  attachTerminalInputClient,
+  createTerminalInputReleaseHandler,
+} from '../lib/terminal-input-attachment'
 import { terminalInputDispatcher } from '../lib/terminal-input-dispatcher'
 import { createTerminalOutputDelivery } from '../lib/terminal-output-delivery'
 import {
@@ -131,9 +135,8 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
           }
           attachedRef.current = true
           geometry.synchronize()
-          if (snapshot.running) {
-            inputClient.markOpen(snapshot.readiness, snapshot.pendingInputBytes)
-          } else inputClient.markUnavailable()
+          if (snapshot.running) attachTerminalInputClient(inputClient, snapshot)
+          else inputClient.markUnavailable()
           if (!snapshot.running) {
             useTerminalStore.getState().applyRuntimeEvent(ownerKey, terminalId, {
               type: 'exited',
@@ -202,14 +205,11 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       if (event.type === 'readiness') {
         setReadiness(event.readiness)
         if (event.readiness.phase === 'ready') {
-          inputClient.markReady(event.readiness)
+          inputClient.markReady(event.readiness, event.inputIncarnation)
         }
         return
       }
       if (event.type === 'closed') {
-        // Main can stop a shell while this pane intentionally remains mounted
-        // (for example during worktree removal). Keep the ordered input client
-        // reusable so Restart can attach the replacement shell.
         attachedRef.current = false
         setReadiness(null)
         setStatus('stopped')
@@ -225,6 +225,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       const wasAttached = attachedRef.current
       attachedRef.current = false
       const rollbackOutput = outputDelivery.reset()
+      const rollbackInput = inputClient.markOpening()
       let snapshot: TerminalAttachResult
       try {
         snapshot = await api.restartTerminal({
@@ -238,6 +239,7 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
         })
       } catch (error) {
         if (cleanedUp) throw error
+        rollbackInput()
         attachedRef.current = wasAttached
         if (wasAttached) geometry.synchronize()
         rollbackOutput()
@@ -260,15 +262,15 @@ export function useTerminalPaneSession(options: TerminalPaneSessionOptions) {
       setStatus('ready')
       attachedRef.current = true
       geometry.synchronize()
-      inputClient.markOpen(snapshot.readiness, snapshot.pendingInputBytes)
+      attachTerminalInputClient(inputClient, snapshot)
       term.focus()
     }
 
-    sendInputNowRef.current = async () => {
-      const result = await api.sendTerminalInputNow(ownerKey, terminalId)
-      if (cleanedUp) return
-      inputClient.applyReleaseResult(result)
-    }
+    sendInputNowRef.current = createTerminalInputReleaseHandler(
+      inputClient,
+      (incarnation) => api.sendTerminalInputNow(ownerKey, terminalId, incarnation),
+      () => !cleanedUp,
+    )
 
     onSearchAddonRef.current(searchAddon)
 

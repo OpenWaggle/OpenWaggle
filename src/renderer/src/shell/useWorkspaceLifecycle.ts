@@ -11,8 +11,8 @@ import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
-import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
+import { useSessionHostRefresh } from './useSessionHostRefresh'
 import {
   type BuiltInShortcutHandlers,
   useUnifiedShortcutCapture,
@@ -75,7 +75,11 @@ export function useWorkspaceLifecycle(): void {
     refreshSession,
     updateSessionTitle,
   } = useChat()
-  const { loadSessions: loadSessionTrees, refreshSessionTree } = useSessions()
+  const {
+    loadSessions: loadSessionTrees,
+    refreshCatalogSessions,
+    refreshSessionTree,
+  } = useSessions()
   const {
     refreshStatus: refreshGitStatus,
     refreshBranches: refreshGitBranches,
@@ -98,6 +102,16 @@ export function useWorkspaceLifecycle(): void {
     void navigate({ to: '/' })
   }
 
+  useSessionHostRefresh({
+    activeSessionId,
+    loadChatSessions,
+    loadSessionTrees,
+    refreshCatalogSessions,
+    refreshSession,
+    refreshSessionTree,
+    updateSessionTitle,
+  })
+
   useEffect(() => {
     void loadChatSessions()
     void loadSessionTrees()
@@ -113,13 +127,6 @@ export function useWorkspaceLifecycle(): void {
   useEffect(() => {
     void loadSyntaxResources(workingPath)
   }, [loadSyntaxResources, workingPath])
-
-  useEffect(() => {
-    return api.onSessionTitleUpdated(({ sessionId, title }) => {
-      updateSessionTitle(sessionId, title)
-    })
-  }, [updateSessionTitle])
-
   useGitRefresh({
     workingPath,
     repositoryPath,

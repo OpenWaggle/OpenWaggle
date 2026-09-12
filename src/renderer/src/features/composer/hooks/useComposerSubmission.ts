@@ -2,16 +2,20 @@ import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
+import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import { useComposerStore } from '../state/composer-store'
+import { useComposerModel } from './useComposerModel'
 
 const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
+const pendingQueuedSubmissions = new Map<string, Promise<boolean>>()
 
 interface UseComposerSubmissionInput {
-  readonly onSend: (payload: AgentSendPayload) => Promise<void> | void
-  readonly onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
+  readonly onSend: (payload: AgentSendPayload) => Promise<void> | void | false
+  readonly onEnqueue: (
+    payload: AgentSendPayload,
+  ) => Promise<boolean | undefined> | boolean | undefined
   readonly isLoading: boolean
   readonly disabled?: boolean
   readonly requiresText: boolean
@@ -33,6 +37,18 @@ interface SubmitBlockInput {
   readonly selectedModel: string
 }
 
+interface ComposerDraftSnapshot {
+  readonly activeDraftContextKey: string | null
+  readonly input: string
+  readonly attachmentIds: readonly string[]
+  readonly wagglePresetId: string | null
+}
+
+type DispatchResult =
+  | { readonly type: 'blocked' }
+  | { readonly type: 'sent' }
+  | { readonly type: 'queued'; readonly completion: Promise<boolean | undefined> }
+
 export function useComposerSubmission({
   onSend,
   onEnqueue,
@@ -52,36 +68,80 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
+  const selectedModel = useComposerModel().model
+  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
 
-  function clearComposerInput() {
+  function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
+    if (snapshot && !isCurrentComposerDraft(snapshot)) {
+      clearInactiveComposerDraft(snapshot)
+      return
+    }
     reset()
-    if (editorRef.current) {
-      clearEditor(editorRef.current)
+    const activeEditor = useComposerStore.getState().lexicalEditor ?? editorRef.current
+    if (activeEditor) {
+      clearEditor(activeEditor)
     }
   }
 
   function dispatchPayload(payload: AgentSendPayload) {
     const block = getSubmitBlock({ payload, disabled, requiresText, projectPath, selectedModel })
-    if (!block) {
-      consumeSendResult(isLoading && allowEnqueue ? onEnqueue(payload) : onSend(payload))
-      return true
+    if (block) {
+      if (block.type === 'toast') onToast?.(block.message)
+      return { type: 'blocked' } satisfies DispatchResult
     }
-    if (block.type === 'toast') onToast?.(block.message)
-    return false
+    if (isLoading && allowEnqueue) {
+      if (isGuiOnlyComposerCommand(payload.text)) {
+        onToast?.(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
+        return { type: 'blocked' } satisfies DispatchResult
+      }
+      const completion = callAsPromise(() => onEnqueue(payload))
+      consumeSendResult(completion)
+      return { type: 'queued', completion } satisfies DispatchResult
+    }
+    const result = onSend(payload)
+    if (result === false) return { type: 'blocked' } satisfies DispatchResult
+    consumeSendResult(result)
+    return { type: 'sent' } satisfies DispatchResult
   }
 
   function submitPayload(payload: AgentSendPayload) {
-    const sent = dispatchPayload(payload)
-    if (!sent) return false
+    const draftSnapshot = captureCurrentComposerDraft()
+    const pendingKey = queuedSubmissionKey(draftSnapshot, payload)
+    const pending = pendingQueuedSubmissions.get(pendingKey)
+    if (pending) return pending
+    const dispatch = dispatchPayload(payload)
+    if (dispatch.type === 'blocked') return false
+    if (dispatch.type === 'sent') {
+      finishSuccessfulSubmission(payload)
+      return true
+    }
+    const result = dispatch.completion.then(
+      (accepted) => {
+        if (accepted === false) return false
+        finishSuccessfulSubmission(payload, draftSnapshot)
+        return true
+      },
+      () => false,
+    )
+    pendingQueuedSubmissions.set(pendingKey, result)
+    void result.then(() => {
+      if (pendingQueuedSubmissions.get(pendingKey) === result) {
+        pendingQueuedSubmissions.delete(pendingKey)
+      }
+    })
+    return result
+  }
+
+  function finishSuccessfulSubmission(
+    payload: AgentSendPayload,
+    draftSnapshot?: ComposerDraftSnapshot,
+  ) {
     if (recordHistory && payload.text) pushHistory(payload.text)
-    if (clearOnSubmit) clearComposerInput()
-    return true
+    if (clearOnSubmit) clearComposerInput(draftSnapshot)
   }
 
   function handleSubmit(text?: string) {
-    submitPayload({
+    return submitPayload({
       text: (text ?? input).trim(),
       thinkingLevel: effectiveThinkingLevel,
       attachments,
@@ -151,6 +211,62 @@ export function useComposerSubmission({
     handleSubmit,
     sendComposed,
     submitCurrentDraft,
+  }
+}
+
+function captureCurrentComposerDraft(): ComposerDraftSnapshot {
+  const state = useComposerStore.getState()
+  return {
+    activeDraftContextKey: state.activeDraftContextKey,
+    input: state.input,
+    attachmentIds: state.attachments.map((attachment) => attachment.id),
+    wagglePresetId: state.selectedWagglePreset?.id ?? null,
+  }
+}
+
+function isCurrentComposerDraft(snapshot: ComposerDraftSnapshot) {
+  const state = useComposerStore.getState()
+  return (
+    state.activeDraftContextKey === snapshot.activeDraftContextKey &&
+    state.input === snapshot.input &&
+    state.selectedWagglePreset?.id === (snapshot.wagglePresetId ?? undefined) &&
+    state.attachments.length === snapshot.attachmentIds.length &&
+    state.attachments.every((attachment, index) => attachment.id === snapshot.attachmentIds[index])
+  )
+}
+
+function clearInactiveComposerDraft(snapshot: ComposerDraftSnapshot) {
+  if (!snapshot.activeDraftContextKey) return
+  const state = useComposerStore.getState()
+  const draft = state.scopedDrafts[snapshot.activeDraftContextKey]
+  if (
+    !draft ||
+    draft.input !== snapshot.input ||
+    draft.wagglePreset?.id !== (snapshot.wagglePresetId ?? undefined) ||
+    draft.attachments.length !== snapshot.attachmentIds.length ||
+    !draft.attachments.every((attachment, index) => attachment.id === snapshot.attachmentIds[index])
+  ) {
+    return
+  }
+  state.clearScopedDraft(snapshot.activeDraftContextKey)
+}
+
+function queuedSubmissionKey(snapshot: ComposerDraftSnapshot, payload: AgentSendPayload) {
+  return JSON.stringify({
+    context: snapshot.activeDraftContextKey,
+    input: snapshot.input,
+    attachments: snapshot.attachmentIds,
+    wagglePresetId: snapshot.wagglePresetId,
+    submittedText: payload.text,
+    thinkingLevel: payload.thinkingLevel,
+  })
+}
+
+function callAsPromise<Result>(action: () => Promise<Result> | Result): Promise<Result> {
+  try {
+    return Promise.resolve(action())
+  } catch (error) {
+    return Promise.reject(error)
   }
 }
 

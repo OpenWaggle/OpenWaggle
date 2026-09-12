@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   TerminalId,
   TerminalInputIntent,
@@ -108,6 +109,7 @@ function waitForPendingSpawns(tasks: ReadonlySet<Promise<void>>) {
 
 function makeRecord(input: TerminalOpenInput, cwd: string): TerminalRecord {
   return {
+    inputIncarnation: randomUUID(),
     key: terminalKeyOf(input.ownerKey, input.terminalId),
     ownerKey: input.ownerKey,
     terminalId: input.terminalId,
@@ -153,7 +155,14 @@ export function makeTerminalRuntime(deps: TerminalRuntimeDeps): TerminalRuntime 
 
   const emitEvent = (record: TerminalRecord, event: TerminalRuntimeEvent) => {
     void Promise.resolve(
-      deps.emit({ ownerKey: record.ownerKey, terminalId: record.terminalId, event }),
+      deps.emit({
+        ownerKey: record.ownerKey,
+        terminalId: record.terminalId,
+        event:
+          event.type === 'readiness'
+            ? { ...event, inputIncarnation: record.inputIncarnation }
+            : event,
+      }),
     ).catch(() => undefined)
   }
 

@@ -16,6 +16,9 @@ interface ModelSelectorProps {
   settings: Settings
   providerModels: ProviderInfo[]
   className?: string
+  disabled?: boolean
+  fallbackLabel?: string
+  title?: string
 }
 
 /**
@@ -97,6 +100,9 @@ export function ModelSelector({
   settings,
   providerModels,
   className,
+  disabled = false,
+  fallbackLabel,
+  title,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -135,6 +141,7 @@ export function ModelSelector({
   }
 
   function triggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (disabled) return
     if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
       event.preventDefault()
       setIsOpen(true)
@@ -148,21 +155,26 @@ export function ModelSelector({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={triggerKeyDown}
+        disabled={disabled}
+        title={title}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         className={cn(
-          'no-drag flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors hover:bg-bg-hover hover:text-text-primary',
+          'no-drag flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors',
+          disabled ? 'cursor-not-allowed opacity-80' : 'hover:bg-bg-hover hover:text-text-primary',
           selectedModel ? 'text-text-secondary' : 'text-text-muted',
         )}
       >
         {selectedModel && <SelectedModelIcon provider={selectedModel.provider} />}
         <span className="max-w-45 truncate text-xs @max-xl/composer-toolbar:max-w-20">
-          {selectedModel?.name ?? 'Select model'}
+          {selectedModel?.name ?? fallbackLabel ?? 'Select model'}
         </span>
-        <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+        {!disabled ? (
+          <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+        ) : null}
       </Button>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <ModelSelectorDropdown
           dropdownRef={dropdownRef}
           models={flatModels}

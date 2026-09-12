@@ -1,38 +1,74 @@
+import type { SessionId } from '@shared/types/brand'
+import type { PinnedSession, PinnedSessionMove } from '@shared/types/session'
 import { type Mock, vi } from 'vitest'
 import type * as SessionDetailsHandler from '../session-details-handler'
+import { sessionDetailsCommandResponse } from './session-details-handler-command-response'
 
-const mocks = vi.hoisted(
-  (): Record<string, Mock> => ({
-    typedHandleMock: vi.fn(),
-    cleanupSessionRunMock: vi.fn(),
-    createRuntimeSessionMock: vi.fn(async (_input: { readonly projectPath: string }) => ({
-      piSessionId: 'pi-session-created',
-      piSessionFile: '/tmp/pi-session-created.jsonl',
-    })),
-    forkRuntimeSessionMock: vi.fn(),
-    persistSnapshotMock: vi.fn(),
-    listSessionDetailsMock: vi.fn(),
-    getSessionDetailMock: vi.fn(),
-    createSessionMock: vi.fn(),
-    deleteSessionMock: vi.fn(),
-    archiveSessionMock: vi.fn(),
-    unarchiveSessionMock: vi.fn(),
-    listArchivedSessionsMock: vi.fn(),
-    updateSessionTitleMock: vi.fn(),
-    setAuthorizationModeMock: vi.fn(),
-    listPinnedSessionsMock: vi.fn(async () => []),
-    pinSessionMock: vi.fn(async () => undefined),
-    unpinSessionMock: vi.fn(async () => undefined),
-    movePinnedSessionMock: vi.fn(async () => undefined),
-    cancelSessionRunsMock: vi.fn(),
-    waitForSessionRunsMock: vi.fn(),
-    clearAgentPhaseMock: vi.fn(),
-    clearStreamBufferMock: vi.fn(),
-    emitRunCompletedMock: vi.fn(),
-    deleteVisualizationSessionMock: vi.fn(),
-    rollbackVisualizationSessionDeletionMock: vi.fn(),
-  }),
-)
+interface SessionDetailsHandlerMocks {
+  readonly typedHandleMock: Mock
+  readonly cleanupSessionRunMock: Mock
+  readonly createRuntimeSessionMock: Mock<
+    (input: { readonly projectPath: string }) => Promise<{
+      readonly piSessionId: string
+      readonly piSessionFile: string
+    }>
+  >
+  readonly forkRuntimeSessionMock: Mock
+  readonly persistSnapshotMock: Mock
+  readonly listSessionDetailsMock: Mock
+  readonly getSessionDetailMock: Mock
+  readonly createSessionMock: Mock
+  readonly deleteSessionMock: Mock
+  readonly archiveSessionMock: Mock
+  readonly unarchiveSessionMock: Mock
+  readonly listArchivedSessionsMock: Mock
+  readonly updateSessionTitleMock: Mock
+  readonly setAuthorizationModeMock: Mock
+  readonly listPinnedSessionsMock: Mock<() => Promise<readonly PinnedSession[]>>
+  readonly pinSessionMock: Mock<(id: SessionId) => Promise<undefined>>
+  readonly unpinSessionMock: Mock<(id: SessionId) => Promise<undefined>>
+  readonly movePinnedSessionMock: Mock<(move: PinnedSessionMove) => Promise<undefined>>
+  readonly cancelSessionRunsMock: Mock
+  readonly waitForSessionRunsMock: Mock
+  readonly clearAgentPhaseMock: Mock
+  readonly clearStreamBufferMock: Mock
+  readonly emitRunCompletedMock: Mock
+  readonly dispatchLocalSessionCommandMock: Mock
+  readonly deleteVisualizationSessionMock: Mock
+  readonly rollbackVisualizationSessionDeletionMock: Mock
+}
+
+const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
+  typedHandleMock: vi.fn(),
+  cleanupSessionRunMock: vi.fn(),
+  createRuntimeSessionMock: vi.fn(async (_input: { readonly projectPath: string }) => ({
+    piSessionId: 'pi-session-created',
+    piSessionFile: '/tmp/pi-session-created.jsonl',
+  })),
+  forkRuntimeSessionMock: vi.fn(),
+  persistSnapshotMock: vi.fn(),
+  listSessionDetailsMock: vi.fn(),
+  getSessionDetailMock: vi.fn(),
+  createSessionMock: vi.fn(),
+  deleteSessionMock: vi.fn(),
+  archiveSessionMock: vi.fn(),
+  unarchiveSessionMock: vi.fn(),
+  listArchivedSessionsMock: vi.fn(),
+  updateSessionTitleMock: vi.fn(),
+  setAuthorizationModeMock: vi.fn(),
+  listPinnedSessionsMock: vi.fn<() => Promise<readonly PinnedSession[]>>(async () => []),
+  pinSessionMock: vi.fn(async (_id: SessionId) => undefined),
+  unpinSessionMock: vi.fn(async (_id: SessionId) => undefined),
+  movePinnedSessionMock: vi.fn(async (_move: PinnedSessionMove) => undefined),
+  cancelSessionRunsMock: vi.fn(),
+  waitForSessionRunsMock: vi.fn(),
+  clearAgentPhaseMock: vi.fn(),
+  clearStreamBufferMock: vi.fn(),
+  emitRunCompletedMock: vi.fn(),
+  dispatchLocalSessionCommandMock: vi.fn(),
+  deleteVisualizationSessionMock: vi.fn(),
+  rollbackVisualizationSessionDeletionMock: vi.fn(),
+}))
 
 export const {
   typedHandleMock,
@@ -50,6 +86,7 @@ export const {
   clearAgentPhaseMock,
   clearStreamBufferMock,
   emitRunCompletedMock,
+  dispatchLocalSessionCommandMock,
   deleteVisualizationSessionMock,
   rollbackVisualizationSessionDeletionMock,
   listArchivedSessionsMock,
@@ -60,26 +97,22 @@ export const {
   unarchiveSessionMock,
   unpinSessionMock,
   updateSessionTitleMock,
-} = mocks
+}: SessionDetailsHandlerMocks = mocks
 
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
-
-vi.mock('../../agent/session-cleanup', () => ({
-  cleanupSessionRun: cleanupSessionRunMock,
-}))
-
+vi.mock('../typed-ipc', () => ({ hostHandle: typedHandleMock }))
+vi.mock('../../agent/session-cleanup', () => ({ cleanupSessionRun: cleanupSessionRunMock }))
 vi.mock('../active-agent-runs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../active-agent-runs')>()),
   cancelSessionRuns: cancelSessionRunsMock,
   waitForSessionRuns: waitForSessionRunsMock,
 }))
-
 vi.mock('../../utils/stream-bridge', () => ({
   clearAgentPhase: clearAgentPhaseMock,
   clearStreamBuffer: clearStreamBufferMock,
   emitRunCompleted: emitRunCompletedMock,
+}))
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  dispatchLocalSessionCommand: dispatchLocalSessionCommandMock,
 }))
 
 export function resetSessionDetailsHandlerMocks() {
@@ -94,6 +127,7 @@ export function resetSessionDetailsHandlerMocks() {
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
   waitForSessionRunsMock.mockResolvedValue(true)
+  dispatchLocalSessionCommandMock.mockImplementation(sessionDetailsCommandResponse)
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

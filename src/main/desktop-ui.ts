@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { closeSync, openSync, readdirSync } from 'node:fs'
+import { devNull } from 'node:os'
 import type {
   BaseWindow,
   BaseWindowConstructorOptions,
@@ -13,6 +15,7 @@ import type {
 } from 'electron'
 import * as Electron from 'electron'
 import { env, getSafeChildEnv } from './env'
+import { launchWindowsHeadlessProcess } from './windows-headless-process'
 
 export class AutomationDesktopUiError extends Error {
   constructor(api: string) {
@@ -175,15 +178,68 @@ export function trashItem(targetPath: string) {
   return Electron.shell.trashItem(targetPath)
 }
 
-export function launchExternalApplication(command: string, args: readonly string[]): Promise<void> {
-  assertExternalApplicationLaunchAllowed()
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      env: getSafeChildEnv(),
-    })
+const MAX_DETACHED_DESCRIPTOR = 65_535
+const LAST_CONTROL_DESCRIPTOR = 4
+const STANDARD_IO_DESCRIPTOR_COUNT = 3
+
+function isolatedLinuxStdio(ownedDescriptors: Set<number>): Array<'ignore' | number> {
+  let nullDescriptor = openSync(devNull, 'r+')
+  ownedDescriptors.add(nullDescriptor)
+  let lastDescriptor = LAST_CONTROL_DESCRIPTOR
+  for (const entry of [...readdirSync('/proc/self/fd'), String(nullDescriptor)]) {
+    const descriptor = Number(entry)
+    if (
+      !/^\d+$/u.test(entry) ||
+      !Number.isSafeInteger(descriptor) ||
+      descriptor > MAX_DETACHED_DESCRIPTOR
+    ) {
+      throw new Error(
+        'Cannot isolate detached process descriptors: invalid or excessive descriptor.',
+      )
+    }
+    lastDescriptor = Math.max(lastDescriptor, descriptor)
+  }
+  // libuv duplicates low source FDs above stdio_count for every higher destination.
+  // Reserve a high source through the holes instead, avoiding transient EMFILE even
+  // when the existing snapshot is sparse and close to the process descriptor limit.
+  while (nullDescriptor < lastDescriptor) {
+    nullDescriptor = openSync(devNull, 'r+')
+    ownedDescriptors.add(nullDescriptor)
+  }
+  // Only the high source must survive until spawn. Free the reserved holes first so
+  // libuv can allocate its own launch pipe even near the process descriptor limit.
+  for (const descriptor of ownedDescriptors) {
+    if (descriptor === nullDescriptor) continue
+    closeSync(descriptor)
+    ownedDescriptors.delete(descriptor)
+  }
+  // Cover holes too: another native thread can reuse one before spawn. A descriptor
+  // opened above this synchronous snapshot remains a Node spawn API limitation.
+  return Array.from({ length: lastDescriptor + 1 }, (_, index) =>
+    index < STANDARD_IO_DESCRIPTOR_COUNT ? 'ignore' : nullDescriptor,
+  )
+}
+
+function launchDetachedProcess(input: {
+  readonly command: string
+  readonly args: readonly string[]
+  readonly environment: Readonly<Record<string, string | undefined>>
+}) {
+  return new Promise<void>((resolve, reject) => {
+    // Linux Electron can retain client pipes and Chromium sockets even with UV_IGNORE.
+    // Replace the parent snapshot before exec; never close the new Host's own handles.
+    const ownedDescriptors = new Set<number>()
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(input.command, [...input.args], {
+        detached: true,
+        stdio: process.platform === 'linux' ? isolatedLinuxStdio(ownedDescriptors) : 'ignore',
+        windowsHide: true,
+        env: { ...input.environment },
+      })
+    } finally {
+      for (const descriptor of ownedDescriptors) closeSync(descriptor)
+    }
     const handleError = (error: Error) => {
       child.removeListener('spawn', handleSpawn)
       reject(error)
@@ -196,6 +252,27 @@ export function launchExternalApplication(command: string, args: readonly string
     child.once('error', handleError)
     child.once('spawn', handleSpawn)
   })
+}
+
+/**
+ * Launch an OpenWaggle-owned process that is guaranteed not to create native UI.
+ *
+ * Unlike external applications, a headless authority such as the Session Host must remain
+ * available during non-disruptive automation. Keeping detached process creation here makes that
+ * exception explicit and preserves the repository's fail-closed desktop UI boundary.
+ */
+export function launchHeadlessBackgroundProcess(input: {
+  readonly command: string
+  readonly args: readonly string[]
+  readonly environment: Readonly<Record<string, string | undefined>>
+}): Promise<void> {
+  if (process.platform === 'win32') return launchWindowsHeadlessProcess(input)
+  return launchDetachedProcess(input)
+}
+
+export function launchExternalApplication(command: string, args: readonly string[]): Promise<void> {
+  assertExternalApplicationLaunchAllowed()
+  return launchDetachedProcess({ command, args, environment: getSafeChildEnv() })
 }
 
 export function showErrorBox(title: string, content: string) {

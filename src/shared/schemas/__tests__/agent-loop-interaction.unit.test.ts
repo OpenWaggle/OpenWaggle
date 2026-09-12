@@ -1,5 +1,6 @@
 import { Schema } from '@shared/schema'
 import { agentLoopResponseInputSchema } from '@shared/schemas/agent-loop-interaction'
+import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
 import { AGENT_AUTHORIZATION_DECISION_SCOPES } from '@shared/types/agent-authorization-grants'
 import { describe, expect, it } from 'vitest'
 
@@ -58,5 +59,28 @@ describe('agentLoopResponseInputSchema', () => {
       decode({ ...envelope, kind: 'custom', response: { kind: 'custom', value: { ok: true } } })
         .response,
     ).toEqual({ kind: 'custom', value: { ok: true } })
+  })
+
+  it('rejects oversized interaction text and custom JSON', () => {
+    expect(() =>
+      decode({
+        ...envelope,
+        kind: 'input',
+        response: {
+          kind: 'input',
+          value: 'é'.repeat(SESSION_INPUT_LIMITS.persistedTextBytes / 2 + 1),
+        },
+      }),
+    ).toThrow()
+    expect(() =>
+      decode({
+        ...envelope,
+        kind: 'custom',
+        response: {
+          kind: 'custom',
+          value: { text: 'x'.repeat(SESSION_INPUT_LIMITS.jsonLength) },
+        },
+      }),
+    ).toThrow()
   })
 })

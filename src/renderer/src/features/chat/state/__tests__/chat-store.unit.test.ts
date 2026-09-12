@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionCatalogPage, SessionDetail, SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
 import {
@@ -13,8 +13,11 @@ import { useChatStore } from '../chat-store'
 // ── Mocks ────────────────────────────────────────────────────
 
 const mockApi = {
-  listSessionDetails: vi.fn(),
-  listSessions: vi.fn(async (..._args: unknown[]) => []),
+  listSessionCatalogPage: vi.fn(
+    async (..._args: [boolean, number, string?]): Promise<SessionCatalogPage> => ({ sessions: [] }),
+  ),
+  listPinnedSessions: vi.fn(async () => []),
+  listSessionsByIds: vi.fn(async (_ids: readonly SessionId[]): Promise<SessionSummary[]> => []),
   getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
@@ -24,8 +27,10 @@ const mockApi = {
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
-    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listSessionCatalogPage: (archived: boolean, limit: number, cursor?: string) =>
+      mockApi.listSessionCatalogPage(archived, limit, cursor),
+    listPinnedSessions: () => mockApi.listPinnedSessions(),
+    listSessionsByIds: (ids: readonly SessionId[]) => mockApi.listSessionsByIds(ids),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),
@@ -247,7 +252,7 @@ describe('useChatStore unit', () => {
       useChatStore.getState().updateSessionTitle(inactiveId, 'Inactive renamed')
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockApi.listSessions).toHaveBeenCalled()
+      expect(mockApi.listSessionCatalogPage).toHaveBeenCalled()
       expect(mockApi.getSessionTree).not.toHaveBeenCalledWith(inactiveId)
     })
 

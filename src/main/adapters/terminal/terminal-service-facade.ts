@@ -72,8 +72,8 @@ export function makeTerminalServiceFacade(
       identity?: TerminalInputIdentity,
       intent?: TerminalInputIntent,
     ) => writeTerminalAction(context, ownerKey, terminalId, data, identity, intent),
-    sendInputNow: (ownerKey: TerminalOwnerKey, terminalId: TerminalId) =>
-      forceReleaseTerminalInputAction(context, ownerKey, terminalId),
+    sendInputNow: (ownerKey: TerminalOwnerKey, terminalId: TerminalId, incarnation?: string) =>
+      forceReleaseTerminalInputAction(context, ownerKey, terminalId, incarnation),
     acknowledgeOutput: (ownerKey, terminalId, outputGeneration, endOffset) =>
       acknowledgeTerminalOutputAction(context, ownerKey, terminalId, outputGeneration, endOffset),
     migrateOwner: (fromOwnerKey, toOwnerKey) =>

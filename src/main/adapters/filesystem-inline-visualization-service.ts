@@ -60,6 +60,19 @@ async function resolveAuthorizedSource(
   return { realSourcePath, device: sourceLstat.dev, inode: sourceLstat.ino }
 }
 
+async function resolveSessionSource(
+  userDataPath: string,
+  input: Parameters<InlineVisualizationServiceShape['readSource']>[0],
+) {
+  if (!input.readOnly) {
+    await recoverVisualizationSessionForSource(userDataPath, input.sessionId, input.sourcePath)
+  }
+  return resolveAuthorizedSource(input.sourcePath, [
+    sessionDirectory(userDataPath, input.sessionId),
+    ...input.workspaceRoots,
+  ])
+}
+
 async function readVisualizationSource(sourceHandle: fs.FileHandle, initialSize: number) {
   const maximumReadBytes = MAX_VISUALIZATION_SOURCE_BYTES + 1
   let buffer = Buffer.allocUnsafe(
@@ -128,18 +141,14 @@ export function makeFilesystemInlineVisualizationService(
         },
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
-    readSource: ({ sessionId, sourcePath, workspaceRoots }) =>
+    readSource: (input) =>
       Effect.promise(async (): Promise<InlineVisualizationReadResult> => {
         try {
-          const filename = path.basename(sourcePath)
+          const filename = path.basename(input.sourcePath)
           if (!VISUALIZATION_FILENAME_PATTERN.test(filename)) {
             return { status: 'unavailable', reason: 'invalid-path' }
           }
-          await recoverVisualizationSessionForSource(userDataPath, sessionId, sourcePath)
-          const resolved = await resolveAuthorizedSource(sourcePath, [
-            sessionDirectory(userDataPath, sessionId),
-            ...workspaceRoots,
-          ])
+          const resolved = await resolveSessionSource(userDataPath, input)
           if (!resolved) return { status: 'unavailable', reason: 'invalid-path' }
           await dependencies.beforeSourceOpen?.()
           const sourceHandle = await fs.open(

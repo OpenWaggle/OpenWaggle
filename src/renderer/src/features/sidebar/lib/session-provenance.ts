@@ -40,19 +40,9 @@ function visibleBranchCount(session: SessionSummary) {
   return branches.filter((branch) => branch.archived !== true).length
 }
 
-/**
- * Where a cloned session's origin would come from.
- *
- * TODO(#97-followup): cloning is real, but the lineage is never persisted on a session.
- * `sourceSessionId` exists only inside MCP worktree derivation
- * (src/main/openwaggle-mcp-session-derivation.ts) and never reaches `SessionSummary`.
- * Recording it needs a migration adding `sessions.cloned_from_session_id` plus projection
- * through the session summary. Until then this returns null, so the row renders no
- * cloned-from glyph rather than guessing. ADR 0020 explains why the render path exists
- * anyway: the data is missing, the capability is not.
- */
-function clonedFromSessionId(_session: SessionSummary) {
-  return null
+function clonedFromSessionDescription(session: SessionSummary) {
+  if (!session.derivation) return null
+  return session.derivation.sourceTitle ?? String(session.derivation.sourceSessionId)
 }
 
 /**
@@ -78,7 +68,7 @@ export function buildSessionProvenance(
     indicators.push({ kind: 'worktree', description: 'Runs in its own worktree' })
   }
 
-  const clonedFrom = clonedFromSessionId(session)
+  const clonedFrom = clonedFromSessionDescription(session)
   if (clonedFrom !== null) {
     indicators.push({ kind: 'cloned-from', description: `Cloned from ${clonedFrom}` })
   }
@@ -116,6 +106,7 @@ export function buildSessionProvenance(
  */
 export function describeSessionRow(input: {
   readonly indicators: readonly SessionProvenanceIndicator[]
+  readonly lineageDescription: string | null
   readonly projectLabel: string
   readonly stateLabel: string | null
   readonly gitDivergence: string | null
@@ -124,6 +115,7 @@ export function describeSessionRow(input: {
   const parts = [
     input.projectLabel,
     input.stateLabel,
+    input.lineageDescription,
     ...input.indicators.map((indicator) => indicator.description),
     input.gitDivergence,
     input.hasInterruptedRun ? 'A run was interrupted in this session' : null,

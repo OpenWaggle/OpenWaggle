@@ -1,6 +1,12 @@
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
+import { createAgentRunContextExtension } from '../agent-run-context-extension'
+import { createDelegationSpecificationUpdateExtension } from '../delegation-specification-update-extension'
+import { createOrchestrationUpdateExtension } from '../orchestration-update-extension'
+import { createPeerAgentReportExtension } from '../peer-agent-report-extension'
 import { buildPiRunNewMessages } from '../pi-run-result'
+import { createRunAttributionExtension } from '../run-attribution-extension'
+import { registerPiLiveRun } from './pi-live-run-registry'
 import {
   createPiRunSessionRuntime,
   promptPiSession,
@@ -9,6 +15,24 @@ import {
 import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint } from './turn-capture'
+
+function runtimeResources(
+  input: {
+    readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+    readonly systemPromptAppendices?: readonly string[]
+  },
+  extensionFactories: readonly ExtensionFactory[],
+) {
+  return {
+    extensionFactories: [...extensionFactories],
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
+  }
+}
 
 /**
  * Runs a classic (non-Waggle) Pi turn.
@@ -25,38 +49,78 @@ export async function runPiSession(
     PiRuntimeExtensionIsolationInput & {
       readonly workingPath: string
       readonly visualizationDirectory?: string
+      readonly mcpExtensionFactory?: ExtensionFactory
+      readonly sessionsExtensionFactory?: ExtensionFactory
       readonly extensionFactories?: readonly ExtensionFactory[]
       readonly trustedExtensionFactories?: readonly ExtensionFactory[]
       readonly systemPromptAppendices?: readonly string[]
     },
 ) {
   const projectPath = input.workingPath
+  const peerReports = createPeerAgentReportExtension({
+    runId: input.runId,
+    pendingReports: input.peerAgentReports ?? [],
+    onDelivered: input.onPeerAgentReportsDelivered ?? (() => {}),
+  })
+  const orchestrationUpdates = createOrchestrationUpdateExtension({
+    runId: input.runId,
+    pendingUpdates: input.orchestrationUpdates ?? [],
+    onDelivered: input.onOrchestrationUpdatesDelivered ?? (() => {}),
+  })
+  const specificationUpdates = createDelegationSpecificationUpdateExtension({
+    runId: input.runId,
+    pendingUpdates: input.delegationSpecificationUpdates ?? [],
+    onDelivered: input.onDelegationSpecificationUpdatesDelivered ?? (() => {}),
+  })
+  const extensionFactories = [
+    createRunAttributionExtension(input.runId),
+    peerReports.factory,
+    orchestrationUpdates.factory,
+    specificationUpdates.factory,
+    input.sessionsExtensionFactory,
+    input.mcpExtensionFactory,
+    ...(input.extensionFactories ?? []),
+    ...(input.sessionIdentityContext
+      ? [
+          createAgentRunContextExtension({
+            sessionIdentityContext: input.sessionIdentityContext,
+            ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
+            ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
+          }),
+        ]
+      : []),
+  ].filter((factory): factory is ExtensionFactory => factory !== undefined)
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,
     runId: input.runId,
     modelReference: input.model,
+    ...(input.runAuthorizationOverride
+      ? { runAuthorizationOverride: input.runAuthorizationOverride }
+      : {}),
+    ...(input.authorityCallerId ? { authorityCallerId: input.authorityCallerId } : {}),
     compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: input.onEvent,
     ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
+    skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
-    ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
-    ...(input.trustedExtensionFactories
-      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
-      : {}),
-    ...(input.systemPromptAppendices
-      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
-      : {}),
+    ...runtimeResources(input, extensionFactories),
   })
 
+  const unregisterLiveRun = registerPiLiveRun({
+    runId: input.runId,
+    session,
+    model,
+    signal: input.signal,
+  })
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
@@ -79,6 +143,11 @@ export async function runPiSession(
     preAbortWarning: 'Failed to abort pre-cancelled Pi session cleanly',
     operation: () => promptPiSession(session, model, input.payload),
     buildErrorMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
+  }).finally(() => {
+    peerReports.close()
+    orchestrationUpdates.close()
+    specificationUpdates.close()
+    unregisterLiveRun()
   })
 
   // Best-effort per-turn checkpoint (WS7); never affects the run result.

@@ -17,6 +17,7 @@ import {
   sessionSummaryColumns,
   visibleNodeIdForHead,
 } from './hydration'
+import { attachSessionLineage, loadSessionLineageRows } from './session-list'
 import type {
   SessionActiveRunRow,
   SessionBranchRow,
@@ -33,7 +34,11 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
       const sessionRow = data.sessionRows[EMPTY_INDEX]
       if (!sessionRow) return null
 
-      const session = hydrateSessionSummary(sessionRow)
+      const session = attachSessionLineage(
+        [hydrateSessionSummary(sessionRow)],
+        yield* loadSessionLineageRows(sql, [String(sessionId)]),
+      )[EMPTY_INDEX]
+      if (!session) return null
       const nodes = buildSessionNodes(data.nodeRows)
       const interruptedRunByBranchId = interruptedRunsByBranchId(data.activeRunRows)
 

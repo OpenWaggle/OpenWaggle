@@ -23,7 +23,7 @@ const {
   updateProjectActionMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({ typedHandle: typedHandleMock }))
+vi.mock('../typed-ipc', () => ({ hostHandle: typedHandleMock }))
 vi.mock('../../config/project-actions', () => ({
   addProjectAction: addProjectActionMock,
   deleteProjectAction: deleteProjectActionMock,

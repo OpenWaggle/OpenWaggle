@@ -1,12 +1,13 @@
 import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult } from '@shared/types/git'
-import type { SessionDetail } from '@shared/types/session'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DesktopOperationIndeterminateError } from '../../../../application/desktop-service-errors'
 import type {
   ClaimedSessionWorktreeSetup,
   PendingSessionWorktreeSetup,
 } from '../../../../store/session-details'
 import { reportAcceptedSetupActionProgress } from '../project-setup-action-progress'
+import { setupSession as session } from './session-worktree-birth-test-helpers'
 
 const {
   adoptSessionWorktreeForSetupMock,
@@ -42,6 +43,8 @@ vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
 vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
 vi.mock('../../../git/worktree', () => ({ createGitWorktree: createGitWorktreeMock }))
 vi.mock('../../../../store/session-details', () => ({
+  getBoundWorkspaceResource: vi.fn(async () => null),
+  validateSessionWorktreeBirthAuthority: vi.fn(async () => undefined),
   adoptSessionWorktreeForSetup: adoptSessionWorktreeForSetupMock,
   claimSessionWorktreeSetup: claimSessionWorktreeSetupMock,
   completeSessionWorktreeSetup: completeSessionWorktreeSetupMock,
@@ -52,19 +55,6 @@ vi.mock('../../../../store/session-details', () => ({
 }))
 
 const { ensureSessionWorktreeProjectPath } = await import('../session-worktree-birth')
-
-function session(extra: Partial<SessionDetail> = {}): SessionDetail {
-  return {
-    id: SessionId('setup-session'),
-    title: 'Setup session',
-    projectPath: '/repo',
-    environmentMode: 'worktree',
-    messages: [],
-    createdAt: 1,
-    updatedAt: 1,
-    ...extra,
-  }
-}
 
 describe('new-worktree post-persistence launch hook', () => {
   beforeEach(() => {
@@ -154,6 +144,26 @@ describe('new-worktree post-persistence launch hook', () => {
     expect(releaseSessionWorktreeSetupClaimMock).toHaveBeenCalledOnce()
   })
 
+  it('retains the generation claim when GUI setup dispatch has an uncertain outcome', async () => {
+    const onProgress = vi.fn()
+    await ensureSessionWorktreeProjectPath(session(), {
+      onProgress,
+      onSetupPending: async () => {
+        throw new AggregateError(
+          [new DesktopOperationIndeterminateError()],
+          'Desktop transport lost',
+        )
+      },
+    })
+    expect(releaseSessionWorktreeSetupClaimMock).not.toHaveBeenCalled()
+    expect(completeSessionWorktreeSetupMock).not.toHaveBeenCalled()
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: [expect.stringContaining('interrupted')],
+      }),
+    )
+  })
+
   it('shares concurrent birth and launch work without duplicating setup', async () => {
     const onSetupPending = vi.fn(async () => undefined)
     const current = session()
@@ -217,7 +227,12 @@ describe('new-worktree post-persistence launch hook', () => {
     const onSetupPending = vi.fn(async () => undefined)
     await ensureSessionWorktreeProjectPath(session(), { onSetupPending })
 
-    expect(setSessionWorktreeMock).not.toHaveBeenCalled()
+    expect(setSessionWorktreeMock).toHaveBeenCalledWith(
+      SessionId('setup-session'),
+      'worktree',
+      worktreePath,
+      undefined,
+    )
     expect(adoptSessionWorktreeForSetupMock).toHaveBeenCalledWith(
       SessionId('setup-session'),
       expect.stringContaining('/.openwaggle/worktrees/repo/setup-session'),

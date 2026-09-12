@@ -1,10 +1,43 @@
 import * as Effect from 'effect/Effect'
-import { classifyAgentError } from '../../agent/error-classifier'
+import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
 import type { AgentKernelRunResult } from '../../ports/agent-kernel-service'
 import { isRunCancellation } from '../run-cancellation'
 
 const logger = createLogger('waggle-run-outcome')
+
+export function waggleValidationErrorOutcome() {
+  return {
+    outcome: 'validation-error' as const,
+    message: 'Invalid Waggle mode configuration',
+    code: 'validation-error',
+  }
+}
+
+export function waggleSessionNotFoundOutcome() {
+  const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
+  return {
+    outcome: 'not-found' as const,
+    message: errorInfo.userMessage,
+    code: errorInfo.code,
+  }
+}
+
+export function waggleNoProjectOutcome() {
+  return {
+    outcome: 'no-project' as const,
+    message: 'Please select a project folder before starting Waggle mode.',
+    code: 'no-project',
+  }
+}
+
+export function waggleNoInheritedModelOutcome() {
+  return {
+    outcome: 'validation-error' as const,
+    message: 'Select a model before starting Waggle mode.',
+    code: 'validation-error',
+  }
+}
 
 interface WaggleRunFailure {
   readonly error: unknown

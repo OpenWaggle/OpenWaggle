@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
-  BASH_CANDIDATE,
+  assertNativeAdmissionMock,
   existingShellsMock,
   fakePty,
   getInteractiveTerminalEnvMock,
@@ -9,41 +10,14 @@ import {
   prepareTerminalShellLaunchMock,
   ptyExitListeners,
   readProcessMetadataMock,
+  resetPtyRunnerHarness,
   SPAWN_REQUEST,
   spawnMock,
   ZSH_CANDIDATE,
 } from './terminal-pty-runner-test-harness'
 
 describe('makePtyRunner', () => {
-  beforeEach(() => {
-    spawnMock.mockReset()
-    getInteractiveTerminalEnvMock.mockReset()
-    existingShellsMock.mockReset()
-    integrationCleanupMock.mockReset()
-    integrationCleanupMock.mockResolvedValue()
-    readProcessMetadataMock.mockReset()
-    readProcessMetadataMock.mockResolvedValue({
-      pid: 4321,
-      startedAt: 'Fri Sep 4 22:18:37 2026',
-      tty: null,
-    })
-    prepareTerminalShellLaunchMock.mockReset()
-    ptyExitListeners.length = 0
-    prepareTerminalShellLaunchMock.mockImplementation(
-      async (candidate, environment, _readinessNonce) => ({
-        args: candidate.args,
-        environment: { ...environment },
-        integrated: true,
-        cleanup: integrationCleanupMock,
-      }),
-    )
-    getInteractiveTerminalEnvMock.mockReturnValue({
-      PATH: '/usr/bin:/bin',
-      TERM: 'xterm-256color',
-      TERM_PROGRAM: 'OpenWaggle',
-    })
-    existingShellsMock.mockReturnValue([ZSH_CANDIDATE, BASH_CANDIDATE])
-  })
+  beforeEach(resetPtyRunnerHarness)
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -68,6 +42,19 @@ describe('makePtyRunner', () => {
       expect.any(Object),
       SPAWN_REQUEST.readinessNonce,
     )
+  })
+
+  it('rejects quarantined native admission at the spawn boundary and cleans prepared shell files', async () => {
+    spawnMock.mockReturnValue(fakePty())
+    assertNativeAdmissionMock.mockImplementation(() => {
+      throw new Error('Native ownership is quarantined')
+    })
+    await expect(makeRunner().spawn(SPAWN_REQUEST)).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({ message: 'Native ownership is quarantined' }),
+    })
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(integrationCleanupMock).toHaveBeenCalledOnce()
   })
 
   it.each([null, {}, { processInfos: () => [] }])(

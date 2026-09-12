@@ -229,6 +229,8 @@ describe('preload api surface contract', () => {
     const EVENT_METHODS = [
       'onAgentEvent',
       'onAgentPhase',
+      'onSessionHostEvent',
+      'onSessionHostResyncRequired',
       'onRunCompleted',
       'onPrepareAttachmentFromTextProgress',
       'onTerminalEvent',

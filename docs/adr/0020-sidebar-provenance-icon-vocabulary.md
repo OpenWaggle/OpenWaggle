@@ -13,6 +13,8 @@ The provenance vocabulary is fixed as:
 | Cloned from another session | `CornerDownRight` | not yet recorded, see below |
 | Conversation branches (count) | `ListTree` | `SessionSummary.branches` |
 | Terminal process running | `Terminal` | not yet recorded per session, see below |
+| Queen Session | `ChessQueen` | root Session with durable Spawn lineage |
+| Worker Session | `Pickaxe` | `SessionSummary.parentSessionId` |
 | Commits ahead, commits behind | `↑n`, `↓n` | `GitStatusSummary.ahead`, `.behind` |
 
 ## Context
@@ -36,12 +38,13 @@ This bit immediately. The first vocabulary used `GitFork` for a cloned session a
 - **`CornerDownRight` for a cloned session**, not `Copy` or `GitFork`. `Copy` says "duplicate a file" and `GitFork` says "forked repository". Neither says "this session descends from another session". `CornerDownRight` reads as descent from the thing above, is two strokes so it survives 10px, and shares its silhouette with nothing else in either family.
 - **`ListTree` for conversation branches**, not `Split` or `GitBranch`. It reads as a tree of messages and carries no git connotation, which is what `CONTEXT.md` requires of anything representing a **SessionBranch**. A count accompanies it rather than names, because the row has no room for names and the count is the part you act on.
 - **`Terminal` for a running terminal.** `SquareTerminal` holds its shape better at this size and was recommended, but the maintainer chose `Terminal` to match the glyph used elsewhere in the product and in T3Code.
+- **`ChessQueen` for the Queen Session and `Pickaxe` for every Worker Session.** The chess queen identifies the one root that originated a Hive, while the pickaxe communicates work without reusing the bee silhouette already reserved for Waggle status. Both are standard Lucide glyphs, remain distinct from the branch, tree, worktree, clone, terminal, and status families at 10px, and translate the user-facing and agent-facing Hive vocabulary directly into the sidebar. A Worker that spawns further Workers remains a `Pickaxe`; it never gains `ChessQueen`, because parent responsibility does not change its role in the Hive. When a Queen or Worker is itself a parent, the number following its role glyph counts all of its direct Worker Sessions, including active, completed, and manually archived Sessions. It does not count the complete descendant Hive or fluctuate with runtime or organizational state. `UsersRound` / `UserRound` were superseded because they described local parent/child structure but could not distinguish the one Hive root from recursive Worker parents.
 
 ## Consequences
 
 Provenance icons are muted and never coloured, so a row's colour continues to mean one thing, what the session needs. Every provenance icon carries a `title` and an `aria-label` naming the concept and its value, so assistive technology reads the second line even though most of these concepts render no text.
 
-Adding a provenance concept later is constrained. The new glyph must not resemble any of the five above at 10px. That is the intended cost, and the set is small enough that you can check the constraint by looking at it.
+Adding a provenance concept later is constrained. The new glyph must not resemble any of the seven above at 10px. That is the intended cost, and the set is small enough that you can check the constraint by looking at it.
 
 ### `Globe` is reserved for a future remote environment mode
 

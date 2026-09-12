@@ -174,6 +174,10 @@ export interface IpcIntegrationInvokeChannelMap
     args: []
     return: string
   }
+  'app:get-native-admission-issue': {
+    args: []
+    return: string | null
+  }
   // Waggle mode
   'agent:send-waggle-message': {
     args: [

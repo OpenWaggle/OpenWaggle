@@ -4,6 +4,7 @@ import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { SessionEnvironmentMode } from './git'
 import type { SupportedModelId } from './llm'
+import type { DelegationState } from './session-collaboration'
 import type { WaggleConfig } from './waggle'
 
 export type SessionNodeKind =
@@ -22,6 +23,39 @@ export type SessionNodeKind =
 export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
+export interface SessionLineageSummary {
+  readonly role: 'queen' | 'worker' | 'independent'
+  readonly parentSessionId?: SessionId
+  readonly parentTitle?: string
+  readonly hiveRootSessionId?: SessionId
+  readonly directWorkerCount: number
+  readonly activeDirectWorkerCount: number
+  readonly agentDefinitionName?: string
+  readonly delegationId?: string
+  readonly delegationState?: DelegationState
+}
+
+export interface SessionDerivationSummary {
+  readonly sourceSessionId: SessionId
+  readonly sourceTitle?: string
+  readonly sourceNodeId: SessionNodeId
+  readonly position: 'before' | 'at'
+}
+
+/** Durable state of the most recently updated Run for a Session. */
+export interface SessionLatestRunSummary {
+  readonly status:
+    | 'starting'
+    | 'active'
+    | 'stopping'
+    | 'completed'
+    | 'failed'
+    | 'interrupted'
+    | 'interrupted-by-host-loss'
+    | 'interrupted-by-interaction-timeout'
+  readonly updatedAt: number
+}
+
 export interface SessionSummary {
   readonly id: SessionId
   readonly title: string
@@ -37,6 +71,25 @@ export interface SessionSummary {
   /** Resolves this session's working path, so per-session git state can be shown in lists. */
   readonly environmentMode?: SessionEnvironmentMode
   readonly worktreePath?: string | null
+  readonly lineage?: SessionLineageSummary
+  readonly derivation?: SessionDerivationSummary
+  /** Persisted Run settlement used to rebuild renderer status after reconnect. */
+  readonly latestRun?: SessionLatestRunSummary
+  /** Creation time of the oldest outstanding non-notify agent interaction. */
+  readonly pendingInteractionAt?: number
+}
+
+/** Opaque keyset page used by the GUI Session catalog. */
+export interface SessionCatalogPage {
+  readonly sessions: readonly SessionSummary[]
+  readonly nextCursor?: string
+}
+
+/** A focused Session, its parent, and one keyset page of its direct Workers. */
+export interface HiveSessionCatalogPage {
+  readonly context: readonly SessionSummary[]
+  readonly workers: readonly SessionSummary[]
+  readonly nextCursor?: string
 }
 
 export interface SessionInterruptedRun {
@@ -69,6 +122,8 @@ export interface SessionDetail {
   readonly worktreeStartFromOrigin?: boolean
   /** Authorization mode used by this session's runs. */
   readonly authorizationMode?: AgentAuthorizationMode
+  /** Immutable model selected by this Session's persisted execution profile. */
+  readonly executionModel?: SupportedModelId
 }
 
 /** Per-session worktree birth plan persisted by the composer strip (WS1b). */
@@ -121,12 +176,15 @@ export interface SessionTreeUiState {
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly expandedNodeIdsTouched: boolean
   readonly branchesSidebarCollapsed: boolean
+  /** Durable read receipt for terminal Run state. */
+  readonly lastVisitedAt?: number
   readonly updatedAt: number
 }
 
 export interface SessionTreeUiStatePatch {
   readonly expandedNodeIds?: readonly SessionNodeId[]
   readonly branchesSidebarCollapsed?: boolean
+  readonly lastVisitedAt?: number
 }
 
 /**

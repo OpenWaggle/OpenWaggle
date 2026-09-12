@@ -2,12 +2,14 @@ import type { PreparedAttachment } from '@shared/types/agent'
 import { useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { useComposerInputGuard } from './useComposerInputGuard'
 
 const logger = createRendererLogger('file-attachment')
 
 const MAX_ATTACHMENTS = 5
 
 interface UseFileAttachmentParams {
+  readonly disabled?: boolean
   readonly projectPath: string | null
   readonly attachments: readonly PreparedAttachment[]
   readonly preparingPendingCount: number
@@ -47,19 +49,23 @@ async function prepareAndAttach(
   addAttachments: (attachments: PreparedAttachment[]) => void,
   setAttachmentError: (error: string | null) => void,
   onToast: ((message: string) => void) | undefined,
+  isCurrentDraft: () => boolean,
 ) {
   try {
     setAttachmentError(null)
     const prepared = await api.prepareAttachments(projectPath, files)
+    if (!isCurrentDraft()) return
     if (prepared.length === 0) return
     addAttachments(prepared)
     onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
   } catch (err) {
+    if (!isCurrentDraft()) return
     reportAttachmentError(err, setAttachmentError, onToast)
   }
 }
 
 export function useFileAttachment({
+  disabled = false,
   projectPath,
   attachments,
   preparingPendingCount,
@@ -69,6 +75,7 @@ export function useFileAttachment({
 }: UseFileAttachmentParams): UseFileAttachmentResult {
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounterRef = useRef(0)
+  const captureInputGuard = useComposerInputGuard(disabled)
 
   const usedSlots = attachments.length + preparingPendingCount
   const remainingSlots = Math.max(0, MAX_ATTACHMENTS - usedSlots)
@@ -76,6 +83,7 @@ export function useFileAttachment({
 
   function handleDragEnter(event: React.DragEvent) {
     event.preventDefault()
+    if (disabled) return
     dragCounterRef.current++
     if (event.dataTransfer.types.includes('Files')) {
       setIsDragOver(true)
@@ -84,7 +92,7 @@ export function useFileAttachment({
 
   function handleDragLeave(event: React.DragEvent) {
     event.preventDefault()
-    dragCounterRef.current--
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
     if (dragCounterRef.current === 0) {
       setIsDragOver(false)
     }
@@ -92,12 +100,13 @@ export function useFileAttachment({
 
   function handleDragOver(event: React.DragEvent) {
     event.preventDefault()
-    if (isAtCapacity) {
+    if (disabled || isAtCapacity) {
       event.dataTransfer.dropEffect = 'none'
     }
   }
 
   async function validateAndAttach(files: readonly File[]) {
+    if (disabled) return
     if (!projectPath) {
       setAttachmentError('Select a project before attaching files.')
       return
@@ -107,7 +116,14 @@ export function useFileAttachment({
 
     // Silently trim to remaining capacity
     const trimmed = files.slice(0, remainingSlots)
-    await prepareAndAttach(projectPath, trimmed, addAttachments, setAttachmentError, onToast)
+    await prepareAndAttach(
+      projectPath,
+      trimmed,
+      addAttachments,
+      setAttachmentError,
+      onToast,
+      captureInputGuard(),
+    )
   }
 
   async function handleDrop(event: React.DragEvent) {

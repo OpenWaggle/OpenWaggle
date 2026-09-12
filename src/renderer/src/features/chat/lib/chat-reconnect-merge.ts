@@ -1,6 +1,7 @@
 import { match, matchBy } from '@diegogbrisa/ts-match'
 import { TOOL_STATE_RANK } from '@shared/constants/tool-state'
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
+import { retainSnapshotMessageOrder } from './chat-message-reconciliation'
 import {
   consumeUserMessageTextCount,
   countUserMessagesByText,
@@ -165,7 +166,7 @@ export function mergeBackgroundReconnectMessages(
           )
           .otherwise(() => currentAssistantMessage),
       )
-      .otherwise((value) => value)
+      .otherwise((value) => retainSnapshotMessageOrder(value, message))
   })
 
   for (const currentMessage of currentMessages) {

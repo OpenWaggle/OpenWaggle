@@ -10,6 +10,7 @@ import type {
 } from './terminal-records'
 
 export interface TerminalInputIdentityState {
+  readonly inputIncarnation?: string
   inputGeneration: string | null
   lastInputReceipt: TerminalInputReceipt | null
 }
@@ -55,6 +56,9 @@ export function decideTerminalInputIdentity(
   intent?: TerminalInputIntent,
 ): IdentityDecision {
   if (identity === undefined) return { kind: 'accept' }
+  if (identity.incarnation !== undefined && identity.incarnation !== state.inputIncarnation) {
+    return rejected(identity, 'stale-generation')
+  }
   if (state.inputGeneration === null) state.inputGeneration = identity.generation
   if (state.inputGeneration !== identity.generation) {
     return rejected(identity, 'stale-generation')

@@ -19,6 +19,19 @@ describe('Playwright Electron launch mode', () => {
     ).not.toHaveProperty('OPENWAGGLE_AUTOMATION')
   })
 
+  it('keeps an explicitly isolated Pi fixture directory without enabling extensions', () => {
+    expect(
+      buildPlaywrightElectronEnvironment({
+        userDataDir: '/tmp/compaction',
+        hidden: true,
+        piAgentDir: '/tmp/compaction/pi-agent',
+      }),
+    ).toMatchObject({
+      OPENWAGGLE_AUTOMATION: '1',
+      PI_CODING_AGENT_DIR: '/tmp/compaction/pi-agent',
+    })
+  })
+
   it('allows shell fixtures without yielding automation or storage authority', () => {
     expect(
       buildPlaywrightElectronEnvironment({

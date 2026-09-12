@@ -11,6 +11,32 @@ function inputState(generation: string | null = null): TerminalInputIdentityStat
 }
 
 describe('terminal input idempotency', () => {
+  it('rejects an old record incarnation before activating a generation or receipt', () => {
+    const state: TerminalInputIdentityState = {
+      inputIncarnation: 'native-current',
+      inputGeneration: null,
+      lastInputReceipt: null,
+    }
+    const identity = { generation: 'renderer-a', sequence: 0, incarnation: 'native-old' }
+
+    expect(decideTerminalInputIdentity(state, 'late command', identity)).toMatchObject({
+      kind: 'result',
+      result: { status: 'rejected', reason: 'stale-generation', identity },
+    })
+    expect(state.inputGeneration).toBeNull()
+    expect(state.lastInputReceipt).toBeNull()
+  })
+
+  it('does not treat a pre-open state as proof of a native record incarnation', () => {
+    const state = inputState()
+    const identity = { generation: 'renderer-a', sequence: 0, incarnation: 'native-old' }
+
+    expect(decideTerminalInputIdentity(state, 'late command', identity)).toMatchObject({
+      result: { status: 'rejected', reason: 'stale-generation' },
+    })
+    expect(state.inputGeneration).toBeNull()
+  })
+
   it('deduplicates an ambiguous retry without accepting different data', () => {
     const state = inputState('renderer-a')
     const identity = { generation: 'renderer-a', sequence: 0 }

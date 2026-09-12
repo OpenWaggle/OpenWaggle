@@ -28,6 +28,11 @@ export const validCiWorkflow = readFileSync(
   'utf8',
 )
 
+const validPerformanceWorkflow = readFileSync(
+  path.join(process.cwd(), '.github/workflows/session-performance.yml'),
+  'utf8',
+)
+
 const validPromoteSource = readFileSync(
   path.join(process.cwd(), 'scripts/package-release-promote.ts'),
   'utf8',
@@ -142,6 +147,7 @@ export async function writeMinimalPackageReleaseProject(
   })
   await writeFile(path.join(projectRoot, '.github/workflows/package-release.yml'), workflowText)
   await writeFile(path.join(projectRoot, '.github/workflows/ci.yml'), ciWorkflowText)
+  await writeFile(path.join(projectRoot, '.github/workflows/session-performance.yml'), validPerformanceWorkflow)
   await writeFile(path.join(projectRoot, 'scripts/package-release-promote.ts'), validPromoteSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-promotion.ts'), validPromotionSource)
   await writeFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), validArtifactsSource)

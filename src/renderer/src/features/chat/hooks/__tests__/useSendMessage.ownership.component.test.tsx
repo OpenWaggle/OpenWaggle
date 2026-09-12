@@ -7,11 +7,13 @@ import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useSendMessage } from '../useSendMessage'
 
 const mocks = vi.hoisted(() => ({
+  sendMessage: vi.fn(),
   sendWaggleMessage: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    sendMessage: mocks.sendMessage,
     sendWaggleMessage: mocks.sendWaggleMessage,
   },
 }))
@@ -53,6 +55,44 @@ describe('useSendMessage Waggle ownership', () => {
     useBackgroundRunStore.setState({
       renderSnapshotsBySessionId: new Map(),
       firstSendRecoveryBySessionId: new Map(),
+    })
+  })
+
+  it('retains an accepted first send until durable transcript reconciliation proves delivery', async () => {
+    mocks.sendMessage.mockResolvedValueOnce({ outcome: 'delivered' })
+    const payload = {
+      text: 'Keep this exact first prompt',
+      thinkingLevel: 'medium' as const,
+      attachments: [
+        {
+          id: 'attachment-1',
+          kind: 'text' as const,
+          name: 'requirements.txt',
+          path: '/project/requirements.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 12,
+          extractedText: 'requirements',
+        },
+      ],
+    }
+    const { result } = renderHook(() =>
+      useSendMessage({
+        activeSessionId: null,
+        model: MODEL,
+        projectPath: '/project',
+        thinkingLevel: 'medium',
+        createSession: vi.fn().mockResolvedValue(SESSION_A),
+        sendMessage: vi.fn().mockResolvedValue(undefined),
+        sendWaggleMessage: vi.fn().mockResolvedValue(undefined),
+      }),
+    )
+
+    await act(() => result.current.handleSend(payload))
+
+    expect(useBackgroundRunStore.getState().firstSendRecoveryBySessionId.get(SESSION_A)).toEqual({
+      payload,
+      waggleConfig: null,
+      model: MODEL,
     })
   })
 

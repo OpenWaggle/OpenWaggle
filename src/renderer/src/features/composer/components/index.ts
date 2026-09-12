@@ -7,5 +7,6 @@ export {
   type ComposerExtensionActionLauncher,
   ComposerExtensionActions,
 } from './ComposerExtensionActions'
+export { HiveSessionNavigator } from './HiveSessionNavigator'
 export { $createSkillMentionNode } from './nodes/SkillMentionNode'
 export { QueuedMessages } from './QueuedMessages'

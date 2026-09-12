@@ -1,5 +1,6 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { ProjectGroup } from '@/features/sidebar/lib'
+import { Button } from '@/shared/ui/Button'
 import { ArchivedBranchGroup } from './ArchivedBranchGroup'
 import { ArchivedErrorAlert } from './ArchivedErrorAlert'
 import { ArchivedSessionGroup } from './ArchivedSessionGroup'
@@ -13,6 +14,11 @@ interface ArchivedSectionContentProps {
   readonly onRestore: (id: SessionId) => void
   readonly onDelete: (id: SessionId) => void
   readonly onRestoreBranch: (sessionId: SessionId, branchId: SessionBranchId) => void
+  readonly pagination: {
+    readonly hasMore: boolean
+    readonly isLoading: boolean
+    readonly onLoadMore: () => Promise<void>
+  }
 }
 
 export function ArchivedSectionContent({
@@ -23,6 +29,7 @@ export function ArchivedSectionContent({
   onRestore,
   onDelete,
   onRestoreBranch,
+  pagination,
 }: ArchivedSectionContentProps) {
   return (
     <div className="space-y-4">
@@ -58,6 +65,17 @@ export function ArchivedSectionContent({
             />
           ))}
         </div>
+      ) : null}
+      {pagination.hasMore ? (
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={pagination.isLoading}
+          onClick={() => void pagination.onLoadMore()}
+          className="w-full"
+        >
+          {pagination.isLoading ? 'Loading more…' : 'Load more archived items'}
+        </Button>
       ) : null}
     </div>
   )

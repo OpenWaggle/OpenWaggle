@@ -133,14 +133,17 @@ describe('Pi run OpenWaggle extension selection', () => {
       recordOpenWaggleExtensionRuntimeFailure: vi.fn(),
     })
 
-    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
-      projectPath: '/repo',
-      modelReference: PRIMARY_MODEL,
-      compactionThresholdPercent: 80,
-      enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
-      enabledOpenWaggleExtensionResourceRoots: [
-        { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },
-      ],
-    })
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: '/repo',
+        modelReference: PRIMARY_MODEL,
+        compactionThresholdPercent: 80,
+        enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
+        enabledOpenWaggleExtensionResourceRoots: [
+          { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },
+        ],
+        extensionFactories: expect.any(Array),
+      }),
+    )
   })
 })

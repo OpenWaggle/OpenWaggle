@@ -75,11 +75,14 @@ describe('Pi run orchestration', () => {
       signal: new AbortController().signal,
       onEvent: vi.fn(),
     })
-    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
-      projectPath: '/repo',
-      modelReference: PRIMARY_MODEL,
-      compactionThresholdPercent: 80,
-    })
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: '/repo',
+        modelReference: PRIMARY_MODEL,
+        compactionThresholdPercent: 80,
+        extensionFactories: expect.any(Array),
+      }),
+    )
     expect(session.subscribe).toHaveBeenCalledOnce()
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()

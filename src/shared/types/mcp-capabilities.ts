@@ -113,6 +113,7 @@ export interface McpTaskRecord {
 
 export interface McpAppToolCallInput extends McpGetSettingsInput {
   readonly serverInstanceId: string
+  readonly serverConfigHash: string
   readonly toolName: string
   readonly arguments: Readonly<Record<string, McpJsonValue>>
 }
@@ -130,16 +131,19 @@ export interface McpAppToolCallResult {
 
 export interface McpListCapabilitiesInput extends McpGetSettingsInput {
   readonly serverInstanceId?: string
+  readonly serverConfigHash?: string
 }
 
 export interface McpGetPromptInput extends McpGetSettingsInput {
   readonly serverInstanceId: string
+  readonly serverConfigHash?: string
   readonly name: string
   readonly arguments?: Readonly<Record<string, string>>
 }
 
 export interface McpReadResourceInput extends McpGetSettingsInput {
   readonly serverInstanceId: string
+  readonly serverConfigHash?: string
   readonly uri: string
 }
 

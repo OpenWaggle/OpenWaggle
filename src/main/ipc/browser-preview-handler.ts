@@ -20,6 +20,10 @@ import { browserProfileIdSchema } from '@shared/schemas/browser-profile'
 import { resolveBrowserProfiles } from '@shared/types/browser-profile'
 import * as Effect from 'effect/Effect'
 import type { Schema as EffectSchema } from 'effect/Schema'
+import {
+  getGuiBrowserProfiles,
+  updateGuiBrowserProfiles,
+} from '../application/gui-browser-profile-settings'
 import { createBrowserCookieImporter } from '../browser-import/browser-cookie-importer'
 import { openBrowserImportFullDiskAccessSettings } from '../browser-import/browser-import-system-settings'
 import { createGuidedBrowserImporter } from '../browser-import/guided-browser-import'
@@ -42,13 +46,11 @@ function browserImportServicesFor(settings: SettingsServiceShape) {
   if (existing) return existing
 
   const cookies = createBrowserCookieImporter({
-    getTargetProfiles: async () =>
-      resolveBrowserProfiles((await Effect.runPromise(settings.get())).browserProfiles),
+    getTargetProfiles: async () => resolveBrowserProfiles(await getGuiBrowserProfiles(settings)),
   })
   const guided = createGuidedBrowserImporter({
-    getConfiguredProfiles: async () => (await Effect.runPromise(settings.get())).browserProfiles,
-    updateConfiguredProfiles: (profiles) =>
-      Effect.runPromise(settings.update({ browserProfiles: profiles })),
+    getConfiguredProfiles: () => getGuiBrowserProfiles(settings),
+    updateConfiguredProfiles: (profiles) => updateGuiBrowserProfiles(settings, profiles),
     importCookiesIntoPreparedProfile: cookies.importCookiesIntoPreparedProfile,
     clearProfileData: clearBrowserPreviewProfileData,
   })
@@ -229,7 +231,9 @@ function registerBrowserPreviewImportHandlers() {
     Effect.gen(function* () {
       const decoded = yield* decode(browserProfileIdSchema, profileId)
       const settings = yield* SettingsService
-      const configuredProfiles = resolveBrowserProfiles((yield* settings.get()).browserProfiles)
+      const configuredProfiles = resolveBrowserProfiles(
+        yield* Effect.tryPromise(() => getGuiBrowserProfiles(settings)),
+      )
       if (!configuredProfiles.some((profile) => profile.id === decoded)) {
         return yield* Effect.fail(new Error('The selected browser profile does not exist.'))
       }

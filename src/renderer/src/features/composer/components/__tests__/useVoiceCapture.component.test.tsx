@@ -124,6 +124,48 @@ describe('useVoiceCapture', () => {
     expect(hook.result.current.elapsedSeconds).toBe(9)
   })
 
+  it('cannot start voice capture until the draft is enabled', () => {
+    const insertText = vi.fn()
+    const sendComposed = vi.fn(() => true)
+    const hook = renderHook(
+      ({ disabled }) => useVoiceCapture({ disabled, insertText, sendComposed }),
+      { initialProps: { disabled: true } },
+    )
+    act(() => hook.result.current.toggleVoice())
+    expect(visualizerControls.startRecording).not.toHaveBeenCalled()
+    expect(hook.result.current.canStart).toBe(false)
+    hook.rerender({ disabled: false })
+    act(() => hook.result.current.toggleVoice())
+    expect(visualizerControls.startRecording).toHaveBeenCalledOnce()
+  })
+
+  it.each(['disabled', 'new-draft'])('discards pending transcription after %s', async (change) => {
+    let finish: (result: { text: string }) => void = () => undefined
+    mocks.transcribeVoiceLocal.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const insertText = vi.fn()
+    const sendComposed = vi.fn(() => true)
+    const hook = renderHook(
+      ({ disabled }) => useVoiceCapture({ disabled, insertText, sendComposed }),
+      { initialProps: { disabled: false } },
+    )
+    act(() => hook.result.current.toggleVoice())
+    hook.rerender({ disabled: false })
+    act(() => hook.result.current.stopAndSend())
+    hook.rerender({ disabled: false })
+    await waitFor(() => expect(mocks.transcribeVoiceLocal).toHaveBeenCalledOnce())
+    if (change === 'disabled') hook.rerender({ disabled: true })
+    else act(() => useComposerStore.getState().switchScopedDraftContext('next-draft'))
+    await act(async () => finish({ text: 'do not put this in another draft' }))
+    await waitFor(() => expect(hook.result.current.mode).toBe('idle'))
+    expect(insertText).not.toHaveBeenCalled()
+    expect(sendComposed).not.toHaveBeenCalled()
+  })
+
   it('stops and transcribes into the composer input', async () => {
     const hook = renderVoiceHook()
 

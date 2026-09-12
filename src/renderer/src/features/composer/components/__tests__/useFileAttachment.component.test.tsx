@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { fromAny } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useComposerStore } from '@/features/composer/state/composer-store'
 
 const prepareAttachmentsMock = vi.fn()
 
@@ -41,12 +42,87 @@ function createFile(name: string) {
 describe('useFileAttachment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useComposerStore.setState(useComposerStore.getInitialState())
   })
 
   it('starts with isDragOver false', () => {
     const params = createParams()
     const { result } = renderHook(() => useFileAttachment(params))
     expect(result.current.isDragOver).toBe(false)
+  })
+
+  it('blocks file selection and drops until the draft context is enabled', async () => {
+    const params = { ...createParams(), disabled: true }
+    const hook = renderHook((input) => useFileAttachment(input), { initialProps: params })
+    const file = createFile('draft.txt')
+    const input = fromAny<React.ChangeEvent<HTMLInputElement>, unknown>({
+      target: { files: [file], value: 'draft.txt' },
+    })
+    prepareAttachmentsMock.mockResolvedValue([])
+
+    await act(async () => {
+      hook.result.current.handleDragEnter(createDragEvent([file]))
+      await hook.result.current.handleDrop(createDragEvent([file]))
+      await hook.result.current.handleAttachFiles(input)
+    })
+    expect(prepareAttachmentsMock).not.toHaveBeenCalled()
+    expect(params.addAttachments).not.toHaveBeenCalled()
+    expect(hook.result.current.isDragOver).toBe(false)
+    expect(input.target.value).toBe('')
+
+    hook.rerender({ ...params, disabled: false })
+    await act(async () => hook.result.current.handleDrop(createDragEvent([file])))
+    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', [file])
+  })
+
+  it.each(['disabled', 'new-draft'])(
+    'does not attach a pending result after %s',
+    async (change) => {
+      let finish: (attachments: []) => void = () => undefined
+      const prepared = [
+        {
+          id: 'pending',
+          kind: 'text' as const,
+          name: 'draft.txt',
+          path: '/test/project/draft.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 1,
+          extractedText: 'draft',
+        },
+      ]
+      prepareAttachmentsMock.mockImplementation(() =>
+        new Promise<[]>((resolve) => {
+          finish = resolve
+        }).then(() => prepared),
+      )
+      const params = { ...createParams(), disabled: false }
+      const hook = renderHook((input) => useFileAttachment(input), { initialProps: params })
+      let pending: Promise<void> | undefined
+      act(() => {
+        pending = hook.result.current.handleDrop(createDragEvent([createFile('draft.txt')]))
+      })
+      if (change === 'disabled') hook.rerender({ ...params, disabled: true })
+      else act(() => useComposerStore.getState().switchScopedDraftContext('next-draft'))
+      await act(async () => {
+        finish([])
+        await pending
+      })
+      expect(params.addAttachments).not.toHaveBeenCalled()
+    },
+  )
+
+  it('clears the drag highlight after a disabled drag and re-enabling', () => {
+    const params = { ...createParams(), disabled: true }
+    const hook = renderHook((input) => useFileAttachment(input), { initialProps: params })
+    act(() => {
+      hook.result.current.handleDragEnter(createDragEvent([createFile('draft.txt')]))
+      hook.result.current.handleDragLeave(createDragEvent())
+    })
+    hook.rerender({ ...params, disabled: false })
+    act(() => hook.result.current.handleDragEnter(createDragEvent([createFile('draft.txt')])))
+    expect(hook.result.current.isDragOver).toBe(true)
+    act(() => hook.result.current.handleDragLeave(createDragEvent()))
+    expect(hook.result.current.isDragOver).toBe(false)
   })
 
   it('sets isDragOver on drag enter with files', () => {

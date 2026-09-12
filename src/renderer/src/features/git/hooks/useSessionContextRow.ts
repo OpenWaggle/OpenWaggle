@@ -1,14 +1,10 @@
-import { RepositoryPath, type SessionId } from '@shared/types/brand'
+import { RepositoryPath } from '@shared/types/brand'
 import type { SessionEnvironmentMode, VcsChangeRequest } from '@shared/types/git'
 import type { ChangeRequestAdoption } from '@shared/types/ipc-invoke-git'
-import type { SessionDetail } from '@shared/types/session'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { useEffect, useState } from 'react'
-import {
-  resolveDefaultWorktreeBaseRef,
-  resolveWorktreeSendPlan,
-  type WorktreeSendPlan,
-} from '@/features/git/lib/worktree-send-plan'
+import { resolveWorktreeSendPlan } from '@/features/git/lib/worktree-send-plan'
 import {
   draftWorktreePlanKey,
   PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
@@ -21,53 +17,14 @@ import { type ProjectBranchStatus, useProjectBranchState } from './useProjectBra
 
 const logger = createRendererLogger('composer-context-strip')
 
-interface UseSessionContextRowInput {
-  readonly sessionId: SessionId | null
-  readonly projectPath: string | null
-  readonly isFirstMessage: boolean
-  readonly session: Pick<
-    SessionDetail,
-    'environmentMode' | 'worktreePath' | 'worktreeBaseRef' | 'worktreeStartFromOrigin'
-  > | null
-  readonly defaultEnvironmentMode: SessionEnvironmentMode
-}
+import {
+  resolveEffectivePlan,
+  type SessionContextRowCoreState,
+  type UseSessionContextRowInput,
+} from './session-context-row-model'
 
-export interface SessionContextRowState {
-  readonly visible: boolean
-  readonly editable: boolean
-  readonly envMode: SessionEnvironmentMode
-  readonly baseRef: string | null
-  /** The Session worktree path once it exists, so the run target can show its branch. */
-  readonly worktreePath: string | null
-  readonly startFromOrigin: boolean
-  readonly branchNames: readonly string[]
+export interface SessionContextRowState extends SessionContextRowCoreState {
   readonly branchStatus: ProjectBranchStatus
-  readonly changeRequests: readonly VcsChangeRequest[]
-  readonly sendPlan: WorktreeSendPlan
-  readonly setEnvMode: (mode: SessionEnvironmentMode) => void
-  readonly setBaseRef: (baseRef: string) => void
-  readonly setStartFromOrigin: (startFromOrigin: boolean) => void
-  readonly loadChangeRequests: () => Promise<void>
-  readonly checkoutChangeRequest: (headRef: string) => Promise<boolean>
-  /** Recreate a vanished Session worktree from its recorded base ref. */
-  readonly recreateWorktree: () => Promise<boolean>
-  /** Abandon the vanished worktree and run this session in the opened checkout. */
-  readonly switchToLocalMode: () => void
-}
-
-function resolveEffectivePlan(
-  override: WorktreePlanOverride | undefined,
-  session: UseSessionContextRowInput['session'],
-  defaultEnvironmentMode: SessionEnvironmentMode,
-  currentBranch: string | null,
-) {
-  const defaultBaseRef =
-    session?.worktreeBaseRef ?? resolveDefaultWorktreeBaseRef({ currentBranch })
-  return {
-    envMode: override?.envMode ?? session?.environmentMode ?? defaultEnvironmentMode,
-    baseRef: override?.baseRef !== undefined ? override.baseRef : defaultBaseRef,
-    startFromOrigin: override?.startFromOrigin ?? session?.worktreeStartFromOrigin ?? false,
-  }
 }
 
 function mergePlanOverrides(
@@ -161,13 +118,33 @@ export function useSessionContextRow(input: UseSessionContextRowInput): SessionC
     startFromOrigin: boolean
   }) => {
     if (!sessionId) return
+    const requestId = crypto.randomUUID()
     void api
-      .setSessionWorktreePlan(sessionId, {
-        environmentMode: next.envMode,
-        baseRef: next.baseRef,
-        startFromOrigin: next.startFromOrigin,
+      .mutateSessionControl({
+        contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+        requestId,
+        idempotencyKey: requestId,
+        command: {
+          operation: 'handoff',
+          sessionId,
+          workspace:
+            next.envMode === 'local'
+              ? { mode: 'local' }
+              : {
+                  mode: 'new-worktree',
+                  ...(next.baseRef ? { baseRef: next.baseRef } : {}),
+                  ...(next.startFromOrigin ? { startFromOrigin: true } : {}),
+                },
+        },
       })
-      .catch((error) => logger.warn('Failed to persist worktree plan', { error: String(error) }))
+      .then((response) => {
+        if (response.outcome.effect === 'rejected') {
+          throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
+        }
+      })
+      .catch((error) =>
+        logger.warn('Failed to hand off Session Workspace', { error: String(error) }),
+      )
   }
 
   const setEnvMode = (mode: SessionEnvironmentMode) => {

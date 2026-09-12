@@ -13,6 +13,9 @@ import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Select } from '@/shared/ui/Select'
 import { AuthorizationGrantsCard } from './AuthorizationGrantsCard'
+import { CliAccessCard } from './CliAccessCard'
+import { MultiAgentAccessCard } from './MultiAgentAccessCard'
+import { RestrictedCliProfilesCard } from './RestrictedCliProfilesCard'
 
 const logger = createRendererLogger('settings')
 
@@ -178,6 +181,12 @@ export function AgentAccessSection() {
           {modeError}
         </p>
       ) : null}
+
+      <MultiAgentAccessCard />
+
+      <CliAccessCard />
+
+      <RestrictedCliProfilesCard />
 
       <AuthorizationGrantsCard projectPath={settings.projectPath} />
     </div>

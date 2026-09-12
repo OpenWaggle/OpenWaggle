@@ -44,6 +44,7 @@ export interface TerminalInputDispatcherOptions {
 
 export interface TerminalInputClient {
   readonly generation: string
+  readonly inputIncarnation: string | null
   enqueue(data: string): TerminalInputEnqueueResult
   enqueueAsync(resolveData: () => Promise<string>): Promise<TerminalInputEnqueueResult>
   /** Queue one whole Project Action command and resolve only after main accepts or rejects it. */
@@ -51,12 +52,17 @@ export interface TerminalInputClient {
     data: string,
     executionId: string,
   ): Promise<TerminalProjectActionEnqueueResult>
-  /** Permit acknowledged staging after the matching open invoke has started. */
-  markOpening(): void
-  markOpen(readiness: TerminalReadinessSnapshot | null, pendingInputBytes?: number): void
+  /** Queue locally until the matching attach proves the native record identity. */
+  markOpening(): () => void
+  markOpen(
+    readiness: TerminalReadinessSnapshot | null,
+    pendingInputBytes?: number,
+    inputIncarnation?: string,
+  ): void
+  /** Keep mounted clients reusable after native close; Restart may attach a new record. */
   markUnavailable(): void
   markClosed(): void
-  markReady(readiness: TerminalReadinessSnapshot): void
+  markReady(readiness: TerminalReadinessSnapshot, inputIncarnation?: string): void
   applyReleaseResult(result: TerminalInputReleaseResult): void
   retry(): void
   snapshot(): TerminalInputDispatchSnapshot

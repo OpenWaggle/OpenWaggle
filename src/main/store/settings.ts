@@ -1,6 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import type { Settings } from '@shared/types/settings'
+import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { SettingsStoreReadError } from '../errors'
 import { createLogger } from '../logger'
@@ -133,7 +134,7 @@ function enqueueSettingsWrite(operation: () => Promise<void>, description: strin
 }
 
 function queueStoredSettingWrite(key: string, value: unknown) {
-  void enqueueSettingsWrite(() => writeStoredSettingToDb(key, value), key)
+  return enqueueSettingsWrite(() => writeStoredSettingToDb(key, value), key)
 }
 
 export async function initializeSettingsStore(): Promise<void> {
@@ -153,7 +154,10 @@ export async function initializeSettingsStore(): Promise<void> {
       settingsReady = true
 
       if (built.settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
-        queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.selectedModel)
+        void queueStoredSettingWrite(
+          SETTINGS_KEY_DEFAULT_MODEL,
+          built.settings.selectedModel,
+        ).catch(() => undefined)
       }
     } catch (error) {
       settingsReadError = toSettingsReadError(error)
@@ -170,6 +174,48 @@ export async function initializeSettingsStore(): Promise<void> {
 
   await attempt
   if (!settingsReady && initializationPromise === attempt) initializationPromise = null
+}
+
+/**
+ * Reload the durable snapshot so long-lived GUI and detached Session Host
+ * processes observe settings written by one another.
+ */
+export function refreshSettingsStore(): Promise<void> {
+  const pending = writeQueue.then(async () => {
+    try {
+      const storedSettings = await listStoredSettings()
+      validatePersistedSettings(storedSettings)
+      settingsCache = buildSettingsSnapshot(storedSettings).settings
+      settingsReadError = null
+      settingsReady = true
+    } catch (error) {
+      settingsReadError = toSettingsReadError(error)
+      settingsReady = false
+      initializationPromise = null
+      throw settingsReadError
+    }
+  })
+  writeQueue = pending.catch(() => undefined)
+  return pending
+}
+
+/** Install the authoritative Host snapshot without writing to the attached GUI's isolated DB. */
+export function hydrateSettingsStoreFromHost(snapshot: unknown): void {
+  if (!isRecord(snapshot)) throw new Error('Session Host returned an invalid settings snapshot.')
+  for (const key of CURRENT_SETTINGS_KEYS) {
+    if (!Object.hasOwn(snapshot, key) || snapshot[key] === undefined) {
+      throw new SettingsStoreReadError({
+        operation: 'decode',
+        key,
+        message: `Session Host returned an incomplete settings snapshot: ${key}.`,
+      })
+    }
+  }
+  validatePersistedSettings(snapshot)
+  settingsCache = buildSettingsSnapshot(snapshot).settings
+  settingsReadError = null
+  settingsReady = true
+  initializationPromise ??= Promise.resolve()
 }
 
 export async function flushSettingsStoreForTests(): Promise<void> {
@@ -204,13 +250,34 @@ export function updateSettings(partial: Partial<Settings>): void {
   settingsCache = nextSettings
 
   for (const write of collectSettingsPatchWrites(partial, nextSettings)) {
-    queueStoredSettingWrite(write.key, write.value)
+    void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
   }
 
   const invalidThinkingLevel = getInvalidThinkingLevel(partial)
   if (invalidThinkingLevel !== undefined) {
     logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
   }
+}
+
+export function updateSkillToggleDurably(
+  projectPath: string,
+  skillId: string,
+  enabled: boolean,
+): Promise<void> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(
+    () =>
+      persistSettingsPatch({
+        skillTogglesByProject: {
+          ...settingsCache.skillTogglesByProject,
+          [projectPath]: {
+            ...(settingsCache.skillTogglesByProject[projectPath] ?? {}),
+            [skillId]: enabled,
+          },
+        },
+      }),
+    'skill toggle',
+  )
 }
 
 /**
@@ -220,18 +287,21 @@ export function updateSettings(partial: Partial<Settings>): void {
  */
 export function updateSettingsDurably(partial: Partial<Settings>): Promise<void> {
   assertSettingsReady()
-  return enqueueSettingsWrite(async () => {
-    const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
-    const writes = collectSettingsPatchWrites(partial, nextSettings)
-    await writeStoredSettingsToDb(writes)
-    // A normal settings update may have changed another field while SQLite was
-    // writing. Re-apply only this patch to the latest cache instead of
-    // publishing the older full snapshot.
-    settingsCache = buildNextSettingsSnapshot(settingsCache, partial)
+  return enqueueSettingsWrite(() => persistSettingsPatch(partial), 'durable settings patch')
+}
 
-    const invalidThinkingLevel = getInvalidThinkingLevel(partial)
-    if (invalidThinkingLevel !== undefined) {
-      logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
-    }
-  }, 'durable settings patch')
+async function persistSettingsPatch(partial: Partial<Settings>): Promise<void> {
+  assertSettingsReady()
+  const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
+  const writes = collectSettingsPatchWrites(partial, nextSettings)
+  await writeStoredSettingsToDb(writes)
+  // A normal settings update may have changed another field while SQLite was
+  // writing. Re-apply only this patch to the latest cache instead of
+  // publishing the older full snapshot.
+  settingsCache = buildNextSettingsSnapshot(settingsCache, partial)
+
+  const invalidThinkingLevel = getInvalidThinkingLevel(partial)
+  if (invalidThinkingLevel !== undefined) {
+    logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
+  }
 }

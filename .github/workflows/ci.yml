@@ -43,6 +43,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
+  # A relative reusable call uses this exact CI commit, including on a branch where
+  # the new standalone workflow has not yet been registered on the default branch.
+  # Merge groups keep the standalone benchmark; Fast and visual runs do not select it.
+  session-performance:
+    name: Session Performance
+    if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+    uses: ./.github/workflows/session-performance.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+    permissions:
+      contents: read
+
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
@@ -77,10 +89,16 @@ jobs:
 
       - name: Validate Conventional Commits
         env:
-          COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
           COMMIT_POLICY_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PR_TITLE: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")"
+            test "${#COMMIT_POLICY_FROM}" -eq 40
+            [[ "$COMMIT_POLICY_FROM" =~ ^[0-9a-f]{40}$ ]]
+          fi
+          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
 
   check:
     name: Typecheck & Lint
@@ -424,6 +442,9 @@ jobs:
 
       - uses: ./.github/actions/pnpm-install
 
+      - name: Verify Windows Session Host pipe isolation
+        run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts
+
       - run: pnpm test:e2e:functional
 
       - name: Upload Electron E2E failure artifacts
@@ -683,6 +704,7 @@ jobs:
     name: Package Release Gate
     timeout-minutes: 10
     needs:
+      - session-performance
       - commit-policy
       - check
       - test-unit
@@ -700,6 +722,12 @@ jobs:
     env:
       CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast-no-e2e' || 'fast' }}
     steps:
+      - name: Require selected Session Performance result
+        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+        env:
+          SESSION_PERFORMANCE_RESULT: ${{ needs.session-performance.result }}
+        run: test "$SESSION_PERFORMANCE_RESULT" = success
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}

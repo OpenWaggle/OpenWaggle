@@ -1,21 +1,31 @@
-import { deleteSessionTurnCheckpointRefs } from '../../adapters/git/turn-checkpoint-refs'
-import { removeGitWorktree } from '../../adapters/git/worktree'
+import { removeGitWorktree, validateGitWorktreeRemoval } from '../../adapters/git/worktree'
 import { createLogger } from '../../logger'
-import { getOrphanedWorktreePathForSession, type SessionWorktreeRef } from './worktree-cleanup'
+import {
+  getOrphanedWorktreePathForSession,
+  normalizeWorktreePath,
+  type SessionWorktreeRef,
+} from './worktree-cleanup'
 
 const logger = createLogger('session-worktree-prune')
 
 export interface PruneSessionWorktreeDeps {
   readonly listWorktreeRefs: () => Promise<readonly SessionWorktreeRef[]>
   readonly clearWorktree: (sessionId: string) => Promise<void>
-  readonly deleteCheckpoints: (sessionId: string) => Promise<void>
 }
+
+export type PruneSessionWorktreeResult =
+  | { readonly status: 'ready-for-deletion' }
+  | {
+      readonly status: 'retained'
+      readonly reason: 'worktree-removal-refused' | 'workspace-reference-missing' | 'cleanup-failed'
+    }
 
 /**
  * Death path for a Session worktree (ADR 0010): remove the worktree only when no
  * other session shares it (orphan guard), then clear the binding and prune Turn
  * checkpoints. Store access is injected so this stays within the git module's
- * boundary. Best-effort — relies on git's native dirty refusal and never throws.
+ * boundary. A refusal is returned to the caller so Session deletion can preserve
+ * the durable Session and Workspace binding that keep the worktree discoverable.
  */
 export async function pruneSessionWorktree(
   input: {
@@ -31,14 +41,19 @@ export async function pruneSessionWorktree(
      * objects unpinned. Only a delete removes them.
      */
     readonly reason: 'delete' | 'archive'
+    /** Host-loss recovery may encounter a worktree removed before its durable phase advanced. */
+    readonly allowMissingWorktree?: boolean
+    /** Durable deletion removes the Session binding before filesystem cleanup begins. */
+    readonly allowMissingWorkspaceReference?: boolean
+    /** Check removal safety without changing Git or SQLite state. */
+    readonly validateOnly?: boolean
   },
   deps: PruneSessionWorktreeDeps,
-): Promise<void> {
+): Promise<PruneSessionWorktreeResult> {
   try {
     const worktreePath = input.worktreePath?.trim()
     if (!worktreePath || !input.projectPath) {
-      await discardCheckpoints(input, deps)
-      return
+      return { status: 'ready-for-deletion' }
     }
 
     /*
@@ -52,45 +67,36 @@ export async function pruneSessionWorktree(
      * genuinely unwanted can be removed in Settings.
      */
     if (input.reason === 'archive') {
-      await discardCheckpoints(input, deps)
-      return
+      return { status: 'ready-for-deletion' }
     }
 
     const refs = await deps.listWorktreeRefs()
-    const orphaned = getOrphanedWorktreePathForSession(refs, input.sessionId)
-    const removalFailed = orphaned ? await removalFailedFor(input.projectPath, orphaned) : false
-    if (!removalFailed) {
-      await deps.clearWorktree(input.sessionId)
+    const hasTargetReference = refs.some((ref) => ref.sessionId === input.sessionId)
+    if (!hasTargetReference && !input.allowMissingWorkspaceReference) {
+      return { status: 'retained', reason: 'workspace-reference-missing' }
     }
-
-    await discardCheckpoints(input, deps)
+    const normalizedWorktreePath = normalizeWorktreePath(worktreePath)
+    const orphaned = hasTargetReference
+      ? getOrphanedWorktreePathForSession(refs, input.sessionId)
+      : refs.some((ref) => normalizeWorktreePath(ref.worktreePath) === normalizedWorktreePath)
+        ? null
+        : normalizedWorktreePath
+    const removalFailed = orphaned
+      ? await removalFailedFor(
+          input.projectPath,
+          orphaned,
+          input.allowMissingWorktree === true,
+          input.validateOnly === true,
+        )
+      : false
+    if (removalFailed) {
+      return { status: 'retained', reason: 'worktree-removal-refused' }
+    }
+    if (!input.validateOnly) await deps.clearWorktree(input.sessionId)
+    return { status: 'ready-for-deletion' }
   } catch (error) {
     logger.warn('Failed to prune Session worktree', { error: String(error) })
-  }
-}
-
-/**
- * Drop a session's Turn checkpoints, rows and anchor refs together - for a delete only.
- *
- * The refs pin a full tree per turn, untracked files included, and survive worktree removal, branch
- * deletion and `gc --prune=now`, so dropping only the rows left those objects reachable in the user's
- * repository forever. They are deleted against the primary checkout, where the shared namespace
- * lives, and that includes local-mode sessions, which capture into the opened checkout.
- *
- * Archiving keeps everything: it is reversible, and an archived session must come back whole.
- */
-async function discardCheckpoints(
-  input: {
-    readonly sessionId: string
-    readonly projectPath: string | null
-    readonly reason: 'delete' | 'archive'
-  },
-  deps: PruneSessionWorktreeDeps,
-) {
-  if (input.reason === 'archive') return
-  await deps.deleteCheckpoints(input.sessionId)
-  if (input.projectPath) {
-    await deleteSessionTurnCheckpointRefs(input.projectPath, input.sessionId)
+    return { status: 'retained', reason: 'cleanup-failed' }
   }
 }
 
@@ -101,9 +107,18 @@ async function discardCheckpoints(
  * caller keeps the binding in that case: clearing it anyway left the user's work on disk in a
  * directory the app had just forgotten about, with nothing in the UI pointing at it.
  */
-async function removalFailedFor(projectPath: string, worktreePath: string): Promise<boolean> {
-  const result = await removeGitWorktree(projectPath, { path: worktreePath })
+async function removalFailedFor(
+  projectPath: string,
+  worktreePath: string,
+  allowMissingWorktree: boolean,
+  validateOnly: boolean,
+): Promise<boolean> {
+  const result = await (validateOnly ? validateGitWorktreeRemoval : removeGitWorktree)(
+    projectPath,
+    { path: worktreePath },
+  )
   if (result.ok) return false
+  if (allowMissingWorktree && result.code === 'not-found') return false
 
   logger.warn('Kept the Session worktree binding because removal failed', {
     code: result.code,

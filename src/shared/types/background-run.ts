@@ -89,5 +89,10 @@ export type ActiveRunInfo = ActiveAgentRunInfo | ActiveCompactionInfo
 export interface BackgroundRunSnapshot extends ActiveAgentRunInfo {
   readonly messageId?: string
   readonly parts: readonly MessagePart[]
+  readonly degraded?: {
+    readonly reason: 'content-limit'
+    readonly omittedBytes: number
+    readonly toolCallIds?: readonly string[]
+  }
   readonly worktreeLaunch?: WorktreeLaunchSnapshot
 }

@@ -3,7 +3,6 @@ import { render, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearInlineVisualizationStatesForTests } from '../../state/inline-visualization-state'
-import { useMessageQueueStore } from '../../state/message-queue-store'
 
 const apiMock = vi.hoisted(() => ({
   showConfirm: vi.fn(),
@@ -50,7 +49,6 @@ describe('InlineVisualization brokers', () => {
     unregisterFollowUpDispatcher?.()
     unregisterFollowUpDispatcher = null
     for (const mock of Object.values(apiMock)) mock.mockReset()
-    useMessageQueueStore.setState({ queues: new Map() })
     clearInlineVisualizationStatesForTests()
   })
 
@@ -265,8 +263,6 @@ describe('InlineVisualization brokers', () => {
           state: { selectedService: 'api' },
         },
       })
-      expect(useMessageQueueStore.getState().queues.has(activeSessionId)).toBe(false)
-      expect(useMessageQueueStore.getState().queues.has(sourceSessionId)).toBe(false)
       expect(postMessage).toHaveBeenCalledWith(
         {
           type: 'openwaggle:inline-visualization:follow-up-result',

@@ -22,6 +22,10 @@ const existingShellsMock = vi.hoisted(() =>
   >(),
 )
 const integrationCleanupMock = vi.hoisted(() => vi.fn<() => Promise<void>>())
+const assertNativeAdmissionMock = vi.hoisted(() => vi.fn<() => void>())
+vi.mock('../../../desktop-native-admission', () => ({
+  assertDesktopNativeAdmission: assertNativeAdmissionMock,
+}))
 const readProcessMetadataMock = vi.hoisted(() =>
   vi.fn<(...args: readonly unknown[]) => Promise<unknown>>(),
 )
@@ -76,6 +80,35 @@ export const SPAWN_REQUEST = {
   readinessNonce: 'runner-generation-nonce',
 } satisfies PtySpawnRequest
 
+export function resetPtyRunnerHarness() {
+  assertNativeAdmissionMock.mockReset()
+  spawnMock.mockReset()
+  getInteractiveTerminalEnvMock.mockReset()
+  existingShellsMock.mockReset()
+  integrationCleanupMock.mockReset().mockResolvedValue()
+  readProcessMetadataMock.mockReset().mockResolvedValue({
+    pid: 4321,
+    startedAt: 'Fri Sep 4 22:18:37 2026',
+    tty: null,
+  })
+  prepareTerminalShellLaunchMock.mockReset()
+  ptyExitListeners.length = 0
+  prepareTerminalShellLaunchMock.mockImplementation(
+    async (candidate, environment, _readinessNonce) => ({
+      args: candidate.args,
+      environment: { ...environment },
+      integrated: true,
+      cleanup: integrationCleanupMock,
+    }),
+  )
+  getInteractiveTerminalEnvMock.mockReturnValue({
+    PATH: '/usr/bin:/bin',
+    TERM: 'xterm-256color',
+    TERM_PROGRAM: 'OpenWaggle',
+  })
+  existingShellsMock.mockReturnValue([ZSH_CANDIDATE, BASH_CANDIDATE])
+}
+
 export function fakePty(
   socket?: { readonly pause: () => void; readonly resume: () => void },
   privatePtyValue: unknown | null = '/dev/ttys123',
@@ -119,6 +152,7 @@ export function makeRunner(
 }
 
 export {
+  assertNativeAdmissionMock,
   existingShellsMock,
   getInteractiveTerminalEnvMock,
   integrationCleanupMock,

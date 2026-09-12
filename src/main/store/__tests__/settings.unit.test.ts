@@ -181,6 +181,80 @@ describe('settings store loading', () => {
     expect(() => getSettings()).toThrow(/could not read the saved settings database/u)
   })
 
+  it('refreshes Session Host policy changed by another process', async () => {
+    const { getSettings, refreshSettingsStore } = await loadSettingsModule()
+    expect(getSettings().sessionHostRunCeiling).not.toBe(73)
+
+    await writeRawSetting('sessionHostRunCeiling', 73)
+    await writeRawSetting('multiAgentEnabled', false)
+    await refreshSettingsStore()
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 73,
+      multiAgentEnabled: false,
+    })
+  })
+
+  it('hydrates an attached GUI cache from a normalized Host snapshot', async () => {
+    const { getSettings, hydrateSettingsStoreFromHost } = await loadSettingsModule()
+
+    hydrateSettingsStoreFromHost({
+      ...getSettings(),
+      sessionHostRunCeiling: 91,
+      recentProjects: [' /tmp/host-project ', '/tmp/host-project'],
+    })
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 91,
+      recentProjects: ['/tmp/host-project'],
+    })
+  })
+
+  it('marks an isolated GUI ready only after a complete valid Host snapshot', async () => {
+    const settingsModule = await import('../settings')
+    expect(() => settingsModule.getSettings()).toThrow(/not finished loading/u)
+    expect(() => settingsModule.hydrateSettingsStoreFromHost({})).toThrow(/incomplete/u)
+    expect(() => settingsModule.getSettings()).toThrow(/not finished loading/u)
+    expect(() =>
+      settingsModule.hydrateSettingsStoreFromHost({
+        ...DEFAULT_SETTINGS,
+        sessionHostRunCeiling: 0,
+      }),
+    ).toThrow(/sessionHostRunCeiling/u)
+    expect(() => settingsModule.getSettings()).toThrow(/not finished loading/u)
+
+    settingsModule.hydrateSettingsStoreFromHost({
+      ...DEFAULT_SETTINGS,
+      sessionHostRunCeiling: 91,
+    })
+    expect(settingsModule.getSettings().sessionHostRunCeiling).toBe(91)
+  })
+
+  it('invalidates readiness on corrupt refresh and recovers only after a valid reread', async () => {
+    const settingsModule = await loadSettingsModule()
+    await writeRawSetting('sessionHostRunCeiling', 0)
+
+    await expect(settingsModule.refreshSettingsStore()).rejects.toThrow(/sessionHostRunCeiling/u)
+    expect(() => settingsModule.getSettings()).toThrow(/sessionHostRunCeiling/u)
+    expect(() => settingsModule.updateSettings({ thinkingLevel: 'high' })).toThrow()
+    await writeRawSetting('sessionHostRunCeiling', 72)
+    await settingsModule.refreshSettingsStore()
+    expect(settingsModule.getSettings().sessionHostRunCeiling).toBe(72)
+  })
+
+  it('does not publish defaults after a refresh query failure', async () => {
+    const settingsModule = await loadSettingsModule()
+    await dropSettingsStoreForFailureTest()
+    await expect(settingsModule.refreshSettingsStore()).rejects.toThrow(/could not read/u)
+    expect(() => settingsModule.getSettings()).toThrow(/could not read/u)
+  })
+
+  it('roundtrips recentProjects through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ recentProjects: ['/tmp/a', '/tmp/b'] })
+    expect(getSettings().recentProjects).toEqual(['/tmp/a', '/tmp/b'])
+  })
+
   it('retries the underlying read and publishes saved settings only after recovery', async () => {
     await writeRawSettingJson('browserLinkTarget', '{not-json')
     const settingsModule = await loadSettingsModule()
@@ -203,5 +277,27 @@ describe('settings store loading', () => {
     await settingsModule.initializeSettingsStore()
 
     expect(settingsModule.getSettings().thinkingLevel).toBe('low')
+  })
+
+  it('preserves concurrent skill toggles for the same project', async () => {
+    const {
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateSkillToggleDurably,
+    } = await loadSettingsModule()
+
+    await Promise.all([
+      updateSkillToggleDurably('/tmp/concurrent', 'code-review', true),
+      updateSkillToggleDurably('/tmp/concurrent', 'frontend-design', false),
+    ])
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().skillTogglesByProject['/tmp/concurrent']).toEqual({
+      'code-review': true,
+      'frontend-design': false,
+    })
   })
 })

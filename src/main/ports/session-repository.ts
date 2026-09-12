@@ -3,6 +3,8 @@ import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
+  HiveSessionCatalogPage,
+  SessionCatalogPage,
   SessionNodeKind,
   SessionSummary,
   SessionTree,
@@ -72,6 +74,23 @@ export interface SessionRepositoryShape {
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  readonly listCatalogPage: (
+    archived: boolean,
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listByIds: (
+    sessionIds: readonly SessionId[],
+  ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  readonly listHiveCatalogPage: (
+    sessionId: SessionId,
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<HiveSessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listArchivedBranchCatalogPage: (
+    limit: number,
+    cursor?: string,
+  ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>
   readonly listArchivedBranches: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>

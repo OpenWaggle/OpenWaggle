@@ -32,6 +32,7 @@ describe('makeNodePtyTerminalService', () => {
     await settle()
 
     expect(result).toEqual({
+      inputIncarnation: service.records.get(TERMINAL_KEY)?.inputIncarnation,
       history: '',
       outputBytes: 0,
       outputGeneration: 1,
@@ -73,6 +74,7 @@ describe('makeNodePtyTerminalService', () => {
     const result = await open(workDirA)
 
     expect(result).toEqual({
+      inputIncarnation: service.records.get(TERMINAL_KEY)?.inputIncarnation,
       history: 'hello',
       outputBytes: 5,
       outputGeneration: 1,

@@ -7,10 +7,17 @@ import { invoke, on, prepareSelectedAttachments, send } from './ipc-bindings'
  * Every method maps to a specific IPC channel with strict types.
  */
 export const api: OpenWaggleApi = {
+  getCliShimStatus: invoke('cli-shim:get-status'),
+  installCliShim: invoke('cli-shim:install'),
+  removeCliShim: invoke('cli-shim:remove'),
+  selectAgentDefinitionSource: invoke('agent-definitions:select-source'),
+  manageAgentDefinitions: invoke('agent-definitions:manage'),
+  manageAccessProfiles: invoke('access-profiles:manage'),
+  mutateSessionControl: invoke('session-control:mutate'),
+  querySessionControl: invoke('session-control:query'),
   // Agent
   sendMessage: invoke('agent:send-message'),
   cancelAgent: invoke('agent:cancel'),
-  steerAgent: invoke('agent:steer'),
   respondAgentInteraction: invoke('agent:respond-interaction'),
   onAgentEvent: on('agent:event'),
 
@@ -21,6 +28,8 @@ export const api: OpenWaggleApi = {
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
   onAgentPhase: on('agent:phase'),
+  onSessionHostEvent: on('session-host:event'),
+  onSessionHostResyncRequired: on('session-host:resync-required'),
   onWorktreeLaunch: on('agent:worktree-launch'),
 
   // Settings
@@ -95,8 +104,9 @@ export const api: OpenWaggleApi = {
   revokeAuthorization: invoke('authorization-grants:revoke'),
 
   // Sessions
-  listSessions: invoke('sessions:list'),
-  listSessionDetails: invoke('sessions:list-details'),
+  listSessionsByIds: invoke('sessions:list-by-ids'),
+  listSessionCatalogPage: invoke('sessions:list-page'),
+  listHiveSessionCatalogPage: invoke('sessions:list-hive-page'),
   getSessionDetail: invoke('sessions:get-detail'),
   listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
   getTurnDiff: invoke('sessions:turn-diff:get'),
@@ -111,9 +121,7 @@ export const api: OpenWaggleApi = {
   deleteSession: invoke('sessions:delete'),
   archiveSession: invoke('sessions:archive'),
   unarchiveSession: invoke('sessions:unarchive'),
-  listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
-  setSessionWorktreePlan: invoke('sessions:set-worktree-plan'),
   setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
@@ -254,5 +262,6 @@ export const api: OpenWaggleApi = {
   installUpdate: invoke('updater:install'),
   getUpdateStatus: invoke('updater:get-status'),
   getAppVersion: invoke('app:get-version'),
+  getDesktopNativeAdmissionIssue: invoke('app:get-native-admission-issue'),
   onUpdateStatus: on('updater:status-changed'),
 }

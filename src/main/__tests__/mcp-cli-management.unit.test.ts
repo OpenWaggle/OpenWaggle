@@ -1,38 +1,118 @@
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { McpSettingsView } from '@shared/types/mcp'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseMcpCliArguments } from '../mcp-cli-arguments'
 import { runMcpManagementCommand } from '../mcp-cli-management'
+import type { McpCliManagementRuntime } from '../mcp-cli-management-runtime'
 
-vi.mock('electron', () => ({
-  shell: { openExternal: vi.fn() },
-  app: { getPath: () => tmpdir(), getVersion: () => '0.0.0-test' },
-}))
+const PROJECT_PATH = '/project'
+const view: McpSettingsView = {
+  integration: {
+    desired: {
+      global: 'on',
+      project: 'inherit',
+      session: 'inherit',
+      effective: 'on',
+      source: 'global',
+    },
+    applied: 'on',
+    applyState: 'applied',
+  },
+  sources: [
+    {
+      id: 'project-standard',
+      label: 'Project MCP',
+      path: '/project/.mcp.json',
+      scope: 'project',
+      kind: 'standard',
+      exists: true,
+      editable: true,
+      serverCount: 1,
+      rawJson: JSON.stringify({
+        mcpServers: {
+          'private-docs': {
+            url: 'https://docs.example.com/mcp',
+            auth: { type: 'oauth' },
+          },
+        },
+      }),
+      ignoredFields: [],
+    },
+  ],
+  servers: [
+    {
+      instanceId: 'server-1',
+      name: 'private-docs',
+      enabled: true,
+      projectEnabled: true,
+      trusted: 'trusted',
+      required: false,
+      sourceId: 'project-standard',
+      sourceLabel: 'Project MCP',
+      sourcePath: '/project/.mcp.json',
+      configHash: 'config-1',
+      url: 'https://docs.example.com/mcp',
+      transport: 'streamable-http',
+      compatibility: 'auto',
+      directTools: 'disabled',
+      auth: 'oauth',
+      requestedPermissions: { readRoots: [], writeRoots: [], allowNetwork: true },
+      connectionState: 'disconnected',
+      capabilities: [],
+    },
+  ],
+  notices: [],
+  projectStates: {},
+  projectPath: PROJECT_PATH,
+  sessionId: null,
+}
 
-let home = ''
+function runtime(): McpCliManagementRuntime {
+  return {
+    service: {
+      getView: vi.fn(async () => view),
+      setScopeState: vi.fn(async () => view),
+      setServerEnabled: vi.fn(async () => view),
+      setProjectServerEnabled: vi.fn(async () => view),
+      setServerTrust: vi.fn(async () => view),
+      writeSourceConfig: vi.fn(async () => view),
+      removeServer: vi.fn(async () => view),
+      addServer: vi.fn(async () => view),
+      previewImports: vi.fn(async () => ({ candidates: [], unavailableSources: [] })),
+      applyImports: vi.fn(async () => ({ imported: [], skipped: [], view })),
+    },
+    vault: {
+      list: vi.fn(async () => []),
+      set: vi.fn(async () => []),
+      remove: vi.fn(async () => []),
+    },
+    authorizeServer: vi.fn(async () => ({ authorized: true, browserOpened: true })),
+    logoutServer: vi.fn(async () => ({ oauthRemoved: true })),
+    dispose: vi.fn(async () => undefined),
+  }
+}
 
-beforeEach(async () => {
-  home = await mkdtemp(path.join(tmpdir(), 'ow-mcp-cli-mgmt-'))
-  vi.stubEnv('HOME', home)
-})
+describe('runMcpManagementCommand', () => {
+  let owner: McpCliManagementRuntime
+  let createRuntime: ReturnType<typeof vi.fn<(args: unknown) => Promise<McpCliManagementRuntime>>>
 
-afterEach(async () => {
-  vi.unstubAllEnvs()
-  await rm(home, { recursive: true, force: true })
-})
-
-describe('runMcpManagementCommand (shared Layer graph)', () => {
-  it('runs the config service through the composed MCP Layer graph for list', async () => {
-    const view = await runMcpManagementCommand('list', parseMcpCliArguments(['--project', home]))
-    expect(view).toMatchObject({
-      integration: { desired: { effective: 'off' } },
-      servers: [],
-    })
+  beforeEach(() => {
+    owner = runtime()
+    createRuntime = vi.fn(async () => owner)
   })
 
-  it('adds a server through the shared config service and reports it back', async () => {
-    const added = await runMcpManagementCommand(
+  it('reads settings through the Session Host owner', async () => {
+    const result = await runMcpManagementCommand(
+      'list',
+      parseMcpCliArguments(['--project', PROJECT_PATH]),
+      { createRuntime },
+    )
+
+    expect(result).toBe(view)
+    expect(owner.service.getView).toHaveBeenCalledWith({ projectPath: PROJECT_PATH })
+  })
+
+  it('routes durable server additions through the owner runtime', async () => {
+    await runMcpManagementCommand(
       'add',
       parseMcpCliArguments([
         'docs',
@@ -41,16 +121,45 @@ describe('runMcpManagementCommand (shared Layer graph)', () => {
         '--scope',
         'global',
         '--project',
-        home,
+        PROJECT_PATH,
       ]),
+      { createRuntime },
     )
-    expect(added).toMatchObject({
-      servers: expect.arrayContaining([expect.objectContaining({ name: 'docs' })]),
-    })
 
-    const listed = await runMcpManagementCommand('list', parseMcpCliArguments(['--project', home]))
-    expect(listed).toMatchObject({
-      servers: expect.arrayContaining([expect.objectContaining({ name: 'docs' })]),
+    expect(owner.service.addServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: PROJECT_PATH,
+        name: 'docs',
+        target: 'global',
+      }),
+    )
+  })
+
+  it('does not mutate when the current-revision owner cannot be acquired', async () => {
+    createRuntime.mockRejectedValueOnce(new Error('Host upgrade is still draining'))
+
+    await expect(
+      runMcpManagementCommand(
+        'remove',
+        parseMcpCliArguments(['private-docs', '--project', PROJECT_PATH]),
+        { createRuntime },
+      ),
+    ).rejects.toThrow('Host upgrade is still draining')
+
+    expect(owner.service.removeServer).not.toHaveBeenCalled()
+  })
+
+  it('runs OAuth and logout inside the owning Host', async () => {
+    const args = parseMcpCliArguments(['private-docs', '--project', PROJECT_PATH])
+
+    await expect(runMcpManagementCommand('auth', args, { createRuntime })).resolves.toEqual({
+      authorized: true,
+      browserOpened: true,
     })
+    await runMcpManagementCommand('logout', args, { createRuntime })
+
+    const expected = { projectPath: PROJECT_PATH, instanceId: 'server-1' }
+    expect(owner.authorizeServer).toHaveBeenCalledWith(expected)
+    expect(owner.logoutServer).toHaveBeenCalledWith(expected)
   })
 })

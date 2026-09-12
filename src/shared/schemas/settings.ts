@@ -38,6 +38,9 @@ const shortcutWhenSchema = Schema.String.pipe(
   Schema.filter((when) => parseProjectActionWhenExpression(when.trim()) !== null),
 )
 
+const positiveIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.positive())
+const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
+
 /** Runtime contract shared by IPC patches and persisted settings decoding. */
 export const settingsUpdateSchema = Schema.Struct({
   selectedModel: Schema.optional(Schema.String),
@@ -83,6 +86,16 @@ export const settingsUpdateSchema = Schema.Struct({
   ),
   diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
   diffWrapLines: Schema.optional(Schema.Boolean),
+  sessionHostParentConcurrencyLimit: Schema.optional(positiveIntegerSchema),
+  sessionHostParentConcurrencyLimitsByProject: Schema.optional(
+    Schema.mutable(Schema.Record({ key: Schema.String, value: positiveIntegerSchema })),
+  ),
+  sessionHostRunCeiling: Schema.optional(positiveIntegerSchema),
+  sessionHostIdleGracePeriodMs: Schema.optional(nonNegativeIntegerSchema),
+  multiAgentEnabled: Schema.optional(Schema.Boolean),
+  multiAgentEnabledByProject: Schema.optional(
+    Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
+  ),
   browserLinkTarget: Schema.optional(Schema.Literal(...BROWSER_LINK_TARGETS)),
   browserProfiles: Schema.optional(Schema.mutable(browserProfilesSchema)),
   browserDefaultProfileId: Schema.optional(browserProfileIdSchema),

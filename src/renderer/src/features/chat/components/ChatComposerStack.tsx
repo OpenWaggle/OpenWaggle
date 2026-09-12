@@ -5,12 +5,13 @@ import type {
 } from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import {
   BranchSummaryPrompt,
   CompactionStatusStrip,
   Composer,
+  HiveSessionNavigator,
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
@@ -64,6 +65,26 @@ function canSteerQueuedMessages(section: ChatComposerSectionState) {
 function projectDisplayName(projectPath: string | null) {
   if (!projectPath) return null
   return projectName(projectPath)
+}
+
+function branchSummaryComposerMode(
+  branchSummaryMode: 'choice' | 'summarizing' | 'custom' | null,
+  sessionDetailPending: boolean,
+) {
+  return {
+    disabled:
+      sessionDetailPending || branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
+    placeholder: sessionDetailPending
+      ? 'Loading session draft…'
+      : branchSummaryMode === 'custom'
+        ? 'Custom instructions for the branch summary'
+        : undefined,
+    requiresText: branchSummaryMode === 'custom',
+    clearOnSubmit: branchSummaryMode !== 'custom',
+    recordHistory: branchSummaryMode !== 'custom',
+    allowEnqueue: branchSummaryMode !== 'custom',
+    sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
+  }
 }
 
 function ComposerOverlays({
@@ -131,22 +152,24 @@ function ComposerOverlays({
  * something bypassed the gate - and the message was silently re-enqueued instead of the user
  * seeing the recover-or-switch notice.
  */
-export function enqueueIfAllowed(input: {
+export async function enqueueIfAllowed(input: {
   readonly payload: AgentSendPayload
   readonly activeSessionId: SessionId | null
   readonly sendBlockedReason: string | null
-  readonly enqueue: (sessionId: SessionId, payload: AgentSendPayload) => void
+  readonly enqueue: (payload: AgentSendPayload) => Promise<void>
   readonly onToast: (message: string) => void
 }) {
   if (input.sendBlockedReason !== null) {
     input.onToast(input.sendBlockedReason)
-    return
+    return false
   }
-  if (input.activeSessionId) {
-    input.enqueue(
-      input.activeSessionId,
-      withInlineVisualizationContext(input.activeSessionId, input.payload),
-    )
+  if (!input.activeSessionId) return false
+  try {
+    await input.enqueue(withInlineVisualizationContext(input.activeSessionId, input.payload))
+    return true
+  } catch (error) {
+    input.onToast(error instanceof Error ? error.message : String(error))
+    throw error
   }
 }
 
@@ -171,7 +194,7 @@ export function ChatComposerStack({
     onStartCustomBranchSummary,
     onCancelBranchSummary,
   } = section
-  const composerDraftReady = useScopedComposerDrafts(activeSessionId)
+  const draftContextReady = useScopedComposerDrafts(activeSessionId)
   const { strip, guardedSend, sendBlockedReason } = useComposerSendGate({
     activeSessionId,
     session: section.session,
@@ -179,15 +202,8 @@ export function ChatComposerStack({
     onSend: onSendWithWaggle,
     onToast,
   })
-  const enqueue = useMessageQueueStore((s) => s.enqueue)
+  const followUpQueue = useSessionFollowUpQueue(activeSessionId)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
-  const composerDisabledForBranchSummary =
-    branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
-  const composerPlaceholder = !composerDraftReady
-    ? 'Loading session draft…'
-    : branchSummaryMode === 'custom'
-      ? 'Custom instructions for the branch summary'
-      : undefined
   return (
     <>
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
@@ -196,10 +212,16 @@ export function ChatComposerStack({
         {compactionStatus?.type === 'retrying' ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
+        <HiveSessionNavigator
+          key={activeSessionId ?? 'no-session'}
+          sessionId={activeSessionId}
+          onNavigateSession={section.onNavigateSession}
+        />
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}
           isStreaming={canSteerQueuedMessages(section)}
+          onToast={onToast}
         />
         <BranchSummaryPrompt
           onNoSummary={onSkipBranchSummary}
@@ -242,6 +264,7 @@ export function ChatComposerStack({
           <Composer
             accessControl={
               <SessionAuthorizationModeMenu
+                disabled={section.sessionDetailPending}
                 projectPath={section.projectPath ?? null}
                 session={section.session}
                 onSetAuthorizationMode={section.onSetAuthorizationMode}
@@ -249,19 +272,20 @@ export function ChatComposerStack({
             }
             onSend={guardedSend}
             onEnqueue={(payload) =>
-              enqueueIfAllowed({ payload, activeSessionId, sendBlockedReason, enqueue, onToast })
+              enqueueIfAllowed({
+                payload,
+                activeSessionId,
+                sendBlockedReason,
+                enqueue: followUpQueue.enqueue,
+                onToast,
+              })
             }
             onCancel={onCancel}
             isLoading={isLoading}
-            mode={{
-              disabled: !composerDraftReady || composerDisabledForBranchSummary,
-              placeholder: composerPlaceholder,
-              requiresText: branchSummaryMode === 'custom',
-              clearOnSubmit: branchSummaryMode !== 'custom',
-              recordHistory: branchSummaryMode !== 'custom',
-              allowEnqueue: branchSummaryMode !== 'custom',
-              sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
-            }}
+            mode={branchSummaryComposerMode(
+              branchSummaryMode,
+              section.sessionDetailPending || !draftContextReady,
+            )}
             onToast={onToast}
           />
         </div>

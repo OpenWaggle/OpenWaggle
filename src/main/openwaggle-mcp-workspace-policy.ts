@@ -20,6 +20,15 @@ function canonicalExistingPath(input: string) {
   return realpathSync.native(path.resolve(input))
 }
 
+function assertCanonicalGrantRoot(root: string) {
+  const absolute = path.resolve(root)
+  const canonical = canonicalExistingPath(absolute)
+  if (canonical !== absolute) {
+    throw new Error(`Workspace grant changed after this server started: ${JSON.stringify(root)}.`)
+  }
+  return canonical
+}
+
 function canonicalProjectPath(input: string) {
   const resolved = path.resolve(input)
   try {
@@ -49,7 +58,7 @@ export function assertProjectAllowed(options: WorkspaceGrantScope, projectPath: 
   if (
     options.workspaceRoots.length > 0 &&
     !options.workspaceRoots.some((root) =>
-      isWithinRoot(candidate.path, canonicalExistingPath(root)),
+      isWithinRoot(candidate.path, assertCanonicalGrantRoot(root)),
     )
   ) {
     throw new Error(
@@ -79,7 +88,7 @@ export function sessionAllowed(options: WorkspaceGrantScope, session: SessionDet
     const projectPath = canonicalExistingPath(session.projectPath)
     if (!statSync(projectPath).isDirectory()) return false
     return options.workspaceRoots.some((root) =>
-      isWithinRoot(projectPath, canonicalExistingPath(root)),
+      isWithinRoot(projectPath, assertCanonicalGrantRoot(root)),
     )
   } catch {
     return false

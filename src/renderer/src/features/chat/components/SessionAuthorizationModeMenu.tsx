@@ -55,10 +55,12 @@ function ModeMenuItem({
 export function SessionAuthorizationModeMenu({
   projectPath: draftProjectPath = null,
   session,
+  disabled: externallyDisabled = false,
   onSetAuthorizationMode,
 }: {
   readonly projectPath?: string | null
   readonly session: SessionDetail | null
+  readonly disabled?: boolean
   readonly onSetAuthorizationMode: (
     authorizationMode: AgentAuthorizationMode | null,
   ) => Promise<void>
@@ -77,7 +79,7 @@ export function SessionAuthorizationModeMenu({
   const inheritedEffective = projectDefault ?? globalDefault
   const effective = override ?? inheritedEffective
   const compact = compactLabel(effective)
-  const disabled = saving || (!session && !projectPath)
+  const disabled = externallyDisabled || saving || (!session && !projectPath)
 
   async function select(next: AgentAuthorizationMode) {
     if (disabled || next === effective) {

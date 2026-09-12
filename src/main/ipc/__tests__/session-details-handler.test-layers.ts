@@ -2,6 +2,7 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from '../../application/__tests__/session-repository-test-support'
 import { NoopTerminalServiceLayer } from '../../application/__tests__/terminal-service-test-layer'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
@@ -160,6 +161,7 @@ const TestAgentKernelLayer = Layer.succeed(
 )
 
 const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),

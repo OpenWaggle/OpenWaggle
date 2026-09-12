@@ -30,6 +30,7 @@ import {
   type makeProjectOverride,
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export const BROKER_EXTENSION_ID = 'broker-extension'
 export const BROKER_CONTRIBUTION_ID = 'broker.run'
@@ -79,13 +80,9 @@ function scopesMatch(
   left: DiscoveredExtensionPackage['scope'],
   right: DiscoveredExtensionPackage['scope'],
 ) {
-  if (left.kind !== right.kind) {
-    return false
-  }
+  if (left.kind !== right.kind) return false
 
-  if (left.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return true
-  }
+  if (left.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) return true
 
   return (
     right.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND && left.projectPath === right.projectPath
@@ -216,6 +213,7 @@ function makeBrokerLayer(input: {
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),
     Layer.succeed(SessionRepository, {
+      ...emptySessionCatalogMethods,
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: (sessionId) =>

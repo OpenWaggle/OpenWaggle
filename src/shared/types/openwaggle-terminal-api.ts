@@ -45,6 +45,7 @@ export interface OpenWaggleTerminalApi {
   sendTerminalInputNow(
     ownerKey: TerminalOwnerKey,
     terminalId: TerminalId,
+    incarnation?: string,
   ): Promise<TerminalInputReleaseResult>
   acknowledgeTerminalOutput(
     ownerKey: TerminalOwnerKey,

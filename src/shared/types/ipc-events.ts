@@ -15,6 +15,7 @@ import type {
   BrowserPreviewRecordingRequest,
 } from './browser-preview-recording-request'
 import type { AgentPhaseEventPayload } from './phase'
+import type { SessionHostEventEnvelope } from './session-host-event'
 import type { AgentTransportEvent } from './stream'
 import type { TerminalActivitySnapshot, TerminalEventPayload } from './terminal'
 import type { UpdateStatus } from './updater'
@@ -74,6 +75,14 @@ export interface IpcEventChannelMap {
   }
   'agent:run-completed': {
     payload: { sessionId: SessionId }
+  }
+  'session-host:event': {
+    payload: SessionHostEventEnvelope
+  }
+  'session-host:resync-required': {
+    payload: {
+      reason: 'host-restarted' | 'cursor-expired' | 'cursor-ahead' | 'slow-consumer'
+    }
   }
   'agent:worktree-launch': {
     payload: WorktreeLaunchEventPayload

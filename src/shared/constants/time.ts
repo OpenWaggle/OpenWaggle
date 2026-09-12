@@ -5,6 +5,9 @@ const MS_PER_SECOND = 1000
 const SECONDS_PER_MINUTE = 60
 const HOURS_PER_DAY = 24
 
+/** Largest delay Node timers preserve without coercing to one millisecond. */
+export const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
+
 /** Fundamental time unit constants — building blocks for derived values. */
 export const TIME_UNIT = {
   MILLISECONDS_PER_SECOND: MS_PER_SECOND,

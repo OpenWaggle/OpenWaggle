@@ -26,6 +26,10 @@ async function tempProject() {
 }
 
 describe('Pi provider catalog compaction metadata', () => {
+  beforeEach(async () => {
+    vi.stubEnv('PI_CODING_AGENT_DIR', path.join(await tempProject(), 'agent'))
+  })
+
   it('uses the OpenWaggle global threshold instead of a project override', async () => {
     const projectPath = await tempProject()
     await writeJson(path.join(projectPath, '.openwaggle', 'settings.json'), {

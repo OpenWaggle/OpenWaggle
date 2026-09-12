@@ -37,6 +37,21 @@ export interface SessionTreeUiStateRow {
   readonly expanded_node_ids_json: string
   readonly expanded_node_ids_touched: number
   readonly branches_sidebar_collapsed: number
+  readonly last_visited_at: number | null
+  readonly updated_at: number
+}
+
+export interface SessionLatestRunRow {
+  readonly session_id: string
+  readonly status:
+    | 'starting'
+    | 'active'
+    | 'stopping'
+    | 'completed'
+    | 'failed'
+    | 'interrupted'
+    | 'interrupted-by-host-loss'
+    | 'interrupted-by-interaction-timeout'
   readonly updated_at: number
 }
 

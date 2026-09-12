@@ -1,13 +1,23 @@
-import { SessionBranchId, SessionId } from '@shared/types/brand'
-import type { GitStatusSummary } from '@shared/types/git'
-import type { SessionBranch, SessionSummary } from '@shared/types/session'
+import { SessionId, SessionNodeId } from '@shared/types/brand'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { useTerminalActivityStore } from '@/features/terminal'
-import type { SidebarSessionActions } from '../../model'
 import { SessionListItem } from '../SessionListItem'
+import {
+  actions,
+  branch,
+  PROJECT,
+  qa,
+  qaOne,
+  renderRow,
+  SESSION_ID,
+  session,
+  status,
+  TITLE,
+  WORKTREE,
+} from './SessionListItem.two-line.test-utils'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -16,72 +26,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     onGitWorkingTreeChanged: () => () => {},
   },
 }))
-
-const PROJECT = '/repo'
-const WORKTREE = '/home/dev/.openwaggle/worktrees/repo/session-a'
-const SESSION_ID = SessionId('session-a')
-const TITLE = 'Sidebar remodel with a fairly long session title'
-
-const qa = (name: string) => [...document.querySelectorAll(`[data-qa="${name}"]`)]
-const qaOne = (name: string) => document.querySelector(`[data-qa="${name}"]`)
-
-function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
-  return {
-    branch: 'main',
-    additions: 0,
-    deletions: 0,
-    filesChanged: 0,
-    changedFiles: [],
-    clean: true,
-    ahead: 0,
-    behind: 0,
-    ...overrides,
-  }
-}
-
-function branch(id: string, overrides: Partial<SessionBranch> = {}): SessionBranch {
-  return {
-    id: SessionBranchId(id),
-    sessionId: SESSION_ID,
-    sourceNodeId: null,
-    headNodeId: null,
-    name: id,
-    isMain: id === 'main',
-    createdAt: 0,
-    updatedAt: 0,
-    ...overrides,
-  }
-}
-
-function session(extra: Partial<SessionSummary> = {}): SessionSummary {
-  return {
-    id: SESSION_ID,
-    title: TITLE,
-    projectPath: PROJECT,
-    createdAt: 1,
-    updatedAt: Date.now() - 4 * 60 * 60 * 1000,
-    ...extra,
-  }
-}
-
-function actions(): SidebarSessionActions {
-  return {
-    select: vi.fn(),
-    delete: vi.fn(),
-    archive: vi.fn(),
-    markUnread: vi.fn(),
-    togglePin: vi.fn(),
-    clone: vi.fn(),
-  }
-}
-
-function renderRow(target: SessionSummary = session(), extra: Record<string, unknown> = {}) {
-  return render(
-    <ul>
-      <SessionListItem session={target} isActive={false} actions={actions()} {...extra} />
-    </ul>,
-  )
-}
 
 describe('two-line session row', () => {
   beforeEach(() => {
@@ -109,6 +53,36 @@ describe('two-line session row', () => {
     expect(title?.textContent).toBe(TITLE)
     // Nothing else shares the line, so the title is free to use all of it.
     expect(qaOne('sidebar-row-title-line')?.children).toHaveLength(1)
+  })
+
+  it('places Hive lineage below the title without taking title width', () => {
+    useSessionStatusStore.setState({
+      statuses: new Map([[SESSION_ID, 'working']]),
+      completedAt: new Map(),
+      lastVisitedAt: new Map(),
+      phases: new Map(),
+    })
+    renderRow(
+      session({
+        lineage: {
+          role: 'queen',
+          directWorkerCount: 3,
+          activeDirectWorkerCount: 2,
+          agentDefinitionName: 'coordinator',
+        },
+      }),
+    )
+
+    const lineage = screen.getByRole('img', {
+      name: 'Queen Session · Agent: coordinator · 3 direct Workers',
+    })
+    const lead = qaOne('sidebar-row-lead')
+    const state = qaOne('sidebar-row-state')
+    if (!lead || !state) throw new Error('Expected the second-line status metadata')
+    expect(qaOne('sidebar-row-title-line')?.contains(lineage)).toBe(false)
+    expect(qaOne('sidebar-row-title-line')?.children).toHaveLength(1)
+    expect(qaOne('sidebar-row-line2')?.contains(lineage)).toBe(true)
+    expect([...lead.children].indexOf(state)).toBeLessThan([...lead.children].indexOf(lineage))
   })
 
   /**
@@ -230,11 +204,21 @@ describe('two-line session row', () => {
       )
     })
 
-    /** Cloning is real but the lineage is never persisted, so the row must not claim it. */
-    it('never claims a session was cloned', () => {
-      renderRow(session({ environmentMode: 'worktree' }))
+    it('shows the persisted fork source', () => {
+      renderRow(
+        session({
+          derivation: {
+            sourceSessionId: SessionId('session-source'),
+            sourceTitle: 'Original investigation',
+            sourceNodeId: SessionNodeId('node-source'),
+            position: 'at',
+          },
+        }),
+      )
 
-      expect(screen.queryByRole('img', { name: /Cloned from/ })).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('img', { name: 'Cloned from Original investigation' }),
+      ).toBeInTheDocument()
     })
 
     /** No Globe: a remote environment mode does not exist. See ADR 0020. */

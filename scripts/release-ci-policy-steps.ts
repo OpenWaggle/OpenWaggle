@@ -39,7 +39,7 @@ export const CONCURRENCY_CANCEL_LINE =
   'cancel-in-progress: ${{ github.event_name != \'merge_group\' }}'
 /*
  * Byte-exact job-level conditions for the queue-only jobs. These jobs are skipped on
- * ordinary pull-request pushes by design (ADR 0025): the merge queue and dispatched full
+ * ordinary pull-request pushes by design (ADR 0029): the merge queue and dispatched full
  * runs are their enforcement points, so the condition text is part of the contract.
  */
 export const QUEUE_ONLY_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
@@ -139,6 +139,8 @@ const e2eReportArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
           retention-days: 7`
 const LINUX_ELECTRON_DEPENDENCIES_STEP = `      - name: Install Linux Electron dependencies
         run: pnpm exec playwright install-deps chromium`
+const WINDOWS_PIPE_ISOLATION_STEP = `      - name: Verify Windows Session Host pipe isolation
+        run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts`
 const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
         run: |
           sudo apt-get update
@@ -171,10 +173,16 @@ const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script c
 const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
 const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
         env:
-          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
           COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")"
+            test "\${#COMMIT_POLICY_FROM}" -eq 40
+            [[ "$COMMIT_POLICY_FROM" =~ ^[0-9a-f]{40}$ ]]
+          fi
+          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
 const MACOS_FULL_E2E_STEP = `      - name: Run Electron E2E (full suite including visual baselines)
         if: github.event_name != 'workflow_dispatch' || inputs.ci_tier != 'visual'
         run: pnpm test:e2e`
@@ -279,6 +287,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
+      WINDOWS_PIPE_ISOLATION_STEP,
       '      - run: pnpm test:e2e:functional',
       e2eFailureArtifactStep('windows'),
       e2eReportArtifactStep('windows'),

@@ -9,12 +9,10 @@ import type { ChatPanelSections } from '../../model/chat-panel-sections'
 
 export const PROJECT_PATH = '/test/project'
 
-/** Opt in when interaction tests start after the selected Session draft hydrated. */
-export function seedHydratedSessionComposer() {
-  useComposerStore.setState(useComposerStore.getInitialState())
+export function seedComposerWorkspace() {
   useComposerStore
     .getState()
-    .setActiveDraftContextKey(`project:${PROJECT_PATH}:session:session-1:main`)
+    .switchScopedDraftContext(`project:${PROJECT_PATH}:session:session-1:main`)
   useSessionStore.setState({
     activeWorkspace: fromPartial<SessionWorkspace>({
       tree: { session: { id: SessionId('session-1'), projectPath: PROJECT_PATH } },
@@ -77,6 +75,7 @@ export function createSections(
       projectPath: transcript.projectPath,
       recentProjects: transcript.recentProjects,
       session: null,
+      sessionDetailPending: false,
       isFirstMessage: false,
       waggleStatus: 'idle',
       slashCommandMenuOpen: false,
@@ -101,6 +100,7 @@ export function createSections(
       onCloseForkSelector: vi.fn(),
       onSelectForkTarget: vi.fn(),
       onCloneToNewSession: vi.fn(),
+      onNavigateSession: vi.fn(),
       onOpenProject: transcript.onOpenProject,
       onSelectProjectPath: transcript.onSelectProjectPath,
       onSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),

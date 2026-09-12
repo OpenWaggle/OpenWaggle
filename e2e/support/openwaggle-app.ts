@@ -1,21 +1,119 @@
+import { execFile, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
-import { closeElectronApplication } from './electron-process-tree'
+import electronExecutablePath from 'electron'
+import { probeLocalSessionHost } from '../../src/main/session-host/local-session-client'
+import {
+  refreshLocalSessionHostEndpoint,
+  resolveLocalSessionHostPaths,
+} from '../../src/main/session-host/local-session-paths'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
-import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
+import { applicationCliStdout } from '../../scripts/electron-cli-stdout'
+import {
+  buildPlaywrightElectronEnvironment,
+  launchOpenWaggleElectron,
+} from '../../scripts/playwright-electron-launcher'
+import {
+  captureElectronStartupDiagnostics,
+  electronStartupErrorMessage,
+} from '../../scripts/qa/electron-startup-diagnostics'
+import { cliExitError, cliProcessError } from '../../scripts/qa/cli-exit-diagnostics'
+import {
+  prepareQaProfileRemoval,
+  shutdownSessionHostForQa,
+} from '../../scripts/qa/session-host-shutdown'
 import { MainWindowPage } from '../page-models/main-window.page'
+import { closeElectronApplication } from './electron-process-tree'
 
+const execFileAsync = promisify(execFile)
 let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
-const USER_DATA_REMOVE_RETRIES = 3
-const USER_DATA_REMOVE_RETRY_DELAY_MS = 500
+const CLI_MAX_OUTPUT_BYTES = 10 * 1024 * 1024
+const CLI_TIMEOUT_MS = 30_000
+
+function runRoutedElectronCli(
+  electronArguments: readonly string[],
+  environment: Readonly<Record<string, string>>,
+) {
+  return new Promise<{ readonly stdout: string; readonly stderr: string }>((resolve, reject) => {
+    const child = spawn(electronExecutablePath, electronArguments, {
+      cwd: process.cwd(),
+      env: { ...environment, OPENWAGGLE_CLI_OUTPUT_FD: '3' },
+      stdio: ['ignore', 'ignore', 'pipe', 'pipe'],
+    })
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    let outputBytes = 0
+    const timeout = setTimeout(() => child.kill('SIGKILL'), CLI_TIMEOUT_MS)
+    const collect = (target: Buffer[]) => (chunk: Buffer) => {
+      outputBytes += chunk.byteLength
+      if (outputBytes > CLI_MAX_OUTPUT_BYTES) {
+        child.kill('SIGKILL')
+        return
+      }
+      target.push(chunk)
+    }
+    child.stdio[3]?.on('data', collect(stdout))
+    child.stderr?.on('data', collect(stderr))
+    child.once('error', reject)
+    child.once('close', (code, signal) => {
+      clearTimeout(timeout)
+      if (outputBytes > CLI_MAX_OUTPUT_BYTES) {
+        reject(new Error('OpenWaggle CLI exceeded the E2E output limit.'))
+        return
+      }
+      if (code !== 0) {
+        reject(
+          cliExitError(code, signal, Buffer.concat(stderr).toString(), Buffer.concat(stdout).toString()),
+        )
+        return
+      }
+      try {
+        resolve({
+          stdout: applicationCliStdout(Buffer.concat(stdout).toString(), 'linux'),
+          stderr: Buffer.concat(stderr).toString(),
+        })
+      } catch (error) {
+        reject(error)
+      }
+    })
+  })
+}
+
+async function runProfileCli(
+  profile: { readonly userDataDir: string; readonly hidden: boolean; readonly piAgentDir?: string },
+  args: readonly string[],
+): Promise<{ readonly stdout: string; readonly stderr: string }> {
+  const electronArguments = [
+    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-logging', '--log-level=3'] : []),
+    '.',
+    ...(process.platform === 'win32' ? ['--'] : []),
+    ...args,
+  ]
+  const environment = buildPlaywrightElectronEnvironment(profile)
+  if (process.platform === 'linux') {
+    return runRoutedElectronCli(electronArguments, environment)
+  }
+  const result = await execFileAsync(electronExecutablePath, electronArguments, {
+    cwd: process.cwd(),
+    env: environment,
+    maxBuffer: CLI_MAX_OUTPUT_BYTES,
+    timeout: CLI_TIMEOUT_MS,
+  }).catch((error: unknown) => {
+    throw cliProcessError(error)
+  })
+  return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
+}
 
 interface OpenWaggleAppLaunchOptions {
   readonly environment?: Readonly<Record<string, string>>
+  readonly isolatedPiAgent?: boolean
+  readonly startHostViaCli?: boolean
 }
 
 function evidenceDirectory() {
@@ -34,6 +132,27 @@ function evidenceName(prefix: string) {
   return `${String(evidenceSequence).padStart(3, '0')}-${safePrefix || 'electron-qa'}.png`
 }
 
+function cleanupFailure(errors: readonly unknown[], message: string) {
+  if (errors.length === 0) return undefined
+  return new AggregateError(errors, message)
+}
+
+function reportRetainedProfile(userDataDir: string) {
+  console.error(`[electron-qa] retained profile: ${userDataDir}`)
+}
+
+async function hostInstanceId(userDataDir: string) {
+  const paths = await refreshLocalSessionHostEndpoint(
+    resolveLocalSessionHostPaths({ userDataRoot: userDataDir }),
+  )
+  const negotiation = await probeLocalSessionHost({
+    paths,
+    clientKind: 'internal',
+    clientVersion: 'qa-cli-host-ownership',
+  })
+  return negotiation.hostInstanceId
+}
+
 export class OpenWaggleApp {
   private constructor(
     readonly userDataDir: string,
@@ -41,7 +160,9 @@ export class OpenWaggleApp {
     private currentWindow: Page,
     readonly hidden: boolean,
     private readonly evidencePrefix: string,
-    private readonly environment: Readonly<Record<string, string>> | undefined,
+    readonly piAgentDir?: string,
+    private readonly cliOwnerHostInstanceId?: string,
+    private readonly environment?: Readonly<Record<string, string>>,
   ) {}
 
   static async launch(
@@ -50,14 +171,28 @@ export class OpenWaggleApp {
   ): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
+    const piAgentDir = options.isolatedPiAgent ? path.join(userDataDir, 'pi-agent') : undefined
     let app: ElectronApplication | null = null
     let window: Page | null = null
+    let startupDiagnostics: ReturnType<typeof captureElectronStartupDiagnostics> | null = null
+    let cliOwnerHostInstanceId: string | undefined
     try {
+      if (options.startHostViaCli) {
+        await runProfileCli({ userDataDir, hidden, piAgentDir }, [
+          'sessions',
+          'list',
+          '--all',
+          '--json',
+        ])
+        cliOwnerHostInstanceId = await hostInstanceId(userDataDir)
+      }
       app = await launchOpenWaggleElectron({
         userDataDir,
         hidden,
+        piAgentDir,
         ...(options.environment === undefined ? {} : { environment: options.environment }),
       })
+      startupDiagnostics = captureElectronStartupDiagnostics(app.process())
       window = await app.firstWindow()
       const instance = new OpenWaggleApp(
         userDataDir,
@@ -65,52 +200,111 @@ export class OpenWaggleApp {
         window,
         hidden,
         prefix,
+        piAgentDir,
+        cliOwnerHostInstanceId,
         options.environment,
       )
       await instance.mainWindow().waitUntilReady()
+      await instance.assertCliHostOwnership()
       return instance
     } catch (error) {
+      const secondaryErrors: unknown[] = []
       if (window !== null) {
-        const directory = await evidenceDirectory()
-        const screenshotPath = path.join(directory, evidenceName(`${prefix}-launch-failure`))
         try {
+          const directory = await evidenceDirectory()
+          const screenshotPath = path.join(directory, evidenceName(`${prefix}-launch-failure`))
           await window.screenshot({ path: screenshotPath })
           console.error(`[electron-qa] screenshot: ${screenshotPath}`)
         } catch (screenshotError) {
           console.error('[electron-qa] launch screenshot capture failed', screenshotError)
+          secondaryErrors.push(screenshotError)
         }
-        const diagnostics = await window
-          .evaluate((textLimit) => ({
+        try {
+          const diagnostics = await window.evaluate((textLimit) => ({
             bodyText: document.body.innerText.slice(0, textLimit),
             title: document.title,
             url: location.href,
           }), QA_DIAGNOSTIC_TEXT_LIMIT)
-          .catch(() => null)
-        console.error('[electron-qa] launch diagnostics', diagnostics)
+          console.error('[electron-qa] launch diagnostics', diagnostics)
+        } catch (diagnosticsError) {
+          console.error('[electron-qa] launch diagnostics failed', diagnosticsError)
+          secondaryErrors.push(diagnosticsError)
+        }
       } else {
-        console.error('[electron-qa] launch failed before Electron created a page')
+        console.error(
+          '[electron-qa] launch failed before Electron created a page',
+          startupDiagnostics?.snapshot(error) ?? { error: electronStartupErrorMessage(error) },
+        )
       }
-      if (app !== null) {
-        await closeElectronApplication(app)
+      let closeSucceeded = true
+      try {
+        if (app !== null) await closeElectronApplication(app)
+      } catch (closeError) {
+        closeSucceeded = false
+        secondaryErrors.push(closeError)
       }
-      await fs.rm(userDataDir, { recursive: true, force: true })
+      try {
+        await shutdownSessionHostForQa(
+          userDataDir,
+          closeSucceeded
+            ? (ownership) => prepareQaProfileRemoval(userDataDir, ownership)
+            : async () => undefined,
+        )
+      } catch (shutdownError) {
+        secondaryErrors.push(shutdownError)
+        closeSucceeded = false
+      }
+      if (!closeSucceeded) reportRetainedProfile(userDataDir)
+      const cleanupError = cleanupFailure(
+        secondaryErrors,
+        'OpenWaggle launch failed and QA cleanup also failed.',
+      )
+      if (cleanupError !== undefined) {
+        throw new AggregateError(
+          [error, cleanupError],
+          'OpenWaggle launch failed and QA cleanup also failed.',
+        )
+      }
       throw error
+    } finally {
+      startupDiagnostics?.stop()
     }
   }
 
-  async restart(): Promise<void> {
+  /** A fixture callback explicitly cold-starts the Host; ordinary restarts preserve it. */
+  async restart(whileHostStopped?: () => Promise<void>): Promise<void> {
+    if (whileHostStopped !== undefined && this.cliOwnerHostInstanceId !== undefined) {
+      throw new Error('A CLI-owned Host must survive GUI restarts.')
+    }
     await closeElectronApplication(this.app)
+    if (whileHostStopped !== undefined) {
+      await shutdownSessionHostForQa(this.userDataDir, whileHostStopped)
+    }
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,
+      piAgentDir: this.piAgentDir,
       ...(this.environment === undefined ? {} : { environment: this.environment }),
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()
+    await this.assertCliHostOwnership()
+  }
+
+  private async assertCliHostOwnership(): Promise<void> {
+    if (this.cliOwnerHostInstanceId !== undefined) {
+      expect(await hostInstanceId(this.userDataDir), 'GUI must retain the CLI-started Host').toBe(
+        this.cliOwnerHostInstanceId,
+      )
+    }
   }
 
   async close(): Promise<void> {
     await closeElectronApplication(this.app)
+  }
+
+  async runCli(args: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }> {
+    return runProfileCli(this, args)
   }
 
   async confirmNativeDialogs(response = 1): Promise<void> {
@@ -124,34 +318,35 @@ export class OpenWaggleApp {
   }
 
   async cleanup(): Promise<void> {
-    let evidenceError: unknown
+    const errors: unknown[] = []
     try {
       await this.captureEvidence(this.evidencePrefix)
     } catch (error) {
-      evidenceError = error
-    } finally {
-      await this.close().catch(() => undefined)
-      // A just-killed process tree can hold handles on the user-data dir for a moment;
-      // a bounded retry keeps that race from failing an otherwise-passing test.
-      let attempt = 0
-      while (true) {
-        try {
-          await fs.rm(this.userDataDir, { recursive: true, force: true })
-          break
-        } catch (error) {
-          if (attempt >= USER_DATA_REMOVE_RETRIES) {
-            throw error
-          }
-          attempt += 1
-          await this.currentWindow
-            .waitForTimeout(USER_DATA_REMOVE_RETRY_DELAY_MS)
-            .catch(() => undefined)
-        }
-      }
+      errors.push(error)
     }
-    if (evidenceError !== undefined) {
-      console.error('[electron-qa] final screenshot capture failed', evidenceError)
-      expect.soft(evidenceError, 'Electron QA must capture its final screenshot').toBeUndefined()
+    let closeSucceeded = true
+    try {
+      await this.close()
+    } catch (error) {
+      closeSucceeded = false
+      errors.push(error)
+    }
+    try {
+      await shutdownSessionHostForQa(
+        this.userDataDir,
+        closeSucceeded
+          ? (ownership) => prepareQaProfileRemoval(this.userDataDir, ownership)
+          : async () => undefined,
+      )
+    } catch (error) {
+      closeSucceeded = false
+      errors.push(error)
+    }
+    if (!closeSucceeded) reportRetainedProfile(this.userDataDir)
+    const error = cleanupFailure(errors, 'Electron QA cleanup failed in multiple stages.')
+    if (error !== undefined) {
+      console.error('[electron-qa] cleanup failed', error)
+      expect.soft(error, 'Electron QA must capture evidence and clean up safely').toBeUndefined()
     }
   }
 

@@ -1,6 +1,7 @@
 import type { AgentSendReport } from '@shared/types/agent'
 import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, WagglePresetId } from '@shared/types/brand'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import type { WagglePreset } from '@shared/types/waggle'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { setEditorDraft } from '@/features/composer/lib'
@@ -58,11 +59,20 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
 
   if (workLocally) {
     await api.cancelAgent(sessionId)
-    await api.setSessionWorktreePlan(sessionId, {
-      environmentMode: 'local',
-      baseRef: null,
-      startFromOrigin: false,
+    const requestId = crypto.randomUUID()
+    const response = await api.mutateSessionControl({
+      contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+      requestId,
+      idempotencyKey: requestId,
+      command: {
+        operation: 'handoff',
+        sessionId,
+        workspace: { mode: 'local' },
+      },
     })
+    if (response.outcome.effect === 'rejected') {
+      throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
+    }
   }
 
   if (recovery.waggleConfig) {
@@ -92,7 +102,8 @@ export async function retryFirstSend(sessionIdValue: string, workLocally = false
     if (useBackgroundRunStore.getState().getWorktreeLaunch(sessionId) === previousLaunch) {
       useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, null)
     }
-    useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+    // Session Host accepted the retry, but worktree birth and Pi execution are still asynchronous.
+    // Terminal transcript reconciliation owns removal of the retained payload.
     return
   }
   if (recovery.waggleConfig) useWaggleStore.getState().stopCollaboration(sessionId)

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { createPiWaggleExtension } from '@openwaggle/pi-waggle/loop'
 import { appendPiWaggleModeState, enabledPiWaggleModeState } from '@openwaggle/pi-waggle/mode-state'
 import {
@@ -10,38 +10,20 @@ import {
 import { SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata } from '@shared/types/waggle'
-import type {
-  AgentKernelRunInput,
-  AgentKernelWaggleRunOptions,
-} from '../../../ports/agent-kernel-service'
 import type { PiModel } from '../pi-provider-catalog'
 import { buildPiRunAssistantMessages } from '../pi-run-result'
 import { logger } from './constants'
+import { registerPiLiveRun } from './pi-live-run-registry'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
-import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
+import { createWaggleRunExtensions, type PiWaggleKernelRunInput } from './waggle-run-extensions'
 import {
   buildWaggleTurnCustomMessage,
   buildWaggleTurnMetadata,
   sendInitialWaggleMessages,
 } from './waggle-run-messages'
-
-type PiWaggleKernelRunInput = AgentKernelRunInput & {
-  readonly waggle: AgentKernelWaggleRunOptions
-  /**
-   * The tree this turn runs in, already resolved (and born, for a worktree-mode session) by
-   * the caller. Passed in rather than re-derived: worktree birth persists the new path with
-   * SQL without mutating the `SessionDetail` it was given, so calling it twice would try to
-   * create the same worktree again and fail.
-   */
-  readonly workingPath: string
-  readonly visualizationDirectory?: string
-  readonly extensionFactories?: readonly ExtensionFactory[]
-  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
-  readonly systemPromptAppendices?: readonly string[]
-} & PiRuntimeExtensionIsolationInput
 
 function appendEnabledWaggleModeState(input: {
   readonly session: AgentSession
@@ -207,12 +189,17 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       currentMeta = meta
     },
   })
+  const extensions = createWaggleRunExtensions(input, waggleExtension.factory)
 
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,
     runId: input.runId,
     modelReference: initialRuntimeModel,
+    ...(input.runAuthorizationOverride
+      ? { runAuthorizationOverride: input.runAuthorizationOverride }
+      : {}),
+    ...(input.authorityCallerId ? { authorityCallerId: input.authorityCallerId } : {}),
     compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
@@ -220,6 +207,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
     ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
     skillToggles: input.skillToggles,
+    skillAllowlist: input.skillAllowlist,
     enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     ...(input.visualizationDirectory
@@ -227,16 +215,20 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     steeringInputHook: true,
-    ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
-    trustedExtensionFactories: [
-      ...(input.trustedExtensionFactories ?? []),
-      waggleExtension.factory,
-    ],
+    extensionFactories: extensions.factories,
+    trustedExtensionFactories: extensions.trustedFactories,
     ...(input.systemPromptAppendices
       ? { systemPromptAppendices: [...input.systemPromptAppendices] }
       : {}),
   })
 
+  const unregisterLiveRun = registerPiLiveRun({
+    runId: input.runId,
+    session,
+    model,
+    signal: input.signal,
+    routeThroughInputHook: true,
+  })
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
@@ -270,6 +262,9 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
         waggleDone: waggleExtension.done,
       }),
     buildErrorMessages: buildPiRunAssistantMessages,
+  }).finally(() => {
+    extensions.close()
+    unregisterLiveRun()
   })
   await captureTurnCheckpoint({ session: input.session, projectPath, runId: input.runId })
   return result

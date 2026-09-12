@@ -82,20 +82,31 @@ function tree(): SessionTree {
 function workspace(input: {
   readonly branchId: SessionBranchId
   readonly nodeId: SessionNodeId
+  readonly projectPath?: string | null
+  readonly sessionId?: SessionId
 }): SessionWorkspace {
   const sessionTree = tree()
   const activeNode = node({ id: String(input.nodeId), depth: 1, order: 2 })
   return {
-    tree: { ...sessionTree, nodes: [...sessionTree.nodes, activeNode] },
+    tree: {
+      ...sessionTree,
+      nodes: [...sessionTree.nodes, activeNode],
+      session: {
+        ...sessionTree.session,
+        id: input.sessionId ?? SESSION_ID,
+        projectPath: input.projectPath === undefined ? '/repo' : input.projectPath,
+      },
+    },
     activeBranchId: input.branchId,
     activeNodeId: input.nodeId,
     transcriptPath: [{ node: activeNode, isActive: true }],
   }
 }
 
-function openPrompt() {
+function openPrompt(projectPath: string | null = '/repo') {
   useBranchSummaryStore.getState().openPrompt({
     sessionId: SESSION_ID,
+    projectPath,
     sourceNodeId: SOURCE_NODE_ID,
     restoreSelection: { branchId: MAIN_BRANCH_ID, nodeId: ACTIVE_NODE_ID },
     previousComposerText: 'previous composer text',
@@ -198,27 +209,101 @@ describe('useBranchSummaryWorkflow', () => {
     expect(params.refreshSessionWorkspace).not.toHaveBeenCalled()
   })
 
-  it('cancels branch summarization by restoring the original composer context', () => {
-    openPrompt()
-    const params = workflowParams()
-    useComposerStore.getState().switchScopedDraftContext(
-      buildComposerDraftContextKey({
-        projectPath: '/repo',
-        sessionId: SESSION_ID,
-        draftSourceNodeId: SOURCE_NODE_ID,
-      }),
-      { input: 'draft branch prompt', attachments: [] },
-    )
+  it.each([
+    {
+      scope: 'canonical project',
+      owner: SESSION_ID,
+      projectPath: '/repo',
+      expectedProject: '/repo',
+    },
+    { scope: 'canonical no-project', owner: SESSION_ID, projectPath: null, expectedProject: null },
+    {
+      scope: 'missing workspace',
+      owner: null,
+      projectPath: null,
+      expectedProject: '/fallback-repo',
+    },
+    {
+      scope: 'another Session workspace',
+      owner: SessionId('other-session'),
+      projectPath: '/other-project',
+      expectedProject: '/fallback-repo',
+    },
+  ])(
+    'cancels branch summarization in the original $scope context',
+    ({ owner, projectPath, expectedProject }) => {
+      openPrompt(expectedProject)
+      const params = {
+        ...workflowParams(),
+        activeWorkspace: owner
+          ? workspace({
+              branchId: MAIN_BRANCH_ID,
+              nodeId: ACTIVE_NODE_ID,
+              sessionId: owner,
+              projectPath,
+            })
+          : null,
+      }
+      useComposerStore.getState().switchScopedDraftContext(
+        buildComposerDraftContextKey({
+          projectPath: expectedProject,
+          sessionId: SESSION_ID,
+          draftSourceNodeId: SOURCE_NODE_ID,
+        }),
+        { input: 'draft branch prompt', attachments: [] },
+      )
+      const { result } = renderHook(() => useBranchSummaryWorkflow(params))
+
+      act(() => result.current.cancelBranchSummary())
+
+      expect(useBranchSummaryStore.getState().prompt).toBeNull()
+      expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
+      expect(useComposerStore.getState().input).toBe('previous composer text')
+      expect(useComposerStore.getState().activeDraftContextKey).toBe(
+        buildComposerDraftContextKey({
+          projectPath: expectedProject,
+          sessionId: SESSION_ID,
+          activeBranchId: MAIN_BRANCH_ID,
+          activeNodeId: ACTIVE_NODE_ID,
+        }),
+      )
+      expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, {
+        branchId: MAIN_BRANCH_ID,
+        nodeId: ACTIVE_NODE_ID,
+      })
+    },
+  )
+
+  it('clears the completed source draft under the canonical no-project key', async () => {
+    openPrompt(null)
+    const activeWorkspace = workspace({
+      branchId: SUMMARY_BRANCH_ID,
+      nodeId: ACTIVE_NODE_ID,
+      projectPath: null,
+    })
+    const params = { ...workflowParams(), activeWorkspace }
+    useSessionStore.setState({ activeWorkspace })
+    const sourceContext = buildComposerDraftContextKey({
+      projectPath: null,
+      sessionId: SESSION_ID,
+      draftSourceNodeId: SOURCE_NODE_ID,
+    })
+    useComposerStore
+      .getState()
+      .switchScopedDraftContext(sourceContext, { input: 'draft branch prompt', attachments: [] })
     const { result } = renderHook(() => useBranchSummaryWorkflow(params))
 
-    act(() => result.current.cancelBranchSummary())
+    await act(() => result.current.materializeBranchSummary())
 
-    expect(useBranchSummaryStore.getState().prompt).toBeNull()
-    expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
-    expect(useComposerStore.getState().input).toBe('previous composer text')
-    expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, {
-      branchId: MAIN_BRANCH_ID,
-      nodeId: ACTIVE_NODE_ID,
-    })
+    expect(useComposerStore.getState().input).toBe('draft branch prompt')
+    expect(useComposerStore.getState().getScopedDraft(sourceContext)).toBeNull()
+    expect(useComposerStore.getState().activeDraftContextKey).toBe(
+      buildComposerDraftContextKey({
+        projectPath: null,
+        sessionId: SESSION_ID,
+        activeBranchId: SUMMARY_BRANCH_ID,
+        activeNodeId: ACTIVE_NODE_ID,
+      }),
+    )
   })
 })

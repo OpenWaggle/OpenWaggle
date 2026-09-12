@@ -10,10 +10,13 @@ import { useUIStore } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { buildPinnedSessionRows } from '../lib/pinned-sessions'
 import { buildSidebarProjectGroups } from '../lib/sidebar-project-groups'
+import { mergeExactTerminalCounts } from '../lib/sidebar-row-state'
 import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { useSidebarFilterStore } from '../state/sidebar-filter-store'
 import { isProjectExpanded, useSidebarViewStore } from '../state/sidebar-view-store'
 import { activeViewFromPathname } from './sidebar-view'
+import { useInterruptedSessionCount } from './useInterruptedSessionCount'
+import { useRemoteSidebarSessions } from './useRemoteSidebarSessions'
 import { useSidebarRowStates } from './useSidebarRowStates'
 
 type SidebarSessionsState = ReturnType<typeof useSessions>
@@ -83,7 +86,8 @@ export function useSidebarState() {
    * Chip counts come from every session, the tree from the filtered set. Counting after
    * filtering would leave one chip on screen and hide the states the user wants to switch to.
    */
-  const rowStates = useSidebarRowStates(sessions.sessions)
+  const interruptedSessionCount = useInterruptedSessionCount(sessions.sessions)
+  const rowStates = useSidebarRowStates(sessions.sessions, interruptedSessionCount)
   const filterState = useSidebarFilterStore((s) => s.activeState)
   const toggleFilterState = useSidebarFilterStore((s) => s.toggleState)
   const searchQuery = useSidebarFilterStore((s) => s.query)
@@ -97,7 +101,26 @@ export function useSidebarState() {
    * which spun the renderer.
    */
   const normalizedQuery = searchQuery.trim().toLowerCase()
+  const sidebarProjectPaths = useMemo(
+    () => [
+      ...recentProjects,
+      ...Object.keys(projectDisplayNames),
+      ...sessions.sessions.flatMap((session) =>
+        session.projectPath === null ? [] : [session.projectPath],
+      ),
+    ],
+    [projectDisplayNames, recentProjects, sessions.sessions],
+  )
+  const remoteSessions = useRemoteSidebarSessions({
+    query: searchQuery,
+    filterState,
+    stateBySessionId: rowStates.stateBySessionId,
+    loadedSessions: sessions.sessions,
+    projectPaths: sidebarProjectPaths,
+    projectDisplayNames,
+  })
   const visibleSessions = useMemo(() => {
+    if (remoteSessions.active) return remoteSessions.sessions
     if (filterState === null && normalizedQuery === '') return sessions.sessions
     return sessions.sessions.filter((session) => {
       if (filterState !== null && rowStates.stateOf(session) !== filterState) return false
@@ -112,7 +135,15 @@ export function useSidebarState() {
         custom.toLowerCase().includes(normalizedQuery)
       )
     })
-  }, [sessions.sessions, filterState, normalizedQuery, rowStates, projectDisplayNames])
+  }, [
+    sessions.sessions,
+    filterState,
+    normalizedQuery,
+    rowStates,
+    projectDisplayNames,
+    remoteSessions.active,
+    remoteSessions.sessions,
+  ])
 
   /*
    * Positions come from the unfiltered section, then the rows are narrowed for display. A Pinned
@@ -144,7 +175,7 @@ export function useSidebarState() {
     activeSessionId: activeSession.activeSessionId,
     activeView: activeViewFromPathname(pathname),
     chat,
-    chipCounts: rowStates.chipCounts,
+    chipCounts: mergeExactTerminalCounts(rowStates.chipCounts, remoteSessions.terminalCounts),
     displayProjectName,
     filterState,
     projectRollUp: rowStates.rollUpFor,
@@ -155,6 +186,12 @@ export function useSidebarState() {
     isProjectCollapsed: (path: string) => !isProjectExpanded(projectExpandedByPath, path),
     matchingActiveSessionTree: activeSession.matchingActiveSessionTree,
     matchingActiveWorkspace: activeSession.matchingActiveWorkspace,
+    loadMoreVisibleSessions: remoteSessions.active
+      ? remoteSessions.loadMore
+      : sessions.loadMoreSessions,
+    hasMoreVisibleSessions: remoteSessions.active
+      ? remoteSessions.hasMore
+      : sessions.sessionsNextCursor !== null,
     navigate,
     pinnedRows,
     pinnedSortMenuOpen,

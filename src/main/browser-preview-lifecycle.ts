@@ -1,3 +1,4 @@
+import { closeBrowserPreviewContents } from './browser-preview-native-close'
 import type { BrowserPreviewRecord } from './browser-preview-records'
 
 function attemptCleanup(action: () => void) {
@@ -17,6 +18,18 @@ export class BrowserPreviewLifecycle {
   constructor(private readonly host: BrowserPreviewLifecycleHost) {}
 
   dispose(record: BrowserPreviewRecord): void {
+    this.detach(record)
+    attemptCleanup(() => {
+      if (!record.view.webContents.isDestroyed()) record.view.webContents.close()
+    })
+  }
+
+  disposeAndWait(record: BrowserPreviewRecord): Promise<void> {
+    this.detach(record)
+    return closeBrowserPreviewContents(record.view.webContents)
+  }
+
+  private detach(record: BrowserPreviewRecord): void {
     if (!this.release(record)) return
     attemptCleanup(() => {
       if (!record.owner.window.isDestroyed()) record.view.setVisible(false)
@@ -25,9 +38,6 @@ export class BrowserPreviewLifecycle {
       if (!record.owner.window.isDestroyed()) {
         record.owner.window.contentView.removeChildView(record.view)
       }
-    })
-    attemptCleanup(() => {
-      if (!record.view.webContents.isDestroyed()) record.view.webContents.close()
     })
   }
 

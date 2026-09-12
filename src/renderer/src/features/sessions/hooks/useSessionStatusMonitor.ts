@@ -1,14 +1,62 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/features/chat/lib'
 import { useBackgroundRunStore, useChatStore } from '@/features/chat/state'
 import { useSessionStatusStore } from '@/features/sessions/state/session-status-store'
+import { useSessionStore } from '@/features/sessions/state/session-store'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 
 /** Set of session IDs that are currently in a waggle run. */
 const activeWaggleSessions = new Set<SessionId>()
+const RUNTIME_HYDRATION_CONCURRENCY = 8
+const logger = createRendererLogger('session-status-monitor')
+
+async function hydrateLiveSessionStatuses(input: {
+  readonly cancelled: () => boolean
+  readonly setStatus: (sessionId: SessionId, status: SessionStatus, updatedAt?: number) => void
+}) {
+  const runs = await api.listActiveRuns()
+  if (input.cancelled()) return
+
+  for (const run of runs) input.setStatus(run.sessionId, 'working', run.startedAt)
+  if (typeof api.querySessionControl !== 'function') return
+
+  for (let offset = 0; offset < runs.length; offset += RUNTIME_HYDRATION_CONCURRENCY) {
+    const pages = await Promise.allSettled(
+      runs.slice(offset, offset + RUNTIME_HYDRATION_CONCURRENCY).map(async (run) => {
+        const response = await api.querySessionControl({
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: crypto.randomUUID(),
+          query: { operation: 'requests-list', sessionId: run.sessionId },
+        })
+        if (response.outcome.operation !== 'requests-list' || !('requests' in response.outcome)) {
+          return null
+        }
+        const oldest = response.outcome.requests.reduce<number | null>(
+          (current, request) =>
+            current === null || request.createdAt < current ? request.createdAt : current,
+          null,
+        )
+        return oldest === null ? null : { sessionId: run.sessionId, createdAt: oldest }
+      }),
+    )
+    if (input.cancelled()) return
+    for (const page of pages) {
+      if (page.status === 'rejected') {
+        logger.warn('Failed to hydrate pending Session interaction', {
+          error: String(page.reason),
+        })
+        continue
+      }
+      if (!page.value) continue
+      input.setStatus(page.value.sessionId, 'awaiting-input', page.value.createdAt)
+    }
+  }
+}
 
 /**
  * Subscribes to agent lifecycle events and maintains per-session status
@@ -21,10 +69,22 @@ export function useSessionStatusMonitor(): void {
   const setStatus = useSessionStatusStore((s) => s.setStatus)
   const setPhase = useSessionStatusStore((s) => s.setPhase)
   const markVisited = useSessionStatusStore((s) => s.markVisited)
+  const hydratePersistedStatuses = useSessionStatusStore((s) => s.hydratePersistedStatuses)
+  const catalogSessions = useSessionStore((s) => s.sessions)
 
   useEffect(() => {
-    function setStatusWithVisitCheck(sessionId: SessionId, status: SessionStatus) {
-      setStatus(sessionId, status)
+    hydratePersistedStatuses(catalogSessions)
+  }, [catalogSessions, hydratePersistedStatuses])
+
+  useEffect(() => {
+    let cancelled = false
+
+    function setStatusWithVisitCheck(
+      sessionId: SessionId,
+      status: SessionStatus,
+      updatedAt?: number,
+    ) {
+      setStatus(sessionId, status, updatedAt)
       // If the user is currently viewing this session and it's a terminal status, auto-mark visited
       if (TERMINAL_STATUSES.has(status)) {
         const activeId = useChatStore.getState().activeSessionId
@@ -71,17 +131,30 @@ export function useSessionStatusMonitor(): void {
       matchBy(event, 'type')
         .with('agent_start', () => {
           if (!activeWaggleSessions.has(sessionId)) {
-            setStatusWithVisitCheck(sessionId, 'connecting')
+            setStatusWithVisitCheck(sessionId, 'connecting', event.timestamp)
           }
         })
         .with('agent_end', (value) => {
           if (value.reason === 'error') {
-            setStatusWithVisitCheck(sessionId, 'error')
+            setStatusWithVisitCheck(sessionId, 'error', value.timestamp)
             return
           }
           if (isTerminalTransportEvent(value)) {
-            setStatusWithVisitCheck(sessionId, 'completed')
+            setStatusWithVisitCheck(sessionId, 'completed', value.timestamp)
           }
+        })
+        .with('agent_interaction_request', (value) => {
+          if (value.interaction.kind !== 'notify') {
+            setStatusWithVisitCheck(sessionId, 'awaiting-input', value.timestamp)
+          }
+        })
+        .with('agent_interaction_resolved', (value) => {
+          if (value.kind === 'notify') return
+          setStatusWithVisitCheck(
+            sessionId,
+            activeWaggleSessions.has(sessionId) ? 'waggle-running' : 'working',
+            value.timestamp,
+          )
         })
         .with('message_update', (value) => {
           matchBy(value.assistantMessageEvent, 'type')
@@ -104,7 +177,15 @@ export function useSessionStatusMonitor(): void {
         })
     })
 
+    void hydrateLiveSessionStatuses({
+      cancelled: () => cancelled,
+      setStatus: setStatusWithVisitCheck,
+    }).catch((error: unknown) => {
+      logger.warn('Failed to hydrate live Session statuses', { error: String(error) })
+    })
+
     return () => {
+      cancelled = true
       unsubPhase()
       unsubCompleted()
       unsubWorktreeLaunch()

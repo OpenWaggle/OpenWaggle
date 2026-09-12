@@ -8,10 +8,17 @@ import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { PRELOAD_MCP_METHODS } from './preload-mcp-methods'
 
 export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
+  'getCliShimStatus',
+  'installCliShim',
+  'removeCliShim',
+  'selectAgentDefinitionSource',
+  'manageAgentDefinitions',
+  'manageAccessProfiles',
+  'mutateSessionControl',
+  'querySessionControl',
   // Agent
   'sendMessage',
   'cancelAgent',
-  'steerAgent',
   'respondAgentInteraction',
   'onAgentEvent',
   'getAgentPhase',
@@ -21,6 +28,8 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'compactSession',
   'onRunCompleted',
   'onAgentPhase',
+  'onSessionHostEvent',
+  'onSessionHostResyncRequired',
   'onWorktreeLaunch',
   // Settings
   'getSettings',
@@ -90,8 +99,9 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'watchWorkspaceFiles',
   'unwatchWorkspaceFiles',
   'onWorkspaceFilesChanged',
-  'listSessions',
-  'listSessionDetails',
+  'listSessionsByIds',
+  'listSessionCatalogPage',
+  'listHiveSessionCatalogPage',
   'getSessionDetail',
   'listTurnCheckpoints',
   'getTurnDiff',
@@ -106,9 +116,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'deleteSession',
   'archiveSession',
   'unarchiveSession',
-  'listArchivedSessions',
   'updateSessionTitle',
-  'setSessionWorktreePlan',
   'setSessionAuthorizationMode',
   'listArchivedSessionBranches',
   'getSessionTree',
@@ -252,5 +260,6 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'installUpdate',
   'getUpdateStatus',
   'getAppVersion',
+  'getDesktopNativeAdmissionIssue',
   'onUpdateStatus',
 ]

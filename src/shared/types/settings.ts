@@ -58,6 +58,9 @@ export const BROWSER_LINK_TARGETS = ['system', 'app'] as const
 export type BrowserLinkTarget = (typeof BROWSER_LINK_TARGETS)[number]
 
 export const DEFAULT_MODEL_REF = SupportedModelId('')
+export const DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT = 4
+export const DEFAULT_SESSION_HOST_RUN_CEILING = 16
+export const DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS = 300_000
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 
 export interface Settings {
@@ -86,6 +89,18 @@ export interface Settings {
   readonly diffView: DiffView
   /** Wrap long diff lines instead of scrolling horizontally. */
   readonly diffWrapLines: boolean
+  /** Default maximum number of active direct Worker Runs for one parent Session. */
+  readonly sessionHostParentConcurrencyLimit: number
+  /** Optional project-specific parent concurrency limits keyed by canonical project path. */
+  readonly sessionHostParentConcurrencyLimitsByProject: Readonly<Record<string, number>>
+  /** App-global maximum number of active Runs owned by the Session Host. */
+  readonly sessionHostRunCeiling: number
+  /** How long an idle Session Host remains alive after its final liveness owner disappears. */
+  readonly sessionHostIdleGracePeriodMs: number
+  /** Whether OpenWaggle-hosted agents receive launch and spawn operations by default. */
+  readonly multiAgentEnabled: boolean
+  /** Optional project overrides for model-initiated launch and spawn capability. */
+  readonly multiAgentEnabledByProject: Readonly<Record<string, boolean>>
   /** Default destination for http(s) links opened from Session surfaces. */
   readonly browserLinkTarget: BrowserLinkTarget
   /** User-created persistent browser profiles; built-ins are resolved at runtime. */
@@ -127,6 +142,12 @@ export const DEFAULT_SETTINGS: Settings = {
   syntaxThemeSelections: DEFAULT_SYNTAX_THEME_SELECTIONS,
   diffView: 'unified',
   diffWrapLines: false,
+  sessionHostParentConcurrencyLimit: DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+  sessionHostParentConcurrencyLimitsByProject: {},
+  sessionHostRunCeiling: DEFAULT_SESSION_HOST_RUN_CEILING,
+  sessionHostIdleGracePeriodMs: DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+  multiAgentEnabled: true,
+  multiAgentEnabledByProject: {},
   browserLinkTarget: 'system',
   browserProfiles: [],
   browserDefaultProfileId: DEFAULT_BROWSER_PROFILE_ID,

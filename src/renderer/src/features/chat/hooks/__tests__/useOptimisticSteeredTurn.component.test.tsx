@@ -4,10 +4,12 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useOptimisticSteerStore } from '@/features/chat/state'
 import { buildClientUserMessage } from '../../lib/chat-attachment-preview'
 import { useOptimisticSteeredTurn } from '../useOptimisticSteeredTurn'
+
+const { webcrypto } = await vi.importActual<{ webcrypto: Crypto }>('node:crypto')
 
 const SESSION_ID = SessionId('session-1')
 const FIRST_PAYLOAD: AgentSendPayload = {
@@ -17,12 +19,13 @@ const FIRST_PAYLOAD: AgentSendPayload = {
 }
 const SECOND_PAYLOAD = { ...FIRST_PAYLOAD }
 
-function userMessage(id: string, content: string): UIMessage {
+function userMessage(id: string, content: string, createdOrder?: number): UIMessage {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(),
+    ...(createdOrder !== undefined ? { metadata: { sessionNodeCreatedOrder: createdOrder } } : {}),
   }
 }
 
@@ -38,6 +41,88 @@ function messageText(message: UIMessage) {
 describe('useOptimisticSteeredTurn', () => {
   beforeEach(() => {
     useOptimisticSteerStore.setState({ previews: new Map() })
+    vi.stubGlobal('crypto', webcrypto)
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('retains a queued receipt until the exact transformed user text arrives', async () => {
+    const initialMessages = [userMessage('initial', 'start')]
+    const messagesRef = { current: initialMessages }
+    const { result, rerender } = renderHook(
+      ({ hydratedMessages }) =>
+        useOptimisticSteeredTurn(
+          hydratedMessages,
+          SESSION_ID,
+          (payload) => payload.text,
+          messagesRef,
+          false,
+        ),
+      { initialProps: { hydratedMessages: initialMessages } },
+    )
+    const expanded = `Transformed prompt\n\n[Attachment: notes.txt]\n${'全文 '.repeat(5000)}`
+    act(() => {
+      const preview = result.current.previewSteeredUserTurn(FIRST_PAYLOAD, 'waiting-for-compaction')
+      preview.setReceipt(null)
+      preview.setReceipt({
+        delivery: 'queued',
+        minimumCreatedOrder: 1,
+        durableTextSha256: 'fb982b915f13dfcb231f0ee8b8c27471d8c9e0a46437be220cbba7eb63c631b2',
+      })
+      preview.setDeliveryState('sending')
+    })
+    const unrelated = [...initialMessages, userMessage('unrelated', FIRST_PAYLOAD.text, 1)]
+    messagesRef.current = unrelated
+    rerender({ hydratedMessages: unrelated })
+    expect(
+      result.current.visibleMessages.filter((message) => message.metadata?.steerDelivery),
+    ).toHaveLength(1)
+    const projected = userMessage('durable', expanded, 2)
+    const durableMessages = [
+      ...unrelated,
+      {
+        ...projected,
+        parts: [...projected.parts, { type: 'text' as const, content: '[Image input: image/png]' }],
+      },
+    ]
+    messagesRef.current = durableMessages
+    rerender({ hydratedMessages: durableMessages })
+    await waitFor(() => expect(result.current.visibleMessages).toEqual(durableMessages))
+    expect(useOptimisticSteerStore.getState().previews.has(SESSION_ID)).toBe(false)
+  })
+
+  it('consumes identical digest receipts once per later durable user node', async () => {
+    const initialMessages = [userMessage('old-same-text', 'continue')]
+    const messagesRef = { current: initialMessages }
+    const { result, rerender } = renderHook(
+      ({ hydratedMessages }) =>
+        useOptimisticSteeredTurn(
+          hydratedMessages,
+          SESSION_ID,
+          (payload) => payload.text,
+          messagesRef,
+          false,
+        ),
+      { initialProps: { hydratedMessages: initialMessages } },
+    )
+    act(() => {
+      for (const payload of [FIRST_PAYLOAD, SECOND_PAYLOAD]) {
+        result.current.previewSteeredUserTurn(payload, 'sending').setReceipt({
+          delivery: 'queued',
+          minimumCreatedOrder: 1,
+          durableTextSha256: 'e256ee8e7aff6957a781d8328f0f68e26996564c81fa458da59fbca2305138ad',
+        })
+      }
+    })
+    const one = [...initialMessages, userMessage('new-first', 'continue', 1)]
+    rerender({ hydratedMessages: one })
+    await waitFor(() =>
+      expect(
+        result.current.visibleMessages.filter((message) => message.metadata?.steerDelivery),
+      ).toHaveLength(1),
+    )
+    const two = [...one, userMessage('new-second', 'continue', 2)]
+    rerender({ hydratedMessages: two })
+    await waitFor(() => expect(result.current.visibleMessages).toEqual(two))
   })
 
   it('preserves preview order and reconciles duplicate text one durable message at a time', () => {

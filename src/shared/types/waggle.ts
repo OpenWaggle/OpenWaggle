@@ -65,6 +65,18 @@ export interface WaggleInvocation extends WaggleInvocationMetadata {
   readonly config: WaggleConfig
 }
 
+/** JSON wire shape before provider/model identifiers are branded at the main-process boundary. */
+export interface WaggleInvocationInput extends WaggleInvocationMetadata {
+  readonly config: {
+    readonly mode: WaggleCollaborationMode
+    readonly agents: readonly [
+      Omit<WaggleAgentSlot, 'model'> & { readonly model: string },
+      Omit<WaggleAgentSlot, 'model'> & { readonly model: string },
+    ]
+    readonly stop: WaggleStopConfig
+  }
+}
+
 export interface WaggleHandoffRequest extends WaggleInvocation {
   readonly kind: 'waggle-handoff'
   readonly prompt: string

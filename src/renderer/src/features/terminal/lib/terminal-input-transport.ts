@@ -52,6 +52,7 @@ function acknowledgementMatches(
   if (
     echoedIdentity === undefined ||
     echoedIdentity.generation !== identity.generation ||
+    echoedIdentity.incarnation !== identity.incarnation ||
     echoedIdentity.sequence !== identity.sequence
   ) {
     return false
@@ -130,7 +131,11 @@ async function writeHead(
 ) {
   const openVersion = state.openVersion
   const queueVersion = state.queueVersion
-  const identity = { generation: state.generation, sequence: state.nextSequence }
+  const identity = {
+    generation: state.generation,
+    sequence: state.nextSequence,
+    ...(state.inputIncarnation === null ? {} : { incarnation: state.inputIncarnation }),
+  }
   let result: TerminalWriteResult
   try {
     result = await context.write(
@@ -190,9 +195,10 @@ export async function drainTerminalInput(
   state: TerminalInputState,
 ) {
   if (state.disposed || state.draining || !state.open || state.blocked) return
+  const queueVersion = state.queueVersion
   state.draining = true
   try {
-    while (!state.disposed && state.open && !state.blocked) {
+    while (!state.disposed && state.open && !state.blocked && state.queueVersion === queueVersion) {
       const queued = terminalInputQueueHead(state.queue)
       if (queued === undefined) break
       // An async clipboard read reserves its invocation position. Later keys
@@ -201,8 +207,10 @@ export async function drainTerminalInput(
       await writeHead(context, state, queued)
     }
   } finally {
-    state.draining = false
-    deleteTerminalInputStateIfUnused(context, state)
-    if (hasDrainableInput(state)) void drainTerminalInput(context, state)
+    if (state.queueVersion === queueVersion) {
+      state.draining = false
+      deleteTerminalInputStateIfUnused(context, state)
+      if (hasDrainableInput(state)) void drainTerminalInput(context, state)
+    }
   }
 }

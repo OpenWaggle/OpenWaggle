@@ -16,24 +16,39 @@ import type {
   BrowserPreviewScreenshotArtifact,
   BrowserPreviewViewport,
 } from '@shared/types/browser-preview-controls'
+import type { DesktopMutationScope } from '@shared/types/desktop-service'
 import type { WebContents } from 'electron'
 import { assertBrowserPreviewCapacity } from './browser-preview-capacity'
 import { BrowserPreviewControlCoordinator } from './browser-preview-control-coordinator'
 import { BrowserPreviewLifecycle } from './browser-preview-lifecycle'
+import { BrowserPreviewMutationFences } from './browser-preview-mutation-fences'
 import { BrowserPreviewNavigation } from './browser-preview-navigation'
 import { emitBrowserPreviewState } from './browser-preview-owner-events'
 import { browserPreviewOwnerRegistry } from './browser-preview-owner-registry'
 import { createBrowserPreviewRecord } from './browser-preview-record-factory'
+import { applyBrowserPreviewBounds } from './browser-preview-record-layout'
 import { BrowserPreviewRecordRegistry } from './browser-preview-record-registry'
 import type { BrowserPreviewRecord } from './browser-preview-records'
-import { browserPreviewRestorationInput } from './browser-preview-replacement'
+import { BrowserPreviewReplacement } from './browser-preview-replacement'
+import { BrowserPreviewShutdown } from './browser-preview-shutdown'
 import { nextBrowserPreviewZoomFactor } from './browser-preview-zoom'
+import { assertDesktopNativeAdmission } from './desktop-native-admission'
 
 export { browserPreviewShortcutForInput } from './browser-preview-policy'
 
 export class BrowserPreviewManager {
+  private readonly mutationFences = new BrowserPreviewMutationFences()
+  private readonly shutdown = new BrowserPreviewShutdown((record) =>
+    this.lifecycle.disposeAndWait(record),
+  )
   private readonly records = new BrowserPreviewRecordRegistry({
     disposeRecord: (record) => this.lifecycle.dispose(record),
+  })
+  private readonly replacement = new BrowserPreviewReplacement({
+    findOwned: (ownerKey, previewId) => this.records.findOwned(ownerKey, previewId),
+    isLive: (record) => this.records.isLive(record),
+    dispose: (record) => this.lifecycle.dispose(record),
+    open: (sender, input) => this.open(sender, input),
   })
   private readonly controlCoordinator = new BrowserPreviewControlCoordinator({
     isLive: (record) => this.records.isLive(record),
@@ -72,6 +87,7 @@ export class BrowserPreviewManager {
   }
 
   open(sender: WebContents, input: BrowserPreviewOpenInput): BrowserPreviewState {
+    this.assertAdmission(input.ownerKey)
     browserPreviewOwnerRegistry.assertRegistered(input.ownerKey, sender)
     const canonicalUrl = normalizeBrowserPreviewUrl(input.url)
     const owner = this.records.getOrCreateOwner(sender)
@@ -80,7 +96,7 @@ export class BrowserPreviewManager {
       if (existing.ownerKey !== input.ownerKey || existing.profileId !== input.profileId) {
         throw new Error('Browser preview owner and profile cannot change after creation.')
       }
-      this.applyBounds(existing, input.bounds, input.visible)
+      applyBrowserPreviewBounds(existing, input.bounds, input.visible, this.controlCoordinator)
       const state =
         existing.state.url !== canonicalUrl
           ? this.navigation.navigate(existing, canonicalUrl)
@@ -100,6 +116,7 @@ export class BrowserPreviewManager {
       canonicalUrl,
       owner,
       onOwnerEventFailure: () => this.records.disposeOwner(owner),
+      onCreated: (record) => this.shutdown.track(record),
     })
     try {
       this.records.add(record)
@@ -130,7 +147,7 @@ export class BrowserPreviewManager {
       record.view.setVisible(false)
       return
     }
-    this.applyBounds(record, bounds, true)
+    applyBrowserPreviewBounds(record, bounds, true, this.controlCoordinator)
   }
 
   navigate(sender: WebContents, previewId: string, url: string): BrowserPreviewState {
@@ -167,38 +184,30 @@ export class BrowserPreviewManager {
     this.lifecycle.dispose(this.requirePreview(sender, previewId))
   }
 
+  closeForOwner(ownerKey: string): Promise<void> {
+    return this.shutdown.closeForOwner(ownerKey)
+  }
+
+  beginShutdown(): void {
+    this.shutdown.beginShutdown()
+  }
+
+  closeAll(): Promise<void> {
+    return this.shutdown.closeAll()
+  }
+
+  async acquireMutationFence(scope: DesktopMutationScope): Promise<() => void> {
+    return this.mutationFences.acquire(scope)
+  }
+
   replaceForCapacity(
     sender: WebContents,
     input: BrowserPreviewOpenInput,
     replacedPreviewId: string,
   ): BrowserPreviewReplacementResult {
+    this.assertAdmission(input.ownerKey)
     browserPreviewOwnerRegistry.assertRegistered(input.ownerKey, sender)
-    if (input.previewId === replacedPreviewId) {
-      throw new Error('A browser preview cannot replace itself for capacity.')
-    }
-    const replaced = this.records.findOwned(input.ownerKey, replacedPreviewId)
-    if (!replaced) return { state: this.open(sender, input), replacedState: null }
-    if (!this.records.isLive(replaced) || replaced.owner.sender !== sender) {
-      throw new Error('Browser preview replacement is not owned by this renderer.')
-    }
-    const replacedState = replaced.state
-    this.lifecycle.dispose(replaced)
-    try {
-      return { state: this.open(sender, input), replacedState }
-    } catch (replacementError) {
-      const partial = this.records.findOwned(input.ownerKey, input.previewId)
-      if (partial && partial.owner.sender === sender) this.lifecycle.dispose(partial)
-      try {
-        this.open(sender, browserPreviewRestorationInput(replacedState))
-      } catch (restoreError) {
-        throw new AggregateError(
-          [replacementError, restoreError],
-          'Browser preview replacement and rollback both failed.',
-          { cause: restoreError },
-        )
-      }
-      throw replacementError
-    }
+    return this.replacement.replace(sender, input, replacedPreviewId)
   }
 
   zoom(sender: WebContents, previewId: string, action: BrowserPreviewZoomAction): number {
@@ -316,25 +325,19 @@ export class BrowserPreviewManager {
   }
 
   private requirePreview(sender: WebContents, previewId: string) {
-    return this.records.requirePreview(sender, previewId)
+    const record = this.records.requirePreview(sender, previewId)
+    this.assertAdmission(record.ownerKey)
+    return record
+  }
+
+  private assertAdmission(ownerKey: string) {
+    assertDesktopNativeAdmission()
+    this.shutdown.assertCanOpen(ownerKey)
+    this.mutationFences.assertAllowed(ownerKey)
   }
 
   private requireOwner(sender: WebContents) {
     return this.records.requireOwner(sender)
-  }
-
-  private applyBounds(
-    record: BrowserPreviewRecord,
-    bounds: BrowserPreviewBounds,
-    visible: boolean,
-  ) {
-    record.bounds = visible ? bounds : null
-    record.view.setBounds(bounds)
-    record.view.setVisible(visible)
-    if (visible && !record.owner.window.isDestroyed()) {
-      record.owner.window.contentView.addChildView(record.view)
-    }
-    this.controlCoordinator.applyViewport(record)
   }
 }
 

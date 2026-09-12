@@ -19,9 +19,15 @@ import {
   SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+  SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
   SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
@@ -122,9 +128,11 @@ function appendBrowserSettingsWrites(
   )
 }
 
-export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
-  const writes: SettingsPatchWrite[] = []
-
+function appendGeneralSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
   appendChangedSetting(
     writes,
     partial.selectedModel !== undefined,
@@ -192,6 +200,13 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
     next.defaultAuthorizationMode,
   )
+}
+
+function appendDiffSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
   appendChangedSetting(
     writes,
     partial.diffSyntaxTheme !== undefined,
@@ -216,6 +231,57 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_DIFF_WRAP_LINES,
     next.diffWrapLines,
   )
+}
+
+function appendSessionHostSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
+  appendChangedSetting(
+    writes,
+    partial.sessionHostParentConcurrencyLimit !== undefined,
+    SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+    next.sessionHostParentConcurrencyLimit,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostParentConcurrencyLimitsByProject !== undefined,
+    SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+    next.sessionHostParentConcurrencyLimitsByProject,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostRunCeiling !== undefined,
+    SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
+    next.sessionHostRunCeiling,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostIdleGracePeriodMs !== undefined,
+    SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+    next.sessionHostIdleGracePeriodMs,
+  )
+  appendChangedSetting(
+    writes,
+    partial.multiAgentEnabled !== undefined,
+    SETTINGS_KEY_MULTI_AGENT_ENABLED,
+    next.multiAgentEnabled,
+  )
+  appendChangedSetting(
+    writes,
+    partial.multiAgentEnabledByProject !== undefined,
+    SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
+    next.multiAgentEnabledByProject,
+  )
+}
+
+export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
+  const writes: SettingsPatchWrite[] = []
+
+  appendGeneralSettingsWrites(writes, partial, next)
+  appendDiffSettingsWrites(writes, partial, next)
+  appendSessionHostSettingsWrites(writes, partial, next)
   appendChangedSetting(
     writes,
     partial.compactionThresholdPercent !== undefined,

@@ -1,4 +1,3 @@
-import path from 'node:path'
 import type {
   TerminalActivitySnapshot,
   TerminalAttachResult,
@@ -18,6 +17,7 @@ import {
   terminalEventCanChangeActivitySummary,
 } from './terminal/terminal-activity-snapshot'
 import { makeTerminalAttachmentTracker } from './terminal/terminal-attachment-tracker'
+import { terminalHistoryDirectory } from './terminal/terminal-history-directory'
 import { makeTerminalHistoryStore } from './terminal/terminal-history-store'
 import { makeTerminalInactiveRecordRetention } from './terminal/terminal-inactive-record-retention'
 import type { PendingTerminalInput } from './terminal/terminal-input-idempotency'
@@ -37,7 +37,6 @@ import {
 } from './terminal/terminal-service-coordination'
 import { makeTerminalServiceFacade } from './terminal/terminal-service-facade'
 
-const TERMINAL_LOGS_DIR_NAME = 'terminal-logs'
 const FALLBACK_APP_VERSION = '0.0.0'
 
 function getElectronAppVersion() {
@@ -206,7 +205,7 @@ export const NodePtyTerminalServiceLive = Layer.scoped(
   Effect.gen(function* () {
     const sink = yield* TerminalEventSink
     const service = makeNodePtyTerminalService(sink, {
-      logsDir: path.join(app.getPath('userData'), TERMINAL_LOGS_DIR_NAME),
+      logsDir: terminalHistoryDirectory(),
       // Electron always supplies getVersion in production. The defensive
       // fallback keeps the service layer usable in Node-only test harnesses
       // and degraded Electron startup environments.

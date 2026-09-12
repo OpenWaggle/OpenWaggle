@@ -10,6 +10,7 @@ import { AppLogger } from '../../services/logger-service'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -58,6 +59,7 @@ function makeSessionLayers() {
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),
     Layer.succeed(SessionRepository, {
+      ...emptySessionCatalogMethods,
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),

@@ -21,6 +21,7 @@ export interface SessionRow {
   readonly worktree_base_ref: string | null
   readonly worktree_start_from_origin: number | null
   readonly authorization_mode_override: string | null
+  readonly execution_model_id: string | null
 }
 
 export interface SessionSummaryRow {
@@ -62,11 +63,6 @@ export interface SessionActiveRunRow {
   readonly status: string
   readonly runtime_json: string
   readonly updated_at: number
-}
-
-export interface StagedSessionFileDeletion {
-  readonly cleanup: () => Promise<void>
-  readonly restore: () => Promise<void>
 }
 
 export interface SessionNodeRow {

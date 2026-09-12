@@ -27,6 +27,13 @@ export interface InlineVisualizationDownloadInput {
   readonly base64Data: string
 }
 
+export interface InlineVisualizationSourceOwner {
+  readonly id: string
+  readonly projectPath: string | null
+  readonly environmentMode?: 'local' | 'worktree'
+  readonly worktreePath?: string | null
+}
+
 export type InlineVisualizationReadResult =
   | {
       readonly status: 'loaded'

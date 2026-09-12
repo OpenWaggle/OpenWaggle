@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { app, clipboard } from 'electron'
+import { getDesktopNativeAdmissionIssue } from '../desktop-native-admission'
 import { openExternal, openPath } from '../desktop-ui'
 import { createLogger } from '../logger'
 import { typedHandle, typedOn } from './typed-ipc'
@@ -17,6 +18,7 @@ export function registerShellHandlers(): void {
   )
 
   typedHandle('app:get-logs-path', () => Effect.sync(() => app.getPath('logs')))
+  typedHandle('app:get-native-admission-issue', () => Effect.sync(getDesktopNativeAdmissionIssue))
 
   typedOn('clipboard:write-text', (_event, text) => Effect.sync(() => clipboard.writeText(text)))
 
