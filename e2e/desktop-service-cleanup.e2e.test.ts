@@ -167,9 +167,10 @@ test('Host archive closes exact native resources and an unarchived Session can o
     await page.getByRole('button', { name: 'Open terminal', exact: true }).click()
     const reopenedPid = await shellPid(page, 'HIVE_REOPENED')
     expect(await processExists(app, reopenedPid)).toBe(true)
-    expect(await page.evaluate((id) => window.api.getSessionDetail(id), sessionId)).toMatchObject({
-      archived: false,
-    })
+    const reopenedDetail = await page.evaluate((id) => window.api.getSessionDetail(id), sessionId)
+    expect(reopenedDetail).toMatchObject({ id: sessionId })
+    // Session detail omits the optional archived flag when the Session is unarchived.
+    expect(reopenedDetail?.archived ?? false).toBe(false)
     await app.captureEvidence('desktop-cleanup-reopened-terminal')
     expect(errors).toEqual([])
     expect(await app.desktopState()).toMatchObject({ focused: false, visible: false })
