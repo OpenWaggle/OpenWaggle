@@ -93,12 +93,17 @@ async function launchSessionWithTerminalFixture(
 ): Promise<SeededTerminalSession> {
   const app = await OpenWaggleApp.launch(prefix)
   try {
-    const projectPath = path.join(app.userDataDir, projectLabel)
-    const worktreePath =
+    const requestedProjectPath = path.join(app.userDataDir, projectLabel)
+    const requestedWorktreePath =
       worktreeLabel === undefined
         ? undefined
-        : path.join(projectPath, '.openwaggle', 'worktrees', worktreeLabel)
-    await fs.mkdir(worktreePath ?? projectPath, { recursive: true })
+        : path.join(requestedProjectPath, '.openwaggle', 'worktrees', worktreeLabel)
+    await fs.mkdir(requestedWorktreePath ?? requestedProjectPath, { recursive: true })
+    // Direct SQL seeding must preserve the realpath invariant of sessions:create.
+    const projectPath = await fs.realpath(requestedProjectPath)
+    const worktreePath = requestedWorktreePath === undefined
+      ? undefined
+      : await fs.realpath(requestedWorktreePath)
     const sessionId = await seedSingleSession(app.userDataDir, {
       title: SESSION_TITLE,
       projectPath,
@@ -300,6 +305,7 @@ test('reloading the window keeps the shell and replays its scrollback on re-atta
     await expect(paneRows(pane)).toContainText(RELOAD_MARKER, {
       timeout: SHELL_OUTPUT_TIMEOUT_MS,
     })
+    await expect(page.getByRole('button', { name: 'Collapse terminal-reload-project', exact: true })).toHaveCount(1)
   } finally {
     await app.cleanup()
   }

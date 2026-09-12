@@ -217,6 +217,59 @@ test('Session Summary coordinates native floating previews and inspectors across
       await expect(floating).toBeVisible()
       await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: true })
       await testInfo.attach('native-close-retry-preserves-other-session', { path: await app.captureEvidence('native-close-retry-preserves-other-session'), contentType: 'image/png' })
+      const alphaPreviewId = await floating.getAttribute('data-browser-preview-floating')
+      if (!alphaPreviewId) throw new Error('Alpha preview identity is missing before quarantine probe.')
+      await floating.getByRole('button', { name: 'Open preview in right panel' }).click()
+      const quarantineProbe = await app.electronApplication().evaluateHandle(({ BrowserWindow, WebContentsView }, id) => {
+        for (const owner of BrowserWindow.getAllWindows()) {
+          for (const view of owner.contentView.children) {
+            if (!(view instanceof WebContentsView) || view.webContents.id !== id) continue
+            const contents = view.webContents
+            const originalClose = contents.close
+            contents.close = () => { throw new Error('Persistent native close rejection fixture') }
+            return { owner, view, contents, originalClose }
+          }
+        }
+        throw new Error('Alpha native view is missing before quarantine probe.')
+      }, originalNativeId)
+      try {
+        await closePreview.click()
+        await expect(page.getByText(/Persistent native close rejection fixture/u)).toBeVisible()
+        await quarantineProbe.evaluate(({ owner }) => {
+          // Exercise trust-loss listeners without navigating or launching any external page.
+          owner.webContents.emit('did-start-navigation', {
+            isMainFrame: true, isSameDocument: false, url: 'https://untrusted.invalid/',
+          })
+        })
+        await expect.poll(() => quarantineProbe.evaluate(({ owner, view, contents }) => ({
+          live: !contents.isDestroyed(),
+          visible: view.getVisible(),
+          attached: owner.contentView.children.includes(view),
+        }))).toEqual({ live: true, visible: false, attached: false })
+        for (const action of ['capture', 'reload'] as const) {
+          const result = await page.evaluate(async ({ id, action }) => {
+            try {
+              if (action === 'capture') await window.api.captureBrowserPreviewScreenshot(id)
+              else await window.api.reloadBrowserPreview(id)
+              return { rejected: false, message: '' }
+            } catch (error) {
+              return { rejected: true, message: error instanceof Error ? error.message : String(error) }
+            }
+          }, { id: alphaPreviewId, action })
+          expect(result).toEqual({ rejected: true, message: expect.stringMatching(/\S/u) })
+        }
+        await testInfo.attach('native-quarantine-denies-retained-preview', { path: await app.captureEvidence('native-quarantine-denies-retained-preview'), contentType: 'image/png' })
+        await quarantineProbe.evaluate(({ contents, originalClose }) => { contents.close = originalClose })
+        await closePreview.click()
+        await expect(closePreview).toHaveCount(0)
+        await expect.poll(() => quarantineProbe.evaluate(({ contents }) => contents.isDestroyed())).toBe(true)
+        await testInfo.attach('native-quarantine-close-retry', { path: await app.captureEvidence('native-quarantine-close-retry'), contentType: 'image/png' })
+      } finally {
+        await quarantineProbe.evaluate(({ contents, originalClose }) => {
+          if (!contents.isDestroyed()) contents.close = originalClose
+        }).catch(() => undefined)
+        await quarantineProbe.dispose()
+      }
       expect(errors).toEqual([])
       expect(await app.desktopState()).toMatchObject({ focused: false, visible: false })
     } finally {

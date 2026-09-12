@@ -1,8 +1,10 @@
 import type { BrowserPreviewAutomationControlSession } from './browser-preview-automation-session'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 
 const CDP_VERSION = '1.3'
 
 function assertDebuggerOwnership(session: BrowserPreviewAutomationControlSession) {
+  assertBrowserPreviewContentsAvailable(session.contents)
   if (session.contents.isDevToolsOpened()) {
     throw new Error('Close DevTools for this browser preview before running agent automation.')
   }

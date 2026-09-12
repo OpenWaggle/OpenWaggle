@@ -16,7 +16,7 @@ import { useBrowserPreviewOwnerRegistration } from './useBrowserPreviewOwnerRegi
 import { WorkspacePanelContent } from './WorkspacePanelContent'
 import { WorkspaceSurfaceTabs } from './WorkspaceSurfaceTabs'
 import { closeBrowserTabs } from './workspace-browser-close'
-import { collectOwnerReconciliationErrors } from './workspace-owner-reconciliation'
+import { reconcileClosedBrowsers } from './workspace-browser-close-reconciliation'
 import { newWorkspaceBrowser } from './workspace-panel-actions'
 import {
   type BrowserPreviewTabState,
@@ -48,30 +48,6 @@ function activeBrowserForSurface(
   return surface?.kind === 'browser'
     ? (tabs.find((tab) => tab.id === surface.previewId) ?? null)
     : null
-}
-
-function reconcileClosedBrowsers(ownerKey: string, closedIds: readonly string[]) {
-  const closed = new Set(closedIds)
-  const store = useWorkspacePanelStore.getState()
-  const group = store.groups[ownerKey]
-  const claim = useRightSidebarCoordinator.getState().activeClaim
-  const sideGroup = useTerminalStore.getState().groups[terminalSidePanelLayoutKey(ownerKey)]
-  const shouldRevealTerminal =
-    claim?.kind === 'workspace' &&
-    claim.ownerKey === ownerKey &&
-    hasOpenTerminalGroup(sideGroup) &&
-    group?.panelOpen === true &&
-    group.activeSurface?.kind === 'browser' &&
-    closed.has(group.activeSurface.previewId) &&
-    group.browserTabs.every((tab) => closed.has(tab.id))
-  return collectOwnerReconciliationErrors([
-    () => {
-      if (closedIds.length > 0) store.closeBrowsers(ownerKey, closedIds)
-    },
-    () => {
-      if (shouldRevealTerminal) store.showTerminal(ownerKey)
-    },
-  ])
 }
 
 /**

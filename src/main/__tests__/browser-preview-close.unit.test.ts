@@ -141,7 +141,7 @@ describe('browser preview idempotent close', () => {
     await expect(manager.close(owner, 'preview-1')).rejects.toBe(failure)
     emitter.emit('destroyed')
     await Promise.resolve()
-    expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeDefined()
+    expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeUndefined()
     expect(() => manager.close(createOwner(18).owner, 'preview-1')).toThrow('not owned')
     expect(() => manager.open(owner, openInput({ ownerKey: 'new-owner' }))).toThrow(
       'cleanup is pending',
@@ -166,7 +166,7 @@ describe('browser preview idempotent close', () => {
     const pending = manager.close(owner, 'preview-1')
     emitter.emit('destroyed')
     expect(view.webContents.close).toHaveBeenCalledOnce()
-    expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeDefined()
+    expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeUndefined()
     expect(manager.findOwnedPreview('session-1', 'other-preview')).toBeUndefined()
     view.webContents.destroyed = true
     view.webContents.emit('destroyed')

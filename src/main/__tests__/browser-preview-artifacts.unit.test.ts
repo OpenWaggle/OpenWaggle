@@ -9,6 +9,7 @@ import type { NativeImage, WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserPreviewArtifactStorage } from '../browser-preview-artifact-storage'
 import { BrowserPreviewCaptureTimeoutError } from '../browser-preview-capture'
+import { quarantineBrowserPreviewContents } from '../browser-preview-quarantine'
 import {
   configurePreparedAttachmentRegistry,
   resetPreparedAttachmentRegistryForTests,
@@ -74,6 +75,19 @@ function captureContents(capturePage: WebContents['capturePage']) {
 }
 
 describe('BrowserPreviewArtifactStore', () => {
+  it('does not publish an artifact if its owner retires while storage is writing', async () => {
+    const contents = captureContents(vi.fn(async () => image({ width: 800, height: 600 })))
+    const storage = new BrowserPreviewArtifactStorage(path.join(root, 'artifacts'))
+    const write = storage.write.bind(storage)
+    vi.spyOn(storage, 'write').mockImplementation(async (...args) => {
+      const stored = await write(...args)
+      quarantineBrowserPreviewContents(contents)
+      return stored
+    })
+    await expect(
+      new BrowserPreviewArtifactStore(storage).captureScreenshot('preview', contents),
+    ).rejects.toThrow('retired')
+  })
   it('captures a PNG with bounded metadata', async () => {
     const nativeImage = image({ width: 800, height: 600 })
     const contents = captureContents(vi.fn(async () => nativeImage))

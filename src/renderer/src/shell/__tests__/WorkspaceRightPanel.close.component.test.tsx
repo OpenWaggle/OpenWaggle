@@ -185,5 +185,40 @@ describe('right-panel native browser close', () => {
       requestKey: 'diff',
       scopeKey: 'draft:/other',
     })
+    expect(useWorkspacePanelStore.getState().groups[OWNER]).toMatchObject({
+      activeSurface: { kind: 'terminal' },
+      panelOpen: true,
+    })
+    act(() => useRightSidebarCoordinator.getState().releaseRoute('diff', 'draft:/other'))
+    mocks.context.projectPath = '/repo'
+    view.rerender(<WorkspaceRightPanel>Chat again</WorkspaceRightPanel>)
+    expect(useRightSidebarCoordinator.getState().activeClaim).toEqual({
+      kind: 'workspace',
+      ownerKey: OWNER,
+    })
+  })
+
+  it('does not reopen a panel explicitly hidden while native closure is pending', async () => {
+    const pending = Promise.withResolvers<void>()
+    mocks.closeBrowserPreview.mockReturnValueOnce(pending.promise)
+    const { previewId } = useWorkspacePanelStore
+      .getState()
+      .openBrowser(OWNER, 'https://example.test')
+    const sideKey = terminalSidePanelLayoutKey(OWNER)
+    useTerminalStore.getState().createTerminal(sideKey, '/repo')
+    useTerminalStore.getState().setPanelOpen(sideKey, true)
+    render(<WorkspaceRightPanel>Chat</WorkspaceRightPanel>)
+    fireEvent.click(screen.getByRole('button', { name: `Close ${previewId}` }))
+    await waitFor(() => expect(mocks.closeBrowserPreview).toHaveBeenCalledWith(previewId))
+    act(() => useWorkspacePanelStore.getState().hidePanel(OWNER))
+    await act(async () => {
+      pending.resolve()
+      await pending.promise
+    })
+    await waitFor(() =>
+      expect(useWorkspacePanelStore.getState().groups[OWNER]?.browserTabs).toHaveLength(0),
+    )
+    expect(useWorkspacePanelStore.getState().groups[OWNER]?.panelOpen).toBe(false)
+    expect(useRightSidebarCoordinator.getState().activeClaim).toBeNull()
   })
 })

@@ -45,7 +45,7 @@ export function requireBrowserPreviewAutomationRecord(
 export function browserPreviewAutomationStatusFor(
   record?: BrowserPreviewRecord,
 ): BrowserPreviewAutomationStatus {
-  if (!record) {
+  if (!record || record.disposed) {
     return {
       available: false,
       visible: false,
