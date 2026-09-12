@@ -8,7 +8,7 @@ interface ModalDialogProps {
   readonly labelledBy?: string
   /** Invoked on Escape, backdrop dismissal, and any native close. */
   readonly onClose: () => void
-  /** Set false while a mutation must finish before the dialog can close. */
+  /** Disable every user dismissal while an operation owns the dialog. */
   readonly dismissible?: boolean
   /** Classes for the dialog panel itself. */
   readonly className?: string
@@ -44,12 +44,12 @@ export function ModalDialog({
     <dialog
       ref={dialogRef}
       {...(labelledBy ? { 'aria-labelledby': labelledBy } : { 'aria-label': label })}
+      aria-busy={!dismissible || undefined}
       onCancel={(event) => {
-        if (!dismissible) {
-          event.preventDefault()
-          return
-        }
-        onClose()
+        // Keep ownership in React and avoid a second callback from the native
+        // close event. This is also what makes an in-flight dialog truly modal.
+        event.preventDefault()
+        if (dismissible) onClose()
       }}
       onClose={() => {
         if (dismissible) onClose()

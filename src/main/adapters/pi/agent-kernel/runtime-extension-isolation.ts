@@ -32,6 +32,8 @@ export interface PiProjectRuntimeIsolationOptions {
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
 }
 
@@ -126,6 +128,12 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
       options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
+    ...(options.trustedExtensionFactories
+      ? { trustedExtensionFactories: options.trustedExtensionFactories }
+      : {}),
+    ...(options.systemPromptAppendices
+      ? { systemPromptAppendices: options.systemPromptAppendices }
+      : {}),
     ...(options.visualizationDirectory
       ? { visualizationDirectory: options.visualizationDirectory }
       : {}),
@@ -160,6 +168,12 @@ export async function createIsolatedPiProjectRuntime(input: {
           : {}),
         ...(input.options.extensionFactories
           ? { extensionFactories: input.options.extensionFactories }
+          : {}),
+        ...(input.options.trustedExtensionFactories
+          ? { trustedExtensionFactories: input.options.trustedExtensionFactories }
+          : {}),
+        ...(input.options.systemPromptAppendices
+          ? { systemPromptAppendices: input.options.systemPromptAppendices }
           : {}),
         ...(input.options.visualizationDirectory
           ? { visualizationDirectory: input.options.visualizationDirectory }

@@ -7,19 +7,28 @@
  * display labels.
  */
 export const WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS = [
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'trae', label: 'Trae' },
+  { id: 'kiro', label: 'Kiro' },
   { id: 'vscode', label: 'Visual Studio Code' },
   { id: 'vscode-insiders', label: 'Visual Studio Code Insiders' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'zed', label: 'Zed' },
   { id: 'vscodium', label: 'VSCodium' },
+  { id: 'zed', label: 'Zed' },
+  { id: 'antigravity', label: 'Antigravity' },
+  { id: 'idea', label: 'IntelliJ IDEA' },
+  { id: 'aqua', label: 'Aqua' },
+  { id: 'clion', label: 'CLion' },
+  { id: 'datagrip', label: 'DataGrip' },
+  { id: 'dataspell', label: 'DataSpell' },
+  { id: 'goland', label: 'GoLand' },
+  { id: 'phpstorm', label: 'PhpStorm' },
+  { id: 'pycharm', label: 'PyCharm' },
+  { id: 'rider', label: 'Rider' },
+  { id: 'rubymine', label: 'RubyMine' },
+  { id: 'rustrover', label: 'RustRover' },
+  { id: 'webstorm', label: 'WebStorm' },
   { id: 'windsurf', label: 'Windsurf' },
   { id: 'sublime', label: 'Sublime Text' },
-  { id: 'idea', label: 'IntelliJ IDEA' },
-  { id: 'webstorm', label: 'WebStorm' },
-  { id: 'pycharm', label: 'PyCharm' },
-  { id: 'goland', label: 'GoLand' },
-  { id: 'clion', label: 'CLion' },
-  { id: 'rider', label: 'Rider' },
 ] as const
 
 export type WorkspaceExternalEditorId = (typeof WORKSPACE_EXTERNAL_EDITOR_DEFINITIONS)[number]['id']
@@ -45,4 +54,12 @@ export interface WorkspaceFileExternalOpenInput {
   readonly path: string
   readonly editor: WorkspaceExternalEditorId
   readonly line?: number
+  readonly column?: number
+}
+
+export interface WorkspaceAbsoluteFileExternalOpenInput {
+  readonly path: string
+  readonly editor: WorkspaceExternalEditorId
+  readonly line?: number
+  readonly column?: number
 }

@@ -20,6 +20,7 @@ import { SessionSummaryHub } from '../SessionSummaryHub'
 import { SESSION_SUMMARY_SECTION_ORDER } from '../SessionSummaryPanelSections'
 
 const mocks = vi.hoisted(() => ({
+  toggleTerminal: vi.fn(),
   listSessionResources: vi.fn<OpenWaggleApi['listSessionResources']>(),
   listArchivedSessions: vi.fn(),
   listMcpEventSubscriptions: vi.fn(),
@@ -37,6 +38,11 @@ export const useCombinedVcsStatus: Mock<typeof useCombinedVcsStatusHook> =
   mocks.useCombinedVcsStatus
 export const useGit: Mock<typeof useGitHook> = mocks.useGit
 export const commitOrPushDialog = mocks.commitOrPushDialog
+export const toggleSessionTerminal: Mock<() => void> = mocks.toggleTerminal
+
+vi.mock('@/features/terminal', () => ({
+  useTerminalCommands: () => ({ toggleTerminal: mocks.toggleTerminal }),
+}))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -225,4 +231,5 @@ export function setupSessionSummaryHubHarness() {
     refresh: vi.fn(),
   })
   commitOrPushDialog.mockClear()
+  toggleSessionTerminal.mockClear()
 }

@@ -10,6 +10,7 @@ import type {
   GhCliStatus,
 } from './feedback'
 import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
+import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
 import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
 import type { SupportedModelId } from './llm'
 import type { AgentPhaseState } from './phase'
@@ -29,19 +30,8 @@ import type { WaggleConfig, WagglePreset } from './waggle'
 
 export interface IpcIntegrationInvokeChannelMap
   extends IpcWorkspaceFileInvokeChannelMap,
-    IpcGitInvokeChannelMap {
-  'terminal:create': {
-    args: [projectPath: string]
-    return: string
-  }
-  'terminal:close': {
-    args: [terminalId: string]
-    return: undefined
-  }
-  'terminal:resize': {
-    args: [terminalId: string, cols: number, rows: number]
-    return: undefined
-  }
+    IpcGitInvokeChannelMap,
+    IpcTerminalInvokeChannelMap {
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
     return: PreparedAttachment[]
@@ -93,6 +83,10 @@ export interface IpcIntegrationInvokeChannelMap
   'dialog:confirm': {
     args: [message: string, detail?: string]
     return: boolean
+  }
+  'clipboard:read-text': {
+    args: []
+    return: string
   }
   'app:open-logs-dir': {
     args: []

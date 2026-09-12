@@ -4,6 +4,7 @@ import type { EstablishSessionLineageInput, SessionDelegationState } from '@shar
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
+import { withSessionLineageMutation } from './session-deletion-fence'
 
 export async function hasDirectSessionWorkers(sessionId: SessionId): Promise<boolean> {
   return runStoreEffect(
@@ -39,10 +40,11 @@ export async function hasActiveSessionWorker(sessionId: SessionId): Promise<bool
 /** Establishes immutable parentage once; retries cannot silently reparent an existing worker. */
 export async function establishSessionLineage(input: EstablishSessionLineageInput): Promise<void> {
   const now = Date.now()
-  await runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql`
+  await withSessionLineageMutation([input.sessionId, input.parentSessionId], () =>
+    runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
         INSERT INTO session_lineage (
           session_id,
           parent_session_id,
@@ -60,7 +62,8 @@ export async function establishSessionLineage(input: EstablishSessionLineageInpu
         )
         ON CONFLICT(session_id) DO NOTHING
       `
-    }),
+      }),
+    ),
   )
 }
 
@@ -69,20 +72,22 @@ export async function setSessionDelegationState(
   sessionId: SessionId,
   delegationState: SessionDelegationState,
 ): Promise<void> {
-  await runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const updated = yield* sql<{ readonly session_id: string }>`
+  await withSessionLineageMutation([sessionId], () =>
+    runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const updated = yield* sql<{ readonly session_id: string }>`
         UPDATE session_lineage
         SET delegation_state = ${delegationState}, updated_at = ${Date.now()}
         WHERE session_id = ${sessionId}
         RETURNING session_id
       `
-      if (!updated[EMPTY_INDEX]) {
-        return yield* Effect.fail(
-          new Error('Cannot update delegation state before Session lineage is established.'),
-        )
-      }
-    }),
+        if (!updated[EMPTY_INDEX]) {
+          return yield* Effect.fail(
+            new Error('Cannot update delegation state before Session lineage is established.'),
+          )
+        }
+      }),
+    ),
   )
 }

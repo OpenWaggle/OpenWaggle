@@ -3,6 +3,7 @@ import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
+import { useTerminalStore } from '@/features/terminal'
 import { Button } from '@/shared/ui/Button'
 import { Header } from '../Header'
 import { useUIStore } from '../ui-store'
@@ -42,6 +43,9 @@ vi.mock('@/features/chat/hooks', () => ({
       id: SessionId('session-1'),
       title: 'Fallback title',
       messages: [{ id: 'message-1', role: 'user', parts: [], createdAt: 1 }],
+      projectPath: headerMocks.projectPath,
+      environmentMode: 'worktree',
+      worktreePath: headerMocks.workingPath,
     },
   }),
 }))
@@ -92,6 +96,10 @@ vi.mock('@/features/git/hooks', () => ({
   }),
 }))
 
+vi.mock('@/features/project-actions', () => ({
+  ProjectActionsControl: () => null,
+}))
+
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: headerMocks.projectPath }),
   useSessions: () => ({
@@ -130,7 +138,6 @@ describe('Header', () => {
       diffRefreshKey: 0,
       feedbackModalOpen: false,
       sidebarOpen: true,
-      terminalOpen: false,
       toastData: null,
       toastMessage: null,
     })
@@ -140,6 +147,7 @@ describe('Header', () => {
       autoHidden: false,
       rightSidebarOpen: false,
     })
+    useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
     headerMocks.refreshStatus.mockClear()
     headerMocks.refreshBranches.mockClear()
     headerMocks.commit.mockClear()
@@ -153,6 +161,14 @@ describe('Header', () => {
     expect(screen.getByText('Session title')).toBeInTheDocument()
     expect(screen.getByText('/ feat/actual-checkout')).toBeInTheDocument()
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open terminal' })).toHaveAttribute(
+      'title',
+      'Open session terminal (Ctrl + J)',
+    )
+    expect(screen.getByRole('button', { name: 'Open terminal' })).toHaveAttribute(
+      'aria-keyshortcuts',
+      'Control+J',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
     fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
@@ -160,8 +176,8 @@ describe('Header', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
-    expect(useUIStore.getState().terminalOpen).toBe(true)
     expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(false)
+    expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().feedbackModalOpen).toBe(true)
     expect(headerMocks.toggleSessionTree).toHaveBeenCalledOnce()
     expect(headerMocks.toggleDiff).toHaveBeenCalledOnce()

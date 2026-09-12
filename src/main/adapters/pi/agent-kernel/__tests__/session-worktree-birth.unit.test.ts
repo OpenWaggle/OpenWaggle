@@ -3,27 +3,39 @@ import type { GitWorktreeMutationResult, SessionEnvironmentMode } from '@shared/
 import type { SessionDetail } from '@shared/types/session'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { existsSyncMock, runGitMock, createGitWorktreeMock, setSessionWorktreeMock } = vi.hoisted(
-  () => ({
-    existsSyncMock: vi.fn((_candidate: string) => true),
-    runGitMock: vi.fn(async (_cwd: string, _args: readonly string[]) => ({
-      code: 0,
-      stdout: 'main\n',
-      stderr: '',
-    })),
-    createGitWorktreeMock: vi.fn(
-      async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
-    ),
-    setSessionWorktreeMock: vi.fn(async () => {}),
-  }),
-)
+const {
+  adoptSessionWorktreeForSetupMock,
+  existsSyncMock,
+  resetSessionWorktreeSetupMock,
+  runGitMock,
+  createGitWorktreeMock,
+  setSessionWorktreeMock,
+} = vi.hoisted(() => ({
+  adoptSessionWorktreeForSetupMock: vi.fn(async () => null),
+  existsSyncMock: vi.fn((_candidate: string) => true),
+  resetSessionWorktreeSetupMock: vi.fn(),
+  runGitMock: vi.fn(async (_cwd: string, _args: readonly string[]) => ({
+    code: 0,
+    stdout: 'main\n',
+    stderr: '',
+  })),
+  createGitWorktreeMock: vi.fn(
+    async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
+  ),
+  setSessionWorktreeMock: vi.fn(async () => {}),
+}))
 
 vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
 vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
-vi.mock('../../../git/worktree', () => ({
-  createGitWorktree: createGitWorktreeMock,
+vi.mock('../../../git/worktree', () => ({ createGitWorktree: createGitWorktreeMock }))
+vi.mock('../../../../store/session-details', () => ({
+  adoptSessionWorktreeForSetup: adoptSessionWorktreeForSetupMock,
+  resetSessionWorktreeSetup: resetSessionWorktreeSetupMock,
+  setSessionWorktree: setSessionWorktreeMock,
 }))
-vi.mock('../../../../store/session-details', () => ({ setSessionWorktree: setSessionWorktreeMock }))
+vi.mock('../session-worktree-setup-dispatch', () => ({
+  dispatchPendingSessionWorktreeSetup: vi.fn(),
+}))
 
 const { ensureSessionWorktreeProjectPath } = await import('../session-worktree-birth')
 
@@ -48,6 +60,7 @@ function session(
 
 describe('ensureSessionWorktreeProjectPath', () => {
   beforeEach(() => {
+    adoptSessionWorktreeForSetupMock.mockReset().mockResolvedValue(null)
     /*
      * Default to "exists", except the deterministic birth path, which by definition does not
      * exist before the first send. Blanket `true` made the first-send tests unrealistic and
@@ -58,6 +71,10 @@ describe('ensureSessionWorktreeProjectPath', () => {
       .mockImplementation((candidate: string) => !candidate.includes('/.openwaggle/worktrees/'))
     runGitMock.mockReset().mockResolvedValue({ code: 0, stdout: 'main\n', stderr: '' })
     createGitWorktreeMock.mockReset().mockResolvedValue({ ok: true, message: 'ok', path: '/wt' })
+    resetSessionWorktreeSetupMock.mockReset().mockImplementation(async (_id, worktreePath) => ({
+      worktreePath,
+      generation: 'generation-1',
+    }))
     setSessionWorktreeMock.mockReset().mockResolvedValue(undefined)
   })
 
@@ -73,7 +90,6 @@ describe('ensureSessionWorktreeProjectPath', () => {
       session({ environmentMode: 'worktree', worktreePath: '/wt/existing' }),
     )
     expect(result).toBe('/wt/existing')
-    expect(createGitWorktreeMock).not.toHaveBeenCalled()
   })
 
   it('creates and persists a worktree on first send in worktree mode', async () => {

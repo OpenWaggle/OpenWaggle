@@ -91,6 +91,7 @@ export function RightSidebarSheet({
   return (
     <div
       inert={!open}
+      aria-hidden={!open}
       className={cn(
         'fixed inset-0 z-50 transition-opacity duration-200 ease-out',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',

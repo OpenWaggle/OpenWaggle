@@ -9,6 +9,8 @@ const api = vi.hoisted(() => ({
   listSessions: vi.fn(),
   deleteSession: vi.fn(),
   showConfirm: vi.fn(),
+  closeBrowserPreview: vi.fn(),
+  unregisterBrowserPreviewOwner: vi.fn(),
 }))
 vi.mock('@/shared/lib/ipc', () => ({ api }))
 
@@ -46,6 +48,8 @@ describe('project removal preflight and failure recovery', () => {
     api.listSessions.mockResolvedValue([session('first'), session('second'), session('third')])
     api.deleteSession.mockResolvedValue(undefined)
     api.showConfirm.mockResolvedValue(true)
+    api.closeBrowserPreview.mockResolvedValue(undefined)
+    api.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
   })
 
   it('requires new confirmation when the project session set changes', async () => {
@@ -59,6 +63,7 @@ describe('project removal preflight and failure recovery', () => {
     )
     expect(api.deleteSession).not.toHaveBeenCalled()
     expect(deps.removeProjectReferences).not.toHaveBeenCalled()
+    expect(api.unregisterBrowserPreviewOwner).not.toHaveBeenCalled()
     expect(deps.loadChatSessions).toHaveBeenCalled()
     expect(deps.loadSessionTrees).toHaveBeenCalled()
     const refreshed = { ...deps, sessions: [session('first'), session('second'), session('new')] }
@@ -69,6 +74,7 @@ describe('project removal preflight and failure recovery', () => {
       [SessionId('second')],
       [SessionId('new')],
     ])
+    expect(api.unregisterBrowserPreviewOwner.mock.calls).toEqual([['first'], ['second'], ['new']])
   })
 
   it('does not delete anything when fresh eligibility cannot be read', async () => {

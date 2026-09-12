@@ -6,7 +6,7 @@ import { Context, Effect, Layer } from 'effect'
 import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
 import { DATABASE_FILE_NAME, SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
-import { APP_MIGRATIONS } from './database-migrations'
+import { runMigrations } from './database-migration-runner'
 
 export interface AppDatabaseService {
   readonly path: string
@@ -20,64 +20,6 @@ export class AppDatabase extends Context.Tag('@openwaggle/AppDatabase')<
 function getDatabasePath() {
   return join(app.getPath('userData'), DATABASE_FILE_NAME)
 }
-
-const createMigrationsTable = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
-  yield* sql.unsafe(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
-      applied_at TEXT NOT NULL
-    )
-  `)
-})
-
-const runMigrations = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
-  yield* createMigrationsTable
-
-  for (const migration of APP_MIGRATIONS) {
-    const existingRows = yield* sql<{ id: number }>`
-      SELECT id
-      FROM _migrations
-      WHERE id = ${migration.id}
-      LIMIT 1
-    `
-
-    if (existingRows.length > 0) {
-      continue
-    }
-
-    // A column that is already present means the change landed under a different ledger id, so the
-    // ALTER would fail and take boot with it. Record the migration and move on.
-    const skip = migration.skipIfColumn
-    if (skip) {
-      const columns = yield* sql<{ name: string }>`
-        SELECT name FROM pragma_table_info(${skip.table})
-      `
-      if (columns.some((column) => column.name === skip.column)) {
-        yield* sql`
-          INSERT INTO _migrations (id, name, applied_at)
-          VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-        `
-        continue
-      }
-    }
-
-    yield* sql.withTransaction(
-      Effect.gen(function* () {
-        if (migration.run) yield* migration.run(sql)
-        for (const statement of migration.statements) {
-          yield* sql.unsafe(statement)
-        }
-        yield* sql`
-          INSERT INTO _migrations (id, name, applied_at)
-          VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-        `
-      }),
-    )
-  }
-})
 
 const makeDatabaseLayer = Effect.gen(function* () {
   const databasePath = getDatabasePath()
@@ -113,7 +55,7 @@ const makeDatabaseLayer = Effect.gen(function* () {
       yield* sql.unsafe('PRAGMA journal_mode = WAL;')
       yield* sql.unsafe('PRAGMA foreign_keys = ON;')
       yield* sql.unsafe('PRAGMA busy_timeout = 5000;')
-      yield* runMigrations
+      yield* runMigrations()
     }).pipe(
       Effect.mapError(
         (cause) =>

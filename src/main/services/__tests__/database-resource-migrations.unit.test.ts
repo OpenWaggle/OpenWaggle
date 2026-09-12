@@ -21,10 +21,10 @@ describe('session resource catalog migrations', () => {
     await fs.rm(tmpRoot, { recursive: true, force: true })
   })
 
-  it('adds a nullable original locator to resource occurrences at migration 36', async () => {
+  it('adds a nullable original locator to resource occurrences at migration 38', async () => {
     const result = await withMigrationDatabase(tmpRoot, (sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 35)
+        yield* applyMigrations(sql, 37)
         const existingColumns = yield* sql<ColumnInfo>`
           PRAGMA table_info(session_resource_occurrences)
         `
@@ -32,29 +32,29 @@ describe('session resource catalog migrations', () => {
           yield* sql.unsafe(`ALTER TABLE session_resource_occurrences DROP COLUMN locator`)
         }
 
-        yield* applyMigrations(sql, 36)
+        yield* applyMigrations(sql, 38)
         const columns = yield* sql<ColumnInfo>`
           PRAGMA table_info(session_resource_occurrences)
         `
-        yield* applyMigrations(sql, 36)
+        yield* applyMigrations(sql, 38)
         const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
-          SELECT id, name FROM _migrations WHERE id = 36
+          SELECT id, name FROM _migrations WHERE id = 38
         `
         return { columns, ledger }
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 36)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 38)?.name).toBe(
       'session-resource-occurrence-locator',
     )
     expect(result.columns.find((column) => column.name === 'locator')).toMatchObject({ notnull: 0 })
-    expect(result.ledger).toEqual([{ id: 36, name: 'session-resource-occurrence-locator' }])
+    expect(result.ledger).toEqual([{ id: 38, name: 'session-resource-occurrence-locator' }])
   })
 
   it('materializes occurrence-derived resource roles and bounded catalog indexes', async () => {
     const result = await withMigrationDatabase(tmpRoot, (sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 36)
+        yield* applyMigrations(sql, 38)
         yield* insertSession(sql, 'resource-role-session')
         yield* sql`
           INSERT INTO session_resources (
@@ -74,7 +74,7 @@ describe('session resource catalog migrations', () => {
             ('output-occurrence', 'resource-role', 'output-node', NULL, 'agent', 'updated',
              NULL, '/output/resource-role', 2)
         `
-        yield* applyMigrations(sql, 41)
+        yield* applyMigrations(sql, 43)
         const roles = yield* sql<{ readonly is_source: number; readonly is_output: number }>`
           SELECT is_source, is_output FROM session_resources WHERE id = 'resource-role'
         `
@@ -104,10 +104,10 @@ describe('session resource catalog migrations', () => {
     ])
   })
 
-  it('adds a monotonic session-owned catalog revision at migration 42', async () => {
+  it('adds a monotonic session-owned catalog revision at migration 44', async () => {
     const result = await withMigrationDatabase(tmpRoot, (sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 41)
+        yield* applyMigrations(sql, 43)
         for (const trigger of [
           'trg_session_resource_catalog_resource_insert',
           'trg_session_resource_catalog_resource_update',
@@ -119,7 +119,7 @@ describe('session resource catalog migrations', () => {
           yield* sql.unsafe(`DROP TRIGGER IF EXISTS ${trigger}`)
         }
         yield* sql.unsafe('DROP TABLE IF EXISTS session_resource_catalog_state')
-        yield* applyMigrations(sql, 42)
+        yield* applyMigrations(sql, 44)
         yield* insertSession(sql, 'catalog-revision-session')
         yield* sql`
           INSERT INTO session_resources (
@@ -149,34 +149,34 @@ describe('session resource catalog migrations', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 42)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 44)?.name).toBe(
       'session-resource-catalog-revision',
     )
     expect(result.revision).toEqual([{ revision: 4 }])
     expect(result.afterDelete).toEqual([])
   })
 
-  it('adds the indexed change-request catalog view at migration 43', async () => {
+  it('adds the indexed change-request catalog view at migration 45', async () => {
     const result = await withMigrationDatabase(tmpRoot, (sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 43)
+        yield* applyMigrations(sql, 45)
         const indexes = yield* sql<{ readonly name: string }>`
           SELECT name FROM sqlite_master
           WHERE type = 'index' AND name = 'idx_session_resources_change_request_updated'
         `
         const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
-          SELECT id, name FROM _migrations WHERE id = 43
+          SELECT id, name FROM _migrations WHERE id = 45
         `
         return { indexes, ledger }
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 43)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 45)?.name).toBe(
       'session-resource-change-request-catalog-index',
     )
     expect(result.indexes).toEqual([{ name: 'idx_session_resources_change_request_updated' }])
     expect(result.ledger).toEqual([
-      { id: 43, name: 'session-resource-change-request-catalog-index' },
+      { id: 45, name: 'session-resource-change-request-catalog-index' },
     ])
   })
 })

@@ -125,6 +125,7 @@ export function registerHandlers() {
   registerAgentHandlers()
   return {
     cancel: registeredHandler('agent:cancel'),
+    compact: registeredHandler('agent:compact-session'),
     send: registeredHandler('agent:send-message'),
     steer: registeredHandler('agent:steer'),
   }

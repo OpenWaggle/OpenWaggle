@@ -6,6 +6,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
+import { runMigrations } from '../database-migration-runner'
 import { APP_MIGRATIONS } from '../database-migrations'
 
 let tmpRoot = ''
@@ -25,44 +26,9 @@ function withDatabase<A>(
   )
 }
 
-function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL
-      )
-    `)
-    for (const migration of APP_MIGRATIONS) {
-      if (migration.id > upToId) continue
-      const existing = yield* sql<{ id: number }>`
-        SELECT id FROM _migrations WHERE id = ${migration.id} LIMIT 1
-      `
-      if (existing.length > 0) continue
-      const skip = migration.skipIfColumn
-      if (skip) {
-        const columns = yield* sql<{ name: string }>`
-          SELECT name FROM pragma_table_info(${skip.table})
-        `
-        if (columns.some((column) => column.name === skip.column)) {
-          yield* sql`
-            INSERT INTO _migrations (id, name, applied_at)
-            VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-          `
-          continue
-        }
-      }
-      if (migration.run) yield* migration.run(sql)
-      for (const statement of migration.statements) yield* sql.unsafe(statement)
-      yield* sql`
-        INSERT INTO _migrations (id, name, applied_at)
-        VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-      `
-    }
-  })
+function applyMigrations(_sql: SqlClient.SqlClient, upToId: number) {
+  return runMigrations(APP_MIGRATIONS.filter((migration) => migration.id <= upToId))
 }
-
 function outputRetryColumns(sql: SqlClient.SqlClient) {
   return sql<{ readonly name: string }>`PRAGMA table_info(session_output_retries)`
 }
@@ -76,21 +42,21 @@ describe('Output retry provenance migrations', () => {
     await fs.rm(tmpRoot, { recursive: true, force: true })
   })
 
-  it('adds both provenance columns to an existing migration 30 database', async () => {
+  it('adds both provenance columns to an existing migration 32 database', async () => {
     const columns = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 30)
+        yield* applyMigrations(sql, 32)
         yield* sql.unsafe(`ALTER TABLE session_output_retries DROP COLUMN node_id`)
         yield* sql.unsafe(`ALTER TABLE session_output_retries DROP COLUMN branch_id`)
-        yield* applyMigrations(sql, 32)
+        yield* applyMigrations(sql, 34)
         return yield* outputRetryColumns(sql)
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 31)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 33)?.name).toBe(
       'session-output-retry-node-provenance',
     )
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 32)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 34)?.name).toBe(
       'session-output-retry-branch-provenance',
     )
     expect(columns.map((column) => column.name)).toEqual(
@@ -101,9 +67,9 @@ describe('Output retry provenance migrations', () => {
   it('repairs a partially applied provenance migration', async () => {
     const columns = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 31)
+        yield* applyMigrations(sql, 33)
         yield* sql.unsafe(`ALTER TABLE session_output_retries DROP COLUMN branch_id`)
-        yield* applyMigrations(sql, 32)
+        yield* applyMigrations(sql, 34)
         return yield* outputRetryColumns(sql)
       }),
     )
@@ -116,7 +82,7 @@ describe('Output retry provenance migrations', () => {
   it('backfills the metadata revision for existing retries', async () => {
     const result = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 33)
+        yield* applyMigrations(sql, 35)
         yield* sql.unsafe(`ALTER TABLE session_output_retries DROP COLUMN updated_at`)
         yield* sql`
           INSERT INTO sessions (id, pi_session_id, title, archived, created_at, updated_at)
@@ -130,11 +96,11 @@ describe('Output retry provenance migrations', () => {
             'https://example.invalid/pull/1', 'node-1', 'branch-1', 1234
           )
         `
-        yield* applyMigrations(sql, 34)
+        yield* applyMigrations(sql, 36)
         const beforeBackfill = yield* sql<{ readonly updated_at: number }>`
           SELECT updated_at FROM session_output_retries WHERE id = 'pending-request'
         `
-        yield* applyMigrations(sql, 35)
+        yield* applyMigrations(sql, 37)
         const rows = yield* sql<{ readonly updated_at: number }>`
           SELECT updated_at FROM session_output_retries WHERE id = 'pending-request'
         `
@@ -146,10 +112,10 @@ describe('Output retry provenance migrations', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 34)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 36)?.name).toBe(
       'session-output-retry-metadata-revision',
     )
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 35)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 37)?.name).toBe(
       'session-output-retry-metadata-revision-backfill',
     )
     expect(result.columns.map((column) => column.name)).toContain('updated_at')

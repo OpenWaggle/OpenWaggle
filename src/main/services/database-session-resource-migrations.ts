@@ -11,45 +11,45 @@ import {
 
 export const SESSION_RESOURCE_MIGRATIONS = [
   {
-    id: 27,
+    id: 29,
     name: 'session-resource-catalog',
     statements: CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS,
   },
   {
-    id: 28,
+    id: 30,
     name: 'session-resource-backfill-state',
     statements: [SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT],
   },
   {
-    id: 29,
+    id: 31,
     name: 'session-resource-cleanup-queue',
     statements: [SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT],
   },
   {
-    id: 30,
+    id: 32,
     name: 'session-output-retry-queue',
     statements: [SESSION_OUTPUT_RETRY_SCHEMA_STATEMENT],
   },
   {
-    id: 31,
+    id: 33,
     name: 'session-output-retry-node-provenance',
     skipIfColumn: { table: 'session_output_retries', column: 'node_id' },
     statements: [`ALTER TABLE session_output_retries ADD COLUMN node_id TEXT`],
   },
   {
-    id: 32,
+    id: 34,
     name: 'session-output-retry-branch-provenance',
     skipIfColumn: { table: 'session_output_retries', column: 'branch_id' },
     statements: [`ALTER TABLE session_output_retries ADD COLUMN branch_id TEXT`],
   },
   {
-    id: 33,
+    id: 35,
     name: 'session-resource-identity-isolation',
     run: runSessionResourceIdentityIsolationMigration,
     statements: SESSION_RESOURCE_IDENTITY_ISOLATION_MIGRATION_STATEMENTS,
   },
   {
-    id: 34,
+    id: 36,
     name: 'session-output-retry-metadata-revision',
     skipIfColumn: { table: 'session_output_retries', column: 'updated_at' },
     statements: [
@@ -57,30 +57,30 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     ],
   },
   {
-    id: 35,
+    id: 37,
     name: 'session-output-retry-metadata-revision-backfill',
     statements: [`UPDATE session_output_retries SET updated_at = created_at WHERE updated_at = 0`],
   },
   {
-    id: 36,
+    id: 38,
     name: 'session-resource-occurrence-locator',
     skipIfColumn: { table: 'session_resource_occurrences', column: 'locator' },
     statements: [`ALTER TABLE session_resource_occurrences ADD COLUMN locator TEXT`],
   },
   {
-    id: 37,
+    id: 39,
     name: 'session-resource-source-projection',
     skipIfColumn: { table: 'session_resources', column: 'is_source' },
     statements: [`ALTER TABLE session_resources ADD COLUMN is_source INTEGER NOT NULL DEFAULT 0`],
   },
   {
-    id: 38,
+    id: 40,
     name: 'session-resource-output-projection',
     skipIfColumn: { table: 'session_resources', column: 'is_output' },
     statements: [`ALTER TABLE session_resources ADD COLUMN is_output INTEGER NOT NULL DEFAULT 0`],
   },
   {
-    id: 39,
+    id: 41,
     name: 'session-resource-role-projection-backfill',
     statements: [
       `
@@ -99,7 +99,7 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     ],
   },
   {
-    id: 40,
+    id: 42,
     name: 'session-resource-bounded-catalog-indexes',
     statements: [
       `CREATE INDEX IF NOT EXISTS idx_session_resources_source_updated
@@ -113,7 +113,7 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     ],
   },
   {
-    id: 41,
+    id: 43,
     name: 'session-resource-active-branch-order-index',
     statements: [
       `CREATE INDEX IF NOT EXISTS idx_session_resource_occurrences_resource_branch_created
@@ -121,7 +121,7 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     ],
   },
   {
-    id: 42,
+    id: 44,
     name: 'session-resource-catalog-revision',
     statements: [
       `CREATE TABLE IF NOT EXISTS session_resource_catalog_state (
@@ -177,7 +177,7 @@ export const SESSION_RESOURCE_MIGRATIONS = [
     ],
   },
   {
-    id: 43,
+    id: 45,
     name: 'session-resource-change-request-catalog-index',
     statements: [
       `CREATE INDEX IF NOT EXISTS idx_session_resources_change_request_updated

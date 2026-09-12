@@ -24,6 +24,7 @@ function AvailableSessionSummaryHub({ input }: { readonly input: SessionSummaryH
         <SessionSummaryExpandedPanel
           input={{
             panelId: controller.panel.id,
+            sessionId: String(session.id),
             sections,
             transient: controller.panel.transient,
           }}

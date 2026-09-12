@@ -40,19 +40,38 @@ test.describe('diff route sidebar', () => {
       await expect(page).toHaveURL(/#\/sessions\/[0-9a-f-]+/)
 
       const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
-      await expect(diffToggle).toBeVisible()
-      await diffToggle.click()
+      // Exercise both layouts on every platform, independent of runner DPI or screen size.
+      for (const [width, layoutMarker] of [
+        [1440, 'data-right-sidebar-shell'],
+        [1000, 'data-right-sidebar-panel'],
+      ] as const) {
+        await page.setViewportSize({ width, height: 900 })
+        await expect(diffToggle).toBeVisible()
+        await diffToggle.click()
 
-      await expect(page).toHaveURL(/\?panel=diff/)
-      // The same route renders as a docked panel or a responsive sheet depending on available
-      // viewport width. The shell marker is stable even when another complementary surface is open.
-      const diffAside = page.locator('[data-right-sidebar-shell="true"]')
-      await expect(diffAside).toBeVisible()
+        await expect(page).toHaveURL(/\?panel=diff/)
+        const closeDiff = page.getByRole('button', { name: 'Close diff sidebar' })
+        // Summary and the workspace navigator also have complementary landmarks.
+        const diffAside = page.locator(`[${layoutMarker}="true"]`).filter({ has: closeDiff })
+        await expect(diffAside).toBeVisible()
+        await expect(diffAside).toHaveAttribute(layoutMarker, 'true')
 
-      await page.getByRole('button', { name: 'Close diff sidebar' }).click()
+        await closeDiff.click()
 
-      await expect(page).not.toHaveURL(/\?panel=diff/)
-      await expect(diffAside).toBeHidden()
+        await expect(page).not.toHaveURL(/\?panel=diff/)
+        await expect(diffAside).toBeHidden()
+        await expect(closeDiff).toHaveCount(0)
+        // Closing must retain content for its animation without exposing its controls.
+        const retainedPanel = page.locator('[data-right-sidebar-panel="true"]')
+        await expect(retainedPanel).toBeAttached()
+        expect(await retainedPanel.evaluate((panel) => panel.closest('[inert]') !== null)).toBe(true)
+
+        await diffToggle.focus()
+        await page.keyboard.press('Tab')
+        expect(
+          await page.evaluate(() => document.activeElement?.closest('[inert]') ?? null),
+        ).toBeNull()
+      }
     } finally {
       await app.cleanup()
       await fs.rm(projectPath, { recursive: true, force: true })

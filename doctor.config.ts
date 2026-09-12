@@ -37,6 +37,18 @@ const config: DoctorConfig = {
     rules: [],
     overrides: [
       {
+        // closeMenuThen calls its callback once from a menu event after closing
+        // the menu. It never passes that callback to a React state setter.
+        files: ['src/renderer/src/features/project-actions/components/ProjectActionsControl.tsx'],
+        rules: ['react-doctor/no-impure-state-updater'],
+      },
+      {
+        // run invokes an async operation once from a user event and tracks its
+        // promise. Its callback is not a React functional state updater.
+        files: ['src/renderer/src/features/settings/hooks/useBrowserProfilesSettings.ts'],
+        rules: ['react-doctor/no-impure-state-updater'],
+      },
+      {
         // Package-smoke fixtures are entry points for the `package:smoke`
         // typecheck (see tests/fixtures/package-smoke/tsconfig.json), which
         // verifies published type declarations resolve under CJS and ESM.

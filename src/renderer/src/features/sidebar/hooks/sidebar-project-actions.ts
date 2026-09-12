@@ -5,6 +5,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
+import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import {
   clearComposerDraftForSession,
   clearComposerDraftsForSessions,
@@ -76,7 +77,12 @@ async function archiveProjectSessions(
   )
   if (!confirmed) return
 
-  await Promise.all(projectSessions.map((session) => api.archiveSession(session.id)))
+  await Promise.all(
+    projectSessions.map(async (session) => {
+      await api.archiveSession(session.id)
+      await archiveWorkspaceOwner(String(session.id))
+    }),
+  )
   clearComposerDraftsForSessions(projectSessions)
   await Promise.all([
     deps.loadChatSessions(),
@@ -122,6 +128,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
     await deleteProjectSessionsChildrenFirst(currentProjectSessions, async (id) => {
       await api.deleteSession(id)
       clearComposerDraftForSession(id)
+      await deleteWorkspaceOwner(String(id))
     })
   } catch (error) {
     // A later repository failure can follow successful deletions. Reconcile rows before reporting it.

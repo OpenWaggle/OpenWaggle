@@ -3,6 +3,7 @@ import { insertComposerInvocation } from '@/features/composer/lib'
 import { useComposerActionStore } from '@/features/composer/state'
 import { useCombinedVcsStatus, useStackedGitActions } from '@/features/git'
 import { useGit } from '@/features/git/hooks'
+import { useTerminalCommands } from '@/features/terminal'
 import { useUIStore } from '@/shell/ui-store'
 import { useSessionResourceCatalog } from '../hooks/useSessionResources'
 import {
@@ -35,7 +36,7 @@ function useSessionSummaryGitController(input: SessionSummaryHubInput, panelVisi
   const [composerOpen, setComposerOpen] = useState(false)
   const [commitCommandOpen, setCommitCommandOpen] = useState(false)
   const showToast = useUIStore((state) => state.showToast)
-  const toggleTerminal = useUIStore((state) => state.toggleTerminal)
+  const { toggleTerminal } = useTerminalCommands()
   const diffRefreshKey = useUIStore((state) => state.diffRefreshKey)
   const git = useGit()
   const branchesMatchRepository =

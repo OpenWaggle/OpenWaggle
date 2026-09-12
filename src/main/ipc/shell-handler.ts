@@ -20,6 +20,8 @@ export function registerShellHandlers(): void {
 
   typedOn('clipboard:write-text', (_event, text) => Effect.sync(() => clipboard.writeText(text)))
 
+  typedHandle('clipboard:read-text', () => Effect.sync(() => clipboard.readText()))
+
   typedHandle('shell:open-path', (_event, targetPath) =>
     Effect.gen(function* () {
       const trimmedPath = targetPath.trim()

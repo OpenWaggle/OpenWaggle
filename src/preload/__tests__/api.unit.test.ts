@@ -229,6 +229,86 @@ describe('preload api surface contract', () => {
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('shell:reveal-path', '/tmp/image.png')
   })
 
+  it('imports a checked-in project action through its trusted source index', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])
+
+    await api.importT3ProjectAction('/tmp/repo', 2)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('project-actions:import-t3', '/tmp/repo', 2)
+  })
+
+  it('loads the initial global terminal activity snapshot through typed IPC', async () => {
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      revision: 3,
+      summaries: [],
+      truncated: false,
+    })
+
+    await api.getTerminalActivitySnapshot()
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('terminal:get-activity-snapshot')
+  })
+
+  it('registers the configured shortcut chords claimed from native browser previews', async () => {
+    const bindings = [{ key: 'K', mod: true }]
+
+    await api.setBrowserPreviewShortcutBindings(bindings)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'browser-preview:set-shortcut-bindings',
+      bindings,
+    )
+  })
+
+  it('imports browser cookies through typed IPC', async () => {
+    const input = {
+      sourceId: 'chrome' as const,
+      sourceProfileDirectory: 'Default',
+      targetProfileId: 'default',
+    }
+
+    await api.importBrowserCookies(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('browser-preview:import-cookies', input)
+  })
+
+  it('runs the guided browser cookie import through typed IPC', async () => {
+    const input = {
+      sourceId: 'safari' as const,
+      sourceProfileDirectory: 'Default',
+      target: { kind: 'new' as const, profileId: 'profile-stable' },
+    }
+
+    await api.guidedImportBrowserCookies(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('browser-preview:guided-import-cookies', input)
+  })
+
+  it('opens the fixed Full Disk Access settings destination through typed IPC', async () => {
+    await api.openBrowserImportFullDiskAccessSettings()
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'browser-preview:open-full-disk-access-settings',
+    )
+  })
+
+  it('acknowledges a trusted browser-preview materialization through typed IPC', async () => {
+    const acknowledgment = {
+      requestId: 'request-1',
+      generation: 1,
+      ownerKey: 'session-1',
+      previewId: 'preview-1',
+      success: true,
+    } as const
+
+    await api.acknowledgeBrowserPreviewOpenRequest(acknowledgment)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'browser-preview:ack-open-request',
+      acknowledgment,
+    )
+  })
+
   describe('event listener methods return unsubscribe functions', () => {
     beforeEach(() => {
       vi.mocked(ipcRenderer.on).mockReturnValue(ipcRenderer)
@@ -240,7 +320,15 @@ describe('preload api surface contract', () => {
       'onAgentPhase',
       'onRunCompleted',
       'onPrepareAttachmentFromTextProgress',
-      'onTerminalData',
+      'onTerminalEvent',
+      'onTerminalActivitySnapshot',
+      'onBrowserPreviewState',
+      'onBrowserPreviewShortcut',
+      'onBrowserPreviewKeyEvent',
+      'onBrowserPreviewOpenRequest',
+      'onBrowserPreviewOpenRequestCancellation',
+      'onBrowserPreviewRecordingRequest',
+      'onBrowserPreviewRecordingCancel',
       'onFullscreenChanged',
       'onWaggleEvent',
       'onWaggleTurnEvent',

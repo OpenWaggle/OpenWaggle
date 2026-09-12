@@ -11,9 +11,10 @@ import { HiveSummarySection } from '../HiveSummarySection'
 const getSessionHiveRelations = vi.hoisted(() => vi.fn())
 const archiveSession = vi.hoisted(() => vi.fn())
 const showConfirm = vi.hoisted(() => vi.fn())
+const unregisterBrowserPreviewOwner = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/ipc', () => ({
-  api: { archiveSession, getSessionHiveRelations, showConfirm },
+  api: { archiveSession, getSessionHiveRelations, showConfirm, unregisterBrowserPreviewOwner },
 }))
 
 function renderHive(sessionId: string, onNavigateSession = vi.fn()) {
@@ -73,6 +74,7 @@ describe('HiveSummarySection', () => {
     getSessionHiveRelations.mockReset().mockResolvedValue(hiveRelations(null))
     archiveSession.mockReset().mockResolvedValue(undefined)
     showConfirm.mockReset().mockResolvedValue(true)
+    unregisterBrowserPreviewOwner.mockReset().mockResolvedValue(undefined)
   })
 
   it('expands active Hive work by default and navigates to the selected worker', async () => {
@@ -144,6 +146,7 @@ describe('HiveSummarySection', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Hive/ }))
     expect(screen.getByLabelText('Done Hive sessions')).toBeInTheDocument()
     const navigate: Parameters<typeof createSidebarSessionActions>[0]['navigate'] = vi.fn()
+    const showToast = vi.fn()
 
     const actions = createSidebarSessionActions({
       activeSessionId: null,
@@ -153,7 +156,7 @@ describe('HiveSummarySection', () => {
       projectPath: '/project',
       queryClient: view.client,
       selectedModel: SupportedModelId('openai/gpt-5'),
-      showToast: vi.fn(),
+      showToast,
       startDraftSession: vi.fn(),
       clearTransientDraftContext: vi.fn(),
       deleteSession: vi.fn().mockResolvedValue(undefined),
@@ -168,6 +171,8 @@ describe('HiveSummarySection', () => {
     expect(await screen.findByLabelText('Archived Hive sessions')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Archived.*Worker session/ })).toBeInTheDocument()
     expect(screen.queryByLabelText('Done Hive sessions')).toBeNull()
+    expect(unregisterBrowserPreviewOwner).toHaveBeenCalledWith(liveWorker.id)
+    expect(showToast).not.toHaveBeenCalled()
   })
 
   it('keeps an archived parent navigable from an active worker', async () => {

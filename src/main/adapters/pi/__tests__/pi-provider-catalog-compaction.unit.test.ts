@@ -5,7 +5,9 @@ import { createTempProject, fs, path, writeJson } from './pi-provider-catalog.te
 const tempProjects: string[] = []
 
 beforeEach(async () => {
-  vi.stubEnv('PI_CODING_AGENT_DIR', await tempProject())
+  const taskHome = await tempProject()
+  vi.stubEnv('HOME', taskHome)
+  vi.stubEnv('PI_CODING_AGENT_DIR', path.join(taskHome, '.pi', 'agent'))
 })
 
 afterEach(async () => {

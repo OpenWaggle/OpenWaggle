@@ -11,12 +11,89 @@ import { Schema, type SchemaType } from '@shared/schema'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { AGENT_AUTHORIZATION_CAPABILITIES } from '@shared/types/agent-authorization-grants'
+import {
+  BROWSER_PREVIEW_ANNOTATION_STYLE_PROPERTIES,
+  BROWSER_PREVIEW_CAPTURE_LIMITS,
+} from '@shared/types/browser-preview-controls'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
+import { storedProjectActionsSchema } from './project-actions'
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
-const attachmentOriginSchema = Schema.Literal('user-file', 'auto-paste-text')
+const attachmentOriginSchema = Schema.Literal('user-file', 'auto-paste-text', 'browser-preview')
+const BROWSER_PREVIEW_PAGE_URL_MAX_LENGTH = 8_192
+const BROWSER_PREVIEW_PAGE_TITLE_MAX_LENGTH = 512
+const BROWSER_PREVIEW_TAG_NAME_MAX_LENGTH = 64
+const BROWSER_PREVIEW_ROLE_MAX_LENGTH = 128
+const BROWSER_PREVIEW_SOURCE_POSITION_MAX = 10_000_000
+const browserPreviewSourcePositionSchema = Schema.NullOr(
+  Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThan(0),
+    Schema.lessThanOrEqualTo(BROWSER_PREVIEW_SOURCE_POSITION_MAX),
+  ),
+)
+
+const browserPreviewAttachmentSchema = Schema.Struct({
+  pageUrl: Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_PAGE_URL_MAX_LENGTH)),
+  pageTitle: Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_PAGE_TITLE_MAX_LENGTH)),
+  selector: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.maxLength(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_SELECTOR_LENGTH),
+  ),
+  tagName: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.maxLength(BROWSER_PREVIEW_TAG_NAME_MAX_LENGTH),
+  ),
+  role: Schema.NullOr(Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_ROLE_MAX_LENGTH))),
+  elementText: Schema.String.pipe(
+    Schema.maxLength(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_TEXT_LENGTH),
+  ),
+  comment: Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_TEXT_LENGTH)),
+  elementCount: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(0),
+      Schema.lessThanOrEqualTo(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_ELEMENTS),
+    ),
+  ),
+  regionCount: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(0),
+      Schema.lessThanOrEqualTo(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_REGIONS),
+    ),
+  ),
+  drawingCount: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(0),
+      Schema.lessThanOrEqualTo(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_STROKES),
+    ),
+  ),
+  styleChangeCount: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(0),
+      Schema.lessThanOrEqualTo(
+        BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_ELEMENTS *
+          BROWSER_PREVIEW_ANNOTATION_STYLE_PROPERTIES.length,
+      ),
+    ),
+  ),
+  componentName: Schema.optional(
+    Schema.NullOr(
+      Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_COMPONENT_LENGTH)),
+    ),
+  ),
+  sourceFile: Schema.optional(
+    Schema.NullOr(
+      Schema.String.pipe(Schema.maxLength(BROWSER_PREVIEW_CAPTURE_LIMITS.PICK_SOURCE_LENGTH)),
+    ),
+  ),
+  sourceLine: Schema.optional(browserPreviewSourcePositionSchema),
+})
 
 const jsonArraySchema: Schema.Schema<JsonArray> = Schema.suspend(() =>
   Schema.mutable(Schema.Array(jsonValueSchema)),
@@ -57,6 +134,7 @@ export const preparedAttachmentSchema = Schema.Struct({
   sizeBytes: Schema.Number,
   contentSha256: Schema.optional(Schema.String),
   extractedText: Schema.String,
+  browserPreview: Schema.optional(browserPreviewAttachmentSchema),
 })
 
 const MAX_INLINE_VISUALIZATION_STATE_BYTES = 16 * 1024
@@ -135,6 +213,7 @@ export const projectSettingsFileSchema = Schema.Struct(
       Schema.mutable(Schema.Array(scopedAuthorizationGrantSchema)),
     ),
     pi: Schema.optional(jsonObjectSchema),
+    actions: Schema.optional(storedProjectActionsSchema),
   },
   jsonLooseRecordSchema,
 )

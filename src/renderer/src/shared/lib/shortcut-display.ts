@@ -17,3 +17,17 @@ export function formatShortcutBinding(binding: ShortcutBinding | null) {
   ].filter(Boolean)
   return apple ? parts.join('') : parts.join(' + ')
 }
+
+/** Platform-resolved equivalent for the ARIA `aria-keyshortcuts` attribute. */
+export function formatAriaShortcutBinding(binding: ShortcutBinding | null) {
+  if (!binding) return undefined
+  const apple = usesAppleShortcuts()
+  const modifiers = new Set<string>()
+  if (binding.mod) modifiers.add(apple ? 'Meta' : 'Control')
+  if (binding.ctrl) modifiers.add('Control')
+  if (binding.alt) modifiers.add('Alt')
+  if (binding.shift) modifiers.add('Shift')
+  if (binding.meta) modifiers.add('Meta')
+  const key = binding.key === ' ' ? 'Space' : binding.key === '+' ? 'Plus' : binding.key
+  return [...modifiers, key].join('+')
+}

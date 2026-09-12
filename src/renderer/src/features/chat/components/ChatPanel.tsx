@@ -10,6 +10,7 @@ import {
   useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
 import { CHAT_CONTENT_MAX_WIDTH_PX } from '../lib/chat-content-layout'
 import type { ChatPanelSections } from '../model'
@@ -102,6 +103,10 @@ function transcriptPathNodeIds(section: ChatPanelSections['transcript']) {
   return section.messages.map((message) => message.metadata?.sessionNodeId ?? message.id)
 }
 
+function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible: boolean) {
+  return !hasSpace || floatingPreviewVisible
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
@@ -129,6 +134,7 @@ export function ChatPanelContent({
   const activeMessageIds = new Set(activeMessageNodeIds)
   const activePathNodeIds = transcriptPathNodeIds(sections.transcript)
   const summarySpace = useSessionSummarySpace(rightSidebarOpen)
+  const floatingPreviewVisible = useSessionFloatingPreviewStatus(activeSessionId)
   return (
     <div className="flex size-full overflow-hidden">
       <div
@@ -148,7 +154,10 @@ export function ChatPanelContent({
               activeBranchId: sections.transcript.activeBranchId ?? null,
               activePathNodeIds,
               messageCount: summaryMessageCount,
-              autoHidden: !summarySpace.hasSpace,
+              autoHidden: summaryNeedsTransientOverlay(
+                summarySpace.hasSpace,
+                floatingPreviewVisible,
+              ),
               rightSidebarOpen,
               extensionRegistry: sections.extensionRegistry,
               extensionProjectPaths: sections.extensionProjectPaths,

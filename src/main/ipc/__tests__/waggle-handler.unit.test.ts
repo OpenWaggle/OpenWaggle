@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { acquireSessionRemovalFence } from '../active-agent-runs'
 import {
   captureSuccessfulRunResourcesMock,
   emitTransportEventMock,
@@ -46,6 +47,29 @@ describe('registerWaggleHandlers', () => {
       SESSION_ID,
       expect.objectContaining({ type: 'agent_start', runId: `waggle-${SESSION_ID}` }),
     )
+  })
+
+  it('refuses a Waggle start while session removal owns admission', async () => {
+    registerWaggleHandlers()
+    const send = getSendHandler()
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      await expect(
+        Effect.runPromise(
+          send(
+            {},
+            SESSION_ID,
+            { text: 'Review this patch', thinkingLevel: 'medium', attachments: [] },
+            SELECTED_MODEL,
+            inheritedFirstAgentConfig(),
+          ),
+        ),
+      ).rejects.toThrow('being archived or deleted')
+      expect(executeWaggleRunMock).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
   })
 
   it('publishes worktree launch progress emitted by a Waggle first send', async () => {

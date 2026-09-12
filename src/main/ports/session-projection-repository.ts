@@ -48,11 +48,12 @@ export interface SessionProjectionRepositoryShape {
   readonly getDeletionBlocker: (
     id: SessionId,
   ) => Effect.Effect<string | null, SessionProjectionRepositoryError>
-  /** Invoke synchronous runtime cleanup after the guarded commit, before file/worktree cleanup. */
-  readonly delete: (
+  /** Fence Hive writes while deletion eligibility is checked and existing work is stopped. */
+  readonly withDeletionFence: <A, E, R>(
     id: SessionId,
-    onCommitted?: () => void,
-  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+    operation: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E | SessionProjectionRepositoryError, R>
+  readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listArchived: () => Effect.Effect<
@@ -66,6 +67,11 @@ export interface SessionProjectionRepositoryShape {
   readonly setWorktreePlan: (
     id: SessionId,
     plan: SessionWorktreePlan,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Mark a recorded Session worktree recreation as needing Setup action dispatch. */
+  readonly resetWorktreeSetup: (
+    id: SessionId,
+    worktreePath: string,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   /** `null` clears the session override so the session inherits its project and global default. */
   readonly setAuthorizationMode: (

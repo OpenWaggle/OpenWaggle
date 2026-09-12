@@ -72,10 +72,42 @@ describe('ActiveRunManager', () => {
       expect(result).toBe(true)
       expect(abortSpy).toHaveBeenCalledOnce()
       expect(manager.has('run-1')).toBe(false)
+      expect(manager.hasUnsettled('run-1')).toBe(true)
+
+      expect(manager.deleteIfCurrent('run-1', controller)).toBe(false)
+      expect(manager.hasUnsettled('run-1')).toBe(false)
     })
 
     it('returns false for missing key', () => {
       expect(manager.cancel('nonexistent')).toBe(false)
+    })
+
+    it('settles when abort dispatch synchronously finishes the owning run', () => {
+      const controller = new AbortController()
+      manager.register('run-1', controller, { label: 'test', count: 0 })
+      controller.signal.addEventListener('abort', () => {
+        manager.deleteIfCurrent('run-1', controller)
+      })
+
+      expect(manager.cancel('run-1')).toBe(true)
+      expect(manager.hasUnsettled('run-1')).toBe(false)
+    })
+  })
+
+  describe('settlement', () => {
+    it('keeps a cancelled run unsettled until its exact controller finishes', () => {
+      const cancelled = new AbortController()
+      const replacement = new AbortController()
+      manager.register('run-1', cancelled, { label: 'cancelled', count: 0 })
+      manager.cancel('run-1')
+      manager.register('run-1', replacement, { label: 'replacement', count: 1 })
+
+      expect(manager.deleteIfCurrent('run-1', cancelled)).toBe(false)
+      expect(manager.get('run-1')?.controller).toBe(replacement)
+      expect(manager.hasUnsettled('run-1')).toBe(true)
+
+      expect(manager.deleteIfCurrent('run-1', replacement)).toBe(true)
+      expect(manager.hasUnsettled('run-1')).toBe(false)
     })
   })
 

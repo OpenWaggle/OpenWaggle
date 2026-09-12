@@ -17,6 +17,7 @@ import {
   session,
   sessionSummarySectionOrder,
   setupSessionSummaryHubHarness,
+  toggleSessionTerminal,
   useCombinedVcsStatus,
   useStackedGitActions,
 } from './session-summary-hub.test-harness'
@@ -24,6 +25,13 @@ import {
 describe('SessionSummaryHub', () => {
   beforeEach(() => {
     setupSessionSummaryHubHarness()
+  })
+
+  it('routes its terminal action through the session-owned terminal commands', () => {
+    renderHub()
+    fireEvent.click(screen.getByRole('button', { name: 'Environment actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Toggle terminal' }))
+    expect(toggleSessionTerminal).toHaveBeenCalledOnce()
   })
 
   it('keeps core and extension slots in the agreed deterministic order', () => {

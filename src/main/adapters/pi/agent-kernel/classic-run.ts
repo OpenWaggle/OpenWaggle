@@ -25,7 +25,9 @@ export async function runPiSession(
     PiRuntimeExtensionIsolationInput & {
       readonly workingPath: string
       readonly visualizationDirectory?: string
-      readonly mcpExtensionFactory?: ExtensionFactory
+      readonly extensionFactories?: readonly ExtensionFactory[]
+      readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+      readonly systemPromptAppendices?: readonly string[]
     },
 ) {
   const projectPath = input.workingPath
@@ -46,7 +48,13 @@ export async function runPiSession(
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
-    ...(input.mcpExtensionFactory ? { extensionFactories: [input.mcpExtensionFactory] } : {}),
+    ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
   })
 
   const unsubscribe = session.subscribe(

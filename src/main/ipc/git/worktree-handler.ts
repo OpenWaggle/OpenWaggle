@@ -1,15 +1,27 @@
 import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { SessionId } from '@shared/types/brand'
 import type { GitWorktreeMutationResult, SessionWorktreeCheck } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
+import { createLogger } from '../../logger'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { TerminalService } from '../../ports/terminal-service'
 import { resolveSessionWorktreeBranch } from '../../services/git/session-branch-resolution'
 import { typedHandle } from '../typed-ipc'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-cache'
 import { createGitWorktree, listGitWorktrees, removeGitWorktree } from './worktree-service'
 
+const logger = createLogger('worktree-handler')
+
+const absoluteWorktreePathSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.filter((value) => path.isAbsolute(value) || 'Worktree path must be absolute'),
+)
+
 export const worktreeCreatePayloadSchema = Schema.Struct({
-  path: Schema.String,
+  path: absoluteWorktreePathSchema,
   branch: Schema.String,
   baseRef: Schema.String,
   /**
@@ -23,7 +35,7 @@ export const worktreeCreatePayloadSchema = Schema.Struct({
 })
 
 export const worktreeRemovePayloadSchema = Schema.Struct({
-  path: Schema.String,
+  path: absoluteWorktreePathSchema,
   force: Schema.optional(Schema.Boolean),
 })
 
@@ -55,6 +67,20 @@ export function registerGitWorktreeHandlers(): void {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(worktreeCreatePayloadSchema, rawPayload)
       const sessionId = payload.sessionId
+      if (sessionId !== undefined) {
+        /*
+         * Record Setup intent before Git creates the replacement. If the app exits after Git
+         * succeeds, the next send still sees the pending generation and dispatches Setup. The
+         * repository also verifies that this is the Session's recorded missing-tree path.
+         */
+        if (existsSync(payload.path)) {
+          return yield* Effect.fail(
+            new Error('The Session worktree already exists and does not need recreation.'),
+          )
+        }
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.resetWorktreeSetup(SessionId(sessionId), payload.path)
+      }
       const branch =
         sessionId === undefined
           ? payload.branch
@@ -76,14 +102,36 @@ export function registerGitWorktreeHandlers(): void {
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(worktreeRemovePayloadSchema, rawPayload)
-      const result = (yield* Effect.promise(() =>
-        removeGitWorktree(projectPath, payload),
-      )) satisfies GitWorktreeMutationResult
-      if (result.ok) {
-        invalidateGitStatusCache(payload.path)
-        invalidateGitStatusCache(projectPath)
-      }
-      return result
+      const terminals = yield* TerminalService
+      return yield* terminals.runWithMutationFence(
+        { kind: 'path', directoryPath: payload.path },
+        Effect.gen(function* () {
+          // Stop every shell before Git can make its working path unreachable,
+          // but retain replay until Git accepts removal. The outer path fence
+          // rejects new opens until Git and post-success cleanup both finish.
+          yield* terminals.closeAllUnderPath(payload.path, false)
+          const result = (yield* Effect.promise(() =>
+            removeGitWorktree(projectPath, payload),
+          )) satisfies GitWorktreeMutationResult
+          if (result.ok) {
+            invalidateGitStatusCache(payload.path)
+            invalidateGitStatusCache(projectPath)
+            // The first pass removed live records; the history store's durable
+            // cwd index lets this pass remove cold scrollback as well.
+            yield* terminals.closeAllUnderPath(payload.path, true).pipe(
+              Effect.catchAll((error) => {
+                logger.warn('Deferred terminal history cleanup after worktree removal failed', {
+                  projectPath,
+                  worktreePath: payload.path,
+                  error: String(error),
+                })
+                return Effect.void
+              }),
+            )
+          }
+          return result
+        }),
+      )
     }),
   )
 }

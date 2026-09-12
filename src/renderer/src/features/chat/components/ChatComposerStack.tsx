@@ -171,7 +171,7 @@ export function ChatComposerStack({
     onStartCustomBranchSummary,
     onCancelBranchSummary,
   } = section
-  useScopedComposerDrafts(activeSessionId)
+  const composerDraftReady = useScopedComposerDrafts(activeSessionId)
   const { strip, guardedSend, sendBlockedReason } = useComposerSendGate({
     activeSessionId,
     session: section.session,
@@ -183,8 +183,11 @@ export function ChatComposerStack({
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
   const composerDisabledForBranchSummary =
     branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
-  const composerPlaceholder =
-    branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
+  const composerPlaceholder = !composerDraftReady
+    ? 'Loading session draft…'
+    : branchSummaryMode === 'custom'
+      ? 'Custom instructions for the branch summary'
+      : undefined
   return (
     <>
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
@@ -252,7 +255,7 @@ export function ChatComposerStack({
             onCancel={onCancel}
             isLoading={isLoading}
             mode={{
-              disabled: composerDisabledForBranchSummary,
+              disabled: !composerDraftReady || composerDisabledForBranchSummary,
               placeholder: composerPlaceholder,
               requiresText: branchSummaryMode === 'custom',
               clearOnSubmit: branchSummaryMode !== 'custom',

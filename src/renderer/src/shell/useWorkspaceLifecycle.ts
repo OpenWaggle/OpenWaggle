@@ -1,5 +1,4 @@
 import { SessionId } from '@shared/types/brand'
-import { type UseHotkeyDefinition, useHotkeys } from '@tanstack/react-hotkeys'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
@@ -7,6 +6,7 @@ import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
+import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
 import {
   useSessionHiveInvalidation,
   useSessionResourceInvalidation,
@@ -15,9 +15,61 @@ import { useProject, useSessionStatusMonitor, useSessions } from '@/features/ses
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
+import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
 import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
+import {
+  type BuiltInShortcutHandlers,
+  useUnifiedShortcutCapture,
+} from './useUnifiedShortcutCapture'
+import {
+  closeWorkspaceRightPanel,
+  focusWorkspacePreviewAddress,
+  hasActiveWorkspaceRightPanel,
+  refreshWorkspacePreview,
+  toggleWorkspacePanelMaximized,
+  toggleWorkspacePreview,
+  toggleWorkspaceRightPanel,
+  zoomWorkspacePreview,
+} from './workspace-panel-actions'
+
+type PreviewShortcutHandlers = Pick<
+  BuiltInShortcutHandlers,
+  | 'preview.toggle'
+  | 'preview.refresh'
+  | 'preview.focusUrl'
+  | 'preview.zoomIn'
+  | 'preview.zoomOut'
+  | 'preview.resetZoom'
+>
+
+function previewShortcutHandlers(
+  ownerKey: string,
+  showToast: (message: string, type: 'error') => void,
+): PreviewShortcutHandlers {
+  const run = (action: () => Promise<boolean>, fallback: string) => {
+    void action().catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : fallback, 'error')
+    })
+  }
+  return {
+    'preview.toggle': () => void toggleWorkspacePreview(ownerKey),
+    'preview.refresh': () =>
+      run(() => refreshWorkspacePreview(ownerKey), 'Preview could not reload.'),
+    'preview.focusUrl': () => {
+      if (!focusWorkspacePreviewAddress(ownerKey)) {
+        showToast('Open a browser preview first.', 'error')
+      }
+    },
+    'preview.zoomIn': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'in'), 'Preview could not zoom in.'),
+    'preview.zoomOut': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'out'), 'Preview could not zoom out.'),
+    'preview.resetZoom': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'reset'), 'Preview zoom could not reset.'),
+  }
+}
 
 export function useWorkspaceLifecycle(): void {
   const queryClient = useQueryClient()
@@ -26,6 +78,7 @@ export function useWorkspaceLifecycle(): void {
   const { projectPath } = useProject()
   const {
     activeSessionId,
+    activeSession,
     startDraftSession,
     loadSessions: loadChatSessions,
     refreshSession,
@@ -40,15 +93,14 @@ export function useWorkspaceLifecycle(): void {
   } = useGit()
 
   const navigate = useNavigate()
-  const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const openCommandSurface = useUIStore((s) => s.openCommandSurface)
   const closeCommandSurface = useUIStore((s) => s.closeCommandSurface)
   const commandSurface = useUIStore((s) => s.commandSurface)
-  const shortcutBindings = usePreferencesStore((s) => s.settings.shortcutBindings)
+  const showToast = useUIStore((s) => s.showToast)
+  const shortcutRules = usePreferencesStore((s) => s.settings.shortcutRules)
   const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
-
   function startDraftSessionRoute() {
     closeCommandSurface()
     startDraftSession(projectPath)
@@ -71,7 +123,6 @@ export function useWorkspaceLifecycle(): void {
     void loadSyntaxResources(workingPath)
   }, [loadSyntaxResources, workingPath])
 
-  // Subscribe to LLM-generated title updates from main process
   useEffect(() => {
     return api.onSessionTitleUpdated(({ sessionId, title }) => {
       updateSessionTitle(sessionId, title)
@@ -108,42 +159,42 @@ export function useWorkspaceLifecycle(): void {
   usePinnedSessionShortcuts()
   useSidebarSearchShortcut()
 
-  const hotkeys: UseHotkeyDefinition[] = [
-    {
-      binding: shortcutBindings['commandPalette.toggle'],
-      callback: () =>
+  const terminalCommands = useTerminalCommands()
+  const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
+  const projectActions = useProjectActions(projectPath).data ?? []
+  const runProjectAction = useRunProjectAction(projectPath)
+  useUnifiedShortcutCapture({
+    actions: projectActions,
+    builtInRules: shortcutRules,
+    handlers: {
+      'commandPalette.toggle': () =>
         commandSurface === 'commands' ? closeCommandSurface() : openCommandSurface('commands'),
-    },
-    {
-      binding: shortcutBindings['filePicker.toggle'],
-      callback: () =>
+      'filePicker.toggle': () =>
         commandSurface === 'files' ? closeCommandSurface() : openCommandSurface('files'),
+      'chat.new': startDraftSessionRoute,
+      'terminal.toggle': terminalCommands.toggleTerminal,
+      'terminal.new': terminalCommands.newTerminal,
+      'terminal.split': terminalCommands.splitTerminal,
+      'terminal.splitVertical': terminalCommands.splitTerminalVertical,
+      'terminal.close': () => void terminalCommands.closeActiveTerminal(),
+      'rightPanel.toggle': () => {
+        if (!toggleWorkspaceRightPanel(terminalOwner.ownerKey)) terminalCommands.newSideTerminal()
+      },
+      'rightPanel.toggleMaximized': () => {
+        if (!toggleWorkspacePanelMaximized(terminalOwner.ownerKey)) {
+          showToast('Open the workspace right panel first.', 'error')
+        }
+      },
+      'rightPanel.close': () => closeWorkspaceRightPanel(terminalOwner.ownerKey),
+      'sidebar.toggle': toggleSidebar,
+      'diff.toggle': toggleDiff,
+      ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
+      'sessionTree.toggle': toggleSessionTree,
+      'request.focus': focusPendingRequest,
     },
-    {
-      binding: shortcutBindings['chat.new'],
-      callback: startDraftSessionRoute,
-    },
-    {
-      binding: shortcutBindings['terminal.toggle'],
-      callback: toggleTerminal,
-    },
-    {
-      binding: shortcutBindings['sidebar.toggle'],
-      callback: toggleSidebar,
-    },
-    {
-      binding: shortcutBindings['diff.toggle'],
-      callback: toggleDiff,
-    },
-    {
-      binding: shortcutBindings['sessionTree.toggle'],
-      callback: toggleSessionTree,
-    },
-    {
-      binding: shortcutBindings['request.focus'],
-      callback: focusPendingRequest,
-    },
-  ].flatMap((item) => (item.binding ? [{ hotkey: item.binding, callback: item.callback }] : []))
-
-  useHotkeys(hotkeys, { preventDefault: true })
+    onRunProjectAction: (action) => void runProjectAction(action),
+    shouldHandleBuiltIn: (command) =>
+      command !== 'rightPanel.close' || hasActiveWorkspaceRightPanel(terminalOwner.ownerKey),
+    terminalOpen: terminalCommands.panelOpen,
+  })
 }

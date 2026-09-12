@@ -1,6 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  DIFF_RIGHT_SIDEBAR_REQUEST,
+  SESSION_TREE_RIGHT_SIDEBAR_REQUEST,
+  useRightSidebarCoordinator,
+} from '@/shared/lib/right-sidebar-coordinator'
 import { useDiffRouteNavigation } from '../useDiffRouteNavigation'
 
 type RightPanel = 'diff' | 'session-tree'
@@ -60,6 +65,7 @@ describe('useDiffRouteNavigation', () => {
   beforeEach(() => {
     routeMock.navigate.mockClear()
     routeMock.setLastRightSidebarPanel.mockClear()
+    useRightSidebarCoordinator.setState({ activeClaim: null })
     routeMock.setActiveSessionId(null)
     routeMock.setRoute({ location: { pathname: '/', search: {} } })
   })
@@ -75,7 +81,11 @@ describe('useDiffRouteNavigation', () => {
 
     act(() => result.current.toggleSessionTree())
 
-    expect(result.current.diffOpen).toBe(true)
+    expect(result.current.diffOpen).toBe(false)
+    expect(useRightSidebarCoordinator.getState().activeClaim).toEqual({
+      kind: 'route',
+      requestKey: SESSION_TREE_RIGHT_SIDEBAR_REQUEST,
+    })
     expect(routeMock.setLastRightSidebarPanel).toHaveBeenCalledWith('session-tree')
     expect(routeMock.navigate).toHaveBeenCalledWith({
       to: '/sessions/$sessionId',
@@ -116,5 +126,22 @@ describe('useDiffRouteNavigation', () => {
       params: { sessionId: 'active-session' },
       search: expect.any(Function),
     })
+  })
+
+  it('reclaims a route panel in one action when a workspace panel suspended its URL state', () => {
+    routeMock.setRoute({
+      location: { pathname: '/sessions/session-1', search: { panel: 'diff' } },
+    })
+    useRightSidebarCoordinator.getState().claimWorkspace('session-1')
+    const { result } = renderHook(() => useDiffRouteNavigation())
+
+    expect(result.current.diffOpen).toBe(false)
+    act(() => result.current.toggleDiff())
+
+    expect(useRightSidebarCoordinator.getState().activeClaim).toEqual({
+      kind: 'route',
+      requestKey: DIFF_RIGHT_SIDEBAR_REQUEST,
+    })
+    expect(routeMock.navigate).toHaveBeenCalledOnce()
   })
 })

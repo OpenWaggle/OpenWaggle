@@ -3,7 +3,6 @@ import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
-import { cleanupSessionRun } from '../agent/session-cleanup'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
 import { grantPendingAuthorizationsForSession } from '../application/agent-loop-interaction-broker'
 import { dismissInterruptedAgentRun } from '../application/agent-run-service'
@@ -11,36 +10,17 @@ import {
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../application/agent-session-service'
-import { cleanupQueuedSessionResources } from '../application/session-resource-cleanup'
-import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
-import { InlineVisualizationService } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SettingsService } from '../services/settings-service'
-import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
-import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
+import { archiveSessionWithFences, deleteSessionWithFences } from './session-removal'
 import { typedHandle } from './typed-ipc'
-
-const logger = createLogger('session-details-handler')
-
-function cleanupBeforeSessionRemoval(sessionId: SessionId) {
-  const cancelledActiveRun = cancelSessionRuns(sessionId)
-  clearAgentPhase(sessionId)
-  clearStreamBuffer(sessionId)
-  cleanupSessionRun(sessionId)
-  if (cancelledActiveRun) {
-    emitRunCompleted(sessionId)
-  }
-}
 
 /** `null` is valid and means "clear the override so this session inherits again". */
 function validateAuthorizationMode(mode: unknown) {
-  if (mode === null) return Effect.succeed(null)
-  if (!isAgentAuthorizationMode(mode)) {
-    return Effect.fail(new Error('Session authorization mode is invalid.'))
-  }
-  return Effect.succeed(mode)
+  if (mode === null || isAgentAuthorizationMode(mode)) return Effect.succeed(mode)
+  return Effect.fail(new Error('Session authorization mode is invalid.'))
 }
 
 function registerSessionDetailsReadHandlers() {
@@ -154,40 +134,8 @@ function registerSessionCreationHandlers() {
 }
 
 function registerSessionMutationHandlers() {
-  typedHandle('sessions:delete', (_event, id: SessionId) =>
-    Effect.gen(function* () {
-      const repo = yield* SessionProjectionRepository
-      const blocker = yield* repo.getDeletionBlocker(id)
-      if (blocker) return yield* Effect.fail(new Error(blocker))
-
-      const visualizations = yield* InlineVisualizationService
-      const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
-      yield* repo
-        .delete(id, () => cleanupBeforeSessionRemoval(id))
-        .pipe(Effect.tapError(() => stagedDeletion.rollback))
-      yield* cleanupQueuedSessionResources(id).pipe(Effect.catchAll(() => Effect.void))
-      yield* stagedDeletion.commit.pipe(
-        Effect.catchAll((error) => {
-          logger.warn('Deferred visualization tombstone cleanup after session deletion', {
-            sessionId: String(id),
-            error: String(error),
-          })
-          return Effect.void
-        }),
-      )
-    }),
-  )
-
-  typedHandle('sessions:archive', (_event, id: SessionId) =>
-    Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
-      Effect.zipRight(
-        Effect.gen(function* () {
-          const repo = yield* SessionProjectionRepository
-          yield* repo.archive(id)
-        }),
-      ),
-    ),
-  )
+  typedHandle('sessions:delete', (_event, id: SessionId) => deleteSessionWithFences(id))
+  typedHandle('sessions:archive', (_event, id: SessionId) => archiveSessionWithFences(id))
 
   typedHandle('sessions:unarchive', (_event, id: SessionId) =>
     Effect.gen(function* () {

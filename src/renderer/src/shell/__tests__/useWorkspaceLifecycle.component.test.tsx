@@ -1,13 +1,19 @@
 import { SessionId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
+import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
+import { useTerminalStore } from '@/features/terminal'
 import { queryKeys } from '@/queries/query-keys'
 import { useUIStore } from '../ui-store'
 import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
+import {
+  expectGlobalChordsBeforeXterm,
+  expectTerminalInputOwnsApplicationShortcuts,
+  runHotkey,
+} from './workspace-lifecycle-shortcut-assertions'
 
 type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
 type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
@@ -16,7 +22,7 @@ type SessionListInvalidatedHandler = (payload: SessionListInvalidatedPayload) =>
 type ResourcesInvalidatedHandler = (payload: { readonly sessionId: SessionId }) => void
 interface HotkeyBinding {
   readonly hotkey: ShortcutBinding
-  readonly callback: () => void
+  readonly callback: (event: KeyboardEvent) => void
 }
 
 const lifecycleMocks = vi.hoisted(() => {
@@ -103,6 +109,12 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({
     activeSessionId: lifecycleMocks.activeSessionId,
+    activeSession: {
+      id: SessionId(lifecycleMocks.activeSessionId),
+      projectPath: lifecycleMocks.projectPath,
+      environmentMode: 'worktree',
+      worktreePath: lifecycleMocks.workingPath,
+    },
     startDraftSession: lifecycleMocks.startDraftSession,
     loadSessions: lifecycleMocks.loadChatSessions,
     refreshSession: lifecycleMocks.refreshSession,
@@ -128,6 +140,12 @@ vi.mock('@/features/git/hooks', () => ({
   useGitRefresh: lifecycleMocks.useGitRefresh,
 }))
 
+vi.mock('@/features/project-actions', () => ({
+  useProjectActions: () => ({ data: [] }),
+  useRunProjectAction: () => vi.fn(),
+  useProjectActionShortcutCapture: vi.fn(),
+}))
+
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
   useSessions: () => ({
@@ -144,25 +162,20 @@ vi.mock('@/shared/lib/ipc', () => ({
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
     onSessionListInvalidated: lifecycleMocks.onSessionListInvalidated,
     onSessionResourcesInvalidated: lifecycleMocks.onSessionResourcesInvalidated,
+    setBrowserPreviewShortcutBindings: vi.fn().mockResolvedValue(undefined),
+    onBrowserPreviewKeyEvent: vi.fn(() => vi.fn()),
   },
 }))
 
-function runHotkey(hotkey: string) {
-  const binding = lifecycleMocks.hotkeys.find(
-    (candidate) => shortcutBindingKey(candidate.hotkey) === hotkey,
-  )
-  if (!binding) throw new Error(`Expected hotkey ${hotkey}`)
-  binding.callback()
-}
-
 describe('useWorkspaceLifecycle', () => {
   beforeEach(() => {
-    useUIStore.setState({ sidebarOpen: true, terminalOpen: false, slashCommandMenuOpen: false })
+    useUIStore.setState({ sidebarOpen: true, slashCommandMenuOpen: false })
     usePreferencesStore.setState({
       settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' },
       isLoaded: true,
       loadError: null,
     })
+    useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
     lifecycleMocks.loadChatSessions.mockClear()
     lifecycleMocks.startDraftSession.mockClear()
     lifecycleMocks.loadSessionTrees.mockClear()
@@ -252,7 +265,7 @@ describe('useWorkspaceLifecycle', () => {
     act(() => runHotkey('Mod+N'))
     expect(useUIStore.getState().commandSurface).toBeNull()
 
-    expect(useUIStore.getState().terminalOpen).toBe(true)
+    expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().sidebarOpen).toBe(false)
     expect(lifecycleMocks.startDraftSession).toHaveBeenCalledWith('/repo')
     expect(lifecycleMocks.navigate).toHaveBeenCalledWith({ to: '/' })
@@ -278,5 +291,16 @@ describe('useWorkspaceLifecycle', () => {
     await waitFor(() =>
       expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-2'),
     )
+  })
+
+  it('does not route application shortcuts while terminal input owns focus', () => {
+    expectTerminalInputOwnsApplicationShortcuts(
+      lifecycleMocks.startDraftSession,
+      lifecycleMocks.toggleDiff,
+    )
+  })
+
+  it('captures global chords before xterm and suppresses the paired key release', () => {
+    expectGlobalChordsBeforeXterm()
   })
 })

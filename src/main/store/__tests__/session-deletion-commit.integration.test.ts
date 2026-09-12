@@ -44,7 +44,7 @@ function createTestSession(piSessionId: string) {
 
 describe('session deletion commit boundary', () => {
   it.each(['working', 'waiting'] as const)(
-    'preserves runtime ownership when a Worker becomes %s during file staging',
+    'preserves a Worker projection when it becomes %s during unguarded file staging',
     async (delegationState) => {
       const queen = await createTestSession('queen')
       const worker = await createTestSession('worker')
@@ -54,7 +54,6 @@ describe('session deletion commit boundary', () => {
         agentDefinitionName: 'worker',
         delegationState: 'accepted',
       })
-      const onCommitted = vi.fn()
       const restore = vi.fn(async () => undefined)
       const cleanup = vi.fn(async () => undefined)
       vi.spyOn(sessionFileDeletion, 'stageSessionFileDeletion').mockImplementationOnce(async () => {
@@ -67,12 +66,11 @@ describe('session deletion commit boundary', () => {
         runAppEffect(
           Effect.gen(function* () {
             const repo = yield* SessionProjectionRepository
-            yield* repo.delete(worker.id, onCommitted)
+            yield* repo.delete(worker.id)
           }),
         ),
       ).rejects.toThrow()
 
-      expect(onCommitted).not.toHaveBeenCalled()
       expect(restore).toHaveBeenCalledOnce()
       expect(cleanup).not.toHaveBeenCalled()
       expect(await getSessionDetail(worker.id)).not.toBeNull()
@@ -82,7 +80,6 @@ describe('session deletion commit boundary', () => {
   it('keeps a Queen alive when a new Worker is attached during file staging', async () => {
     const queen = await createTestSession('new-queen')
     const worker = await createTestSession('new-worker')
-    const onCommitted = vi.fn()
     const restore = vi.fn(async () => undefined)
     const cleanup = vi.fn(async () => undefined)
     vi.spyOn(sessionFileDeletion, 'stageSessionFileDeletion').mockImplementationOnce(async () => {
@@ -94,16 +91,14 @@ describe('session deletion commit boundary', () => {
       })
       return { restore, cleanup }
     })
-    await expect(deleteSession(queen.id, onCommitted)).rejects.toThrow()
-    expect(onCommitted).not.toHaveBeenCalled()
+    await expect(deleteSession(queen.id)).rejects.toThrow()
     expect(restore).toHaveBeenCalledOnce()
     expect(cleanup).not.toHaveBeenCalled()
     expect(await getSessionDetail(queen.id)).not.toBeNull()
   })
 
-  it('runs committed runtime cleanup before file cleanup and survives its failure', async () => {
+  it('preserves committed deletion when file cleanup fails', async () => {
     const session = await createTestSession('delete-committed')
-    const onCommitted = vi.fn()
     const persistedAtCleanup = vi.fn()
     const restore = vi.fn(async () => undefined)
     const cleanup = vi.fn(async () => {
@@ -120,35 +115,13 @@ describe('session deletion commit boundary', () => {
       runAppEffect(
         Effect.gen(function* () {
           const repo = yield* SessionProjectionRepository
-          yield* repo.delete(session.id, onCommitted)
+          yield* repo.delete(session.id)
         }),
       ),
     ).resolves.toBeUndefined()
 
     expect(cleanup).toHaveBeenCalledOnce()
-    expect(onCommitted).toHaveBeenCalledOnce()
-    expect(onCommitted.mock.invocationCallOrder[0]).toBeLessThan(
-      cleanup.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    )
     expect(persistedAtCleanup).toHaveBeenCalledWith(null)
-    expect(restore).not.toHaveBeenCalled()
-    expect(await getSessionDetail(session.id)).toBeNull()
-  })
-
-  it('does not roll back committed deletion when runtime cleanup throws', async () => {
-    const session = await createTestSession('delete-callback-error')
-    const restore = vi.fn(async () => undefined)
-    const cleanup = vi.fn(async () => undefined)
-    vi.spyOn(sessionFileDeletion, 'stageSessionFileDeletion').mockResolvedValueOnce({
-      cleanup,
-      restore,
-    })
-    await expect(
-      deleteSession(session.id, () => {
-        throw new Error('Runtime cleanup failed')
-      }),
-    ).resolves.toBeUndefined()
-    expect(cleanup).toHaveBeenCalledOnce()
     expect(restore).not.toHaveBeenCalled()
     expect(await getSessionDetail(session.id)).toBeNull()
   })
@@ -176,5 +149,54 @@ describe('session deletion commit boundary', () => {
     ).rejects.toThrow()
     expect(await getSessionDetail(queen.id)).toBeNull()
     expect(await getSessionDetail(worker.id)).not.toBeNull()
+  })
+
+  it('fences real parent, child, and delegation writes without blocking another Hive', async () => {
+    const queen = await createTestSession('fenced-queen')
+    const worker = await createTestSession('fenced-worker')
+    const other = await createTestSession('other-worker')
+    for (const child of [worker, other]) {
+      await establishSessionLineage({
+        sessionId: child.id,
+        parentSessionId: queen.id,
+        agentDefinitionName: 'worker',
+        delegationState: 'accepted',
+      })
+    }
+    const { runAppEffect } = await import('../../runtime')
+    await expect(
+      runAppEffect(
+        Effect.gen(function* () {
+          const repo = yield* SessionProjectionRepository
+          yield* repo.withDeletionFence(
+            worker.id,
+            Effect.promise(async () => {
+              await expect(setSessionDelegationState(worker.id, 'working')).rejects.toThrow(
+                'Hive changes are blocked',
+              )
+              await expect(
+                establishSessionLineage({
+                  sessionId: other.id,
+                  parentSessionId: worker.id,
+                  agentDefinitionName: 'worker',
+                  delegationState: 'working',
+                }),
+              ).rejects.toThrow('Hive changes are blocked')
+              await expect(
+                establishSessionLineage({
+                  sessionId: worker.id,
+                  parentSessionId: queen.id,
+                  agentDefinitionName: 'worker',
+                  delegationState: 'working',
+                }),
+              ).rejects.toThrow('Hive changes are blocked')
+              await setSessionDelegationState(other.id, 'working')
+              throw new Error('Deletion preparation failed')
+            }),
+          )
+        }),
+      ),
+    ).rejects.toThrow('Deletion preparation failed')
+    await expect(setSessionDelegationState(worker.id, 'working')).resolves.toBeUndefined()
   })
 })

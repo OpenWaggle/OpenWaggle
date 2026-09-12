@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron-browser-preview-automation-service'
 import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
@@ -15,6 +16,7 @@ import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp
 import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
 import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-runtime-service'
 import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
+import { NodePtyTerminalServiceLive } from './adapters/node-pty-terminal-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -78,12 +80,18 @@ const McpServicesLive = Layer.mergeAll(
   EncryptedMcpSecretVaultServiceLive,
   FirstPartyMcpRuntimeServiceLive.pipe(Layer.provide(EncryptedMcpSecretVaultServiceLive)),
 ).pipe(Layer.provide(McpTurnStateServiceLive))
+const BrowserPreviewAutomationWithSettingsLive = ElectronBrowserPreviewAutomationServiceLive.pipe(
+  Layer.provide(SettingsService.Live),
+)
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(
     Layer.mergeAll(
       ExtensionRuntimeSelectionLive,
       McpServicesLive,
       FilesystemInlineVisualizationLive,
+      NodePtyTerminalServiceLive,
+      SettingsService.Live,
+      BrowserPreviewAutomationWithSettingsLive,
     ),
   ),
 )
@@ -136,6 +144,7 @@ const AppLayer = Layer.mergeAll(
   FilesystemWorkspaceFileLive,
   WorkspaceProjectAuthorizationLive,
   FilesystemInlineVisualizationLive,
+  NodePtyTerminalServiceLive,
 )
 
 function makeAppRuntime() {

@@ -18,7 +18,6 @@ import {
   emitRunCompletedMock,
   forkRuntimeSessionMock,
   getHiveRelationsMock,
-  getInvokeHandler,
   getSessionDetailMock,
   listSessionDetailsMock,
   loadSessionDetailsHandlers,
@@ -28,6 +27,7 @@ import {
   setAuthorizationModeMock,
   typedHandleMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('registerSessionDetailsHandlers', () => {
   let registerSessionDetailsHandlers: Awaited<
@@ -240,7 +240,7 @@ describe('registerSessionDetailsHandlers', () => {
     )
   })
 
-  it('cleans up the active run after committing session deletion', async () => {
+  it('stops eligible Session work before committing deletion', async () => {
     deleteSessionMock.mockResolvedValue(undefined)
     cancelSessionRunsMock.mockReturnValue(true)
 

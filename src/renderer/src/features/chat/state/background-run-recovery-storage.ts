@@ -7,6 +7,14 @@ import type { FirstSendRecovery } from './background-run-store'
 
 export const BACKGROUND_RUN_RECOVERY_STORAGE_KEY = 'openwaggle:background-run-recovery:v1'
 
+const setupActionSchema = Schema.Struct({
+  terminalId: Schema.String,
+  actionId: Schema.String,
+  actionName: Schema.String,
+  projectRoot: Schema.String,
+  cwd: Schema.String,
+})
+
 const worktreeLaunchSchema = Schema.Struct({
   status: Schema.Literal('running', 'complete', 'failed'),
   stage: Schema.Literal(
@@ -22,6 +30,7 @@ const worktreeLaunchSchema = Schema.Struct({
   worktreePath: Schema.optional(Schema.String),
   branch: Schema.optional(Schema.String),
   baseRef: Schema.optional(Schema.String),
+  setupAction: Schema.optional(setupActionSchema),
   errorMessage: Schema.optional(Schema.String),
 })
 

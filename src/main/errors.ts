@@ -17,6 +17,13 @@ export class DatabaseQueryError extends Data.TaggedError('DatabaseQueryError')<{
   readonly cause?: unknown
 }> {}
 
+export class SettingsStoreReadError extends Data.TaggedError('SettingsStoreReadError')<{
+  readonly operation: 'read' | 'decode'
+  readonly message: string
+  readonly key?: string
+  readonly cause?: unknown
+}> {}
+
 export class ProviderLookupError extends Data.TaggedError('ProviderLookupError')<{
   readonly modelId: string
 }> {}

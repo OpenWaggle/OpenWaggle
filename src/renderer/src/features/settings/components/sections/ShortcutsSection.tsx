@@ -1,236 +1,113 @@
 import {
-  DEFAULT_SHORTCUT_BINDINGS,
-  isMandatoryShortcutCommand,
-  RESERVED_SHORTCUT_KEYS,
-  SHORTCUT_DEFINITIONS,
-  type ShortcutBinding,
-  type ShortcutBindings,
-  type ShortcutCommand,
-  type ShortcutDefinition,
-  shortcutBindingKey,
+  PROJECT_ACTION_LIMITS,
+  type ProjectActionShortcutRule,
+} from '@shared/types/project-actions'
+import {
+  DEFAULT_SHORTCUT_RULES,
+  SHORTCUT_RULE_LIMITS,
+  type ShortcutRule,
+  type ShortcutRules,
 } from '@shared/types/shortcuts'
-import { RotateCcw } from 'lucide-react'
-import { type KeyboardEvent, useState } from 'react'
+import { removeShortcutRule, upsertShortcutRule } from '@shared/utils/shortcut-rules'
+import { useState } from 'react'
+import { useProjectActionMutations, useProjectActions } from '@/features/project-actions'
 import { usePreferencesStore } from '@/features/settings/state'
-import { formatShortcutBinding, usesAppleShortcuts } from '@/shared/lib/shortcut-display'
-import { Button } from '@/shared/ui/Button'
 import { useUIStore } from '@/shell/ui-store'
-
-const MODIFIER_KEYS = new Set(['Alt', 'Control', 'Meta', 'Shift'])
-
-function eventBinding(event: KeyboardEvent<HTMLButtonElement>): ShortcutBinding | null {
-  if (MODIFIER_KEYS.has(event.key)) return null
-  const apple = usesAppleShortcuts()
-  const key =
-    event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key
-  return {
-    key,
-    ...((apple ? event.metaKey : event.ctrlKey) ? { mod: true } : {}),
-    ...(apple && event.ctrlKey ? { ctrl: true } : {}),
-    ...(!apple && event.metaKey ? { meta: true } : {}),
-    ...(event.altKey ? { alt: true } : {}),
-    ...(event.shiftKey ? { shift: true } : {}),
-  }
-}
-
-/**
- * A label for whatever already owns this combination, or null when it is free.
- *
- * Checks the reserved combinations as well as the configurable ones. The sidebar's filter and the
- * pinned-session shortcuts register directly, so without this a user could bind a command onto one
- * and get two live handlers with no explanation.
- */
-function conflictLabel(
-  command: ShortcutCommand,
-  binding: ShortcutBinding,
-  bindings: ReturnType<typeof usePreferencesStore.getState>['settings']['shortcutBindings'],
-) {
-  const reserved = RESERVED_SHORTCUT_KEYS[shortcutBindingKey(binding)]
-  if (reserved !== undefined) return reserved
-  return conflictingCommand(command, binding, bindings)?.label ?? null
-}
-
-function conflictingCommand(
-  command: ShortcutCommand,
-  binding: ShortcutBinding,
-  bindings: ReturnType<typeof usePreferencesStore.getState>['settings']['shortcutBindings'],
-) {
-  const candidate = shortcutBindingKey(binding)
-  return SHORTCUT_DEFINITIONS.find((definition) => {
-    const existing = bindings[definition.command]
-    return (
-      definition.command !== command &&
-      existing !== null &&
-      shortcutBindingKey(existing) === candidate
-    )
-  })
-}
-
-interface ShortcutRowProps {
-  readonly binding: ShortcutBinding | null
-  readonly definition: ShortcutDefinition
-  readonly index: number
-  readonly isRecording: boolean
-  readonly onKeyDown: (command: ShortcutCommand, event: KeyboardEvent<HTMLButtonElement>) => void
-  readonly onRecord: (command: ShortcutCommand) => void
-  readonly onSave: (command: ShortcutCommand, binding: ShortcutBinding | null) => void
-}
-
-function ShortcutRow({
-  binding,
-  definition,
-  index,
-  isRecording,
-  onKeyDown,
-  onRecord,
-  onSave,
-}: ShortcutRowProps) {
-  const defaultBinding = DEFAULT_SHORTCUT_BINDINGS[definition.command]
-  const isDefault =
-    binding !== null && shortcutBindingKey(binding) === shortcutBindingKey(defaultBinding)
-  return (
-    <div
-      className={`flex min-h-16 items-center gap-4 px-4 ${
-        index > 0 ? 'border-t border-border' : ''
-      }`}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium text-text-primary">{definition.label}</div>
-        <div className="mt-0.5 text-xs text-text-tertiary">{definition.description}</div>
-      </div>
-      {!isDefault && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Reset shortcut"
-          aria-label={`Reset ${definition.label}`}
-          onClick={() => onSave(definition.command, defaultBinding)}
-        >
-          <RotateCcw className="size-3" />
-        </Button>
-      )}
-      <Button
-        variant="unstyled"
-        onClick={() => onRecord(definition.command)}
-        onKeyDown={(event) => onKeyDown(definition.command, event)}
-        className={`min-w-28 rounded-md border px-3 py-1.5 font-mono text-xs outline-none ${
-          isRecording
-            ? 'border-accent bg-accent/10 text-accent ring-2 ring-accent/20'
-            : 'border-border-light bg-bg text-text-secondary hover:bg-bg-hover'
-        }`}
-        aria-label={`Change ${definition.label}`}
-      >
-        {isRecording ? 'Press keys…' : formatShortcutBinding(binding)}
-      </Button>
-    </div>
-  )
-}
+import {
+  buildShortcutBrowserRows,
+  projectActionBindingCount,
+} from '../../lib/shortcut-browser-model'
+import { ShortcutsSectionContent } from './ShortcutsSectionContent'
 
 export function ShortcutsSection() {
-  const bindings: ShortcutBindings = usePreferencesStore((state) => state.settings.shortcutBindings)
-  const setShortcutBinding = usePreferencesStore((state) => state.setShortcutBinding)
-  const resetShortcutBindings = usePreferencesStore((state) => state.resetShortcutBindings)
+  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
+  const setShortcutRules = usePreferencesStore((state) => state.setShortcutRules)
   const showToast = useUIStore((state) => state.showToast)
-  const [recording, setRecording] = useState<ShortcutCommand | null>(null)
+  const actionsQuery = useProjectActions(projectPath)
+  const mutations = useProjectActionMutations(projectPath)
+  const actions = actionsQuery.data ?? []
+  const [query, setQuery] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [savingBuiltIns, setSavingBuiltIns] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const rows = buildShortcutBrowserRows(shortcutRules, actions)
+  const visibleRows = buildShortcutBrowserRows(shortcutRules, actions, query)
+  const projectBindings = projectActionBindingCount(actions)
+  const builtInAtLimit = shortcutRules.length >= SHORTCUT_RULE_LIMITS.RULES
+  const projectAtLimit = projectBindings >= PROJECT_ACTION_LIMITS.SHORTCUT_RULES_PER_PROJECT
+  const saving = savingBuiltIns || mutations.isSaving
 
-  async function saveBinding(command: ShortcutCommand, binding: ShortcutBinding | null) {
-    if (binding) {
-      const conflict = conflictLabel(command, binding, bindings)
-      if (conflict !== null) {
-        setError(`Already used by “${conflict}”.`)
-        return
-      }
-    }
-
+  async function persistBuiltInRules(nextRules: ShortcutRules) {
+    setSavingBuiltIns(true)
     try {
-      await setShortcutBinding(command, binding)
-      setRecording(null)
+      await setShortcutRules(nextRules)
       setError(null)
+      return true
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : 'Could not save shortcut.'
+      const message = saveError instanceof Error ? saveError.message : 'Could not save binding.'
       setError(message)
       showToast(message, 'error')
+      return false
+    } finally {
+      setSavingBuiltIns(false)
     }
   }
 
-  function handleKeyDown(command: ShortcutCommand, event: KeyboardEvent<HTMLButtonElement>) {
-    if (recording !== command) return
-    event.preventDefault()
-    event.stopPropagation()
-
-    if (event.key === 'Escape') {
-      setRecording(null)
+  async function updateProjectRules(
+    actionId: string,
+    nextRules: readonly ProjectActionShortcutRule[],
+  ) {
+    try {
+      await mutations.update(actionId, { shortcutRules: nextRules })
       setError(null)
-      return
+      return true
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : 'Could not save Project Action binding.'
+      setError(message)
+      showToast(message, 'error')
+      return false
     }
-    if (event.key === 'Backspace' || event.key === 'Delete') {
-      if (isMandatoryShortcutCommand(command)) {
-        setError('This core shortcut must stay assigned. Record a replacement instead.')
-        return
-      }
-      void saveBinding(command, null)
-      return
-    }
-
-    const binding = eventBinding(event)
-    if (!binding) return
-    if (!binding.mod && !binding.ctrl && !binding.alt && !binding.meta) {
-      setError('Use Command, Control, or Alt with the key.')
-      return
-    }
-    void saveBinding(command, binding)
   }
+
+  async function addBuiltInRule(rule: ShortcutRule) {
+    if (builtInAtLimit) {
+      setError(`Built-in shortcuts may have at most ${String(SHORTCUT_RULE_LIMITS.RULES)} rules.`)
+      return false
+    }
+    return persistBuiltInRules(upsertShortcutRule(shortcutRules, rule))
+  }
+
+  const canAdd = !builtInAtLimit || (projectPath !== null && actions.length > 0 && !projectAtLimit)
 
   return (
-    <div className="max-w-3xl space-y-5">
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h2 className="text-base font-semibold text-text-primary">Keyboard shortcuts</h2>
-          <p className="mt-1 text-xs leading-5 text-text-tertiary">
-            Select a shortcut, then press the replacement. Conflicting bindings are rejected.
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          size="xs"
-          onClick={() => void resetShortcutBindings()}
-          leftIcon={<RotateCcw className="size-3" />}
-        >
-          Reset all
-        </Button>
-      </div>
-
-      <div className="overflow-hidden rounded-lg border border-border bg-bg-secondary">
-        {SHORTCUT_DEFINITIONS.map((definition, index) => {
-          const binding = bindings[definition.command]
-          return (
-            <ShortcutRow
-              key={definition.command}
-              binding={binding}
-              definition={definition}
-              index={index}
-              isRecording={recording === definition.command}
-              onKeyDown={handleKeyDown}
-              onRecord={(command) => {
-                setRecording(command)
-                setError(null)
-              }}
-              onSave={(command, nextBinding) => void saveBinding(command, nextBinding)}
-            />
-          )
-        })}
-      </div>
-
-      {error && (
-        <p role="alert" className="text-xs text-error-text">
-          {error}
-        </p>
-      )}
-      <p className="text-xs text-text-muted">
-        Workspace shortcuts can be cleared with Backspace while recording. Command palette, Go to
-        file, and New session always require a binding.
-      </p>
-    </div>
+    <ShortcutsSectionContent
+      model={{
+        actions,
+        rows,
+        visibleRows,
+        query,
+        adding,
+        canAdd,
+        saving,
+        error,
+        projectError: actionsQuery.isError ? actionsQuery.error.message : null,
+        builtInCount: visibleRows.filter((row) => row.kind === 'builtin').length,
+        projectCount: visibleRows.filter((row) => row.kind === 'project').length,
+      }}
+      actions={{
+        onSearch: setQuery,
+        onAddStart: () => setAdding(true),
+        onAddClose: () => setAdding(false),
+        onReset: () => void persistBuiltInRules(DEFAULT_SHORTCUT_RULES),
+        onError: setError,
+        onBuiltInAdd: addBuiltInRule,
+        onBuiltInRemove: (rule) => persistBuiltInRules(removeShortcutRule(shortcutRules, rule)),
+        onBuiltInUpsert: (next, replace) =>
+          persistBuiltInRules(upsertShortcutRule(shortcutRules, next, replace)),
+        onProjectUpdate: updateProjectRules,
+      }}
+    />
   )
 }

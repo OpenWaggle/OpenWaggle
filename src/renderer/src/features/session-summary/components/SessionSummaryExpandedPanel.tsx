@@ -9,6 +9,7 @@ export interface SessionSummaryPanelSection {
 
 export interface SessionSummaryExpandedPanelInput {
   readonly panelId: string
+  readonly sessionId: string
   readonly sections: readonly SessionSummaryPanelSection[]
   readonly transient: boolean
 }
@@ -24,6 +25,7 @@ export function SessionSummaryExpandedPanel({
         id={input.panelId}
         aria-label="Session Summary"
         data-session-summary-mode={input.transient ? 'transient' : 'persistent'}
+        data-native-preview-occluder={input.sessionId}
         className="session-summary-panel-enter pointer-events-auto flex max-h-full w-75 max-w-full flex-col overflow-hidden rounded-3xl border border-border-light bg-bg-secondary/95 shadow-2xl backdrop-blur motion-reduce:animate-none"
       >
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

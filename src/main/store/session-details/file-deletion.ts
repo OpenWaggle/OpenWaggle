@@ -13,19 +13,10 @@ function noopAsync(): Promise<void> {
 }
 
 /** Commit has succeeded. Nothing here may restore files or report a rejected deletion. */
-export async function completeSessionDeletion(
+export async function cleanupCommittedSessionFile(
   sessionId: SessionId,
   stagedFile: StagedSessionFileDeletion,
-  onCommitted?: () => void,
 ): Promise<void> {
-  try {
-    onCommitted?.()
-  } catch (error) {
-    logger.warn('Failed runtime cleanup after session deletion', {
-      sessionId,
-      error: describeError(error),
-    })
-  }
   try {
     await stagedFile.cleanup()
   } catch (error) {

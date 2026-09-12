@@ -37,6 +37,7 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
+  const activeDraftContextKey = useComposerStore((state) => state.activeDraftContextKey)
   const pendingContextKey = `session:${activeSessionId}:pending`
   const contextKey =
     buildScopedComposerContextKey(projectPath, activeSessionId, activeWorkspace, draftBranch) ??
@@ -104,6 +105,10 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
       }
     }
   }, [])
+
+  // A session-owned pending draft remains editable before workspace hydration. Do not
+  // expose the previous Session's draft while the layout effect switches ownership.
+  return activeDraftContextKey === contextKey
 }
 
 function buildScopedComposerContextKey(
@@ -116,6 +121,8 @@ function buildScopedComposerContextKey(
   if (!workspaceBelongsToSession(activeWorkspace, scopedSessionId)) return null
 
   return buildComposerDraftContextKey({
+    // Global project settings hydrate separately from the Session workspace.
+    // Using them here can restore one key, then erase new input when they catch up.
     projectPath: scopedSessionId
       ? (activeWorkspace?.tree.session.projectPath ?? null)
       : projectPath,

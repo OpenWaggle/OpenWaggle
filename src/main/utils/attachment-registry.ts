@@ -55,7 +55,24 @@ function samePreparedAttachmentMetadata(
     prepared.mimeType === requested.mimeType &&
     prepared.sizeBytes === requested.sizeBytes &&
     sameOptionalValue(prepared.contentSha256, requested.contentSha256) &&
-    sameOptionalValue(prepared.origin, requested.origin)
+    sameOptionalValue(prepared.origin, requested.origin) &&
+    sameBrowserPreviewMetadata(prepared.browserPreview, requested.browserPreview)
+  )
+}
+
+function sameBrowserPreviewMetadata(
+  left: PreparedAttachment['browserPreview'],
+  right: PreparedAttachment['browserPreview'],
+) {
+  if (left === undefined || right === undefined) return left === right
+  return (
+    left.pageUrl === right.pageUrl &&
+    left.pageTitle === right.pageTitle &&
+    left.selector === right.selector &&
+    left.tagName === right.tagName &&
+    left.role === right.role &&
+    left.elementText === right.elementText &&
+    left.comment === right.comment
   )
 }
 

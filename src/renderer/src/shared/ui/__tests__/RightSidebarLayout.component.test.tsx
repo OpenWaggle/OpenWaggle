@@ -1,114 +1,52 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '../Button'
 import { RightSidebarLayout, sidebarWidthValue } from '../RightSidebarLayout'
 import type { WidthAcceptanceContext } from '../right-sidebar-layout-types'
 
-const DEFAULT_WIDTH_PX = 600
-const MAX_WIDTH_PX = 900
-const MIN_WIDTH_PX = 360
-const MAIN_MIN_WIDTH_PX = 420
-const SHEET_BREAKPOINT_PX = 1180
-const DEFAULT_CLAMPED_WIDTH = 'min(600px, max(0px, calc(100% - 420px)))'
-const PERSISTED_CLAMPED_WIDTH = 'min(720px, max(0px, calc(100% - 420px)))'
-const STORAGE_KEY = 'openwaggle:test-diff-sidebar-width'
-const POINTER_ID = 9
-const START_X = 800
-const ROOT_WIDTH = 1600
-const ACCEPTED_WIDTH = 700
-
-function installMatchMedia(matches: boolean) {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches,
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  }))
-}
-
-function renderLayout(open: boolean, onOpenChange = vi.fn()) {
-  return render(
-    <RightSidebarLayout {...layoutProps(open, onOpenChange)}>
-      <div>Main content</div>
-    </RightSidebarLayout>,
-  )
-}
-
-function layoutProps(open: boolean, onOpenChange = vi.fn()) {
-  return {
-    open,
-    sizing: {
-      defaultWidth: DEFAULT_WIDTH_PX,
-      mainMinWidth: MAIN_MIN_WIDTH_PX,
-      maxWidth: MAX_WIDTH_PX,
-      minWidth: MIN_WIDTH_PX,
-      sheetBreakpointPx: SHEET_BREAKPOINT_PX,
-      storageKey: STORAGE_KEY,
-    },
-    sidebar: <Button>Diff content</Button>,
-    onOpenChange,
-  }
-}
-
-function installAnimationFrame() {
-  let pendingCallback: FrameRequestCallback | null = null
-  const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
-    pendingCallback = null
-  })
-  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-    pendingCallback = callback
-    return 1
-  })
-
-  return {
-    cancelAnimationFrame,
-    flush() {
-      const callback = pendingCallback
-      if (!callback) throw new Error('Expected a pending animation frame')
-      pendingCallback = null
-      callback(0)
-    },
-  }
-}
-
-function prepareDockedResize() {
-  const rail = screen.getByRole('button', { name: 'Resize right sidebar' })
-  const root = document.querySelector<HTMLElement>(
-    '[data-right-sidebar-main="true"]',
-  )?.parentElement
-  const panel = document.querySelector<HTMLDivElement>('[data-right-sidebar-panel="true"]')
-  const sidebar = document.querySelector<HTMLDivElement>('[data-right-sidebar-shell="true"]')
-  if (!root || !panel || !sidebar) throw new Error('Expected the docked sidebar layout')
-
-  Object.defineProperty(root, 'clientWidth', { configurable: true, value: ROOT_WIDTH })
-  let capturedPointerId: number | null = null
-  const setPointerCapture = vi.fn((pointerId: number) => {
-    capturedPointerId = pointerId
-  })
-  const releasePointerCapture = vi.fn((pointerId: number) => {
-    if (capturedPointerId === pointerId) capturedPointerId = null
-  })
-  Object.defineProperties(rail, {
-    hasPointerCapture: {
-      configurable: true,
-      value: (pointerId: number) => capturedPointerId === pointerId,
-    },
-    releasePointerCapture: { configurable: true, value: releasePointerCapture },
-    setPointerCapture: { configurable: true, value: setPointerCapture },
-  })
-
-  return { panel, rail, releasePointerCapture, root, setPointerCapture, sidebar }
-}
+import {
+  ACCEPTED_WIDTH,
+  DEFAULT_CLAMPED_WIDTH,
+  DEFAULT_WIDTH_PX,
+  installAnimationFrame,
+  installMatchMedia,
+  layoutProps,
+  MAIN_MIN_WIDTH_PX,
+  MAX_WIDTH_PX,
+  PERSISTED_CLAMPED_WIDTH,
+  POINTER_ID,
+  prepareDockedResize,
+  renderLayout,
+  START_X,
+  STORAGE_KEY,
+} from './right-sidebar-layout.test-harness'
 
 describe('RightSidebarLayout', () => {
   beforeEach(() => {
     window.localStorage.clear()
     installMatchMedia(false)
     vi.restoreAllMocks()
+  })
+
+  it('preserves the main input, focus, and selection across responsive breakpoints', () => {
+    const setSheet = installMatchMedia(false)
+    render(
+      <RightSidebarLayout {...layoutProps(false)}>
+        <textarea aria-label="Draft" defaultValue="Keep my draft" />
+      </RightSidebarLayout>,
+    )
+    const input = screen.getByRole('textbox', { name: 'Draft' })
+    if (!(input instanceof HTMLTextAreaElement)) throw new Error('Expected draft textarea')
+    input.focus()
+    input.setSelectionRange(3, 7)
+
+    for (const isSheet of [true, false, true, false]) {
+      act(() => setSheet(isSheet))
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(input)
+      expect(input).toHaveFocus()
+      expect(input).toHaveValue('Keep my draft')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 7])
+    }
   })
 
   it('keeps sidebar content mounted after the first open so close can animate', () => {
@@ -169,6 +107,48 @@ describe('RightSidebarLayout', () => {
 
     expect(sidebarWidthValue(720, MAIN_MIN_WIDTH_PX)).toBe(PERSISTED_CLAMPED_WIDTH)
     expect(sidebar).toHaveAttribute('data-right-sidebar-preferred-width', '720')
+  })
+
+  it('maximizes without unmounting main content and restores the exact retained width', () => {
+    window.localStorage.setItem(STORAGE_KEY, '720')
+    const view = render(
+      <RightSidebarLayout {...layoutProps(true, vi.fn(), false)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+    const originalMainContent = screen.getByText('Main content')
+
+    view.rerender(
+      <RightSidebarLayout {...layoutProps(true, vi.fn(), true)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+
+    expect(screen.getByText('Main content')).toBe(originalMainContent)
+    expect(document.querySelector('[data-right-sidebar-main="true"]')).toHaveAttribute('inert')
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toHaveStyle({
+      width: '100%',
+    })
+    expect(screen.queryByRole('button', { name: 'Resize right sidebar' })).toBeNull()
+
+    view.rerender(
+      <RightSidebarLayout {...layoutProps(true, vi.fn(), false)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+
+    expect(screen.getByText('Main content')).toBe(originalMainContent)
+    expect(document.querySelector('[data-right-sidebar-main="true"]')).not.toHaveAttribute('inert')
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toHaveAttribute(
+      'data-right-sidebar-maximized',
+      'false',
+    )
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toHaveAttribute(
+      'data-right-sidebar-preferred-width',
+      '720',
+    )
+    expect(sidebarWidthValue(720, MAIN_MIN_WIDTH_PX)).toBe(PERSISTED_CLAMPED_WIDTH)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('720')
   })
 
   it('renders a dismissible sheet when the viewport is below the sidebar breakpoint', () => {

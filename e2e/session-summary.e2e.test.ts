@@ -316,7 +316,7 @@ async function launchChangeRequestFixture(input: ChangeRequestFixtureInput) {
   const cliBinPath = await createFakeSourceControlCliBin()
   const inheritedPath = buildSafeElectronEnvironment({}).PATH ?? ''
   const app = await OpenWaggleApp.launch(input.prefix, {
-    PATH: `${cliBinPath}${path.delimiter}${inheritedPath}`,
+    environment: { PATH: `${cliBinPath}${path.delimiter}${inheritedPath}` },
   })
   const projectPath = path.join(app.userDataDir, input.projectName)
 

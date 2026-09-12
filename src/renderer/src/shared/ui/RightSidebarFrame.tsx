@@ -15,6 +15,7 @@ interface DockedLayoutCaptures {
 
 interface DockedLayoutShell {
   readonly isSheet: boolean
+  readonly maximized: boolean
   readonly mainMinWidth: number
   readonly open: boolean
   readonly shouldRenderSidebar: boolean
@@ -34,14 +35,15 @@ export function RightSidebarFrame({
   captures: { captureMain, capturePanel, captureRoot },
   content: { children, sidebar },
   rail,
-  shell: { captureSidebar, isSheet, mainMinWidth, open, shouldRenderSidebar, width },
+  shell: { captureSidebar, isSheet, maximized, mainMinWidth, open, shouldRenderSidebar, width },
   sheet,
 }: RightSidebarFrameProps) {
   return (
     <div ref={captureRoot} className="relative flex h-full min-w-0 flex-1 overflow-hidden">
       <div
         ref={captureMain}
-        inert={isSheet && open}
+        inert={open && (isSheet || maximized)}
+        aria-hidden={open && (isSheet || maximized)}
         className="min-w-0 flex-1 overflow-hidden"
         data-right-sidebar-main="true"
         tabIndex={-1}
@@ -56,14 +58,16 @@ export function RightSidebarFrame({
           <aside
             ref={captureSidebar}
             inert={!open}
+            aria-hidden={!open}
             className={cn(
               'relative h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
               open ? 'pointer-events-auto' : 'pointer-events-none',
             )}
             data-right-sidebar-main-min-width={mainMinWidth}
+            data-right-sidebar-maximized={open && maximized}
             data-right-sidebar-preferred-width={width}
             data-right-sidebar-shell="true"
-            style={sidebarShellStyle(open, width, mainMinWidth)}
+            style={sidebarShellStyle(open, width, mainMinWidth, maximized)}
           >
             {shouldRenderSidebar ? (
               <div

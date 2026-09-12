@@ -4,6 +4,7 @@ import { SupportedModelId } from '@shared/types/brand'
 import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
 import { parseModelRef } from '@shared/types/llm'
 import {
+  BROWSER_LINK_TARGETS,
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   DEFAULT_SETTINGS,
   DIFF_SYNTAX_THEMES,
@@ -14,10 +15,15 @@ import {
   DEFAULT_SHORTCUT_BINDINGS,
   isMandatoryShortcutCommand,
   SHORTCUT_COMMANDS,
+  SHORTCUT_RULE_LIMITS,
   type ShortcutBinding,
   type ShortcutBindings,
   type ShortcutCommand,
+  type ShortcutRule,
+  type ShortcutRules,
   shortcutBindingKey,
+  shortcutRulesFromBindings,
+  shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
 import {
   DEFAULT_SYNTAX_THEME_SELECTIONS,
@@ -25,6 +31,7 @@ import {
   type SyntaxAppearanceVariant,
   type SyntaxThemeSelections,
 } from '@shared/types/syntax'
+import { parseProjectActionWhenExpression } from '@shared/utils/project-action-shortcuts'
 import { includes } from '@shared/utils/validation'
 
 export function isObjectRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -104,6 +111,14 @@ export function resolveDiffWrapLines(raw: unknown) {
   if (raw === 'true') return true
   if (raw === 'false') return false
   return DEFAULT_SETTINGS.diffWrapLines
+}
+
+export function isValidBrowserLinkTarget(value: unknown) {
+  return typeof value === 'string' && includes(BROWSER_LINK_TARGETS, value)
+}
+
+export function resolveBrowserLinkTarget(raw: unknown) {
+  return isValidBrowserLinkTarget(raw) ? raw : DEFAULT_SETTINGS.browserLinkTarget
 }
 
 export function isValidCompactionThresholdPercent(value: unknown): value is number {
@@ -248,7 +263,7 @@ export function sanitizeProjectDisplayNames(raw: unknown) {
 function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
   if (!isObjectRecord(raw) || typeof raw.key !== 'string') return null
   const key = raw.key.trim()
-  if (!key || key.length > BASE_TEN + BASE_TEN) return null
+  if (!key || key.length > SHORTCUT_RULE_LIMITS.KEY_LENGTH) return null
 
   const optionalBooleanKeys = ['mod', 'ctrl', 'shift', 'alt', 'meta'] as const
   for (const field of optionalBooleanKeys) {
@@ -265,6 +280,42 @@ function sanitizeShortcutBinding(raw: unknown): ShortcutBinding | null {
   }
 }
 
+/** Validates the canonical ordered rule array without rejecting intentional overlaps. */
+export function sanitizeShortcutRules(raw: unknown): ShortcutRules | null {
+  if (!Array.isArray(raw) || raw.length > SHORTCUT_RULE_LIMITS.RULES) return null
+  const rules: ShortcutRule[] = []
+  for (const candidate of raw) {
+    if (
+      !isObjectRecord(candidate) ||
+      typeof candidate.command !== 'string' ||
+      !includes(SHORTCUT_COMMANDS, candidate.command)
+    ) {
+      return null
+    }
+    const shortcut = sanitizeShortcutBinding(candidate.shortcut)
+    if (shortcut === null) return null
+    if (candidate.when === undefined) {
+      rules.push({ command: candidate.command, shortcut })
+      continue
+    }
+    if (typeof candidate.when !== 'string') return null
+    const when = candidate.when.trim()
+    if (
+      when.length === 0 ||
+      when.length > SHORTCUT_RULE_LIMITS.WHEN_LENGTH ||
+      parseProjectActionWhenExpression(when) === null
+    ) {
+      return null
+    }
+    rules.push({ command: candidate.command, shortcut, when })
+  }
+  return rules
+}
+
+export function resolveShortcutRules(raw: unknown, legacyBindings: ShortcutBindings) {
+  return sanitizeShortcutRules(raw) ?? shortcutRulesFromBindings(legacyBindings)
+}
+
 export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
   if (!isObjectRecord(raw)) return DEFAULT_SHORTCUT_BINDINGS
 
@@ -279,11 +330,23 @@ export function sanitizeShortcutBindings(raw: unknown): ShortcutBindings {
     const binding = sanitizeShortcutBinding(raw[command])
     if (binding) result[command] = binding
   }
-  const assigned = Object.values(result).filter(
-    (binding): binding is ShortcutBinding => binding !== null,
-  )
-  if (new Set(assigned.map(shortcutBindingKey)).size !== assigned.length) {
-    return DEFAULT_SHORTCUT_BINDINGS
+  const assigned = SHORTCUT_COMMANDS.flatMap((command) => {
+    const binding = result[command]
+    return binding === null ? [] : [{ binding, command }]
+  })
+  for (let leftIndex = 0; leftIndex < assigned.length; leftIndex += 1) {
+    const left = assigned[leftIndex]
+    if (!left) continue
+    for (let rightIndex = leftIndex + 1; rightIndex < assigned.length; rightIndex += 1) {
+      const right = assigned[rightIndex]
+      if (!right) continue
+      if (
+        shortcutBindingKey(left.binding) === shortcutBindingKey(right.binding) &&
+        shortcutScopesOverlap(left.command, right.command)
+      ) {
+        return DEFAULT_SHORTCUT_BINDINGS
+      }
+    }
   }
   return result
 }

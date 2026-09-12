@@ -44,6 +44,8 @@ export interface ToastData {
 
 export const SETTINGS_TABS = [
   'general',
+  'browser',
+  'actions',
   'shortcuts',
   'appearance',
   'waggle',

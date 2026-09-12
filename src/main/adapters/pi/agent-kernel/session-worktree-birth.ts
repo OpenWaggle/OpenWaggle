@@ -1,26 +1,30 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { createLogger } from '../../../logger'
 import { resolveSessionWorktreeBranch } from '../../../services/git/session-branch-resolution'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
-import { setSessionWorktree } from '../../../store/session-details'
+import {
+  adoptSessionWorktreeForSetup,
+  resetSessionWorktreeSetup,
+  setSessionWorktree,
+} from '../../../store/session-details'
 import { runGit } from '../../git/run-git'
 import { createGitWorktree } from '../../git/worktree'
 import { requireSessionProjectPath } from './session-manager'
+import {
+  dispatchPendingSessionWorktreeSetup,
+  type SessionWorktreeSetupDispatchOptions,
+} from './session-worktree-setup-dispatch'
 
 const logger = createLogger('session-worktree-birth')
 
 /** Serialize birth per session so concurrent runs (classic + waggle, double-send) can't race. */
 const birthInFlight = new Map<string, Promise<string>>()
 
-interface SessionWorktreeBirthOptions {
-  readonly onProgress?: (progress: WorktreeLaunchProgress) => void
-  readonly signal?: AbortSignal
-}
+type SessionWorktreeBirthOptions = SessionWorktreeSetupDispatchOptions
 
 /**
  * Birth path for a Session worktree (ADR 0010, WS1b). Serialized per session so
@@ -92,6 +96,13 @@ async function ensureSessionWorktreeProjectPathUnlocked(
    * send gate already knows how to recover from.
    */
   if (existing && existsSync(existing) && (await isWorktreeOf(primaryPath, existing))) {
+    await dispatchPendingSessionWorktreeSetup({
+      session,
+      options,
+      primaryPath,
+      sessionId: String(session.id),
+      worktreePath: existing,
+    })
     return existing
   }
 
@@ -141,11 +152,19 @@ async function ensureSessionWorktreeProjectPathUnlocked(
         stage: 'preparing-workspace',
         details: ['Recovering the session worktree'],
       })
-      await setSessionWorktree(SessionId(sessionId), 'worktree', worktreePath)
+      const pending = await adoptSessionWorktreeForSetup(SessionId(sessionId), worktreePath)
       options.onProgress?.({
         stage: 'worktree-created',
         details: ['Recovered the existing session worktree'],
         worktreePath,
+      })
+      await dispatchPendingSessionWorktreeSetup({
+        session,
+        options,
+        primaryPath,
+        sessionId,
+        worktreePath,
+        ...(pending ? { pending } : {}),
       })
       return worktreePath
     }
@@ -208,7 +227,8 @@ async function createAndPersistSessionWorktree(input: {
     branch,
     baseRef,
   })
-
+  options.signal?.throwIfAborted()
+  const pending = await resetSessionWorktreeSetup(SessionId(sessionId), worktreePath)
   options.signal?.throwIfAborted()
   const createPayload = { path: worktreePath, branch, baseRef }
   const result = options.signal
@@ -227,6 +247,16 @@ async function createAndPersistSessionWorktree(input: {
     worktreePath,
     branch,
     baseRef,
+  })
+  await dispatchPendingSessionWorktreeSetup({
+    session,
+    options,
+    primaryPath,
+    sessionId,
+    worktreePath,
+    branch,
+    baseRef,
+    pending,
   })
   /*
    * Deliberately does NOT invalidate the git status cache here. This module is a Pi

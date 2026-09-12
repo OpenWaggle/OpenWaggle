@@ -3,9 +3,18 @@ import { defineConfig } from '@playwright/test'
 const CI = process.env.CI === 'true' || process.env.CI === '1'
 const TIMEOUT = 90_000
 const CI_RETRY_COUNT = 2
+const DECIMAL_RADIX = 10
 
-const PARSED_WORKERS = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? '', 10)
-const WORKERS = Number.isNaN(PARSED_WORKERS) || PARSED_WORKERS < 1 ? 1 : PARSED_WORKERS
+export function playwrightWorkerCount(ci: boolean, platform: NodeJS.Platform, configured: string | undefined) {
+  // Hidden macOS Electron instances contend for native iframe input and the
+  // shared compositor. Keep strict frame-budget measurements on one app at a
+  // time; Linux/Windows and explicit local parallel runs retain their setting.
+  if (ci && platform === 'darwin') return 1
+  const parsed = Number.parseInt(configured ?? '', DECIMAL_RADIX)
+  return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
+}
+
+const WORKERS = playwrightWorkerCount(CI, process.platform, process.env.PLAYWRIGHT_WORKERS)
 
 export default defineConfig({
   testDir: './e2e',

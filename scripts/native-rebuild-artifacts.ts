@@ -1,13 +1,20 @@
-import { readdir, readFile, realpath, rm, stat } from 'node:fs/promises'
+import { readFile, realpath, rm, stat } from 'node:fs/promises'
 import { join, relative } from 'node:path'
+import {
+  currentNativeArtifactRuntime,
+  materializeNativeArtifactPath,
+  nativeArtifactRequirements,
+  type NativeArtifactRuntime,
+} from './native-artifact-contract'
 
 const NODE_MODULES_SEGMENT = 'node_modules'
 const PACKAGE_JSON_FILE = 'package.json'
 const ELECTRON_REBUILD_METADATA_FILE = '.forge-meta'
+const EXECUTABLE_MODE_MASK = 0o111
 
 interface NativePackageMetadata {
   readonly name: string
-  readonly optionalDependencyNames: readonly string[]
+  readonly version?: string
 }
 
 export type NativeArtifactSignature = {
@@ -76,19 +83,37 @@ export function assertExpectedArtifacts(
 export async function collectNativeArtifactSignatures(
   paths: NativeArtifactPaths,
   packageNames: readonly string[],
+  runtime: NativeArtifactRuntime = currentNativeArtifactRuntime(),
 ) {
   const signatures: NativeArtifactSignature[] = []
   for (const packageName of packageNames) {
-    for (const packageRoot of await findNativeArtifactRoots(paths, packageName)) {
-      for (const artifactPath of await collectNodeArtifactPaths(packageRoot)) {
-        const artifactStat = await stat(artifactPath)
-        signatures.push({
-          packageName,
-          path: relative(paths.projectRoot, artifactPath),
-          size: artifactStat.size,
-          mtimeMs: artifactStat.mtimeMs,
-        })
+    for (const requirement of nativeArtifactRequirements(packageName, runtime)) {
+      const artifactPath = await resolveRequiredArtifact(paths, requirement.candidates)
+      if (artifactPath === null) {
+        const candidates = requirement.candidates
+          .map((candidate) => `${candidate.packageName}/${candidate.relativePath}`)
+          .join(', ')
+        throw new Error(
+          `Missing ${packageName} ${requirement.label}; checked exact active paths: ${candidates}.`,
+        )
       }
+      const artifactStat = await stat(artifactPath)
+      if (!artifactStat.isFile()) {
+        throw new Error(`${packageName} ${requirement.label} is not a regular file: ${artifactPath}.`)
+      }
+      if (
+        requirement.executable &&
+        runtime.platform !== 'win32' &&
+        (artifactStat.mode & EXECUTABLE_MODE_MASK) === 0
+      ) {
+        throw new Error(`${packageName} ${requirement.label} is not executable: ${artifactPath}.`)
+      }
+      signatures.push({
+        packageName,
+        path: relative(paths.projectRoot, artifactPath),
+        size: artifactStat.size,
+        mtimeMs: artifactStat.mtimeMs,
+      })
     }
   }
 
@@ -100,7 +125,7 @@ export async function removeElectronRebuildMetadata(
   packageNames: readonly string[],
 ) {
   for (const packageName of packageNames) {
-    for (const packageRoot of await findNativeArtifactRoots(paths, packageName)) {
+    for (const packageRoot of await findActivePackageRoots(paths, packageName)) {
       await rm(join(packageRoot, 'build', 'Release', ELECTRON_REBUILD_METADATA_FILE), {
         force: true,
       })
@@ -113,7 +138,7 @@ export async function removeNativeBuildDirectories(
   packageNames: readonly string[],
 ) {
   for (const packageName of packageNames) {
-    for (const packageRoot of await findNativeArtifactRoots(paths, packageName)) {
+    for (const packageRoot of await findActivePackageRoots(paths, packageName)) {
       await rm(join(packageRoot, 'build'), {
         force: true,
         recursive: true,
@@ -132,16 +157,6 @@ function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-function dependencyNames(value: unknown) {
-  if (!isObject(value)) {
-    return []
-  }
-
-  return Object.entries(value).flatMap(([dependencyName, dependencyVersion]) =>
-    typeof dependencyVersion === 'string' ? [dependencyName] : [],
-  )
-}
-
 async function readPackageMetadata(packageRoot: string): Promise<NativePackageMetadata | null> {
   let packageJson: unknown
   try {
@@ -156,10 +171,10 @@ async function readPackageMetadata(packageRoot: string): Promise<NativePackageMe
 
   return {
     name: packageJson.name,
-    optionalDependencyNames:
-      'optionalDependencies' in packageJson
-        ? dependencyNames(packageJson.optionalDependencies)
-        : [],
+    version:
+      'version' in packageJson && typeof packageJson.version === 'string'
+        ? packageJson.version
+        : undefined,
   }
 }
 
@@ -192,44 +207,27 @@ async function findActivePackageRoots(paths: NativeArtifactPaths, packageName: s
   return [...packageRoots].sort()
 }
 
-async function findNativeArtifactRoots(paths: NativeArtifactPaths, packageName: string) {
-  const packageRoots = new Set(await findActivePackageRoots(paths, packageName))
-
-  for (const packageRoot of [...packageRoots]) {
+async function resolveRequiredArtifact(
+  paths: NativeArtifactPaths,
+  candidates: readonly { readonly packageName: string; readonly relativePath: string }[],
+) {
+  for (const candidate of candidates) {
+    const packageRoots = await findActivePackageRoots(paths, candidate.packageName)
+    if (packageRoots.length > 1) {
+      throw new Error(
+        `Multiple active roots found for ${candidate.packageName}: ${packageRoots.join(', ')}.`,
+      )
+    }
+    const packageRoot = packageRoots[0]
+    if (!packageRoot) continue
     const metadata = await readPackageMetadata(packageRoot)
-    if (!metadata) {
-      continue
-    }
-
-    for (const dependencyName of metadata.optionalDependencyNames) {
-      for (const dependencyRoot of await findActivePackageRoots(paths, dependencyName)) {
-        packageRoots.add(dependencyRoot)
-      }
+    const relativePath = materializeNativeArtifactPath(candidate.relativePath, metadata?.version)
+    const artifactPath = join(packageRoot, relativePath)
+    try {
+      if ((await stat(artifactPath)).isFile()) return artifactPath
+    } catch {
+      // Try the next exact runtime candidate.
     }
   }
-
-  return [...packageRoots].sort()
-}
-
-async function collectNodeArtifactPaths(directory: string) {
-  const artifacts: string[] = []
-  for (const entry of await listDirectoryEntries(directory)) {
-    const entryPath = join(directory, entry.name)
-    if (entry.isDirectory()) {
-      artifacts.push(...(await collectNodeArtifactPaths(entryPath)))
-    }
-    if (entry.isFile() && entry.name.endsWith('.node')) {
-      artifacts.push(entryPath)
-    }
-  }
-
-  return artifacts.sort()
-}
-
-async function listDirectoryEntries(directory: string) {
-  try {
-    return await readdir(directory, { withFileTypes: true })
-  } catch {
-    return []
-  }
+  return null
 }

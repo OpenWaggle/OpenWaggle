@@ -151,10 +151,10 @@ describe('session authorization-mode migration', () => {
     expect(APP_MIGRATIONS.find((migration) => migration.id === 24)?.name).toBe('pinned-sessions')
   })
 
-  it('adds the session resource catalog at migration 27 and keeps it session-owned', async () => {
+  it('adds the session resource catalog at migration 29 and keeps it session-owned', async () => {
     const result = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 27)
+        yield* applyMigrations(sql, 29)
         yield* insertSession(sql, 'resource-session')
         yield* sql`
           INSERT INTO session_resources (
@@ -177,19 +177,19 @@ describe('session authorization-mode migration', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 27)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 29)?.name).toBe(
       'session-resource-catalog',
     )
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 26)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 28)?.name).toBe(
       'session-hive-lineage',
     )
     expect(result).toEqual({ resources: [], occurrences: [] })
   })
 
-  it('adds session-owned resource backfill progress at migration 28', async () => {
+  it('adds session-owned resource backfill progress at migration 30', async () => {
     const state = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 28)
+        yield* applyMigrations(sql, 30)
         yield* insertSession(sql, 'backfill-session')
         yield* sql`
           INSERT INTO session_resource_backfill_state (session_id, through_created_order)
@@ -202,18 +202,18 @@ describe('session authorization-mode migration', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 28)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 30)?.name).toBe(
       'session-resource-backfill-state',
     )
     expect(state).toEqual([])
   })
 
-  it('adds durable managed-resource cleanup work at migration 29', async () => {
+  it('adds durable managed-resource cleanup work at migration 31', async () => {
     const queued = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 28)
+        yield* applyMigrations(sql, 30)
         yield* sql`DROP TABLE session_resource_cleanup_queue`
-        yield* applyMigrations(sql, 29)
+        yield* applyMigrations(sql, 31)
         yield* sql`
           INSERT INTO session_resource_cleanup_queue (session_id, queued_at)
           VALUES ('deleted-session', 1)
@@ -224,16 +224,16 @@ describe('session authorization-mode migration', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 29)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 31)?.name).toBe(
       'session-resource-cleanup-queue',
     )
     expect(queued).toEqual([{ session_id: 'deleted-session' }])
   })
 
-  it('adds session-owned durable Output retry work at migration 30', async () => {
+  it('adds session-owned durable Output retry work at migration 32', async () => {
     const pending = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 30)
+        yield* applyMigrations(sql, 32)
         yield* insertSession(sql, 'output-session')
         yield* sql`
           INSERT INTO session_output_retries (
@@ -249,7 +249,7 @@ describe('session authorization-mode migration', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find((migration) => migration.id === 30)?.name).toBe(
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 32)?.name).toBe(
       'session-output-retry-queue',
     )
     expect(pending).toEqual([])

@@ -38,6 +38,17 @@ export interface RuntimeFactoryInput {
     readonly resourceRoot: string
   }[]
   readonly extensionFactories?: readonly ((pi: FakePi) => void)[]
+  readonly trustedExtensionFactories?: readonly ((pi: FakePi) => void)[]
+  readonly systemPromptAppendices?: readonly string[]
+}
+
+export function installRuntimeFactories(input: RuntimeFactoryInput, pi: FakePi) {
+  for (const factory of [
+    ...(input.extensionFactories ?? []),
+    ...(input.trustedExtensionFactories ?? []),
+  ]) {
+    factory(pi)
+  }
 }
 
 export function fakeRuntimeServices() {

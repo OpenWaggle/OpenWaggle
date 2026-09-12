@@ -1,5 +1,6 @@
 import type { SyntaxResourceCatalog, SyntaxThemeImportPreview } from './syntax-resources'
 import type {
+  WorkspaceAbsoluteFileExternalOpenInput,
   WorkspaceExternalEditor,
   WorkspaceFileExternalOpenInput,
 } from './workspace-external-editor'
@@ -69,6 +70,10 @@ export interface IpcWorkspaceFileInvokeChannelMap {
   }
   'workspace-files:open-external': {
     args: [input: WorkspaceFileExternalOpenInput]
+    return: undefined
+  }
+  'workspace-files:open-absolute-external': {
+    args: [input: WorkspaceAbsoluteFileExternalOpenInput]
     return: undefined
   }
   'workspace-files:create-entry': {

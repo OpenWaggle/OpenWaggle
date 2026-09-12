@@ -17,6 +17,7 @@ describe('SessionSummaryExpandedPanel', () => {
       <SessionSummaryExpandedPanel
         input={{
           panelId: 'session-summary-session-1',
+          sessionId: 'session-1',
           transient: false,
           sections: [
             { id: 'environment', label: 'Environment', content: <div>Environment content</div> },
@@ -27,6 +28,7 @@ describe('SessionSummaryExpandedPanel', () => {
     )
 
     const panel = screen.getByRole('complementary', { name: 'Session Summary' })
+    expect(panel).toHaveAttribute('data-native-preview-occluder', 'session-1')
     expect(panel).toHaveClass('w-75', 'rounded-3xl', 'overflow-hidden')
     expect(screen.queryByRole('button', { name: 'Collapse Session Summary' })).toBeNull()
     expect(screen.getAllByText(/content$/).map((element) => element.textContent)).toEqual([
@@ -41,6 +43,7 @@ describe('SessionSummaryExpandedPanel', () => {
       <SessionSummaryExpandedPanel
         input={{
           panelId: 'session-summary-session-1',
+          sessionId: 'session-1',
           transient: false,
           sections: [
             { id: 'broken', label: 'Broken', content: <ExplodingSection /> },

@@ -16,6 +16,15 @@ import {
   SessionProjectionRepository,
   type SessionProjectionRepositoryShape,
 } from '../ports/session-projection-repository'
+import { acquireSessionDeletionFence } from '../store/session-details/session-deletion-fence'
+
+export function withDeletionFence<A, E, R>(id: SessionId, operation: Effect.Effect<A, E, R>) {
+  return Effect.acquireUseRelease(
+    repoOp('delete', () => acquireSessionDeletionFence(id)),
+    () => operation,
+    (release) => Effect.sync(release),
+  )
+}
 
 type RepoOperation =
   | 'get'
@@ -31,6 +40,7 @@ type RepoOperation =
   | 'listArchived'
   | 'updateTitle'
   | 'setWorktreePlan'
+  | 'resetWorktreeSetup'
   | 'setAuthorizationMode'
   | 'establishLineage'
   | 'setDelegationState'
@@ -114,6 +124,7 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   return Layer.succeed(
     SessionProjectionRepository,
     SessionProjectionRepository.of({
+      withDeletionFence,
       get: (id) => requireSessionProjection(id, () => store.getSessionDetail(id)),
 
       getOptional: (id) => repoOp('getOptional', () => store.getSessionDetail(id)),
@@ -130,12 +141,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
       getDeletionBlocker: (id) =>
         repoOp('getDeletionBlocker', () => store.getSessionDeletionBlocker(id)),
 
-      delete: (id, onCommitted) =>
+      delete: (id) =>
         repoOp('delete', async () => {
           const session = await store.getSessionDetail(id)
           // Commit the lineage-guarded delete before pruning, so a concurrent Worker cannot leave
           // a surviving Queen with a removed checkout after the atomic guard rejects the delete.
-          await store.deleteSession(id, onCommitted)
+          await store.deleteSession(id)
           await pruneWorktreeForSession(id, 'delete', session)
         }),
 
@@ -161,6 +172,14 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
             plan.startFromOrigin,
           ),
         ),
+
+      resetWorktreeSetup: (id, worktreePath) =>
+        repoOp('resetWorktreeSetup', async () => {
+          const pending = await store.resetRecordedSessionWorktreeSetup(id, worktreePath)
+          if (!pending) {
+            throw new Error('The Session does not own this recorded worktree path.')
+          }
+        }),
 
       setAuthorizationMode: (id, mode) =>
         repoOp('setAuthorizationMode', () => store.setSessionAuthorizationMode(id, mode)),

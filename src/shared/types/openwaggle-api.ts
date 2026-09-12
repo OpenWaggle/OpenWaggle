@@ -39,8 +39,10 @@ import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
 import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
+import type { OpenWaggleBrowserPreviewApi } from './openwaggle-browser-preview-api'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
+import type { OpenWaggleTerminalApi } from './openwaggle-terminal-api'
 import type { OpenWaggleWorkspaceFilesApi } from './openwaggle-workspace-files-api'
 import type { AgentPhaseState } from './phase'
 import type {
@@ -71,6 +73,8 @@ type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-upda
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
+    OpenWaggleBrowserPreviewApi,
+    OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
     OpenWaggleGitApi,
     OpenWaggleProjectConfigApi,
@@ -190,13 +194,6 @@ export interface OpenWaggleApi
     callback: (payload: IpcEventPayload<'sessions:list-invalidated'>) => void,
   ): () => void
 
-  // Terminal
-  createTerminal(projectPath: string): Promise<string>
-  closeTerminal(terminalId: string): Promise<void>
-  resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>
-  writeTerminal(terminalId: string, data: string): void
-  onTerminalData(callback: (payload: IpcEventPayload<'terminal:data'>) => void): () => void
-
   // Window
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 
@@ -222,6 +219,7 @@ export interface OpenWaggleApi
   showConfirm(message: string, detail?: string): Promise<boolean>
 
   copyToClipboard(text: string): void
+  readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>

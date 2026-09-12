@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { captureHiddenWindowPresentation } from './support/hidden-window-presentation'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import { expectRightSidebarClosed } from './support/right-sidebar'
 import { seedSingleSession } from './support/session-fixtures'
@@ -154,6 +155,19 @@ function visualizationSource() {
 }
 
 async function expectSecureInteractiveVisualization(
+  app: OpenWaggleApp,
+  sessionId: string,
+  options: { verifyAgentPayload?: boolean } = {},
+) {
+  const stopPresentation = await captureHiddenWindowPresentation(app.electronApplication())
+  try {
+    await assertSecureInteractiveVisualization(app, sessionId, options)
+  } finally {
+    await stopPresentation()
+  }
+}
+
+async function assertSecureInteractiveVisualization(
   app: OpenWaggleApp,
   sessionId: string,
   options: { verifyAgentPayload?: boolean } = {},
@@ -441,6 +455,7 @@ async function expectSecureInteractiveVisualization(
 async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const page = app.window()
   const input = app.mainWindow().messageInput()
+  await expect(input).toBeEditable()
   await expect(input).toHaveText('')
   await input.click()
   await input.pressSequentially('/vis')

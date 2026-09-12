@@ -1,6 +1,14 @@
-import { homedir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { homedir, userInfo } from 'node:os'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { installDesktopShellEnvironment as hydrateDesktopShellEnvironment } from './desktop-shell-environment'
+import {
+  buildNpmCompatiblePath,
+  readEnvironmentValue,
+  setEnvironmentValue,
+  shouldExcludeInteractiveTerminalEnvKey,
+  stripAppImageRuntimeEnv,
+} from './environment-paths'
 
 const optionalUrlSchema = Schema.optional(
   Schema.String.pipe(
@@ -32,27 +40,33 @@ export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
-const MACOS_NPM_COMPATIBLE_PATH_DIRS = [
-  '/opt/homebrew/bin',
-  '/usr/local/bin',
-  '/usr/bin',
-  '/bin',
-  '/usr/sbin',
-  '/sbin',
-]
-const POSIX_NPM_COMPATIBLE_PATH_DIRS = ['/usr/local/bin', '/usr/bin', '/bin']
-const POSIX_USER_TOOL_PATH_SEGMENTS = [
-  ['.local', 'bin'],
-  ['.volta', 'bin'],
-  ['.asdf', 'shims'],
-  ['.mise', 'shims'],
-  ['.cargo', 'bin'],
-  ['.bun', 'bin'],
-  ['.deno', 'bin'],
-] as const
-const MACOS_USER_TOOL_PATH_SEGMENTS = [['Library', 'pnpm']] as const
+const TERMINAL_PROGRAM_NAME = 'OpenWaggle'
+const TERMINAL_TYPE = 'xterm-256color'
+const TERMINAL_COLOR_TYPE = 'truecolor'
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
+let desktopShellEnvironmentPromise: Promise<void> | null = null
+
+function userLoginShell() {
+  if (process.platform === 'win32') return undefined
+  try {
+    return userInfo().shell || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Hydrate GUI-launch gaps once before terminal/runtime services start. */
+export function installDesktopShellEnvironment(): Promise<void> {
+  desktopShellEnvironmentPromise ??= hydrateDesktopShellEnvironment({
+    env: process.env,
+    platform: process.platform,
+    userShell: userLoginShell(),
+    uid: process.getuid?.(),
+    exists: existsSync,
+  })
+  return desktopShellEnvironmentPromise
+}
 
 /**
  * Safe environment for child processes.
@@ -69,6 +83,76 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
     USER: process.env.USER,
     TMPDIR: process.env.TMPDIR,
   }
+}
+
+/**
+ * Minimal environment for OS credential helpers used by browser-cookie import.
+ * Linux Secret Service needs the session bus/display variables; Windows
+ * PowerShell needs the Windows root/temp variables. No unrelated secrets pass
+ * through to either subprocess.
+ */
+export function getBrowserCredentialChildEnv(): Record<string, string | undefined> {
+  return {
+    ...getSafeChildEnv(),
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
+    DISPLAY: process.env.DISPLAY,
+    LC_ALL: process.env.LC_ALL,
+    SystemRoot: process.env.SystemRoot,
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+    USERNAME: process.env.USERNAME,
+    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
+    WINDIR: process.env.WINDIR,
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+  }
+}
+
+/** Windows profile roots used only for installed-browser discovery. */
+export function getBrowserImportPathEnv(): {
+  readonly appData?: string
+  readonly localAppData?: string
+} {
+  const appData = process.env.APPDATA?.trim()
+  const localAppData = process.env.LOCALAPPDATA?.trim()
+  return {
+    ...(appData ? { appData } : {}),
+    ...(localAppData ? { localAppData } : {}),
+  }
+}
+
+/**
+ * Full user environment for an interactive terminal.
+ *
+ * Unlike ordinary app subprocesses, a terminal is the user's command authority:
+ * shell integrations, agents, display servers, proxies, locales, and toolchains
+ * must remain available. Only app-control variables and known Node/Electron code
+ * injection controls are removed. A new snapshot is built for every terminal
+ * spawn so environment changes made while OpenWaggle is running are observed.
+ */
+export function getInteractiveTerminalEnv(
+  appVersion: string,
+  overrides: Readonly<Record<string, string>> = {},
+): Record<string, string> {
+  const inherited: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value !== 'string' || shouldExcludeInteractiveTerminalEnvKey(key)) continue
+    inherited[key] = value
+  }
+
+  const terminalEnv = stripAppImageRuntimeEnv(inherited)
+  setEnvironmentValue(
+    terminalEnv,
+    'PATH',
+    buildNpmCompatiblePath(readEnvironmentValue(terminalEnv, 'PATH'), process.platform, homedir()),
+  )
+  setEnvironmentValue(terminalEnv, 'TERM', TERMINAL_TYPE)
+  setEnvironmentValue(terminalEnv, 'COLORTERM', TERMINAL_COLOR_TYPE)
+  setEnvironmentValue(terminalEnv, 'TERM_PROGRAM', TERMINAL_PROGRAM_NAME)
+  setEnvironmentValue(terminalEnv, 'TERM_PROGRAM_VERSION', appVersion)
+  for (const [name, value] of Object.entries(overrides)) {
+    setEnvironmentValue(terminalEnv, name, value)
+  }
+  return terminalEnv
 }
 
 /**
@@ -119,54 +203,7 @@ export function getEnvWithOverrides(
 }
 
 export function getNpmCompatiblePath(): string {
-  const result: string[] = []
-  const seen = new Set<string>()
-
-  function addPath(value: string | undefined) {
-    if (!value || seen.has(value)) {
-      return
-    }
-    seen.add(value)
-    result.push(value)
-  }
-
-  // Preserve user PATH precedence; extra directories are fallbacks for GUI-launched apps.
-  for (const value of (process.env.PATH ?? '').split(delimiter)) {
-    addPath(value)
-  }
-
-  for (const value of getUserToolPathDirs()) {
-    addPath(value)
-  }
-
-  for (const value of getNpmCompatiblePathDirs()) {
-    addPath(value)
-  }
-
-  return result.join(delimiter)
-}
-
-function getNpmCompatiblePathDirs() {
-  if (process.platform === 'darwin') {
-    return MACOS_NPM_COMPATIBLE_PATH_DIRS
-  }
-  if (process.platform === 'win32') {
-    return []
-  }
-  return POSIX_NPM_COMPATIBLE_PATH_DIRS
-}
-
-function getUserToolPathDirs() {
-  if (process.platform === 'win32') {
-    return []
-  }
-
-  const homeDir = homedir()
-  const pathSegments =
-    process.platform === 'darwin'
-      ? [...MACOS_USER_TOOL_PATH_SEGMENTS, ...POSIX_USER_TOOL_PATH_SEGMENTS]
-      : POSIX_USER_TOOL_PATH_SEGMENTS
-  return pathSegments.map((segments) => join(homeDir, ...segments))
+  return buildNpmCompatiblePath(process.env.PATH, process.platform, homedir())
 }
 
 export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {

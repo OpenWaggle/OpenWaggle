@@ -6,6 +6,7 @@ import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
+import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import {
   handleStoreError,
   isSameSessionId,
@@ -194,6 +195,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
     await api.deleteSession(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
+    await deleteWorkspaceOwner(String(id))
     void useSessionStore.getState().refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
   } catch (err) {
     set({

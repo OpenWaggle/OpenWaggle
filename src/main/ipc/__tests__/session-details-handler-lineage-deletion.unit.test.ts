@@ -1,6 +1,7 @@
 import { SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE } from '@shared/constants/session-lifecycle'
 import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { probeSessionLineageMutation as withSessionLineageMutation } from '../../adapters/__tests__/session-lineage-mutation-probe'
 import {
   cancelSessionRunsMock,
   cleanupSessionRunMock,
@@ -10,13 +11,12 @@ import {
   deleteVisualizationSessionMock,
   emitRunCompletedMock,
   getDeletionBlockerMock,
-  getInvokeHandler,
   loadSessionDetailsHandlers,
   removeSessionResourcesMock,
   resetSessionDetailsHandlerMocks,
-  rollbackVisualizationSessionDeletionMock,
   stageVisualizationSessionDeletionMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('session Hive deletion', () => {
   let registerSessionDetailsHandlers: Awaited<
@@ -90,27 +90,46 @@ describe('session Hive deletion', () => {
     expect(deleteSessionMock).not.toHaveBeenCalled()
   })
 
-  it('preserves runtime state when repository revalidation rejects after async staging', async () => {
+  it('drains an admitted Hive update before deciding whether runtime cleanup is allowed', async () => {
+    const id = SessionId('admitted-working-worker')
+    const gate = Promise.withResolvers<void>()
+    const admitted = withSessionLineageMutation([id], async () => {
+      await gate.promise
+      getDeletionBlockerMock.mockResolvedValue(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE)
+    })
+    registerSessionDetailsHandlers()
+    const deletion = getInvokeHandler('sessions:delete')?.({}, id)
+    const rejected = expect(deletion).rejects.toThrow(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE)
+    expect(getDeletionBlockerMock).not.toHaveBeenCalled()
+    gate.resolve()
+    await admitted
+    await rejected
+    expect(cancelSessionRunsMock).not.toHaveBeenCalled()
+    expect(cleanupSessionRunMock).not.toHaveBeenCalled()
+    expect(stageVisualizationSessionDeletionMock).not.toHaveBeenCalled()
+    await expect(withSessionLineageMutation([id], async () => undefined)).resolves.toBeUndefined()
+  })
+
+  it('rejects new Hive writes during staging before stopping the selected Session', async () => {
     const id = SessionId('late-worker')
     const staging = Promise.withResolvers<void>()
     stageVisualizationSessionDeletionMock.mockReturnValue(staging.promise)
     getDeletionBlockerMock.mockResolvedValue(null)
-    deleteSessionMock.mockRejectedValue(new Error(SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE))
     registerSessionDetailsHandlers()
     const deletion = getInvokeHandler('sessions:delete')?.({}, id)
-    const rejected = expect(deletion).rejects.toThrow()
     await vi.waitFor(() => expect(stageVisualizationSessionDeletionMock).toHaveBeenCalledWith(id))
-    staging.resolve()
-    await rejected
-    expect(deleteSessionMock).toHaveBeenCalledWith(id)
-    expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith(id)
+    const mutate = vi.fn(async () => undefined)
+    await expect(withSessionLineageMutation([id], mutate)).rejects.toThrow(
+      'Hive changes are blocked',
+    )
+    expect(mutate).not.toHaveBeenCalled()
     expect(cancelSessionRunsMock).not.toHaveBeenCalled()
-    expect(clearAgentPhaseMock).not.toHaveBeenCalled()
-    expect(clearStreamBufferMock).not.toHaveBeenCalled()
-    expect(cleanupSessionRunMock).not.toHaveBeenCalled()
-    expect(emitRunCompletedMock).not.toHaveBeenCalled()
-    expect(deleteVisualizationSessionMock).not.toHaveBeenCalled()
-    expect(removeSessionResourcesMock).not.toHaveBeenCalled()
+    staging.resolve()
+    await deletion
+    expect(deleteSessionMock).toHaveBeenCalledWith(id)
+    expect(cancelSessionRunsMock).toHaveBeenCalledWith(id)
+    expect(deleteVisualizationSessionMock).toHaveBeenCalledWith(id)
+    await expect(withSessionLineageMutation([id], mutate)).resolves.toBeUndefined()
   })
 
   it('leaves the run untouched when visualization staging fails', async () => {
@@ -126,20 +145,22 @@ describe('session Hive deletion', () => {
     expect(deleteSessionMock).not.toHaveBeenCalled()
   })
 
-  it('waits for authoritative deletion before cancelling an eligible Session run', async () => {
+  it('holds Hive admission until durable deletion finishes', async () => {
     const id = SessionId('eligible-running-session')
     const commit = Promise.withResolvers<void>()
     deleteSessionMock.mockReturnValue(commit.promise)
     registerSessionDetailsHandlers()
     const deletion = getInvokeHandler('sessions:delete')?.({}, id)
     await vi.waitFor(() => expect(deleteSessionMock).toHaveBeenCalledWith(id))
-    expect(cancelSessionRunsMock).not.toHaveBeenCalled()
-    expect(cleanupSessionRunMock).not.toHaveBeenCalled()
+    await expect(withSessionLineageMutation([id], async () => undefined)).rejects.toThrow(
+      'Hive changes are blocked',
+    )
     commit.resolve()
     await deletion
     expect(cancelSessionRunsMock).toHaveBeenCalledWith(id)
     expect(clearAgentPhaseMock).toHaveBeenCalledWith(id)
     expect(clearStreamBufferMock).toHaveBeenCalledWith(id)
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(id)
+    await expect(withSessionLineageMutation([id], async () => undefined)).resolves.toBeUndefined()
   })
 })

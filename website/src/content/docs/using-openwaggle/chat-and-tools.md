@@ -91,6 +91,20 @@ Pi owns active tool selection. OpenWaggle does not pass an explicit allowlist to
 
 Pi owns tool execution. OpenWaggle renders the resulting events directly in the transcript.
 
+## Browser Preview Tools
+
+When **Settings > Browser > Let agents open and drive the preview browser** is enabled, Pi also
+receives OpenWaggle's trusted `preview_*` tools and concise instructions for using them. These tools
+operate on the active Session's own [Browser preview](/docs/developer-workflow/browser-preview), not
+on a separate headless browser. They can open or reuse a tab, navigate, resize, inspect a bounded
+snapshot, interact with the page, and capture screenshots or recordings.
+
+Page-changing calls use the same scoped approval flow as other agent capabilities. User and agent
+controls share one serialized browser controller, and real keyboard or pointer input interrupts an
+agent action. Disabling the setting removes both the tools and their instructions from subsequent
+turns and rejects any later preview call from a turn already in progress; a settings read failure
+has the same fail-closed result.
+
 ## Slash Command Menu
 
 Type `/` anywhere a new composer token can start. Keep typing to filter the menu, then use the arrow keys and `Enter` to select an item without leaving the composer.
@@ -117,4 +131,12 @@ If the app closes while a run is active, OpenWaggle does not auto-resume it on r
 
 ## Command Environment
 
-The integrated terminal uses OpenWaggle's filtered terminal environment. Pi's `bash` tool follows Pi SDK runtime behavior and currently receives Pi's shell environment, not OpenWaggle's terminal filter.
+The built-in terminal and Pi's `bash` tool have different launch policies. A Session terminal starts
+the user's interactive shell in the session's Working path, loads normal startup configuration, and
+inherits the user's environment after narrow Electron/OpenWaggle launch cleanup. Pi's `bash` tool
+follows Pi SDK runtime behavior instead.
+
+To give terminal output to the agent deliberately, select it and use **Add selection to chat** from
+the terminal context menu. OpenWaggle adds a removable, bounded, provenance-labelled context chip
+to the composer and marks it as untrusted terminal output. Selecting output does not send anything
+by itself.

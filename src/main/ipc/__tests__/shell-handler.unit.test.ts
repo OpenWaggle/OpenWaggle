@@ -7,6 +7,7 @@ const mockAppGetPath = vi.fn((_name: string) => '/tmp/logs')
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 const mockShellOpenExternal = vi.fn(async (_url: string) => {})
+const mockClipboardReadText = vi.fn(() => 'clipboard text')
 
 vi.mock('electron', () => ({
   shell: {
@@ -15,6 +16,10 @@ vi.mock('electron', () => ({
     showItemInFolder: (p: string) => mockShellShowItemInFolder(p),
   },
   app: { getPath: (name: string) => mockAppGetPath(name) },
+  clipboard: {
+    readText: () => mockClipboardReadText(),
+    writeText: vi.fn(),
+  },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
@@ -47,19 +52,29 @@ describe('shell-handler', () => {
     mockShellShowItemInFolder.mockReset()
     mockShellOpenExternal.mockReset()
     mockAppGetPath.mockReset()
+    mockClipboardReadText.mockReset()
     mockShellOpenPath.mockResolvedValue('')
     mockAppGetPath.mockReturnValue('/tmp/logs')
+    mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
-  it('registers exactly five handlers', () => {
+  it('registers exactly six invoke handlers', () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(5)
+    expect(handlers.size).toBe(6)
     expect(handlers.has('app:open-logs-dir')).toBe(true)
     expect(handlers.has('app:get-logs-path')).toBe(true)
     expect(handlers.has('shell:open-path')).toBe(true)
     expect(handlers.has('shell:reveal-path')).toBe(true)
     expect(handlers.has('shell:open-external')).toBe(true)
+    expect(handlers.has('clipboard:read-text')).toBe(true)
+  })
+
+  it('reads paste text through Electron clipboard isolation', async () => {
+    registerShellHandlers()
+
+    await expect(handlers.get('clipboard:read-text')?.({})).resolves.toBe('clipboard text')
+    expect(mockClipboardReadText).toHaveBeenCalledOnce()
   })
 
   describe('app:open-logs-dir', () => {

@@ -1,6 +1,7 @@
 import type { ActiveCompactionInfo } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import * as Effect from 'effect/Effect'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { ActiveRunManager } from './active-run-manager'
 
@@ -24,12 +25,47 @@ const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
 const activeCompactions = new ActiveRunManager<SessionId, AgentCompactionMetadata>()
 const activeWaggleRuns = new ActiveRunManager<SessionId, AgentRunControlMetadata>()
 const ACTIVE_RUN_POLL_INTERVAL_MS = 50
+const sessionRemovalFences = new Set<SessionId>()
 
 export { activeCompactions, activeRuns, activeWaggleRuns }
 
+export function acquireSessionRemovalFence(sessionId: SessionId) {
+  if (sessionRemovalFences.has(sessionId)) {
+    throw new Error('Session deletion or archive is already in progress.')
+  }
+  sessionRemovalFences.add(sessionId)
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    sessionRemovalFences.delete(sessionId)
+  }
+}
+
+export function isSessionRemovalFenced(sessionId: SessionId) {
+  return sessionRemovalFences.has(sessionId)
+}
+
+export function ensureSessionRunStartAllowed(sessionId: SessionId) {
+  return Effect.try({
+    try: () => {
+      if (sessionRemovalFences.has(sessionId)) {
+        throw new Error('The Session is being archived or deleted; new work cannot start.')
+      }
+    },
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  })
+}
+
 export function hasAnyActiveRun(sessionId: SessionId): boolean {
+  return hasAnyUnsettledRun(sessionId)
+}
+
+function hasAnyUnsettledRun(sessionId: SessionId) {
   return (
-    activeRuns.has(sessionId) || activeCompactions.has(sessionId) || activeWaggleRuns.has(sessionId)
+    activeRuns.hasUnsettled(sessionId) ||
+    activeCompactions.hasUnsettled(sessionId) ||
+    activeWaggleRuns.hasUnsettled(sessionId)
   )
 }
 
@@ -82,10 +118,10 @@ export function cancelAllSessionRuns(): SessionId[] {
 
 export async function waitForSessionRuns(sessionId: SessionId, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs
-  while (hasAnyActiveRun(sessionId) && Date.now() < deadline) {
+  while (hasAnyUnsettledRun(sessionId) && Date.now() < deadline) {
     await new Promise<void>((resolve) =>
       setTimeout(resolve, Math.min(ACTIVE_RUN_POLL_INTERVAL_MS, deadline - Date.now())),
     )
   }
-  return !hasAnyActiveRun(sessionId)
+  return !hasAnyUnsettledRun(sessionId)
 }

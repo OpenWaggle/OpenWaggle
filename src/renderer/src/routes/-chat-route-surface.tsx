@@ -6,11 +6,22 @@ import {
   DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
   type SessionResourceBrowserTarget,
 } from '@/features/session-summary'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN, useUIStore } from '@/shell'
 import { useChatRouteEffects } from './-chat-route-effects'
 import { ChatRouteSidebar } from './-chat-route-sidebar'
+import {
+  coordinateChangeRequestPanel,
+  coordinateDiffPanel,
+  coordinateExtensionPanel,
+  coordinateResourcesPanel,
+  coordinateSessionTreePanel,
+  coordinateWorkspaceFilePanel,
+  routePanelRequestKey,
+  useRoutePanelClaim,
+} from './-right-sidebar-coordination'
 import { isExtensionRightSidebarPanel, resolveChatRightSidebarPanel } from './-right-sidebar-panel'
 import type { ChatExtensionSidePanelTarget } from './-route-search'
 
@@ -137,21 +148,25 @@ function useChatRouteSurfaceActions(
   }, [chatCommandRequest, clearChatCommandRequest, sections.composer])
 
   function handleDiffOpenChange(open: boolean) {
+    coordinateDiffPanel(open)
     setLastRightSidebarPanel('diff')
     rightSidebarActions.onDiffOpenChange(open)
   }
 
   function handleChangeRequestOpenChange(open: boolean, url?: string) {
+    coordinateChangeRequestPanel(open)
     setLastRightSidebarPanel('change-request')
     rightSidebarActions.onChangeRequestOpenChange?.(open, url)
   }
 
   function handleSessionTreeOpenChange(open: boolean) {
+    coordinateSessionTreePanel(open)
     setLastRightSidebarPanel('session-tree')
     rightSidebarActions.onSessionTreeOpenChange(open)
   }
 
   function handleResourcesTargetChange(target: SessionResourceBrowserTarget | null) {
+    coordinateResourcesPanel(target !== null)
     if (target) setLastRightSidebarPanel('resources')
     rightSidebarActions.onResourcesTargetChange(target)
   }
@@ -163,6 +178,7 @@ function useChatRouteSurfaceActions(
       ...(target.packagePath ? { packagePath: target.packagePath } : {}),
       ...(target.contentHash ? { contentHash: target.contentHash } : {}),
     }
+    coordinateExtensionPanel(open, routeTarget)
     setLastRightSidebarPanel({ kind: 'extension-side-panel', ...routeTarget })
     rightSidebarActions.onExtensionSidePanelOpenChange(open, routeTarget)
   }
@@ -171,6 +187,7 @@ function useChatRouteSurfaceActions(
     open: boolean,
     target?: { readonly path: string; readonly line?: number | null },
   ) {
+    coordinateWorkspaceFilePanel(open, target)
     setLastRightSidebarPanel('file')
     rightSidebarActions.onWorkspaceFileOpenChange(open, target)
   }
@@ -206,12 +223,22 @@ export function ChatRouteSurface({
     rightSidebar,
     lastRightSidebarPanel,
   )
+  const routePanelRequested = isChatRightSidebarOpen(rightSidebar)
+  const routePanelKey = routePanelRequested
+    ? routePanelRequestKey(renderedRightSidebarPanel, rightSidebar.workspaceFile)
+    : null
+  const routePanelScope = workspace.sessionId ?? sections.diff.workingPath
+  const routePanelOpen = useRoutePanelClaim(routePanelKey, routePanelScope)
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
     projectPath: sections.diff.workingPath,
     sessionId: workspace.sessionId,
   })
-  const rightSidebarOpen = isChatRightSidebarOpen(rightSidebar)
+  const workspaceSidebarOpen = useRightSidebarCoordinator(
+    (state) =>
+      state.activeClaim?.kind === 'workspace' && state.activeClaim.ownerKey === workspace.sessionId,
+  )
+  const rightSidebarOpen = routePanelOpen || workspaceSidebarOpen
   const activePathNodeIds = new Set(
     sections.transcript.activePathNodeIds ??
       sections.transcript.messages.map((message) => message.metadata?.sessionNodeId ?? message.id),
@@ -231,7 +258,7 @@ export function ChatRouteSurface({
     >
       <PanelErrorBoundary name="Chat" className="flex min-w-0 flex-1 overflow-hidden">
         <RightSidebarLayout
-          open={rightSidebarOpen}
+          open={routePanelOpen}
           sizing={RIGHT_SIDEBAR_SIZING}
           onOpenChange={(open) => {
             if (renderedRightSidebarPanel === 'change-request') {
@@ -264,7 +291,7 @@ export function ChatRouteSurface({
                 handlers,
                 panel: renderedRightSidebarPanel,
                 rightSidebar,
-                rightSidebarOpen,
+                rightSidebarOpen: routePanelOpen,
                 sections,
                 sidePanelQuery,
                 workspace,

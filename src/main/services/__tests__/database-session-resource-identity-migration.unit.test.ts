@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { makeFilesystemSessionResourceStoreLayer } from '../../adapters/filesystem-session-resource-store'
 import { SessionResourceStore } from '../../ports/session-resource-store'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
+import { runMigrations } from '../database-migration-runner'
 import { APP_MIGRATIONS } from '../database-migrations'
 
 let tmpRoot = ''
@@ -28,44 +29,9 @@ function withDatabase<A>(
   )
 }
 
-function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL
-      )
-    `)
-    for (const migration of APP_MIGRATIONS) {
-      if (migration.id > upToId) continue
-      const existing = yield* sql<{ id: number }>`
-        SELECT id FROM _migrations WHERE id = ${migration.id} LIMIT 1
-      `
-      if (existing.length > 0) continue
-      const skip = migration.skipIfColumn
-      if (skip) {
-        const columns = yield* sql<{ name: string }>`
-          SELECT name FROM pragma_table_info(${skip.table})
-        `
-        if (columns.some((column) => column.name === skip.column)) {
-          yield* sql`
-            INSERT INTO _migrations (id, name, applied_at)
-            VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-          `
-          continue
-        }
-      }
-      if (migration.run) yield* migration.run(sql)
-      for (const statement of migration.statements) yield* sql.unsafe(statement)
-      yield* sql`
-        INSERT INTO _migrations (id, name, applied_at)
-        VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-      `
-    }
-  })
+function applyMigrations(_sql: SqlClient.SqlClient, upToId: number) {
+  return runMigrations(APP_MIGRATIONS.filter((migration) => migration.id <= upToId))
 }
-
 describe('session resource identity isolation migration', () => {
   beforeEach(async () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-resource-identity-'))
@@ -81,7 +47,7 @@ describe('session resource identity isolation migration', () => {
     const attachmentTwo = `${attachmentPrefix}second:1`
     const result = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, 32)
+        yield* applyMigrations(sql, 34)
         yield* sql`
           INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at)
           VALUES ('session-1', 'pi-session-1', 'Session', 1, 1)
@@ -154,7 +120,7 @@ describe('session resource identity isolation migration', () => {
           ) VALUES (${attachmentTwo}, 'legacy-attachments', 'node-two', 'user', 'provided', 2)
         `
 
-        yield* applyMigrations(sql, 33)
+        yield* applyMigrations(sql, 35)
         yield* sql.unsafe(`
           INSERT INTO session_resources (
             id, session_id, canonical_key, kind, title, locator,
@@ -192,7 +158,7 @@ describe('session resource identity isolation migration', () => {
       }),
     )
 
-    expect(APP_MIGRATIONS.find(({ id }) => id === 33)?.name).toBe(
+    expect(APP_MIGRATIONS.find(({ id }) => id === 35)?.name).toBe(
       'session-resource-identity-isolation',
     )
     expect(result.resources).toEqual(

@@ -9,7 +9,7 @@ import type { SessionEnvironmentMode } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
-import { completeSessionDeletion, stageSessionFileDeletion } from './file-deletion'
+import { cleanupCommittedSessionFile, stageSessionFileDeletion } from './file-deletion'
 import { hasActiveSessionWorker, hasDirectSessionWorkers } from './session-lineage'
 import type { UpdateSessionRuntimeInput } from './types'
 
@@ -127,7 +127,7 @@ export async function getSessionDeletionBlocker(id: SessionId): Promise<string |
   return null
 }
 
-export async function deleteSession(id: SessionId, onCommitted?: () => void): Promise<void> {
+export async function deleteSession(id: SessionId): Promise<void> {
   const blocker = await getSessionDeletionBlocker(id)
   if (blocker) throw new Error(blocker)
 
@@ -181,7 +181,7 @@ export async function deleteSession(id: SessionId, onCommitted?: () => void): Pr
     await stagedFile.restore()
     throw error
   }
-  await completeSessionDeletion(id, stagedFile, onCommitted)
+  await cleanupCommittedSessionFile(id, stagedFile)
 }
 
 async function updateArchivedState(id: SessionId, archived: boolean) {

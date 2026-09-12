@@ -16,16 +16,36 @@ const EDITOR_COMMAND_PROBE_TIMEOUT_MS = 1_000
 const EDITOR_COMMAND_PROBE_MAX_BUFFER_BYTES = 8 * 1024
 const MACOS_APPLICATION_ROOTS = ['/Applications'] as const
 
-type EditorLaunchStyle = 'direct-path' | 'goto' | 'line'
+type EditorLaunchStyle = 'direct-path' | 'goto' | 'line-column'
 
 export interface WorkspaceExternalEditorRuntimeDefinition {
   readonly id: WorkspaceExternalEditorId
   readonly commands: readonly string[]
+  readonly baseArgs?: readonly string[]
   readonly launchStyle: EditorLaunchStyle
   readonly macApplicationNames: readonly string[]
 }
 
 export const WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS = [
+  {
+    id: 'cursor',
+    commands: ['cursor'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Cursor'],
+  },
+  {
+    id: 'trae',
+    commands: ['trae'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Trae'],
+  },
+  {
+    id: 'kiro',
+    commands: ['kiro'],
+    baseArgs: ['ide'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Kiro'],
+  },
   {
     id: 'vscode',
     commands: ['code'],
@@ -39,10 +59,10 @@ export const WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS = [
     macApplicationNames: ['Visual Studio Code - Insiders'],
   },
   {
-    id: 'cursor',
-    commands: ['cursor'],
+    id: 'vscodium',
+    commands: ['codium'],
     launchStyle: 'goto',
-    macApplicationNames: ['Cursor'],
+    macApplicationNames: ['VSCodium'],
   },
   {
     id: 'zed',
@@ -51,11 +71,84 @@ export const WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS = [
     macApplicationNames: ['Zed'],
   },
   {
-    id: 'vscodium',
-    commands: ['codium'],
+    id: 'antigravity',
+    commands: ['agy'],
     launchStyle: 'goto',
-    macApplicationNames: ['VSCodium'],
+    macApplicationNames: ['Antigravity'],
   },
+  {
+    id: 'idea',
+    commands: ['idea'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['IntelliJ IDEA', 'IntelliJ IDEA CE'],
+  },
+  {
+    id: 'aqua',
+    commands: ['aqua'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['Aqua'],
+  },
+  {
+    id: 'clion',
+    commands: ['clion'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['CLion'],
+  },
+  {
+    id: 'datagrip',
+    commands: ['datagrip'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['DataGrip'],
+  },
+  {
+    id: 'dataspell',
+    commands: ['dataspell'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['DataSpell'],
+  },
+  {
+    id: 'goland',
+    commands: ['goland'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['GoLand'],
+  },
+  {
+    id: 'phpstorm',
+    commands: ['phpstorm'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['PhpStorm'],
+  },
+  {
+    id: 'pycharm',
+    commands: ['pycharm'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['PyCharm', 'PyCharm CE'],
+  },
+  {
+    id: 'rider',
+    commands: ['rider'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['Rider'],
+  },
+  {
+    id: 'rubymine',
+    commands: ['rubymine'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['RubyMine'],
+  },
+  {
+    id: 'rustrover',
+    commands: ['rustrover'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['RustRover'],
+  },
+  {
+    id: 'webstorm',
+    commands: ['webstorm'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['WebStorm'],
+  },
+  // Additional local editors are a strict superset of T3's desktop list.
   {
     id: 'windsurf',
     commands: ['windsurf'],
@@ -67,42 +160,6 @@ export const WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS = [
     commands: ['subl', 'sublime_text'],
     launchStyle: 'direct-path',
     macApplicationNames: ['Sublime Text'],
-  },
-  {
-    id: 'idea',
-    commands: ['idea'],
-    launchStyle: 'line',
-    macApplicationNames: ['IntelliJ IDEA', 'IntelliJ IDEA CE'],
-  },
-  {
-    id: 'webstorm',
-    commands: ['webstorm'],
-    launchStyle: 'line',
-    macApplicationNames: ['WebStorm'],
-  },
-  {
-    id: 'pycharm',
-    commands: ['pycharm'],
-    launchStyle: 'line',
-    macApplicationNames: ['PyCharm', 'PyCharm CE'],
-  },
-  {
-    id: 'goland',
-    commands: ['goland'],
-    launchStyle: 'line',
-    macApplicationNames: ['GoLand'],
-  },
-  {
-    id: 'clion',
-    commands: ['clion'],
-    launchStyle: 'line',
-    macApplicationNames: ['CLion'],
-  },
-  {
-    id: 'rider',
-    commands: ['rider'],
-    launchStyle: 'line',
-    macApplicationNames: ['Rider'],
   },
 ] as const satisfies readonly WorkspaceExternalEditorRuntimeDefinition[]
 

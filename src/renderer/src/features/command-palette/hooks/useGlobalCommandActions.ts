@@ -3,7 +3,9 @@ import { useChat } from '@/features/chat/hooks'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
+import { useTerminalCommands } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { useUIStore } from '@/shell/ui-store'
 import type { CoreCommandActions } from '../lib/global-command-core-items'
 
@@ -19,7 +21,15 @@ export function useGlobalCommandActions() {
   const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
   const openFeedbackModal = useUIStore((state) => state.openFeedbackModal)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
-  const toggleTerminal = useUIStore((state) => state.toggleTerminal)
+  const {
+    toggleTerminal,
+    newTerminal,
+    newSideTerminal,
+    splitTerminal,
+    splitTerminalVertical,
+    toggleSidePanelMaximized,
+    closeActiveTerminal,
+  } = useTerminalCommands()
   const showToast = useUIStore((state) => state.showToast)
   const toggleSessionSummaryPanel = useSessionSummaryUIStore((state) => state.togglePanel)
   const settings = usePreferencesStore((state) => state.settings)
@@ -57,6 +67,7 @@ export function useGlobalCommandActions() {
   }
 
   function openBuiltInPanel(panel: 'diff' | 'session-tree') {
+    useRightSidebarCoordinator.getState().claimRoute(panel)
     setLastRightSidebarPanel(panel)
     if (sessionId) {
       void navigate({
@@ -141,6 +152,12 @@ export function useGlobalCommandActions() {
     toggleSidebar,
     toggleSessionSummary,
     toggleTerminal,
+    newTerminal,
+    newSideTerminal,
+    splitTerminal,
+    splitTerminalVertical,
+    toggleSidePanelMaximized,
+    closeActiveTerminal,
   }
   return { actions, close, projectPath, sessionId, sessions, settings }
 }

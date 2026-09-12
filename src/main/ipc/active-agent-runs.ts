@@ -1,11 +1,15 @@
 export {
+  acquireSessionRemovalFence,
   activeCompactions,
   activeRuns,
   activeWaggleRuns,
   cancelAllSessionRuns,
   cancelSessionRuns,
+  ensureSessionRunStartAllowed,
   getAllActiveRunSessionIds,
   hasAnyActiveRun,
+  isSessionRemovalFenced,
   listActiveCompactions,
   requestSessionRunCancellation,
+  waitForSessionRuns,
 } from '../application/active-session-runs'

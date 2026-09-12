@@ -1,7 +1,8 @@
+import type { Message } from '@shared/types/agent'
 import { MessageId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { activeRuns, activeWaggleRuns } from '../active-agent-runs'
+import { acquireSessionRemovalFence, activeRuns, activeWaggleRuns } from '../active-agent-runs'
 import {
   handoffMessage,
   MODEL,
@@ -41,6 +42,45 @@ describe('agent handler Waggle handoff lifecycle', () => {
     expect(activeRuns.has(SESSION_ID)).toBe(false)
     expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
     expect(mocks.emitRunCompleted).toHaveBeenCalledOnce()
+  })
+
+  it('refuses standard and compaction starts while session removal owns admission', async () => {
+    const { compact, send } = registerHandlers()
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      await expect(Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))).rejects.toThrow(
+        'being archived or deleted',
+      )
+      await expect(Effect.runPromise(compact({}, SESSION_ID, MODEL))).rejects.toThrow(
+        'being archived or deleted',
+      )
+      expect(mocks.executeAgentRun).not.toHaveBeenCalled()
+      expect(mocks.compactAgentSession).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
+  })
+
+  it('refuses a handoff start that races with session removal', async () => {
+    const standardRun = Promise.withResolvers<{
+      readonly outcome: 'success'
+      readonly newMessages: readonly Message[]
+    }>()
+    mocks.executeAgentRun.mockReturnValue(Effect.promise(() => standardRun.promise))
+    const { send } = registerHandlers()
+    const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+    await vi.waitFor(() => expect(activeRuns.has(SESSION_ID)).toBe(true))
+    const release = acquireSessionRemovalFence(SESSION_ID)
+
+    try {
+      standardRun.resolve({ outcome: 'success', newMessages: [handoffMessage()] })
+      await expect(run).rejects.toThrow('being archived or deleted')
+      expect(mocks.executeWaggleRun).not.toHaveBeenCalled()
+      expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
+    } finally {
+      release()
+    }
   })
 
   it('does not chain aborted or malformed standard outcomes', async () => {

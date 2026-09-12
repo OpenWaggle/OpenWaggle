@@ -1,221 +1,36 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { Button } from '@/shared/ui/Button'
-import { ChatRouteSurface } from '../-chat-route-surface'
-
-interface ExtensionRightSidebarPanel {
-  readonly kind: 'extension-side-panel'
-  readonly extensionId: string
-  readonly sidePanelId: string
-}
-type RightSidebarPanel =
-  | 'change-request'
-  | 'diff'
-  | 'resources'
-  | 'session-tree'
-  | ExtensionRightSidebarPanel
-interface ShellState {
-  readonly lastRightSidebarPanel: RightSidebarPanel
-  readonly setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
-}
-
-const routeSurfaceMocks = vi.hoisted(() => {
-  let lastRightSidebarPanel: RightSidebarPanel = 'diff'
-  const setLastRightSidebarPanel = vi.fn((panel: RightSidebarPanel) => {
-    lastRightSidebarPanel = panel
-  })
-  return {
-    setLastPanel: (panel: RightSidebarPanel) => {
-      lastRightSidebarPanel = panel
-    },
-    shellState: (): ShellState => ({ lastRightSidebarPanel, setLastRightSidebarPanel }),
-    setLastRightSidebarPanel,
-    chatRouteEffects: vi.fn(),
-    sidePanelRefetch: vi.fn(),
-  }
-})
-
-vi.mock('@/features/chat/hooks', () => ({
-  useChatPanelSections: () => ({
-    diff: { projectPath: '/repo', onSendMessage: vi.fn() },
-    transcript: { messages: [] },
-  }),
-}))
-
-vi.mock('@/features/chat/components', () => ({
-  ChatPanelContent: ({ onOpenSessionTree }: { readonly onOpenSessionTree: () => void }) => (
-    <main>
-      Chat content
-      <Button variant="unstyled" type="button" onClick={onOpenSessionTree}>
-        Open tree
-      </Button>
-    </main>
-  ),
-  loadChatDiffPane: () =>
-    Promise.resolve({
-      default: ({ onClose }: { readonly onClose: () => void }) => (
-        <aside>
-          Diff pane
-          <Button variant="unstyled" type="button" onClick={onClose}>
-            Close diff
-          </Button>
-        </aside>
-      ),
-    }),
-}))
-
-vi.mock('@/features/session-tree/components', () => ({
-  loadSessionTreePanel: () =>
-    Promise.resolve({
-      default: ({ onClose }: { readonly onClose: () => void }) => (
-        <aside>
-          Session Tree panel
-          <Button variant="unstyled" type="button" onClick={onClose}>
-            Close tree
-          </Button>
-        </aside>
-      ),
-    }),
-}))
-
-vi.mock('@/features/session-summary', () => ({
-  ChangeRequestPanel: ({
-    requestUrl,
-    onClose,
-  }: {
-    readonly requestUrl: string | null
-    readonly onClose: () => void
-  }) => (
-    <aside>
-      Change request panel: {requestUrl}
-      <Button variant="unstyled" type="button" onClick={onClose}>
-        Close change request
-      </Button>
-    </aside>
-  ),
-  SessionResourcesPanel: ({
-    target,
-    onClose,
-    onTargetChange,
-  }: {
-    readonly target: { readonly view: 'sources' | 'outputs'; readonly resourceId?: string }
-    readonly onClose: () => void
-    readonly onTargetChange: (target: { readonly view: 'sources' | 'outputs' }) => void
-  }) => (
-    <aside>
-      Session resources panel: {target.view}/{target.resourceId ?? 'all'}
-      <Button variant="unstyled" type="button" onClick={() => onTargetChange({ view: 'sources' })}>
-        Show sources
-      </Button>
-      <Button variant="unstyled" type="button" onClick={onClose}>
-        Close resources
-      </Button>
-    </aside>
-  ),
-}))
-
-vi.mock('@/features/extensions', () => ({
-  ExtensionSidePanelSurface: ({
-    target,
-    onClose,
-  }: {
-    readonly target: { readonly extensionId: string; readonly sidePanelId: string }
-    readonly onClose: () => void
-  }) => (
-    <aside>
-      Extension side panel {target.extensionId}/{target.sidePanelId}
-      <Button variant="unstyled" type="button" onClick={onClose}>
-        Close extension side panel
-      </Button>
-    </aside>
-  ),
-  useExtensionSidePanelContributions: () => ({
-    error: null,
-    loading: false,
-    projectPaths: ['/repo'],
-    refetch: routeSurfaceMocks.sidePanelRefetch,
-    registry: null,
-  }),
-}))
-
-vi.mock('@/shared/ui/PanelErrorBoundary', () => ({
-  PanelErrorBoundary: ({ children }: { readonly children: React.ReactNode }) => <>{children}</>,
-}))
-
-vi.mock('@/shared/ui/RightSidebarLayout', () => ({
-  RightSidebarLayout: ({
-    children,
-    onOpenChange,
-    sidebar,
-  }: {
-    readonly children: React.ReactNode
-    readonly onOpenChange: (open: boolean) => void
-    readonly sidebar: React.ReactNode
-  }) => (
-    <section>
-      {children}
-      {sidebar}
-      <Button variant="unstyled" type="button" onClick={() => onOpenChange(false)}>
-        Close right sidebar
-      </Button>
-    </section>
-  ),
-}))
-
-vi.mock('@/shell', () => ({
-  CHAT_MIN_WIDTH: 420,
-  DIFF_PANEL_MAX: 900,
-  DIFF_PANEL_MIN: 360,
-  SETTINGS_TABS: ['general', 'waggle', 'extensions', 'mcp', 'archived', 'connections'] as const,
-  useUIStore: <T,>(selector: (state: ShellState) => T) => selector(routeSurfaceMocks.shellState()),
-}))
-
-vi.mock('../-chat-route-effects', () => ({
-  useChatRouteEffects: routeSurfaceMocks.chatRouteEffects,
-}))
-
-type ChatRouteProps = Parameters<typeof ChatRouteSurface>[0]
-
-function renderChatRoute({
-  workspace = { branchId: null, nodeId: null, sessionId: 'session-1' },
-  rightSidebar,
-  actions = {},
-}: {
-  readonly workspace?: ChatRouteProps['workspace']
-  readonly rightSidebar: Partial<ChatRouteProps['rightSidebar']>
-  readonly actions?: Partial<ChatRouteProps['rightSidebarActions']>
-}) {
-  const rightSidebarActions = {
-    onDiffOpenChange: vi.fn(),
-    onExtensionSidePanelOpenChange: vi.fn(),
-    onResourcesTargetChange: vi.fn(),
-    onSessionTreeOpenChange: vi.fn(),
-    onWorkspaceFileOpenChange: vi.fn(),
-    ...actions,
-  }
-  render(
-    <ChatRouteSurface
-      workspace={workspace}
-      rightSidebar={{
-        diffOpen: false,
-        extensionSidePanel: null,
-        resourcesTarget: null,
-        sessionTreeOpen: false,
-        workspaceFile: null,
-        ...rightSidebar,
-      }}
-      rightSidebarActions={rightSidebarActions}
-    />,
-  )
-  return rightSidebarActions
-}
+import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { renderChatRoute, routeSurfaceMocks } from './route-surfaces.test-harness'
 
 describe('route surfaces', () => {
   beforeEach(() => {
     routeSurfaceMocks.setLastPanel('diff')
+    useRightSidebarCoordinator.setState({ activeClaim: null })
     routeSurfaceMocks.setLastRightSidebarPanel.mockClear()
     routeSurfaceMocks.chatRouteEffects.mockClear()
     routeSurfaceMocks.sidePanelRefetch.mockClear()
+  })
+
+  it('suppresses Summary for only the current Session workspace inspector and restores it after hiding', () => {
+    renderChatRoute({ rightSidebar: {} })
+    const chat = screen.getByRole('main')
+    act(() => useRightSidebarCoordinator.getState().claimWorkspace('another-session'))
+    expect(chat).toHaveAttribute('data-summary-suppressed', 'false')
+    act(() => useRightSidebarCoordinator.getState().claimWorkspace('session-1'))
+    expect(chat).toHaveAttribute('data-summary-suppressed', 'true')
+    act(() => useRightSidebarCoordinator.getState().releaseWorkspace('session-1'))
+    expect(chat).toHaveAttribute('data-summary-suppressed', 'false')
+  })
+
+  it('does not keep Summary suppressed by stale hidden route state after a workspace panel closes', () => {
+    renderChatRoute({ rightSidebar: { resourcesTarget: { view: 'sources' } } })
+    const chat = screen.getByRole('main')
+    expect(chat).toHaveAttribute('data-summary-suppressed', 'true')
+    act(() => useRightSidebarCoordinator.getState().claimWorkspace('session-1'))
+    expect(screen.getByTestId('route-right-sidebar-layout')).toHaveAttribute('data-open', 'false')
+    act(() => useRightSidebarCoordinator.getState().releaseWorkspace('session-1'))
+    expect(chat).toHaveAttribute('data-summary-suppressed', 'false')
   })
 
   it('renders chat content with the active diff sidebar and closes it through route state', async () => {

@@ -17,7 +17,24 @@ export interface TextPart {
 }
 
 export type AttachmentKind = 'text' | 'image' | 'pdf'
-export type AttachmentOrigin = 'user-file' | 'auto-paste-text'
+export type AttachmentOrigin = 'user-file' | 'auto-paste-text' | 'browser-preview'
+
+export interface BrowserPreviewAttachmentMetadata {
+  readonly pageUrl: string
+  readonly pageTitle: string
+  readonly selector: string
+  readonly tagName: string
+  readonly role: string | null
+  readonly elementText: string
+  readonly comment: string
+  readonly elementCount?: number
+  readonly regionCount?: number
+  readonly drawingCount?: number
+  readonly styleChangeCount?: number
+  readonly componentName?: string | null
+  readonly sourceFile?: string | null
+  readonly sourceLine?: number | null
+}
 
 export interface AttachmentRecord {
   readonly id: string
@@ -29,6 +46,7 @@ export interface AttachmentRecord {
   readonly sizeBytes: number
   readonly contentSha256?: string
   readonly extractedText: string
+  readonly browserPreview?: BrowserPreviewAttachmentMetadata
 }
 
 export interface AttachmentPart {
