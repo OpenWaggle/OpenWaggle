@@ -25,6 +25,15 @@ function message(id: string, role: 'user' | 'assistant', text: string, createdAt
   return { id, role, parts: [{ type: 'text', text }], createdAt }
 }
 
+function trackRendererErrors(page: Page) {
+  const errors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+  page.on('pageerror', (error) => errors.push(error.message))
+  return errors
+}
+
 function pngBytes(background: string) {
   return sharp({
     create: { width: 1_200, height: 900, channels: 4, background },
@@ -369,6 +378,7 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
 
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
+    const rendererErrors = trackRendererErrors(page)
     const setupDock = page.locator('fieldset[aria-label="Session setup"]')
     await mainWindow.openThread(EMPTY_TITLE)
     await expect(page.getByRole('complementary', { name: 'Session Summary' })).toHaveCount(0)
@@ -553,6 +563,7 @@ test('Session Summary follows first-message, dock, and sidebar behavior', async 
     await expect(summary).toHaveCount(0)
     await page.getByRole('button', { name: 'Close diff sidebar' }).click()
     await expect(summary).toBeVisible()
+    expect(rendererErrors).toEqual([])
   } finally {
     await app.cleanup()
   }
@@ -657,6 +668,7 @@ test('session resources stay scoped while inline images and the gallery navigate
     const mainWindow = app.mainWindow()
     const page = mainWindow.page
     await mainWindow.openThread(ALPHA_TITLE)
+    const rendererErrors = trackRendererErrors(page)
     const summary = page.getByRole('complementary', { name: 'Session Summary' })
     const inlineUserImage = page.getByRole('button', { name: 'Open image user-reference.png' })
     await expect(inlineUserImage).toBeVisible({ timeout: 30_000 })
@@ -683,6 +695,9 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(page.getByRole('dialog', { name: 'Image viewer: user-reference.png' })).toHaveCount(0)
     await expect(summary).toBeVisible()
     await app.resizeMainWindow(1_800, 800)
+    // The narrow overlay does not overwrite the user's earlier wide-layout hide choice.
+    await expect(summary).toHaveCount(0)
+    await page.locator('header').getByRole('button', { name: 'Open Session Summary' }).click()
     await expect(summary).toBeVisible()
     await summary.locator('#session-summary-section-sources').getByRole('button', { name: 'Show all' }).click()
 
@@ -707,6 +722,8 @@ test('session resources stay scoped while inline images and the gallery navigate
       'Source · Provided by you · Branch main',
     )
     const imageCanvas = viewer.getByLabel('Image canvas')
+    await viewer.getByRole('button', { name: 'Fit image', exact: true }).click()
+    await expect(viewer.getByLabel('Image zoom', { exact: true })).toHaveValue('fit')
     // Exercise the production Electron listener, where React's passive wheel handler cannot
     // prevent the browser's default zoom. The canvas must consume only modifier-wheel gestures.
     const pinchCancelled = await imageCanvas.evaluate((element) => {
@@ -771,6 +788,9 @@ test('session resources stay scoped while inline images and the gallery navigate
     await expect(viewedImage).toHaveJSProperty('naturalWidth', 1_200)
     const activeAlphaContentUrl = await viewedImage.getAttribute('src')
     if (!activeAlphaContentUrl) throw new Error('The current gallery image has no capability.')
+    // The next step deliberately loads a revoked URL; all preceding viewer interactions must
+    // complete without uncaught errors or browser warnings about passive wheel cancellation.
+    expect(rendererErrors).toEqual([])
 
     await page.evaluate((sessionId) => {
       const query = window.location.hash.includes('?')
