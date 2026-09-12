@@ -271,8 +271,15 @@ export class OpenWaggleApp {
     }
   }
 
-  async restart(): Promise<void> {
+  /** A fixture callback explicitly cold-starts the Host; ordinary restarts preserve it. */
+  async restart(whileHostStopped?: () => Promise<void>): Promise<void> {
+    if (whileHostStopped !== undefined && this.cliOwnerHostInstanceId !== undefined) {
+      throw new Error('A CLI-owned Host must survive GUI restarts.')
+    }
     await closeElectronApplication(this.app)
+    if (whileHostStopped !== undefined) {
+      await shutdownSessionHostForQa(this.userDataDir, whileHostStopped)
+    }
     this.app = await launchOpenWaggleElectron({
       userDataDir: this.userDataDir,
       hidden: this.hidden,

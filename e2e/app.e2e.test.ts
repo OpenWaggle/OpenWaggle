@@ -1,7 +1,6 @@
-import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, test } from '@playwright/test'
-import { seedSingleSession } from './support/session-fixtures'
+import { getDatabasePath, seedSingleSession } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
 
 test('boots an older settings profile and migrates its terminal layout without errors', async () => {
@@ -22,16 +21,18 @@ test('boots an older settings profile and migrates its terminal layout without e
       updatedAt: Date.now(),
       messages: [],
     })
-    const database = new DatabaseSync(path.join(app.userDataDir, 'openwaggle.db'))
-    try {
-      database.prepare(
-        'INSERT OR REPLACE INTO settings_store (key, value_json, updated_at) VALUES (?, ?, ?)',
-      )
-        .run('shortcutBindings', JSON.stringify(legacyBindings), Date.now())
-    } finally {
-      database.close()
-    }
-    await app.restart()
+    await app.restart(async () => {
+      // Seed the canonical store under exclusive ownership, before the Host loads settings.
+      const database = new DatabaseSync(getDatabasePath(app.userDataDir))
+      try {
+        database.prepare(
+          'INSERT OR REPLACE INTO settings_store (key, value_json, updated_at) VALUES (?, ?, ?)',
+        )
+          .run('shortcutBindings', JSON.stringify(legacyBindings), Date.now())
+      } finally {
+        database.close()
+      }
+    })
     const page = app.mainWindow().page
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
