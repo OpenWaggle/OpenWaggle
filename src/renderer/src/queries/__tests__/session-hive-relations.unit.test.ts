@@ -104,6 +104,35 @@ it('keeps the current projection working when the new capability is absent', asy
   ).resolves.toEqual(relations)
 })
 
+it.each([queen.id, null])(
+  'rejects parent context contradicting explicit parent %s',
+  async (parentSessionId) => {
+    const focused: HiveSession = {
+      ...worker,
+      lineage: {
+        role: 'worker',
+        parentSessionId,
+        directWorkerCount: 0,
+        activeDirectWorkerCount: 0,
+      },
+    }
+    const getSessionHiveRelations = vi.fn()
+    await expect(
+      readSessionHivePage(
+        {
+          listHiveSessionCatalogPage: async () => ({
+            context: [focused, { id: SessionId('unrelated'), title: 'Unrelated' }],
+            workers: [],
+          }),
+          getSessionHiveRelations,
+        },
+        focused.id,
+      ),
+    ).rejects.toThrow('mismatched parent context')
+    expect(getSessionHiveRelations).not.toHaveBeenCalled()
+  },
+)
+
 it('rejects ambiguous parent context instead of choosing an unrelated Session', async () => {
   await expect(
     readSessionHivePage(

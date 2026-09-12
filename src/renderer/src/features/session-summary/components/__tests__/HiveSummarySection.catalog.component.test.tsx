@@ -57,6 +57,24 @@ it('retries a failed later page without losing previously loaded workers', async
   expect(await screen.findByText('Recovered worker')).toBeInTheDocument()
 })
 
+it('shows a recoverable error for mismatched parent context instead of hiding parent navigation', async () => {
+  const focused = { ...worker, lineage: { ...worker.lineage, parentSessionId: queen.id } }
+  listHiveSessionCatalogPage
+    .mockResolvedValueOnce({
+      context: [focused, { id: SessionId('unrelated'), title: 'Unrelated Queen' }],
+      workers: [],
+    })
+    .mockResolvedValueOnce({ context: [focused, queen], workers: [] })
+  const navigate = vi.fn()
+  renderWithQueryClient(<HiveSummarySection sessionId="worker" onNavigateSession={navigate} />)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load')
+  expect(screen.queryByText('Unrelated Queen')).not.toBeInTheDocument()
+  expect(navigate).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry Hive' }))
+  fireEvent.click(await screen.findByRole('button', { name: /Queen/ }))
+  expect(navigate).toHaveBeenCalledWith('queen')
+})
+
 it('ignores a late page from the previous opened session', async () => {
   let resolvePage: (page: HiveCatalogPage) => void = vi.fn()
   const pendingPage = new Promise<HiveCatalogPage>((resolve) => {

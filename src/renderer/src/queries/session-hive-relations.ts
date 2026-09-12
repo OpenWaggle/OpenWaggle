@@ -38,6 +38,9 @@ export async function readSessionHivePage(
     // Omitted lineage metadata does not override that scoped relationship.
     const parent =
       parentContext.find((session) => parentId === undefined || session.id === parentId) ?? null
+    if (parentContext.length > 0 && parent === null) {
+      throw new Error('Hive catalog contains mismatched parent context.')
+    }
     return { current, parent, workers: page.workers, nextCursor: page.nextCursor }
   }
   // Transitional projection only. A Host error must never fall back to stale legacy data.
