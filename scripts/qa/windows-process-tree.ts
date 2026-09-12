@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, type ExecFileException } from 'node:child_process'
 
 const WINDOWS_PROCESS_COMMAND_TIMEOUT_MS = 3_000
 
@@ -34,9 +34,37 @@ function parseWindowsProcessRecord(value: unknown): WindowsProcessRecord | null 
   }
 }
 
-async function readWindowsProcessRecords() {
+class WindowsProcessInventoryError extends Error {
+  readonly timedOut: boolean
+
+  constructor(error: ExecFileException, elapsedMs: number) {
+    const timedOut =
+      error.killed === true &&
+      error.signal === 'SIGTERM' &&
+      error.code == null &&
+      elapsedMs >= WINDOWS_PROCESS_COMMAND_TIMEOUT_MS
+    const code =
+      typeof error.code === 'number' && Number.isSafeInteger(error.code)
+        ? String(error.code)
+        : typeof error.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/u.test(error.code)
+          ? error.code
+          : 'unavailable'
+    const signal =
+      typeof error.signal === 'string' && /^SIG[A-Z0-9]{1,16}$/u.test(error.signal)
+        ? error.signal
+        : 'unavailable'
+    super(
+      `Windows process inventory failed: ${timedOut ? 'timeout' : 'process-error'}; elapsedMs=${elapsedMs}; code=${code}; signal=${signal}; killed=${error.killed === true}.`,
+    )
+    this.name = 'WindowsProcessInventoryError'
+    this.timedOut = timedOut
+  }
+}
+
+function queryWindowsProcessRecords() {
   const script = [
-    '$records = @(Get-CimInstance Win32_Process | ForEach-Object {',
+    "$ErrorActionPreference = 'Stop'",
+    '$records = @(Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CreationDate | ForEach-Object {',
     '  [pscustomobject]@{',
     '    processId = [uint32]$_.ProcessId;',
     '    parentProcessId = [uint32]$_.ParentProcessId;',
@@ -45,14 +73,29 @@ async function readWindowsProcessRecords() {
     '})',
     '[Console]::Out.Write((ConvertTo-Json -InputObject $records -Compress))',
   ].join('\n')
-  const output = await new Promise<string>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
+    const startedAt = Date.now()
     execFile(
       'powershell.exe',
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
       { timeout: WINDOWS_PROCESS_COMMAND_TIMEOUT_MS, windowsHide: true },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      (error, stdout) =>
+        error
+          ? reject(new WindowsProcessInventoryError(error, Math.max(0, Date.now() - startedAt)))
+          : resolve(stdout),
     )
   })
+}
+
+async function readWindowsProcessRecords() {
+  let output: string
+  try {
+    output = await queryWindowsProcessRecords()
+  } catch (error) {
+    if (!(error instanceof WindowsProcessInventoryError) || !error.timedOut) throw error
+    // Cold WMI startup can outlast one query. Retry only this read, never a mutation.
+    output = await queryWindowsProcessRecords()
+  }
   const parsed: unknown = JSON.parse(output)
   if (!Array.isArray(parsed)) {
     throw new Error('Windows process snapshot was not an array.')
@@ -83,13 +126,8 @@ export function snapshotWindowsTreeFromRecords(
     .map(({ processId, creationDate }) => ({ processId, creationDate }))
 }
 
-function sameWindowsProcess(
-  identity: WindowsProcessIdentity,
-  record: WindowsProcessRecord,
-) {
-  return (
-    identity.processId === record.processId && identity.creationDate === record.creationDate
-  )
+function sameWindowsProcess(identity: WindowsProcessIdentity, record: WindowsProcessRecord) {
+  return identity.processId === record.processId && identity.creationDate === record.creationDate
 }
 
 export function windowsTreeSnapshotExited(
@@ -105,9 +143,7 @@ export async function snapshotWindowsProcessTree(rootPid: number) {
   return snapshotWindowsTreeFromRecords(rootPid, await readWindowsProcessRecords())
 }
 
-export async function verifyWindowsProcessTreeExit(
-  snapshot: readonly WindowsProcessIdentity[],
-) {
+export async function verifyWindowsProcessTreeExit(snapshot: readonly WindowsProcessIdentity[]) {
   return windowsTreeSnapshotExited(snapshot, await readWindowsProcessRecords())
 }
 
@@ -130,10 +166,7 @@ export async function terminateWindowsProcessTree(
   force: boolean,
 ) {
   const root = snapshot.find((identity) => identity.processId === rootPid)
-  const ordered = [
-    ...(root ? [root] : []),
-    ...snapshot.filter((identity) => identity !== root),
-  ]
+  const ordered = [...(root ? [root] : []), ...snapshot.filter((identity) => identity !== root)]
   const failures: unknown[] = []
   for (const identity of ordered) {
     const current = await readWindowsProcessRecords()
