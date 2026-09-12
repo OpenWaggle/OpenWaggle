@@ -20,7 +20,7 @@ import {
   captureElectronStartupDiagnostics,
   electronStartupErrorMessage,
 } from '../../scripts/qa/electron-startup-diagnostics'
-import { cliExitError } from '../../scripts/qa/cli-exit-diagnostics'
+import { cliExitError, cliProcessError } from '../../scripts/qa/cli-exit-diagnostics'
 import {
   prepareQaProfileRemoval,
   shutdownSessionHostForQa,
@@ -68,7 +68,9 @@ function runRoutedElectronCli(
         return
       }
       if (code !== 0) {
-        reject(cliExitError(code, signal, Buffer.concat(stderr).toString()))
+        reject(
+          cliExitError(code, signal, Buffer.concat(stderr).toString(), Buffer.concat(stdout).toString()),
+        )
         return
       }
       try {
@@ -101,6 +103,8 @@ async function runProfileCli(
     env: environment,
     maxBuffer: CLI_MAX_OUTPUT_BYTES,
     timeout: CLI_TIMEOUT_MS,
+  }).catch((error: unknown) => {
+    throw cliProcessError(error)
   })
   return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
 }
