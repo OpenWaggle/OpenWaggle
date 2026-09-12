@@ -4,15 +4,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { pipeline } from 'node:stream/promises'
-import { fetch } from 'undici'
+import { fetchModelDownloadResponse } from './session-model-download-response'
 import {
   SESSION_EMBEDDING_MODEL,
   SESSION_EMBEDDING_MODEL_FILES,
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
 } from '../src/main/adapters/multilingual-e5-session-embedding-model'
 
-const HTTP_SUCCESS_MINIMUM = 200
-const HTTP_SUCCESS_MAXIMUM = 300
 const JSON_INDENT_SPACES = 2
 const MODEL_HOST = 'https://huggingface.co'
 const MODEL_SOURCE = 'intfloat/multilingual-e5-small'
@@ -90,7 +88,7 @@ async function copyCachedFileIfValid(
   return true
 }
 
-async function downloadVerifiedFile(
+export async function downloadVerifiedFile(
   relativePath: string,
   expectedHash: string,
   destinationPath: string,
@@ -101,10 +99,7 @@ async function downloadVerifiedFile(
   await fs.mkdir(path.dirname(destinationPath), { recursive: true })
 
   try {
-    const response = await fetch(url)
-    if (response.status < HTTP_SUCCESS_MINIMUM || response.status >= HTTP_SUCCESS_MAXIMUM) {
-      throw new Error(`Model download failed with HTTP ${String(response.status)} for ${url}.`)
-    }
+    const response = await fetchModelDownloadResponse(url)
     if (response.body === null) {
       throw new Error(`Model download returned no body for ${url}.`)
     }
