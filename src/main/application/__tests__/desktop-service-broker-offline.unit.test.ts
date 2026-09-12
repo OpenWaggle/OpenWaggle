@@ -3,6 +3,10 @@ import type { DesktopFenceRecord } from '@shared/types/desktop-service'
 import { Effect, Fiber } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { activeFence, brokerHarness, browserCommand } from './desktop-service-broker.test-harness'
+import {
+  acknowledgeReleasedFence,
+  waitForReleasedFence,
+} from './desktop-service-broker-release.test-harness'
 
 const cleanups: Array<() => void> = []
 function harness(
@@ -117,8 +121,10 @@ describe('desktop broker native-free cleanup proof', () => {
       'active desktop mutation fence',
     )
     finish.resolve()
+    const released = await waitForReleasedFence(instance)
+    await acknowledgeReleasedFence(instance, registration.leaseId, released)
     await pending
-    expect([...instance.records.values()]).toMatchObject([{ state: 'released' }])
+    expect(instance.records.size).toBe(0)
   })
 
   it('rejects a forged cleanup receipt without replacing uncertain native ownership', async () => {

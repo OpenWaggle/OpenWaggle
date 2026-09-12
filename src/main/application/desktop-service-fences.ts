@@ -9,9 +9,14 @@ import * as Effect from 'effect/Effect'
 import type { DesktopFenceRepositoryShape } from '../ports/desktop-fence-repository'
 import type { DesktopOwnerRepositoryShape } from '../ports/desktop-owner-repository'
 import type { DesktopServiceCommandQueue } from './desktop-service-command-queue'
-import { desktopUnavailableError } from './desktop-service-errors'
+import {
+  DesktopOperationIndeterminateError,
+  desktopUnavailableError,
+} from './desktop-service-errors'
 import type { DesktopServiceLeases } from './desktop-service-leases'
 import { desktopCleanupMatchesFence, desktopScopesOverlap } from './desktop-service-policy'
+
+export const DESKTOP_FENCE_RELEASE_TIMEOUT_MS = 10_000
 
 export async function isDesktopNativeFree(owners: DesktopOwnerRepositoryShape) {
   const owner = await Effect.runPromise(owners.get())
@@ -85,14 +90,50 @@ export class DesktopServiceFences {
     await Effect.runPromise(this.input.fences.markReleased(record.token, record.hostInstanceId))
     this.live.delete(record.token)
     this.input.queue.wake()
+    try {
+      await this.settleReleasedFence(record)
+    } catch (error) {
+      if (error instanceof DesktopOperationIndeterminateError) throw error
+      throw new DesktopOperationIndeterminateError({ cause: error })
+    }
+  }
+
+  private async settleReleasedFence(record: DesktopFenceRecord) {
     // Serialize reclamation against GUI registration: never remove a receipt the GUI saw.
-    await this.input.leases.admit(async () => {
+    const leaseId = await this.input.leases.admit(async () => {
       if (!this.input.leases.current() && (await isDesktopNativeFree(this.input.owners))) {
         await Effect.runPromise(
           this.input.fences.removeReleased(record.token, record.hostInstanceId),
         )
+        return undefined
       }
+      const owner = this.input.leases.current()
+      if (!owner) throw new DesktopOperationIndeterminateError()
+      return owner.id
     })
+    if (leaseId !== undefined) await this.waitForReleaseAcknowledgement(record, leaseId)
+  }
+
+  private async waitForReleaseAcknowledgement(record: DesktopFenceRecord, leaseId: string) {
+    const deadline = Date.now() + DESKTOP_FENCE_RELEASE_TIMEOUT_MS
+    const signal = new AbortController().signal
+    while (true) {
+      const revision = this.input.queue.revision()
+      const records = await this.input.leases.readFences()
+      const pending = records.find((candidate) => candidate.token === record.token)
+      // Only exact GUI acknowledgement (or proven native-free reclamation) removes
+      // a released journal record. Mutation success must not race its native fence.
+      if (!pending) return
+      if (
+        pending.hostInstanceId !== record.hostInstanceId ||
+        pending.state !== 'released' ||
+        this.input.leases.current()?.id !== leaseId ||
+        Date.now() >= deadline
+      ) {
+        throw new DesktopOperationIndeterminateError()
+      }
+      await this.input.queue.wait(signal, revision, deadline - Date.now())
+    }
   }
 
   runWithMutationFence<A, E, R>(scope: DesktopMutationScope, operation: Effect.Effect<A, E, R>) {

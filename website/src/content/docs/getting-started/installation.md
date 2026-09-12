@@ -44,7 +44,7 @@ See [Building from Source](/docs/developer-guide/building-from-source) for instr
 
 ## Command-line access
 
-After installing the app, open Settings > Agent Access > OpenWaggle CLI to install the
+After installing the app, open Settings > General > Agent access > OpenWaggle CLI to install the
 `openwaggle` command on macOS or Linux. Windows installers register it automatically. The CLI lets
 terminals and external coding agents discover and control the same live Sessions shown in the app;
 see [Sessions CLI](/docs/developer-workflow/sessions-cli).

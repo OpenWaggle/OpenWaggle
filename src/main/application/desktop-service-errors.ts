@@ -8,9 +8,10 @@ const MAX_ERROR_CAUSE_DEPTH = 4
 export class DesktopOperationIndeterminateError extends Error {
   readonly code = 'desktop_operation_indeterminate'
 
-  constructor() {
+  constructor(options?: ErrorOptions) {
     super(
-      'The desktop connection ended after dispatch. The action may have completed; it was not retried.',
+      'The desktop action could not be confirmed after dispatch. It may have completed; it was not retried.',
+      options,
     )
     this.name = 'DesktopOperationIndeterminateError'
   }

@@ -73,7 +73,7 @@ describe('real desktop broker and GUI bridge shutdown', () => {
     let polls = 0
     const executor = fromPartial<GuiDesktopServiceExecutor>({
       guiInstanceId: '00000000-0000-4000-8000-000000000001',
-      reconcile: async (fences) => {
+      reconcile: async (fences: readonly DesktopFenceRecord[]) => {
         const activeTokens = fences
           .filter((fence) => fence.state === 'active')
           .map((fence) => fence.token)

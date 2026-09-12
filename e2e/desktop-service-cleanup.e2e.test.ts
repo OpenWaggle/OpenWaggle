@@ -140,7 +140,9 @@ test('Host archive closes exact native resources and an unarchived Session can o
         (entry) => entry.ownerKey === sessionId,
       ),
     ).toBe(true)
+    expect((await fs.stat(projectPath)).isDirectory()).toBe(true)
     await page.evaluate((id) => window.api.archiveSession(id), sessionId)
+    expect((await fs.stat(projectPath)).isDirectory()).toBe(true)
     expect(await page.evaluate((id) => window.api.getSessionDetail(id), sessionId)).toMatchObject({
       archived: true,
     })
@@ -160,6 +162,7 @@ test('Host archive closes exact native resources and an unarchived Session can o
     ).toEqual([])
 
     await page.evaluate((id) => window.api.unarchiveSession(id), sessionId)
+    expect((await fs.stat(projectPath)).isDirectory()).toBe(true)
     await app.mainWindow().openThread(SESSION_TITLE)
     await page.getByRole('button', { name: 'Open terminal', exact: true }).click()
     const reopenedPid = await shellPid(page, 'HIVE_REOPENED')

@@ -8,6 +8,10 @@ import {
   browserCommand,
   firstCommand,
 } from './desktop-service-broker.test-harness'
+import {
+  acknowledgeReleasedFence,
+  waitForReleasedFence,
+} from './desktop-service-broker-release.test-harness'
 
 const cleanups: Array<() => void> = []
 function harness(initial: readonly DesktopFenceRecord[] = []) {
@@ -46,9 +50,10 @@ describe('desktop service broker durable mutation fences', () => {
     expect([...instance.records.values()]).toHaveLength(1)
     expect(mutate).not.toHaveBeenCalled()
     await instance.complete(lease, command, fenceResult)
+    await acknowledgeReleasedFence(instance, lease, await waitForReleasedFence(instance))
     expect(await pending).toMatchObject({ _tag: 'Success', value: 'done' })
     expect(mutate).toHaveBeenCalledOnce()
-    expect([...instance.records.values()]).toMatchObject([{ state: 'released' }])
+    expect(instance.records.size).toBe(0)
   })
 
   it('releases only the persisted token if cancelled before mutation admission', async () => {
@@ -57,15 +62,16 @@ describe('desktop service broker durable mutation fences', () => {
     const mutate = vi.fn()
     const fiber = Effect.runFork(instance.broker.runWithMutationFence(scope, Effect.sync(mutate)))
     const command = firstCommand((await pollFence(instance, lease)).commands)
-    await Effect.runPromise(Fiber.interrupt(fiber))
-    await vi.waitFor(() =>
-      expect([...instance.records.values()]).toMatchObject([{ state: 'released' }]),
-    )
+    const interruption = Effect.runPromise(Fiber.interrupt(fiber))
+    const released = await waitForReleasedFence(instance)
     expect(mutate).not.toHaveBeenCalled()
     expect(await instance.complete(lease, command, fenceResult)).toEqual({
       operation: 'complete',
       accepted: false,
     })
+    await acknowledgeReleasedFence(instance, lease, released)
+    await interruption
+    expect(instance.records.size).toBe(0)
   })
 
   it('keeps an acquired fence active through a disconnect until the Host operation finishes', async () => {
@@ -86,7 +92,7 @@ describe('desktop service broker durable mutation fences', () => {
     )
     expect([...instance.records.values()]).toMatchObject([{ state: 'active' }])
     finish.resolve()
-    expect(await pending).toMatchObject({ _tag: 'Success' })
+    expect(await pending).toMatchObject({ _tag: 'Failure' })
     expect([...instance.records.values()]).toMatchObject([{ state: 'released' }])
   })
 
@@ -159,6 +165,7 @@ describe('desktop service broker durable mutation fences', () => {
     expect([...instance.records.values()]).toHaveLength(1)
     const command = firstCommand(response.commands)
     await instance.complete(lease, command, fenceResult)
+    await acknowledgeReleasedFence(instance, lease, await waitForReleasedFence(instance))
     const outcomes = await Promise.all([first, second])
     expect(outcomes.filter((outcome) => outcome._tag === 'Success')).toHaveLength(1)
     expect(mutate).toHaveBeenCalledOnce()

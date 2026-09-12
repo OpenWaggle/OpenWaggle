@@ -65,7 +65,7 @@ A child inherits the parent's execution profile by default. Any specialization c
 
 Session capabilities constrain the native `sessions` tool and authenticated Session Host requests. They are not an operating-system sandbox. A Worker that still has an unrestricted shell, process access, and the same desktop-user credentials can act with that user's authority outside the native tool, including calling the CLI directly. For strong containment, remove shell/process tools from the Agent definition or run the agent in a separate OS sandbox, account, or container. Named CLI profiles are useful for attribution and least privilege only when the caller cannot also access the owner's credentials.
 
-Settings > Agent Access controls whether hosted agents may launch or spawn Sessions, the maximum active direct Workers per parent (default `4`), and the app-wide active Run ceiling (default `16`). These limits count active Runs, not saved Sessions, queues, searches, exports, waits, or watchers.
+Settings > General > Agent access controls whether hosted agents may launch or spawn Sessions, the maximum active direct Workers per parent (default `4`), and the app-wide active Run ceiling (default `16`). These limits count active Runs, not saved Sessions, queues, searches, exports, waits, or watchers.
 
 ## Delegation lifecycle
 

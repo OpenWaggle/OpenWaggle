@@ -9,7 +9,7 @@ The `openwaggle` CLI is a client of the same local Session Host as the desktop a
 
 On Windows, starting a detached Host uses the built-in Windows PowerShell helper to prevent it from retaining the launching client's pipes. This lets a CLI command finish while the Host continues running. If the helper cannot run, startup fails with an error instead of falling back to a launch that can leave the CLI hanging.
 
-On macOS and Linux, install or update the command from Settings > Agent Access > OpenWaggle CLI. The managed user shim is written to `~/.local/bin/openwaggle`; OpenWaggle reports when that directory is missing from `PATH` and never overwrites an unrelated file. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
+On macOS and Linux, install or update the command from Settings > General > Agent access > OpenWaggle CLI. The managed user shim is written to `~/.local/bin/openwaggle`; OpenWaggle reports when that directory is missing from `PATH` and never overwrites an unrelated file. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
 
 The Windows command adds Electron's `--` argument separator automatically; use `openwaggle access profiles create ...` normally. If you invoke the executable directly, include the separator: `OpenWaggle.exe -- access profiles create ...`. For a development executable, put it after the app path: `electron . -- access profiles create ...`. Without it, Electron can reject capability names such as `sessions:read` or URL arguments before OpenWaggle starts.
 

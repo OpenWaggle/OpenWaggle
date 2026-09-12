@@ -31,7 +31,7 @@ Every section listed above is active; Settings has no placeholder or disabled ar
 
 ## Agent Access
 
-Settings > Agent Access controls the authorization defaults applied to new Runs and the external
+Settings > General > Agent access controls the authorization defaults applied to new Runs and the external
 surfaces that can operate on Sessions. **Agent-created Workers** enables the native launch and spawn
 operations for OpenWaggle-hosted agents. **Workers per parent** defaults to `4` active direct Worker
 Runs and is user-configurable. **Active agent runs** defaults to `16` across every independent

@@ -102,7 +102,9 @@ export function brokerHarness(
       Effect.try({
         try: () => {
           const record = records.get(token)
-          if (!record || record.hostInstanceId !== hostInstanceId || record.state !== 'released')
+          // SQLite removal is idempotent for an absent token, but never for a live wrong owner.
+          if (!record) return
+          if (record.hostInstanceId !== hostInstanceId || record.state !== 'released')
             throw new Error('Fence is not released by this Host')
           records.delete(token)
           writes.push(`removed:${token}`)

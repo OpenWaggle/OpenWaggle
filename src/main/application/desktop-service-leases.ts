@@ -222,6 +222,7 @@ export class DesktopServiceLeases {
         this.input.fences.removeReleased(request.token, request.hostInstanceId),
       )
       this.require(owner.id)
+      this.input.queue.wake()
       return { operation: 'acknowledgeReleased', accepted: true }
     }
     if (request.operation === 'heartbeat') return { operation: 'heartbeat', accepted: true }
