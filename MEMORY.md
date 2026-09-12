@@ -642,6 +642,14 @@ GUI after forced cleanup. Keep normal polls at five seconds, but pace draining p
 The real broker/bridge regression verifies prompt idle shutdown and that active fences still block
 the clean receipt. Shortened mock polls alone did not expose this integration failure.
 
+Hidden terminal panes retain renderer input ordering after their viewport detaches. Host archive
+can delete the corresponding native record without an attached pane receiving its close event.
+Reopening the same owner/terminal ID therefore needs an attach-time native record identity, not
+just the retained renderer generation or numeric shell generation. Keep that identity stable for
+ordinary Restart and viewport moves, but reject late writes and readiness from a deleted record.
+The combined real TerminalService/dispatcher regression reproduces the sequence-gap failure;
+the hidden Electron archive test also verifies actual shell input after reopening.
+
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed
 its release budget. When the full corpus fits the tier, exact counts can bypass hot-tier joins;

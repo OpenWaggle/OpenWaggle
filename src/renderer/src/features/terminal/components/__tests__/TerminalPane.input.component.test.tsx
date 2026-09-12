@@ -15,7 +15,7 @@ const mocks = getTerminalPaneMocks()
 describe('TerminalPane exact input delivery', () => {
   beforeEach(resetTerminalPaneHarness)
 
-  it('stages input in main while the asynchronous open is unresolved', async () => {
+  it('queues input locally until attach identifies the native record, then stages before readiness', async () => {
     const open = Promise.withResolvers<TerminalAttachResult>()
     mocks.openTerminal.mockReturnValue(open.promise)
     mocks.writeTerminal.mockImplementation(
@@ -29,31 +29,38 @@ describe('TerminalPane exact input delivery', () => {
     renderPane()
     await waitFor(() => expect(mocks.openTerminal).toHaveBeenCalledOnce())
     act(() => mocks.emitInput('typed-before-open'))
-    await waitFor(() =>
-      expect(mocks.writeTerminal).toHaveBeenCalledWith(
-        OWNER,
-        TERMINAL_ID,
-        'typed-before-open',
-        expect.objectContaining({ generation: expect.any(String), sequence: 0 }),
-      ),
-    )
+    expect(mocks.writeTerminal).not.toHaveBeenCalled()
 
     open.resolve({
+      inputIncarnation: 'native-record-1',
       history: '',
       outputBytes: 0,
       outputGeneration: 1,
       readiness: { phase: 'awaiting-prompt', generation: 1 },
-      pendingInputBytes: 17,
+      pendingInputBytes: 0,
       running: true,
       processName: null,
       ports: [],
       projectActionPending: false,
     })
 
+    await waitFor(() =>
+      expect(mocks.writeTerminal).toHaveBeenCalledWith(
+        OWNER,
+        TERMINAL_ID,
+        'typed-before-open',
+        expect.objectContaining({
+          generation: expect.any(String),
+          sequence: 0,
+          incarnation: 'native-record-1',
+        }),
+      ),
+    )
+
     expect(await screen.findByRole('button', { name: 'Send now' })).toBeInTheDocument()
   })
 
-  it('does not resend main-acknowledged input after an open failure and remount', async () => {
+  it('sends locally retained input once after an initial attach failure and remount', async () => {
     const open = Promise.withResolvers<TerminalAttachResult>()
     mocks.openTerminal.mockReturnValueOnce(open.promise)
     mocks.writeTerminal.mockImplementation(
@@ -67,7 +74,7 @@ describe('TerminalPane exact input delivery', () => {
     await waitFor(() => expect(mocks.openTerminal).toHaveBeenCalledOnce())
     const inputGeneration = mocks.openTerminal.mock.calls[0]?.[0].inputGeneration
     act(() => mocks.emitInput('retained-after-attach-error'))
-    await waitFor(() => expect(mocks.writeTerminal).toHaveBeenCalledOnce())
+    expect(mocks.writeTerminal).not.toHaveBeenCalled()
 
     await act(async () => open.reject(new Error('temporary attach failure')))
     expect(await screen.findByText('temporary attach failure')).toBeInTheDocument()
@@ -75,8 +82,8 @@ describe('TerminalPane exact input delivery', () => {
 
     renderPane()
     await waitFor(() => expect(mocks.openTerminal).toHaveBeenCalledTimes(2))
-    expect(mocks.openTerminal.mock.calls[1]?.[0].inputGeneration).not.toBe(inputGeneration)
-    expect(mocks.writeTerminal).toHaveBeenCalledOnce()
+    expect(mocks.openTerminal.mock.calls[1]?.[0].inputGeneration).toBe(inputGeneration)
+    await waitFor(() => expect(mocks.writeTerminal).toHaveBeenCalledOnce())
   })
 
   it('chunks a large paste without changing its bytes or order', async () => {
@@ -97,6 +104,7 @@ describe('TerminalPane exact input delivery', () => {
 
   it('shows queued startup input and lets the user release it explicitly', async () => {
     mocks.openTerminal.mockResolvedValue({
+      inputIncarnation: 'native-record-1',
       history: '',
       outputBytes: 0,
       outputGeneration: 1,
@@ -116,7 +124,13 @@ describe('TerminalPane exact input delivery', () => {
     act(() => mocks.emitInput('abc'))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Send now' }))
-    await waitFor(() => expect(mocks.sendTerminalInputNow).toHaveBeenCalledWith(OWNER, TERMINAL_ID))
+    await waitFor(() =>
+      expect(mocks.sendTerminalInputNow).toHaveBeenCalledWith(
+        OWNER,
+        TERMINAL_ID,
+        'native-record-1',
+      ),
+    )
   })
 
   it('keeps mounted input usable after a backend close and restart', async () => {

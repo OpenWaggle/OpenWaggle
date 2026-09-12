@@ -11,12 +11,18 @@ import {
   terminalInputQueueLength,
 } from './terminal-input-queue'
 
-export type TerminalInputErrorKind = 'capacity' | 'operation' | 'transport'
+export type TerminalInputErrorKind = 'capacity' | 'operation' | 'transport' | 'retired'
 
 export interface TerminalInputState {
   ownerKey: string
   readonly terminalId: string
   readonly generation: string
+  inputIncarnation: string | null
+  awaitingAttach: boolean
+  pendingReadiness: {
+    readonly incarnation: string
+    readonly readiness: TerminalReadinessSnapshot
+  } | null
   readonly queue: TerminalInputQueue
   readonly listeners: Set<(snapshot: TerminalInputDispatchSnapshot) => void>
   operationTail: Promise<void>
@@ -56,6 +62,9 @@ export function createTerminalInputState(
     ownerKey,
     terminalId,
     generation,
+    inputIncarnation: null,
+    awaitingAttach: false,
+    pendingReadiness: null,
     queue: createTerminalInputQueue(),
     listeners: new Set(),
     operationTail: Promise.resolve(),
@@ -132,6 +141,7 @@ function closeTerminalInputState(
   state: TerminalInputState,
 ) {
   state.open = false
+  state.awaitingAttach = false
   state.openVersion += 1
   state.queueVersion += 1
   state.operationVersion += 1
@@ -144,6 +154,33 @@ function closeTerminalInputState(
   state.errorKind = null
   emitTerminalInputState(state)
   deleteTerminalInputStateIfUnused(context, state)
+}
+
+/** A new native record cannot inherit uncertain input intended for its predecessor. */
+export function attachTerminalInputIncarnation(
+  context: TerminalInputDispatcherContext,
+  state: TerminalInputState,
+  incarnation: string,
+) {
+  if (state.inputIncarnation !== null && state.inputIncarnation !== incarnation) {
+    const retiredInput = terminalInputQueueLength(state.queue) > 0
+    closeTerminalInputState(context, state)
+    state.draining = false
+    state.nextSequence = 0
+    state.pendingOperations = 0
+    // A slow clipboard read from the old record must not hold new operations.
+    state.operationTail = Promise.resolve()
+    if (retiredInput) {
+      setTerminalInputError(
+        state,
+        'retired',
+        'The previous terminal stopped. Queued input was not sent. Reopen or restart the terminal before typing again.',
+        { blocked: true, waiting: false },
+      )
+    }
+  }
+  state.inputIncarnation = incarnation
+  state.awaitingAttach = false
 }
 
 export function disposeTerminalInputState(

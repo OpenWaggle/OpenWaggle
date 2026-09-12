@@ -71,9 +71,13 @@ class RemoteTerminalService implements TerminalServiceShape {
         ),
       )
 
-  sendInputNow: TerminalServiceShape['sendInputNow'] = (ownerKey, terminalId) =>
+  sendInputNow: TerminalServiceShape['sendInputNow'] = (ownerKey, terminalId, incarnation) =>
     this.broker
-      .execute({ service: 'terminal', operation: 'sendInputNow', input: { ownerKey, terminalId } })
+      .execute({
+        service: 'terminal',
+        operation: 'sendInputNow',
+        input: { ownerKey, terminalId, ...(incarnation === undefined ? {} : { incarnation }) },
+      })
       .pipe(
         Effect.flatMap((result) =>
           result.service === 'terminal' && result.operation === 'sendInputNow'

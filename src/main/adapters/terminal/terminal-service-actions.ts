@@ -69,6 +69,7 @@ function snapshotReadiness(record: TerminalRecord) {
 export function runningSnapshot(record: TerminalRecord, history: string): TerminalAttachResult {
   const portPreviews = record.activity?.portPreviews ?? []
   return {
+    inputIncarnation: record.inputIncarnation,
     history: clampReplay(history),
     outputBytes: record.outputBytes,
     outputGeneration: record.outputGeneration,

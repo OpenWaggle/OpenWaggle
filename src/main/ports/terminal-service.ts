@@ -47,6 +47,7 @@ export interface TerminalServiceShape {
   readonly sendInputNow: (
     ownerKey: TerminalOwnerKey,
     terminalId: TerminalId,
+    incarnation?: string,
   ) => EffectType<TerminalInputReleaseResult, TerminalServiceError>
   /** Acknowledge one renderer output write; stale generations are ignored. */
   readonly acknowledgeOutput: (

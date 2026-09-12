@@ -4,7 +4,7 @@ import type {
   DesktopTerminalCommand,
   DesktopTerminalResult,
 } from '@shared/types/desktop-terminal-service'
-import { terminalEnvironmentSchema } from './terminal'
+import { terminalEnvironmentSchema, terminalInputIncarnationSchema } from './terminal'
 
 const MAX_DESKTOP_TERMINAL_ID_LENGTH = 8192
 const MAX_DESKTOP_TERMINAL_TEXT_LENGTH = 4 * 1024 * 1024
@@ -19,7 +19,11 @@ const dimensions = {
   cols: Schema.Number.pipe(Schema.int(), Schema.between(TERMINAL.MIN_COLS, TERMINAL.MAX_COLS)),
   rows: Schema.Number.pipe(Schema.int(), Schema.between(TERMINAL.MIN_ROWS, TERMINAL.MAX_ROWS)),
 }
-const identity = Schema.Struct({ generation: id, sequence: integer })
+const identity = Schema.Struct({
+  generation: id,
+  sequence: integer,
+  incarnation: Schema.optional(terminalInputIncarnationSchema),
+})
 const open = Schema.Struct({
   ...target,
   ...dimensions,
@@ -51,7 +55,10 @@ export const desktopTerminalCommandSchema: Schema.Schema<DesktopTerminalCommand>
       ),
     }),
   ),
-  command('sendInputNow', Schema.Struct(target)),
+  command(
+    'sendInputNow',
+    Schema.Struct({ ...target, incarnation: Schema.optional(terminalInputIncarnationSchema) }),
+  ),
   command(
     'acknowledgeOutput',
     Schema.Struct({ ...target, outputGeneration: integer, endOffset: integer }),
@@ -74,6 +81,7 @@ const portPreviews = Schema.Array(Schema.Struct({ host: id, port: integer, url: 
   Schema.maxItems(MAX_DESKTOP_TERMINAL_PORTS),
 )
 const attach = Schema.Struct({
+  inputIncarnation: Schema.optional(terminalInputIncarnationSchema),
   history: text,
   outputBytes: integer,
   outputGeneration: integer,

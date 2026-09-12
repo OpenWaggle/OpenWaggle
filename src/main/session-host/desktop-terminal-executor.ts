@@ -39,7 +39,10 @@ export function executeDesktopTerminalCommand(
       ),
     )
     .with('sendInputNow', ({ input }) =>
-      response('sendInputNow', service.sendInputNow(input.ownerKey, input.terminalId)),
+      response(
+        'sendInputNow',
+        service.sendInputNow(input.ownerKey, input.terminalId, input.incarnation),
+      ),
     )
     .with('acknowledgeOutput', ({ input }) =>
       voidResponse(

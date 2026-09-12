@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 import path from 'node:path'
 import { TERMINAL } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
-import { terminalEnvironmentSchema } from '@shared/schemas/terminal'
+import { terminalEnvironmentSchema, terminalInputIncarnationSchema } from '@shared/schemas/terminal'
 import { TERMINAL_KEY_SEPARATOR } from '@shared/types/terminal'
 
 const terminalIdSchema = Schema.String.pipe(
@@ -57,6 +57,12 @@ export const terminalOwnerSchema = Schema.Struct({
   terminalId: terminalIdSchema,
 })
 
+export const terminalInputReleaseSchema = Schema.Struct({
+  ownerKey: terminalOwnerKeySchema,
+  terminalId: terminalIdSchema,
+  incarnation: Schema.optional(terminalInputIncarnationSchema),
+})
+
 export const terminalOwnerMigrationSchema = Schema.Struct({
   fromOwnerKey: terminalOwnerKeySchema,
   toOwnerKey: terminalOwnerKeySchema,
@@ -80,6 +86,7 @@ export const terminalWriteSchema = Schema.String.pipe(
 )
 
 export const terminalInputIdentitySchema = Schema.Struct({
+  incarnation: Schema.optional(terminalInputIncarnationSchema),
   generation: Schema.String.pipe(
     Schema.minLength(1),
     Schema.maxLength(TERMINAL.INPUT_GENERATION_MAX_LENGTH),

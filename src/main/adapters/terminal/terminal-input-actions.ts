@@ -34,6 +34,7 @@ function queuePreOpenInput(
   identity?: TerminalInputIdentity,
   intent?: TerminalInputIntent,
 ): TerminalWriteResult {
+  if (identity?.incarnation !== undefined) return rejectedInput('stale-generation', identity)
   const acceptedBytes = Buffer.byteLength(data, 'utf8')
   if (acceptedBytes === 0) return rejectedInput('empty', identity)
   if (acceptedBytes > terminalInputByteLimit(intent)) {
@@ -243,11 +244,16 @@ export function forceReleaseTerminalInputAction(
   context: TerminalActionContext,
   ownerKey: string,
   terminalId: string,
+  incarnation?: string,
 ) {
   const releaseNow = (): TerminalInputReleaseResult => {
     const key = resolveTerminalKey(context, terminalKeyOf(ownerKey, terminalId))
     const record = context.runtime.records.get(key)
-    if (record === undefined) return { status: 'terminal-not-open', releasedBytes: 0 }
+    if (
+      record === undefined ||
+      (incarnation !== undefined && record.inputIncarnation !== incarnation)
+    )
+      return { status: 'terminal-not-open', releasedBytes: 0 }
     if (
       terminalOperationBlockDisposition(context.operationQueue, {
         key,

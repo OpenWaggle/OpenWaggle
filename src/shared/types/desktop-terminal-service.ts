@@ -24,7 +24,7 @@ export interface DesktopTerminalInputs {
     readonly identity?: TerminalInputIdentity
     readonly intent?: TerminalInputIntent
   }
-  readonly sendInputNow: TerminalTarget
+  readonly sendInputNow: TerminalTarget & { readonly incarnation?: string }
   readonly acknowledgeOutput: TerminalTarget & {
     readonly outputGeneration: number
     readonly endOffset: number

@@ -37,7 +37,10 @@ export function createTerminalClipboardController(options: TerminalClipboardCont
       }
       return text.length === 0 ? '' : prepareTerminalPasteData(text, bracketedPasteMode)
     }).then((result) => {
-      if (result.status === 'rejected') throw new Error(result.error)
+      // A retired lifetime already owns its recovery notice. Its late clipboard
+      // completion must not overwrite the currently attached terminal's UI.
+      if (result.status === 'rejected' && result.reason !== 'inactive')
+        throw new Error(result.error)
     })
   }
 

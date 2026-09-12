@@ -14,6 +14,7 @@ import { runAppEffect } from '../runtime'
 import {
   terminalInputIdentitySchema,
   terminalInputIntentSchema,
+  terminalInputReleaseSchema,
   terminalOpenInputSchema,
   terminalOutputAckSchema,
   terminalOwnerMigrationSchema,
@@ -209,14 +210,24 @@ function registerTerminalStreamHandlers() {
       }),
   )
 
-  typedHandle('terminal:send-input-now', (_event, ownerKey: string, terminalId: string) =>
-    Effect.gen(function* () {
-      const decoded = yield* Effect.try(() =>
-        decodeUnknownOrThrow(terminalOwnerSchema, { ownerKey, terminalId }),
-      )
-      const service = yield* TerminalService
-      return yield* service.sendInputNow(decoded.ownerKey, decoded.terminalId)
-    }),
+  typedHandle(
+    'terminal:send-input-now',
+    (_event, ownerKey: string, terminalId: string, incarnation?: string) =>
+      Effect.gen(function* () {
+        const decoded = yield* Effect.try(() =>
+          decodeUnknownOrThrow(terminalInputReleaseSchema, {
+            ownerKey,
+            terminalId,
+            ...(incarnation === undefined ? {} : { incarnation }),
+          }),
+        )
+        const service = yield* TerminalService
+        return yield* service.sendInputNow(
+          decoded.ownerKey,
+          decoded.terminalId,
+          decoded.incarnation,
+        )
+      }),
   )
 
   typedHandle('terminal:migrate-owner', (_event, fromOwnerKey: string, toOwnerKey: string) =>
