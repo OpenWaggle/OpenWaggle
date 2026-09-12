@@ -7,9 +7,27 @@ import {
   type SessionHostOwnership,
 } from '../../../src/main/session-host/session-host-ownership'
 import { prepareQaProfileRemoval } from '../session-host-shutdown'
+import {
+  probeWindowsCliArgumentBoundary,
+  WINDOWS_CLI_BOUNDARY_ARGUMENTS,
+} from './windows-cli-argument-boundary-probe'
 import { probeWindowsDetachedHandleIsolation } from './windows-detached-process-probe'
 import { WINDOWS_DETACHED_PROCESS_ARGUMENTS } from './windows-detached-process-values'
 import { probeWindowsProtectedStaging } from './windows-protected-staging-probe'
+
+it.runIf(process.platform === 'win32')(
+  'the CLI boundary preserves application capabilities and payloads after native Windows validation',
+  async () => {
+    const result = await probeWindowsCliArgumentBoundary()
+    expect(result.raw.code).toBe(0xffff_ffff)
+    expect(result.raw.entry).toBeNull()
+    expect(result.bounded.code).toBe(0)
+    expect(result.bounded.entry?.identity.pid).toBe(result.bounded.pid)
+    expect(result.bounded.entry?.arguments).toEqual(WINDOWS_CLI_BOUNDARY_ARGUMENTS)
+    expect(result.bounded.entry?.chromiumApplicationSwitch).toBe(false)
+  },
+  90_000,
+)
 
 it.runIf(process.platform === 'win32')(
   'detached Electron authorities do not retain the launching client control pipes',

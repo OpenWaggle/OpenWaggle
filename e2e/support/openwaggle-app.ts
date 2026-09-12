@@ -92,6 +92,7 @@ async function runProfileCli(
   const electronArguments = [
     ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-logging', '--log-level=3'] : []),
     '.',
+    ...(process.platform === 'win32' ? ['--'] : []),
     ...args,
   ]
   const environment = buildPlaywrightElectronEnvironment(profile)

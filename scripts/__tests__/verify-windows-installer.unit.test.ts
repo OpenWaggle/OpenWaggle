@@ -1,8 +1,17 @@
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { verifyWindowsInstaller, windowsPathContains } from '../verify-windows-installer'
 
 describe('Windows installer verification', () => {
+  it('separates the installed CLI arguments from Electron runtime arguments', async () => {
+    const installer = await readFile('build/installer.nsh', 'utf8')
+
+    // Colon-bearing capabilities otherwise trip Electron's native Windows URL guard
+    // before the application can route the command or report an error.
+    expect(installer).toContain(String.raw`FileWrite $0 '@"%~dp0OpenWaggle.exe" -- %*$\r$\n'`)
+  })
+
   it('executes the installed CLI by fresh-shell command name and removes PATH on uninstall', async () => {
     const runInstaller = vi.fn(async () => 0)
     const runUninstaller = vi.fn(async () => 0)

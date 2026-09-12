@@ -24,5 +24,8 @@ export function applicationCliArguments(
     offset += 1
     offset = afterRuntimePrefix(argv, offset)
   }
+  // The launcher separates Electron switches from application arguments. Consume only
+  // this boundary: a second terminator or later message token belongs to the application.
+  if (argv[offset] === '--') offset += 1
   return argv.slice(offset)
 }

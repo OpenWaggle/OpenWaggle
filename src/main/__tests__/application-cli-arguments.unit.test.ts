@@ -107,13 +107,61 @@ describe('application CLI argument routing', () => {
     },
   )
 
-  it('does not treat arbitrary logging values or an option terminator as recognized prefixes', () => {
-    for (const prefix of ['--log-level=arbitrary', '--']) {
-      expect(
-        applicationCliArguments(['/path/to/electron', prefix, 'sessions', 'list'], {
-          isPackaged: true,
-        }),
-      ).toEqual([prefix, 'sessions', 'list'])
-    }
+  it('does not treat arbitrary logging values as recognized runtime prefixes', () => {
+    expect(
+      applicationCliArguments(['/path/to/electron', '--log-level=arbitrary', 'sessions', 'list'], {
+        isPackaged: true,
+      }),
+    ).toEqual(['--log-level=arbitrary', 'sessions', 'list'])
+  })
+
+  it.each([false, true])('consumes one application boundary when packaged=%s', (isPackaged) => {
+    const applicationArguments = [
+      'access',
+      'profiles',
+      'create',
+      'worker',
+      '--capability',
+      'sessions:read',
+      '--management-envelope-json',
+      '{"capabilities":["sessions:read"]}',
+      '--json',
+    ]
+    expect(
+      applicationCliArguments(
+        [
+          '/path/to/electron',
+          '--no-sandbox',
+          ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
+          '--',
+          ...applicationArguments,
+        ],
+        { isPackaged },
+      ),
+    ).toEqual(applicationArguments)
+  })
+
+  it.each([false, true])(
+    'preserves all tokens beyond the boundary when packaged=%s',
+    (isPackaged) => {
+      const prefix = ['/path/to/electron', ...(isPackaged ? [] : ['/workspace/OpenWaggle']), '--']
+      for (const applicationArguments of [
+        ['--', 'sessions', 'list'],
+        ['--no-sandbox', 'sessions', 'list'],
+        ['sessions', 'message', 'id', '--text', '--', '--json'],
+        ['sessions', 'message', 'id', '--text', 'https://example.test/', '--json'],
+      ]) {
+        expect(
+          applicationCliArguments([...prefix, ...applicationArguments], { isPackaged }),
+        ).toEqual(applicationArguments)
+      }
+    },
+  )
+
+  it('does not consume a boundary in place of the development app path', () => {
+    const arguments_ = ['--', '/workspace/OpenWaggle', 'sessions', 'list']
+    expect(
+      applicationCliArguments(['/path/to/electron', ...arguments_], { isPackaged: false }),
+    ).toEqual(arguments_)
   })
 })
