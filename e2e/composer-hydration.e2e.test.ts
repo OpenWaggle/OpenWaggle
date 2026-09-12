@@ -6,7 +6,7 @@ test('unsent text and slash chips survive responsive sidebar mode changes', asyn
   const app = await OpenWaggleApp.launch('openwaggle-composer-responsive-')
   try {
     const title = 'Responsive draft retention'
-    await seedSingleSession(app.userDataDir, {
+    const sessionId = await seedSingleSession(app.userDataDir, {
       title, projectPath: app.userDataDir, updatedAt: Date.now(),
       messages: [{ id: 'responsive-message', role: 'assistant', createdAt: Date.now(), parts: [{ type: 'text', text: 'Responsive workspace ready' }] }],
     })
@@ -47,7 +47,11 @@ test('unsent text and slash chips survive responsive sidebar mode changes', asyn
     await expect(page.getByRole('dialog', { name: 'Right sidebar' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Right sidebar' })).toBeHidden()
-    await expect(page.locator('[data-right-sidebar-main="true"]')).toBeFocused()
+    const routeMain = page
+      .locator(`[data-chat-route-session-id="${sessionId}"]`)
+      .locator('[data-right-sidebar-main="true"]')
+    await expect(routeMain).toHaveCount(1)
+    await expect(routeMain).toBeFocused()
     await expect(input.locator('[title="/visualize"]')).toContainText('Visualize')
     await expect(input).toContainText('Unsent responsive draft')
     expect(await app.readAgentSendProbe()).toBeNull()
