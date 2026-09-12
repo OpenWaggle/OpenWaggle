@@ -232,6 +232,17 @@ async function readDiffRenderMeasurements(page: Page) {
   }
 }
 
+async function firstDiffCodeIsVisible(page: Page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector('[data-right-sidebar-panel="true"]')
+    const scroll = panel?.querySelector('.diff-scroll')
+    const code =
+      scroll?.querySelector('code') ??
+      scroll?.querySelector('diffs-container')?.shadowRoot?.querySelector('code')
+    return code?.checkVisibility({ checkVisibilityCSS: true }) ?? false
+  })
+}
+
 function initializeRepository(projectPath: string) {
   execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
   execFileSync('git', ['config', 'core.autocrlf', 'false'], {
@@ -331,6 +342,7 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
     await app.mainWindow().openThread(SESSION_TITLE)
     await installDiffPerformanceObserver(page)
     await verifyClickTaskAttribution(page)
+    expect(await firstDiffCodeIsVisible(page)).toBe(false)
 
     // Capture hosted Windows CPU evidence without weakening the long-task assertion. Hidden
     // renderer scheduling can inflate wall time; the profile distinguishes that from JS work.
@@ -350,23 +362,28 @@ test('a large diff gives immediate feedback and keeps rendering off the main thr
 
     // The responsive sidebar is docked on wide viewports and a sheet on narrower/DPI-scaled
     // ones. Assert against their shared visible panel contract rather than one layout shell.
-    const diffPanel = page.locator('[data-right-sidebar-panel="true"]')
     // Locator expect diagnostics build a full ARIA snapshot on failed polls. The hosted Windows
     // CPU profile traced multi-second "renderer" tasks to that injected traversal, not the app.
-    // Poll the same visibility/completion contracts without including diagnostic snapshots in
-    // the measured renderer work. Keep all feedback, ready, and long-task budgets unchanged.
+    // The CSS locator engine also walks every shadow descendant, even for light-DOM completion
+    // markers. Windows profiles record hundreds of milliseconds in that injected traversal.
+    // Inspect the first code container directly and query completion in the light DOM only.
+    // Keep feedback, visible-code, preparation-completion, and long-task assertions unchanged.
     if (process.platform !== 'darwin') {
       await expect.poll(
-        () => diffPanel.getByLabel('Loading').or(diffPanel.locator('.diff-scroll code').first()).first().isVisible(),
+        async () =>
+          (await page.evaluate(() =>
+            document.querySelector('[data-right-sidebar-panel="true"] [aria-label="Loading"]')
+              ?.checkVisibility({ checkVisibilityCSS: true }) ?? false,
+          )) || (await firstDiffCodeIsVisible(page)),
         { timeout: FIRST_DIFF_BUDGET_MS },
       ).toBe(true)
     }
     await expect.poll(
-      () => diffPanel.locator('.diff-scroll code').first().isVisible(),
+      () => firstDiffCodeIsVisible(page),
       { timeout: HIGHLIGHT_TIMEOUT_MS },
     ).toBe(true)
     await expect.poll(
-      () => diffPanel.locator('[data-diff-preparation-complete="true"]').count(),
+      () => page.evaluate(() => document.querySelectorAll('[data-right-sidebar-panel="true"] [data-diff-preparation-complete="true"]').length),
       { timeout: HIGHLIGHT_TIMEOUT_MS },
     ).toBe(1)
     const measurements = await readDiffRenderMeasurements(page)
