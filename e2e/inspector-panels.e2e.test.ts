@@ -50,9 +50,9 @@ test.describe('diff route sidebar', () => {
         await diffToggle.click()
 
         await expect(page).toHaveURL(/\?panel=diff/)
-        // The diff can contain a nested workspace navigator with its own landmark.
         const closeDiff = page.getByRole('button', { name: 'Close diff sidebar' })
-        const diffAside = page.getByRole('complementary').filter({ has: closeDiff })
+        // Summary and the workspace navigator also have complementary landmarks.
+        const diffAside = page.locator(`[${layoutMarker}="true"]`).filter({ has: closeDiff })
         await expect(diffAside).toBeVisible()
         await expect(diffAside).toHaveAttribute(layoutMarker, 'true')
 

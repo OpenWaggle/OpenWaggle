@@ -111,7 +111,7 @@ function MaterializedBrowserPreviewPanel({
       }
       const viewport = viewportRef.current
       const bounds =
-        state.error !== null || viewport === null || pageHasOccludingDialog()
+        state.error !== null || viewport === null || pageHasOccludingDialog(tab.ownerKey)
           ? null
           : browserPreviewBounds(viewport)
       void api.setBrowserPreviewBounds(tab.id, bounds).catch(() => undefined)

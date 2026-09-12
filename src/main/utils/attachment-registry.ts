@@ -45,6 +45,21 @@ function sameOptionalValue(left: string | undefined, right: string | undefined) 
   return (left ?? null) === (right ?? null)
 }
 
+function samePreparedAttachmentMetadata(
+  prepared: PreparedAttachment,
+  requested: PreparedAttachment,
+) {
+  return (
+    prepared.kind === requested.kind &&
+    prepared.name === requested.name &&
+    prepared.mimeType === requested.mimeType &&
+    prepared.sizeBytes === requested.sizeBytes &&
+    sameOptionalValue(prepared.contentSha256, requested.contentSha256) &&
+    sameOptionalValue(prepared.origin, requested.origin) &&
+    sameBrowserPreviewMetadata(prepared.browserPreview, requested.browserPreview)
+  )
+}
+
 function sameBrowserPreviewMetadata(
   left: PreparedAttachment['browserPreview'],
   right: PreparedAttachment['browserPreview'],
@@ -148,6 +163,28 @@ export async function rememberPreparedAttachment(
   await persistRegistry()
 }
 
+/** Removes an exact prepared-attachment capability before its file is discarded. */
+export async function forgetPreparedAttachment(attachment: PreparedAttachment): Promise<boolean> {
+  await ensureRegistryLoaded()
+  const capability = preparedAttachments.get(attachment.id)
+  if (!capability) return false
+  const requestedPath = normalizeCapabilityPath(await fs.realpath(attachment.path))
+  if (
+    requestedPath !== capability.realPath ||
+    !samePreparedAttachmentMetadata(capability.attachment, attachment)
+  ) {
+    throw new Error(`Attachment does not match prepared capability: ${attachment.name}`)
+  }
+  preparedAttachments.delete(attachment.id)
+  try {
+    await persistRegistry()
+    return true
+  } catch (cause) {
+    preparedAttachments.set(attachment.id, capability)
+    throw cause
+  }
+}
+
 export async function resolvePreparedAttachmentCapability(
   attachment: PreparedAttachment,
 ): Promise<PreparedAttachment> {
@@ -163,14 +200,7 @@ export async function resolvePreparedAttachmentCapability(
   }
 
   const prepared = capability.attachment
-  if (
-    prepared.kind !== attachment.kind ||
-    prepared.name !== attachment.name ||
-    prepared.mimeType !== attachment.mimeType ||
-    prepared.sizeBytes !== attachment.sizeBytes ||
-    !sameOptionalValue(prepared.origin, attachment.origin) ||
-    !sameBrowserPreviewMetadata(prepared.browserPreview, attachment.browserPreview)
-  ) {
+  if (!samePreparedAttachmentMetadata(prepared, attachment)) {
     throw new Error(`Attachment metadata does not match prepared file: ${attachment.name}`)
   }
 

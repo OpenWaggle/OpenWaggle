@@ -122,11 +122,11 @@ pnpm test:e2e:headless
 pnpm test:e2e:headless:quick
 ```
 
-Use quick E2E only when the built app is current or the test intentionally avoids a full rebuild. Every `*:quick` E2E script verifies `out/` build provenance against the current HEAD and refuses a stale build ("run `pnpm test:e2e` to rebuild first"): a rebase or pull that moved HEAD invalidates the previous build even though `out/` still exists. E2E defaults to one worker locally. Linux and Windows CI use two (`PLAYWRIGHT_WORKERS`); macOS CI uses one to keep hidden native iframe input and strict frame-budget measurements isolated from another Electron instance. CI retries each test twice on flaky assertions, capturing a Playwright report plus traces on retry. Performance budgets and coverage are identical across worker settings.
+Use quick E2E only when the built app is current or the test intentionally avoids a full rebuild. Every `*:quick` E2E script verifies `out/` build provenance against the current HEAD and refuses a stale build ("run `pnpm test:e2e` to rebuild first"): a rebase or pull that moved HEAD invalidates the previous build even though `out/` still exists. E2E defaults to one worker locally. Linux CI uses two workers (`PLAYWRIGHT_WORKERS`); macOS and Windows CI use one to isolate strict frame-budget measurements from another Electron instance. Windows has a 40-minute job timeout for the serial suite. CI retries each test twice on flaky assertions, capturing a Playwright report plus traces on retry. Performance budgets and coverage are identical across worker settings.
 
 ### Visual Baselines
 
-The six primary-surface baselines in `e2e/visual-regression.e2e.test.ts-snapshots/` are native Darwin images generated on the `macos-15` CI runner image; local macOS rendering can differ by a small margin, so the runner is the source of truth. When a change intentionally moves rendered pixels:
+The visual baselines in `e2e/visual-regression.e2e.test.ts-snapshots/` are native Darwin images generated on the `macos-15` CI runner image; local macOS rendering can differ by a small margin, so the runner is the source of truth. When a change intentionally moves rendered pixels:
 
 1. Update the snapshots: `pnpm test:e2e -- --update-snapshots` (or run `e2e/visual-regression.e2e.test.ts` only) and review the diff.
 2. Push and let the Fast gate's macOS E2E verify on the runner image.

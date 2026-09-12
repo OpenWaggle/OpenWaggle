@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { activeWaggleRuns } from '../application/active-session-runs'
 import {
   OpenWaggleMcpSessionMetadataStore,
   sessionMetadataStorePath,
@@ -33,6 +34,76 @@ afterEach(async () => {
 })
 
 describe('hosted MCP session control', () => {
+  it('reports an interrupt timeout without declaring the still-finalizing desktop run complete', async () => {
+    const controller = new AbortController()
+    activeWaggleRuns.register(SESSION_ID, controller, {
+      controlRef: { current: null },
+      steerTailRef: { current: Promise.resolve() },
+    })
+    const metadata = new OpenWaggleMcpSessionMetadataStore(
+      sessionMetadataStorePath(path.join(temporaryRoot, 'tasks.json')),
+    )
+    try {
+      const result = await executeSessionOperation(
+        serveOptions(temporaryRoot),
+        sessionTasks(),
+        metadata,
+        sessionAdapters(temporaryRoot),
+        { operation: 'interrupt', sessionId: SESSION_ID, timeoutMs: 0 },
+      )
+      expect(result.structuredContent).toMatchObject({
+        completed: false,
+        timedOut: true,
+        active: true,
+        desktopCancelled: true,
+      })
+      expect(controller.signal.aborted).toBe(true)
+    } finally {
+      activeWaggleRuns.deleteIfCurrent(SESSION_ID, controller)
+    }
+  })
+
+  it.each(['steer', 'interrupt'] as const)(
+    'waits for desktop finalization during %s',
+    async (operation) => {
+      const controller = new AbortController()
+      activeWaggleRuns.register(SESSION_ID, controller, {
+        controlRef: { current: null },
+        steerTailRef: { current: Promise.resolve() },
+      })
+      const tasks = sessionTasks()
+      const metadata = new OpenWaggleMcpSessionMetadataStore(
+        sessionMetadataStorePath(path.join(temporaryRoot, 'tasks.json')),
+      )
+      let finished = false
+      const pending = executeSessionOperation(
+        serveOptions(temporaryRoot),
+        tasks,
+        metadata,
+        sessionAdapters(temporaryRoot),
+        { operation, sessionId: SESSION_ID, objective: 'Continue after capture' },
+      ).then((result) => {
+        finished = true
+        return result
+      })
+      await expect.poll(() => controller.signal.aborted).toBe(true)
+      try {
+        expect(activeWaggleRuns.has(SESSION_ID)).toBe(true)
+        expect(finished).toBe(false)
+        expect(tasks.start).not.toHaveBeenCalled()
+      } finally {
+        activeWaggleRuns.deleteIfCurrent(SESSION_ID, controller)
+        await pending
+      }
+      if (operation === 'steer') expect(tasks.start).toHaveBeenCalledOnce()
+      else
+        expect((await pending).structuredContent).toMatchObject({
+          completed: true,
+          desktopCancelled: true,
+        })
+    },
+  )
+
   it('publishes the complete external session operation schema', () => {
     const operations = [
       'list',

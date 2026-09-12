@@ -31,6 +31,7 @@ export function sanitizeBranchFragment(raw: string): string {
 
 export function sanitizeFeatureBranchName(raw: string): string {
   const sanitized = sanitizeBranchFragment(raw)
+  if (sanitized.startsWith('codex/')) return sanitized
   if (sanitized.includes('/')) {
     return sanitized.startsWith('feature/') ? sanitized : `feature/${sanitized}`
   }
@@ -67,28 +68,22 @@ export function buildGitActionProgressStages(input: {
   const terminology = input.terminology ?? DEFAULT_CHANGE_REQUEST_TERMINOLOGY
   const branchStages = input.featureBranch ? ['Preparing feature ref...'] : []
   const pushStage = input.pushTarget ? `Pushing to ${input.pushTarget}...` : 'Pushing...'
-  const prStages = [
-    `Preparing ${terminology.shortLabel}...`,
-    `Generating ${terminology.shortLabel} content...`,
-    `Creating ${terminology.singular}...`,
-  ]
+  const prStage = `Creating ${terminology.singular}...`
 
-  if (input.action === 'push') return [pushStage]
+  if (input.action === 'push') return [...branchStages, pushStage]
   if (input.action === 'pull') return ['Pulling...']
   if (input.action === 'create_pr') {
-    return input.shouldPushBeforePr ? [pushStage, ...prStages] : prStages
+    return input.shouldPushBeforePr === false
+      ? [...branchStages, prStage]
+      : [...branchStages, pushStage, prStage]
   }
 
   const includeCommit = input.action === 'commit' || input.hasWorkingTreeChanges
-  const commitStages = !includeCommit
-    ? []
-    : input.hasCustomCommitMessage
-      ? ['Committing...']
-      : ['Generating commit message...', 'Committing...']
+  const commitStages = includeCommit ? ['Committing...'] : []
 
   if (input.action === 'commit') return [...branchStages, ...commitStages]
   if (input.action === 'commit_push') return [...branchStages, ...commitStages, pushStage]
-  return [...branchStages, ...commitStages, pushStage, ...prStages]
+  return [...branchStages, ...commitStages, pushStage, prStage]
 }
 
 export type DefaultBranchConfirmableAction = 'push' | 'create_pr' | 'commit_push' | 'commit_push_pr'
@@ -166,9 +161,9 @@ export function planStackedActionPhases(action: GitStackedAction): readonly GitA
 /**
  * Whether a stacked action would write the default branch, from either end.
  *
- * A push follows the upstream mapping, so standing on `feature` with an upstream of `origin/main` writes `main` -
- * verified against real git, which reported `feature -> main`. Judging only the ref you are on waved that
- * straight through, which is precisely the push the confirmation exists to catch.
+ * Git can resolve a push to a different branch or remote through pushRemote, pushDefault,
+ * push.default, and upstream configuration. Judging only the checked-out ref can therefore approve
+ * a different destination from the one the mutation will update.
  */
 export function targetsDefaultRef(
   status: Pick<LocalVcsStatus, 'isDefaultRef' | 'pushTargetIsDefaultRef'>,
@@ -189,9 +184,9 @@ export function defaultBranchActionLabel(
   >,
 ): string {
   if (!status.isDefaultRef && status.pushTargetIsDefaultRef && status.pushTargetRef !== null) {
-    return status.refName === null
+    return status.refName === null || status.refName === status.pushTargetRef
       ? status.pushTargetRef
-      : `${status.pushTargetRef} (tracked by ${status.refName})`
+      : `${status.pushTargetRef} (from ${status.refName})`
   }
   return status.refName ?? 'the default branch'
 }

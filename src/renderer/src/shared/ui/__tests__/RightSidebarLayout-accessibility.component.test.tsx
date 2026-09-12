@@ -29,6 +29,7 @@ describe('RightSidebarLayout accessibility', () => {
   ] as const)(
     'excludes the closed %s panel from accessible navigation without losing its state',
     (_mode, isSheet) => {
+      const panelRole = isSheet ? 'dialog' : 'complementary'
       vi.stubGlobal('matchMedia', (query: string) => ({
         matches: isSheet,
         media: query,
@@ -49,14 +50,14 @@ describe('RightSidebarLayout accessibility', () => {
       expect(filter).toBeInTheDocument()
       expect(filter.closest('[inert]')).not.toBeNull()
       expect(screen.queryByRole('textbox', { name: 'Panel filter' })).toBeNull()
-      expect(screen.queryAllByRole('complementary')).toHaveLength(0)
+      expect(screen.queryAllByRole(panelRole)).toHaveLength(0)
 
       view.rerender(layout(true))
 
       expect(screen.getByRole('textbox', { name: 'Panel filter' })).toBe(filter)
       expect(filter).toHaveValue('Edited filter')
       expect(filter.closest('[inert]')).toBeNull()
-      expect(screen.getAllByRole('complementary')).toHaveLength(1)
+      expect(screen.getAllByRole(panelRole)).toHaveLength(1)
     },
   )
 })

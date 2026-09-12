@@ -13,7 +13,7 @@ import {
   parseExtensionSlashCommand,
   parseSessionCopyCommand,
 } from '@/features/composer/commands'
-import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
+import { invokeBoundExtension } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
@@ -96,7 +96,7 @@ async function invokeExtensionSlashCommand(
   }
 
   try {
-    const result = await api.invokeExtension({
+    const result = await invokeBoundExtension(entry, {
       extensionId: entry.extensionId,
       contributionId: entry.contributionId,
       capability: entry.capability,
@@ -114,8 +114,6 @@ async function invokeExtensionSlashCommand(
       params.showToast(result.error.message)
       return
     }
-
-    await refreshPreferencesAfterExtensionInvoke(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('Extension slash command failed', {

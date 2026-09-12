@@ -19,7 +19,7 @@ describe('secure MCP network policy', () => {
     ).rejects.toThrow('resolved outside loopback')
   })
 
-  it.each(['100.64.0.1', '192.0.2.1', '::ffff:127.0.0.1'])(
+  it.each(['100.64.0.1', '192.0.2.1', '240.0.0.1', '255.255.255.255', '::ffff:127.0.0.1'])(
     'rejects non-public or IPv4-mapped destination %s',
     async (address) => {
       await expect(
@@ -145,5 +145,51 @@ describe('secure MCP network policy', () => {
     expect(new Headers(fetchFn.mock.calls[1]?.[1]?.headers).get('authorization')).toBe(
       'Bearer retained',
     )
+  })
+
+  it('allows a public cross-host redirect when the caller opts in', async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://cdn.example/image.png' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('image', { status: 200 }))
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://images.example/image.png'),
+      allowPublicRedirects: true,
+      fetchFn,
+      resolveHostname: publicLookup,
+    })
+
+    await expect(secureFetch('https://images.example/image.png')).resolves.toBeInstanceOf(Response)
+    expect(fetchFn.mock.calls[1]?.[0]).toEqual(new URL('https://cdn.example/image.png'))
+  })
+
+  it('still rejects private redirect targets when public redirects are enabled', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'https://private.example/image.png' },
+      }),
+    )
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://images.example/image.png'),
+      allowPublicRedirects: true,
+      fetchFn,
+      resolveHostname: vi.fn(async (hostname) => [
+        {
+          address: hostname === 'private.example' ? '192.168.1.20' : '93.184.216.34',
+          family: 4 as const,
+        },
+      ]),
+    })
+
+    await expect(secureFetch('https://images.example/image.png')).rejects.toThrow(
+      'private or reserved address',
+    )
+    expect(fetchFn).toHaveBeenCalledOnce()
   })
 })

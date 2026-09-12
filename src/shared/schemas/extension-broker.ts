@@ -17,6 +17,10 @@ import {
   extensionStateSelectedReadResultSchema,
 } from './extension-broker-openwaggle'
 import {
+  extensionSessionResourcePublishResultSchema,
+  extensionSessionResourcesListResultSchema,
+} from './extension-broker-resources'
+import {
   extensionContributionFamilySchema,
   extensionContributionIdSchema,
   extensionContributionRegistrationSchema,
@@ -24,8 +28,11 @@ import {
   extensionIdSchema,
 } from './extensions'
 
+const EXTENSION_INVOCATION_BINDING_MAX_LENGTH = 128
+
 export * from './extension-broker-core'
 export * from './extension-broker-openwaggle'
+export * from './extension-broker-resources'
 
 const extensionStorageKeySchema = Schema.String.pipe(
   Schema.filter((value) => value.trim().length > 0 || 'Must not be empty.'),
@@ -43,6 +50,11 @@ export const extensionInvokeInputSchema = Schema.Struct({
   scope: extensionInvokeScopeSchema,
   payload: Schema.optional(Schema.Unknown),
 })
+
+export const extensionInvocationBindingSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.maxLength(EXTENSION_INVOCATION_BINDING_MAX_LENGTH),
+)
 
 export const extensionInvokeFailureCodeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODES,
@@ -197,6 +209,8 @@ export const extensionInvokeSuccessValueSchema = Schema.Union(
   extensionDocsResolveTopicResultSchema,
   extensionRuntimeRegisterContributionResultSchema,
   extensionRuntimeUnregisterContributionResultSchema,
+  extensionSessionResourcesListResultSchema,
+  extensionSessionResourcePublishResultSchema,
 )
 
 export const extensionInvokeSuccessSchema = Schema.Struct({

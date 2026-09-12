@@ -227,5 +227,11 @@ describe('useTranscriptSection', () => {
       'assistant-before-branch',
       'user-branch-point',
     ])
+    expect(result.current.activeBranchId).toBe(MAIN_BRANCH_ID)
+    expect(result.current.activePathNodeIds).toEqual([
+      'user-before-branch',
+      'assistant-before-branch',
+      'user-branch-point',
+    ])
   })
 })

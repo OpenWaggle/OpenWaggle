@@ -1,17 +1,10 @@
 import { isBrowserPreviewUrl, normalizeBrowserPreviewUrl } from '@shared/schemas/browser-preview'
-import type {
-  AuthInfo,
-  BluetoothDevice,
-  Certificate,
-  Event,
-  Input,
-  LoginAuthenticationResponseDetails,
-  WebContentsAudioStateChangedEventParams,
-} from 'electron'
+import type { Event, Input, WebContentsAudioStateChangedEventParams } from 'electron'
 import { installBrowserPreviewContextMenu } from './browser-preview-context-menu'
 import { synchronizeBrowserPreviewControllerOverlay } from './browser-preview-controller-overlay'
 import { monitorBrowserPreviewCrashRecovery } from './browser-preview-crash-monitor'
 import { synchronizeBrowserPreviewEditingShortcuts } from './browser-preview-editing-shortcuts'
+import { isBrowserPreviewClosePending } from './browser-preview-explicit-close'
 import {
   faviconAfterBrowserPreviewNavigation,
   monitorBrowserPreviewFavicon,
@@ -29,6 +22,7 @@ import {
 } from './browser-preview-policy'
 import { installBrowserPreviewPopupPolicy } from './browser-preview-popup-policy'
 import type { BrowserPreviewEventActions, BrowserPreviewRecord } from './browser-preview-records'
+import { monitorBrowserPreviewSecurityPrompts } from './browser-preview-security-prompts'
 
 function monitorLoadState(record: BrowserPreviewRecord, actions: BrowserPreviewEventActions) {
   const contents = record.view.webContents
@@ -146,59 +140,6 @@ function monitorNavigationPolicy(
   ]
 }
 
-function monitorSecurityPrompts(record: BrowserPreviewRecord) {
-  const contents = record.view.webContents
-  const cancelBasicAuth = (
-    event: Event,
-    _details: LoginAuthenticationResponseDetails,
-    _authInfo: AuthInfo,
-    callback: (username?: string, password?: string) => void,
-  ) => {
-    event.preventDefault()
-    callback()
-  }
-  const rejectCertificate = (
-    event: Event,
-    _url: string,
-    _error: string,
-    _certificate: Certificate,
-    callback: (isTrusted: boolean) => void,
-  ) => {
-    event.preventDefault()
-    callback(false)
-  }
-  const rejectBluetooth = (
-    event: Event,
-    _devices: BluetoothDevice[],
-    callback: (deviceId: string) => void,
-  ) => {
-    event.preventDefault()
-    callback('')
-  }
-  const rejectClientCertificate = (
-    event: Event,
-    _url: string,
-    _certificateList: Certificate[],
-    callback: (certificate: Certificate) => void,
-  ) => {
-    event.preventDefault()
-    // Electron documents an omitted certificate as rejection, but this
-    // WebContents overload types the argument as required.
-    Reflect.apply(callback, undefined, [])
-  }
-
-  contents.on('login', cancelBasicAuth)
-  contents.on('certificate-error', rejectCertificate)
-  contents.on('select-bluetooth-device', rejectBluetooth)
-  contents.on('select-client-certificate', rejectClientCertificate)
-  return [
-    () => contents.removeListener('login', cancelBasicAuth),
-    () => contents.removeListener('certificate-error', rejectCertificate),
-    () => contents.removeListener('select-bluetooth-device', rejectBluetooth),
-    () => contents.removeListener('select-client-certificate', rejectClientCertificate),
-  ]
-}
-
 function monitorInputAndLifecycle(
   record: BrowserPreviewRecord,
   actions: BrowserPreviewEventActions,
@@ -241,6 +182,7 @@ function monitorInputAndLifecycle(
     actions.emitShortcut(shortcut)
   }
   const onDestroyed = () => {
+    if (isBrowserPreviewClosePending(record)) return actions.detachDestroyed()
     record.state = {
       ...record.state,
       loading: false,
@@ -284,7 +226,7 @@ export function monitorBrowserPreview(
     installBrowserPreviewContextMenu(record.view.webContents, record.owner.window),
     ...monitorLoadState(record, actions),
     ...monitorNavigationPolicy(record, actions),
-    ...monitorSecurityPrompts(record),
+    ...monitorBrowserPreviewSecurityPrompts(record.view.webContents),
     ...monitorInputAndLifecycle(record, actions),
     monitorAudioState(record, actions),
     monitorBrowserPreviewFavicon(record, actions),

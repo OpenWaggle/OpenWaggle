@@ -8,6 +8,7 @@ import type {
 } from '@shared/types/browser-preview-recording-request'
 import type { WebContents } from 'electron'
 import { browserPreviewAutomationPage } from './browser-preview-automation-page'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 import type { BrowserPreviewRecord } from './browser-preview-records'
 
 const MAX_REQUEST_TIMEOUT_MS = 10_000
@@ -43,6 +44,7 @@ export class BrowserPreviewRecordingRequestBroker {
     options?: BrowserPreviewRecordingRequestOptions,
   ): Promise<void> {
     const result = await this.request(record, 'start', options)
+    assertBrowserPreviewContentsAvailable(record.view.webContents)
     if (result !== undefined) throw new Error('Recording start returned an unexpected artifact.')
   }
 
@@ -51,6 +53,7 @@ export class BrowserPreviewRecordingRequestBroker {
     options?: BrowserPreviewRecordingRequestOptions,
   ): Promise<BrowserPreviewRecordingArtifact> {
     const result = await this.request(record, 'stop', options)
+    assertBrowserPreviewContentsAvailable(record.view.webContents)
     if (result === undefined) throw new Error('Recording stop did not return an artifact.')
     return result
   }

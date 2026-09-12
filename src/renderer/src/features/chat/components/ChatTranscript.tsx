@@ -1,5 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { ReactNode } from 'react'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
 import { useChatScrollBehaviour } from '../hooks/useChatScrollBehaviour'
@@ -13,6 +14,7 @@ import { WelcomeScreen } from './WelcomeScreen'
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
+  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
 }
 
 function latestCompactionAnnouncement(rows: ChatTranscriptSectionState['chatRows']) {
@@ -100,7 +102,7 @@ function buildRowContext({
   }
 }
 
-export function ChatTranscript({ section }: ChatTranscriptProps) {
+export function ChatTranscript({ section, renderVisibleMessageRows }: ChatTranscriptProps) {
   const {
     messages,
     isLoading,
@@ -198,6 +200,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
             key={activeSessionId ? String(activeSessionId) : 'none'}
             rows={rows}
             context={rowContext}
+            renderVisibleMessageRows={renderVisibleMessageRows}
           />
           <TranscriptExtensionCards
             activeSessionId={activeSessionId}

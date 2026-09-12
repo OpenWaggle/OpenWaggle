@@ -1,3 +1,4 @@
+import type { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
 import { Data } from 'effect'
 
 export class ValidationIssuesError extends Data.TaggedError('ValidationIssuesError')<{
@@ -29,6 +30,45 @@ export class ProviderLookupError extends Data.TaggedError('ProviderLookupError')
 
 export class SessionProjectionRepositoryError extends Data.TaggedError(
   'SessionProjectionRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceRepositoryError extends Data.TaggedError(
+  'SessionResourceRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceCatalogCursorError extends Data.TaggedError(
+  'SessionResourceCatalogCursorError',
+)<{
+  readonly message: typeof SESSION_RESOURCE_CATALOG_STALE_MESSAGE
+}> {}
+
+export class SessionOutputRetryRepositoryError extends Data.TaggedError(
+  'SessionOutputRetryRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceStoreError extends Data.TaggedError('SessionResourceStoreError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceImageFetchError extends Data.TaggedError(
+  'SessionResourceImageFetchError',
+)<{
+  readonly url: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceThumbnailError extends Data.TaggedError(
+  'SessionResourceThumbnailError',
 )<{
   readonly operation: string
   readonly cause?: unknown

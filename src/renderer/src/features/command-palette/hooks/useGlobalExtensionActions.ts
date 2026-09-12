@@ -1,6 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
-import { api } from '@/shared/lib/ipc'
+import { invokeBoundExtension } from '@/features/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
   extensionRightSidebarRequest,
@@ -29,21 +28,19 @@ export function useGlobalExtensionActions(input: {
     const scope = resolveExtensionCommandInvocationScope({ entry, ...input })
     if (scope === null) return
     close()
-    void api
-      .invokeExtension({
-        extensionId: entry.extensionId,
-        contributionId: entry.contributionId,
-        capability: entry.capability,
-        method: entry.method,
-        scope,
-        payload: {},
-      })
+    void invokeBoundExtension(entry, {
+      extensionId: entry.extensionId,
+      contributionId: entry.contributionId,
+      capability: entry.capability,
+      method: entry.method,
+      scope,
+      payload: {},
+    })
       .then(async (result) => {
         if (!result.ok) {
           showToast(result.error.message, 'error')
           return
         }
-        await refreshPreferencesAfterExtensionInvoke(result)
       })
       .catch((error: unknown) => {
         logger.warn('Extension command failed', { error: String(error) })

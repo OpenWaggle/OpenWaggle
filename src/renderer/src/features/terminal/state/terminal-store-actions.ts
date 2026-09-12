@@ -1,14 +1,7 @@
 import { sameTerminalLaunchEnvironment } from '../lib/terminal-launch-environment'
 import { runtimeKeyOf, terminalSidePanelLayoutKey } from '../lib/terminal-owner'
-import {
-  closePaneAction,
-  createTerminalAction,
-  ensureTerminalAction,
-  splitTerminalAction,
-  transferTabs,
-  updateTab,
-  withGroup,
-} from './terminal-store-layout'
+import { updateTab, withGroup } from './terminal-store-layout'
+import { createLifecycleActions } from './terminal-store-lifecycle'
 import { MAX_PANEL_HEIGHT, MIN_PANEL_HEIGHT } from './terminal-store-persistence'
 import {
   omitRuntimeKeys,
@@ -20,77 +13,6 @@ import type {
   TerminalStateGetter,
   TerminalStateSetter,
 } from './terminal-store-types'
-
-type LifecycleActions = Pick<
-  TerminalState,
-  | 'createTerminal'
-  | 'ensureTerminal'
-  | 'splitTerminal'
-  | 'closePane'
-  | 'closeTab'
-  | 'moveTab'
-  | 'moveAllTabs'
->
-
-function createLifecycleActions(
-  set: TerminalStateSetter,
-  get: TerminalStateGetter,
-): LifecycleActions {
-  return {
-    createTerminal: (ownerKey, cwd, launchEnv) =>
-      createTerminalAction(set, ownerKey, cwd, launchEnv),
-
-    ensureTerminal: (ownerKey, terminalId, cwd, options) =>
-      ensureTerminalAction(set, ownerKey, terminalId, cwd, options),
-
-    splitTerminal: (ownerKey, tabId, cwd, launchEnv) =>
-      splitTerminalAction(get, set, ownerKey, tabId, cwd, launchEnv),
-
-    closePane: (ownerKey, terminalId) => closePaneAction(set, ownerKey, terminalId),
-
-    closeTab: (ownerKey, tabId) => {
-      const target = get().groups[ownerKey]?.tabs.find((tab) => tab.id === tabId)
-      if (target === undefined) return []
-      const closedIds = target.panes.map((pane) => pane.terminalId)
-      set((state) => {
-        const group = state.groups[ownerKey]
-        if (group === undefined) return {}
-        const closingIndex = group.tabs.findIndex((tab) => tab.id === tabId)
-        const tabs = group.tabs.filter((tab) => tab.id !== tabId)
-        const activeTabId =
-          group.activeTabId === tabId
-            ? (tabs[Math.min(closingIndex, tabs.length - 1)]?.id ?? null)
-            : group.activeTabId
-        return {
-          groups: withGroup(state.groups, ownerKey, () => ({ ...group, tabs, activeTabId })),
-          ...omitRuntimeKeys(state, ownerKey, closedIds),
-        }
-      })
-      return closedIds
-    },
-
-    moveTab: (fromOwnerKey, toOwnerKey, tabId) => {
-      set((state) => ({
-        groups: transferTabs(state.groups, fromOwnerKey, toOwnerKey, new Set([tabId])),
-      }))
-    },
-
-    moveAllTabs: (fromOwnerKey, toOwnerKey) => {
-      set((state) => {
-        const source = state.groups[fromOwnerKey]
-        if (source === undefined) return {}
-        return {
-          groups: transferTabs(
-            state.groups,
-            fromOwnerKey,
-            toOwnerKey,
-            new Set(source.tabs.map((tab) => tab.id)),
-          ),
-        }
-      })
-    },
-  }
-}
 
 type LayoutActions = Pick<
   TerminalState,

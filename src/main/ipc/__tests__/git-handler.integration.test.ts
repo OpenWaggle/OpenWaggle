@@ -31,10 +31,14 @@ describe('registerGitHandlers status', () => {
         match(key)
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
-          .with('-c core.quotePath=false status --porcelain=v1', () =>
+          .with('-c core.quotePath=false status --porcelain=v1 -z', () =>
             cb(null, ' M src/main/index.ts\n?? docs/new.md\n', ''),
           )
-          .with('-c core.quotePath=false diff --numstat HEAD', () =>
+          .with('-c core.quotePath=false diff --numstat -z HEAD', () =>
+            cb(null, '10\t2\tsrc/main/index.ts\n', ''),
+          )
+          .with('-c core.quotePath=false diff --cached --numstat -z', () => cb(null, '', ''))
+          .with('-c core.quotePath=false diff --numstat -z', () =>
             cb(null, '10\t2\tsrc/main/index.ts\n', ''),
           )
           .with('rev-list --left-right --count HEAD...@{upstream}', () => cb(null, '3\t1\n', ''))
@@ -53,6 +57,8 @@ describe('registerGitHandlers status', () => {
       additions: 10,
       deletions: 2,
       filesChanged: 2,
+      stagedChanges: { filesChanged: 0, additions: 0, deletions: 0 },
+      unstagedChanges: { filesChanged: 2, additions: 10, deletions: 2 },
       ahead: 3,
       behind: 1,
     })
@@ -70,13 +76,17 @@ describe('registerGitHandlers status', () => {
         match(key)
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
-          .with('-c core.quotePath=false status --porcelain=v1', () =>
+          .with('-c core.quotePath=false status --porcelain=v1 -z', () =>
             // `RM` is what git emits for a rename that was then modified; `MM` never carries a rename.
             cb(null, 'RM old.txt -> new.txt\n', ''),
           )
-          .with('-c core.quotePath=false diff --numstat HEAD', () =>
+          .with('-c core.quotePath=false diff --numstat -z HEAD', () =>
             cb(null, '1\t0\told.txt => new.txt\n', ''),
           )
+          .with('-c core.quotePath=false diff --cached --numstat -z', () =>
+            cb(null, '1\t0\told.txt => new.txt\n', ''),
+          )
+          .with('-c core.quotePath=false diff --numstat -z', () => cb(null, '', ''))
           .with('rev-list --left-right --count HEAD...@{upstream}', () => cb(null, '0\t0\n', ''))
           .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
@@ -92,6 +102,8 @@ describe('registerGitHandlers status', () => {
       filesChanged: 1,
       additions: 1,
       deletions: 0,
+      stagedChanges: { filesChanged: 1, additions: 1, deletions: 0 },
+      unstagedChanges: { filesChanged: 1, additions: 0, deletions: 0 },
       changedFiles: [
         {
           path: 'new.txt',

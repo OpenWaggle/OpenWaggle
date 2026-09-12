@@ -25,12 +25,9 @@ test('waggle transcript keeps clean turn order and preserves the initiating user
       await mainWindow.expectTextVisible(expectedContent)
     }
 
-    const turnLabels = await app.window().evaluate(() =>
-      Array.from(document.querySelectorAll('[role="log"] [data-waggle-turn-label="true"]'))
-        .map((node) => node.textContent?.trim() ?? '')
-        .filter((text) => /^Turn \d+:/.test(text)),
-    )
-    expect(turnLabels).toEqual([...WAGGLE_REGRESSION_TURN_LABELS])
+    await expect(app.window().locator('[role="log"] [data-waggle-turn-label="true"]')).toHaveText([
+      ...WAGGLE_REGRESSION_TURN_LABELS,
+    ])
   } finally {
     await app.cleanup()
   }

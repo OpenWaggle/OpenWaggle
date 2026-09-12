@@ -13,6 +13,7 @@ import { createSections } from './ChatPanel.test-utils'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    activateSessionResourceOwner: vi.fn(),
     getGitStatus: vi.fn().mockResolvedValue(null),
     listGitBranches: vi.fn().mockResolvedValue({ currentBranch: 'main', branches: [] }),
     listChangeRequests: vi.fn().mockResolvedValue({ ok: true, changeRequests: [] }),
@@ -22,7 +23,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-it('blocks editing and sends until the selected session draft is hydrated', async () => {
+it('owns an editable pending draft and restores the untouched saved branch draft after hydration', async () => {
+  Range.prototype.getBoundingClientRect = () => new DOMRect()
   useComposerStore.setState(useComposerStore.getInitialState())
   useSessionStore.setState({ activeWorkspace: null, draftBranch: null })
   usePreferencesStore.setState({
@@ -49,8 +51,10 @@ it('blocks editing and sends until the selected session draft is hydrated', asyn
     </QueryClientProvider>,
   )
   const input = screen.getByRole('textbox', { name: 'Message input' })
-  expect(input).toHaveAttribute('contenteditable', 'false')
-  expect(screen.getByText('Loading session draft…')).toBeInTheDocument()
+  expect(input).toHaveAttribute('contenteditable', 'true')
+  expect(useComposerStore.getState().activeDraftContextKey).toBe(`session:${sessionId}:pending`)
+  expect(input).toHaveTextContent('')
+  expect(screen.queryByText('Loading session draft…')).toBeNull()
   expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
   fireEvent.keyDown(input, { key: 'Enter' })
   expect(sections.composer.onSendWithWaggle).not.toHaveBeenCalled()

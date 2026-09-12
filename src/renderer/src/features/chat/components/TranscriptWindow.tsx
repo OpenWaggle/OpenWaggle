@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
 import type { ChatRow } from '../lib/types-chat-row'
@@ -51,9 +51,11 @@ function getChatRowKey(row: ChatRow) {
 export function TranscriptWindow({
   rows,
   context,
+  renderVisibleMessageRows,
 }: {
   readonly rows: ChatRow[]
   readonly context: ChatRowRenderContext
+  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
 }) {
   /*
    * The window remembers where it starts, not how big it is.
@@ -96,6 +98,13 @@ export function TranscriptWindow({
     setAnnouncement(`${revealed} earlier messages loaded`)
   }
 
+  const transcriptRows = (
+    <TranscriptRows rows={visibleRows} context={context} hasEarlier={hiddenCount > 0} />
+  )
+  const visibleRowsWithResources = renderVisibleMessageRows
+    ? renderVisibleMessageRows(visibleMessageNodeIds(visibleRows), transcriptRows)
+    : transcriptRows
+
   return (
     <>
       {/*
@@ -123,9 +132,24 @@ export function TranscriptWindow({
           </Button>
         </div>
       ) : null}
-      <TranscriptRows rows={visibleRows} context={context} hasEarlier={hiddenCount > 0} />
+      {visibleRowsWithResources}
     </>
   )
+}
+
+function visibleMessageNodeIds(rows: readonly ChatRow[]) {
+  const nodeIds: string[] = []
+  for (const row of rows) {
+    if (row.type === 'message') {
+      nodeIds.push(row.message.metadata?.sessionNodeId ?? row.message.id)
+      continue
+    }
+    if (row.type !== 'waggle-turn') continue
+    for (const nested of row.messages) {
+      nodeIds.push(nested.message.metadata?.sessionNodeId ?? nested.message.id)
+    }
+  }
+  return nodeIds
 }
 
 function TranscriptRows({

@@ -1,9 +1,9 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  createCodeViewItemDecorator,
   type DiffParserWorkerRequest,
   type DiffParserWorkerResponse,
-  decorateCodeViewItems,
   type ParsedReviewCodeViewItem,
   parseCodeViewItems,
   type ReviewAnnotation,
@@ -129,6 +129,9 @@ export function useProgressiveCodeViewItems(
   files: readonly GitFileDiff[],
   annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
 ) {
+  // Pierre compares controlled item prefixes by reference. This per-view WeakMap cache is an
+  // identity contract with that external API; old parsed snapshots are not retained by the cache.
+  const decorateItems = useMemo(createCodeViewItemDecorator, [])
   const immediateItems = useMemo(
     () =>
       files.length <= SYNCHRONOUS_FILE_LIMIT && patchUnits(files) <= MAIN_THREAD_PATCH_UNIT_BUDGET
@@ -146,8 +149,8 @@ export function useProgressiveCodeViewItems(
   const currentBuild = built?.files === files ? built : null
   const parsedItems = immediateItems ?? currentBuild?.items ?? null
   const items = useMemo(
-    () => (parsedItems === null ? null : decorateCodeViewItems(parsedItems, annotationsByPath)),
-    [parsedItems, annotationsByPath],
+    () => (parsedItems === null ? null : decorateItems(parsedItems, annotationsByPath)),
+    [parsedItems, annotationsByPath, decorateItems],
   )
   const preparedPaths = useMemo(
     () => new Set(parsedItems?.map((item) => item.filePath) ?? []),

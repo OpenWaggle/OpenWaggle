@@ -1,4 +1,8 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { runWithGitMutationLock } from '../../../services/git/mutation-lock'
 
 const { isGitRepositoryMock, runGitMock } = vi.hoisted(() => ({
   isGitRepositoryMock: vi.fn(async () => true),
@@ -28,6 +32,32 @@ describe('worktree service', () => {
     isGitRepositoryMock.mockResolvedValue(true)
     runGitMock.mockReset()
     runGitMock.mockResolvedValue(gitResult(0))
+  })
+
+  it('serializes create and remove mutations against the same checkout', async () => {
+    let releaseRepositoryProbe: (() => void) | undefined
+    isGitRepositoryMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            releaseRepositoryProbe = () => resolve(true)
+          }),
+      )
+      .mockResolvedValueOnce(true)
+
+    const creation = createGitWorktree('/repo', {
+      path: '/wt/x',
+      branch: 'feat',
+      baseRef: 'main',
+    })
+    await vi.waitFor(() => expect(isGitRepositoryMock).toHaveBeenCalledTimes(1))
+    const removal = removeGitWorktree('/repo', { path: '/wt/y' })
+
+    await Promise.resolve()
+    expect(isGitRepositoryMock).toHaveBeenCalledTimes(1)
+    releaseRepositoryProbe?.()
+    await Promise.all([creation, removal])
+    expect(isGitRepositoryMock).toHaveBeenCalledTimes(2)
   })
 
   describe('createGitWorktree', () => {
@@ -169,6 +199,40 @@ describe('worktree service', () => {
   })
 
   describe('removeGitWorktree', () => {
+    it('waits for mutations of the target worktree as well as the repository', async () => {
+      const lockRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-remove-lock-'))
+      const repositoryPath = path.join(lockRoot, 'repository')
+      const worktreePath = path.join(lockRoot, 'worktree')
+      const nestedWorktreePath = path.join(worktreePath, 'src')
+      await Promise.all([
+        fs.mkdir(path.join(repositoryPath, '.git'), { recursive: true }),
+        fs.mkdir(nestedWorktreePath, { recursive: true }),
+      ])
+      await fs.writeFile(path.join(worktreePath, '.git'), 'gitdir: ../repository/.git/worktrees/x')
+      let releaseTarget: (() => void) | undefined
+      const targetGate = new Promise<void>((resolve) => {
+        releaseTarget = resolve
+      })
+      let markTargetStarted: (() => void) | undefined
+      const targetStarted = new Promise<void>((resolve) => {
+        markTargetStarted = resolve
+      })
+      const targetMutation = runWithGitMutationLock(nestedWorktreePath, async () => {
+        markTargetStarted?.()
+        await targetGate
+      })
+      await targetStarted
+
+      const removal = removeGitWorktree(repositoryPath, { path: worktreePath })
+
+      await Promise.resolve()
+      expect(isGitRepositoryMock).not.toHaveBeenCalled()
+      releaseTarget?.()
+      await Promise.all([targetMutation, removal])
+      expect(isGitRepositoryMock).toHaveBeenCalledOnce()
+      await fs.rm(lockRoot, { recursive: true, force: true })
+    })
+
     it('removes without --force by default', async () => {
       await expect(removeGitWorktree('/repo', { path: '/wt/x' })).resolves.toEqual({
         ok: true,

@@ -1,10 +1,44 @@
 import * as Effect from 'effect/Effect'
-import { classifyAgentError } from '../../agent/error-classifier'
+import { classifyAgentError, makeErrorInfo } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
 import type { AgentKernelRunResult } from '../../ports/agent-kernel-service'
 import { isRunCancellation } from '../run-cancellation'
+import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 
 const logger = createLogger('waggle-run-outcome')
+
+export function validationErrorOutcome() {
+  return {
+    outcome: 'validation-error' as const,
+    message: 'Invalid Waggle mode configuration',
+    code: 'validation-error',
+  }
+}
+
+export function notFoundOutcome() {
+  const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
+  return {
+    outcome: 'not-found' as const,
+    message: errorInfo.userMessage,
+    code: errorInfo.code,
+  }
+}
+
+export function noProjectOutcome() {
+  return {
+    outcome: 'no-project' as const,
+    message: 'Please select a project folder before starting Waggle mode.',
+    code: 'no-project',
+  }
+}
+
+export function noInheritedModelOutcome() {
+  return {
+    outcome: 'validation-error' as const,
+    message: 'Select a model before starting Waggle mode.',
+    code: 'validation-error',
+  }
+}
 
 interface WaggleRunFailure {
   readonly error: unknown
@@ -62,6 +96,7 @@ export function createWaggleSuccessOutcome(input: {
   readonly sessionId: unknown
   readonly assignedTitle?: string
   readonly result: AgentKernelRunResult
+  readonly resources: PersistedRunResourceNodes
 }) {
   logger.info('Pi-native Waggle collaboration finished', {
     sessionId: input.sessionId,
@@ -73,6 +108,7 @@ export function createWaggleSuccessOutcome(input: {
   return {
     outcome: 'success' as const,
     newMessages: input.result.newMessages,
+    ...input.resources,
     ...(input.result.terminalError ? { lastError: input.result.terminalError } : {}),
     ...(input.assignedTitle ? { assignedTitle: input.assignedTitle } : {}),
   }

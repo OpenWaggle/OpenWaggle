@@ -14,6 +14,13 @@ function row(overrides: Partial<SessionSummaryRow> = {}): SessionSummaryRow {
     last_active_branch_id: null,
     environment_mode: 'local',
     worktree_path: null,
+    lineage_present: 0,
+    lineage_role: 'independent',
+    parent_session_id: null,
+    direct_worker_count: 0,
+    active_direct_worker_count: 0,
+    agent_definition_name: null,
+    delegation_state: null,
     ...overrides,
   }
 }
@@ -55,5 +62,25 @@ describe('hydrateSessionSummary', () => {
     expect(summary.archived).toBe(true)
     expect(summary.createdAt).toBe(1)
     expect(summary.updatedAt).toBe(2)
+  })
+
+  it('hydrates production Hive lineage only when the query marks it present', () => {
+    expect(hydrateSessionSummary(row()).lineage).toBeUndefined()
+    expect(
+      hydrateSessionSummary(
+        row({
+          lineage_present: 1,
+          lineage_role: 'worker',
+          parent_session_id: 'parent-session',
+          agent_definition_name: 'reviewer',
+          delegation_state: 'working',
+        }),
+      ).lineage,
+    ).toMatchObject({
+      role: 'worker',
+      parentSessionId: 'parent-session',
+      agentDefinitionName: 'reviewer',
+      delegationState: 'working',
+    })
   })
 })

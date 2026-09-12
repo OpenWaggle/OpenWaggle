@@ -2,29 +2,20 @@ import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
-import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
-import { ActiveProjectChangeService } from '../../ports/active-project-change-service'
-import { DocsBundleService } from '../../ports/docs-bundle-service'
-import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
-import { ExtensionManagerService } from '../../ports/extension-manager-service'
-import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import type { ExtensionStorageItem } from '../../ports/extension-storage-repository'
-import { SessionProjectionRepository } from '../../ports/session-projection-repository'
-import { SessionRepository } from '../../ports/session-repository'
-import type { AppLoggerService } from '../../services/logger-service'
-import { AppLogger } from '../../services/logger-service'
+import type { UpsertSessionResourceInput } from '../../ports/session-resource-repository'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
 import { clearExtensionContributionRegistryCacheForTests } from '../extension-contribution-registry-cache'
+import { listExtensionContributionRegistryView } from '../extension-contribution-registry-service'
+import type { CapturedLog } from './broker-log-test-utils'
 import {
   BROKER_BRANCH_ID,
   BROKER_SESSION_ID,
-  makeSessionDetail,
 } from './extension-capability-broker-session-test-utils'
-import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
-import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
+import { makeBrokerLayer } from './extension-capability-broker-test-layer'
 import {
   makePackage,
   type makeProjectOverride,
@@ -36,19 +27,12 @@ export const BROKER_CONTRIBUTION_ID = 'broker.run'
 export const TIMESTAMP = 1234
 export const SESSION_ID = BROKER_SESSION_ID
 export const BRANCH_ID = BROKER_BRANCH_ID
-const DOCS_BUNDLE_PATH = '/tmp/openwaggle-docs'
-const DOCS_GENERATED_AT = '2026-01-01T00:00:00.000Z'
 
+export type { CapturedLog } from './broker-log-test-utils'
 export {
   makeSessionDetail,
   makeSessionTree,
 } from './extension-capability-broker-session-test-utils'
-
-export interface CapturedLog {
-  readonly namespace: string
-  readonly message: string
-  readonly data?: Readonly<Record<string, unknown>>
-}
 
 export function makeBrokerPackage() {
   return makePackage({
@@ -75,171 +59,6 @@ export function makeBrokerPackage() {
   })
 }
 
-function scopesMatch(
-  left: DiscoveredExtensionPackage['scope'],
-  right: DiscoveredExtensionPackage['scope'],
-) {
-  if (left.kind !== right.kind) {
-    return false
-  }
-
-  if (left.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return true
-  }
-
-  return (
-    right.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND && left.projectPath === right.projectPath
-  )
-}
-
-function isVisiblePackage(
-  extensionPackage: DiscoveredExtensionPackage,
-  projectPath: string | null | undefined,
-) {
-  return (
-    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND ||
-    (projectPath !== null &&
-      projectPath !== undefined &&
-      extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
-      extensionPackage.scope.projectPath === projectPath)
-  )
-}
-
-function makeLoggerLayer(capturedLogs: CapturedLog[]) {
-  const logger: AppLoggerService = {
-    debug: () => Effect.void,
-    info: (namespace, message, data) =>
-      Effect.sync(() => {
-        capturedLogs.push({
-          namespace,
-          message,
-          ...(data !== undefined ? { data } : {}),
-        })
-      }),
-    warn: () => Effect.void,
-    error: () => Effect.void,
-  }
-  return Layer.succeed(AppLogger, logger)
-}
-
-function makeBrokerLayer(input: {
-  readonly packages: readonly DiscoveredExtensionPackage[]
-  readonly lifecycles: readonly ExtensionLifecycleState[]
-  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
-  readonly sessionDetail?: SessionDetail
-  readonly sessionTree?: SessionTree
-  readonly storageItems: ExtensionStorageItem[]
-  readonly capturedLogs: CapturedLog[]
-  readonly currentProjectPath: string | null
-  readonly reconciledProjectPaths: string[]
-  readonly reconcileFailure?: Error
-}) {
-  const projectOverrides = input.projectOverrides ?? []
-
-  return Layer.mergeAll(
-    makeLoggerLayer(input.capturedLogs),
-    makeExtensionStorageRepositoryLayer(input.storageItems),
-    makeBrokerSettingsLayer(input.currentProjectPath),
-    Layer.succeed(ActiveProjectChangeService, {
-      reconcileTrustedMainExtensions: (projectPath) => {
-        if (input.reconcileFailure !== undefined) {
-          return Effect.die(input.reconcileFailure)
-        }
-
-        return Effect.sync(() => {
-          input.reconciledProjectPaths.push(projectPath ?? '<none>')
-        })
-      },
-    }),
-    Layer.succeed(DocsBundleService, {
-      getBundlePath: () => Effect.succeed(DOCS_BUNDLE_PATH),
-      loadBundle: () =>
-        Effect.succeed({
-          bundlePath: DOCS_BUNDLE_PATH,
-          generatedAt: DOCS_GENERATED_AT,
-          topics: [],
-        }),
-      listTopics: () => Effect.succeed([]),
-      resolveTopic: () => Effect.succeed(null),
-    }),
-    Layer.succeed(ExtensionManagerService, {
-      listPackages: ({ projectPath }) =>
-        Effect.succeed(
-          input.packages.filter((extensionPackage) =>
-            isVisiblePackage(extensionPackage, projectPath),
-          ),
-        ),
-    }),
-    Layer.succeed(ExtensionLifecycleRepository, {
-      get: (key) =>
-        Effect.succeed(
-          input.lifecycles.find(
-            (lifecycle) =>
-              lifecycle.extensionId === key.extensionId && scopesMatch(lifecycle.scope, key.scope),
-          ) ?? null,
-        ),
-      list: (scope) =>
-        Effect.succeed(input.lifecycles.filter((lifecycle) => scopesMatch(lifecycle.scope, scope))),
-      upsert: () => Effect.void,
-    }),
-    Layer.succeed(ExtensionProjectOverridesRepository, {
-      get: (key) =>
-        Effect.succeed(
-          projectOverrides.find(
-            (projectOverride) =>
-              projectOverride.extensionId === key.extensionId &&
-              scopesMatch(projectOverride.scope, key.scope) &&
-              projectOverride.projectPath === key.projectPath,
-          ) ?? null,
-        ),
-      upsert: () => Effect.void,
-    }),
-    Layer.succeed(SessionProjectionRepository, {
-      get: () => Effect.sync(() => makeSessionDetail(PROJECT_PATH)),
-      getOptional: (id) =>
-        Effect.succeed(
-          input.sessionDetail && input.sessionDetail.id === id ? input.sessionDetail : null,
-        ),
-      list: () => Effect.succeed([]),
-      listDetails: () => Effect.succeed([]),
-      create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
-      delete: () => Effect.void,
-      archive: () => Effect.void,
-      unarchive: () => Effect.void,
-      listArchived: () => Effect.succeed([]),
-      updateTitle: () => Effect.void,
-      setWorktreePlan: () => Effect.void,
-      setAuthorizationMode: () => Effect.void,
-      listTurnCheckpoints: () => Effect.succeed([]),
-      getTurnDiff: () => Effect.succeed(null),
-      setTurnCheckpointAnchor: () => Effect.void,
-      ...PINNED_SESSION_REPOSITORY_STUB,
-    }),
-    Layer.succeed(SessionRepository, {
-      list: () => Effect.succeed([]),
-      listArchivedBranches: () => Effect.succeed([]),
-      getTree: (sessionId) =>
-        Effect.succeed(
-          input.sessionTree && input.sessionTree.session.id === sessionId
-            ? input.sessionTree
-            : null,
-        ),
-      getWorkspace: () => Effect.succeed(null),
-      persistSnapshot: () => Effect.void,
-      updateRuntime: () => Effect.void,
-      renameBranch: () => Effect.void,
-      archiveBranch: () => Effect.void,
-      restoreBranch: () => Effect.void,
-      updateTreeUiState: () => Effect.void,
-      recordActiveRun: () => Effect.void,
-      clearActiveRun: () => Effect.void,
-      clearInterruptedRuns: () => Effect.void,
-      listActiveRunsForRecovery: () => Effect.succeed([]),
-      markActiveRunInterrupted: () => Effect.void,
-    }),
-  )
-}
-
 export function makeProjectInvocation(
   input: {
     readonly capability?: string
@@ -259,58 +78,105 @@ export function makeProjectInvocation(
   }
 }
 
-export async function runBroker(input: {
+interface BrokerHarnessInput {
   readonly invocation: ExtensionInvokeInput
   readonly packages?: readonly DiscoveredExtensionPackage[]
   readonly lifecycles?: readonly ExtensionLifecycleState[]
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
+  readonly sessionDetails?: readonly SessionDetail[]
   readonly sessionTree?: SessionTree
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null
   readonly reconciledProjectPaths?: string[]
   readonly reconcileFailure?: Error
-}) {
+  readonly resources?: readonly SessionResource[]
+  readonly resourceUpserts?: UpsertSessionResourceInput[]
+}
+
+export async function runBroker(input: BrokerHarnessInput) {
   const harness = makeBrokerHarness(input)
   return harness.run(input.invocation)
 }
 
-export function makeBrokerHarness(input: {
-  readonly packages?: readonly DiscoveredExtensionPackage[]
-  readonly lifecycles?: readonly ExtensionLifecycleState[]
-  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
-  readonly sessionDetail?: SessionDetail
-  readonly sessionTree?: SessionTree
-  readonly storageItems?: readonly ExtensionStorageItem[]
-  readonly capturedLogs?: CapturedLog[]
-  readonly currentProjectPath?: string | null
-  readonly reconciledProjectPaths?: string[]
-  readonly reconcileFailure?: Error
-}) {
+export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>) {
   clearExtensionContributionRegistryCacheForTests()
   const capturedLogs = input.capturedLogs ?? []
   const reconciledProjectPaths = input.reconciledProjectPaths ?? []
   const storageItems = [...(input.storageItems ?? [])]
+  const resources = [...(input.resources ?? [])]
+  const resourceUpserts = input.resourceUpserts ?? []
   const layer = makeBrokerLayer({
     packages: input.packages ?? [],
     lifecycles: input.lifecycles ?? [],
     projectOverrides: input.projectOverrides,
     sessionDetail: input.sessionDetail,
+    sessionDetails: input.sessionDetails,
     sessionTree: input.sessionTree,
     storageItems,
     capturedLogs,
     currentProjectPath: input.currentProjectPath ?? PROJECT_PATH,
     reconciledProjectPaths,
     ...(input.reconcileFailure !== undefined ? { reconcileFailure: input.reconcileFailure } : {}),
+    resources,
+    resourceUpserts,
   })
 
+  function loadInvocationBinding(invocation: ExtensionInvokeInput) {
+    const projectPaths = invocation.scope.kind === 'app' ? [] : [invocation.scope.projectPath]
+    const sessionId =
+      invocation.scope.kind === 'session' || invocation.scope.kind === 'branch'
+        ? invocation.scope.sessionId
+        : undefined
+    return listExtensionContributionRegistryView({
+      projectPaths,
+      ...(sessionId !== undefined ? { sessionId } : {}),
+    }).pipe(
+      Effect.map(
+        (registry) =>
+          registry.entries.find(
+            (candidate) =>
+              candidate.extensionId === invocation.extensionId &&
+              candidate.contributionId === invocation.contributionId,
+          )?.invocationBinding,
+      ),
+    )
+  }
+
+  function runWithBinding(invocation: ExtensionInvokeInput, invocationBinding: string | undefined) {
+    return Effect.runPromise(
+      invokeExtensionCapability(invocation, {
+        now: () => TIMESTAMP,
+        invocationBinding,
+      }).pipe(Effect.provide(layer)),
+    )
+  }
+
+  function runBound(invocation: ExtensionInvokeInput) {
+    return Effect.runPromise(loadInvocationBinding(invocation).pipe(Effect.provide(layer))).then(
+      (invocationBinding) => runWithBinding(invocation, invocationBinding),
+    )
+  }
+
   return {
-    run: (invocation: ExtensionInvokeInput) =>
+    run: runBound,
+    runBoundAs: async (
+      bindingInvocation: ExtensionInvokeInput,
+      invocation: ExtensionInvokeInput,
+    ) => {
+      const invocationBinding = await Effect.runPromise(
+        loadInvocationBinding(bindingInvocation).pipe(Effect.provide(layer)),
+      )
+      return runWithBinding(invocation, invocationBinding)
+    },
+    runRaw: (invocation: ExtensionInvokeInput) =>
       Effect.runPromise(
         invokeExtensionCapability(invocation, { now: () => TIMESTAMP }).pipe(Effect.provide(layer)),
       ),
     storageItems: () => storageItems.map((item) => item),
     reconciledProjectPaths: () => reconciledProjectPaths.map((projectPath) => projectPath),
+    resources: () => resources.map((resource) => resource),
+    resourceUpserts: () => resourceUpserts.map((resource) => resource),
   }
 }

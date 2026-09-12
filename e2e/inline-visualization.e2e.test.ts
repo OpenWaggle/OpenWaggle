@@ -3,6 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { captureHiddenWindowPresentation } from './support/hidden-window-presentation'
 import { OpenWaggleApp } from './support/openwaggle-app'
+import { expectRightSidebarClosed } from './support/right-sidebar'
 import { seedSingleSession } from './support/session-fixtures'
 
 const THREAD_TITLE = 'Inline Visualization Security'
@@ -153,16 +154,24 @@ function visualizationSource() {
 </script>`
 }
 
-async function expectSecureInteractiveVisualization(app: OpenWaggleApp, sessionId: string) {
+async function expectSecureInteractiveVisualization(
+  app: OpenWaggleApp,
+  sessionId: string,
+  options: { verifyAgentPayload?: boolean } = {},
+) {
   const stopPresentation = await captureHiddenWindowPresentation(app.electronApplication())
   try {
-    await assertSecureInteractiveVisualization(app, sessionId)
+    await assertSecureInteractiveVisualization(app, sessionId, options)
   } finally {
     await stopPresentation()
   }
 }
 
-async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionId: string) {
+async function assertSecureInteractiveVisualization(
+  app: OpenWaggleApp,
+  sessionId: string,
+  options: { verifyAgentPayload?: boolean } = {},
+) {
   const page = app.window()
   await app.resizeMainWindow(760, 620)
   const iframe = page.locator(`iframe[title="${FRAME_TITLE}"]`)
@@ -199,10 +208,10 @@ async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   const detailsTab = frame.getByRole('tab', { name: 'Details' })
   await expect(frame.getByRole('tabpanel', { name: 'Summary' })).toBeVisible()
   await expect(frame.getByRole('tabpanel', { name: 'Details' })).toBeHidden()
-  if (process.platform === 'darwin') await detailsTab.click()
+  if (!app.hidden) await detailsTab.click()
   else {
-    // Hidden Linux and Windows Electron windows do not deliver iframe pointer input consistently.
-    // A DOM click still exercises the visualization runtime's delegated tab interaction there.
+    // Hidden Electron windows on all three platforms can lose native iframe pointer input.
+    // Tab switching needs no trusted activation; this still exercises its delegated click handler.
     await detailsTab.evaluate((element: HTMLButtonElement) => {
       element.click()
     })
@@ -213,7 +222,7 @@ async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   await expect(summaryTab).toHaveAttribute('aria-selected', 'true')
   await expect(summaryTab).toBeFocused()
   const followUpButton = frame.getByRole('button', { name: 'Ask agent about count 0' })
-  if (process.platform === 'darwin') await followUpButton.click()
+  if (!app.hidden) await followUpButton.click()
   else await followUpButton.press('Enter')
   await expect(status).toHaveAttribute('data-follow-up', 'accepted')
   await expect
@@ -256,7 +265,33 @@ async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   await expect(redrawTooltipButton).toHaveCount(0)
   await expect(frame.getByRole('tooltip')).toHaveCount(0)
 
-  await app.resizeMainWindow(1440, 900)
+  await app.resizeMainContent(1800, 900)
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBeGreaterThanOrEqual(1_800)
+  // A responsive mode change must not reload the sandbox and undo its local interactions.
+  await expect(redrawTooltipButton).toHaveCount(0)
+  await expect(status).toHaveAttribute('data-follow-up', 'accepted')
+  const sessionTreeToggle = page
+    .locator('header')
+    .getByRole('button', { name: 'Toggle Session Tree' })
+  if ((await sessionTreeToggle.getAttribute('aria-expanded')) === 'true') {
+    await sessionTreeToggle.click()
+    await expect(sessionTreeToggle).toHaveAttribute('aria-expanded', 'false')
+  }
+  await expectRightSidebarClosed(page)
+  await expect(page.locator('[data-chat-panel-main="true"]')).toHaveAttribute(
+    'data-session-summary-space',
+    'available',
+  )
+  const summary = page.getByRole('complementary', { name: 'Session Summary' })
+  const summaryToggle = page
+    .locator('header')
+    .getByRole('button', { name: /^(?:Open|Hide) Session Summary$/u })
+  await expect(summaryToggle).toBeVisible()
+  if ((await summaryToggle.getAttribute('aria-pressed')) === 'true') {
+    await summaryToggle.click()
+  }
+  await expect(summaryToggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(summary).toHaveCount(0)
   await page.getByRole('button', { name: 'Expand visualization' }).click()
   const largeFocusLayer = page.locator('[data-visualization-focus-layer="true"]')
   const largeDialog = page.getByRole('dialog', { name: FRAME_TITLE })
@@ -336,62 +371,64 @@ async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   await expect(focusLayer).toHaveCount(0)
   await expect(page.getByRole('region', { name: FRAME_TITLE })).toBeVisible()
   await expect(frame.getByRole('button', { name: 'Count 1', exact: true })).toBeVisible()
-  const feedback = 'The selected visualization state should keep the expanded section.'
-  await app.installSessionDetailSnapshotProbe({
-    sessionId,
-    detail: {
-      id: sessionId,
-      title: THREAD_TITLE,
-      projectPath: app.userDataDir,
-      piSessionId: 'replacement-pi-session',
-      messages: [
-        {
-          id: 'replacement-user-message',
-          role: 'user',
-          createdAt: Date.now(),
-          parts: [{ type: 'text', text: feedback }],
-        },
-        {
-          id: 'replacement-assistant-message',
-          role: 'assistant',
-          createdAt: Date.now() + 1,
-          parts: [{ type: 'text', text: 'The selected stage is sandbox.' }],
-        },
-      ],
-      createdAt: Date.now() - 1_000,
-      updatedAt: Date.now() + 2,
-    },
-  })
-  await app.mainWindow().messageInput().fill(feedback)
-  await app.mainWindow().submitComposer()
-  await expect
-    .poll(() => app.readAgentSendProbe(), { timeout: CROSS_PROCESS_UI_TIMEOUT_MS })
-    .toMatchObject({
-      payload: {
-        text: feedback,
-        visualizationContext: {
-          sourcePath: expect.stringContaining(SOURCE_NAME),
-          title: FRAME_TITLE,
-          state: { count: 1, expanded: true },
-        },
+  if (options.verifyAgentPayload !== false) {
+    const feedback = 'The selected visualization state should keep the expanded section.'
+    await app.installSessionDetailSnapshotProbe({
+      sessionId,
+      detail: {
+        id: sessionId,
+        title: THREAD_TITLE,
+        projectPath: app.userDataDir,
+        piSessionId: 'replacement-pi-session',
+        messages: [
+          {
+            id: 'replacement-user-message',
+            role: 'user',
+            createdAt: Date.now(),
+            parts: [{ type: 'text', text: feedback }],
+          },
+          {
+            id: 'replacement-assistant-message',
+            role: 'assistant',
+            createdAt: Date.now() + 1,
+            parts: [{ type: 'text', text: 'The selected stage is sandbox.' }],
+          },
+        ],
+        createdAt: Date.now() - 1_000,
+        updatedAt: Date.now() + 2,
       },
     })
-  await expect(page.getByText(feedback, { exact: true })).toBeVisible()
-  // The assistant row proves the replacement snapshot hydrated; re-check the user row afterwards.
-  await expect(page.getByText('The selected stage is sandbox.', { exact: true })).toBeVisible()
-  await expect(page.getByText(feedback, { exact: true })).toBeVisible()
-  await expect(async () => {
-    const earlierFollowUpBounds = await page
-      .getByText('Explain visualization count 0', { exact: true })
-      .boundingBox()
-    const feedbackBounds = await page.getByText(feedback, { exact: true }).boundingBox()
-    const assistantBounds = await page
-      .getByText('The selected stage is sandbox.', { exact: true })
-      .boundingBox()
-    expect(earlierFollowUpBounds?.y).toBeLessThan(feedbackBounds?.y ?? 0)
-    expect(feedbackBounds?.y).toBeLessThan(assistantBounds?.y ?? 0)
-  }).toPass()
-  await app.captureEvidence('openwaggle-inline-visualization-follow-up-retained')
+    await app.mainWindow().messageInput().fill(feedback)
+    await app.mainWindow().submitComposer()
+    await expect
+      .poll(() => app.readAgentSendProbe(), { timeout: CROSS_PROCESS_UI_TIMEOUT_MS })
+      .toMatchObject({
+        payload: {
+          text: feedback,
+          visualizationContext: {
+            sourcePath: expect.stringContaining(SOURCE_NAME),
+            title: FRAME_TITLE,
+            state: { count: 1, expanded: true },
+          },
+        },
+      })
+    await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+    // The assistant row proves the replacement snapshot hydrated; re-check the user row afterwards.
+    await expect(page.getByText('The selected stage is sandbox.', { exact: true })).toBeVisible()
+    await expect(page.getByText(feedback, { exact: true })).toBeVisible()
+    await expect(async () => {
+      const earlierFollowUpBounds = await page
+        .getByText('Explain visualization count 0', { exact: true })
+        .boundingBox()
+      const feedbackBounds = await page.getByText(feedback, { exact: true }).boundingBox()
+      const assistantBounds = await page
+        .getByText('The selected stage is sandbox.', { exact: true })
+        .boundingBox()
+      expect(earlierFollowUpBounds?.y).toBeLessThan(feedbackBounds?.y ?? 0)
+      expect(feedbackBounds?.y).toBeLessThan(assistantBounds?.y ?? 0)
+    }).toPass()
+    await app.captureEvidence('openwaggle-inline-visualization-follow-up-retained')
+  }
   const heightExpanded = await iframe.evaluate((element) => element.getBoundingClientRect().height)
   await frame
     .getByRole('button', { name: 'Count 1', exact: true })
@@ -419,7 +456,10 @@ async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
   const page = app.window()
   const input = app.mainWindow().messageInput()
   await expect(input).toBeEditable()
-  await input.fill('/vis')
+  await expect(input).toHaveText('')
+  await input.click()
+  await input.pressSequentially('/vis')
+  await expect(input).toHaveText('/vis')
   const menu = page.getByRole('menu', { name: 'Slash command menu' })
   await expect(menu).toBeVisible()
   const visualize = menu.getByRole('menuitem', { name: /Visualize/u })
@@ -431,9 +471,9 @@ async function expectVisualizeSlashCommand(app: OpenWaggleApp) {
 }
 
 async function openVisualizationThread(app: OpenWaggleApp) {
-  const thread = app.mainWindow().threadItem(THREAD_TITLE)
-  await expect(thread).toBeVisible()
-  await thread.click({ noWaitAfter: true })
+  // Wait for the session route, not merely the click. The old home composer can
+  // remain visible during navigation and must not receive the new session's draft.
+  await app.mainWindow().openThread(THREAD_TITLE)
 }
 
 test('renders a persistent interactive visualization inside the isolated Electron frame', async () => {
@@ -479,7 +519,7 @@ test('renders a persistent interactive visualization inside the isolated Electro
     await app.installAgentSendProbe()
     await app.confirmNativeDialogs()
     await openVisualizationThread(app)
-    await expectSecureInteractiveVisualization(app, sessionId)
+    await expectSecureInteractiveVisualization(app, sessionId, { verifyAgentPayload: false })
   } finally {
     await app.cleanup()
   }

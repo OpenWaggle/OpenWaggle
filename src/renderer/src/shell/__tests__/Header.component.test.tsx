@@ -1,7 +1,8 @@
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useTerminalStore } from '@/features/terminal'
 import { Button } from '@/shared/ui/Button'
 import { Header } from '../Header'
@@ -41,6 +42,7 @@ vi.mock('@/features/chat/hooks', () => ({
     activeSession: {
       id: SessionId('session-1'),
       title: 'Fallback title',
+      messages: [{ id: 'message-1', role: 'user', parts: [], createdAt: 1 }],
       projectPath: headerMocks.projectPath,
       environmentMode: 'worktree',
       worktreePath: headerMocks.workingPath,
@@ -131,13 +133,19 @@ vi.mock('@/features/sessions/hooks', () => ({
 
 describe('Header', () => {
   beforeEach(() => {
+    localStorage.clear()
     useUIStore.setState({
       diffRefreshKey: 0,
       feedbackModalOpen: false,
       sidebarOpen: true,
-      terminalOpen: false,
       toastData: null,
       toastMessage: null,
+    })
+    useSessionSummaryUIStore.setState({ panels: {}, toggleFocusTargetSessionId: null })
+    useSessionSummaryUIStore.getState().syncPanel('session-1', {
+      available: true,
+      autoHidden: false,
+      rightSidebarOpen: false,
     })
     useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
     headerMocks.refreshStatus.mockClear()
@@ -163,10 +171,12 @@ describe('Header', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
+    expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(false)
     expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().feedbackModalOpen).toBe(true)
     expect(headerMocks.toggleSessionTree).toHaveBeenCalledOnce()
@@ -183,6 +193,7 @@ describe('Header', () => {
     await waitFor(() =>
       // Commit writes to the tree being reviewed, not the opened checkout.
       expect(headerMocks.commit).toHaveBeenCalledWith('/wt/openwaggle/session-1', {
+        sessionId: SessionId('session-1'),
         message: 'Ship it',
         amend: false,
         paths: ['src/app.ts'],
@@ -190,5 +201,108 @@ describe('Header', () => {
     )
     expect(useUIStore.getState().diffRefreshKey).toBe(2)
     expect(useUIStore.getState().toastData?.message).toBe('Commit created: abc123')
+  })
+
+  it('does not show the Session Summary toggle until the current session has summary content', () => {
+    useSessionSummaryUIStore.setState({ panels: {} })
+    render(<Header />)
+
+    expect(screen.queryByRole('button', { name: /Session Summary/ })).toBeNull()
+  })
+
+  it('reports actual hidden state while a right sidebar temporarily suppresses the Summary', () => {
+    useSessionSummaryUIStore.getState().syncPanel('session-1', {
+      available: true,
+      autoHidden: false,
+      rightSidebarOpen: true,
+    })
+    render(<Header />)
+
+    const toggle = screen.getByRole('button', { name: 'Open Session Summary' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(toggle).toBeDisabled()
+    expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(true)
+  })
+
+  it('restores keyboard focus after Hive navigation reaches its target session', async () => {
+    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+
+    render(<Header />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveFocus(),
+    )
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
+  })
+
+  it('does not keep a focus request queued when the target has no Summary yet', async () => {
+    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+    render(<Header />)
+
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-1')
+    act(() => {
+      useSessionSummaryUIStore.getState().syncPanel('session-1', {
+        available: false,
+        autoHidden: false,
+        rightSidebarOpen: false,
+      })
+    })
+    await waitFor(() =>
+      expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull(),
+    )
+    act(() => {
+      useSessionSummaryUIStore.getState().syncPanel('session-1', {
+        available: true,
+        autoHidden: false,
+        rightSidebarOpen: false,
+      })
+    })
+    const toggle = await screen.findByRole('button', { name: 'Hide Session Summary' })
+    expect(toggle).not.toHaveFocus()
+  })
+
+  it('waits for a newly visited non-empty session before handing focus to its toggle', async () => {
+    useSessionSummaryUIStore.setState({ panels: {} })
+    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+    render(<Header />)
+
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-1')
+    act(() => {
+      useSessionSummaryUIStore.getState().syncPanel('session-1', {
+        available: true,
+        autoHidden: false,
+        rightSidebarOpen: false,
+      })
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveFocus(),
+    )
+    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
+  })
+
+  it('warns when a direct commit succeeds but its Session Output needs a retry', async () => {
+    headerMocks.commit.mockResolvedValueOnce({
+      ok: true,
+      commitHash: 'abc123',
+      summary: 'abc123',
+      commitOutput: {
+        ok: false,
+        retryPersisted: true,
+        message: 'The commit Output will be retried automatically.',
+      },
+    })
+    render(<Header />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open commit dialog' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm commit' }))
+
+    await waitFor(() =>
+      expect(useUIStore.getState().toastData).toEqual({
+        message: 'The commit Output will be retried automatically.',
+        variant: 'error',
+      }),
+    )
   })
 })

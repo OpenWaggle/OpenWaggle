@@ -1,6 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatRow } from '../../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../../model'
@@ -94,6 +95,22 @@ describe('ChatTranscript windowing', () => {
     // The boundary: the first row inside the window, and the last one outside it.
     expect(screen.getByText(`msg-${total - INITIAL_ROW_WINDOW}`)).toBeInTheDocument()
     expect(screen.queryByText(`msg-${total - INITIAL_ROW_WINDOW - 1}`)).not.toBeInTheDocument()
+  })
+
+  it('bounds initial image-resource discovery to the visible window in a 100k-message Session', () => {
+    const renderVisibleMessageRows = vi.fn((_nodeIds: readonly string[], rows: ReactNode) => rows)
+
+    render(
+      <ChatTranscript
+        section={createSection(100_000)}
+        renderVisibleMessageRows={renderVisibleMessageRows}
+      />,
+    )
+
+    const nodeIds = renderVisibleMessageRows.mock.calls.at(-1)?.[0]
+    expect(nodeIds).toHaveLength(INITIAL_ROW_WINDOW)
+    expect(nodeIds?.[0]).toBe('msg-99960')
+    expect(nodeIds?.at(-1)).toBe('msg-99999')
   })
 
   it('says how much history is out of view', () => {

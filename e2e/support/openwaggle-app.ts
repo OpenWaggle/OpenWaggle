@@ -2,7 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type ElectronApplication, type Page, test } from '@playwright/test'
-import { closeElectronApplication } from './electron-process-tree'
+import type { NativeImage } from 'electron'
+import type { RemoteVcsStatusResult } from '../../src/shared/types/git'
+import type { SessionWorkspace } from '../../src/shared/types/session'
+import { closeElectronApplication, forceCloseElectronApplication } from './electron-process-tree'
 import { shouldUseHiddenElectron } from '../../scripts/electron-launch-mode'
 import { launchOpenWaggleElectron } from '../../scripts/playwright-electron-launcher'
 import { MainWindowPage } from '../page-models/main-window.page'
@@ -11,8 +14,35 @@ let evidenceDirectoryPromise: Promise<string> | null = null
 let evidenceSequence = 0
 const QA_DIAGNOSTIC_TEXT_LIMIT = 1_000
 const QA_SCREENSHOT_SETTLE_MS = 250
-const USER_DATA_REMOVE_RETRIES = 3
-const USER_DATA_REMOVE_RETRY_DELAY_MS = 500
+const USER_DATA_REMOVE_RETRIES = 10
+const USER_DATA_REMOVE_RETRY_DELAY_MS = 250
+
+interface CleanupOptions {
+  readonly forceProcessTermination?: boolean
+}
+
+interface RemoteImageFetchProbeInput {
+  readonly url: string
+  readonly dataBase64: string
+  readonly mimeType: string
+  readonly failuresBeforeSuccess: number
+}
+
+interface ResourceDesktopActionProbe {
+  readonly openedPath: string | null
+  readonly revealedPath: string | null
+}
+
+interface RemoteImageFetchProbe {
+  readonly count: number
+  readonly lastUrl: string | null
+}
+
+interface ClipboardImageProbe {
+  readonly empty: boolean
+  readonly width: number
+  readonly height: number
+}
 
 interface OpenWaggleAppLaunchOptions {
   readonly environment?: Readonly<Record<string, string>>
@@ -123,31 +153,158 @@ export class OpenWaggleApp {
     }, response)
   }
 
-  async cleanup(): Promise<void> {
+  async installClipboardImageProbe(): Promise<void> {
+    await this.app.evaluate(({ clipboard }) => {
+      delete process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_EMPTY
+      delete process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_WIDTH
+      delete process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_HEIGHT
+      Object.defineProperty(clipboard, 'writeImage', {
+        configurable: true,
+        writable: true,
+        value: (image: NativeImage) => {
+          const size = image.getSize()
+          process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_EMPTY = String(image.isEmpty())
+          process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_WIDTH = String(size.width)
+          process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_HEIGHT = String(size.height)
+        },
+      })
+    })
+  }
+
+  async captureResourceDownload(destination: string): Promise<void> {
+    await this.app.evaluate(({ session }, savePath) => {
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_STATE
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_NAME
+      session.defaultSession.once('will-download', (_event, item) => {
+        item.setSavePath(savePath)
+        process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_NAME = item.getFilename()
+        item.once('done', (_doneEvent, state) => {
+          process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_STATE = state
+        })
+      })
+    }, destination)
+  }
+
+  async resourceDownloadResult() {
+    return this.app.evaluate(() => ({
+      state: process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_STATE ?? null,
+      fileName: process.env.OPENWAGGLE_E2E_RESOURCE_DOWNLOAD_NAME ?? null,
+    }))
+  }
+
+  async clipboardImageProbe(): Promise<ClipboardImageProbe | null> {
+    return this.app.evaluate(() => {
+      const empty = process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_EMPTY
+      const width = Number.parseInt(process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_WIDTH ?? '', 10)
+      const height = Number.parseInt(process.env.OPENWAGGLE_E2E_CLIPBOARD_IMAGE_HEIGHT ?? '', 10)
+      if ((empty !== 'true' && empty !== 'false') || !Number.isFinite(width + height)) return null
+      return { empty: empty === 'true', width, height }
+    })
+  }
+
+  async installResourceDesktopActionProbe(): Promise<void> {
+    await this.app.evaluate(({ shell }) => {
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_OPEN_PATH
+      delete process.env.OPENWAGGLE_E2E_RESOURCE_REVEAL_PATH
+      Object.defineProperty(shell, 'openPath', {
+        configurable: true,
+        writable: true,
+        value: (targetPath: string) => {
+          process.env.OPENWAGGLE_E2E_RESOURCE_OPEN_PATH = targetPath
+          return Promise.resolve('')
+        },
+      })
+      Object.defineProperty(shell, 'showItemInFolder', {
+        configurable: true,
+        writable: true,
+        value: (targetPath: string) => {
+          process.env.OPENWAGGLE_E2E_RESOURCE_REVEAL_PATH = targetPath
+        },
+      })
+    })
+  }
+
+  async resourceDesktopActionProbe(): Promise<ResourceDesktopActionProbe> {
+    return this.app.evaluate(() => ({
+      openedPath: process.env.OPENWAGGLE_E2E_RESOURCE_OPEN_PATH ?? null,
+      revealedPath: process.env.OPENWAGGLE_E2E_RESOURCE_REVEAL_PATH ?? null,
+    }))
+  }
+
+  async installRemoteImageFetchProbe(input: RemoteImageFetchProbeInput): Promise<void> {
+    await this.app.evaluate((_electron, probe) => {
+      process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT = '0'
+      delete process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_URL
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = async (request, requestInit) => {
+        const requestedUrl =
+          typeof request === 'string'
+            ? request
+            : request instanceof URL
+              ? request.href
+              : request.url
+        if (requestedUrl !== probe.url) return originalFetch(request, requestInit)
+        const count = Number.parseInt(
+          process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT ?? '0',
+          10,
+        ) + 1
+        process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT = String(count)
+        process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_URL = requestedUrl
+        if (count <= probe.failuresBeforeSuccess) {
+          return new Response('Remote image fixture failure', { status: 503 })
+        }
+        return new Response(Uint8Array.from(Buffer.from(probe.dataBase64, 'base64')), {
+          status: 200,
+          headers: {
+            'Content-Type': probe.mimeType,
+          },
+        })
+      }
+    }, input)
+  }
+
+  async remoteImageFetchProbe(): Promise<RemoteImageFetchProbe> {
+    return this.app.evaluate(() => ({
+      count: Number.parseInt(process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_COUNT ?? '0', 10),
+      lastUrl: process.env.OPENWAGGLE_E2E_REMOTE_IMAGE_FETCH_URL ?? null,
+    }))
+  }
+
+  /**
+   * Replaces only the network-derived VCS lookup with a deterministic IPC response.
+   *
+   * Local repository discovery and all renderer/preload behavior stay real. Restarting the app
+   * restores the production handler, so this cannot mask the production fetch implementation.
+   */
+  async installRemoteVcsStatusProbe(result: RemoteVcsStatusResult): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, probeResult) => {
+      ipcMain.removeHandler('git:vcs-status:remote')
+      ipcMain.handle('git:vcs-status:remote', () => probeResult)
+    }, result)
+  }
+
+  async cleanup(options: CleanupOptions = {}): Promise<void> {
     let evidenceError: unknown
     try {
       await this.captureEvidence(this.evidencePrefix)
     } catch (error) {
       evidenceError = error
     } finally {
-      await this.close().catch(() => undefined)
-      // A just-killed process tree can hold handles on the user-data dir for a moment;
-      // a bounded retry keeps that race from failing an otherwise-passing test.
-      let attempt = 0
-      while (true) {
-        try {
-          await fs.rm(this.userDataDir, { recursive: true, force: true })
-          break
-        } catch (error) {
-          if (attempt >= USER_DATA_REMOVE_RETRIES) {
-            throw error
-          }
-          attempt += 1
-          await this.currentWindow
-            .waitForTimeout(USER_DATA_REMOVE_RETRY_DELAY_MS)
-            .catch(() => undefined)
-        }
+      if (options.forceProcessTermination) {
+        console.warn('[electron-qa] exiting the temporary test app without running quit handlers')
+        await forceCloseElectronApplication(this.app)
+      } else {
+        await this.close().catch(() => undefined)
       }
+      // A just-killed process tree can hold handles on the user-data dir for a moment;
+      // Node's native recursive retry uses real timers and covers Windows EBUSY/EPERM races. A
+      // Playwright page timeout is not suitable here because the page has already been closed.
+      await fs.rm(this.userDataDir, {
+        recursive: true,
+        force: true,
+        maxRetries: USER_DATA_REMOVE_RETRIES,
+        retryDelay: USER_DATA_REMOVE_RETRY_DELAY_MS,
+      })
     }
     if (evidenceError !== undefined) {
       console.error('[electron-qa] final screenshot capture failed', evidenceError)
@@ -232,6 +389,13 @@ export class OpenWaggleApp {
   async resizeMainWindow(width: number, height: number): Promise<void> {
     await this.app.evaluate(
       ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height),
+      { width, height },
+    )
+  }
+
+  async resizeMainContent(width: number, height: number): Promise<void> {
+    await this.app.evaluate(
+      ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]?.setContentSize(size.width, size.height),
       { width, height },
     )
   }
@@ -388,6 +552,59 @@ export class OpenWaggleApp {
         String(sessionId) === probeInput.sessionId ? probeInput.detail : null,
       )
     }, input)
+  }
+
+  async holdSessionWorkspace(workspace: SessionWorkspace): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, snapshot) => {
+      const probeGlobal: typeof globalThis & { __openWaggleReleaseWorkspace?: () => void } = globalThis
+      const released = new Promise<void>(resolve => { probeGlobal.__openWaggleReleaseWorkspace = resolve })
+      ipcMain.removeHandler('sessions:get-workspace')
+      ipcMain.handle('sessions:get-workspace', async (_event, sessionId) => {
+        await released
+        return String(sessionId) === snapshot.tree.session.id ? snapshot : null
+      })
+    }, workspace)
+  }
+
+  async releaseSessionWorkspace(): Promise<void> {
+    await this.app.evaluate(() => {
+      const probeGlobal: typeof globalThis & { __openWaggleReleaseWorkspace?: () => void } = globalThis
+      probeGlobal.__openWaggleReleaseWorkspace?.()
+    })
+  }
+
+  async holdProjectSelection(projectPath: string): Promise<void> {
+    await this.app.evaluate(({ ipcMain }, targetPath) => {
+      const probeGlobal: typeof globalThis & {
+        __openWaggleProjectSelection?: { release: () => void; applied: boolean }
+      } = globalThis
+      const gate = Promise.withResolvers<void>()
+      let settingsReleased = false
+      probeGlobal.__openWaggleProjectSelection = { release: () => gate.resolve(), applied: false }
+      ipcMain.removeHandler('settings:update')
+      ipcMain.handle('settings:update', async () => { await gate.promise; settingsReleased = true; return { ok: true } })
+      ipcMain.removeHandler('project-config:get-preferences')
+      ipcMain.handle('project-config:get-preferences', (_event, requestedPath) => {
+        if (settingsReleased && requestedPath === targetPath && probeGlobal.__openWaggleProjectSelection) {
+          probeGlobal.__openWaggleProjectSelection.applied = true
+        }
+        return null
+      })
+    }, projectPath)
+  }
+
+  async releaseProjectSelection(): Promise<void> {
+    await this.app.evaluate(() => {
+      const probeGlobal: typeof globalThis & { __openWaggleProjectSelection?: { release: () => void } } = globalThis
+      probeGlobal.__openWaggleProjectSelection?.release()
+    })
+  }
+
+  async projectSelectionApplied(): Promise<boolean> {
+    return this.app.evaluate(() => {
+      const probeGlobal: typeof globalThis & { __openWaggleProjectSelection?: { applied: boolean } } = globalThis
+      return probeGlobal.__openWaggleProjectSelection?.applied ?? false
+    })
   }
 
   mainWindow(): MainWindowPage {

@@ -15,6 +15,10 @@ import type {
   ExtensionRuntimeRegisterContributionResult,
   ExtensionRuntimeUnregisterContributionPayload,
   ExtensionRuntimeUnregisterContributionResult,
+  ExtensionSessionResourcePublishPayload,
+  ExtensionSessionResourcePublishResult,
+  ExtensionSessionResourcesListPayload,
+  ExtensionSessionResourcesListResult,
   ExtensionSettingsGetResult,
   ExtensionSettingsGetSettingResult,
   ExtensionSettingsUpdatePayload,
@@ -89,6 +93,12 @@ export type ExtensionSettingsUpdateOperationResult =
   | ExtensionInvokeFailure
 export type ExtensionSettingsUpdateSettingOperationResult =
   | ExtensionOperationSuccess<ExtensionSettingsUpdateSettingResult>
+  | ExtensionInvokeFailure
+export type ExtensionSessionResourcesListOperationResult =
+  | ExtensionOperationSuccess<ExtensionSessionResourcesListResult>
+  | ExtensionInvokeFailure
+export type ExtensionSessionResourcePublishOperationResult =
+  | ExtensionOperationSuccess<ExtensionSessionResourcePublishResult>
   | ExtensionInvokeFailure
 
 export interface ExtensionSdkIdentity {
@@ -207,7 +217,27 @@ export interface ExtensionOpenWaggleSdk {
       input: ExtensionDocsResolveTopicPayload,
     ) => Promise<ExtensionInvokeResult<ExtensionDocsResolveTopicResult>>
   }
+  readonly resources: ExtensionOpenWaggleResourcesSdk
 }
+
+export type ExtensionSessionInvokeScope = Extract<
+  ExtensionInvokeScope,
+  { readonly kind: 'session' }
+>
+
+export interface ExtensionOpenWaggleResourcesSdk {
+  readonly list: (
+    scope: ExtensionSessionInvokeScope,
+    input?: ExtensionSessionResourcesListPayload,
+  ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcesListResult>>
+  readonly publish: (
+    scope: ExtensionSessionInvokeScope,
+    resource: ExtensionSessionResourcePublishPayload,
+  ) => Promise<ExtensionInvokeResult<ExtensionSessionResourcePublishResult>>
+}
+
+/** @deprecated Use {@link ExtensionOpenWaggleResourcesSdk}. */
+export type ExtensionOpenWaggleSessionResourcesSdk = ExtensionOpenWaggleResourcesSdk
 
 export interface ExtensionRuntimeContributionSdk {
   readonly registerContribution: (

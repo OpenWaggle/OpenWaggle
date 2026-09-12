@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSessionStore } from '@/features/sessions/state'
@@ -38,23 +38,57 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const activeDraftContextKey = useComposerStore((state) => state.activeDraftContextKey)
-  const contextKey = buildScopedComposerContextKey(
-    projectPath,
-    activeSessionId,
-    activeWorkspace,
-    draftBranch,
-  )
+  const pendingContextKey = `session:${activeSessionId}:pending`
+  const contextKey =
+    buildScopedComposerContextKey(projectPath, activeSessionId, activeWorkspace, draftBranch) ??
+    pendingContextKey
 
-  useEffect(() => {
-    if (!contextKey) {
+  useLayoutEffect(() => {
+    const previous = useComposerStore.getState()
+    if (previous.activeDraftContextKey === contextKey) return
+
+    // Lexical batches edits. Commit them through SyncPlugin before taking the draft
+    // snapshot or changing its owner, otherwise hydration can overwrite a pending edit.
+    previous.lexicalEditor?.read(() => undefined)
+    const store = useComposerStore.getState()
+
+    const pendingIsActive = store.activeDraftContextKey === pendingContextKey
+    // Hydration assigns an edited pending draft, including an intentionally empty one,
+    // to its branch. Preserve Lexical chips and selection when the same draft is visible.
+    if (
+      contextKey !== pendingContextKey &&
+      (store.editedPendingDrafts[pendingContextKey] ||
+        store.scopedDrafts[pendingContextKey] ||
+        (pendingIsActive &&
+          (store.input.length > 0 || store.attachments.length > 0 || store.selectedWagglePreset)))
+    ) {
+      const draft = pendingIsActive
+        ? {
+            input: store.input,
+            attachments: store.attachments,
+            wagglePreset: store.selectedWagglePreset,
+          }
+        : store.switchScopedDraftContext(pendingContextKey, undefined, currentDraftOverride())
+      store.setActiveDraftContextKey(contextKey)
+      store.saveScopedDraft(contextKey, draft)
+      store.clearScopedDraft(pendingContextKey)
+      if (!pendingIsActive) syncEditorDraft(draft)
       return
     }
 
-    const appliedDraft = useComposerStore
-      .getState()
-      .switchScopedDraftContext(contextKey, undefined, currentDraftOverride())
+    const appliedDraft = store.switchScopedDraftContext(
+      contextKey,
+      store.activeDraftContextKey === null
+        ? {
+            input: store.input,
+            attachments: store.attachments,
+            wagglePreset: store.selectedWagglePreset,
+          }
+        : undefined,
+      currentDraftOverride(),
+    )
     syncEditorDraft(appliedDraft)
-  }, [contextKey])
+  }, [contextKey, pendingContextKey])
 
   useEffect(() => {
     return () => {
@@ -72,9 +106,9 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
     }
   }, [])
 
-  // A visible composer can precede the selected Session's workspace response.
-  // Keep editing/submission blocked until restoring that Session's draft finishes.
-  return contextKey !== null && activeDraftContextKey === contextKey
+  // A session-owned pending draft remains editable before workspace hydration. Do not
+  // expose the previous Session's draft while the layout effect switches ownership.
+  return activeDraftContextKey === contextKey
 }
 
 function buildScopedComposerContextKey(

@@ -5,6 +5,7 @@ import {
   useBrowserPreviewFloatingStore,
 } from '@/features/browser-preview'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { assertWorkspaceOwnerAvailable } from '@/shared/lib/workspace-owner-handoff'
 import {
   type BrowserPreviewTabState,
   browserPreviewTitle,
@@ -36,6 +37,7 @@ export function openBrowser(
   url: string,
   profileId = DEFAULT_BROWSER_PROFILE_ID,
 ) {
+  assertWorkspaceOwnerAvailable(ownerKey)
   const normalizedUrl = normalizeBrowserPreviewUrl(url)
   if (normalizedUrl === null) throw new Error('Only http and https links can be previewed.')
   const existing = get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP
@@ -72,6 +74,7 @@ export function newBrowser(
   ownerKey: string,
   profileId = DEFAULT_BROWSER_PROFILE_ID,
 ) {
+  assertWorkspaceOwnerAvailable(ownerKey)
   if (ownerKey.length === 0) throw new Error('Open a project before creating a browser tab.')
   const existing = get().groups[ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP
   const tab = createBrowserPreviewLauncherTab(ownerKey, profileId)
@@ -113,6 +116,7 @@ export function materializeBrowser(
   url: string,
   profileId: string,
 ) {
+  assertWorkspaceOwnerAvailable(ownerKey)
   const normalizedUrl = normalizeBrowserPreviewUrl(url)
   if (normalizedUrl === null) throw new Error('Only http and https links can be previewed.')
   const group = get().groups[ownerKey]
@@ -146,6 +150,7 @@ export function upsertBrowserRequest(
   get: WorkspacePanelGet,
   request: BrowserPreviewOpenRequest,
 ) {
+  assertWorkspaceOwnerAvailable(request.ownerKey)
   const existing = get().groups[request.ownerKey] ?? EMPTY_WORKSPACE_PANEL_GROUP
   const current = existing.browserTabs.find((tab) => tab.id === request.previewId)
   if (

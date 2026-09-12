@@ -133,9 +133,9 @@ export default {
   id: 'example-extension',
   name: 'Example Extension',
   version: '0.1.0',
-  sdk: { openwaggle: '>=0.2.0 <0.3.0' },
-  sourceFiles: ['package.json', 'src/settings.ts'],
-  builtArtifacts: ['dist/settings.js'],
+  sdk: { openwaggle: '>=0.1.0 <0.2.0' },
+  sourceFiles: ['package.json', 'src/settings.ts', 'src/results.ts'],
+  builtArtifacts: ['dist/settings.js', 'dist/results.js'],
   install: { source: 'prebuilt' },
   capabilities: [
     {
@@ -143,8 +143,21 @@ export default {
       methods: ['get', 'set'],
       scopes: ['project'],
     },
+    {
+      id: 'openwaggle.resources',
+      methods: ['list-resources', 'publish-resource'],
+      scopes: ['session'],
+    },
   ],
   contributions: {
+    commands: [
+      {
+        id: 'example.refresh',
+        title: 'Refresh extension status',
+        capability: 'openwaggle.storage',
+        method: 'get',
+      },
+    ],
     settingsSections: [
       {
         id: 'example.settings',
@@ -156,9 +169,66 @@ export default {
         methods: ['get', 'set'],
       },
     ],
+    sidePanels: [
+      {
+        id: 'example.results',
+        title: 'Example Results',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
+        entry: 'dist/results.js',
+        capability: 'openwaggle.resources',
+        methods: ['list-resources', 'publish-resource'],
+      },
+    ],
+    sessionSummarySections: [
+      {
+        id: 'example.session-summary',
+        title: 'Example Session Status',
+        placement: 'details',
+        rows: [
+          { id: 'status', label: 'Status', value: 'Ready' },
+          {
+            id: 'open-results',
+            label: 'Open results',
+            action: { family: 'sidePanels', contributionId: 'example.results' },
+          },
+        ],
+      },
+    ],
   },
 } satisfies OpenWaggleExtensionManifest
 ```
+
+The npm package version and the manifest's `sdk.openwaggle` range are separate contracts. The range above targets OpenWaggle's current `0.1` host SDK and is accepted by extension discovery.
+
+## Session resources
+
+Extensions can publish explicit session Sources and Outputs through the brokered SDK. The calling contribution and package manifest must declare `openwaggle.resources`, `list-resources` and/or `publish-resource`, and `session` scope.
+
+```ts
+import type { OpenWaggleExtensionMountContext } from '@openwaggle/extension-sdk'
+
+export async function publishPreview(context: OpenWaggleExtensionMountContext) {
+  const projectPath = context.projectPaths[0]
+  if (!context.sessionId || !projectPath) return
+  const scope = { kind: 'session' as const, projectPath, sessionId: context.sessionId }
+
+  const published = await context.sdk.openWaggle.resources.publish(scope, {
+    key: 'preview-site',
+    title: 'Preview site',
+    kind: 'link',
+    role: 'output',
+    locator: 'https://preview.example.com',
+  })
+  if (!published.ok) return published
+
+  return context.sdk.openWaggle.resources.list(scope)
+}
+```
+
+`publish` accepts only credential-free HTTPS `image` or `link` locators with a `source` or `output` role. Reuse a stable `key`; publishing the same key, kind, role, and normalized locator from one contribution is idempotent. Build the scope from the mounted `context.sessionId` and project path, not extension-controlled input. The broker verifies both values, so callers cannot reach another open or archived session by changing the scope payload.
+
+`list` returns an operation result. On success, `value.resources` contains display-safe metadata: host resource id, title, kind, MIME type, availability, and Source/Output flags. Original locators, managed paths, occurrence history, and canonical keys remain private to the host. A declarative Session Summary row may use a returned resource id to open the same Resource Browser or image gallery as first-party resources.
 
 ## Theme Contract
 

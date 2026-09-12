@@ -1,11 +1,11 @@
-import { RepositoryPath, WorkingPath } from '@shared/types/brand'
+import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
 import { useDiffScopeStore } from '../../state/diff-scope-store'
 import { useReviewStore } from '../../state/review-store'
-import { DiffPanel } from '../DiffPanel'
+import { DiffPanel, requestStackedAction } from '../DiffPanel'
 import { fileDiff, gitStatus } from './diff-panel.test-harness'
 
 vi.mock('@pierre/diffs/react', async () => ({
@@ -106,6 +106,7 @@ describe('commit scope', () => {
       action: 'commit',
       branch: { status: 'unchanged', name: 'main' },
       changeRequest: null,
+      commit: { commitHash: 'abc123', summary: 'Test commit' },
     })
   })
 
@@ -181,4 +182,55 @@ describe('commit scope', () => {
       await screen.findByText('1 changed file in the working tree will be committed.'),
     ).toBeInTheDocument()
   })
+
+  it('runs the commit only against the Diff panel owning session', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [] })
+    render(
+      <DiffPanel
+        workingPath={WORKING_PATH}
+        repositoryPath={RepositoryPath('/repo')}
+        sessionId={SessionId('session-owner')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: /Commit/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Commit message' }), {
+      target: { value: 'Ship it' },
+    })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() =>
+      expect(api.runStackedGitAction).toHaveBeenCalledWith(
+        WORKING_PATH,
+        expect.objectContaining({ sessionId: SessionId('session-owner') }),
+      ),
+    )
+  })
+})
+
+describe('change-request quick actions', () => {
+  it.each(['create_pr', 'commit_push_pr'] as const)(
+    'routes %s through the reviewed composer instead of direct mutation',
+    (action) => {
+      const run = vi.fn()
+      const onCreateChangeRequest = vi.fn()
+      requestStackedAction({
+        action,
+        commitPaths: {
+          paths: [WORKING_TREE_FILE],
+          changedFileCount: 1,
+          isLoading: false,
+          error: null,
+        },
+        run,
+        showToast: vi.fn(),
+        onNeedsMessage: vi.fn(),
+        onCreateChangeRequest,
+      })
+
+      expect(onCreateChangeRequest).toHaveBeenCalledOnce()
+      expect(run).not.toHaveBeenCalled()
+    },
+  )
 })

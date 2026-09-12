@@ -32,6 +32,8 @@ vi.mock('../../hooks/useMessageCollapse', () => ({
   useMessageCollapse: () => mockCollapse.current,
 }))
 
+vi.mock('@/features/session-summary', () => ({ SessionMessageImages: () => null }))
+
 vi.mock('../StreamingText', () => ({
   StreamingText: ({ text }: { text: string }) => <div data-testid="streaming-text">{text}</div>,
 }))
@@ -42,11 +44,10 @@ vi.mock('@/shared/ui/StructuredPayload', () => ({
   ),
 }))
 
-vi.mock('../ToolCallRouter', () => ({
-  ToolCallRouter: ({ part }: { part: { name: string } }) => (
-    <div data-testid="tool-call-router">{part.name}</div>
-  ),
-}))
+function ToolCallRouter({ part }: { part: { name: string } }) {
+  return <div data-testid="tool-call-router">{part.name}</div>
+}
+vi.mock('../ToolCallRouter', () => ({ ToolCallRouter }))
 
 vi.mock('../AgentLabel', () => ({
   AgentLabel: ({

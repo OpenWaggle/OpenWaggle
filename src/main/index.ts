@@ -3,7 +3,10 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { cleanupPendingSessionResourcesSafely } from './application/session-resource-cleanup'
+import { openSessionResourceContentStream } from './application/session-resource-content'
 import { installDevToolsShortcut } from './application-menu'
+import { registerApplicationProtocols } from './application-protocols'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import {
   configureDesktopUiAfterReady,
@@ -13,21 +16,16 @@ import {
 } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
-import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
-import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
-import { openExternalFromRenderer } from './external-navigation'
+import { installExternalNavigationGuard } from './external-navigation'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
-import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
-import { isTrustedRendererDocument } from './renderer-document-trust'
 import {
   configureInlineVisualizationProcessIsolation,
   devRendererUrl,
   INDEX_HTML,
   isTrustedRendererRequest,
   RENDERER_PROTOCOL_ORIGIN,
-  registerRendererProtocolOnce,
   registerRendererScheme,
   rendererUrlWithAutomationIdentity,
 } from './renderer-protocol'
@@ -74,9 +72,7 @@ let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null 
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 
 function startupMark(label: string) {
-  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
-    return
-  }
+  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) return
 
   logger.info('Startup timing', {
     label,
@@ -155,6 +151,9 @@ async function bootstrapServicesAndWindow() {
   await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   startupMark('interrupted-runs-reconciled')
 
+  await runtimeModule.runAppEffect(cleanupPendingSessionResourcesSafely())
+  startupMark('session-resource-cleanup-reconciled')
+
   const trustedMainActivationModule = await import(
     './application/extension-trusted-main-activation-service'
   )
@@ -165,11 +164,13 @@ async function bootstrapServicesAndWindow() {
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')
 
-  registerRendererProtocolOnce()
-  registerExtensionFrameProtocolOnce()
-  registerExtensionRuntimeProtocolOnce()
-  registerInlineVisualizationProtocolOnce({
-    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  registerApplicationProtocols({
+    readInlineVisualizationSource: (input) =>
+      runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+    readSessionResourceContent: (input) =>
+      runtimeModule.runAppEffect(
+        openSessionResourceContentStream(input.sessionId, input.resourceId),
+      ),
   })
   startupMark('protocol-handlers-registered')
 
@@ -218,18 +219,8 @@ function createWindow() {
     mainWindow.webContents.send('window:fullscreen-changed', false)
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    openExternalFromRenderer(details.url)
-    return { action: 'deny' }
-  })
-
   // Prevent in-app navigation — all external URLs open in the user's default browser
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!isTrustedRendererDocument(url)) {
-      event.preventDefault()
-      openExternalFromRenderer(url)
-    }
-  })
+  installExternalNavigationGuard(mainWindow.webContents)
   installInlineVisualizationNavigationGuard(mainWindow.webContents)
 
   const mediaPermissions = new Set(['media', 'microphone'])

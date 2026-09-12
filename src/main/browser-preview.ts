@@ -33,7 +33,7 @@ export { browserPreviewShortcutForInput } from './browser-preview-policy'
 
 export class BrowserPreviewManager {
   private readonly records = new BrowserPreviewRecordRegistry({
-    disposeRecord: (record) => this.lifecycle.dispose(record),
+    disposeRecord: (record) => this.lifecycle.retire(record),
   })
   private readonly controlCoordinator = new BrowserPreviewControlCoordinator({
     isLive: (record) => this.records.isLive(record),
@@ -163,8 +163,8 @@ export class BrowserPreviewManager {
     return this.navigation.stop(this.requirePreview(sender, previewId))
   }
 
-  close(sender: WebContents, previewId: string): void {
-    this.lifecycle.dispose(this.requirePreview(sender, previewId))
+  close(sender: WebContents, previewId: string): Promise<void> {
+    return this.lifecycle.close(this.records.findForDisposal(sender, previewId))
   }
 
   replaceForCapacity(

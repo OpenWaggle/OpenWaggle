@@ -15,6 +15,7 @@ const MAIN_BRANCH_RESULT: GitBranchListResult = {
   branches: [
     {
       name: 'main',
+      localName: 'main',
       fullName: 'main',
       isCurrent: true,
       isRemote: false,
@@ -101,6 +102,7 @@ describe('useSessionContextRow project-first setup', () => {
           branches: [
             {
               name: 'origin/main',
+              localName: 'main',
               fullName: 'origin/main',
               isCurrent: false,
               isRemote: true,

@@ -1,18 +1,35 @@
 import type {
+  ChangeRequestDetailsResult,
   ChangeRequestListResult,
+  ChangeRequestMergeMethod,
   ChangeRequestResult,
-  OpenChangeRequestPayload,
+  MergeChangeRequestResult,
   SourceControlAuthResult,
   SourceControlFailure,
+  SourceControlRepositoryIdentity,
   VcsChangeRequest,
 } from '@shared/types/git'
 import type { SourceControlProvider } from '../../ports/source-control-provider'
 import { parseGlabAuthStatus } from './auth-parse'
-import { mapGlabMergeRequest } from './change-request-parse'
+import { mapGlabMergeRequest, mapGlabMergeRequestDetails } from './change-request-parse'
 import { type CliResult, runCli } from './cli-runner'
+import { createGitlabMergeRequest } from './glab-cli-merge-request-creation'
+import {
+  gitlabRepositorySelector,
+  repositoryBoundChangeRequestReference,
+  resolveRepositoryChangeRequestIdentity,
+} from './repository-context'
 
 function cliMissingFailure(): SourceControlFailure {
   return { ok: false, code: 'cli-missing', message: 'GitLab CLI (glab) is not installed.' }
+}
+
+function invalidRepositoryFailure(): SourceControlFailure {
+  return {
+    ok: false,
+    code: 'invalid-target',
+    message: 'GitLab CLI returned a merge request outside the approved repository.',
+  }
 }
 
 function classifyFailure(result: CliResult): SourceControlFailure {
@@ -35,61 +52,174 @@ function classifyFailure(result: CliResult): SourceControlFailure {
   }
 }
 
-async function viewMergeRequest(projectPath: string, ref: string): Promise<ChangeRequestResult> {
-  const result = await runCli('glab', ['mr', 'view', ref, '-F', 'json'], projectPath)
+function verifiedMergeRequest<TChangeRequest extends VcsChangeRequest>(
+  repository: SourceControlRepositoryIdentity,
+  changeRequest: TChangeRequest,
+): TChangeRequest | null {
+  const identity = resolveRepositoryChangeRequestIdentity(repository, changeRequest.url)
+  return identity ? { ...changeRequest, url: identity.url } : null
+}
+
+async function authStatus(
+  repository: SourceControlRepositoryIdentity,
+  projectPath: string,
+): Promise<SourceControlAuthResult> {
+  const result = await runCli(
+    'glab',
+    ['auth', 'status', '--hostname', repository.host],
+    projectPath,
+  )
+  if (result.missing) return cliMissingFailure()
+  const status = parseGlabAuthStatus(result.stdout, result.stderr)
+  if (status.authenticated && status.host?.toLowerCase() !== repository.host.toLowerCase()) {
+    return invalidRepositoryFailure()
+  }
+  return { ok: true, status }
+}
+
+async function viewMergeRequest(
+  repository: SourceControlRepositoryIdentity,
+  projectPath: string,
+  ref: string,
+): Promise<ChangeRequestResult> {
+  const boundReference = repositoryBoundChangeRequestReference(repository, ref)
+  if (!boundReference) return invalidRepositoryFailure()
+  const result = await runCli(
+    'glab',
+    ['mr', 'view', boundReference, '--repo', gitlabRepositorySelector(repository), '-F', 'json'],
+    projectPath,
+  )
   if (result.code !== 0) return classifyFailure(result)
   const changeRequest = mapGlabMergeRequest(safeJsonParse(result.stdout))
   if (!changeRequest) {
     return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
   }
-  return { ok: true, changeRequest }
+  const verified = verifiedMergeRequest(repository, changeRequest)
+  return verified ? { ok: true, changeRequest: verified } : invalidRepositoryFailure()
 }
 
-export const gitlabProvider: SourceControlProvider = {
-  id: 'gitlab',
-  authStatus: async (projectPath: string): Promise<SourceControlAuthResult> => {
-    const result = await runCli('glab', ['auth', 'status'], projectPath)
-    if (result.missing) return cliMissingFailure()
-    return { ok: true, status: parseGlabAuthStatus(result.stdout, result.stderr) }
-  },
-  openChangeRequest: async (projectPath: string, payload: OpenChangeRequestPayload) => {
-    const args = [
+async function viewMergeRequestDetails(
+  repository: SourceControlRepositoryIdentity,
+  projectPath: string,
+  ref: string,
+): Promise<ChangeRequestDetailsResult> {
+  const boundReference = repositoryBoundChangeRequestReference(repository, ref)
+  if (!boundReference) return invalidRepositoryFailure()
+  const result = await runCli(
+    'glab',
+    [
       'mr',
-      'create',
-      '--source-branch',
-      payload.headRef,
-      '--target-branch',
-      payload.baseRef,
-      '--title',
-      payload.title,
-      '--description',
-      payload.body ?? '',
-    ]
-    if (payload.draft) args.push('--draft')
-    const result = await runCli('glab', args, projectPath)
-    if (result.code !== 0) return classifyFailure(result)
-    return viewMergeRequest(projectPath, payload.headRef)
-  },
-  resolveChangeRequestForRef: (projectPath: string, headRef: string) =>
-    viewMergeRequest(projectPath, headRef),
-  listChangeRequests: async (projectPath: string): Promise<ChangeRequestListResult> => {
-    const result = await runCli('glab', ['mr', 'list', '-F', 'json'], projectPath)
-    if (result.code !== 0) return classifyFailure(result)
-    const parsed = safeJsonParse(result.stdout)
-    const changeRequests: VcsChangeRequest[] = []
-    if (Array.isArray(parsed)) {
-      for (const raw of parsed) {
-        const changeRequest = mapGlabMergeRequest(raw)
-        if (changeRequest) changeRequests.push(changeRequest)
-      }
+      'view',
+      boundReference,
+      '--repo',
+      gitlabRepositorySelector(repository),
+      '-F',
+      'json',
+      '--comments',
+      '--per-page',
+      '100',
+    ],
+    projectPath,
+  )
+  if (result.code !== 0) return classifyFailure(result)
+  const changeRequest = mapGlabMergeRequestDetails(safeJsonParse(result.stdout))
+  if (!changeRequest) {
+    return { ok: false, code: 'no-change-request', message: 'No merge request found for ref.' }
+  }
+  const verified = verifiedMergeRequest(repository, changeRequest)
+  return verified ? { ok: true, changeRequest: verified } : invalidRepositoryFailure()
+}
+
+async function mergeMergeRequest(
+  repository: SourceControlRepositoryIdentity,
+  projectPath: string,
+  reference: string,
+  method: ChangeRequestMergeMethod,
+  expectedHeadCommit: string,
+): Promise<MergeChangeRequestResult> {
+  const boundReference = repositoryBoundChangeRequestReference(repository, reference)
+  if (!boundReference) return invalidRepositoryFailure()
+  const args = [
+    'mr',
+    'merge',
+    boundReference,
+    '--repo',
+    gitlabRepositorySelector(repository),
+    '--sha',
+    expectedHeadCommit,
+    '--yes',
+  ]
+  if (method === 'squash') args.push('--squash')
+  if (method === 'rebase') args.push('--rebase')
+  const result = await runCli('glab', args, projectPath)
+  if (result.code !== 0) return classifyFailure(result)
+  return viewMergeRequestDetails(repository, projectPath, boundReference)
+}
+
+async function listMergeRequests(
+  repository: SourceControlRepositoryIdentity,
+  projectPath: string,
+): Promise<ChangeRequestListResult> {
+  const result = await runCli(
+    'glab',
+    [
+      'mr',
+      'list',
+      '--repo',
+      gitlabRepositorySelector(repository),
+      '--per-page',
+      '50',
+      '-F',
+      'json',
+    ],
+    projectPath,
+  )
+  if (result.code !== 0) return classifyFailure(result)
+  const parsed = safeJsonParse(result.stdout)
+  const changeRequests: VcsChangeRequest[] = []
+  if (Array.isArray(parsed)) {
+    for (const raw of parsed) {
+      const changeRequest = mapGlabMergeRequest(raw)
+      if (!changeRequest) continue
+      const verified = verifiedMergeRequest(repository, changeRequest)
+      if (!verified) return invalidRepositoryFailure()
+      changeRequests.push(verified)
     }
-    return { ok: true, changeRequests }
-  },
-  checkoutChangeRequest: async (projectPath: string, reference: string) => {
-    const result = await runCli('glab', ['mr', 'checkout', reference], projectPath)
-    if (result.code !== 0) return classifyFailure(result)
-    return { ok: true, reference }
-  },
+  }
+  return { ok: true, changeRequests }
+}
+
+export function createGitlabProvider(
+  repository: SourceControlRepositoryIdentity,
+): SourceControlProvider {
+  return {
+    id: 'gitlab',
+    authStatus: (projectPath) => authStatus(repository, projectPath),
+    openChangeRequest: (projectPath, payload) =>
+      createGitlabMergeRequest(repository, projectPath, payload, {
+        classifyFailure,
+        invalidRepositoryFailure,
+        viewMergeRequest: (path, ref) => viewMergeRequest(repository, path, ref),
+      }),
+    resolveChangeRequestForRef: (projectPath: string, headRef: string) =>
+      viewMergeRequest(repository, projectPath, headRef),
+    listChangeRequests: (projectPath) => listMergeRequests(repository, projectPath),
+    getChangeRequestDetails: (projectPath, reference) =>
+      viewMergeRequestDetails(repository, projectPath, reference),
+    mergeChangeRequest: (projectPath, reference, method, expectedHeadCommit) =>
+      mergeMergeRequest(repository, projectPath, reference, method, expectedHeadCommit),
+    checkoutChangeRequest: async (projectPath: string, reference: string) => {
+      const boundReference = repositoryBoundChangeRequestReference(repository, reference)
+      if (!boundReference) return invalidRepositoryFailure()
+      const result = await runCli(
+        'glab',
+        ['mr', 'checkout', boundReference, '--repo', gitlabRepositorySelector(repository)],
+        projectPath,
+      )
+      if (result.code !== 0) return classifyFailure(result)
+      return { ok: true, reference: boundReference }
+    },
+  }
 }
 
 function safeJsonParse(text: string): unknown {

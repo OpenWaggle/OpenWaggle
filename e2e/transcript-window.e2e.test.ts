@@ -23,6 +23,7 @@ const SHORT_TITLE = 'Short session'
 const LONG_MESSAGE_COUNT = 300
 const SHORT_MESSAGE_COUNT = 4
 const INITIAL_ROW_WINDOW = 40
+const EARLIER_PAGE_SIZE = 100
 
 function message(prefix: string, index: number, createdAt: number) {
   return {
@@ -63,13 +64,14 @@ test('a long transcript opens at its newest end and can be walked back', async (
     ])
     await app.restart()
 
-    const { page } = app.mainWindow()
-    const sidebarRow = (title: string) =>
-      page.locator('[data-qa="sidebar-session-row"]').filter({ hasText: title })
+    const mainWindow = app.mainWindow()
+    const { page } = mainWindow
     const loadEarlier = page.getByRole('button', { name: /Load earlier messages/ })
 
     await test.step('the newest message is shown and the oldest is not built', async () => {
-      await sidebarRow(LONG_TITLE).click()
+      // The store can paint the selected transcript before its route commits. Wait for the
+      // mounted session route so pagination never targets the outgoing root surface.
+      await mainWindow.openThread(LONG_TITLE)
       await expect(page.getByText(`history line ${LONG_MESSAGE_COUNT - 1}`)).toBeVisible()
       await expect(page.getByText('history line 0')).toHaveCount(0)
       await expect(loadEarlier).toBeVisible()
@@ -82,25 +84,27 @@ test('a long transcript opens at its newest end and can be walked back', async (
     })
 
     await test.step('the whole history is reachable a page at a time', async () => {
-      // 300 rows behind a 40 row window and 100 row pages: three presses reach the start.
-      const MAX_PAGES = 6
-      for (let page_ = 0; page_ < MAX_PAGES; page_ += 1) {
-        if ((await loadEarlier.count()) === 0) break
+      const rows = page.locator('[data-chat-content-frame="transcript-row"]')
+      for (let hidden = LONG_MESSAGE_COUNT - INITIAL_ROW_WINDOW; hidden > 0; ) {
+        await expect(loadEarlier).toHaveText(`Load earlier messages (${hidden} above)`)
         await loadEarlier.click()
+        hidden = Math.max(0, hidden - EARLIER_PAGE_SIZE)
+        await expect(rows).toHaveCount(LONG_MESSAGE_COUNT - hidden)
+        await expect(page.getByText(`history line ${hidden}`, { exact: true })).toBeVisible()
       }
       await expect(loadEarlier).toHaveCount(0)
-      await expect(page.getByText('history line 0')).toBeVisible()
+      await expect(page.getByText('history line 0', { exact: true })).toBeVisible()
     })
 
     await test.step('a short session needs no control and shows everything', async () => {
-      await sidebarRow(SHORT_TITLE).click()
+      await mainWindow.openThread(SHORT_TITLE)
       await expect(page.getByText(`history line ${SHORT_MESSAGE_COUNT - 1}`)).toBeVisible()
       await expect(page.getByText('history line 0')).toBeVisible()
       await expect(loadEarlier).toHaveCount(0)
     })
 
     await test.step('returning to the long session opens at its newest end again', async () => {
-      await sidebarRow(LONG_TITLE).click()
+      await mainWindow.openThread(LONG_TITLE)
       await expect(page.getByText(`history line ${LONG_MESSAGE_COUNT - 1}`)).toBeVisible()
       // The expanded window from the earlier visit must not persist.
       await expect(loadEarlier).toBeVisible()

@@ -6,6 +6,7 @@ import type {
 import { fromPartial } from '@total-typescript/shoehorn'
 import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { quarantineBrowserPreviewContents } from '../browser-preview-quarantine'
 import { BrowserPreviewRecordingRequestBroker } from '../browser-preview-recording-request-broker'
 import type { BrowserPreviewRecord } from '../browser-preview-records'
 
@@ -63,6 +64,30 @@ afterEach(() => {
 })
 
 describe('BrowserPreviewRecordingRequestBroker', () => {
+  it.each(['start', 'stop'] as const)(
+    'rejects %s results settled immediately before quarantine',
+    async (action) => {
+      const fixture = makeFixture()
+      const pending = fixture.broker[action](fixture.record)
+      const rejected = expect(pending).rejects.toThrow('retired')
+      const request = requireRequest(fixture.currentRequest())
+      if (action === 'start')
+        fixture.broker.respond(fixture.sender, {
+          requestId: request.requestId,
+          previewId: request.previewId,
+          status: 'started',
+        })
+      else
+        fixture.broker.respond(fixture.sender, {
+          requestId: request.requestId,
+          previewId: request.previewId,
+          status: 'stopped',
+          artifact,
+        })
+      quarantineBrowserPreviewContents(fixture.record.view.webContents)
+      await rejected
+    },
+  )
   it('settles start only after the exact owner acknowledges an active recorder', async () => {
     const fixture = makeFixture()
     let settled = false

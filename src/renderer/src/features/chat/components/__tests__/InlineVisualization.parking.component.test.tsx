@@ -1,7 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
-import { act } from 'react'
+import { act, Profiler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearInlineVisualizationStatesForTests,
@@ -59,12 +59,22 @@ describe('InlineVisualization frame parking', () => {
 
   it('releases a distant frame while preserving its measured transcript height', async () => {
     const sessionId = SessionId('session-visualization-1')
+    const contextsAtUnavailableCommit: ReturnType<typeof latestInlineVisualizationContext>[] = []
     const view = render(
-      <InlineVisualization
-        sessionId={sessionId}
-        interactionSessionId={sessionId}
-        reference={{ path: '/repo/parked-map.html', title: 'Parked map' }}
-      />,
+      <Profiler
+        id="parking"
+        onRender={() => {
+          if (screen.queryByRole('alert')) {
+            contextsAtUnavailableCommit.push(latestInlineVisualizationContext(sessionId))
+          }
+        }}
+      >
+        <InlineVisualization
+          sessionId={sessionId}
+          interactionSessionId={sessionId}
+          reference={{ path: '/repo/parked-map.html', title: 'Parked map' }}
+        />
+      </Profiler>,
     )
     expect(apiMock.registerInlineVisualizationFrame).not.toHaveBeenCalled()
     act(() => dispatchIntersection(true))
@@ -125,6 +135,8 @@ describe('InlineVisualization frame parking', () => {
     )
     act(() => dispatchIntersection(true))
     await screen.findByRole('alert')
+    expect(contextsAtUnavailableCommit.length).toBeGreaterThan(0)
+    expect(contextsAtUnavailableCommit).toEqual(contextsAtUnavailableCommit.map(() => null))
     expect(latestInlineVisualizationContext(sessionId)).toBeNull()
     view.unmount()
     expect(latestInlineVisualizationContext(sessionId)).toBeNull()

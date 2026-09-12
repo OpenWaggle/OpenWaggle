@@ -10,5 +10,6 @@ export {
   hasAnyActiveRun,
   isSessionRemovalFenced,
   listActiveCompactions,
+  requestSessionRunCancellation,
   waitForSessionRuns,
 } from '../application/active-session-runs'

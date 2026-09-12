@@ -5,8 +5,10 @@ import { ActiveProjectChangeService } from '../../ports/active-project-change-se
 import { DocsBundleService } from '../../ports/docs-bundle-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
+import { EmptySessionResourceRepositoryTestLayer } from './empty-session-resource-repository-test-layer'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
@@ -42,9 +44,11 @@ function makeSessionLayers() {
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.succeed(makeSessionDetail(PROJECT_PATH)),
       getOptional: () => Effect.succeed(null),
+      getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
+      getDeletionBlocker: () => Effect.succeed(null),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,
@@ -61,6 +65,9 @@ function makeSessionLayers() {
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),
+      listResourceProjectionPage: () =>
+        Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+      getResourceProjectionNodes: () => Effect.succeed([]),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,
@@ -74,6 +81,28 @@ function makeSessionLayers() {
       listActiveRunsForRecovery: () => Effect.succeed([]),
       markActiveRunInterrupted: () => Effect.void,
     }),
+    Layer.succeed(SessionResourceRepository, {
+      upsert: () => Effect.dieMessage('resource upsert is not configured for this test'),
+      list: () => Effect.succeed([]),
+      listPage: () =>
+        Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+      findById: () => Effect.succeed(null),
+      findByOccurrence: () => Effect.succeed(null),
+      findByLocator: () => Effect.succeed(null),
+      locateImage: () => Effect.succeed(null),
+      findByCanonicalKey: () => Effect.succeed(null),
+      rekey: () => Effect.dieMessage('resource rekey is not configured for this test'),
+      hasOccurrence: () => Effect.succeed(false),
+      hasOccurrences: () => Effect.succeed(new Set()),
+      findByOccurrences: () => Effect.succeed([]),
+      listByNodeIds: () => Effect.succeed([]),
+      listByNodeIdsPage: () =>
+        Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),
+      listManagedNodeIds: () => Effect.succeed([]),
+      getContentLocation: () => Effect.succeed(null),
+      getBackfillCursor: () => Effect.succeed(-1),
+      advanceBackfillCursor: () => Effect.void,
+    }),
   )
 }
 
@@ -86,4 +115,5 @@ export const TrustedMainActivationDependenciesTestLayer = Layer.mergeAll(
   makeExtensionStorageRepositoryLayer([]),
   makeBrokerSettingsLayer(PROJECT_PATH),
   makeSessionLayers(),
+  EmptySessionResourceRepositoryTestLayer,
 )

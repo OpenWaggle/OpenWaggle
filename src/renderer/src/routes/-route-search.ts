@@ -1,7 +1,13 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
+import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, SETTINGS_TABS, type SettingsTab } from '@/shell/ui-store'
 
-export type ChatBuiltInRightPanel = 'diff' | 'file' | 'session-tree'
+export type ChatBuiltInRightPanel =
+  | 'change-request'
+  | 'diff'
+  | 'file'
+  | 'resources'
+  | 'session-tree'
 export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
@@ -17,10 +23,14 @@ export interface ChatRouteSearch {
   readonly panel?: ChatRightPanel
   readonly filePath?: string
   readonly fileLine?: number
+  readonly resourceView?: 'sources' | 'outputs'
+  readonly resourceId?: string
   readonly sidePanelExtensionId?: string
   readonly sidePanelId?: string
   readonly sidePanelPackagePath?: string
   readonly sidePanelContentHash?: string
+  readonly changeRequestUrl?: string
+  readonly changeRequestSessionId?: string
 }
 
 export interface ChatBuiltInRouteSearch extends ChatRouteSearch {
@@ -54,7 +64,14 @@ function parseSearchToken(value: unknown) {
 
 function parseRightPanel(value: unknown) {
   return isMatching(
-    P.union('diff', 'file', 'session-tree', EXTENSION_SIDE_PANEL_ROUTE_PANEL),
+    P.union(
+      'change-request',
+      'diff',
+      'file',
+      'resources',
+      'session-tree',
+      EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+    ),
     value,
   )
     ? value
@@ -66,6 +83,10 @@ function parseFileLine(value: unknown) {
   return typeof numericValue === 'number' && Number.isSafeInteger(numericValue) && numericValue > 0
     ? numericValue
     : undefined
+}
+
+function parseResourceView(value: unknown) {
+  return isMatching(P.union('sources', 'outputs'), value) ? value : undefined
 }
 
 function parseBaseChatSearch(search: Record<string, unknown>): ChatRouteSearch {
@@ -112,9 +133,54 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
     return filePath ? { ...base, panel, filePath, ...(fileLine ? { fileLine } : {}) } : base
   }
 
+  if (panel === 'resources') {
+    const resourceView = parseResourceView(search.resourceView)
+    const resourceId = parseSearchToken(search.resourceId)
+    return {
+      ...base,
+      panel,
+      ...(resourceView ? { resourceView } : {}),
+      ...(resourceId ? { resourceId } : {}),
+    }
+  }
+
+  if (panel === 'change-request') {
+    const changeRequestUrl = parseSearchToken(search.changeRequestUrl)
+    const changeRequestSessionId = parseSearchToken(search.changeRequestSessionId)
+    return changeRequestUrl && changeRequestSessionId
+      ? { ...base, panel, changeRequestUrl, changeRequestSessionId }
+      : base
+  }
+
   return {
     ...base,
     ...(panel ? { panel } : {}),
+  }
+}
+
+/** Prevent a request route retained during navigation from binding to another opened Session. */
+export function changeRequestUrlFromSearch(
+  search: ChatRouteSearch,
+  openedSessionId: string | null,
+): string | null {
+  if (
+    search.panel !== 'change-request' ||
+    !search.changeRequestUrl ||
+    !search.changeRequestSessionId ||
+    search.changeRequestSessionId !== openedSessionId
+  ) {
+    return null
+  }
+  return search.changeRequestUrl
+}
+
+export function resourceBrowserTargetFromSearch(
+  search: ChatRouteSearch,
+): SessionResourceBrowserTarget | null {
+  if (search.panel !== 'resources') return null
+  return {
+    view: search.resourceView ?? 'sources',
+    ...(search.resourceId ? { resourceId: search.resourceId } : {}),
   }
 }
 

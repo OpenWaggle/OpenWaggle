@@ -7,6 +7,7 @@ import {
   Files,
   FolderOpen,
   GitFork,
+  LayoutList,
   MessageSquarePlus,
   Network,
   PackageOpen,
@@ -34,6 +35,7 @@ export interface CoreCommandActions {
   readonly selectProject: (mode: 'new' | 'open') => Promise<void>
   readonly setProjectPath: (path: string) => Promise<void>
   readonly toggleSidebar: () => void
+  readonly toggleSessionSummary: () => void
   readonly toggleTerminal: () => void
   readonly newTerminal: () => void
   readonly newSideTerminal: () => void
@@ -155,6 +157,14 @@ function createViewAndOpenItems(
       section: 'View',
       trailing: formatShortcutBinding(settings.shortcutBindings['sidebar.toggle']),
       action: () => actions.finish(actions.toggleSidebar),
+    },
+    {
+      id: 'toggle-session-summary',
+      label: 'Toggle Session Summary',
+      description: 'Show or hide the active session overview',
+      icon: <LayoutList className="size-3.5" />,
+      section: 'View',
+      action: () => actions.finish(actions.toggleSessionSummary),
     },
     ...createTerminalCommandItems(settings, actions),
     {

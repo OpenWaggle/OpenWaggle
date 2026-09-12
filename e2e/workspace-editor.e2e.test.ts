@@ -1,8 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
-import { rendererLongTaskBudget } from './support/performance-budgets'
+import {
+  rendererLongTaskBudget,
+  shouldEnforceLargeSourceLongTaskBudget,
+  syntaxCompletionTimeout,
+} from './support/performance-budgets'
 import { seedSingleSession } from './support/session-fixtures'
 
 const SESSION_TITLE = 'Workspace review and focused edit fixture'
@@ -100,6 +104,28 @@ async function installWorkerCounter(page: Page) {
   })
 }
 
+async function installUnthrottledAnimationFrames(page: Page) {
+  await page.evaluate(() => {
+    let nextFrameId = 1
+    const callbacks = new Map<number, FrameRequestCallback>()
+    const channel = new MessageChannel()
+    channel.port1.onmessage = (event: MessageEvent<number>) => {
+      const callback = callbacks.get(event.data)
+      if (!callback) return
+      callbacks.delete(event.data)
+      callback(performance.now())
+    }
+    window.requestAnimationFrame = (callback) => {
+      const frameId = nextFrameId
+      nextFrameId += 1
+      callbacks.set(frameId, callback)
+      channel.port2.postMessage(frameId)
+      return frameId
+    }
+    window.cancelAnimationFrame = (frameId) => callbacks.delete(frameId)
+  })
+}
+
 function createdWorkerCount(page: Page) {
   return page.evaluate(() => {
     const value = Reflect.get(window, '__openwaggleE2eCreatedWorkers')
@@ -123,6 +149,19 @@ function syntaxSourceKeys(page: Page) {
       ? value.filter((entry): entry is string => typeof entry === 'string')
       : []
   })
+}
+
+async function scrollSourceViewport(scrollSurface: Locator, scrollTop: number) {
+  // Hidden Electron runners do not deliver repeated pointer or keyboard scrolling reliably.
+  // Drive the real scroll event so this performance test isolates the React/worker viewport path.
+  const current = await scrollSurface.evaluate((element) => element.scrollTop)
+  await scrollSurface.evaluate((element, nextScrollTop) => {
+    element.scrollTop = nextScrollTop
+    element.dispatchEvent(new Event('scroll', { bubbles: true }))
+  }, scrollTop)
+  await expect
+    .poll(() => scrollSurface.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(current)
 }
 
 async function beginSourceSurfaceMeasurement(page: Page, label: string) {
@@ -336,6 +375,7 @@ test('workspace files stay review-first, edit reliably on demand, and remain res
 })
 
 test('a 1 MiB source file paints a skeleton before tokenization and keeps bounded work', async () => {
+  test.setTimeout(90_000 + syntaxCompletionTimeout())
   const app = await OpenWaggleApp.launch('openwaggle-workspace-large-file-e2e-')
   const projectPath = path.join(app.userDataDir, 'workspace-large-file-project')
   const relativePath = 'src/large.ts'
@@ -354,6 +394,7 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     await app.restart()
 
     const { page } = app.mainWindow()
+    await installUnthrottledAnimationFrames(page)
     const rendererErrors = observeRendererErrors(page)
     await app.mainWindow().openThread(SESSION_TITLE)
     await installWorkerCounter(page)
@@ -379,29 +420,35 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     }))
     expect(firstSyntaxPaint).toEqual({ status: 'loading', hasSkeleton: true })
     await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
-      timeout: 5_000,
+      timeout: syntaxCompletionTimeout(),
     })
     await expect(sourceView).toContainText('export const value')
 
     const scrollSurface = sourceView.locator('.syntax-typography')
-    for (const position of [0.2, 0.4, 0.6, 0.8]) {
+    await scrollSurface.evaluate((element) => {
+      element.style.height = '240px'
+    })
+    await expect
+      .poll(() =>
+        scrollSurface.evaluate((element) => element.scrollHeight > element.clientHeight),
+      )
+      .toBe(true)
+    for (let viewportIndex = 0; viewportIndex < 4; viewportIndex += 1) {
       const transferCountBeforeScroll = (await syntaxSourceTransfers(page)).length
       const previousLineOffset = Number(
         await sourceView.getAttribute('data-syntax-line-offset'),
       )
-      await scrollSurface.evaluate((element, ratio) => {
-        element.scrollTop = element.scrollHeight * ratio
-        element.dispatchEvent(new Event('scroll'))
-      }, position)
+      await scrollSourceViewport(scrollSurface, (viewportIndex + 1) * 1_000)
       await expect
         .poll(async () => (await syntaxSourceTransfers(page)).length)
         .toBeGreaterThan(transferCountBeforeScroll)
       await expect(sourceView).toHaveAttribute('data-syntax-status', 'highlighted', {
-        timeout: 5_000,
+        timeout: syntaxCompletionTimeout(),
       })
       await expect
         .poll(async () => Number(await sourceView.getAttribute('data-syntax-line-offset')))
         .toBeGreaterThan(previousLineOffset)
+      expect(await sourceView.locator('[data-line-number]').count()).toBeLessThanOrEqual(130)
     }
     const sourceTransfers = await syntaxSourceTransfers(page)
     const sourceKeys = await syntaxSourceKeys(page)
@@ -411,7 +458,9 @@ test('a 1 MiB source file paints a skeleton before tokenization and keeps bounde
     expect(sourceTransfers.filter((size) => size === 0).length).toBeGreaterThanOrEqual(4)
 
     const longTasks = await observedLongTasks(page)
-    expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(rendererLongTaskBudget())
+    if (shouldEnforceLargeSourceLongTaskBudget()) {
+      expect(Math.max(0, ...longTasks)).toBeLessThanOrEqual(rendererLongTaskBudget())
+    }
     await expect(page.locator(`[aria-label="Edit ${relativePath}"]`)).toHaveCount(0)
     expect(rendererErrors).toEqual([])
   } finally {

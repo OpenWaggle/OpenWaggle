@@ -1,51 +1,86 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { SessionId } from '@shared/types/brand'
 import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@shared/types/git'
 import { GIT_STACKED_ACTIONS } from '@shared/types/git'
-import {
-  type DefaultBranchActionDialogCopy,
-  defaultBranchActionLabel,
-  requiresDefaultBranchConfirmation,
-  resolveDefaultBranchActionDialogCopy,
-  targetsDefaultRef,
-} from '@shared/utils/git-stacked-action'
 import * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
-import { getSourceControlProvider } from '../../adapters/source-control'
-import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import { resolveSessionOutputOccurrenceContext } from '../../application/session-resource-recording'
 import { typedHandle } from '../typed-ipc'
-import { listGitBranches } from './branch-list'
+import { listGitBranchNames } from './branch-list'
 import { createGitBranch } from './branch-mutations'
+import {
+  buildChangeRequestFallbackUrl,
+  resolveSourceControlProvider,
+  sourceControlProviderForRepository,
+} from './change-request-provider'
 import { commitGit } from './commit-handler'
-import { pullCurrentBranch, pushCurrentBranch } from './push-service'
+import { selectedGitPathsSchema } from './commit-path-contract'
+import { resolveDefaultRef } from './default-ref'
+import { withGitMutationLock } from './mutation-lock'
+import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from './primary-remote'
+import {
+  type GitPinnedPushTarget,
+  type GitPushDestination,
+  pullCurrentBranch,
+  pushCurrentBranch,
+} from './push-service'
+import { verifySessionWorkingPath } from './session-working-path'
 import { projectPathSchema, runGit } from './shared'
+import {
+  confirmDefaultBranchAction,
+  resolvePlannedFeatureRef,
+  revalidateGitTarget,
+} from './stacked-action-default-branch-gate'
+import { recordStackedActionOutputs } from './stacked-action-output-recording'
 import { runStackedGitAction, type StackedActionDeps } from './stacked-action-service'
 import { invalidateGitStatusCache } from './status-cache'
 import { GIT_RAW_PATHS } from './status-constants'
-import { invalidateVcsStatus, readLocalVcsStatus } from './vcs-status-cache'
-import { detectSourceControlProvider } from './vcs-status-parse'
+import { invalidateVcsStatus } from './vcs-status-cache'
 import { resolveRepositoryRoot } from './working-tree-service'
+
+interface ActiveGitOperation {
+  readonly senderId: number
+  cancelled: boolean
+}
+
+const activeGitOperations = new Map<string, ActiveGitOperation>()
+
+function operationKey(senderId: number, operationId: string) {
+  return `${String(senderId)}:${operationId}`
+}
+
+function registerActiveOperation(senderId: number, operationId: string | undefined) {
+  if (!operationId) return null
+  const token: ActiveGitOperation = { senderId, cancelled: false }
+  activeGitOperations.set(operationKey(senderId, operationId), token)
+  return token
+}
+
+function releaseActiveOperation(operationId: string | undefined, token: ActiveGitOperation | null) {
+  if (!operationId || !token) return
+  const key = operationKey(token.senderId, operationId)
+  if (activeGitOperations.get(key) === token) activeGitOperations.delete(key)
+}
 
 const stackedActionOptionsSchema = Schema.Struct({
   action: Schema.Literal(...GIT_STACKED_ACTIONS),
+  operationId: Schema.optional(Schema.String),
+  sessionId: Schema.optional(Schema.String),
   commitMessage: Schema.optional(Schema.String),
   createFeatureBranch: Schema.optional(Schema.Boolean),
   featureBranchName: Schema.optional(Schema.String),
+  exactFeatureBranchName: Schema.optional(Schema.Boolean),
   baseRef: Schema.optional(Schema.String),
   changeRequestTitle: Schema.optional(Schema.String),
   changeRequestBody: Schema.optional(Schema.String),
   draft: Schema.optional(Schema.Boolean),
-  paths: Schema.optional(Schema.Array(Schema.String)),
+  paths: Schema.optional(selectedGitPathsSchema),
+  includeUnstaged: Schema.optional(Schema.Boolean),
 })
-
-async function resolveProviderRemoteUrl(projectPath: string): Promise<string | null> {
-  const result = await runGit(projectPath, ['remote', 'get-url', 'origin'])
-  return result.code === 0 ? result.stdout.trim() || null : null
-}
 
 function createStackedActionDeps(): StackedActionDeps {
   return {
     hasWorkingTreeChanges: async (projectPath) => {
-      const result = await runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1'])
+      const result = await runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1', '-z'])
       if (result.code !== 0) {
         // Ignoring the exit code made an unreadable repository indistinguishable from a clean
         // one, so the commit phase was skipped and the action reported success regardless.
@@ -53,14 +88,7 @@ function createStackedActionDeps(): StackedActionDeps {
       }
       return { ok: true, hasChanges: result.stdout.trim().length > 0 }
     },
-    listBranchNames: async (projectPath) => {
-      const list = await listGitBranches(projectPath)
-      const names: string[] = []
-      for (const branch of list.branches) {
-        if (!branch.isRemote) names.push(branch.name)
-      }
-      return names
-    },
+    listBranchNames: listGitBranchNames,
     createBranch: async (projectPath, name, baseRef) => {
       const result = await createGitBranch(projectPath, {
         name,
@@ -69,18 +97,9 @@ function createStackedActionDeps(): StackedActionDeps {
       })
       return { ok: result.ok, message: result.message }
     },
-    commit: async (projectPath, message, paths) => {
-      /*
-       * Stage exactly what the caller selected, and nothing when the selection is empty.
-       *
-       * This used to fall back to `git add --all`, which has no pathspec and therefore covers
-       * the whole repository - not just the opened directory. In `local` environment mode that
-       * swept every unrelated in-flight edit in the user's own checkout into the commit, and
-       * `commit_push*` then pushed it. The fallback was reached exactly when nothing was on
-       * display, which is the case where committing everything is least defensible, so an
-       * empty selection now reports that there is nothing to commit.
-       */
-      const selected = paths?.filter((entry) => entry.trim().length > 0) ?? []
+    commit: async (projectPath, message, paths, includeUnstaged) => {
+      // Never let an empty visible selection fall back to repository-wide `git add --all`.
+      const selected = paths?.filter((entry) => entry.length > 0) ?? []
       if (selected.length === 0) {
         return {
           ok: false,
@@ -88,134 +107,194 @@ function createStackedActionDeps(): StackedActionDeps {
           message: 'Select the files to commit: nothing was staged for this action.',
         }
       }
-      /*
-       * Staged and committed from the repository root, because the paths are repository-relative -
-       * that is what `git status --porcelain` reports, and what the renderer passes through. Running
-       * them from an opened subdirectory resolved them relative to that subdirectory instead:
-       * verified that `git add -- packages/app/x.txt` from `packages/app` fails with
-       * "pathspec ... did not match any files". `git add --all` hid this because it takes no
-       * pathspec. Revert all is already re-based onto the root; commit now agrees with it.
-       */
+      // Porcelain paths are repository-relative, so stage and commit from the root.
       const repositoryRoot = (await resolveRepositoryRoot(projectPath)) ?? projectPath
-      /*
-       * Staging is left to `commitGit`, which handles the awkward cases: a path gone from disk needs `-A`,
-       * and an already-staged rename's source matches nothing for `add` while still needing to be in the
-       * commit pathspec. Adding here as well duplicated that logic badly - it batched, which is fatal.
-       */
-      return commitGit(repositoryRoot, { message, amend: false, paths: [...selected] })
+      // `commitGit` owns deleted-path and staged-rename handling.
+      return commitGit(repositoryRoot, {
+        message,
+        amend: false,
+        paths: [...selected],
+        includeUnstaged,
+      })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),
     pull: (projectPath) => pullCurrentBranch(projectPath),
     openChangeRequest: async (projectPath, payload) => {
-      const provider = getSourceControlProvider(
-        detectSourceControlProvider(await resolveProviderRemoteUrl(projectPath))?.id,
-      )
-      if (!provider) {
+      const sourceControl = payload.targetRepository
+        ? sourceControlProviderForRepository(payload.targetRepository)
+        : await resolveSourceControlProvider(projectPath)
+      if (!sourceControl) {
         return { ok: false, code: 'unknown', message: 'No supported source control provider.' }
       }
-      return provider.openChangeRequest(projectPath, payload)
+      return sourceControl.provider.openChangeRequest(projectPath, payload)
     },
+    preflightChangeRequest: async (projectPath) => {
+      const sourceControl = await resolveSourceControlProvider(projectPath)
+      if (!sourceControl) {
+        return { ok: false, code: 'unknown', message: 'No supported source control provider.' }
+      }
+      const readiness = await sourceControl.provider.authStatus(projectPath)
+      if (!readiness.ok || readiness.status.authenticated) return readiness
+      const cli = sourceControl.provider.id === 'github' ? 'gh' : 'glab'
+      const label = sourceControl.provider.id === 'github' ? 'GitHub' : 'GitLab'
+      return {
+        ok: false,
+        code: 'not-authenticated',
+        message: `${label} CLI is not authenticated for ${sourceControl.info.host}. Run \`${cli} auth login --hostname ${sourceControl.info.host}\`.`,
+      }
+    },
+    // Every production invocation replaces this with the destination approved by the safety
+    // gate. Keeping the dependency explicit makes preflight mandatory and unit-testable.
+    resolveApprovedPushDestination: async () => null,
     resolveCurrentRef: async (projectPath) => {
       const result = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
       return result.code === 0 ? result.stdout.trim() || null : null
     },
     resolveDefaultBaseRef: async (projectPath) => {
-      const result = await runGit(projectPath, ['rev-parse', '--abbrev-ref', 'origin/HEAD'])
-      if (result.code !== 0) return null
-      const ref = result.stdout.trim()
-      return ref ? ref.replace(/^origin\//, '') : null
+      const primaryRemote = await resolvePrimaryRemote(projectPath)
+      return resolveDefaultRef(projectPath, primaryRemote?.name ?? 'origin')
     },
+    resolvePrimaryRemoteUrl,
+    buildChangeRequestFallbackUrl,
   }
 }
 
-/**
- * Default-branch confirmation gate (ADR 0012). Runs in main so the renderer
- * cannot bypass it: a commit/push/PR action on the default ref must be confirmed
- * before anything is staged, committed or pushed.
- */
-function confirmDefaultBranchAction(
-  event: IpcMainInvokeEvent,
-  projectPath: string,
-  options: GitRunStackedActionOptions,
-) {
-  return Effect.gen(function* () {
-    const local = yield* Effect.promise(() => readLocalVcsStatus(projectPath))
-    /*
-     * Fail closed. A gate that skips itself whenever it cannot read the repository is not a
-     * gate: any `git status` failure used to wave a commit-and-push straight through. When the
-     * ref is unknown, treat it as risky and ask - the action itself may still be fine, the user
-     * just gets the last word.
-     */
-    if (!local.ok) {
-      return yield* askDefaultBranchConfirmation(event, {
-        title: 'Continue without checking the current ref?',
-        description: `The current ref could not be read (${local.message}), so it is not known whether this action targets the default ref. Continue anyway?`,
-        continueLabel: 'Continue',
-      })
-    }
-    /*
-     * Either the ref you are on or the ref a push would write. A push follows the upstream mapping, so standing
-     * on `feature` with an upstream of `origin/main` writes `main` - verified against real git, which reported
-     * `feature -> main`. Judging only the current ref waved that straight through, which is precisely the push
-     * this gate exists to catch.
-     */
-    if (!requiresDefaultBranchConfirmation(options.action, targetsDefaultRef(local.status))) {
-      return true
-    }
-    const copy = resolveDefaultBranchActionDialogCopy({
-      action: options.action,
-      // Name what would be written, which is the destination when it differs from the branch you are on.
-      branchName: defaultBranchActionLabel(local.status),
-      includesCommit: options.action.startsWith('commit'),
-      provider: local.status.sourceControlProvider?.id ?? null,
-    })
-    return yield* askDefaultBranchConfirmation(event, copy)
-  })
+function approvedPushDestination(target: GitPinnedPushTarget | null): GitPushDestination | null {
+  if (!target) return null
+  return {
+    remote: target.remote,
+    branch: target.branch,
+    remoteUrl: target.pushUrls.length === 1 ? (target.pushUrls[0] ?? null) : null,
+    multiplePushUrls: target.pushUrls.length > 1,
+  }
 }
 
-/** Modal confirmation shown from main, so the renderer cannot skip it. */
-function askDefaultBranchConfirmation(
-  event: IpcMainInvokeEvent,
-  copy: DefaultBranchActionDialogCopy,
-) {
-  return Effect.gen(function* () {
-    const ownerWindow = browserWindowFromWebContents(event.sender)
-    const dialogOptions = {
-      type: 'warning',
-      buttons: ['Cancel', copy.continueLabel],
-      defaultId: 0,
-      cancelId: 0,
-      message: copy.title,
-      detail: copy.description,
-    } satisfies MessageBoxOptions
-    const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
-    return confirmation.response === 1
-  })
+function registerGitStackedActionCancelHandler() {
+  typedHandle('git:stacked-action:cancel', (event, rawOperationId: unknown) =>
+    Effect.sync(() => {
+      const operationId = decodeUnknownOrThrow(Schema.String, rawOperationId)
+      const token = activeGitOperations.get(operationKey(event.sender.id, operationId))
+      if (!token) return false
+      token.cancelled = true
+      return true
+    }),
+  )
 }
 
 export function registerGitStackedActionHandlers(): void {
   const deps = createStackedActionDeps()
+  registerGitStackedActionCancelHandler()
   typedHandle('git:stacked-action:run', (event, rawPath: unknown, rawOptions: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const options = decodeUnknownOrThrow(
-        stackedActionOptionsSchema,
-        rawOptions,
-      ) satisfies GitRunStackedActionOptions
-      const confirmed = yield* confirmDefaultBranchAction(event, projectPath, options)
-      if (!confirmed) {
-        return {
-          ok: false,
-          phase: 'commit',
-          code: 'cancelled',
-          message: 'Action cancelled.',
-        } satisfies GitRunStackedActionResult
-      }
-      const result = yield* Effect.promise(() => runStackedGitAction(deps, projectPath, options))
-      // Stacked actions commit and push, so the working tree's status changed too.
-      invalidateGitStatusCache(projectPath)
-      invalidateVcsStatus(projectPath)
-      return result
+      const decodedOptions = decodeUnknownOrThrow(stackedActionOptionsSchema, rawOptions)
+      const options = {
+        ...decodedOptions,
+        sessionId:
+          decodedOptions.sessionId === undefined ? undefined : SessionId(decodedOptions.sessionId),
+      } satisfies GitRunStackedActionOptions
+      const operation = registerActiveOperation(event.sender.id, options.operationId)
+      return yield* withGitMutationLock(
+        projectPath,
+        Effect.gen(function* () {
+          if (
+            options.sessionId &&
+            !(yield* verifySessionWorkingPath(options.sessionId, projectPath))
+          ) {
+            return {
+              ok: false,
+              phase: 'commit',
+              code: 'unknown',
+              message: 'The requested working tree does not belong to the originating session.',
+            } satisfies GitRunStackedActionResult
+          }
+          if (operation?.cancelled) {
+            return {
+              ok: false,
+              phase: 'commit',
+              code: 'cancelled',
+              message: 'Action cancelled.',
+            } satisfies GitRunStackedActionResult
+          }
+          const confirmation = yield* confirmDefaultBranchAction(event, projectPath, options)
+          if (!confirmation.confirmed) {
+            if (confirmation.blockingFailure) {
+              return {
+                ok: false,
+                phase: 'push',
+                code: 'push-failed',
+                message: confirmation.blockingFailure,
+              } satisfies GitRunStackedActionResult
+            }
+            return {
+              ok: false,
+              phase: 'commit',
+              code: 'cancelled',
+              message: 'Action cancelled.',
+            } satisfies GitRunStackedActionResult
+          }
+          const targetRevalidation = yield* revalidateGitTarget(
+            projectPath,
+            confirmation.targetIdentity,
+            options.action,
+            resolvePlannedFeatureRef(options),
+          )
+          if (!targetRevalidation.matches) {
+            return {
+              ok: false,
+              phase: 'commit',
+              code: 'unknown',
+              message: 'The current branch or push destination changed. Review the action again.',
+            } satisfies GitRunStackedActionResult
+          }
+          const occurrenceContext = options.sessionId
+            ? yield* resolveSessionOutputOccurrenceContext(options.sessionId).pipe(
+                Effect.catchAll(() =>
+                  Effect.succeed({ nodeId: null, branchId: null, createdAt: Date.now() }),
+                ),
+              )
+            : null
+          const pinnedPushTarget = targetRevalidation.pinnedPushTarget
+          const actionDeps: StackedActionDeps = {
+            ...deps,
+            resolveApprovedPushDestination: async () => approvedPushDestination(pinnedPushTarget),
+            ...(pinnedPushTarget
+              ? {
+                  push: (path: string) => pushCurrentBranch(path, undefined, pinnedPushTarget),
+                }
+              : {}),
+          }
+          const result = yield* Effect.promise(() =>
+            runStackedGitAction(
+              actionDeps,
+              projectPath,
+              options,
+              (progress) => {
+                if (
+                  !options.operationId ||
+                  (typeof event.sender.isDestroyed === 'function' && event.sender.isDestroyed())
+                ) {
+                  return
+                }
+                event.sender.send('git:stacked-action:progress', {
+                  operationId: options.operationId,
+                  workingPath: projectPath,
+                  progress,
+                })
+              },
+              () => operation?.cancelled === true,
+            ),
+          )
+          // Stacked actions commit and push, so the working tree's status changed too.
+          invalidateGitStatusCache(projectPath)
+          invalidateVcsStatus(projectPath)
+          return options.sessionId && occurrenceContext
+            ? yield* recordStackedActionOutputs(result, options.sessionId, occurrenceContext)
+            : result
+        }),
+      ).pipe(
+        Effect.ensuring(Effect.sync(() => releaseActiveOperation(options.operationId, operation))),
+      )
     }),
   )
 }

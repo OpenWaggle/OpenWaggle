@@ -1,113 +1,25 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Button } from '../Button'
 import { RightSidebarLayout, sidebarWidthValue } from '../RightSidebarLayout'
 import type { WidthAcceptanceContext } from '../right-sidebar-layout-types'
 
-const DEFAULT_WIDTH_PX = 600
-const MAX_WIDTH_PX = 900
-const MIN_WIDTH_PX = 360
-const MAIN_MIN_WIDTH_PX = 420
-const SHEET_BREAKPOINT_PX = 1180
-const DEFAULT_CLAMPED_WIDTH = 'min(600px, max(0px, calc(100% - 420px)))'
-const PERSISTED_CLAMPED_WIDTH = 'min(720px, max(0px, calc(100% - 420px)))'
-const STORAGE_KEY = 'openwaggle:test-diff-sidebar-width'
-const POINTER_ID = 9
-const START_X = 800
-const ROOT_WIDTH = 1600
-const ACCEPTED_WIDTH = 700
-
-function installMatchMedia(matches: boolean) {
-  const listeners = new Set<() => void>()
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches,
-    media: query,
-    onchange: null,
-    addEventListener: (_type: string, callback: () => void) => listeners.add(callback),
-    removeEventListener: (_type: string, callback: () => void) => listeners.delete(callback),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  }))
-  return (nextMatches: boolean) => {
-    matches = nextMatches
-    for (const listener of [...listeners]) listener()
-  }
-}
-
-function renderLayout(open: boolean, onOpenChange = vi.fn()) {
-  return render(
-    <RightSidebarLayout {...layoutProps(open, onOpenChange)}>
-      <div>Main content</div>
-    </RightSidebarLayout>,
-  )
-}
-
-function layoutProps(open: boolean, onOpenChange = vi.fn(), maximized = false) {
-  return {
-    maximized,
-    open,
-    sizing: {
-      defaultWidth: DEFAULT_WIDTH_PX,
-      mainMinWidth: MAIN_MIN_WIDTH_PX,
-      maxWidth: MAX_WIDTH_PX,
-      minWidth: MIN_WIDTH_PX,
-      sheetBreakpointPx: SHEET_BREAKPOINT_PX,
-      storageKey: STORAGE_KEY,
-    },
-    sidebar: <div>Diff content</div>,
-    onOpenChange,
-  }
-}
-
-function installAnimationFrame() {
-  let pendingCallback: FrameRequestCallback | null = null
-  const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
-    pendingCallback = null
-  })
-  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-    pendingCallback = callback
-    return 1
-  })
-
-  return {
-    cancelAnimationFrame,
-    flush() {
-      const callback = pendingCallback
-      if (!callback) throw new Error('Expected a pending animation frame')
-      pendingCallback = null
-      callback(0)
-    },
-  }
-}
-
-function prepareDockedResize() {
-  const rail = screen.getByRole('button', { name: 'Resize right sidebar' })
-  const root = document.querySelector<HTMLElement>(
-    '[data-right-sidebar-main="true"]',
-  )?.parentElement
-  const panel = document.querySelector<HTMLDivElement>('[data-right-sidebar-panel="true"]')
-  const sidebar = document.querySelector<HTMLDivElement>('[data-right-sidebar-shell="true"]')
-  if (!root || !panel || !sidebar) throw new Error('Expected the docked sidebar layout')
-
-  Object.defineProperty(root, 'clientWidth', { configurable: true, value: ROOT_WIDTH })
-  let capturedPointerId: number | null = null
-  const setPointerCapture = vi.fn((pointerId: number) => {
-    capturedPointerId = pointerId
-  })
-  const releasePointerCapture = vi.fn((pointerId: number) => {
-    if (capturedPointerId === pointerId) capturedPointerId = null
-  })
-  Object.defineProperties(rail, {
-    hasPointerCapture: {
-      configurable: true,
-      value: (pointerId: number) => capturedPointerId === pointerId,
-    },
-    releasePointerCapture: { configurable: true, value: releasePointerCapture },
-    setPointerCapture: { configurable: true, value: setPointerCapture },
-  })
-
-  return { panel, rail, releasePointerCapture, root, setPointerCapture, sidebar }
-}
+import {
+  ACCEPTED_WIDTH,
+  DEFAULT_CLAMPED_WIDTH,
+  DEFAULT_WIDTH_PX,
+  installAnimationFrame,
+  installMatchMedia,
+  layoutProps,
+  MAIN_MIN_WIDTH_PX,
+  MAX_WIDTH_PX,
+  PERSISTED_CLAMPED_WIDTH,
+  POINTER_ID,
+  prepareDockedResize,
+  renderLayout,
+  START_X,
+  STORAGE_KEY,
+} from './right-sidebar-layout.test-harness'
 
 describe('RightSidebarLayout', () => {
   beforeEach(() => {
@@ -245,11 +157,95 @@ describe('RightSidebarLayout', () => {
 
     renderLayout(true, onOpenChange)
 
-    expect(document.querySelector('[data-right-sidebar-panel="true"]')).toBeVisible()
+    expect(document.querySelector('[data-right-sidebar-shell="true"]')).toBeVisible()
+    expect(screen.getByText('Main content').parentElement).toHaveAttribute('inert')
     fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
+
+  it('preserves the main draft and focus across both responsive sidebar modes', () => {
+    const content = <textarea aria-label="Draft" defaultValue="" />
+    const view = render(<RightSidebarLayout {...layoutProps(false)}>{content}</RightSidebarLayout>)
+    const draft = screen.getByRole('textbox', { name: 'Draft' })
+    fireEvent.change(draft, { target: { value: 'Unsent draft' } })
+    draft.focus()
+
+    for (const isSheet of [true, false, true, false]) {
+      installMatchMedia(isSheet)
+      view.rerender(<RightSidebarLayout {...layoutProps(false)}>{content}</RightSidebarLayout>)
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('Unsent draft')
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveFocus()
+    }
+  })
+
+  it('moves focus into a docked sidebar when it opens', async () => {
+    const view = renderLayout(false)
+    view.rerender(
+      <RightSidebarLayout {...layoutProps(true)}>
+        <div>Main content</div>
+      </RightSidebarLayout>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus())
+  })
+
+  it('moves focus into a sidebar sheet when it opens', async () => {
+    installMatchMedia(true)
+    renderLayout(true)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus())
+  })
+
+  it('keeps an open sidebar focused when moving between sheet and docked modes', async () => {
+    const view = renderLayout(true)
+    for (const isSheet of [true, false]) {
+      installMatchMedia(isSheet)
+      view.rerender(
+        <RightSidebarLayout {...layoutProps(true)}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus(),
+      )
+    }
+  })
+
+  it.each([false, true])(
+    'returns focus after closing a resized sheet with child autofocus %s',
+    async (autoFocus) => {
+      const props = {
+        ...layoutProps(true),
+        sidebar: <Button autoFocus={autoFocus}>Diff content</Button>,
+      }
+      const view = render(
+        <RightSidebarLayout {...props}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus(),
+      )
+      installMatchMedia(true)
+      view.rerender(
+        <RightSidebarLayout {...props}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Diff content' })).toHaveFocus(),
+      )
+      view.rerender(
+        <RightSidebarLayout {...props} open={false}>
+          <div>Main content</div>
+        </RightSidebarLayout>,
+      )
+      await waitFor(() =>
+        expect(document.querySelector('[data-right-sidebar-main="true"]')).toHaveFocus(),
+      )
+    },
+  )
 
   it('grows left, clamps before acceptance, previews accepted widths, and persists on release', () => {
     const animationFrame = installAnimationFrame()

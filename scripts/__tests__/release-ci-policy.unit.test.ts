@@ -23,6 +23,17 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it('rejects report uploads that discard diagnostics when retries pass', () => {
+    const successBlindWorkflow = compliantWorkflow.replaceAll(
+      '      - name: Upload Electron E2E Playwright report\n        if: always()',
+      '      - name: Upload Electron E2E Playwright report\n        if: failure()',
+    )
+    expect(successBlindWorkflow).not.toBe(compliantWorkflow)
+    expect(validateReleaseCiPolicy(successBlindWorkflow)).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
   it('rejects removal of the real zsh dependency from either Linux test job', () => {
     const installCommand = '          sudo apt-get install --yes zsh\n'
     const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]
@@ -67,6 +78,17 @@ describe('release CI policy', () => {
 
     expect(violations).toContain(
       'CI workflow_dispatch must verify github.sha matches the immutable inputs.head_sha SHA.',
+    )
+  })
+
+  it('rejects dispatched commit validation that does not derive its range from main', () => {
+    const workflowWithoutDispatchBase = compliantWorkflow.replace(
+      '            COMMIT_POLICY_FROM="$(git merge-base origin/main "$COMMIT_POLICY_TO")"',
+      '            COMMIT_POLICY_FROM="$COMMIT_POLICY_TO"',
+    )
+
+    expect(validateReleaseCiPolicy(workflowWithoutDispatchBase)).toContain(
+      'CI job Commit Policy steps must match the fail-closed required sequence.',
     )
   })
 
@@ -130,7 +152,7 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and approved controls only.',
     )
   })
 
@@ -141,7 +163,18 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.',
+      'CI job Typecheck & Lint must keep the exact blocking job contract: name, ubuntu-latest runner, and approved controls only.',
+    )
+  })
+
+  it('rejects parallel Windows Electron workers', () => {
+    const parallelWindowsWorkflow = compliantWorkflow.replace(
+      "      PLAYWRIGHT_WORKERS: '1'",
+      "      PLAYWRIGHT_WORKERS: '2'",
+    )
+
+    expect(validateReleaseCiPolicy(parallelWindowsWorkflow)).toContain(
+      'CI job Electron E2E (Windows) must keep the exact blocking job contract: name, windows-latest runner, and approved controls only.',
     )
   })
 

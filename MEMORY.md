@@ -119,11 +119,21 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - A completed run can refresh `SessionDetail` before `SessionWorkspace`. If those snapshots have no shared message ids, append the replacement detail only when its `updatedAt` proves the active-head workspace is stale; never merge a disjoint current selected-branch workspace. If a replacement Pi snapshot no longer contains the previous main head, branch derivation must adopt the new active head as the sole main branch instead of creating duplicate main/non-main branches at one head.
 - TanStack Router uses hash history in Electron QA; navigate to `http://localhost:5173/#/<route>`.
 - TanStack Hotkeys same-target callbacks do not stop each other via `event.stopPropagation`; independent overlays need explicit topmost ordering.
+- A transient Session Summary must join the shared Escape stack and defer both Escape and pointer dismissal to foreground native dialogs. Image pinch zoom needs a canvas-local non-passive wheel listener because React delegates wheel events passively. Summary popovers must escape section clipping without losing their DOM ownership or viewport bounds; visible text alone does not prove a lower menu action can receive a click.
 - Composer slash selection is owned by Lexical: keep focus in the editor, derive the active `/query` from its collapsed selection, replace or consume only that token, and serialize skill decorator nodes as `/skill-id`. Do not route `/` through a second-input global palette.
 - Waggle presets in the desktop composer are one-shot invocation metadata, not idle global mode state. A standard agent hands off through the terminating `waggle_invoke` Pi tool, and the main handler chains Waggle only after the standard result is durable.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
 - **React Compiler runs in the app build (`electron.vite.config.ts` -> `reactCompilerPreset()`) and, since this work, in the component test config too — but not in the node unit config, which renders nothing.** Any component that reads render data from a library-owned *mutable* instance can pass a suite that does not run the compiler and still render permanently stale in the real app: the compiler memoizes on referential identity, and the instance is mutated in place so its identity never changes. Hit for real with `@headless-tree` in the Changed-file navigator — `tree.getItems()` returned 262 items while zero rows reached the DOM. Fix is the scoped `'use no memo'` directive on the component that maps the mutable instance (an official compiler escape hatch, not a lint-ignore comment). See "The React Compiler now runs in component tests" below for the mechanism that now catches this class; for anything outside component tests, still treat a green suite as no evidence and verify in real Electron over CDP.
 - Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
+- A provider CLI can create a PR/MR remotely and still exit non-zero if its response is interrupted. Before surfacing create failure, resolve the exact head ref and adopt an existing request; after a successful create, retain the CLI's returned URL if the metadata lookup is transiently unavailable. This prevents duplicate requests on retry.
+- Change-request creation follows the destination that actually received the push, including `pushurl`, remote branch, and repository owner. Require one compatible provider/authority/repository destination; GitHub fork creation uses `owner:branch`, recovery verifies owner/head/base, and browser fallback is withheld because it cannot verify the fork relationship. A bare local ref can target or adopt an unrelated same-named branch in the base repository.
+- Hosted change-request identity accepts only network Git transports that preserve a meaningful provider authority (`http`, `https`, `ssh`, `git`, or SCP-like syntax). Never rewrite `file:` or an unknown remote-helper URL into a GitHub/GitLab web identity. A pinned push that uses command-scope `remote.<name>.pushurl` overrides must fail closed when the configured remote name contains `=`, because `git -c` would parse a different config key and silently stop pinning the approved destination.
+- Main-process Git mutations are serialized by canonical checkout root, not the caller's opened subfolder. Worktree create/remove owns that same low-level boundary so IPC, first-send birth, and Session prune cannot race each other; linked worktrees remain distinct checkout identities.
+- A successful commit or change request can still fail Session Output projection. The result contract exposes whether durable retry authorization was persisted; renderer actions must surface every projection failure and offer manual retry only for an authorized queued request, while retaining the remote request's browser URL.
+- Session-resource run-completion invalidation is keyed by the event's Session id, not the currently opened Session. Background Sessions otherwise retain a fresh-looking cached catalog and omit newly captured resources when reopened.
+- Extension resource contributions use the approved `openwaggle.resources` broker capability with explicit Session scope. Publish payloads accept only credential-free HTTPS links/images; the host derives actor, occurrence, canonical identity, and Session ownership. List results expose display metadata only—never locators, managed paths, canonical keys, or occurrence history—and invalidation events carry the affected Session id.
+- Session resources retain two distinct locator concepts: the original public locator for provenance/open/reveal and the host-managed path for safe rendering. Raster image status is established from stored bytes, not filenames or declared MIME; SVG remains an ordinary file rather than renderable active content.
+- A remote image read refreshes its Session resource projection only after managed content materializes. Refreshing after a failed read bumps the resource revision and immediately repeats the same failed query; failures remain stable until the user explicitly retries.
 
 ### Session-bound terminals (ADR 0030, September 2026)
 
@@ -141,6 +151,18 @@ Windows ConPTY roots enter a per-terminal Job while suspended; WinPTY's agent en
 Terminal file links inside the Working path open in OpenWaggle. Absolute links outside it use the remembered curated external-editor choice, preserve line and column in both CLI and macOS app-bundle fallbacks, and fail visibly when no supported editor exists; never delegate them to an arbitrary OS default application.
 
 ### Session-owned Browser preview (ADR 0031, September 2026)
+
+Electron 43 native viewport emulation must wait for `dom-ready`. Restoring a floating preview can call `enableDeviceEmulation` before its renderer exists and synchronously crash the main process. Committed navigation and renderer loss invalidate readiness; cancelled provisional navigation does not. Track whether emulation was applied separately from its cached signature so switching to fill after navigation still disables it. Native coexistence QA covers reload, cross-document navigation, and CDP-induced renderer crash recovery.
+
+Draft workspace migration requires a one-use receipt from successful creation of the currently selected draft. A draft-to-Session route change alone is not authority to move tabs. Fence both owners while draining admitted browser work and transferring native ownership, and redirect deferred Setup reconciliation only after native commit. Ordinary navigation must retain each owner's existing tabs and native preview identity.
+
+Do not ignore native preview close failures during owner migration. A still-live draft ID cannot reopen under the Session owner. Retry rejected closure once, then retain unresolved browser groups and their draft grant while completing already-committed terminal ownership. Closing absent native IDs must be idempotent because launcher and restored tabs may have no native view; existing foreign IDs still reject. Registration-error visualization context must clear in a layout effect so the error UI cannot commit while stale context remains actionable.
+
+Electron 43.2 `webContents.close()` returns before destruction. A hidden native probe saw `isDestroyed() === false` immediately and after a microtask, followed by `destroyed` roughly 0.3–2.9 ms later. Explicit preview close must await confirmed destruction with a bounded timeout, preserve ownership on live failure, and suppress only intentional content-closed events. Best-effort teardown that swallows an exception is not proof that migration can reuse the native ID.
+
+Retained native-close records must become cleanup-only when their renderer owner retires. Hide, detach and mute before waiting for destruction; exclude them from ordinary registry lookup and reject cached or queued automation, including results after awaits. Keep navigation, popup and security-prompt denial alive until destruction even after normal record listeners are removed. Only the exact sender may retry disposal. Ordinary failed user close remains usable. Closing the last browser of an inactive Session restores its retained terminal selection separately from the active sidebar claim, without reopening an explicitly hidden panel.
+
+pnpm 11 can implicitly install before running scripts when workspace manifests change, including a version-only main merge. That install runs Electron's native postinstall and can collide with Node verification. Finish manifest synchronization before rebuilding for the intended runtime; use the scoped `pnpm_config_verify_deps_before_run=error` setting during coordinated checks to fail visibly instead of starting an unexpected install. Do not change global configuration or overlap native rebuilds and tests.
 
 Native preview context menus must focus the clicked guest and pass the event's frame to `Menu.popup`; otherwise native editing roles can act on the host composer. Install the same handler on OAuth popups, dismiss it on navigation or disposal, and revoke captured spelling/image/link callbacks with a generation check. Native menu presentation belongs in `desktop-ui.ts` and its automation blocker, just like dialogs and window activation. Hidden QA can verify event routing and the blocker, but cannot establish on-screen native menu presentation.
 
@@ -168,8 +190,18 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 - Pierre patch parsing is synchronous even when highlighting uses its worker pool. Prepare ordinary multi-file patches in renderer tasks bounded by both file count and UTF-16 input units, publishing incremental items so the first highlighted file is not blocked by the whole change set. Offload each oversized unified patch individually in a short-lived module worker rather than sending the whole mixed-size diff, and surface parser failures ahead of loading placeholders. Retain and replay Changed-file navigation until the requested item has been prepared.
 - Pierre renders highlighted rows inside the open shadow root of its `<diffs-container>` element. Readiness probes must observe that shadow root rather than relying on a light-DOM `querySelector`, and the expanded Changed-file navigator must receive large file lists through deferred rendering with offscreen row layout/paint containment so secondary tree rows cannot delay the primary loading/highlight frame.
 - Diff performance E2E starts inside the panel toggle's capture listener, records Pierre's first shadow-root readiness through the light-DOM `data-diff-code-ready` contract, and keeps measuring until progressive patch preparation completes. Long-task entries are selected by interval overlap because the browser task that dispatches the click starts just before the listener timestamp. A body-level code query cannot see Pierre's shadow rows, and falling back to the time when Playwright finishes polling charges startup, runner descheduling, and test-driver delay to diff rendering.
+- Session resource invalidation belongs to the workspace lifecycle, not the opened ChatPanel. Invalidate the event's Session key even while another Session or Settings is open. The message-resource semaphore holds each permit until its underlying IPC call settles; aborting a TanStack observer does not cancel main-process work and must not release that permit early.
+- Stop requests retain active-run ownership until the send handler captures partial resources and finalizes completion. Do not emit completion synchronously from cancellation IPC or remove its registry entry before capture. Superseding a run still uses the separate cancel-and-remove path.
+- Composer drafts need a session-owned pending context before workspace hydration. Transfer typed input and attachments into the resolved branch without rebuilding Lexical, so selected slash-command chips survive. A pending context must never adopt another Session's late workspace; an untouched pending draft restores the saved branch draft.
+- Pending composer keys must not use global project preferences: project selection IPC can settle before or after workspace hydration. Use Session identity while pending and the matching workspace's project path once resolved. Hosted MCP interrupt/steer must request ownership-preserving cancellation and wait for finalization; `interrupt` reports timeout instead of claiming a still-finalizing run completed.
+- Pending drafts track edit intent separately from their content. Clearing text, attachments, or a Waggle preset must not resurrect an older branch draft when hydration finishes. Keep that intent across composer unmounts and Session switches, consume it on branch adoption, and remove it with the Session's draft cache. Unchanged empty editor synchronization is not an edit.
+- Responsive sidebar mode changes must keep the main React subtree mounted. Switching its parent between a sheet fragment and a docked layout destroys Lexical chips, unsent text, selection, and embedded visualization state. Change only the sidebar presentation inside a stable frame. A sheet opened by resizing has no surviving opener; restore focus to the stable main panel when it closes, never to the document body.
+- Classic, direct Waggle, and agent-triggered Waggle handoffs share `captureRunResultResources` before reporting completion. Capture the follow-on run's persisted messages and node/branch provenance even when its outcome is aborted or failed; capturing only the classic handoff request leaves the resulting collaboration outputs missing from an already-mounted catalog.
+- Chromium long-task entries measure wall time, not renderer CPU time. A hidden Electron renderer on a shared GitHub-hosted Windows VM can be descheduled for several seconds during the roughly 40-second 1 MiB source scenario and report the pause as one long task. That one uncalibrated absolute assertion is therefore disabled only for hosted Windows; the scenario still enforces first paint, skeleton-before-tokenization, bounded DOM/worker/transfer work, completion, and renderer errors. Local, macOS, Linux, diff rendering, and shorter Windows interaction windows retain their absolute long-task budgets.
 - Pierre's working pool owns the effective render options. Passing the active Syntax theme only to `<File>` or `<CodeView>` is insufficient: initialize the worker pool and surface with the same revision-specific runtime theme, and call the pool's `setRenderOptions` when a mounted diff changes theme because `WorkerPoolContextProvider` consumes `highlighterOptions` only during its initial state creation.
 - Right-sidebar performance checks must target the shared visible panel marker, not the docked shell: narrower or DPI-scaled viewports use the sheet variant, and a docked-only locator reports missing feedback even while highlighted code is visible.
+- During timed renderer work, poll visibility or completion values without locator-expect ARIA diagnostics. A hosted Windows CPU profile traced 4.6-second long tasks to Playwright's `_ariaSnapshotForExpect` / `generateAriaTree` while preparation was pending, not OpenWaggle rendering. `expect.poll` with `isVisible()` or `count()` preserves the assertions and existing performance limits without that injected traversal.
+- Playwright CSS locators still traverse shadow descendants for `count()` and `isVisible()`. The Windows Full run on `8c1f86af` sampled 500–740 ms in injected CSS queries even after removing ARIA diagnostics. Timed diff probes now use native light-DOM queries and inspect only the first diff container's shadow code, preserving visibility and completion checks. Profiles also contain application rendering/layout work, so probe overhead alone does not establish that the Windows performance failure is fixed; confirm against fresh hosted CI without relaxing budgets.
 - Workspace document identity includes the active working-tree root and relative path. The active file, search highlighting, syntax caches, journals, saves, and file mutations must not collide when two worktrees expose the same relative path.
 - Focused file edits autosave after 500 ms through serialized, revision-checked main-process writes. `Cmd/Ctrl+S` flushes immediately. A bounded recovery journal protects only the active file until a save succeeds.
 - A watcher re-read of the exact saved revision, content, encoding, and line ending must preserve the main-process document-session version. Resetting it makes the next valid edit look stale and surfaces as `Save failed`.
@@ -187,11 +219,15 @@ Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: suc
 
 ## Product And UX Memory
 
+- The Session Summary is a floating overlay, never a layout column. It must not add transcript or composer padding. The host auto-hides it when the chat container has less than 840px or the right sidebar opens, while the Summary toggle remains available so an explicit open can overlay the chat at any width.
 - Pi-native sidebar navigation is Projects-only. Do not add a global projectless Chats section.
 - Waggle mode must run inside Pi as extension/runtime behavior, not as an OpenWaggle application loop that calls Pi once per agent turn.
 - Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.
 - Waggle and standard mode share session, branch, draft, archive, transcript, active-run, composer, settings, diff, and git semantics unless Pi imposes a narrow technical constraint.
 - Composer branch/config changes are branch-scoped; child branches inherit parent config by default.
+- Before changing composer draft ownership, flush pending Lexical updates with `editor.read()` and then read the composer store. Lexical batches edits, so a workspace hydration or session switch can otherwise snapshot stale store text and overwrite the newest edit. Regression coverage must use a real editor with an update pending during hydration, clearing, and session switching, not just direct store writes.
+- Native resize tests must establish their input precondition and await the renderer's responsive state, not just `BrowserWindow.setContentSize()`, which returns before ResizeObserver runs. Hidden iframe pointer delivery can miss on macOS as well as Linux/Windows: non-privileged tab tests use delegated DOM clicks while host follow-ups retain trusted keyboard activation. CI preserves Playwright reports even when retries make the job green.
+- Session-selection E2E readiness must match the mounted route surface's Session ID to the selected sidebar row, not just the header title and composer visibility. Sidebar selection updates the store before routing commits, so the outgoing surface can briefly show the new title/transcript before its lazy route replacement. Workspace hydration remains an independent boundary and must not be awaited by the shared navigation helper (delayed-hydration tests intentionally hold it).
 - Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
 - Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
 - Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
@@ -491,3 +527,88 @@ The reuse barrier must observe every successful process sample, including an unc
 ### The menu role and its keyboard model are one decision
 
 `role="menu"` with `role="menuitemradio"` children tells a screen reader to use arrow keys. Declaring it on a panel of plain buttons produces a menu that is operable by Tab and Enter but announces a model that does not exist, which is worse than announcing nothing. `useMenuKeyboard` in `src/renderer/src/shared/hooks/` holds the model and `Popover` switches it on with the role, so the two cannot be declared separately. Items are found in the DOM rather than registered by each call site, because a menu's items are arbitrary children.
+
+### Session resources are durable, session-scoped projections
+
+Images, links, files, and change-request outputs are indexed in `session_resources`; their uses are
+separate `session_resource_occurrences` keyed to transcript node and branch ids. The resource row is
+deduplicated by `(session_id, canonical_key)`, so the same image may be both a source and an output
+without losing either provenance. Every occurrence retains the path or URL observed for that exact use;
+the resource-level locator is only a current fallback. Resource actions prefer the occurrence on the
+visible transcript path and otherwise use the latest matching occurrence. Never query or read one by resource id alone: every repository and
+IPC read includes the opened `SessionId` to prevent resources leaking across sessions.
+
+Managed bytes live below Electron user data in `session-resources/<session-id>/`, not in the project.
+Archiving retains them; permanent session deletion removes them after the database cascade. Successful
+runs capture new explicit resources, while opening the resource catalog backfills reconstructable
+resources from older projected transcripts with deterministic occurrence ids. Attachment backfill is
+bounded per lazy pass and resumes by skipping cataloged occurrence ids; do not turn catalog opening into
+an unbounded sweep over historical files. Explicit links from both actors share one per-run or per-pass
+budget, and backfill resumes by skipping cataloged link occurrence ids. Prepared local attachments carry a SHA-256 content identity
+through hydration and managed-file capture, so a same-size replacement at the original path is rejected.
+Every managed-content read must stay behind `SessionResourceStore` confinement and consume the already
+opened, validated file handle. When a gallery image is added back to the composer, copy those validated
+bytes into a private registered attachment first; never pass a persisted managed path directly into the
+generic attachment preparer, because that would bypass resource-root validation and reopen a path after
+the ownership check. Full viewer and download content never crosses IPC or lives in renderer state as
+base64. An explicit read returns short-lived, opaque protocol URLs bound to the renderer owner and active
+Session; every protocol request revalidates the Session/resource pair and streams a freshly confined
+managed-file handle. Owner teardown revokes its capabilities, registrations remain bounded, and
+granting content for a new active Session revokes every prior-Session capability owned by that renderer.
+The active renderer announces route changes independently of resource reads, including a transition to
+no Session. Once announced, that route is authoritative: a delayed read for the previous Session cannot
+reactivate its capability, and switching to a Session that never opens a resource still revokes the old
+URLs and in-flight grant.
+Only the transient main-rasterized WebP thumbnail bounded to 256 pixels may cross IPC as base64.
+Chromium omits referrers on custom-scheme image requests. Authenticate their actual Electron frame and
+owner in the existing `webRequest` guard, and reject nonempty untrusted referrers in the protocol handler.
+An authorized attachment download also fires `did-start-navigation` before `will-navigate`; it must not
+revoke its own capability or route to the external browser. Only the validated owning-window download
+action bypasses document-replacement revocation. Verify actual `naturalWidth`, Fit overflow geometry,
+and downloaded bytes in native E2E, not merely the presence of an image element.
+A transcript occurrence's `nodeId` is what connects an inline thumbnail to the exact user or assistant
+message and lets the viewer prioritise images on the visible branch before images from other branches in
+the same session. The transcript owns one session-resource query observer and builds one node-id image
+index around only its currently mounted window; loading earlier rows expands that lookup on demand.
+Individual message bubbles must not observe and rescan the full catalog, and opening a 100k-message
+Session must not create a query observer per historical chunk.
+
+Session resource catalog reads are bounded at the repository boundary: Summary uses small Source and
+Output previews with exact denormalized-role counts, while the browser and gallery use keyset pages and
+targeted exact reads. Occurrences remain classification truth; `is_source`/`is_output` are materialized
+projections only. Every resource or occurrence mutation advances a per-Session catalog revision so a
+continuation cursor cannot mix snapshots; the renderer restarts page one on a stale revision.
+
+Remote Markdown images are metadata-only during run settlement and thumbnail rendering. The main
+process performs the bounded, SSRF-safe HTTPS fetch only after the user opens that image in the viewer,
+then stores the validated bytes as the resource's managed copy. Do not reintroduce automatic remote
+thumbnail prefetching: it leaks network timing and can turn one agent response into unbounded download
+work before run completion. Managed previews use the thumbnail IPC path, which rasterizes at most a
+256-pixel WebP in the main process; never cache full resource payloads merely to render catalog or
+transcript thumbnails. Full bytes are reserved for an explicit viewer or download action and reach the
+renderer only through the managed streaming protocol, never through an IPC base64 payload.
+
+Resource backfill progress must use session-scoped exact occurrence or image-slot selectors, never the bounded, deduplicated UI thumbnail projection. Otherwise repeated images or catalogs over the display limit can consume every retry budget without advancing. Deferred tool metadata must still reserve its image and link indices so later occurrences keep stable identities across retries.
+
+### Hive state comes from the session projection
+
+The Host may omit a Worker's optional parent ID. Validate explicit parent IDs against the focused Session, but trust the scoped Worker page when the field is absent. Resolve an omitted focused-parent ID from the unique other Session in Host context; reject ambiguous context and preserve explicit-null root semantics. Reject even a single parent-context row if it contradicts an explicit parent ID or an explicit-null root; filtering it into `parent: null` silently hides invalid cross-Hive data. Tests must omit the parent ID itself, not just other optional lineage fields.
+
+The Session Host task's confirmed future-facing reader is `listHiveSessionCatalogPage(sessionId,
+limit, cursor?)`, with unordered focused/parent `context` and a page of direct `workers`. Summary now
+accepts that contract and optional lineage fields through `SessionHiveReader`, preferring it over the
+transitional `getSessionHiveRelations` reader only when the capability really exists. The IPC proxy's
+missing-method function is not capability detection; use `in`, backed by its `has` trap. Host failures
+must not silently fall back to the old lineage projection. Preserve the workspace Hive event hook and
+title invalidation when integrating the Host branch. See `docs/session-summary-hive-integration.md`
+for the verified contract, fingerprints, canonical-writer cutover, and the still-required combined
+live-Host QA. Seeded Hive screenshots are not evidence of that end-to-end integration.
+
+`session_lineage` records immutable parentage for Sessions created by a hosted task plus the caller
+profile and current delegation state. The detail-side session summary query derives Queen/Worker roles
+and direct/active Worker counts from that table for both live and archived lists. The hosted task manager
+is the production writer: a new task-created Session establishes lineage once, while success, failure,
+and cancellation update only an existing lineage row. Do not reconstruct Hive state from task JSON in
+the renderer or reparent an existing Session when a task merely targets it. Permanent deletion blocks
+while a Session still owns any direct Worker, including completed and archived Workers; project-wide
+deletion removes Hive leaves before their parents so no surviving Worker silently loses its lineage.

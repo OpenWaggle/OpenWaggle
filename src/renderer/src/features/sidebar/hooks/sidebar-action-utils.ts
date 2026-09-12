@@ -3,7 +3,9 @@ import type { SessionSummary } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
 
 export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  const message = error instanceof Error ? error.message : String(error)
+  // Electron adds transport context to rejected invokes. Keep the actionable reason in toasts.
+  return message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/u, '')
 }
 
 export function clearComposerDraftsForSessions(sessions: readonly Pick<SessionSummary, 'id'>[]) {

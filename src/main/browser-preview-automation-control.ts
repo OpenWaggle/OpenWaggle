@@ -30,6 +30,7 @@ import {
   updateBrowserPreviewAutomationPointer,
 } from './browser-preview-automation-session'
 import { playwrightInjectedRuntimeInstallExpression } from './browser-preview-playwright-runtime'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 
 export interface BrowserPreviewAutomationPage {
   readonly tabId: string
@@ -121,6 +122,7 @@ export class BrowserPreviewAutomationController {
   }
 
   private getOrCreateSession(page: BrowserPreviewAutomationPage) {
+    assertBrowserPreviewContentsAvailable(page.contents)
     const existing = this.sessions.get(page.tabId)
     if (existing?.contents === page.contents && !existing.disposed) return existing
     if (existing) this.dispose(existing.tabId)
@@ -129,6 +131,16 @@ export class BrowserPreviewAutomationController {
     )
     this.sessions.set(page.tabId, session)
     return session
+  }
+
+  private assertCurrent(session: ControlSession, epoch: number, documentGeneration: number) {
+    assertBrowserPreviewContentsAvailable(session.contents)
+    if (session.disposed || session.epoch !== epoch) {
+      throw new Error('Browser preview action was interrupted by human input or tab disposal.')
+    }
+    if (session.documentGeneration !== documentGeneration) {
+      throw new BrowserPreviewAutomationDocumentChangedError()
+    }
   }
 
   private async send(
@@ -140,27 +152,12 @@ export class BrowserPreviewAutomationController {
     params?: Readonly<Record<string, unknown>>,
   ) {
     deadline.throwIfAborted()
-    if (session.disposed || session.epoch !== epoch) {
-      throw new Error('Browser preview action was interrupted by human input or tab disposal.')
-    }
-    if (session.documentGeneration !== documentGeneration) {
-      throw new BrowserPreviewAutomationDocumentChangedError()
-    }
+    this.assertCurrent(session, epoch, documentGeneration)
     await deadline.race(ensureBrowserPreviewAutomationDebugger(session))
     deadline.throwIfAborted()
-    if (session.disposed || session.epoch !== epoch) {
-      throw new Error('Browser preview action was interrupted by human input or tab disposal.')
-    }
-    if (session.documentGeneration !== documentGeneration) {
-      throw new BrowserPreviewAutomationDocumentChangedError()
-    }
+    this.assertCurrent(session, epoch, documentGeneration)
     const response: unknown = await deadline.race(session.debugger.sendCommand(method, params))
-    if (session.disposed || session.epoch !== epoch) {
-      throw new Error('Browser preview action was interrupted by human input or tab disposal.')
-    }
-    if (session.documentGeneration !== documentGeneration) {
-      throw new BrowserPreviewAutomationDocumentChangedError()
-    }
+    this.assertCurrent(session, epoch, documentGeneration)
     return response
   }
 
@@ -235,6 +232,7 @@ export class BrowserPreviewAutomationController {
     allowDocumentChanges: boolean,
   ) {
     deadline.throwIfAborted()
+    assertBrowserPreviewContentsAvailable(session.contents)
     const action: BrowserPreviewAutomationActionEvent = {
       id: `browser-action-${randomUUID()}`,
       action: actionName,
@@ -263,12 +261,14 @@ export class BrowserPreviewAutomationController {
       const result = await deadline.race(
         Promise.resolve().then(() => {
           deadline.throwIfAborted()
+          assertBrowserPreviewContentsAvailable(session.contents)
           return use(
             this.actionContext(session, epoch, documentGeneration, deadline, allowDocumentChanges),
           )
         }),
       )
       deadline.throwIfAborted()
+      assertBrowserPreviewContentsAvailable(session.contents)
       if (session.disposed || session.epoch !== epoch) {
         throw new Error('Browser preview action was interrupted by human input or tab disposal.')
       }

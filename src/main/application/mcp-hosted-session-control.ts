@@ -13,7 +13,11 @@ import {
 import type { OpenWaggleMcpSessionMetadataStore } from '../openwaggle-mcp-session-metadata-store'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { runAppEffect } from '../runtime'
-import { cancelSessionRuns, hasAnyActiveRun, waitForSessionRuns } from './active-session-runs'
+import {
+  hasAnyActiveRun,
+  requestSessionRunCancellation,
+  waitForSessionRuns,
+} from './active-session-runs'
 
 /**
  * Hosted MCP Session Control use cases, expressed as Effect programs. These are
@@ -44,7 +48,7 @@ export function messageSession(
     const projectPath = session.projectPath
     if (!projectPath) return yield* failInvalid('The target session has no project path.')
     if (steer) {
-      cancelSessionRuns(session.id)
+      requestSessionRunCancellation(session.id)
       yield* tasks.cancelSession(session.id)
       const timeoutMs = input.timeoutMs ?? MAX_WAIT_MS
       const [desktopIdle, hostedIdle] = yield* Effect.all(
@@ -92,17 +96,28 @@ export function interruptSession(
   options: OpenWaggleMcpServeOptions,
   tasks: OpenWaggleSessionTaskController,
   session: SessionDetail,
+  timeoutMs = DEFAULT_WAIT_MS,
 ) {
   return Effect.gen(function* () {
     yield* Effect.try({
       try: () => assertNotOrigin(options, session.id),
       catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     })
-    const desktopCancelled = cancelSessionRuns(session.id)
+    const desktopCancelled = hasAnyActiveRun(session.id)
+    requestSessionRunCancellation(session.id)
     const hostedCancelled = yield* tasks.cancelSession(session.id)
+    const [desktopIdle, hostedIdle] = yield* Effect.all(
+      [
+        Effect.promise(() => waitForSessionRuns(session.id, timeoutMs)),
+        tasks.waitForSession(session.id, timeoutMs),
+      ],
+      { concurrency: 'unbounded' },
+    )
     return toolResult({
       sessionId: session.id,
-      completed: true,
+      completed: desktopIdle && hostedIdle,
+      timedOut: !(desktopIdle && hostedIdle),
+      active: hasAnyActiveRun(session.id) || tasks.hasActiveSessionTask(session.id),
       desktopCancelled,
       hostedTasksCancelled: hostedCancelled,
     })

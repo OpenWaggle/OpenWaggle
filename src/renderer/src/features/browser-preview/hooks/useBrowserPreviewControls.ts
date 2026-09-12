@@ -1,7 +1,12 @@
 import type { BrowserPreviewState } from '@shared/types/browser-preview'
 import { type SyntheticEvent, useCallback, useEffect, useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
+import { trackBrowserPreviewOwnerWork } from '@/shared/lib/browser-preview-owner-work'
 import { api } from '@/shared/lib/ipc'
+import {
+  isWorkspaceOwnerHandoffPending,
+  WORKSPACE_OWNER_HANDOFF_MESSAGE,
+} from '@/shared/lib/workspace-owner-handoff'
 import type { BrowserPreviewPanelCallbacks, BrowserPreviewTab } from '../browser-preview-model'
 import {
   browserPreviewBounds,
@@ -41,6 +46,10 @@ export function useBrowserPreviewControls(options: ControlOptions) {
     runControl(() => api.navigateBrowserPreview(options.tab.id, url), 'Preview could not navigate.')
   }
   const retry = () => {
+    if (isWorkspaceOwnerHandoffPending(options.tab.ownerKey)) {
+      options.onError(WORKSPACE_OWNER_HANDOFF_MESSAGE)
+      return
+    }
     const reload = async () => {
       try {
         return await api.reloadBrowserPreview(options.tab.id)
@@ -64,7 +73,7 @@ export function useBrowserPreviewControls(options: ControlOptions) {
         })
       }
     }
-    void reload()
+    void trackBrowserPreviewOwnerWork(options.tab.ownerKey, reload)
       .then(options.onState)
       .catch((error: unknown) => {
         options.onError(error instanceof Error ? error.message : 'Preview could not reload.')

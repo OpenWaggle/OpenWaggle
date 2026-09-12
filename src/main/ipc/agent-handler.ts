@@ -46,12 +46,14 @@ import {
   activeCompactions,
   activeRuns,
   activeWaggleRuns,
-  cancelAllSessionRuns,
   cancelSessionRuns,
   ensureSessionRunStartAllowed,
+  getAllActiveRunSessionIds,
   hasAnyActiveRun,
   listActiveCompactions,
+  requestSessionRunCancellation,
 } from './active-agent-runs'
+import { captureRunResultResources } from './agent-run-resources'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
 import { registerAgentSteeringHandler } from './agent-steering-handler'
 import { runAgentRequestedWaggle } from './agent-waggle-handoff'
@@ -64,9 +66,10 @@ function clearSessionTransportState(sessionId: SessionId) {
   cleanupSessionRun(sessionId)
 }
 
-function emitCancelledCompletion(sessionId: SessionId) {
-  clearSessionTransportState(sessionId)
-  emitRunCompleted(sessionId)
+function requestCancellation(sessionId: SessionId) {
+  if (!hasAnyActiveRun(sessionId)) return
+  requestSessionRunCancellation(sessionId)
+  cleanupSessionRun(sessionId)
 }
 
 /**
@@ -129,6 +132,8 @@ function registerAgentRunHandlers() {
             },
           })
 
+          yield* captureRunResultResources(sessionId, runId, validatedPayload, result)
+
           const handoff =
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
           if (handoff && !abortController.signal.aborted) {
@@ -190,14 +195,9 @@ function registerAgentRunHandlers() {
   typedHandle('agent:cancel', (_event, sessionId?: SessionId) =>
     Effect.sync(() => {
       if (sessionId) {
-        if (cancelSessionRuns(sessionId)) {
-          emitCancelledCompletion(sessionId)
-        }
+        requestCancellation(sessionId)
       } else {
-        const cancelledSessionIds = cancelAllSessionRuns()
-        for (const id of cancelledSessionIds) {
-          emitCancelledCompletion(id)
-        }
+        for (const id of getAllActiveRunSessionIds()) requestCancellation(id)
       }
     }),
   )

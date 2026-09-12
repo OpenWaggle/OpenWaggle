@@ -38,7 +38,10 @@ export interface OpenWaggleExtensionApi {
   applyExtensionPackageRemove(
     input: ExtensionApplyPackageRemoveInput,
   ): Promise<ExtensionManagerView>
-  invokeExtension(input: ExtensionInvokeInput): Promise<ExtensionInvokeResult>
+  invokeExtension(
+    input: ExtensionInvokeInput,
+    invocationBinding?: string,
+  ): Promise<ExtensionInvokeResult>
   registerExtensionFrame(input: ExtensionFrameRegisterInput): Promise<ExtensionFrameRegisterResult>
   unregisterExtensionFrame(input: ExtensionFrameUnregisterInput): Promise<void>
   setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>

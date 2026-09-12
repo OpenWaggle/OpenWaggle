@@ -43,6 +43,8 @@ const EXPECTED_CI_JOBS = [
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
 const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'timeout-minutes', 'steps'] as const
+const WINDOWS_E2E_CHECK = 'Electron E2E (Windows)'
+const WINDOWS_E2E_WORKER_ENVIRONMENT = /^ {4}env:\n {6}PLAYWRIGHT_WORKERS: '1'$/m
 
 function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
@@ -199,20 +201,20 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
   const runner = REQUIRED_JOB_RUNNERS.get(job.name)
-  const expectedKeys =
-    runner === undefined
-      ? [...REQUIRED_JOB_KEYS]
-      : QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
-        ? [...REQUIRED_JOB_KEYS, 'if']
-        : [...REQUIRED_JOB_KEYS]
+  const expectedKeys = [
+    ...REQUIRED_JOB_KEYS,
+    ...(job.name === WINDOWS_E2E_CHECK ? ['env'] : []),
+    ...(QUEUE_ONLY_JOB_CONDITIONS.has(job.name) ? ['if'] : []),
+  ]
   const contractRunner = runner ?? 'ubuntu-latest'
   const hasExactJobContract =
     jobKeys.length === expectedKeys.length &&
     expectedKeys.every((key) => jobKeys.includes(key)) &&
-    new RegExp(`^ {4}runs-on: ${contractRunner}$`, 'm').test(job.block)
+    new RegExp(`^ {4}runs-on: ${contractRunner}$`, 'm').test(job.block) &&
+    (job.name !== WINDOWS_E2E_CHECK || WINDOWS_E2E_WORKER_ENVIRONMENT.test(job.block))
   if (!hasExactJobContract) {
     violations.push(
-      `CI job ${job.name} must keep the exact blocking job contract: name, ${contractRunner} runner, and steps only.`,
+      `CI job ${job.name} must keep the exact blocking job contract: name, ${contractRunner} runner, and approved controls only.`,
     )
   }
 }

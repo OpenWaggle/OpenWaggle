@@ -12,6 +12,7 @@ import {
 const execFile = promisify(execFileCallback)
 const ALL_ZERO_SHA = '0000000000000000000000000000000000000000'
 const POLICY_SCRIPT_PATH = 'scripts/check-conventional-commits.ts'
+const TEMP_REPOSITORY_REMOVE_OPTIONS = { force: true, maxRetries: 10, recursive: true, retryDelay: 100 } as const
 
 async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFile('git', args, { cwd })
@@ -190,7 +191,7 @@ describe('Conventional Commit policy', () => {
         'Pull request title "docs(extension-sdk): explain manifest helpers" changes a publishable package but would not create a Release Please version bump.',
       )
     } finally {
-      await fs.rm(cwd, { force: true, recursive: true })
+      await fs.rm(cwd, TEMP_REPOSITORY_REMOVE_OPTIONS)
     }
   })
 
@@ -220,7 +221,7 @@ describe('Conventional Commit policy', () => {
 
       expect(result.violations).toEqual([])
     } finally {
-      await fs.rm(cwd, { force: true, recursive: true })
+      await fs.rm(cwd, TEMP_REPOSITORY_REMOVE_OPTIONS)
     }
   })
 
@@ -259,7 +260,7 @@ describe('Conventional Commit policy', () => {
       expect(explicitRange.effectiveFrom).toBe(validCommit)
       expect(explicitRange.violations).toEqual(allZeroPush.violations)
     } finally {
-      await fs.rm(cwd, { force: true, recursive: true })
+      await fs.rm(cwd, TEMP_REPOSITORY_REMOVE_OPTIONS)
     }
   })
 
@@ -299,7 +300,7 @@ describe('Conventional Commit policy', () => {
       expect(disconnectedRange.effectiveFrom).toBe(currentMarker)
       expect(disconnectedRange.violations).toEqual(result.violations)
     } finally {
-      await fs.rm(cwd, { force: true, recursive: true })
+      await fs.rm(cwd, TEMP_REPOSITORY_REMOVE_OPTIONS)
     }
   })
 
@@ -322,7 +323,7 @@ describe('Conventional Commit policy', () => {
         `${authoredCommit}: "Merge package release policy" is not an allowed Conventional Commit subject.`,
       ])
     } finally {
-      await fs.rm(cwd, { force: true, recursive: true })
+      await fs.rm(cwd, TEMP_REPOSITORY_REMOVE_OPTIONS)
     }
   })
 

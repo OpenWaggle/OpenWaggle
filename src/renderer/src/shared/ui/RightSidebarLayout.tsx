@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
-import { RightSidebarDockedLayout } from './RightSidebarDockedLayout'
+import { RightSidebarFrame } from './RightSidebarFrame'
 import { RightSidebarResizeRail } from './RightSidebarResizeRail'
 import { RightSidebarSheet } from './RightSidebarSheet'
 import {
@@ -82,13 +82,24 @@ export function RightSidebarLayout({
     mainRef.current?.focus({ preventScroll: true })
   }, [open])
 
+  useEffect(() => {
+    const panel = panelRef.current
+    if (isSheet || !open || !panel || panel.contains(document.activeElement)) return
+    queueMicrotask(() => {
+      const target = panel.querySelector<HTMLElement>(
+        '[data-right-sidebar-focus-target="true"], button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      )
+      ;(target ?? panel).focus({ preventScroll: true })
+    })
+  }, [isSheet, open])
+
   function captureSidebar(node: HTMLDivElement | null) {
     sidebarRef.current = node
-    if (node && open) setHasOpened(true)
   }
 
   function captureRoot(node: HTMLDivElement | null) {
     rootRef.current = node
+    if (node && open) setHasOpened(true)
   }
 
   function captureMain(node: HTMLDivElement | null) {
@@ -109,37 +120,28 @@ export function RightSidebarLayout({
   }
 
   return (
-    <>
-      {/* Keep the main subtree at the same position across breakpoints. Remounting
-        it resets editor state and lets composer autofocus steal terminal input. */}
-      <RightSidebarDockedLayout
-        captures={{ captureMain, capturePanel, captureRoot }}
-        content={{ children, sidebar }}
-        rail={
-          isSheet || maximized ? null : (
-            <RightSidebarResizeRail
-              actions={{ applyWidth, commitWidth }}
-              bounds={{ maxWidth, mainMinWidth, minWidth }}
-              handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
-              state={{ open, width }}
-              shouldAcceptWidth={shouldAcceptWidth}
-            />
-          )
-        }
-        shell={{
-          mainMinWidth,
-          maximized,
-          open: open && !isSheet,
-          shouldRenderSidebar: shouldRenderSidebar && !isSheet,
-          width,
-          captureSidebar,
-        }}
-      />
-      {isSheet && shouldRenderSidebar ? (
-        <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
-          {sidebar}
-        </RightSidebarSheet>
-      ) : null}
-    </>
+    <RightSidebarFrame
+      captures={{ captureMain, capturePanel, captureRoot }}
+      content={{ children, sidebar }}
+      rail={
+        !maximized && (
+          <RightSidebarResizeRail
+            actions={{ applyWidth, commitWidth }}
+            bounds={{ maxWidth, mainMinWidth, minWidth }}
+            handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
+            state={{ open, width }}
+            shouldAcceptWidth={shouldAcceptWidth}
+          />
+        )
+      }
+      shell={{ isSheet, maximized, mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
+      sheet={
+        isSheet && shouldRenderSidebar ? (
+          <RightSidebarSheet open={open} onOpenChange={onOpenChange} focusFallback={mainRef}>
+            {sidebar}
+          </RightSidebarSheet>
+        ) : null
+      }
+    />
   )
 }

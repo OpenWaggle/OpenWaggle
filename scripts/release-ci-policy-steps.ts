@@ -128,9 +128,10 @@ const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
           path: test-results
           if-no-files-found: ignore
           retention-days: 7`
+// Successful retries still need their diagnostics for flake investigation.
 const e2eReportArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
   `      - name: Upload Electron E2E Playwright report
-        if: failure()
+        if: always()
         uses: ${ACTION_UPLOAD_ARTIFACT}
         with:
           name: electron-e2e-${platform}-report
@@ -174,7 +175,11 @@ const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
           COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
+        run: |
+          if [ -z "$COMMIT_POLICY_FROM" ]; then
+            COMMIT_POLICY_FROM="$(git merge-base origin/main "$COMMIT_POLICY_TO")"
+          fi
+          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
 const MACOS_FULL_E2E_STEP = `      - name: Run Electron E2E (full suite including visual baselines)
         if: github.event_name != 'workflow_dispatch' || inputs.ci_tier != 'visual'
         run: pnpm test:e2e`

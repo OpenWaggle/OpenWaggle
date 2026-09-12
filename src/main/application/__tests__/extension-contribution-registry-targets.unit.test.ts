@@ -105,6 +105,34 @@ describe('listExtensionContributionRegistryView contribution targets', () => {
     expect(expectFirstEntry(matchingSession).sessionId).toBe('session-1')
   })
 
+  it('binds untargeted contributions to the requested session context', async () => {
+    const sessionPackage = makePackage({
+      id: 'session-context-extension',
+      name: 'Session Context Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      contributions: {
+        sidePanels: [
+          {
+            id: 'session-context.panel',
+            title: 'Session Context Panel',
+            runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+            execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.FRAME,
+            entry: 'dist/panel.js',
+          },
+        ],
+      },
+    })
+
+    const registry = await loadRegistry({
+      packages: [sessionPackage],
+      lifecycles: [makeLifecycle(sessionPackage)],
+      projectPaths: [PROJECT_PATH],
+      sessionId: 'session-1',
+    })
+
+    expect(expectFirstEntry(registry).sessionId).toBe('session-1')
+  })
+
   it('carries manifest network origins into contribution entries', async () => {
     const networkPackage = makePackage({
       id: 'network-extension',

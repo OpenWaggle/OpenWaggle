@@ -6,7 +6,7 @@ import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
 import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
-import { getGhCliEnv } from '../env'
+import { getSourceControlCliEnv } from '../env'
 import { createLogger, getLogFilePath } from '../logger'
 import { redactSensitiveText } from '../utils/redact'
 import { typedHandle } from './typed-ipc'
@@ -190,7 +190,9 @@ export function registerFeedbackHandlers(): void {
 
       const authenticated = yield* Effect.tryPromise({
         try: () =>
-          execFilePromise('gh', ['auth', 'status'], { env: getGhCliEnv() }).then(() => true),
+          execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
+            () => true,
+          ),
         catch: () => false,
       })
       return { available: true, authenticated }
@@ -221,7 +223,7 @@ export function registerFeedbackHandlers(): void {
         markdown,
       ]
 
-      const env = getGhCliEnv()
+      const env = getSourceControlCliEnv()
 
       // Try with label first, fall back without if label doesn't exist in repo
       const stdoutResult = yield* Effect.tryPromise({

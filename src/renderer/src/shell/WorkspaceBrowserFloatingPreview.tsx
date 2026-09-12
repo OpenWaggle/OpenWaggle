@@ -5,6 +5,7 @@ import {
   useBrowserPreviewFloatingStore,
 } from '@/features/browser-preview'
 import { useChat } from '@/features/chat/hooks'
+import { isSessionSummaryPanelVisible, useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject } from '@/features/sessions/hooks'
 import { terminalOwnerContext } from '@/features/terminal'
 import { api } from '@/shared/lib/ipc'
@@ -66,6 +67,10 @@ export function WorkspaceBrowserFloatingPreview() {
   )
   const group = useWorkspacePanelStore((state) => state.groups[ownerKey])
   const activeClaim = useRightSidebarCoordinator((state) => state.activeClaim)
+  const summaryVisible = useSessionSummaryUIStore((state) =>
+    isSessionSummaryPanelVisible(state.panels[ownerKey]),
+  )
+  const inspectorVisible = activeClaim?.kind === 'route' && activeClaim.scopeKey === ownerKey
   const showToast = useUIStore((state) => state.showToast)
   const candidate = group?.browserTabs.find((tab) => tab.id === floating?.previewId)
   const tab = isMaterializedTab(candidate) ? candidate : undefined
@@ -93,6 +98,7 @@ export function WorkspaceBrowserFloatingPreview() {
   return (
     <BrowserPreviewFloatingPanel
       key={tab.id}
+      suspended={summaryVisible || inspectorVisible}
       tab={tab}
       onCloseBrowser={() => void closeFloatingBrowser(ownerKey, tab, onError)}
       onError={onError}

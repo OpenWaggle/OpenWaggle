@@ -16,6 +16,7 @@ import { createSections, makeMessage } from './ChatPanel.test-utils'
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    activateSessionResourceOwner: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),

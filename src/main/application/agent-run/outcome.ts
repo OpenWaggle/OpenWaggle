@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../../agent/error-classifier'
 import { createLogger } from '../../logger'
 import { isRunCancellation } from '../run-cancellation'
+import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 import type { AgentRunResult } from './types'
 
 const logger = createLogger('agent-run-service')
@@ -23,6 +24,9 @@ interface BuildAgentRunOutcomeInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
+  readonly resourceMessages?: readonly Message[]
+  readonly resourceNodeIds?: Readonly<Record<string, string>>
+  readonly resourceBranchIds?: Readonly<Record<string, string | null>>
 }
 
 interface BuildAgentRunFailureInput {
@@ -34,6 +38,7 @@ interface BuildAgentRunFailureInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly model: SupportedModelId
+  readonly resources?: PersistedRunResourceNodes
 }
 
 export function buildAgentRunOutcome({
@@ -43,21 +48,33 @@ export function buildAgentRunOutcome({
   sessionId,
   runId,
   model,
+  resourceMessages = agentResult.newMessages,
+  resourceNodeIds = Object.fromEntries(
+    agentResult.newMessages.map((message) => [String(message.id), String(message.id)]),
+  ),
+  resourceBranchIds = {},
 }: BuildAgentRunOutcomeInput): AgentRunResult {
+  const resources = { resourceMessages, resourceNodeIds, resourceBranchIds }
   if (agentResult.terminalError) {
     return terminalErrorOutcome(agentResult.terminalError, {
       sessionId,
       runId,
       model,
       assignedTitle,
+      resources,
     })
   }
   if (signal.aborted || agentResult.aborted || agentResult.newMessages.length === 0) {
-    return { outcome: 'aborted', ...(assignedTitle ? { assignedTitle } : {}) }
+    return {
+      outcome: 'aborted',
+      ...(resourceMessages.length > 0 ? resources : {}),
+      ...(assignedTitle ? { assignedTitle } : {}),
+    }
   }
   return {
     outcome: 'success',
     newMessages: agentResult.newMessages,
+    ...resources,
     ...(assignedTitle ? { assignedTitle } : {}),
   }
 }
@@ -70,10 +87,12 @@ export function recoverAgentRunFailure({
   runId,
   model,
   reachedAgent = false,
+  resources,
 }: BuildAgentRunFailureInput): Effect.Effect<AgentRunResult> {
   if (isRunCancellation(error, signal)) {
     return Effect.succeed({
       outcome: 'aborted' as const,
+      ...(resources && resources.resourceMessages.length > 0 ? resources : {}),
       ...(assignedTitle ? { assignedTitle } : {}),
     })
   }
@@ -96,6 +115,7 @@ export function recoverAgentRunFailure({
      * ever sent.
      */
     ...(reachedAgent ? { transportEmitted: true } : {}),
+    ...(resources && resources.resourceMessages.length > 0 ? resources : {}),
     ...(assignedTitle ? { assignedTitle } : {}),
   })
 }
@@ -107,6 +127,7 @@ function terminalErrorOutcome(
     readonly runId: string
     readonly model: SupportedModelId
     readonly assignedTitle?: string
+    readonly resources: PersistedRunResourceNodes
   },
 ): AgentRunResult {
   const classified = classifyAgentError(new Error(terminalError))
@@ -122,6 +143,7 @@ function terminalErrorOutcome(
     message: classified.userMessage,
     code: classified.code,
     transportEmitted: true,
+    ...(context.resources.resourceMessages.length > 0 ? context.resources : {}),
     ...(context.assignedTitle ? { assignedTitle: context.assignedTitle } : {}),
   }
 }

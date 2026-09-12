@@ -18,6 +18,8 @@ const WORKERS = playwrightWorkerCount(CI, process.platform, process.env.PLAYWRIG
 
 export default defineConfig({
   testDir: './e2e',
+  // Support-level lifecycle tests run under Vitest; never execute them inside Playwright workers.
+  testIgnore: '**/*.unit.test.ts',
   timeout: TIMEOUT,
   fullyParallel: false,
   workers: WORKERS,

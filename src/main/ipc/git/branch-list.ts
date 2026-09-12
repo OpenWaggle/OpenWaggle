@@ -1,4 +1,5 @@
 import type { GitBranchInfo, GitBranchListResult } from '@shared/types/git'
+import { parseConfiguredRemoteNames, resolveRemoteBranchLocalName } from './remote-branch-name'
 import { isGitRepository, runGit } from './shared'
 
 const PARSE_INT_ARG_2 = 10
@@ -19,7 +20,7 @@ function parseTrackCounts(track: string) {
   }
 }
 
-function parseBranchRefLine(line: string): ParsedBranchRef {
+function parseBranchRefLine(line: string, remoteNames: readonly string[]): ParsedBranchRef {
   const [fullName = '', shortName = '', upstream = '', headMark = '', track = '', timestamp = ''] =
     line.split('\t')
   const { ahead, behind } = parseTrackCounts(track)
@@ -28,11 +29,16 @@ function parseBranchRefLine(line: string): ParsedBranchRef {
     throw new Error(`Git returned an invalid commit timestamp for ${shortName || fullName}.`)
   }
 
+  const isRemote = fullName.startsWith('refs/remotes/')
+  const localName = isRemote
+    ? (resolveRemoteBranchLocalName(shortName, remoteNames) ?? shortName)
+    : shortName
   return {
     branch: {
       fullName,
       name: shortName,
-      isRemote: fullName.startsWith('refs/remotes/'),
+      localName,
+      isRemote,
       isCurrent: headMark.trim() === '*',
       upstream: upstream || null,
       ahead,
@@ -85,7 +91,7 @@ export async function listGitBranches(projectPath: string): Promise<GitBranchLis
     throw new Error('Selected folder is not a Git repository.')
   }
 
-  const [currentResult, refsResult, reflogResult] = await Promise.all([
+  const [currentResult, refsResult, reflogResult, remotesResult] = await Promise.all([
     runGit(projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
     runGit(projectPath, [
       'for-each-ref',
@@ -97,6 +103,7 @@ export async function listGitBranches(projectPath: string): Promise<GitBranchLis
     // closest local creation record; repositories without reflogs fall back to
     // the tip commit date already returned by for-each-ref.
     runGit(projectPath, ['reflog', 'show', '--all', '--date=unix', '--format=%gD']),
+    runGit(projectPath, ['remote']),
   ])
   const currentBranchRaw = currentResult.code === 0 ? currentResult.stdout.trim() : ''
   const currentBranch = currentBranchRaw && currentBranchRaw !== 'HEAD' ? currentBranchRaw : null
@@ -107,6 +114,8 @@ export async function listGitBranches(projectPath: string): Promise<GitBranchLis
     reflogResult.code === 0
       ? parseBranchCreationTimes(reflogResult.stdout)
       : new Map<string, number>()
+  const remoteNames =
+    remotesResult.code === 0 ? parseConfiguredRemoteNames(remotesResult.stdout) : []
 
   return {
     currentBranch,
@@ -114,7 +123,7 @@ export async function listGitBranches(projectPath: string): Promise<GitBranchLis
       .split('\n')
       .map((line) => line.trimEnd())
       .filter(Boolean)
-      .map(parseBranchRefLine)
+      .map((line) => parseBranchRefLine(line, remoteNames))
       .map((entry) => ({
         ...entry,
         createdAt: createdAtByFullName.get(entry.branch.fullName) ?? entry.tipCommittedAt,
@@ -123,4 +132,10 @@ export async function listGitBranches(projectPath: string): Promise<GitBranchLis
       .sort(sortBranchRefs)
       .map((entry) => entry.branch),
   }
+}
+
+/** Branch names as consumed by collision-free feature-ref planning. */
+export async function listGitBranchNames(projectPath: string): Promise<readonly string[]> {
+  const list = await listGitBranches(projectPath)
+  return list.branches.map((branch) => branch.localName)
 }

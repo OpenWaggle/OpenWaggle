@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCopyToClipboard = vi.fn()
 const mockOpenWorkspaceFile = vi.fn()
+const mockSessionMessageImageResources = vi.fn()
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
@@ -15,6 +16,12 @@ vi.mock('@/features/workspace-files/hooks', () => ({
   useOpenWorkspaceFile: () => mockOpenWorkspaceFile,
 }))
 
+vi.mock('@/features/session-summary', () => ({
+  SessionMessageImages: () => <div data-testid="session-message-images" />,
+  useSessionMessageImageResources: (...args: unknown[]) =>
+    mockSessionMessageImageResources(...args),
+}))
+
 import { UserMessageBubble } from '../UserMessageBubble'
 
 function createUserMessage(id: string, parts: UIMessage['parts']): UIMessage {
@@ -24,34 +31,13 @@ function createUserMessage(id: string, parts: UIMessage['parts']): UIMessage {
 describe('UserMessageBubble', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSessionMessageImageResources.mockReturnValue([])
   })
 
   it('renders text content from message parts', () => {
     const message = createUserMessage('u1', [{ type: 'text', content: 'Hello world' }])
     render(<UserMessageBubble message={message} />)
     expect(screen.getByText('Hello world')).toBeInTheDocument()
-  })
-
-  it('marks a steered preview that is waiting for compaction to finish', () => {
-    const message: UIMessage = {
-      id: 'optimistic-steer-1',
-      role: 'user',
-      parts: [{ type: 'text', content: 'Continue with the implementation' }],
-      metadata: { steerDelivery: 'waiting-for-compaction' },
-    }
-
-    render(
-      <UserMessageBubble
-        message={message}
-        onBranchFromMessage={vi.fn()}
-        onForkFromMessage={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText('Continue with the implementation')).toBeInTheDocument()
-    expect(screen.getByText('Will send after compaction')).toBeInTheDocument()
-    expect(screen.queryByTitle('Branch from message')).not.toBeInTheDocument()
-    expect(screen.queryByTitle('Fork to new session')).not.toBeInTheDocument()
   })
 
   it('keeps a Waggle invocation chip inline with the prompt', () => {
@@ -268,14 +254,58 @@ describe('UserMessageBubble', () => {
     expect(screen.queryByText('[Attachment] report.pdf')).not.toBeInTheDocument()
   })
 
-  it('renders multiple attachment chips', () => {
+  it('uses the Session image gallery instead of duplicating an image attachment chip', () => {
+    mockSessionMessageImageResources.mockReturnValue([{ title: 'image.png' }])
     const message = createUserMessage('u1', [
       { type: 'text', content: '[Attachment] image.png' },
       { type: 'text', content: '[Attachment] document.pdf' },
     ])
     render(<UserMessageBubble message={message} />)
-    expect(screen.getByText('image.png')).toBeInTheDocument()
+    expect(screen.getByTestId('session-message-images')).toBeInTheDocument()
+    expect(screen.queryByText('image.png')).toBeNull()
     expect(screen.getByText('document.pdf')).toBeInTheDocument()
+  })
+
+  it('keeps image-looking attachment chips when this message has no matching viewable image', () => {
+    mockSessionMessageImageResources.mockImplementation((messageId) =>
+      messageId === 'another-message' ? [{ title: 'spoofed.png' }] : [],
+    )
+    const message: UIMessage = {
+      ...createUserMessage('u-image-like-files', [
+        { type: 'text', content: '[Attachment] spoofed.png' },
+        { type: 'text', content: '[Attachment] unsafe.svg' },
+      ]),
+      metadata: { sessionNodeId: 'active-message' },
+    }
+
+    render(<UserMessageBubble message={message} />)
+
+    expect(mockSessionMessageImageResources).toHaveBeenCalledWith('active-message')
+    expect(screen.getByText('spoofed.png')).toBeInTheDocument()
+    expect(screen.getByText('unsafe.svg')).toBeInTheDocument()
+  })
+
+  it('hides only as many matching attachment chips as this message captured', () => {
+    mockSessionMessageImageResources.mockReturnValue([{ title: 'duplicate.png' }])
+    const message = createUserMessage('u-duplicate-image-name', [
+      { type: 'text', content: '[Attachment] duplicate.png' },
+      { type: 'text', content: '[Attachment] duplicate.png' },
+    ])
+
+    render(<UserMessageBubble message={message} />)
+
+    expect(screen.getAllByText('duplicate.png')).toHaveLength(1)
+  })
+
+  it('does not mount a network-backed Markdown image in a user message', () => {
+    const message = createUserMessage('u-image-markdown', [
+      { type: 'text', content: '![Private](http://127.0.0.1/private.png)' },
+    ])
+    const { container } = render(<UserMessageBubble message={message} />)
+
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.getByText('[Image: Private]')).toBeInTheDocument()
+    expect(screen.getAllByTestId('session-message-images')).toHaveLength(1)
   })
 
   it('extracts attachment name from first line when preview text is present', () => {

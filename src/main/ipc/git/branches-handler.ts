@@ -1,4 +1,4 @@
-import { decodeUnknownOrThrow, type Schema } from '@shared/schema'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -7,8 +7,9 @@ import type {
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { listGitBranches } from './branch-list'
-import { checkoutGitBranch, createGitBranch } from './branch-mutations'
+import { checkoutGitBranch, createGitBranch, validateGitBranchName } from './branch-mutations'
 import { branchCheckoutPayloadSchema, branchCreatePayloadSchema } from './branch-schemas'
+import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema } from './shared'
 import { invalidateGitStatusCache } from './status-cache'
 import { invalidateVcsStatus } from './vcs-status-cache'
@@ -23,21 +24,21 @@ function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
     Effect.gen(function* () {
       const workingPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(input.schema, rawPayload)
-      const result = yield* Effect.promise(() => input.run(workingPath, payload))
-      /*
-       * A checkout or branch creation moves the working tree's HEAD, so both caches over it are stale and every
-       * window watching that tree needs to know.
-       *
-       * The VCS status is the one that matters most here: it carries `isDefaultRef`, which is what the
-       * confirmation before a push to the default branch waits on. Leaving it cached meant checking out the
-       * default branch and pressing Commit & push within the cache window pushed to it with no confirmation,
-       * because the status still described the branch the user had left.
-       */
-      if (result.ok) {
-        invalidateGitStatusCache(workingPath)
-        invalidateVcsStatus(workingPath)
-      }
-      return result
+      return yield* withGitMutationLock(
+        workingPath,
+        Effect.gen(function* () {
+          const result = yield* Effect.promise(() => input.run(workingPath, payload))
+          /*
+           * A checkout or branch creation moves the working tree's HEAD, so both caches over it are stale and every
+           * window watching that tree needs to know.
+           */
+          if (result.ok) {
+            invalidateGitStatusCache(workingPath)
+            invalidateVcsStatus(workingPath)
+          }
+          return result
+        }),
+      )
     })
 }
 
@@ -46,6 +47,14 @@ export function registerGitBranchHandlers(): void {
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       return yield* Effect.promise(() => listGitBranches(projectPath))
+    }),
+  )
+
+  typedHandle('git:branches:validate-name', (_event, rawPath: unknown, rawName: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const name = decodeUnknownOrThrow(Schema.String, rawName)
+      return yield* Effect.promise(() => validateGitBranchName(projectPath, name))
     }),
   )
 

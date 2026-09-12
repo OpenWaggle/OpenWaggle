@@ -44,6 +44,7 @@ export interface AttachmentRecord {
   readonly path: string
   readonly mimeType: string
   readonly sizeBytes: number
+  readonly contentSha256?: string
   readonly extractedText: string
   readonly browserPreview?: BrowserPreviewAttachmentMetadata
 }
