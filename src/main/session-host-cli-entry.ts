@@ -58,7 +58,10 @@ export function startSessionHostCliIfRequested(argv: readonly string[]) {
             stopOwnedServices: runtime.stopSessionHostOwnedServices,
           })
           const orphanTimer = setTimeout(() => {
-            if (host.liveness.ownerCount() === 0) void host.stop()
+            // Once an authenticated client adopts this Host, normal idle grace owns its lifetime.
+            if (!host.liveness.hasAcceptedClient() && host.liveness.ownerCount() === 0) {
+              void host.stop()
+            }
           }, ORPHAN_HOST_GRACE_MS)
           try {
             await host.waitUntilStopped()

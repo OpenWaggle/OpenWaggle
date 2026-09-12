@@ -62,8 +62,9 @@ describe('Local Session authentication budget', () => {
       .fn<() => Promise<{ callerId: string }>>()
       .mockRejectedValueOnce(new Error('Credential rejected.'))
       .mockResolvedValue({ callerId: 'profile:worker' })
+    const serverDependencies = dependencies(authenticate)
     handle = await listenLocalSessionServer(endpoint, {
-      ...dependencies(authenticate),
+      ...serverDependencies,
       maxFailedAuthenticationAttempts: 1,
       authenticationCooldownMs: 25,
     })
@@ -77,12 +78,14 @@ describe('Local Session authentication budget', () => {
       code: 'authentication_failed',
     })
     expect(authenticate).toHaveBeenCalledOnce()
+    expect(serverDependencies.liveness.hasAcceptedClient()).toBe(false)
     await new Promise((resolve) => setTimeout(resolve, 30))
     await expect(attempt(endpoint, 'worker')).resolves.toMatchObject({
       accepted: true,
       revision: LOCAL_SESSION_CURRENT_REVISION,
     })
     expect(authenticate).toHaveBeenCalledTimes(2)
+    expect(serverDependencies.liveness.hasAcceptedClient()).toBe(true)
   })
 
   it('globally throttles distinct-profile floods without evicting the budget', async () => {

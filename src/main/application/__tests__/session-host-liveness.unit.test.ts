@@ -2,11 +2,59 @@ import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installSessionHostEventRuntime } from '../../session-host/session-host-events'
 import { SessionHostEventHub } from '../session-host-event-hub'
-import { SessionHostLiveness } from '../session-host-liveness'
+import { SESSION_HOST_LIVENESS_KINDS, SessionHostLiveness } from '../session-host-liveness'
 import { acquireSessionHostRunLease } from '../session-host-run-admission'
 
 describe('Session Host liveness', () => {
   afterEach(() => vi.useRealTimers())
+
+  it('remembers accepted clients after they disconnect and the Host closes', () => {
+    vi.useFakeTimers()
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 300_000,
+      requestShutdown: vi.fn(),
+    })
+    expect(liveness.hasAcceptedClient()).toBe(false)
+    const release = liveness.acquire('client')
+    expect(liveness.hasAcceptedClient()).toBe(true)
+    release()
+    expect(liveness.ownerCount()).toBe(0)
+    expect(liveness.hasAcceptedClient()).toBe(true)
+    liveness.close()
+    expect(liveness.hasAcceptedClient()).toBe(true)
+  })
+
+  it.each(SESSION_HOST_LIVENESS_KINDS.filter((kind) => kind !== 'client'))(
+    'does not mistake a %s owner for an accepted client',
+    (kind) => {
+      const liveness = new SessionHostLiveness({
+        idleGracePeriodMs: 300_000,
+        requestShutdown: vi.fn(),
+      })
+      liveness.acquire(kind)
+      expect(liveness.hasAcceptedClient()).toBe(false)
+      liveness.close()
+    },
+  )
+
+  it.each(['closed', 'shutdown-requested'] as const)(
+    'does not record a client rejected because the Host is %s',
+    async (state) => {
+      vi.useFakeTimers()
+      const liveness = new SessionHostLiveness({
+        idleGracePeriodMs: 0,
+        requestShutdown: vi.fn(),
+      })
+      if (state === 'closed') liveness.close()
+      else {
+        liveness.armIdleShutdown()
+        await vi.advanceTimersByTimeAsync(0)
+      }
+      expect(() => liveness.acquire('client')).toThrow('no longer accepting')
+      expect(liveness.hasAcceptedClient()).toBe(false)
+      liveness.close()
+    },
+  )
 
   it('shuts down only after the final owner releases and the grace period elapses', async () => {
     vi.useFakeTimers()

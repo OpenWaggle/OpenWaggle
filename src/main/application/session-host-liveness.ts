@@ -27,6 +27,7 @@ export class SessionHostLiveness {
   private shutdownRequested = false
   private draining = false
   private activeDrainReason: SessionHostDrainReason | null = null
+  private acceptedClient = false
   private readonly clientHandoffGracePeriodMs: number
 
   constructor(private readonly options: SessionHostLivenessOptions) {
@@ -112,6 +113,7 @@ export class SessionHostLiveness {
     }
     this.cancelIdleTimer()
     this.owners.set(kind, (this.owners.get(kind) ?? 0) + 1)
+    if (kind === 'client') this.acceptedClient = true
     let released = false
     return () => {
       if (released) return
@@ -162,6 +164,10 @@ export class SessionHostLiveness {
 
   ownerCount(kind?: SessionHostLivenessKind): number {
     return kind ? (this.owners.get(kind) ?? 0) : this.totalOwners()
+  }
+
+  hasAcceptedClient(): boolean {
+    return this.acceptedClient
   }
 
   hasScheduledIdleShutdown(): boolean {

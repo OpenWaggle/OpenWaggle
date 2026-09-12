@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionHostLiveness } from '../application/session-host-liveness'
+
+interface TestHost {
+  readonly liveness: Pick<SessionHostLiveness, 'ownerCount' | 'hasAcceptedClient'>
+  readonly stop: () => Promise<void>
+  readonly waitUntilStopped: () => Promise<void>
+}
 
 const mocks = vi.hoisted(() => {
   const order: string[] = []
@@ -19,10 +26,10 @@ const mocks = vi.hoisted(() => {
     }),
     legacyFence: vi.fn((operation: () => Promise<unknown>) => operation()),
     sourceExists: vi.fn(async () => false),
-    startHost: vi.fn(async () => {
+    startHost: vi.fn<() => Promise<TestHost>>(async () => {
       order.push('start-host')
       return {
-        liveness: { ownerCount: () => 1 },
+        liveness: { ownerCount: () => 1, hasAcceptedClient: () => true },
         stop: vi.fn(async () => undefined),
         waitUntilStopped: vi.fn(async () => {
           order.push('host-stopped')
@@ -95,6 +102,11 @@ vi.mock('../store/settings', () => ({
 import { startSessionHostCliIfRequested } from '../session-host-cli-entry'
 
 describe('detached Session Host startup', () => {
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     mocks.order.length = 0
     mocks.exit.mockClear()
@@ -160,5 +172,107 @@ describe('detached Session Host startup', () => {
 
     expect(mocks.sourceExists).toHaveBeenCalledOnce()
     expect(mocks.legacyFence).not.toHaveBeenCalled()
+  })
+
+  it('preserves an adopted Host across a restart at the orphan deadline until its configured idle grace expires', async () => {
+    vi.useFakeTimers()
+    const stopped = Promise.withResolvers<void>()
+    const stop = vi.fn(async () => stopped.resolve())
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 300_000,
+      clientHandoffGracePeriodMs: 1_000,
+      requestShutdown: stop,
+    })
+    mocks.startHost.mockResolvedValueOnce({
+      liveness,
+      stop,
+      waitUntilStopped: vi.fn(() => stopped.promise),
+    })
+
+    try {
+      expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mocks.startHost).toHaveBeenCalledOnce()
+      const releaseCli = liveness.acquire('client')
+      releaseCli()
+      const releaseGui = liveness.acquire('client')
+      await vi.advanceTimersByTimeAsync(9_500)
+      releaseGui()
+
+      await vi.advanceTimersByTimeAsync(500)
+      expect(stop).not.toHaveBeenCalled()
+      expect(mocks.exit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(299_499)
+      expect(stop).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(stop).toHaveBeenCalledOnce()
+      expect(mocks.exit).toHaveBeenCalledWith(0)
+    } finally {
+      liveness.close()
+      stopped.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+    }
+  })
+
+  it('still stops a never-adopted idle Host at the orphan deadline', async () => {
+    vi.useFakeTimers()
+    const stopped = Promise.withResolvers<void>()
+    const stop = vi.fn(async () => stopped.resolve())
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 300_000,
+      requestShutdown: stop,
+    })
+    mocks.startHost.mockResolvedValueOnce({
+      liveness,
+      stop,
+      waitUntilStopped: vi.fn(() => stopped.promise),
+    })
+
+    try {
+      expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+      await vi.advanceTimersByTimeAsync(9_999)
+      expect(stop).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(stop).toHaveBeenCalledOnce()
+      expect(mocks.exit).toHaveBeenCalledWith(0)
+    } finally {
+      liveness.close()
+      stopped.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+    }
+  })
+
+  it('does not orphan-stop a never-adopted Host while it owns background work', async () => {
+    vi.useFakeTimers()
+    const stopped = Promise.withResolvers<void>()
+    const stop = vi.fn(async () => stopped.resolve())
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 300_000,
+      requestShutdown: stop,
+    })
+    mocks.startHost.mockResolvedValueOnce({
+      liveness,
+      stop,
+      waitUntilStopped: vi.fn(() => stopped.promise),
+    })
+
+    try {
+      expect(startSessionHostCliIfRequested(['session-host-internal'])).toBe(true)
+      await vi.advanceTimersByTimeAsync(0)
+      const releaseWork = liveness.acquire('semantic-preparation')
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(stop).not.toHaveBeenCalled()
+      expect(liveness.hasAcceptedClient()).toBe(false)
+      releaseWork()
+      await vi.advanceTimersByTimeAsync(299_999)
+      expect(stop).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(stop).toHaveBeenCalledOnce()
+      expect(mocks.exit).toHaveBeenCalledWith(0)
+    } finally {
+      liveness.close()
+      stopped.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+    }
   })
 })
