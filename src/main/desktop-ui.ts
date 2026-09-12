@@ -12,6 +12,7 @@ import type {
 } from 'electron'
 import * as Electron from 'electron'
 import { env, getSafeChildEnv } from './env'
+import { launchWindowsHeadlessProcess } from './windows-headless-process'
 
 export class AutomationDesktopUiError extends Error {
   constructor(api: string) {
@@ -236,6 +237,7 @@ export function launchHeadlessBackgroundProcess(input: {
   readonly args: readonly string[]
   readonly environment: Readonly<Record<string, string | undefined>>
 }): Promise<void> {
+  if (process.platform === 'win32') return launchWindowsHeadlessProcess(input)
   return launchDetachedProcess(input)
 }
 

@@ -3,13 +3,17 @@ import path from 'node:path'
 import { app } from 'electron'
 import { launchHeadlessBackgroundProcess } from '../../../../src/main/desktop-ui'
 import { prepareDesktopUi } from '../../../../src/main/desktop-window-policy'
-import { getSafeChildEnv } from '../../../../src/main/env'
+import { getSessionHostChildEnv } from '../../../../src/main/env'
+import {
+  WINDOWS_DETACHED_PROCESS_ARGUMENTS,
+  WINDOWS_DETACHED_PROCESS_SENTINEL_KEY,
+} from '../windows-detached-process-values'
 
 const READY_TIMEOUT_MS = 10_000
 const CHILD_LIFETIME_MS = 25_000
 const POLL_INTERVAL_MS = 25
 
-const [mode, directory] = process.argv.slice(-2)
+const [mode, directory, ...receivedArguments] = process.argv.slice(2)
 prepareDesktopUi(app)
 if ((mode !== 'parent' && mode !== 'child') || !directory) {
   throw new Error('Detached-process probe requires its mode and private directory.')
@@ -37,7 +41,11 @@ async function run() {
   await app.whenReady()
   if (mode === 'child') {
     const deadline = Date.now() + CHILD_LIFETIME_MS
-    await publishReady('child-ready.json', { pid: process.pid })
+    await publishReady('child-ready.json', {
+      pid: process.pid,
+      arguments: receivedArguments,
+      environmentSentinel: process.env[WINDOWS_DETACHED_PROCESS_SENTINEL_KEY],
+    })
     while (Date.now() < deadline && !(await exists(path.join(directory, 'stop-child')))) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
     }
@@ -48,8 +56,18 @@ async function run() {
 
   await launchHeadlessBackgroundProcess({
     command: process.execPath,
-    args: [path.join(directory, 'fixture.cjs'), 'child', directory],
-    environment: { ...getSafeChildEnv(), OPENWAGGLE_AUTOMATION: '1' },
+    args: [
+      path.join(directory, 'fixture.cjs'),
+      'child',
+      directory,
+      ...WINDOWS_DETACHED_PROCESS_ARGUMENTS,
+    ],
+    environment: {
+      ...getSessionHostChildEnv(),
+      OPENWAGGLE_AUTOMATION: '1',
+      [WINDOWS_DETACHED_PROCESS_SENTINEL_KEY]:
+        process.env[WINDOWS_DETACHED_PROCESS_SENTINEL_KEY],
+    },
   })
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (!(await exists(path.join(directory, 'child-ready.json')))) {

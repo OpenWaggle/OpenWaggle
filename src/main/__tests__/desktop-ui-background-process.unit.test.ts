@@ -204,8 +204,8 @@ describe('detached authority descriptor ownership', () => {
     },
   )
 
-  it.each(['darwin', 'win32'])('preserves the existing %s launch policy', async (platform) => {
-    vi.stubGlobal('process', { ...process, platform })
+  it('preserves the existing macOS launch policy', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'darwin' })
     const child = new ChildProcess()
     vi.spyOn(child, 'unref').mockImplementation(() => undefined)
     mocks.spawn.mockReturnValue(child)

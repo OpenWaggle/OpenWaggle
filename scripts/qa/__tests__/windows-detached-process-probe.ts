@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import os from 'node:os'
@@ -12,8 +13,10 @@ import {
   verifyWindowsProcessTreeExit,
   type WindowsProcessIdentity,
 } from '../windows-process-tree'
+import { WINDOWS_DETACHED_PROCESS_SENTINEL_KEY } from './windows-detached-process-values'
 
-const READY_TIMEOUT_MS = 15_000
+// Allow the 20s native helper and 10s child-ready bounds, plus setup margin.
+const READY_TIMEOUT_MS = 35_000
 const PARENT_CLOSE_TIMEOUT_MS = 5_000
 const CHILD_CLEANUP_TIMEOUT_MS = 30_000
 const POLL_INTERVAL_MS = 25
@@ -84,7 +87,8 @@ async function finishProbe(
 }
 
 export async function probeWindowsDetachedHandleIsolation() {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-detached-handles-'))
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-detached-handles-蜂 '))
+  const expectedEnvironmentSentinel = `qa-${randomUUID()}`
   const fixturePath = path.join(directory, 'fixture.cjs')
   await Promise.all(['parent', 'child'].map((mode) => fs.mkdir(path.join(directory, mode))))
   await build({
@@ -112,7 +116,10 @@ export async function probeWindowsDetachedHandleIsolation() {
   }
 
   const parent = spawn(electronExecutablePath, [fixturePath, 'parent', directory], {
-    env: buildSafeElectronEnvironment({ OPENWAGGLE_AUTOMATION: '1' }),
+    env: buildSafeElectronEnvironment({
+      OPENWAGGLE_AUTOMATION: '1',
+      [WINDOWS_DETACHED_PROCESS_SENTINEL_KEY]: expectedEnvironmentSentinel,
+    }),
     stdio: ['pipe', 'pipe', 'pipe', 'pipe', 'pipe'],
     windowsHide: true,
   })
@@ -147,7 +154,14 @@ export async function probeWindowsDetachedHandleIsolation() {
     const identity = await fs.readFile(path.join(directory, 'parent-ready.json'), 'utf8')
     const childIdentity = await fs.readFile(path.join(directory, 'child-ready.json'), 'utf8')
     const parsedChildIdentity: unknown = JSON.parse(childIdentity)
-    assertMatching({ pid: P.integer }, parsedChildIdentity)
+    assertMatching(
+      {
+        pid: P.integer,
+        arguments: P.array(P.string),
+        environmentSentinel: P.string,
+      },
+      parsedChildIdentity,
+    )
     childSnapshot = await snapshotWindowsProcessTree(parsedChildIdentity.pid)
     if (!childSnapshot.some((entry) => entry.processId === parsedChildIdentity.pid)) {
       throw new Error('Detached child exited before its identity could be captured.')
@@ -164,6 +178,9 @@ export async function probeWindowsDetachedHandleIsolation() {
       closedPipes: [...closedPipes].toSorted(),
       childStoppedBeforeRelease,
       childAliveAfterParentClose,
+      childArguments: parsedChildIdentity.arguments,
+      childEnvironmentSentinel: parsedChildIdentity.environmentSentinel,
+      expectedEnvironmentSentinel,
       identity,
       childIdentity,
       stderr,

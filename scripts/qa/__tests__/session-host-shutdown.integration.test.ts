@@ -8,6 +8,7 @@ import {
 } from '../../../src/main/session-host/session-host-ownership'
 import { prepareQaProfileRemoval } from '../session-host-shutdown'
 import { probeWindowsDetachedHandleIsolation } from './windows-detached-process-probe'
+import { WINDOWS_DETACHED_PROCESS_ARGUMENTS } from './windows-detached-process-values'
 
 it.runIf(process.platform === 'win32')(
   'detached Electron authorities do not retain the launching client control pipes',
@@ -17,6 +18,8 @@ it.runIf(process.platform === 'win32')(
     expect(result.exitCode).toBe(0)
     expect(result.childStoppedBeforeRelease).toBe(false)
     expect(result.childAliveAfterParentClose).toBe(true)
+    expect(result.childArguments).toEqual(WINDOWS_DETACHED_PROCESS_ARGUMENTS)
+    expect(result.childEnvironmentSentinel).toBe(result.expectedEnvironmentSentinel)
     expect(result.pipesClosedBeforeChildRelease).toBe(true)
     expect(result.closedPipes).toEqual([0, 1, 2, 3, 4])
   },

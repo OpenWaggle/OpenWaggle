@@ -7,6 +7,8 @@ section: "Developer Workflow"
 
 The `openwaggle` CLI is a client of the same local Session Host as the desktop app. It does not open the Session database directly. Commands can start the Host on demand, accepted Runs continue when the GUI closes, and Host events keep an open GUI synchronized with CLI activity.
 
+On Windows, starting a detached Host uses the built-in Windows PowerShell helper to prevent it from retaining the launching client's pipes. This lets a CLI command finish while the Host continues running. If the helper cannot run, startup fails with an error instead of falling back to a launch that can leave the CLI hanging.
+
 On macOS and Linux, install or update the command from Settings > Agent Access > OpenWaggle CLI. The managed user shim is written to `~/.local/bin/openwaggle`; OpenWaggle reports when that directory is missing from `PATH` and never overwrites an unrelated file. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
 
 The current Local Session protocol revision is 10; the Host also accepts revision 9. Saving and revoking project approvals from the GUI requires revision 10. The owning Host serializes those changes with project preferences, including when a CLI command started the Host before the GUI opened. These approval controls remain available only to the local GUI, not to external agent profiles.
