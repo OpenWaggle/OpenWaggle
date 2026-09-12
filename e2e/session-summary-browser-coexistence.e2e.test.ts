@@ -186,6 +186,37 @@ test('Session Summary coordinates native floating previews and inspectors across
       }, draftNativeId)
       expect(nativeEvidence.body).toContain('Native preview fixture')
       await testInfo.attach('restored-draft-native-preview-pixels', { body: Buffer.from(nativeEvidence.png, 'base64'), contentType: 'image/png' })
+      // Floating X hides the overlay; the panel tab's Close action disposes the actual browser.
+      await floating.getByRole('button', { name: 'Open preview in right panel' }).click()
+      await expect(floating).toHaveCount(0)
+      const closePreview = page.getByRole('button', { name: 'Close Summary native preview fixture', exact: true })
+      await expect(closePreview).toBeVisible()
+      await app.electronApplication().evaluate(({ webContents }, id) => {
+        const contents = id === undefined ? undefined : webContents.fromId(id)
+        if (!contents) throw new Error('Draft preview is missing before close rejection probe.')
+        const originalClose = contents.close
+        contents.close = () => {
+          contents.close = originalClose
+          throw new Error('Native close rejection fixture')
+        }
+      }, draftNativeId)
+      await closePreview.click()
+      await expect(page.getByText(/Native close rejection fixture/u)).toBeVisible()
+      await expect(closePreview).toBeVisible()
+      await expect.poll(() => nativePreview(app, draftUrl)).toEqual({ id: draftNativeId, visible: true })
+      await expect(page.getByText(/CONTENT_CLOSED|Page could not load/u)).toHaveCount(0)
+      await testInfo.attach('native-close-rejection-retains-tab', { path: await app.captureEvidence('native-close-rejection-retains-tab'), contentType: 'image/png' })
+      await closePreview.click()
+      await expect(closePreview).toHaveCount(0)
+      await expect.poll(() => app.electronApplication().evaluate(({ webContents }, id) => {
+        const contents = id === undefined ? undefined : webContents.fromId(id)
+        return contents === undefined || contents.isDestroyed()
+      }, draftNativeId)).toBe(true)
+      await expect(page.getByText(/CONTENT_CLOSED|Page could not load/u)).toHaveCount(0)
+      await app.mainWindow().openThread('Summary preview Alpha')
+      await expect(floating).toBeVisible()
+      await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: true })
+      await testInfo.attach('native-close-retry-preserves-other-session', { path: await app.captureEvidence('native-close-retry-preserves-other-session'), contentType: 'image/png' })
       expect(errors).toEqual([])
       expect(await app.desktopState()).toMatchObject({ focused: false, visible: false })
     } finally {

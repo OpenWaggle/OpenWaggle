@@ -25,6 +25,8 @@ Switching from an unsent draft to an existing session keeps each one's terminal 
 
 If browser tabs cannot be moved safely, OpenWaggle keeps them in the project draft and reports the failure. Use the project's **New session** action to return to that draft. Terminal tabs that already moved remain in the new session; OpenWaggle does not undo their completed handoff.
 
+Closing a browser tab waits for its native page to close. If that fails, the tab remains available and OpenWaggle shows the error so you can retry. Closing several tabs removes only those that closed successfully. A close that finishes after you switch sessions does not take over the new session's sidebar.
+
 ## What the Summary shows
 
 Sections appear only when their session has relevant data:

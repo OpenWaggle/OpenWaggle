@@ -289,7 +289,7 @@ describe('browser preview reliability and lifecycle', () => {
     expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeUndefined()
   })
 
-  it('continues native teardown when destroyed checks and content close throw', () => {
+  it('retains a live preview when content close throws despite a window teardown race', async () => {
     const { owner } = createOwner()
     const ownerWindow = createWindow()
     electronMocks.windowFromWebContents.mockReturnValue(ownerWindow.window)
@@ -303,10 +303,11 @@ describe('browser preview reliability and lifecycle', () => {
       throw new Error('content teardown race')
     })
 
-    expect(() => manager.close(owner, 'preview-1')).not.toThrow()
-
-    expect(ownerWindow.removeChildView).toHaveBeenCalledOnce()
+    await expect(manager.close(owner, 'preview-1')).rejects.toThrow('content teardown race')
+    expect(ownerWindow.removeChildView).not.toHaveBeenCalled()
     expect(view.webContents.close).toHaveBeenCalledOnce()
+    expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeDefined()
+    await manager.close(owner, 'preview-1')
     expect(manager.findOwnedPreview('session-1', 'preview-1')).toBeUndefined()
   })
 })

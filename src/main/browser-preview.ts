@@ -163,8 +163,8 @@ export class BrowserPreviewManager {
     return this.navigation.stop(this.requirePreview(sender, previewId))
   }
 
-  close(sender: WebContents, previewId: string): void {
-    this.records.disposePreview(sender, previewId)
+  close(sender: WebContents, previewId: string): Promise<void> {
+    return this.lifecycle.close(this.records.findForDisposal(sender, previewId))
   }
 
   replaceForCapacity(

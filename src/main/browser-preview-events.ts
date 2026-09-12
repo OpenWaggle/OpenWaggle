@@ -12,6 +12,7 @@ import { installBrowserPreviewContextMenu } from './browser-preview-context-menu
 import { synchronizeBrowserPreviewControllerOverlay } from './browser-preview-controller-overlay'
 import { monitorBrowserPreviewCrashRecovery } from './browser-preview-crash-monitor'
 import { synchronizeBrowserPreviewEditingShortcuts } from './browser-preview-editing-shortcuts'
+import { isBrowserPreviewClosePending } from './browser-preview-explicit-close'
 import {
   faviconAfterBrowserPreviewNavigation,
   monitorBrowserPreviewFavicon,
@@ -241,6 +242,7 @@ function monitorInputAndLifecycle(
     actions.emitShortcut(shortcut)
   }
   const onDestroyed = () => {
+    if (isBrowserPreviewClosePending(record)) return actions.detachDestroyed()
     record.state = {
       ...record.state,
       loading: false,

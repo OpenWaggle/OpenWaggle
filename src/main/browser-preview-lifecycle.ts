@@ -1,4 +1,11 @@
+import {
+  closeBrowserPreviewRecord,
+  hasRequestedBrowserPreviewClose,
+} from './browser-preview-explicit-close'
 import type { BrowserPreviewRecord } from './browser-preview-records'
+import { createLogger } from './logger'
+
+const logger = createLogger('browser-preview-lifecycle')
 
 function attemptCleanup(action: () => void) {
   try {
@@ -16,7 +23,20 @@ export interface BrowserPreviewLifecycleHost {
 export class BrowserPreviewLifecycle {
   constructor(private readonly host: BrowserPreviewLifecycleHost) {}
 
+  close(record: BrowserPreviewRecord | undefined): Promise<void> {
+    return closeBrowserPreviewRecord(record, (closed) => this.detachDestroyed(closed))
+  }
+
   dispose(record: BrowserPreviewRecord): void {
+    if (hasRequestedBrowserPreviewClose(record)) {
+      void this.close(record).catch((error: unknown) => {
+        logger.warn('Native preview close failed during owner cleanup', {
+          previewId: record.previewId,
+          error,
+        })
+      })
+      return
+    }
     if (!this.release(record)) return
     attemptCleanup(() => {
       if (!record.owner.window.isDestroyed()) record.view.setVisible(false)
