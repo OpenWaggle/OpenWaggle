@@ -68,6 +68,14 @@ export interface Backend {
   readonly options: Readonly<Record<string, boolean>>
 }
 
+export type PtyProbeProfile = 'runtime' | 'all-backends'
+
+export function parsePtyProbeProfile(value: string | undefined): PtyProbeProfile {
+  if (value === undefined) return 'runtime'
+  if (isMatching(P.union('runtime', 'all-backends'), value)) return value
+  throw new Error(`Unknown PTY probe profile: ${value}`)
+}
+
 export interface PtyIdentity {
   readonly pid: number
   readonly descendantPid: number
@@ -98,8 +106,20 @@ function isProbedPty(value: unknown): value is ProbedPty {
   )
 }
 
-export function backends(platform: NodeJS.Platform): readonly Backend[] {
+export function backends(
+  platform: NodeJS.Platform,
+  profile: PtyProbeProfile = 'runtime',
+): readonly Backend[] {
   if (platform !== 'win32') return [{ label: 'Unix PTY', options: {} }]
+  if (profile === 'runtime') {
+    // Match the app (and T3 Code): let node-pty select the host's backend.
+    // Also verify the bundled binary we package. Forced legacy WinPTY stress
+    // remains available through the explicit all-backends diagnostic profile.
+    return [
+      { label: 'Windows default PTY', options: {} },
+      { label: 'bundled ConPTY', options: { useConpty: true, useConptyDll: true } },
+    ]
+  }
   return [
     { label: 'system ConPTY', options: { useConpty: true, useConptyDll: false } },
     { label: 'bundled ConPTY', options: { useConpty: true, useConptyDll: true } },

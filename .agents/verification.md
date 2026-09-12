@@ -19,6 +19,27 @@ CI is tiered (ADR 0029). Per-push runs execute the Fast gate; the merge queue's 
 
 Red jobs on a PR branch are the Fast gate; a red Windows or Linux E2E job on a queue run is the Full gate. Pushes to `main` run the static checks only.
 
+### Windows native diagnostics
+
+Normal native preparation probes the same automatic backend selection as the app,
+plus bundled ConPTY. It retains the full identity, I/O, containment, resource-drain,
+and exact 256 KiB final-output checks. It does not force legacy WinPTY on modern
+Windows. If an older host selects WinPTY and loses output, preparation still fails.
+
+The manual `windows-terminal-diagnostics.yml` workflow accepts an exact `head_sha`,
+`runtime` (`electron` or `node`), and `profile` (`runtime` or `all-backends`). It runs
+only native preparation/probes, caches the Windows pnpm store, and retains diagnostic
+logs. `all-backends` forces system ConPTY, bundled ConPTY, and WinPTY through the same
+assertions. WinPTY currently fails the burst check because its 3,000-row console
+screen buffer loses the beginning before scraping. Do not treat a green runtime
+profile as proof of lossless WinPTY support.
+
+This follows T3 Code's separation of ordinary CI from manual Windows investigation,
+not its coverage level: OpenWaggle still requires Windows and Linux Electron E2E in
+the Full gate. The reference is T3 Code commit
+`b1e223e2b0d87124883b1410ab52dd6a1338e40d`, specifically
+`apps/server/src/terminal/NodePtyAdapter.ts` and `.github/workflows/windows-tests.yml`.
+
 ## Baseline Static Checks
 
 ```bash

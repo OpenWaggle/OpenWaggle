@@ -121,6 +121,20 @@ function fakeNativeModules(platform: NodeJS.Platform) {
 }
 
 describe('native load probe', () => {
+  it('checks the shipping Windows backend selection and the bundled ConPTY payload by default', async () => {
+    const fixture = fakeNativeModules('win32')
+    await assertNativeModulesLoad('electron', fixture.loadModule, 'win32', 'C:\\runtime\\node.exe')
+
+    expect(fixture.spawn).toHaveBeenCalledTimes(4)
+    for (const call of fixture.spawn.mock.calls.slice(0, 2)) {
+      expect(call[2]).not.toHaveProperty('useConpty')
+      expect(call[2]).not.toHaveProperty('useConptyDll')
+    }
+    for (const call of fixture.spawn.mock.calls.slice(2)) {
+      expect(call[2]).toMatchObject({ useConpty: true, useConptyDll: true })
+    }
+  })
+
   it('checks Unix PTY identity, I/O, close, containment, drain, and final output', async () => {
     const fixture = fakeNativeModules('darwin')
     await assertNativeModulesLoad('node', fixture.loadModule, 'darwin', '/runtime/node')
@@ -142,7 +156,7 @@ describe('native load probe', () => {
 
   it('checks explicit and natural exit on every Windows backend', async () => {
     const fixture = fakeNativeModules('win32')
-    await assertNativeModulesLoad('electron', fixture.loadModule, 'win32', 'C:\\runtime\\node.exe')
+    await assertNativeModulesLoad('electron', fixture.loadModule, 'win32', 'C:\\runtime\\node.exe', 'all-backends')
 
     expect(fixture.spawn).toHaveBeenCalledTimes(6)
     expect(fixture.spawn.mock.calls.map((call) => call[2])).toEqual([

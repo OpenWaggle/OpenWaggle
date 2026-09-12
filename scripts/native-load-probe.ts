@@ -3,12 +3,14 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { assertMatching, P } from '@diegogbrisa/ts-match'
 import { probeNodePtyLifecycle } from './native-pty-contract-probe'
+import { parsePtyProbeProfile, type PtyProbeProfile } from './native-pty-probe-support'
 import { probeWindowsTerminalTelemetry } from './native-windows-telemetry-probe'
 import { isRebuildMode, type RebuildMode } from './native-rebuild-cache'
 
 const MODE_ARG_INDEX = 2
 const MODULE_ROOT_ARG_INDEX = 3
 const CONSOLE_EXECUTABLE_ARG_INDEX = 4
+const PTY_PROFILE_ARG_INDEX = 5
 const localRequire = createRequire(import.meta.url)
 
 type DatabaseConstructor = new (filename: string) => unknown
@@ -72,6 +74,7 @@ export async function assertNativeModulesLoad(
   loadModule: NativeModuleLoader = localRequire,
   platform: NodeJS.Platform = process.platform,
   executablePath: string = process.execPath,
+  profile: PtyProbeProfile = 'runtime',
 ) {
   const databaseConstructor = loadModule('better-sqlite3')
   assertMatching(P.when(isDatabaseConstructor), databaseConstructor)
@@ -91,7 +94,7 @@ export async function assertNativeModulesLoad(
     assertUnixNativeContract(nodePtyValue.native)
   }
 
-  await probeNodePtyLifecycle(nodePtyValue, platform, executablePath)
+  await probeNodePtyLifecycle(nodePtyValue, platform, executablePath, profile)
 
   if (mode === 'electron') void loadModule('sharp')
 }
@@ -99,13 +102,14 @@ export async function assertNativeModulesLoad(
 async function main() {
   const mode = process.argv[MODE_ARG_INDEX]
   if (!isRebuildMode(mode)) {
-    throw new Error('Usage: native-load-probe.ts <node|electron> [module-root] [console-executable]')
+    throw new Error('Usage: native-load-probe.ts <node|electron> [module-root] [console-executable] [runtime|all-backends]')
   }
   await assertNativeModulesLoad(
     mode,
     moduleLoader(process.argv[MODULE_ROOT_ARG_INDEX]),
     process.platform,
     process.argv[CONSOLE_EXECUTABLE_ARG_INDEX] ?? process.execPath,
+    parsePtyProbeProfile(process.argv[PTY_PROFILE_ARG_INDEX]),
   )
 }
 

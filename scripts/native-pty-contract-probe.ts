@@ -20,6 +20,7 @@ import {
   PROMPT_INPUT,
   PROMPT_OUTPUT,
   type PtyEvent,
+  type PtyProbeProfile,
   type PtySpawner,
   resizePty,
   RESIZED_COLUMNS,
@@ -178,8 +179,9 @@ export async function probeNodePtyLifecycle(
   nodePty: PtySpawner,
   platform: NodeJS.Platform,
   executablePath: string,
+  profile: PtyProbeProfile = 'runtime',
 ) {
-  for (const backend of backends(platform)) {
+  for (const backend of backends(platform, profile)) {
     await probeActiveClose(nodePty, platform, executablePath, backend)
     await probeNaturalFinalOutput(nodePty, platform, executablePath, backend)
     console.log(`[native-pty] ${backend.label} lifecycle and payload verified`)

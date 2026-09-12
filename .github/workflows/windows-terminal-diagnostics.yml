@@ -1,0 +1,89 @@
+name: Windows Terminal Diagnostics
+
+# Like T3 Code's manual Windows lane, this isolates native investigations from
+# ordinary PR feedback. Required Windows app E2E remains in ci.yml's full tier.
+on:
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact commit SHA on the selected branch.
+        required: true
+        type: string
+      runtime:
+        description: Native addon ABI to exercise.
+        type: choice
+        default: electron
+        options: [electron, node]
+      profile:
+        description: Runtime selection or forced system ConPTY, bundled ConPTY, and WinPTY.
+        type: choice
+        default: all-backends
+        options: [runtime, all-backends]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-terminal-diagnostics-${{ inputs.head_sha }}-${{ inputs.runtime }}-${{ inputs.profile }}
+  cancel-in-progress: true
+
+jobs:
+  native-pty:
+    name: Native PTY (${{ inputs.runtime }}, ${{ inputs.profile }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NATIVE_RUNTIME: ${{ inputs.runtime }}
+      PTY_PROFILE: ${{ inputs.profile }}
+    steps:
+      - name: Verify dispatched commit identity
+        shell: pwsh
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          if ($env:EXPECTED_SHA -cnotmatch '^[0-9a-f]{40}$') { exit 1 }
+          if ($env:DISPATCHED_SHA -cne $env:EXPECTED_SHA) { exit 1 }
+          if ($env:NATIVE_RUNTIME -cnotin @('node', 'electron')) { exit 1 }
+          if ($env:PTY_PROFILE -cnotin @('runtime', 'all-backends')) { exit 1 }
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.head_sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - uses: ./.github/actions/pnpm-install
+
+      - name: Prepare native runtime
+        shell: pwsh
+        run: pnpm exec tsx scripts/rebuild-native-deps.ts $env:NATIVE_RUNTIME
+
+      - name: Probe selected PTY profile
+        shell: pwsh
+        run: |
+          $nodeExecutable = (Get-Command node).Source
+          $probeExecutable = $nodeExecutable
+          if ($env:NATIVE_RUNTIME -eq 'electron') {
+            $probeExecutable = Join-Path $PWD 'node_modules/electron/dist/electron.exe'
+            $env:ELECTRON_RUN_AS_NODE = '1'
+          }
+          & $probeExecutable --import tsx scripts/native-load-probe.ts $env:NATIVE_RUNTIME "$PWD" $nodeExecutable $env:PTY_PROFILE 2>&1 | Tee-Object -FilePath native-pty-diagnostics.log
+          exit $LASTEXITCODE
+
+      - name: Upload native diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: native-pty-${{ inputs.runtime }}-${{ inputs.profile }}
+          path: native-pty-diagnostics.log
+          if-no-files-found: ignore
+          retention-days: 7
