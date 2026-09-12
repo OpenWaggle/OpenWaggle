@@ -199,14 +199,16 @@ async function assertSecureInteractiveVisualization(app: OpenWaggleApp, sessionI
   const detailsTab = frame.getByRole('tab', { name: 'Details' })
   await expect(frame.getByRole('tabpanel', { name: 'Summary' })).toBeVisible()
   await expect(frame.getByRole('tabpanel', { name: 'Details' })).toBeHidden()
-  if (process.platform === 'darwin') await detailsTab.click()
-  else {
-    // Hidden Linux and Windows Electron windows do not deliver iframe pointer input consistently.
-    // A DOM click still exercises the visualization runtime's delegated tab interaction there.
-    await detailsTab.evaluate((element: HTMLButtonElement) => {
-      element.click()
-    })
-  }
+  await expect(detailsTab).toBeVisible()
+  await expect(detailsTab).toBeEnabled()
+  // Hidden Electron iframe pointer delivery can miss on macOS too. Tab switching
+  // needs no trusted activation; exercise the delegated click handler directly.
+  // Keep real keyboard navigation and the trusted follow-up action below.
+  const selectedAfterClick = await detailsTab.evaluate((element: HTMLButtonElement) => {
+    element.click()
+    return element.getAttribute('aria-selected')
+  })
+  expect(selectedAfterClick).toBe('true')
   await expect(detailsTab).toHaveAttribute('aria-selected', 'true')
   await expect(frame.getByRole('tabpanel', { name: 'Details' })).toBeVisible()
   await detailsTab.press('ArrowLeft')
