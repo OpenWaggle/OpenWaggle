@@ -11,11 +11,17 @@ The Summary is always a floating overlay. It never narrows the transcript or mov
 
 Resizing between wide and narrow layouts keeps your unsent text, selected command chips, and interactive visualization state intact.
 
+When the header is compact, the session title stays visible and action labels become icons with accessible names and hover tooltips. The Diff control's tooltip retains the changed-line totals. Branch and project labels return when there is room. The Summary toggle remains in the header.
+
 At narrow widths, an explicit reopen is temporary. Press `Escape` or click outside the Summary to dismiss it without changing the saved wide-layout preference. A right sidebar always takes precedence. The header button remains visible but disabled until the sidebar closes. At wider widths, OpenWaggle remembers whether the Summary is open and which sections are expanded for each session.
 
 Authorization mode and context usage stay in the composer. They are not duplicated in the Summary.
 
 A floating browser preview also takes precedence over automatic Summary display. Explicitly opening the Summary hides that session's preview without closing its tab. Resources and other session inspectors keep the preview hidden while they are open. Closing an inspector restores the Summary if it was open before; hiding the Summary then restores the same preview. These choices never expose another session's preview.
+
+Before the first message, opening Diff or a file inspector also hides the current draft's floating preview. Closing the inspector restores that preview without creating a Session Summary for the unsent draft.
+
+Switching from an unsent draft to an existing session keeps each one's terminal and browser tabs separate. Only creating a session from that draft moves its tabs into the new session. While that handoff finishes, tab creation and moves are temporarily unavailable; unrelated sessions remain usable.
 
 ## What the Summary shows
 

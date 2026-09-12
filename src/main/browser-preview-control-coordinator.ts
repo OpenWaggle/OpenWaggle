@@ -53,6 +53,8 @@ function presentationViewport(record: BrowserPreviewRecord) {
 }
 
 export class BrowserPreviewControlCoordinator {
+  private readonly readyContents = new WeakSet<BrowserPreviewRecord['view']['webContents']>()
+  private readonly emulatedContents = new WeakSet<BrowserPreviewRecord['view']['webContents']>()
   private readonly controls = new BrowserPreviewControlOperations()
   private readonly recording = new BrowserPreviewRecordingGrantController()
   private readonly records = new Map<string, BrowserPreviewRecord>()
@@ -71,6 +73,26 @@ export class BrowserPreviewControlCoordinator {
   register(record: BrowserPreviewRecord): void {
     const controlKey = browserPreviewAutomationPage(record).tabId
     this.records.set(controlKey, record)
+    const contents = record.view.webContents
+    const resetViewport = () => {
+      this.readyContents.delete(contents)
+      this.emulationSignature.delete(contents)
+    }
+    const onReady = () => {
+      if (record.disposed || contents.isDestroyed()) return
+      this.readyContents.add(contents)
+      this.applyViewport(record)
+    }
+    contents.on('dom-ready', onReady)
+    // Only committed main-frame navigation replaces the ready document. A canceled
+    // provisional load must not leave the retained document permanently suspended.
+    contents.on('did-navigate', resetViewport)
+    contents.on('render-process-gone', resetViewport)
+    record.removeListeners.push(() => {
+      contents.removeListener('dom-ready', onReady)
+      contents.removeListener('did-navigate', resetViewport)
+      contents.removeListener('render-process-gone', resetViewport)
+    })
     void this.controls
       .register(controlKey, record.view.webContents, record.state.controls.appearance)
       .catch(() => undefined)
@@ -85,14 +107,18 @@ export class BrowserPreviewControlCoordinator {
     void browserPreviewElementPicker.cancel(controlKey).catch(() => undefined)
     attemptControlCleanup(() => this.pictureInPicture.close(controlKey))
     this.emulationSignature.delete(record.view.webContents)
+    this.readyContents.delete(record.view.webContents)
+    this.emulatedContents.delete(record.view.webContents)
   }
 
   applyViewport(record: BrowserPreviewRecord): void {
     const contents = record.view.webContents
-    if (contents.isDestroyed()) return
+    // Native Electron emulation can crash synchronously before the first page is ready.
+    if (record.disposed || contents.isDestroyed() || !this.readyContents.has(contents)) return
     const viewport = presentationViewport(record)
     if (viewport.mode === 'fill') {
-      if (this.emulationSignature.has(contents)) contents.disableDeviceEmulation()
+      if (this.emulatedContents.has(contents)) contents.disableDeviceEmulation()
+      this.emulatedContents.delete(contents)
       this.emulationSignature.delete(contents)
       return
     }
@@ -117,6 +143,7 @@ export class BrowserPreviewControlCoordinator {
       scale,
     })
     this.emulationSignature.set(contents, signature)
+    this.emulatedContents.add(contents)
   }
 
   setViewport(record: BrowserPreviewRecord, viewport: BrowserPreviewViewport): BrowserPreviewState {

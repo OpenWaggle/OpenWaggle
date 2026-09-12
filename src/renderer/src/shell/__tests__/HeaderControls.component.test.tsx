@@ -149,4 +149,32 @@ describe('HeaderControls', () => {
 
     expect(screen.getByText('Git unavailable')).toBeInTheDocument()
   })
+
+  it('retains accessible actions and diff totals when compact labels collapse', () => {
+    const onCommit = vi.fn()
+    render(
+      <>
+        <CommitButton isCommitting={false} projectPath="/repo" onOpen={onCommit} />
+        <DiffToggleButton
+          error={null}
+          isChatRoute
+          isLoading={false}
+          open={false}
+          projectPath="/repo"
+          status={gitStatus()}
+          onToggle={vi.fn()}
+        />
+      </>,
+    )
+    const commit = screen.getByRole('button', { name: 'Open commit dialog' })
+    expect(commit.querySelector('.lucide-git-commit-horizontal')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+    fireEvent.click(commit)
+    expect(onCommit).toHaveBeenCalledOnce()
+    const diff = screen.getByRole('button', { name: 'Toggle diff panel' })
+    expect(diff).toHaveAttribute('title', 'Toggle diff panel: +12 -3')
+    expect(diff.querySelector('.lucide-file-diff')).toHaveAttribute('aria-hidden', 'true')
+  })
 })

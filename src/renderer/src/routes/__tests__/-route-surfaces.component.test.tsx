@@ -5,11 +5,47 @@ import { renderChatRoute, routeSurfaceMocks } from './route-surfaces.test-harnes
 
 describe('route surfaces', () => {
   beforeEach(() => {
+    routeSurfaceMocks.setWorkingPath('/repo')
     routeSurfaceMocks.setLastPanel('diff')
     useRightSidebarCoordinator.setState({ activeClaim: null })
     routeSurfaceMocks.setLastRightSidebarPanel.mockClear()
     routeSurfaceMocks.chatRouteEffects.mockClear()
     routeSurfaceMocks.sidePanelRefetch.mockClear()
+  })
+
+  it('keeps a no-project root extension inspector available without claiming a workspace owner', async () => {
+    routeSurfaceMocks.setWorkingPath(null)
+    renderChatRoute({
+      workspace: { sessionId: null, branchId: null, nodeId: null },
+      rightSidebar: {
+        extensionSidePanel: { extensionId: 'global-extension', sidePanelId: 'global.panel' },
+      },
+    })
+    expect(useRightSidebarCoordinator.getState().activeClaim).toMatchObject({
+      kind: 'route',
+      scopeKey: null,
+    })
+    expect(
+      await screen.findByText('Extension side panel global-extension/global.panel'),
+    ).toBeInTheDocument()
+    act(() => useRightSidebarCoordinator.getState().claimWorkspace('draft:/other-repo'))
+    expect(screen.getByRole('main')).toHaveAttribute('data-summary-suppressed', 'false')
+    expect(screen.getByTestId('route-right-sidebar-layout')).toHaveAttribute('data-open', 'false')
+  })
+
+  it.each([
+    { sessionId: 'session-1', ownerKey: 'session-1' },
+    { sessionId: null, ownerKey: 'draft:/repo' },
+  ])('claims the inspector using workspace owner $ownerKey', ({ sessionId, ownerKey }) => {
+    renderChatRoute({
+      workspace: { sessionId, branchId: null, nodeId: null },
+      rightSidebar: { diffOpen: true },
+    })
+    expect(useRightSidebarCoordinator.getState().activeClaim).toEqual({
+      kind: 'route',
+      requestKey: 'diff',
+      scopeKey: ownerKey,
+    })
   })
 
   it('suppresses Summary for only the current Session workspace inspector and restores it after hiding', () => {

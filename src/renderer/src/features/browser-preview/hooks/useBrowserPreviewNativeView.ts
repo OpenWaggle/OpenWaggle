@@ -1,7 +1,12 @@
 import type { BrowserPreviewBounds, BrowserPreviewState } from '@shared/types/browser-preview'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
+import { trackBrowserPreviewOwnerWork } from '@/shared/lib/browser-preview-owner-work'
 import { api } from '@/shared/lib/ipc'
+import {
+  isWorkspaceOwnerHandoffPending,
+  subscribeWorkspaceOwnerHandoff,
+} from '@/shared/lib/workspace-owner-handoff'
 import type { BrowserPreviewPanelCallbacks, BrowserPreviewTab } from '../browser-preview-model'
 import {
   browserPreviewExternalFallbackForState,
@@ -65,6 +70,9 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
   const latestRef = useRef(options)
   const previewId = options.tab.id
   const ownerKey = options.tab.ownerKey
+  const ownerHandoffPending = useSyncExternalStore(subscribeWorkspaceOwnerHandoff, () =>
+    isWorkspaceOwnerHandoffPending(ownerKey),
+  )
   const profileId = options.tab.profileId
   const presentationKey = `${ownerKey}\0${previewId}\0${profileId}`
   const [readyKey, setReadyKey] = useState<string | null>(null)
@@ -93,6 +101,7 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
   )
 
   useEffect(() => {
+    if (ownerHandoffPending) return
     const latest = latestRef.current
     const viewport = latest.viewportRef.current
     if (viewport === null) return
@@ -101,59 +110,61 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
     activePresentations.set(previewId, presentation)
     let disposeBounds: (() => void) | undefined
     const settings = usePreferencesStore.getState().settings
-    void api
-      .registerBrowserPreviewOwner(ownerKey)
-      .then(() => {
-        if (disposed) return null
-        const visibleBounds = pageHasOccludingDialog(ownerKey)
-          ? null
-          : browserPreviewBounds(viewport, latestRef.current.sourceViewport)
-        return api.openBrowserPreview({
-          previewId,
-          ownerKey,
-          profileId,
-          url: latest.tab.url,
-          bounds: visibleBounds ?? HIDDEN_BROWSER_PREVIEW_BOUNDS,
-          visible: visibleBounds !== null,
-          audioMuted: latest.tab.audioMuted,
-          initialControls: {
-            viewport: settings.browserDefaultViewport,
-            zoomFactor: settings.browserDefaultZoomFactor,
-            appearance: settings.browserDefaultAppearance,
-          },
+    void trackBrowserPreviewOwnerWork(ownerKey, () =>
+      api
+        .registerBrowserPreviewOwner(ownerKey)
+        .then(() => {
+          if (disposed) return null
+          const visibleBounds = pageHasOccludingDialog(ownerKey)
+            ? null
+            : browserPreviewBounds(viewport, latestRef.current.sourceViewport)
+          return api.openBrowserPreview({
+            previewId,
+            ownerKey,
+            profileId,
+            url: latest.tab.url,
+            bounds: visibleBounds ?? HIDDEN_BROWSER_PREVIEW_BOUNDS,
+            visible: visibleBounds !== null,
+            audioMuted: latest.tab.audioMuted,
+            initialControls: {
+              viewport: settings.browserDefaultViewport,
+              zoomFactor: settings.browserDefaultZoomFactor,
+              appearance: settings.browserDefaultAppearance,
+            },
+          })
         })
-      })
-      .then((state) => {
-        if (state === null) return
-        if (disposed) {
-          if (!activePresentations.has(previewId)) {
-            void api.setBrowserPreviewBounds(previewId, null).catch(() => undefined)
+        .then((state) => {
+          if (state === null) return
+          if (disposed) {
+            if (!activePresentations.has(previewId)) {
+              void api.setBrowserPreviewBounds(previewId, null).catch(() => undefined)
+            }
+            return
           }
-          return
-        }
-        disposeBounds = observeBrowserPreviewBounds({
-          ownerKey,
-          previewId,
-          viewport,
-          hasError: () => latestRef.current.tab.error !== null,
-          sourceViewport: () => latestRef.current.sourceViewport,
+          disposeBounds = observeBrowserPreviewBounds({
+            ownerKey,
+            previewId,
+            viewport,
+            hasError: () => latestRef.current.tab.error !== null,
+            sourceViewport: () => latestRef.current.sourceViewport,
+          })
+          setReadyKey(presentationKey)
+          applyNativeState(latestRef.current, state)
         })
-        setReadyKey(presentationKey)
-        applyNativeState(latestRef.current, state)
-      })
-      .catch(async (error: unknown) => {
-        if (disposed) return
-        const current = latestRef.current
-        const fallbackUrl = takeBrowserPreviewExternalFallback(previewId) ?? current.tab.url
-        const openingFallback = openExternalFallback(current, fallbackUrl)
-        current.onClose()
-        current.onError(
-          error instanceof Error
-            ? `Preview unavailable: ${error.message}. Opening the system browser.`
-            : 'Preview unavailable. Opening the system browser.',
-        )
-        await openingFallback
-      })
+        .catch(async (error: unknown) => {
+          if (disposed) return
+          const current = latestRef.current
+          const fallbackUrl = takeBrowserPreviewExternalFallback(previewId) ?? current.tab.url
+          const openingFallback = openExternalFallback(current, fallbackUrl)
+          current.onClose()
+          current.onError(
+            error instanceof Error
+              ? `Preview unavailable: ${error.message}. Opening the system browser.`
+              : 'Preview unavailable. Opening the system browser.',
+          )
+          await openingFallback
+        }),
+    )
     return () => {
       disposed = true
       if (activePresentations.get(previewId) === presentation) {
@@ -162,6 +173,6 @@ export function useBrowserPreviewNativeView(options: NativeViewOptions) {
       clearBrowserPreviewExternalFallback(previewId)
       disposeBounds?.()
     }
-  }, [ownerKey, previewId, profileId, presentationKey])
+  }, [ownerKey, previewId, profileId, presentationKey, ownerHandoffPending])
   return readyKey === presentationKey
 }

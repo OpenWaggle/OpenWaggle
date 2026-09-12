@@ -156,4 +156,38 @@ describe('workspace panel store', () => {
       ownerKey: OWNER,
     })
   })
+
+  it('finishes floating ownership and sidebar claims while preserving the first persistence error', () => {
+    const from = 'draft:/repo'
+    const preview = useWorkspacePanelStore.getState().openBrowser(from, 'https://example.com/')
+    useBrowserPreviewFloatingStore.getState().open(from, preview.previewId)
+    const storage = useWorkspacePanelStore.persist.getOptions().storage
+    if (!storage) throw new Error('Expected workspace persistence storage')
+    const failure = new Error('Workspace persistence failed')
+    vi.spyOn(storage, 'setItem').mockImplementationOnce(() => {
+      throw failure
+    })
+    const floating = useBrowserPreviewFloatingStore.getState()
+    const migrateFloating = floating.migrateOwner
+    vi.spyOn(floating, 'migrateOwner').mockImplementationOnce((source, destination) => {
+      migrateFloating(source, destination)
+      throw new Error('Later floating subscriber failure')
+    })
+
+    expect(() => useWorkspacePanelStore.getState().migrateGroup(from, OWNER)).toThrow(failure)
+
+    expect(useWorkspacePanelStore.getState().groups[from]).toBeUndefined()
+    expect(useWorkspacePanelStore.getState().groups[OWNER]?.browserTabs[0]).toMatchObject({
+      id: preview.previewId,
+      ownerKey: OWNER,
+    })
+    expect(useBrowserPreviewFloatingStore.getState().byOwnerKey[from]).toBeUndefined()
+    expect(useBrowserPreviewFloatingStore.getState().byOwnerKey[OWNER]?.previewId).toBe(
+      preview.previewId,
+    )
+    expect(useRightSidebarCoordinator.getState().activeClaim).toEqual({
+      kind: 'workspace',
+      ownerKey: OWNER,
+    })
+  })
 })

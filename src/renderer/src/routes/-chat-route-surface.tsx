@@ -6,6 +6,7 @@ import {
   DEFAULT_SESSION_RESOURCE_BROWSER_TARGET,
   type SessionResourceBrowserTarget,
 } from '@/features/session-summary'
+import { terminalOwnerContext } from '@/features/terminal'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
@@ -227,7 +228,8 @@ export function ChatRouteSurface({
   const routePanelKey = routePanelRequested
     ? routePanelRequestKey(renderedRightSidebarPanel, rightSidebar.workspaceFile)
     : null
-  const routePanelScope = workspace.sessionId ?? sections.diff.workingPath
+  const routePanelScope =
+    workspace.sessionId ?? (terminalOwnerContext(null, sections.diff.workingPath).ownerKey || null)
   const routePanelOpen = useRoutePanelClaim(routePanelKey, routePanelScope)
   const sidePanelQuery = useExtensionSidePanelContributions({
     enabled: isExtensionRightSidebarPanel(renderedRightSidebarPanel),
@@ -236,7 +238,7 @@ export function ChatRouteSurface({
   })
   const workspaceSidebarOpen = useRightSidebarCoordinator(
     (state) =>
-      state.activeClaim?.kind === 'workspace' && state.activeClaim.ownerKey === workspace.sessionId,
+      state.activeClaim?.kind === 'workspace' && state.activeClaim.ownerKey === routePanelScope,
   )
   const rightSidebarOpen = routePanelOpen || workspaceSidebarOpen
   const activePathNodeIds = new Set(

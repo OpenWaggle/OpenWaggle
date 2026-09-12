@@ -9,7 +9,15 @@ import {
   useBrowserPreviewFloatingStore,
 } from '@/features/browser-preview'
 import { usePreferencesStore } from '@/features/settings/state'
+import {
+  drainBrowserPreviewOwnerWork,
+  trackBrowserPreviewOwnerWork,
+} from '@/shared/lib/browser-preview-owner-work'
 import { api } from '@/shared/lib/ipc'
+import {
+  isWorkspaceOwnerHandoffPending,
+  WORKSPACE_OWNER_HANDOFF_MESSAGE,
+} from '@/shared/lib/workspace-owner-handoff'
 import {
   acknowledgeBrowserPreviewMaterialization,
   type BrowserPreviewMaterializationOperation,
@@ -100,7 +108,18 @@ function synchronizeBrowserPreviewTab(state: BrowserPreviewState) {
   })
 }
 
-export async function materializeRequestedPreview(request: BrowserPreviewOpenRequest) {
+export function materializeRequestedPreview(request: BrowserPreviewOpenRequest) {
+  if (isWorkspaceOwnerHandoffPending(request.ownerKey)) {
+    return acknowledgeBrowserPreviewMaterialization(
+      request,
+      false,
+      WORKSPACE_OWNER_HANDOFF_MESSAGE,
+    ).catch(() => undefined)
+  }
+  return trackBrowserPreviewOwnerWork(request.ownerKey, () => materializePreview(request))
+}
+
+async function materializePreview(request: BrowserPreviewOpenRequest) {
   const key = browserPreviewOwnerKey(request.ownerKey, request.previewId)
   const currentGeneration = latestGenerationByPreview.get(key)
   if (currentGeneration !== undefined && request.generation < currentGeneration) {
@@ -199,11 +218,14 @@ export function cancelRequestedPreview(cancellation: BrowserPreviewOpenRequestCa
 }
 
 function scheduleRequest(request: BrowserPreviewOpenRequest) {
-  if (!registeredOwnerKeys.has(request.ownerKey)) {
+  if (
+    !registeredOwnerKeys.has(request.ownerKey) ||
+    isWorkspaceOwnerHandoffPending(request.ownerKey)
+  ) {
     void acknowledgeBrowserPreviewMaterialization(
       request,
       false,
-      'Browser preview owner is no longer registered.',
+      'Browser preview owner is unavailable or moving into a Session.',
     ).catch(() => undefined)
     return
   }
@@ -263,6 +285,10 @@ export function hasPendingBrowserPreviewOwnerWork(ownerKey: string) {
     ownerQueues.has(ownerKey) ||
     [...operationByRequestId.values()].some((operation) => operation.request.ownerKey === ownerKey)
   )
+}
+
+export function quiesceBrowserPreviewOwnerForHandoff(ownerKey: string) {
+  return drainBrowserPreviewOwnerWork(ownerKey, ownerQueues.get(ownerKey))
 }
 
 export async function unregisterBrowserPreviewOwner(ownerKey: string): Promise<void> {

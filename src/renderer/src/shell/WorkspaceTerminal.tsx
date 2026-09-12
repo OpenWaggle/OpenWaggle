@@ -1,33 +1,25 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
+import { takeDraftMaterialization } from '@/features/chat/state'
 import { useProject } from '@/features/sessions/hooks'
 import {
-  beginTerminalEventOwnerHandoff,
   MAX_PANEL_HEIGHT,
   MIN_PANEL_HEIGHT,
-  migrateTerminalLayoutFocus,
-  migrateTerminalSurfaceLeases,
   TERMINAL_PANEL_DEFAULT_HEIGHT,
-  type TerminalGroupState,
   type TerminalOwnerContext,
-  terminalInputDispatcher,
   terminalOwnerContext,
   terminalSidePanelLayoutKey,
   useTerminalStore,
 } from '@/features/terminal'
 import { cn } from '@/shared/lib/cn'
-import { api } from '@/shared/lib/ipc'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
-import {
-  ensureBrowserPreviewOwnerRegistered,
-  unregisterBrowserPreviewOwner,
-} from '@/shell/browser-preview-owner-runtime'
 import { useUIStore } from '@/shell/ui-store'
 import { useWorkspacePanelStore } from '@/shell/workspace-panel-store'
+import { releaseOwnerHandoffAfterCommit } from './terminal-owner-handoff-release'
+import { migrateTerminalOwner } from './workspace-terminal-owner-migration'
 
 const TERMINAL_RESIZE_STEP_PX = 8
 const TERMINAL_RESIZE_LARGE_STEP_PX = 40
-const OWNER_HANDOFF_FALLBACK_MS = 1_000
 
 const LazyTerminalPanel = lazy(() =>
   import('@/features/terminal/components').then((module) => ({
@@ -35,11 +27,8 @@ const LazyTerminalPanel = lazy(() =>
   })),
 )
 
-function terminalIds(group: TerminalGroupState | undefined) {
-  return group?.tabs.flatMap((tab) => tab.panes.map((pane) => pane.terminalId)) ?? []
-}
-
-function isDraftOwnerMigration(previousOwnerKey: string, nextOwnerKey: string) {
+function isDraftOwnerMigration(previousOwner: TerminalOwnerContext, nextOwnerKey: string) {
+  const previousOwnerKey = previousOwner.ownerKey
   const previousSidePanelKey = terminalSidePanelLayoutKey(previousOwnerKey)
   return (
     previousOwnerKey.startsWith('draft:') &&
@@ -47,66 +36,15 @@ function isDraftOwnerMigration(previousOwnerKey: string, nextOwnerKey: string) {
     !nextOwnerKey.startsWith('draft:') &&
     (useTerminalStore.getState().groups[previousOwnerKey] !== undefined ||
       useTerminalStore.getState().groups[previousSidePanelKey] !== undefined ||
-      useWorkspacePanelStore.getState().groups[previousOwnerKey] !== undefined)
-  )
-}
-
-async function migrateTerminalOwner(previousOwnerKey: string, nextOwnerKey: string) {
-  const terminalStore = useTerminalStore.getState()
-  const previousSidePanelKey = terminalSidePanelLayoutKey(previousOwnerKey)
-  const baseTerminalIds = terminalIds(terminalStore.groups[previousOwnerKey])
-  const sideTerminalIds = terminalIds(terminalStore.groups[previousSidePanelKey])
-  const migratingTerminalIds = [...baseTerminalIds, ...sideTerminalIds]
-  const migratingPreviewIds =
-    useWorkspacePanelStore
-      .getState()
-      .groups[previousOwnerKey]?.browserTabs.map((preview) => preview.id) ?? []
-  terminalInputDispatcher.assertOwnerMigrationAvailable(
-    previousOwnerKey,
-    nextOwnerKey,
-    migratingTerminalIds,
-  )
-  const releaseEventHandoff = beginTerminalEventOwnerHandoff(previousOwnerKey, nextOwnerKey)
-  try {
-    await ensureBrowserPreviewOwnerRegistered(nextOwnerKey)
-    await api.migrateTerminalOwner(previousOwnerKey, nextOwnerKey)
-    await Promise.allSettled(
-      migratingPreviewIds.map((previewId) => api.closeBrowserPreview(previewId)),
-    )
-    terminalInputDispatcher.migrateOwner(previousOwnerKey, nextOwnerKey, migratingTerminalIds)
-    migrateTerminalSurfaceLeases(previousOwnerKey, nextOwnerKey)
-    terminalStore.rekeyRuntimeMetadata(previousOwnerKey, nextOwnerKey, sideTerminalIds)
-    terminalStore.migrateGroup(previousOwnerKey, nextOwnerKey)
-    terminalStore.migrateGroup(previousSidePanelKey, terminalSidePanelLayoutKey(nextOwnerKey))
-    useWorkspacePanelStore.getState().migrateGroup(previousOwnerKey, nextOwnerKey)
-    await unregisterBrowserPreviewOwner(previousOwnerKey)
-    migrateTerminalLayoutFocus(previousOwnerKey, nextOwnerKey)
-    return releaseEventHandoff
-  } catch (error) {
-    releaseEventHandoff()
-    throw error
-  }
-}
-
-function releaseOwnerHandoffAfterCommit(release: () => void) {
-  if (typeof requestAnimationFrame !== 'function') {
-    queueMicrotask(release)
-    return
-  }
-  // Hidden windows may throttle animation frames indefinitely. Keep the route
-  // for two visible commits, with a bounded fallback so it cannot leak.
-  const fallback = setTimeout(release, OWNER_HANDOFF_FALLBACK_MS)
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      clearTimeout(fallback)
-      release()
-    }),
+      useWorkspacePanelStore.getState().groups[previousOwnerKey] !== undefined) &&
+    takeDraftMaterialization(previousOwner.defaultCwd, nextOwnerKey)
   )
 }
 
 function useDisplayTerminalOwner(owner: TerminalOwnerContext) {
   const [displayOwner, setDisplayOwner] = useState<TerminalOwnerContext>(owner)
   const currentOwnerRef = useRef(owner)
+  const inFlightMigrations = useRef(new Map<string, TerminalOwnerContext>())
   const showToast = useUIStore((state) => state.showToast)
 
   useEffect(() => {
@@ -115,7 +53,12 @@ function useDisplayTerminalOwner(owner: TerminalOwnerContext) {
 
   useEffect(() => {
     const previousOwnerKey = displayOwner.ownerKey
-    if (!isDraftOwnerMigration(previousOwnerKey, owner.ownerKey)) {
+    const pendingSource = inFlightMigrations.current.get(owner.ownerKey)
+    if (pendingSource !== undefined) {
+      if (displayOwner.ownerKey !== pendingSource.ownerKey) setDisplayOwner(pendingSource)
+      return
+    }
+    if (!isDraftOwnerMigration(displayOwner, owner.ownerKey)) {
       if (
         previousOwnerKey !== owner.ownerKey ||
         displayOwner.defaultCwd !== owner.defaultCwd ||
@@ -130,8 +73,10 @@ function useDisplayTerminalOwner(owner: TerminalOwnerContext) {
       return
     }
 
+    inFlightMigrations.current.set(owner.ownerKey, displayOwner)
     void migrateTerminalOwner(previousOwnerKey, owner.ownerKey)
       .then((releaseEventHandoff) => {
+        inFlightMigrations.current.delete(owner.ownerKey)
         if (currentOwnerRef.current.ownerKey === owner.ownerKey) {
           setDisplayOwner({
             ownerKey: owner.ownerKey,
@@ -142,6 +87,16 @@ function useDisplayTerminalOwner(owner: TerminalOwnerContext) {
         releaseOwnerHandoffAfterCommit(releaseEventHandoff)
       })
       .catch((error: unknown) => {
+        inFlightMigrations.current.delete(owner.ownerKey)
+        // Keep any unmoved draft tabs under their draft owner, not displayed as
+        // the destination Session. A consumed receipt is not an automatic retry.
+        if (currentOwnerRef.current.ownerKey === owner.ownerKey) {
+          setDisplayOwner({
+            ownerKey: owner.ownerKey,
+            defaultCwd: owner.defaultCwd,
+            defaultProvenance: owner.defaultProvenance,
+          })
+        }
         showToast(
           error instanceof Error
             ? error.message
@@ -149,15 +104,7 @@ function useDisplayTerminalOwner(owner: TerminalOwnerContext) {
           'error',
         )
       })
-  }, [
-    displayOwner.defaultCwd,
-    displayOwner.defaultProvenance,
-    displayOwner.ownerKey,
-    owner.defaultCwd,
-    owner.defaultProvenance,
-    owner.ownerKey,
-    showToast,
-  ])
+  }, [displayOwner, owner.defaultCwd, owner.defaultProvenance, owner.ownerKey, showToast])
 
   return displayOwner
 }

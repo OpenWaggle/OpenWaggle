@@ -20,6 +20,8 @@ interface ShellState {
 }
 
 interface RouteSurfaceMocks {
+  readonly setWorkingPath: (path: string | null) => void
+  readonly workingPath: () => string | null
   readonly setLastPanel: (panel: RightSidebarPanel) => void
   readonly shellState: () => ShellState
   readonly setLastRightSidebarPanel: Mock<(panel: RightSidebarPanel) => void>
@@ -28,11 +30,16 @@ interface RouteSurfaceMocks {
 }
 
 const mocks = vi.hoisted(() => {
+  let workingPath: string | null = '/repo'
   let lastRightSidebarPanel: RightSidebarPanel = 'diff'
   const setLastRightSidebarPanel = vi.fn((panel: RightSidebarPanel) => {
     lastRightSidebarPanel = panel
   })
   return {
+    setWorkingPath: (path: string | null) => {
+      workingPath = path
+    },
+    workingPath: () => workingPath,
     setLastPanel: (panel: RightSidebarPanel) => {
       lastRightSidebarPanel = panel
     },
@@ -47,7 +54,11 @@ export const routeSurfaceMocks: RouteSurfaceMocks = mocks
 
 vi.mock('@/features/chat/hooks', () => ({
   useChatPanelSections: () => ({
-    diff: { projectPath: '/repo', onSendMessage: vi.fn() },
+    diff: {
+      projectPath: mocks.workingPath(),
+      workingPath: mocks.workingPath(),
+      onSendMessage: vi.fn(),
+    },
     transcript: { messages: [] },
   }),
 }))

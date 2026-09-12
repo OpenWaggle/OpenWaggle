@@ -1,6 +1,6 @@
 # Session Summary integration with terminals and browser previews
 
-The Summary branch incorporates main commit `7a4388f9`, including session-owned terminals, browser previews, and worktree Setup receipts.
+The Summary branch incorporates main commit `077e9c04` and app version `v0.3.0-alpha.66`, including session-owned terminals, browser previews, and worktree Setup receipts.
 
 ## Session ownership and overlays
 
@@ -9,6 +9,16 @@ The header toggle remains available independently of available chat width. The S
 Resources and change-request details participate in the same right-sidebar coordinator as terminals and browser tabs. Opening one claims the inspector without deleting the other Session-owned tabs. Authorization remains in the dock.
 
 Route claims carry their Session scope. A matching inspector suspends the floating preview and marks it as a native-view occluder, so a bounds-observer callback cannot make the native view reappear over the inspector. Closing Resources restores a previously open Summary first. Hiding that Summary restores the retained preview with the same native view identity.
+
+Draft routes use the same `draft:<projectPath>` owner key as browser and terminal tabs, not a raw project path. Diff and file inspectors therefore suspend the matching draft preview before the first message, even though the Summary itself is not shown yet. Another draft's or Session's claim must not affect that preview.
+
+The no-project root route retains a null scope so global extension inspectors can still open before a project is selected. It must not inherit an unrelated workspace's claim.
+
+Draft workspace migration requires a one-use receipt from successful creation of the current draft, not merely a transition from a draft-shaped owner key to a Session ID. Navigation invalidates unused receipts and late creation responses do not steal a newer selection. Both owners are fenced through pending browser work, native migration, and renderer layout transfer. Ordinary navigation preserves both groups. Main-opened Setup terminal reconciliation waits for the fence and follows the committed owner instead of disappearing or recreating the old draft.
+
+After native ownership commits, renderer reconciliation attempts every independent layout, floating-preview, sidebar, focus, and source-owner cleanup step even if a storage write fails. The first failure remains visible; a later cleanup error must not replace it or imply that native ownership rolled back. This protects the current in-memory layout but does not promise durable persistence when the storage backend is unavailable.
+
+Native viewport emulation waits for the browser view's `dom-ready` event. A restored floating tab can request scaled bounds before its renderer exists; calling Electron's emulation method at that point can crash the main process. Committed main-frame navigation and renderer loss invalidate readiness, while the latest requested viewport, bounds, and zoom remain available for the next ready event. A cancelled provisional navigation leaves the existing document usable. Resetting to fill also disables previously applied emulation after readiness returns. Disposal removes the readiness listeners.
 
 ## Database upgrades
 
@@ -25,6 +35,8 @@ Project removal refreshes the confirmed Session set and validates the complete a
 Individual deletion closes admission to new lineage writes and waits for already admitted writes before checking eligibility. New conflicting mutations reject immediately so a cancelled run finalizer cannot wait on its own deletion. The existing run and terminal fences remain in place, and deletion waits for run settlement before removing metadata. Database guards still recheck eligibility. Cleanup after a committed delete is best-effort and must not report the committed metadata as rolled back.
 
 ## Verification boundary
+
+Header controls adapt to the header's available width through CSS container queries. Compact layouts keep the Session title and all actions within the window by hiding secondary metadata and collapsing action text to accessible icons. This fixes the Windows shared navigation failure without removing the title-visibility assertion or extending test timeouts. Native QA covers sidebar collapse/restoration at 800, 1024, 1184, and 1600 content pixels; the visual suite separately covers a 720-pixel viewport. Existing Darwin baselines remain unchanged.
 
 Component regressions cover overlay restoration, session isolation, sidebar ownership, and native-view occlusion requests. The native coexistence E2E checks the actual Electron browser view's visibility and identity while operating the Summary and preview controls.
 

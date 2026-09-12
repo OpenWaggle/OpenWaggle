@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
@@ -18,6 +19,31 @@ async function nativePreview(app: OpenWaggleApp, url: string) {
   }, url)
 }
 
+async function cycleNativePreview(app: OpenWaggleApp, id: number, url: string, action: 'reload' | 'navigate' | 'crash') {
+  return app.electronApplication().evaluate(async ({ webContents }, input) => {
+    const contents = webContents.fromId(input.id)
+    if (!contents) throw new Error('Native preview disappeared before lifecycle check.')
+    const before = await contents.executeJavaScript('({width: innerWidth, height: innerHeight})')
+    await new Promise<void>((resolve, reject) => {
+      const onReady = () => { clearTimeout(timer); resolve() }
+      const timer = setTimeout(() => {
+        contents.removeListener('dom-ready', onReady)
+        reject(new Error(`Preview did not recover after ${input.action}.`))
+      }, 15_000)
+      contents.once('dom-ready', onReady)
+      if (input.action === 'reload') contents.reload()
+      // forcefullyCrashRenderer may report "killed", which intentionally closes the preview.
+      else if (input.action === 'crash') {
+        if (!contents.debugger.isAttached()) contents.debugger.attach('1.3')
+        void contents.debugger.sendCommand('Page.crash').catch(() => undefined)
+      }
+      else void contents.loadURL(input.url).catch(reject)
+    })
+    const after = await contents.executeJavaScript('({width: innerWidth, height: innerHeight})')
+    return { before, after }
+  }, { id, url, action })
+}
+
 test('Session Summary coordinates native floating previews and inspectors across sessions', async ({}, testInfo) => {
   test.setTimeout(180_000)
   const server = createServer((_request, response) => {
@@ -33,6 +59,10 @@ test('Session Summary coordinates native floating previews and inspectors across
     try {
       const projectPath = path.join(app.userDataDir, 'summary-preview-project')
       await fs.mkdir(projectPath, { recursive: true })
+      execFileSync('git', ['init', '-b', 'main'], { cwd: projectPath, stdio: 'ignore' })
+      await fs.writeFile(path.join(projectPath, 'README.md'), 'Summary preview fixture\n')
+      execFileSync('git', ['add', 'README.md'], { cwd: projectPath, stdio: 'ignore' })
+      execFileSync('git', ['-c', 'user.name=OpenWaggle Tests', '-c', 'user.email=tests@openwaggle.ai', 'commit', '-m', 'test fixture'], { cwd: projectPath, stdio: 'ignore' })
       const sessionIds: string[] = []
       for (const title of ['Summary preview Alpha', 'Summary preview Beta']) {
         sessionIds.push(await seedSingleSession(app.userDataDir, {
@@ -52,6 +82,7 @@ test('Session Summary coordinates native floating previews and inspectors across
       await page.evaluate((id) => { location.hash = `/sessions/${id}` }, alpha)
       const summary = page.getByRole('complementary', { name: 'Session Summary' })
       await expect(summary).toBeVisible()
+      await expect(summary.getByRole('button', { name: 'Branch: main', exact: true })).toBeVisible()
       await expect(summary.getByText('Could not load session resources.')).toHaveCount(0)
       const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
       await page.keyboard.press(`${modifier}+Shift+J`)
@@ -60,10 +91,18 @@ test('Session Summary coordinates native floating previews and inspectors across
       await expect.poll(async () => (await nativePreview(app, url))?.visible).toBe(true)
       const originalNativeId = (await nativePreview(app, url))?.id
       expect(originalNativeId).toBeDefined()
+      if (originalNativeId === undefined) throw new Error('Native preview was not created.')
       await page.getByRole('button', { name: 'Float preview over chat' }).click()
       const floating = page.getByRole('region', { name: 'Floating browser preview' })
       await expect(floating).toBeVisible()
       await expect(summary).toHaveCount(0)
+      for (const [action, targetUrl] of [
+        ['reload', url], ['navigate', `${url}?lifecycle`], ['navigate', url], ['crash', url],
+      ] as const) {
+        const viewport = await cycleNativePreview(app, originalNativeId, targetUrl, action)
+        expect(viewport.after).toEqual(viewport.before)
+        await expect.poll(() => nativePreview(app, targetUrl)).toEqual({ id: originalNativeId, visible: true })
+      }
       await page.getByRole('button', { name: 'Open Session Summary', exact: true }).click()
       await expect(summary).toBeVisible()
       await expect(floating).toBeHidden()
@@ -101,6 +140,52 @@ test('Session Summary coordinates native floating previews and inspectors across
       await page.getByRole('button', { name: 'Hide Session Summary', exact: true }).click()
       await expect(floating).toBeVisible()
       await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: true })
+      await page.getByRole('button', { name: 'Collapse summary-preview-project' }).hover()
+      await page.getByRole('button', { name: 'New session in summary-preview-project' }).click()
+      await expect(page.locator('[data-chat-route-session-id]')).toHaveAttribute('data-chat-route-session-id', '')
+      await expect(page.getByRole('button', { name: 'Draft session in summary-preview-project' })).toBeVisible()
+      await expect(summary).toHaveCount(0)
+      const draftUrl = `${url}draft`
+      await page.keyboard.press(`${modifier}+Shift+J`)
+      await page.getByRole('textbox', { name: 'Preview address' }).fill(draftUrl)
+      await page.getByRole('textbox', { name: 'Preview address' }).press('Enter')
+      await expect.poll(async () => (await nativePreview(app, draftUrl))?.visible).toBe(true)
+      const draftNativeId = (await nativePreview(app, draftUrl))?.id
+      expect(draftNativeId).toBeDefined()
+      await page.getByRole('button', { name: 'Float preview over chat' }).click()
+      await expect(floating).toBeVisible()
+      await page.getByRole('button', { name: 'Toggle diff panel' }).click()
+      await expect(page.getByRole('button', { name: 'Close diff sidebar' })).toBeVisible()
+      await expect(floating).toBeHidden()
+      await expect.poll(() => nativePreview(app, draftUrl)).toEqual({ id: draftNativeId, visible: false })
+      await expect(page.getByText('No changes to review', { exact: true })).toBeVisible()
+      await testInfo.attach('draft-inspector-suspends-native-preview', { path: await app.captureEvidence('draft-inspector-suspends-native-preview'), contentType: 'image/png' })
+      await page.getByRole('button', { name: 'Close diff sidebar' }).click()
+      await expect(floating).toBeVisible()
+      await expect.poll(() => nativePreview(app, draftUrl)).toEqual({ id: draftNativeId, visible: true })
+      await app.mainWindow().openThread('Summary preview Alpha')
+      await expect.poll(async () => (await nativePreview(app, draftUrl))?.visible).not.toBe(true)
+      await expect(floating).toBeVisible()
+      await expect.poll(() => nativePreview(app, url)).toEqual({ id: originalNativeId, visible: true })
+      // The draft row is shown only while that draft is active; the project action returns to it.
+      await page.getByRole('button', { name: 'Collapse summary-preview-project' }).hover()
+      await page.getByRole('button', { name: 'New session in summary-preview-project' }).click()
+      await expect(page.locator('[data-chat-route-session-id]')).toHaveAttribute('data-chat-route-session-id', '')
+      await expect(floating).toBeVisible()
+      await expect.poll(() => nativePreview(app, draftUrl)).toEqual({ id: draftNativeId, visible: true })
+      await expect.poll(async () => (await nativePreview(app, url))?.visible).not.toBe(true)
+      await testInfo.attach('draft-preview-restored-after-session-navigation', { path: await app.captureEvidence('draft-preview-restored-after-session-navigation'), contentType: 'image/png' })
+      // Main-page screenshots omit native child layers; capture the actual preview pixels separately.
+      const nativeEvidence = await app.electronApplication().evaluate(async ({ webContents }, id) => {
+        const contents = id === undefined ? undefined : webContents.fromId(id)
+        if (!contents) throw new Error('Restored draft native preview is missing.')
+        const body = await contents.executeJavaScript('document.body.innerText')
+        const screenshot = await contents.capturePage()
+        if (screenshot.isEmpty()) throw new Error('Native preview screenshot is empty.')
+        return { body, png: screenshot.toPNG().toString('base64') }
+      }, draftNativeId)
+      expect(nativeEvidence.body).toContain('Native preview fixture')
+      await testInfo.attach('restored-draft-native-preview-pixels', { body: Buffer.from(nativeEvidence.png, 'base64'), contentType: 'image/png' })
       expect(errors).toEqual([])
       expect(await app.desktopState()).toMatchObject({ focused: false, visible: false })
     } finally {

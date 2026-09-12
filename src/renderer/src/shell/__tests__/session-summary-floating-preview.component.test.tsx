@@ -7,9 +7,21 @@ import { useSessionFloatingPreviewStatus } from '../useSessionFloatingPreviewSta
 import { WorkspaceBrowserFloatingPreview } from '../WorkspaceBrowserFloatingPreview'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 
+const context = vi.hoisted(() => {
+  const state: { sessionId: string | null } = { sessionId: 'session-1' }
+  return state
+})
+
 vi.mock('@/features/chat/hooks', () => ({
   useChat: () => ({
-    activeSession: { id: 'session-1', environmentMode: 'local', projectPath: '/repo' },
+    activeSession:
+      context.sessionId === null
+        ? null
+        : {
+            id: context.sessionId,
+            environmentMode: 'local',
+            projectPath: '/repo',
+          },
   }),
 }))
 vi.mock('@/features/sessions/hooks', () => ({ useProject: () => ({ projectPath: '/repo' }) }))
@@ -30,6 +42,7 @@ function openFloating(ownerKey = 'session-1') {
 
 describe('Session Summary and native floating preview coexistence', () => {
   beforeEach(() => {
+    context.sessionId = 'session-1'
     localStorage.clear()
     useWorkspacePanelStore.setState({ groups: {} })
     useBrowserPreviewFloatingStore.setState({ byOwnerKey: {} })
@@ -74,22 +87,30 @@ describe('Session Summary and native floating preview coexistence', () => {
     expect(useWorkspacePanelStore.getState().groups['session-1']?.browserTabs).toHaveLength(1)
   })
 
-  it('suspends for the current Session inspector and restores the same tab without affecting another owner', () => {
-    const previewId = openFloating()
-    const coordinator = useRightSidebarCoordinator.getState()
-    render(<WorkspaceBrowserFloatingPreview />)
-    const preview = screen.getByTestId('floating-preview')
-    act(() => coordinator.claimRoute('resources', 'session-2'))
-    expect(preview).toHaveAttribute('data-suspended', 'false')
-    act(() => coordinator.claimRoute('resources', 'session-1'))
-    expect(preview).toHaveAttribute('data-suspended', 'true')
-    act(() => coordinator.releaseRoute('resources', 'session-2'))
-    expect(preview).toHaveAttribute('data-suspended', 'true')
-    act(() => coordinator.releaseRoute('resources', 'session-1'))
-    expect(preview).toHaveAttribute('data-suspended', 'false')
-    expect(useBrowserPreviewFloatingStore.getState().byOwnerKey['session-1']?.previewId).toBe(
-      previewId,
-    )
-    expect(useWorkspacePanelStore.getState().groups['session-1']?.browserTabs).toHaveLength(1)
-  })
+  it.each([
+    { sessionId: 'session-1', ownerKey: 'session-1', foreignScope: 'session-2' },
+    { sessionId: null, ownerKey: 'draft:/repo', foreignScope: 'draft:/other-repo' },
+    { sessionId: null, ownerKey: 'draft:/repo', foreignScope: 'session-1' },
+  ])(
+    'suspends only inspector owner $ownerKey, ignoring $foreignScope, and restores the same tab',
+    ({ sessionId, ownerKey, foreignScope }) => {
+      context.sessionId = sessionId
+      const previewId = openFloating(ownerKey)
+      const coordinator = useRightSidebarCoordinator.getState()
+      render(<WorkspaceBrowserFloatingPreview />)
+      const preview = screen.getByTestId('floating-preview')
+      act(() => coordinator.claimRoute('resources', foreignScope))
+      expect(preview).toHaveAttribute('data-suspended', 'false')
+      act(() => coordinator.claimRoute('resources', ownerKey))
+      expect(preview).toHaveAttribute('data-suspended', 'true')
+      act(() => coordinator.releaseRoute('resources', foreignScope))
+      expect(preview).toHaveAttribute('data-suspended', 'true')
+      act(() => coordinator.releaseRoute('resources', ownerKey))
+      expect(preview).toHaveAttribute('data-suspended', 'false')
+      expect(useBrowserPreviewFloatingStore.getState().byOwnerKey[ownerKey]?.previewId).toBe(
+        previewId,
+      )
+      expect(useWorkspacePanelStore.getState().groups[ownerKey]?.browserTabs).toHaveLength(1)
+    },
+  )
 })
