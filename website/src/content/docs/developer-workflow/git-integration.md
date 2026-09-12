@@ -180,10 +180,20 @@ Error states are shown inline, for example "No changes are available to commit."
 
 Toggle the terminal with `Cmd+J` / `Ctrl+J` or the terminal button in the header.
 
-The terminal is a full terminal emulator:
+New terminals start in the active session's Working path: the Session worktree in New-worktree mode
+or the opened checkout in Current-checkout mode. Commands therefore act on the same working tree as
+the agent and the diff panel by default.
 
-- Supports standard terminal features (colors, cursor positioning, etc.).
-- Closing the terminal ends its shell session; opening it again starts a fresh shell.
-- It always runs in the project directory you opened — **including for New-worktree sessions**, so commands you type there do not act on the session's worktree unless you `cd` into it first.
+A terminal opened in a draft exists before its Session worktree does. On first send OpenWaggle keeps
+that shell alive and moves its ownership, layout, and scrollback into the new session. If the send
+creates a worktree, the inherited pane remains visibly labelled **Original checkout**; new terminals
+use the worktree. Choose **Restart in worktree** to stop the inherited process and relaunch that pane
+in the session's Working path.
 
-Use it for git operations not covered by the built-in UI (such as branch rename, delete, or upstream configuration), or for running tests, builds, and other commands directly.
+Hiding the panel does not stop its shells. Closing a pane or tab does, and active or uncertain
+processes receive an impact confirmation first. See
+[Built-in Terminal](/docs/developer-workflow/built-in-terminal) for tabs, splits, contextual
+shortcuts, persistence, shell startup, links, and selection-to-chat.
+
+Use the terminal for Git operations not covered by the built-in UI (such as branch rename, delete,
+or upstream configuration), or for running tests, builds, and other commands directly.

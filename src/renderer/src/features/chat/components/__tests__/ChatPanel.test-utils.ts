@@ -19,6 +19,7 @@ export function seedComposerWorkspace() {
       activeBranchId: null,
       activeNodeId: null,
     }),
+    draftBranch: null,
   })
 }
 

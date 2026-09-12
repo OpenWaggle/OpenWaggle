@@ -11,11 +11,13 @@ import {
 const apiMocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
   cancelAgent: vi.fn(),
+  closeBrowserPreview: vi.fn(),
   deleteSession: vi.fn(),
   listActiveRuns: vi.fn(),
   listSessionsByIds: vi.fn(),
   querySessionControl: vi.fn(),
   showConfirm: vi.fn(),
+  unregisterBrowserPreviewOwner: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
@@ -58,6 +60,8 @@ describe('sidebar project actions over paged catalogs', () => {
     vi.clearAllMocks()
     apiMocks.archiveSession.mockResolvedValue(undefined)
     apiMocks.cancelAgent.mockResolvedValue(undefined)
+    apiMocks.closeBrowserPreview.mockResolvedValue(undefined)
+    apiMocks.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
     apiMocks.deleteSession.mockResolvedValue(undefined)
     apiMocks.listActiveRuns.mockResolvedValue([])
     apiMocks.showConfirm.mockResolvedValue(true)
@@ -110,6 +114,7 @@ describe('sidebar project actions over paged catalogs', () => {
     expect(peakInFlight).toBeLessThanOrEqual(8)
     expect(apiMocks.querySessionControl).toHaveBeenCalledTimes(3)
     expect(apiMocks.listSessionsByIds).toHaveBeenCalledTimes(2)
+    expect(apiMocks.unregisterBrowserPreviewOwner).toHaveBeenCalledTimes(129)
   })
 
   it('reports partial project mutations after attempting every Session', async () => {
@@ -207,6 +212,8 @@ describe('sidebar project actions over paged catalogs', () => {
     await vi.waitFor(() => expect(apiMocks.deleteSession).toHaveBeenCalledTimes(2))
     expect(apiMocks.cancelAgent).toHaveBeenCalledWith(queenId)
     expect(apiMocks.deleteSession).toHaveBeenNthCalledWith(1, workerId)
+    expect(apiMocks.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(workerId))
+    expect(apiMocks.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(queenId))
     expect(apiMocks.deleteSession).toHaveBeenNthCalledWith(2, queenId)
     expect(actionDeps.removeProjectReferences).toHaveBeenCalledWith(PROJECT_PATH)
   })

@@ -1,7 +1,7 @@
 import type {
   LOCAL_SESSION_CAPABILITIES,
   LOCAL_SESSION_CURRENT_REVISION,
-  LOCAL_SESSION_REVISION_9_CAPABILITIES,
+  LOCAL_SESSION_REVISION_10_CAPABILITIES,
 } from './local-session-protocol-revisions'
 export const LOCAL_SESSION_PROTOCOL_NAME = 'openwaggle-local-session' as const
 export const LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH = 128
@@ -22,6 +22,7 @@ export interface LocalSessionClientHello {
 }
 
 export type LocalSessionCommandPayload =
+  | { readonly contract: 'desktop-service-v1'; readonly request: DesktopServiceRequest }
   | {
       readonly contract: 'local-attachments-v1'
       readonly request: {
@@ -29,6 +30,8 @@ export type LocalSessionCommandPayload =
         readonly entries: readonly {
           readonly path: string
           readonly origin?: AttachmentOrigin
+          readonly browserPreview?: PreparedAttachment['browserPreview']
+          readonly browserAnnotationText?: string
         }[]
       }
     }
@@ -111,6 +114,7 @@ export type LocalSessionCommandPayload =
   | LocalSessionWaggleCommandPayload
 
 export type LocalSessionCommandResult =
+  | { readonly contract: 'desktop-service-v1'; readonly response: DesktopServiceResponse }
   | {
       readonly contract: 'local-attachments-v1'
       readonly response: {
@@ -238,7 +242,7 @@ export type LocalSessionNegotiationResult =
       typeof LOCAL_SESSION_CURRENT_REVISION,
       typeof LOCAL_SESSION_CAPABILITIES
     >
-  | AcceptedLocalSessionNegotiation<9, typeof LOCAL_SESSION_REVISION_9_CAPABILITIES>
+  | AcceptedLocalSessionNegotiation<10, typeof LOCAL_SESSION_REVISION_10_CAPABILITIES>
   | {
       readonly accepted: false
       readonly protocol: typeof LOCAL_SESSION_PROTOCOL_NAME
@@ -264,6 +268,7 @@ export type LocalSessionNegotiationResult =
 
 import type { AttachmentOrigin, PreparedAttachment } from './agent'
 import type { BackgroundRunSnapshot } from './background-run'
+import type { DesktopServiceRequest, DesktopServiceResponse } from './desktop-service'
 import type { HostUiV1Request, HostUiV1Result } from './host-ui-protocol'
 import type {
   LocalSessionCompactionCommandPayload,

@@ -1,5 +1,4 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import type { SessionTreeFilterMode } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import {
   getSettingsOperation,
@@ -12,14 +11,11 @@ import { createAppCliShimService } from '../services/cli-shim-service'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
 
-function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
-  return isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)
-}
-
 function validateTreeFilterMode(value: unknown) {
-  return isTreeFilterMode(value)
-    ? Effect.succeed(value)
-    : Effect.fail(new Error('Invalid tree filter mode'))
+  if (isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)) {
+    return Effect.succeed(value)
+  }
+  return Effect.fail(new Error('Invalid tree filter mode'))
 }
 
 function registerSettingsCrudHandlers() {

@@ -1,5 +1,6 @@
 import type { SyntaxResourceCatalog, SyntaxThemeImportPreview } from './syntax-resources'
 import type {
+  WorkspaceAbsoluteFileExternalOpenInput,
   WorkspaceExternalEditor,
   WorkspaceFileExternalOpenInput,
 } from './workspace-external-editor'
@@ -47,6 +48,7 @@ export interface OpenWaggleWorkspaceFilesApi {
   ): Promise<WorkspaceDocumentApplyResult>
   listWorkspaceExternalEditors(): Promise<WorkspaceExternalEditor[]>
   openWorkspaceFileExternal(input: WorkspaceFileExternalOpenInput): Promise<void>
+  openAbsoluteFileExternal(input: WorkspaceAbsoluteFileExternalOpenInput): Promise<void>
   createWorkspaceEntry(input: WorkspaceEntryCreateInput): Promise<WorkspaceEntryMutationResult>
   moveWorkspaceEntry(input: WorkspaceEntryMutationInput): Promise<WorkspaceEntryMutationResult>
   duplicateWorkspaceEntry(input: WorkspaceEntryMutationInput): Promise<WorkspaceEntryMutationResult>

@@ -3,28 +3,67 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SettingsService } from '../../services/settings-service'
 
-function keepCurrentWhenUndefined<T>(next: T | undefined, current: T): T {
-  return next === undefined ? current : next
+function nextSetting<T>(current: T, partial: T | undefined): T {
+  return partial === undefined ? current : partial
 }
 
 function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
   return {
-    selectedModel: partial.selectedModel ?? current.selectedModel,
-    favoriteModels: partial.favoriteModels ?? current.favoriteModels,
-    enabledModels: partial.enabledModels ?? current.enabledModels,
-    compactionThresholdPercent: keepCurrentWhenUndefined(
-      partial.compactionThresholdPercent,
+    selectedModel: nextSetting(current.selectedModel, partial.selectedModel),
+    favoriteModels: nextSetting(current.favoriteModels, partial.favoriteModels),
+    enabledModels: nextSetting(current.enabledModels, partial.enabledModels),
+    projectPath: nextSetting(current.projectPath, partial.projectPath),
+    thinkingLevel: nextSetting(current.thinkingLevel, partial.thinkingLevel),
+    compactionThresholdPercent: nextSetting(
       current.compactionThresholdPercent,
+      partial.compactionThresholdPercent,
     ),
-    projectPath: partial.projectPath !== undefined ? partial.projectPath : current.projectPath,
-    thinkingLevel: partial.thinkingLevel ?? current.thinkingLevel,
-    recentProjects: partial.recentProjects ?? current.recentProjects,
-    skillTogglesByProject: partial.skillTogglesByProject ?? current.skillTogglesByProject,
-    projectDisplayNames: partial.projectDisplayNames ?? current.projectDisplayNames,
-    defaultAuthorizationMode: partial.defaultAuthorizationMode ?? current.defaultAuthorizationMode,
-    shortcutBindings: partial.shortcutBindings ?? current.shortcutBindings,
-    defaultSessionEnvironmentMode:
-      partial.defaultSessionEnvironmentMode ?? current.defaultSessionEnvironmentMode,
+    recentProjects: nextSetting(current.recentProjects, partial.recentProjects),
+    skillTogglesByProject: nextSetting(
+      current.skillTogglesByProject,
+      partial.skillTogglesByProject,
+    ),
+    projectDisplayNames: nextSetting(current.projectDisplayNames, partial.projectDisplayNames),
+    defaultAuthorizationMode: nextSetting(
+      current.defaultAuthorizationMode,
+      partial.defaultAuthorizationMode,
+    ),
+    shortcutRules: nextSetting(current.shortcutRules, partial.shortcutRules),
+    shortcutBindings: nextSetting(current.shortcutBindings, partial.shortcutBindings),
+    defaultSessionEnvironmentMode: nextSetting(
+      current.defaultSessionEnvironmentMode,
+      partial.defaultSessionEnvironmentMode,
+    ),
+    browserLinkTarget: nextSetting(current.browserLinkTarget, partial.browserLinkTarget),
+    browserProfiles: nextSetting(current.browserProfiles, partial.browserProfiles),
+    browserDefaultProfileId: nextSetting(
+      current.browserDefaultProfileId,
+      partial.browserDefaultProfileId,
+    ),
+    browserDefaultViewport: nextSetting(
+      current.browserDefaultViewport,
+      partial.browserDefaultViewport,
+    ),
+    browserDefaultZoomFactor: nextSetting(
+      current.browserDefaultZoomFactor,
+      partial.browserDefaultZoomFactor,
+    ),
+    browserDefaultAppearance: nextSetting(
+      current.browserDefaultAppearance,
+      partial.browserDefaultAppearance,
+    ),
+    browserRecordingFrameRate: nextSetting(
+      current.browserRecordingFrameRate,
+      partial.browserRecordingFrameRate,
+    ),
+    browserAutoShowFloatingPreview: nextSetting(
+      current.browserAutoShowFloatingPreview,
+      partial.browserAutoShowFloatingPreview,
+    ),
+    enableAgentBrowserAccess: nextSetting(
+      current.enableAgentBrowserAccess,
+      partial.enableAgentBrowserAccess,
+    ),
   }
 }
 
@@ -46,11 +85,17 @@ function mergeSessionHostSettings(current: Settings, partial: Partial<Settings>)
 
 function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) {
   return {
-    diffSyntaxTheme: partial.diffSyntaxTheme ?? current.diffSyntaxTheme,
-    syntaxThemeSelections: partial.syntaxThemeSelections ?? current.syntaxThemeSelections,
-    diffView: partial.diffView ?? current.diffView,
-    diffWrapLines: partial.diffWrapLines ?? current.diffWrapLines,
-    appearancePreferences: partial.appearancePreferences ?? current.appearancePreferences,
+    diffSyntaxTheme: nextSetting(current.diffSyntaxTheme, partial.diffSyntaxTheme),
+    syntaxThemeSelections: nextSetting(
+      current.syntaxThemeSelections,
+      partial.syntaxThemeSelections,
+    ),
+    diffView: nextSetting(current.diffView, partial.diffView),
+    diffWrapLines: nextSetting(current.diffWrapLines, partial.diffWrapLines),
+    appearancePreferences: nextSetting(
+      current.appearancePreferences,
+      partial.appearancePreferences,
+    ),
   }
 }
 
@@ -68,8 +113,13 @@ function cloneSettings(settings: Settings): Settings {
     favoriteModels: [...settings.favoriteModels],
     enabledModels: [...settings.enabledModels],
     recentProjects: [...settings.recentProjects],
+    browserProfiles: settings.browserProfiles.map((profile) => ({ ...profile })),
     skillTogglesByProject: { ...settings.skillTogglesByProject },
     projectDisplayNames: { ...settings.projectDisplayNames },
+    shortcutRules: settings.shortcutRules.map((rule) => ({
+      ...rule,
+      shortcut: { ...rule.shortcut },
+    })),
     shortcutBindings: { ...settings.shortcutBindings },
     sessionHostParentConcurrencyLimitsByProject: {
       ...settings.sessionHostParentConcurrencyLimitsByProject,

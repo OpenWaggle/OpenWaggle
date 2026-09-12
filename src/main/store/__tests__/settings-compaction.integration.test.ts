@@ -41,7 +41,13 @@ describe('compaction threshold settings persistence', () => {
     await fs.rm(state.userDataDir, { recursive: true, force: true })
   })
 
-  it('falls back to 80 percent when the persisted value is invalid', async () => {
+  it('defaults to 80 percent when no threshold has been saved', async () => {
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().compactionThresholdPercent).toBe(80)
+  })
+
+  it('rejects an invalid persisted threshold without overwriting it', async () => {
     const { runAppEffect } = await import('../../runtime')
     await runAppEffect(
       Effect.gen(function* () {
@@ -54,8 +60,16 @@ describe('compaction threshold settings persistence', () => {
     )
 
     const { getSettings } = await loadSettingsModule()
-
-    expect(getSettings().compactionThresholdPercent).toBe(80)
+    expect(() => getSettings()).toThrow(/compactionThresholdPercent/u)
+    const rows = await runAppEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        return yield* sql<{ value_json: string }>`
+          SELECT value_json FROM settings_store WHERE key = ${'compactionThresholdPercent'}
+        `
+      }),
+    )
+    expect(rows).toEqual([{ value_json: '101' }])
   })
 
   it('roundtrips a valid global threshold', async () => {

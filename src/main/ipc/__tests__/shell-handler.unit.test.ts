@@ -6,6 +6,11 @@ const mockAppGetPath = vi.fn((_name: string) => '/tmp/logs')
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 const mockShellOpenExternal = vi.fn(async (_url: string) => {})
+const mockClipboardReadText = vi.fn(() => 'clipboard text')
+const mockNativeAdmissionIssue = vi.fn<() => string | null>(() => null)
+vi.mock('../../desktop-native-admission', () => ({
+  getDesktopNativeAdmissionIssue: () => mockNativeAdmissionIssue(),
+}))
 
 vi.mock('electron', () => ({
   shell: {
@@ -13,6 +18,10 @@ vi.mock('electron', () => ({
     openExternal: (url: string) => mockShellOpenExternal(url),
   },
   app: { getPath: (name: string) => mockAppGetPath(name) },
+  clipboard: {
+    readText: () => mockClipboardReadText(),
+    writeText: vi.fn(),
+  },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
@@ -44,18 +53,41 @@ describe('shell-handler', () => {
     mockShellOpenPath.mockReset()
     mockShellOpenExternal.mockReset()
     mockAppGetPath.mockReset()
+    mockClipboardReadText.mockReset()
+    mockNativeAdmissionIssue.mockReturnValue(null)
     mockShellOpenPath.mockResolvedValue('')
     mockAppGetPath.mockReturnValue('/tmp/logs')
+    mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
-  it('registers exactly four handlers', () => {
+  it('registers exactly six invoke handlers', () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(4)
+    expect(handlers.size).toBe(6)
     expect(handlers.has('app:open-logs-dir')).toBe(true)
     expect(handlers.has('app:get-logs-path')).toBe(true)
+    expect(handlers.has('app:get-native-admission-issue')).toBe(true)
     expect(handlers.has('shell:open-path')).toBe(true)
     expect(handlers.has('shell:open-external')).toBe(true)
+    expect(handlers.has('clipboard:read-text')).toBe(true)
+  })
+
+  it.each([null, 'Previous desktop ownership remains uncertain.'])(
+    'exposes the read-only GUI native admission state: %s',
+    async (issue) => {
+      mockNativeAdmissionIssue.mockReturnValue(issue)
+      registerShellHandlers()
+      expect(await handlers.get('app:get-native-admission-issue')?.({})).toBe(issue)
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
+      expect(mockShellOpenExternal).not.toHaveBeenCalled()
+    },
+  )
+
+  it('reads paste text through Electron clipboard isolation', async () => {
+    registerShellHandlers()
+
+    await expect(handlers.get('clipboard:read-text')?.({})).resolves.toBe('clipboard text')
+    expect(mockClipboardReadText).toHaveBeenCalledOnce()
   })
 
   describe('app:open-logs-dir', () => {

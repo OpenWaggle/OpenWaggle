@@ -182,6 +182,36 @@ export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
   `,
 ] as const
 
+/** Pending Setup action dispatches, scoped to one Session worktree generation. */
+export const SESSION_WORKTREE_SETUP_MIGRATION_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS session_worktree_setup (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    worktree_path TEXT NOT NULL,
+    generation TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+  `,
+] as const
+
+/** Durable claim and acceptance receipt for crash-safe, at-most-once Setup dispatch. */
+export const SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE session_worktree_setup
+  ADD COLUMN dispatch_state TEXT NOT NULL DEFAULT 'pending'
+    CHECK (dispatch_state IN ('pending', 'claimed', 'accepted'))
+  `,
+  `
+  ALTER TABLE session_worktree_setup
+  ADD COLUMN claim_token TEXT
+  `,
+  `
+  ALTER TABLE session_worktree_setup
+  ADD COLUMN accepted_at INTEGER
+  `,
+] as const
+
 export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (

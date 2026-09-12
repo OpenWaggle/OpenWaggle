@@ -1,10 +1,9 @@
 import { join } from 'node:path'
-import { is } from '@electron-toolkit/utils'
 import { installDevToolsShortcut } from './application-menu'
 import { createBrowserWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { focusWindow, revealWindow } from './desktop-window-policy'
-import { env } from './env'
 import { openExternalFromRenderer } from './external-navigation'
+import { isTrustedRendererDocument } from './renderer-document-trust'
 import {
   devRendererUrl,
   INDEX_HTML,
@@ -71,10 +70,8 @@ export function createMainWindow(input: {
     return { action: 'deny' }
   })
 
-  const rendererOrigin =
-    is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : RENDERER_PROTOCOL_ORIGIN
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith(rendererOrigin)) return
+    if (isTrustedRendererDocument(url)) return
     event.preventDefault()
     openExternalFromRenderer(url)
   })

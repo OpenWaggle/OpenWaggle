@@ -8,11 +8,11 @@ import {
   deleteVisualizationSessionMock,
   dispatchLocalSessionCommandMock,
   emitRunCompletedMock,
-  getInvokeHandler,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
   rollbackVisualizationSessionDeletionMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('session detail lifecycle mutations', () => {
   let registerSessionDetailsHandlers: Awaited<

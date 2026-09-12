@@ -8,6 +8,10 @@ import {
   prepareAttachmentFiles,
   toPublicPreparedAttachment,
 } from '../utils/attachment-preparation'
+import {
+  browserAttachmentMetadataJson,
+  parseBrowserAttachmentMetadata,
+} from '../utils/browser-attachment-metadata'
 import type { AttachmentStoragePolicy } from './session-control-attachment-service'
 
 interface PreparedAttachmentRow {
@@ -20,6 +24,7 @@ interface PreparedAttachmentRow {
   readonly size_bytes: number
   readonly source_base64: string
   readonly extracted_text: string
+  readonly browser_preview_json: string | null
 }
 
 interface StoredBytesRow {
@@ -40,14 +45,14 @@ function assertStorageQuota(
 ) {
   return Effect.gen(function* () {
     const global =
-      yield* sql<StoredBytesRow>`SELECT COALESCE(SUM(LENGTH(source_base64)), 0) AS bytes FROM session_prepared_attachments`
+      yield* sql<StoredBytesRow>`SELECT COALESCE(SUM(LENGTH(source_base64) + COALESCE(LENGTH(CAST(browser_preview_json AS BLOB)), 0) + CASE WHEN origin = 'browser-preview' THEN LENGTH(CAST(extracted_text AS BLOB)) ELSE 0 END), 0) AS bytes FROM session_prepared_attachments`
     if ((global[0]?.bytes ?? 0) > policy.maxStoredBytesGlobal) {
       return yield* Effect.fail(
         new Error('The global prepared attachment storage quota was reached.'),
       )
     }
     const owner = yield* sql<StoredBytesRow>`
-      SELECT COALESCE(SUM(LENGTH(source_base64)), 0) AS bytes FROM session_prepared_attachments
+      SELECT COALESCE(SUM(LENGTH(source_base64) + COALESCE(LENGTH(CAST(browser_preview_json AS BLOB)), 0) + CASE WHEN origin = 'browser-preview' THEN LENGTH(CAST(extracted_text AS BLOB)) ELSE 0 END), 0) AS bytes FROM session_prepared_attachments
       WHERE owner_caller_id = ${ownerCallerId} AND session_id IS NULL
     `
     if ((owner[0]?.bytes ?? 0) > policy.maxUnboundBytesPerOwner) {
@@ -79,6 +84,11 @@ function stableAttachmentId(input: {
     .update(input.attachment.mimeType)
     .update('\0')
     .update(input.attachment.immutableSourceBase64)
+    .update(
+      input.attachment.origin === 'browser-preview'
+        ? `\0${browserAttachmentMetadataJson(input.attachment.browserPreview) ?? ''}\0${input.attachment.extractedText}`
+        : '',
+    )
     .digest('hex')}`
 }
 
@@ -92,6 +102,9 @@ function attachmentFromRow(row: PreparedAttachmentRow): PreparedAttachment {
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,
     extractedText: row.extracted_text,
+    ...(row.browser_preview_json === null
+      ? {}
+      : { browserPreview: parseBrowserAttachmentMetadata(row.browser_preview_json) }),
   }
 }
 
@@ -191,12 +204,12 @@ function prepareAttachments(
               (attachment) => sql`
           INSERT INTO session_prepared_attachments (
             id, owner_caller_id, preparation_request_id, session_id, kind, origin, name, real_path,
-            mime_type, size_bytes, source_base64, extracted_text, created_at, bound_at, expires_at
+            mime_type, size_bytes, source_base64, extracted_text, created_at, bound_at, expires_at, browser_preview_json
           ) VALUES (
             ${attachment.id}, ${input.ownerCallerId}, ${input.requestId}, ${null}, ${attachment.kind},
             ${attachment.origin ?? 'user-file'}, ${attachment.name}, ${attachment.path},
             ${attachment.mimeType}, ${attachment.sizeBytes}, ${attachment.immutableSourceBase64},
-            ${attachment.extractedText}, ${now}, ${null}, ${now + policy.unboundTtlMs}
+            ${attachment.extractedText}, ${now}, ${null}, ${now + policy.unboundTtlMs}, ${browserAttachmentMetadataJson(attachment.browserPreview)}
           ) ON CONFLICT(id) DO NOTHING
         `,
             )
@@ -216,7 +229,7 @@ function resolveAttachments(
     if (input.attachmentIds.length === 0) return []
     yield* bindAttachments(sql, input)
     const rows = yield* sql<PreparedAttachmentRow>`
-      SELECT id, kind, origin, name, real_path, mime_type, size_bytes, source_base64, extracted_text
+      SELECT id, kind, origin, name, real_path, mime_type, size_bytes, source_base64, extracted_text, browser_preview_json
       FROM session_prepared_attachments WHERE id IN ${sql.in(input.attachmentIds)}
         AND owner_caller_id = ${input.ownerCallerId}
     `

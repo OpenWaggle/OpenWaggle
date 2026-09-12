@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic-catalog-loader'
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
@@ -10,6 +11,19 @@ export interface HostUiAgentDefinitionOperationDependencies {
   readonly authorize?: typeof authorizeAgentDefinitionUiCommand
   readonly execute?: typeof executeAgentDefinitionManagement
   readonly resolve?: typeof resolveAgentDefinition
+}
+
+export function decodeAgentDefinitionInput(value: unknown) {
+  if (!isRecord(value) || !Object.hasOwn(value, 'command')) {
+    return { command: value, selectedSourcePaths: undefined }
+  }
+  if (
+    !Array.isArray(value.selectedSourcePaths) ||
+    !value.selectedSourcePaths.every((sourcePath) => typeof sourcePath === 'string')
+  ) {
+    return null
+  }
+  return { command: value.command, selectedSourcePaths: value.selectedSourcePaths }
 }
 
 export function manageHostUiAgentDefinitions(

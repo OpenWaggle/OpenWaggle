@@ -7,6 +7,7 @@ import {
 } from '@shared/types/session-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { api } from '@/shared/lib/ipc'
+import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -157,7 +158,10 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
   )
   if (!confirmed) return
 
-  await runWithConcurrency(projectSessions, (session) => api.archiveSession(session.id))
+  await runWithConcurrency(projectSessions, async (session) => {
+    await api.archiveSession(session.id)
+    await archiveWorkspaceOwner(String(session.id))
+  })
   clearComposerDraftsForSessions(projectSessions)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
 
@@ -184,6 +188,7 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   )
   for (const session of sessionsInDeletionOrder(projectSessions)) {
     await api.deleteSession(session.id)
+    await deleteWorkspaceOwner(String(session.id))
   }
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)

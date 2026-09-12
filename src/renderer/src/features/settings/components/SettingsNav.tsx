@@ -3,10 +3,12 @@ import {
   Archive,
   Cable,
   GitBranch,
+  Globe2,
   Keyboard,
   Network,
   PackageOpen,
   Palette,
+  Play,
   Settings2,
   Waypoints,
 } from 'lucide-react'
@@ -22,6 +24,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'browser', label: 'Browser', icon: Globe2 },
+  { id: 'actions', label: 'Project actions', icon: Play },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints },

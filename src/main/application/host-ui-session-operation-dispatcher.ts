@@ -3,9 +3,11 @@ import { SupportedModelId } from '@shared/types/brand'
 import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { IpcInvokeArgs, IpcInvokeReturn } from '@shared/types/ipc'
 import * as Effect from 'effect/Effect'
+import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { InlineVisualizationService } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
 import {
   listArchivedSessionBranchCatalogPage,
@@ -47,6 +49,8 @@ type SessionOperationServices =
   | SessionRepository
   | SettingsService
   | InlineVisualizationService
+  | TerminalService
+  | DesktopServiceBroker
 
 function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: readonly unknown[]) {
   return match(channel)

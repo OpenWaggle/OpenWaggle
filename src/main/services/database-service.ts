@@ -7,6 +7,7 @@ import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
 import { SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
 import { APP_MIGRATIONS } from './database-migrations'
+import { repairSessionHostMigrationLedger } from './session-host-ledger-repair'
 
 export interface AppDatabaseService {
   readonly path: string
@@ -51,16 +52,22 @@ const createMigrationsTable = Effect.gen(function* () {
 export const runAppDatabaseMigrations = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   yield* createMigrationsTable
+  yield* repairSessionHostMigrationLedger
 
   for (const migration of APP_MIGRATIONS) {
-    const existingRows = yield* sql<{ id: number }>`
-      SELECT id
+    const existingRows = yield* sql<{ id: number; name: string }>`
+      SELECT id, name
       FROM _migrations
       WHERE id = ${migration.id}
       LIMIT 1
     `
 
     if (existingRows.length > 0) {
+      if (existingRows[0]?.name !== migration.name) {
+        return yield* Effect.fail(
+          new Error(`Migration ledger identity mismatch at ${migration.id}.`),
+        )
+      }
       continue
     }
 

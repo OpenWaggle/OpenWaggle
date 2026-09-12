@@ -1,6 +1,7 @@
 import type { ActiveCompactionInfo } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import * as Effect from 'effect/Effect'
 import { ActiveRunManager } from './active-run-manager'
 import {
   preAdmissionWaggleSessionIds,
@@ -47,6 +48,7 @@ const activeCompactions = new ActiveRunManager<SessionId, CompactionMetadata>()
 const activeWaggleRuns = new ActiveRunManager<SessionId, WaggleRunMetadata>()
 const pendingWaggleRuns = new ActiveRunManager<SessionId, WaggleRunMetadata>()
 const ACTIVE_RUN_POLL_INTERVAL_MS = 50
+const sessionRemovalFences = new Map<SessionId, symbol>()
 
 export { activeCompactions, activeRuns, activeWaggleRuns, pendingWaggleRuns }
 
@@ -55,6 +57,7 @@ export function reserveActiveSessionRun(
   runId: string,
   successorToken?: symbol,
 ): ActiveSessionRunReservation {
+  assertSessionRunStartAllowed(sessionId)
   const writer = reserveSessionWriter({
     sessionId,
     kind: 'classic',
@@ -77,6 +80,7 @@ export function reserveCompactionSessionWriter(
   controller: AbortController,
   model: SupportedModelId,
 ) {
+  assertSessionRunStartAllowed(sessionId)
   const writer = reserveSessionWriter({ sessionId, kind: 'compaction', controller })
   activeCompactions.register(sessionId, controller, {
     model,
@@ -98,6 +102,7 @@ export function reserveWaggleSessionWriter(
   runId: string,
   successorToken?: symbol,
 ) {
+  assertSessionRunStartAllowed(sessionId)
   const writer = reserveSessionWriter({
     sessionId,
     kind: 'waggle',
@@ -123,6 +128,7 @@ export function reservePendingWaggleSessionRun(
   controller: AbortController,
   runId: string,
 ) {
+  assertSessionRunStartAllowed(sessionId)
   if (pendingWaggleRuns.has(sessionId)) {
     throw new Error(`Session ${sessionId} already has a pending Waggle run.`)
   }
@@ -136,6 +142,7 @@ export function reservePendingClassicSessionRun(
   sessionId: SessionId,
   runId: string,
 ): ActiveSessionRunReservation {
+  assertSessionRunStartAllowed(sessionId)
   if (pendingClassicRuns.has(sessionId)) {
     throw new Error(`Session ${sessionId} already has a pending classic run.`)
   }
@@ -150,11 +157,67 @@ export function reservePendingClassicSessionRun(
 }
 
 export function reserveSessionTreeMutation(sessionId: SessionId) {
+  assertSessionRunStartAllowed(sessionId)
   return reserveSessionWriter({ sessionId, kind: 'tree-mutation' })
 }
 
+export function acquireSessionRemovalFence(sessionId: SessionId) {
+  return acquireSessionRemovalAdmission(sessionId).release
+}
+
+export function acquireSessionRemovalAdmission(sessionId: SessionId) {
+  if (sessionRemovalFences.has(sessionId)) {
+    throw new Error('Session deletion or archive is already in progress.')
+  }
+  const token = Symbol('session-removal')
+  sessionRemovalFences.set(sessionId, token)
+  let released = false
+  return {
+    reserveTreeMutation: () => {
+      if (released || sessionRemovalFences.get(sessionId) !== token) {
+        throw new Error('Session removal admission is no longer held.')
+      }
+      return reserveSessionWriter({ sessionId, kind: 'tree-mutation' })
+    },
+    release: () => {
+      if (released) return
+      released = true
+      if (sessionRemovalFences.get(sessionId) === token) sessionRemovalFences.delete(sessionId)
+    },
+  }
+}
+
+export function isSessionRemovalFenced(sessionId: SessionId) {
+  return sessionRemovalFences.has(sessionId)
+}
+
+function assertSessionRunStartAllowed(sessionId: SessionId) {
+  if (sessionRemovalFences.has(sessionId)) {
+    throw new Error('The Session is being archived or deleted; new work cannot start.')
+  }
+}
+
+export function ensureSessionRunStartAllowed(sessionId: SessionId) {
+  return Effect.try({
+    try: () => assertSessionRunStartAllowed(sessionId),
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  })
+}
+
 export function hasAnyActiveRun(sessionId: SessionId): boolean {
-  return activeSessionWriters.has(sessionId) || pendingClassicRuns.has(sessionId)
+  return hasAnyUnsettledRun(sessionId)
+}
+
+function hasAnyUnsettledRun(sessionId: SessionId) {
+  return (
+    activeSessionWriters.has(sessionId) ||
+    pendingClassicRuns.hasUnsettled(sessionId) ||
+    pendingWaggleRuns.hasUnsettled(sessionId) ||
+    [...preAdmissionWaggleSessionIds()].includes(sessionId) ||
+    activeRuns.hasUnsettled(sessionId) ||
+    activeCompactions.hasUnsettled(sessionId) ||
+    activeWaggleRuns.hasUnsettled(sessionId)
+  )
 }
 
 export function cancelSessionRuns(sessionId: SessionId): boolean {
@@ -205,11 +268,11 @@ export function getAllActiveRunSessionIds(): SessionId[] {
   return [
     ...new Set([
       ...activeSessionWriters.keys(),
-      ...activeRuns.keys(),
-      ...pendingClassicRuns.keys(),
-      ...activeCompactions.keys(),
-      ...activeWaggleRuns.keys(),
-      ...pendingWaggleRuns.keys(),
+      ...activeRuns.unsettledKeys(),
+      ...pendingClassicRuns.unsettledKeys(),
+      ...activeCompactions.unsettledKeys(),
+      ...activeWaggleRuns.unsettledKeys(),
+      ...pendingWaggleRuns.unsettledKeys(),
       ...preAdmissionWaggleSessionIds(),
     ]),
   ]
@@ -251,10 +314,10 @@ export function cancelAllSessionRuns(): SessionId[] {
 
 export async function waitForSessionRuns(sessionId: SessionId, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs
-  while (hasAnyActiveRun(sessionId) && Date.now() < deadline) {
+  while (hasAnyUnsettledRun(sessionId) && Date.now() < deadline) {
     await new Promise<void>((resolve) =>
       setTimeout(resolve, Math.min(ACTIVE_RUN_POLL_INTERVAL_MS, deadline - Date.now())),
     )
   }
-  return !hasAnyActiveRun(sessionId)
+  return !hasAnyUnsettledRun(sessionId)
 }

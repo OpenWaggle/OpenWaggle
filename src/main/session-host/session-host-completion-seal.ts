@@ -1,4 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { migrationIdentitySchema } from '@shared/schemas/migration-ledger'
+import {
+  planSessionHostLedgerUpgrade,
+  SESSION_HOST_ALPHA_BASELINE_ID,
+  SESSION_HOST_LEDGER_PAGE_SIZE,
+} from '../services/session-host-ledger-compatibility'
 import {
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_BASELINE_MIGRATION_NAME,
@@ -47,6 +54,20 @@ function validHighWatermark(revision: unknown, value: unknown) {
  * staging database passes full validation, in the same transaction as the migration ledger row.
  */
 export function validateSessionHostCompletionSeal(database: DatabaseSync) {
+  const rows = decodeUnknownOrThrow(
+    Schema.Array(migrationIdentitySchema),
+    database
+      .prepare(
+        `SELECT id, name FROM _migrations WHERE id >= ${SESSION_HOST_ALPHA_BASELINE_ID} ORDER BY id LIMIT ${SESSION_HOST_LEDGER_PAGE_SIZE}`,
+      )
+      .all(),
+  )
+  let baselineId = SESSION_HOST_BASELINE_MIGRATION_ID
+  try {
+    if (planSessionHostLedgerUpgrade(rows).length > 0) baselineId = SESSION_HOST_ALPHA_BASELINE_ID
+  } catch {
+    throw new Error('Session Host target completion metadata is missing or incompatible.')
+  }
   const seal = queryCutoverRecord(
     database,
     `SELECT metadata.schema_revision, metadata.migration_revision,
@@ -54,7 +75,7 @@ export function validateSessionHostCompletionSeal(database: DatabaseSync) {
       ledger.name AS ledger_name, ledger.applied_at AS ledger_applied_at,
       (SELECT MAX(id) FROM _migrations) AS max_migration_id
     FROM session_host_schema_metadata AS metadata
-    LEFT JOIN _migrations AS ledger ON ledger.id = ${SESSION_HOST_BASELINE_MIGRATION_ID}
+    LEFT JOIN _migrations AS ledger ON ledger.id = ${baselineId}
     WHERE metadata.singleton = 1`,
   )
   const valid =

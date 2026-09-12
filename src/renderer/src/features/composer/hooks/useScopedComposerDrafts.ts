@@ -72,7 +72,8 @@ export function useScopedComposerDrafts(activeSessionId: SessionId | null) {
     }
   }, [])
 
-  // Session detail may arrive before the workspace establishes the draft's owner.
+  // A visible composer can precede the selected Session's workspace response.
+  // Keep editing/submission blocked until restoring that Session's draft finishes.
   return contextKey !== null && activeDraftContextKey === contextKey
 }
 

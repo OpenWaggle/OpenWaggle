@@ -1,7 +1,9 @@
 import { parseJsonUnknown } from '@shared/schema'
 import { decodeSessionControlMutationRequest } from '@shared/schemas/session-control'
+import { SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
+import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { SessionHostRecoveryResult } from '../ports/session-host-recovery-repository'
 import type { SessionOrganizationRequest } from '../ports/session-organization-repository'
 import { SessionOrganizationRepository } from '../ports/session-organization-repository'
@@ -10,6 +12,8 @@ import {
   SessionWorkspaceHandoffPreparationError,
   SessionWorkspaceHandoffService,
 } from '../ports/session-workspace-handoff-service'
+import type { TerminalService } from '../ports/terminal-service'
+import { withSessionDesktopRemoval } from './session-desktop-removal'
 
 const HANDOFF_RECOVERY_RETRY_COUNT = 2
 const HANDOFF_RECOVERY_RETRY_DELAY_MS = 25
@@ -82,6 +86,27 @@ export function organizeSession(input: {
 }) {
   return Effect.gen(function* () {
     const repository = yield* SessionOrganizationRepository
+    if (input.request.command.operation === 'archive') {
+      const admission = yield* repository.prepareArchive({
+        ...input,
+        request: { ...input.request, command: input.request.command },
+      })
+      if (admission.status === 'completed') return admission.response
+      return yield* withSessionDesktopRemoval(
+        SessionId(input.request.command.sessionId),
+        repository.execute(input),
+      )
+    }
+    return yield* organizeSessionWithoutArchive(input)
+  })
+}
+
+function organizeSessionWithoutArchive(input: {
+  readonly callerId: string
+  readonly request: SessionOrganizationRequest
+}) {
+  return Effect.gen(function* () {
+    const repository = yield* SessionOrganizationRepository
     if (input.request.command.operation !== 'handoff') return yield* repository.execute(input)
     const handoff = yield* SessionWorkspaceHandoffService
     const preparation = yield* handoff
@@ -136,7 +161,14 @@ export function recoverPendingSessionHandoffs(
 function recoverPendingHandoff(
   pending: SessionHostRecoveryResult['pendingHandoffs'][number],
   retriesRemaining: number,
-): Effect.Effect<unknown, unknown, SessionOrganizationRepository | SessionWorkspaceHandoffService> {
+): Effect.Effect<
+  unknown,
+  unknown,
+  | SessionOrganizationRepository
+  | SessionWorkspaceHandoffService
+  | TerminalService
+  | DesktopServiceBroker
+> {
   const recovery = Effect.gen(function* () {
     const request = yield* Effect.try({
       try: () =>

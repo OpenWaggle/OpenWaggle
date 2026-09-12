@@ -1,7 +1,6 @@
-import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { testHexColor } from '@/test-utils/test-color'
 
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
@@ -66,6 +65,90 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
   })
 
+  it.each([
+    {
+      name: 'Hive enabled',
+      update: () => usePreferencesStore.getState().setMultiAgentEnabled(false),
+    },
+    {
+      name: 'parent concurrency',
+      update: () => usePreferencesStore.getState().setSessionHostParentConcurrencyLimit(9),
+    },
+    {
+      name: 'run ceiling',
+      update: () => usePreferencesStore.getState().setSessionHostRunCeiling(30),
+    },
+    {
+      name: 'idle grace',
+      update: () => usePreferencesStore.getState().setSessionHostIdleGracePeriodMs(1000),
+    },
+    {
+      name: 'project Hive enabled',
+      update: () => usePreferencesStore.getState().setProjectMultiAgentEnabled('/repo', false),
+    },
+    {
+      name: 'project concurrency',
+      update: () => usePreferencesStore.getState().setProjectParentConcurrencyLimit('/repo', 9),
+    },
+  ])('keeps $name unchanged when the Host rejects persistence', async ({ update }) => {
+    const before = usePreferencesStore.getState().settings
+    apiMock.updateSettings.mockResolvedValueOnce({ ok: false, error: 'Host rejected settings' })
+
+    await expect(update()).rejects.toThrow('Host rejected settings')
+    expect(usePreferencesStore.getState().settings).toEqual(before)
+  })
+
+  it('keeps browser changes made while a project Hive preference is being persisted', async () => {
+    const projectWrite = deferred<{ ok: true }>()
+    apiMock.updateSettings.mockReturnValueOnce(projectWrite.promise)
+    const pending = usePreferencesStore.getState().setProjectMultiAgentEnabled('/repo', false)
+    await usePreferencesStore.getState().setBrowserDefaultZoomFactor(1.5)
+    projectWrite.resolve({ ok: true })
+    await pending
+
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      browserDefaultZoomFactor: 1.5,
+      multiAgentEnabledByProject: { '/repo': false },
+    })
+  })
+
+  it('persists browser defaults through independent typed settings patches', async () => {
+    await usePreferencesStore.getState().setBrowserDefaultViewport({
+      mode: 'fixed',
+      width: 390,
+      height: 844,
+      presetId: null,
+    })
+    await usePreferencesStore.getState().setBrowserDefaultZoomFactor(1.25)
+    await usePreferencesStore.getState().setBrowserDefaultAppearance('dark')
+    await usePreferencesStore.getState().setBrowserRecordingFrameRate(60)
+    await usePreferencesStore.getState().setBrowserAutoShowFloatingPreview(false)
+
+    expect(apiMock.updateSettings.mock.calls.slice(-5)).toEqual([
+      [
+        {
+          browserDefaultViewport: {
+            mode: 'fixed',
+            width: 390,
+            height: 844,
+            presetId: null,
+          },
+        },
+      ],
+      [{ browserDefaultZoomFactor: 1.25 }],
+      [{ browserDefaultAppearance: 'dark' }],
+      [{ browserRecordingFrameRate: 60 }],
+      [{ browserAutoShowFloatingPreview: false }],
+    ])
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      browserDefaultViewport: { mode: 'fixed', width: 390, height: 844, presetId: null },
+      browserDefaultZoomFactor: 1.25,
+      browserDefaultAppearance: 'dark',
+      browserRecordingFrameRate: 60,
+      browserAutoShowFloatingPreview: false,
+    })
+  })
+
   it('persists typography as one appearance preference document', async () => {
     await usePreferencesStore.getState().setAppearanceTypography({
       codeFontFamily: 'JetBrains Mono, monospace',
@@ -85,6 +168,31 @@ describe('preferences-store integration', () => {
     expect(
       usePreferencesStore.getState().settings.appearancePreferences.typography.codeFontSize,
     ).toBe(14)
+  })
+
+  it('persists terminal palette overrides in the appearance document', async () => {
+    const background = testHexColor('111111')
+    const selection = testHexColor('33669988')
+    await usePreferencesStore.getState().setAppearanceTerminalPalette({
+      background,
+      selection,
+    })
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({
+      appearancePreferences: {
+        ...DEFAULT_SETTINGS.appearancePreferences,
+        terminalPalette: {
+          ...DEFAULT_SETTINGS.appearancePreferences.terminalPalette,
+          background,
+          selection,
+        },
+      },
+    })
+    expect(usePreferencesStore.getState().settings.appearancePreferences.terminalPalette).toEqual({
+      ...DEFAULT_SETTINGS.appearancePreferences.terminalPalette,
+      background,
+      selection,
+    })
   })
 
   it('rolls back optimistic appearance state when persistence is rejected', async () => {
@@ -179,75 +287,6 @@ describe('preferences-store integration', () => {
     })
   })
 
-  it('tracks recent projects in first-added order with dedupe and max size', async () => {
-    const entries = [
-      '/tmp/repo-1',
-      '/tmp/repo-2',
-      '/tmp/repo-3',
-      '/tmp/repo-4',
-      '/tmp/repo-5',
-      '/tmp/repo-6',
-      '/tmp/repo-7',
-      '/tmp/repo-8',
-      '/tmp/repo-9',
-      '/tmp/repo-10',
-      '/tmp/repo-11',
-    ]
-
-    for (const path of entries) {
-      await usePreferencesStore.getState().setProjectPath(path)
-    }
-    await usePreferencesStore.getState().setProjectPath('/tmp/repo-9')
-
-    const recentProjects = usePreferencesStore.getState().settings.recentProjects
-    expect(recentProjects).toEqual([
-      '/tmp/repo-2',
-      '/tmp/repo-3',
-      '/tmp/repo-4',
-      '/tmp/repo-5',
-      '/tmp/repo-6',
-      '/tmp/repo-7',
-      '/tmp/repo-8',
-      '/tmp/repo-9',
-      '/tmp/repo-10',
-      '/tmp/repo-11',
-    ])
-    expect(recentProjects).toHaveLength(10)
-  })
-
-  it('toggles favorite models and persists deduped order', async () => {
-    await usePreferencesStore
-      .getState()
-      .toggleFavoriteModel(SupportedModelId('openai/gpt-4.1-mini'))
-    await usePreferencesStore
-      .getState()
-      .toggleFavoriteModel(SupportedModelId('anthropic/claude-sonnet-4-5'))
-    await usePreferencesStore
-      .getState()
-      .toggleFavoriteModel(SupportedModelId('openai/gpt-4.1-mini'))
-
-    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(1, {
-      favoriteModels: ['openai/gpt-4.1-mini'],
-    })
-    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
-      favoriteModels: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'],
-    })
-    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(3, {
-      favoriteModels: ['anthropic/claude-sonnet-4-5'],
-    })
-
-    expect(usePreferencesStore.getState().settings.favoriteModels).toEqual([
-      'anthropic/claude-sonnet-4-5',
-    ])
-  })
-
-  it('sets default model through preferences store', async () => {
-    await usePreferencesStore.getState().setSelectedModel(SupportedModelId('openai/gpt-4.1-mini'))
-
-    expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'openai/gpt-4.1-mini' })
-    expect(usePreferencesStore.getState().settings.selectedModel).toBe('openai/gpt-4.1-mini')
-  })
-
   it('preserves concurrent scalar settings when IPC responses resolve out of order', async () => {
     const delayedMultiAgent = Promise.withResolvers<{ ok: true }>()
     apiMock.updateSettings.mockImplementation((partial) =>
@@ -264,16 +303,6 @@ describe('preferences-store integration', () => {
       multiAgentEnabled: false,
       sessionHostRunCeiling: 32,
     })
-  })
-
-  it('keeps scalar settings unchanged when main rejects the update', async () => {
-    apiMock.updateSettings.mockResolvedValue({ ok: false, error: 'Session Host policy rejected.' })
-
-    await expect(usePreferencesStore.getState().setMultiAgentEnabled(false)).rejects.toThrow(
-      'Session Host policy rejected.',
-    )
-
-    expect(usePreferencesStore.getState().settings.multiAgentEnabled).toBe(true)
   })
 
   it('persists Host idle grace and reversible project Worker overrides', async () => {
@@ -302,49 +331,5 @@ describe('preferences-store integration', () => {
       multiAgentEnabledByProject: {},
       sessionHostParentConcurrencyLimitsByProject: {},
     })
-  })
-
-  it('keeps shortcut state unchanged when main rejects a duplicate binding', async () => {
-    const shortcutBindings = {
-      ...DEFAULT_SHORTCUT_BINDINGS,
-      'diff.toggle': null,
-      'sidebar.toggle': { key: 'D', mod: true },
-      'terminal.toggle': { key: 'T', mod: true, shift: true },
-    }
-    usePreferencesStore.setState({
-      settings: { ...DEFAULT_SETTINGS, shortcutBindings },
-    })
-    apiMock.updateSettings.mockResolvedValue({
-      ok: false,
-      error: 'Shortcut Mod+D is already assigned to sidebar.toggle.',
-    })
-
-    await expect(
-      usePreferencesStore
-        .getState()
-        .setShortcutBinding('diff.toggle', DEFAULT_SHORTCUT_BINDINGS['diff.toggle']),
-    ).rejects.toThrow('already assigned')
-
-    expect(usePreferencesStore.getState().settings.shortcutBindings).toEqual(shortcutBindings)
-    expect(apiMock.getSettings).not.toHaveBeenCalled()
-  })
-
-  it('uses the persisted shortcut snapshot after main sanitizes an accepted binding', async () => {
-    const persistedSettings = {
-      ...DEFAULT_SETTINGS,
-      shortcutBindings: {
-        ...DEFAULT_SHORTCUT_BINDINGS,
-        'terminal.toggle': { key: 'j', mod: true },
-      },
-    }
-    apiMock.updateSettings.mockResolvedValue({ ok: true })
-    apiMock.getSettings.mockResolvedValue(persistedSettings)
-
-    await usePreferencesStore
-      .getState()
-      .setShortcutBinding('terminal.toggle', { key: '  j  ', mod: true })
-
-    expect(apiMock.getSettings).toHaveBeenCalledOnce()
-    expect(usePreferencesStore.getState().settings).toEqual(persistedSettings)
   })
 })

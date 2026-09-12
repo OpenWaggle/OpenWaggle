@@ -110,6 +110,12 @@ async function runProfileCli(
   return { stdout: applicationCliStdout(result.stdout), stderr: result.stderr }
 }
 
+interface OpenWaggleAppLaunchOptions {
+  readonly environment?: Readonly<Record<string, string>>
+  readonly isolatedPiAgent?: boolean
+  readonly startHostViaCli?: boolean
+}
+
 function evidenceDirectory() {
   evidenceDirectoryPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-evidence-')).then(
     (directory) => {
@@ -156,11 +162,12 @@ export class OpenWaggleApp {
     private readonly evidencePrefix: string,
     readonly piAgentDir?: string,
     private readonly cliOwnerHostInstanceId?: string,
+    private readonly environment?: Readonly<Record<string, string>>,
   ) {}
 
   static async launch(
     prefix = 'openwaggle-e2e-',
-    options: { readonly isolatedPiAgent?: boolean; readonly startHostViaCli?: boolean } = {},
+    options: OpenWaggleAppLaunchOptions = {},
   ): Promise<OpenWaggleApp> {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const hidden = shouldUseHiddenElectron(test.info().project.use.headless)
@@ -179,7 +186,12 @@ export class OpenWaggleApp {
         ])
         cliOwnerHostInstanceId = await hostInstanceId(userDataDir)
       }
-      app = await launchOpenWaggleElectron({ userDataDir, hidden, piAgentDir })
+      app = await launchOpenWaggleElectron({
+        userDataDir,
+        hidden,
+        piAgentDir,
+        ...(options.environment === undefined ? {} : { environment: options.environment }),
+      })
       startupDiagnostics = captureElectronStartupDiagnostics(app.process())
       window = await app.firstWindow()
       const instance = new OpenWaggleApp(
@@ -190,6 +202,7 @@ export class OpenWaggleApp {
         prefix,
         piAgentDir,
         cliOwnerHostInstanceId,
+        options.environment,
       )
       await instance.mainWindow().waitUntilReady()
       await instance.assertCliHostOwnership()
@@ -264,6 +277,7 @@ export class OpenWaggleApp {
       userDataDir: this.userDataDir,
       hidden: this.hidden,
       piAgentDir: this.piAgentDir,
+      ...(this.environment === undefined ? {} : { environment: this.environment }),
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()
@@ -397,6 +411,10 @@ export class OpenWaggleApp {
 
   window(): Page {
     return this.currentWindow
+  }
+
+  electronApplication(): ElectronApplication {
+    return this.app
   }
 
   async resizeMainWindow(width: number, height: number): Promise<void> {

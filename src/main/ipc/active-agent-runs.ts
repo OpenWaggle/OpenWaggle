@@ -1,4 +1,5 @@
 export {
+  acquireSessionRemovalFence,
   activeCompactions,
   activeRuns,
   activeWaggleRuns,
@@ -6,13 +7,16 @@ export {
   cancelSessionRuns,
   claimSessionWriterSuccessorAndWait,
   currentSessionWriterRunId,
+  ensureSessionRunStartAllowed,
   getAllActiveRunSessionIds,
   hasAnyActiveRun,
   interruptSessionWriterAndWait,
+  isSessionRemovalFenced,
   listActiveCompactions,
   releaseClaimedSessionWriterSuccessor,
   reserveActiveSessionRun,
   reserveCompactionSessionWriter,
   reserveSessionTreeMutation,
   reserveWaggleSessionWriter,
+  waitForSessionRuns,
 } from '../application/active-session-runs'

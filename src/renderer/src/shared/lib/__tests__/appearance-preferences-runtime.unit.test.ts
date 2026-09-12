@@ -2,6 +2,7 @@
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '@shared/types/appearance-preferences'
 import { afterEach, describe, expect, it } from 'vitest'
+import { testHexColor } from '@/test-utils/test-color'
 import { setRuntimeAppearancePreferences } from '../appearance-preferences-runtime'
 
 describe('appearance preferences runtime', () => {
@@ -13,6 +14,7 @@ describe('appearance preferences runtime', () => {
   it('applies typography through root variables without rebuilding the renderer', () => {
     setRuntimeAppearancePreferences({
       motion: 'reduced',
+      terminalPalette: DEFAULT_APPEARANCE_PREFERENCES.terminalPalette,
       typography: {
         ...DEFAULT_APPEARANCE_PREFERENCES.typography,
         interfaceFontFamily: 'Inter, sans-serif',
@@ -52,5 +54,27 @@ describe('appearance preferences runtime', () => {
     expect(root.style.getPropertyValue('--font-mono')).toBe('')
     expect(root.style.getPropertyValue('--font-terminal')).toBe('')
     expect(root.style.fontSize).toBe('')
+  })
+
+  it('applies terminal overrides and removes them when reset to theme', () => {
+    const background = testHexColor('111111')
+    const selection = testHexColor('33669988')
+    setRuntimeAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      terminalPalette: {
+        ...DEFAULT_APPEARANCE_PREFERENCES.terminalPalette,
+        background,
+        selection,
+      },
+    })
+
+    const root = document.documentElement
+    expect(root.style.getPropertyValue('--terminal-background-override')).toBe(background)
+    expect(root.style.getPropertyValue('--terminal-selection-override')).toBe(selection)
+
+    setRuntimeAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES)
+
+    expect(root.style.getPropertyValue('--terminal-background-override')).toBe('')
+    expect(root.style.getPropertyValue('--terminal-selection-override')).toBe('')
   })
 })

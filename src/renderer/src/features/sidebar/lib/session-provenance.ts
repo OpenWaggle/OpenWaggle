@@ -27,13 +27,9 @@ export interface SessionProvenanceInput {
   readonly session: SessionSummary
   readonly gitBranch: string | null
   /**
-   * Terminals alive for this session.
-   *
-   * TODO(#97-followup): terminals are keyed by project path, not by session. `terminal:create`
-   * takes a `projectPath` and returns a `terminalId`, and nothing records which session
-   * opened it, so a per-session count cannot be derived today. Callers pass 0 until a
-   * terminal carries its owning session id. The render path below is complete, so the glyph
-   * appears the moment a real count exists.
+   * Terminals for this session with an observed descendant process. The global
+   * main-process snapshot is keyed by owner and terminal, so two renderer
+   * surfaces showing one PTY never double count it.
    */
   readonly terminalCount: number
 }
@@ -87,10 +83,13 @@ export function buildSessionProvenance(
   }
 
   if (terminalCount > 0) {
-    const plural = terminalCount === 1 ? 'process' : 'processes'
     indicators.push({
       kind: 'terminal',
-      description: `${String(terminalCount)} terminal ${plural} running`,
+      count: terminalCount,
+      description:
+        terminalCount === 1
+          ? '1 terminal running a subprocess'
+          : `${String(terminalCount)} terminals running subprocesses`,
     })
   }
 

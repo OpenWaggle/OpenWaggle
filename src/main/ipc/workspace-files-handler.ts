@@ -29,6 +29,7 @@ const writeInputSchema = Schema.Struct({
   expectedRevision: nonEmptyStringSchema,
 })
 const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(0))
+const filePositionSchema = Schema.Number.pipe(Schema.int(), Schema.greaterThan(0))
 const pageLimitSchema = Schema.Number.pipe(
   Schema.int(),
   Schema.between(1, WORKSPACE_EDITOR_PERFORMANCE.SOURCE_PAGE_MAX_BYTES),
@@ -51,7 +52,14 @@ const externalOpenInputSchema = Schema.Struct({
   projectPath: nonEmptyStringSchema,
   path: nonEmptyStringSchema,
   editor: externalEditorIdSchema,
-  line: Schema.optional(nonNegativeIntegerSchema),
+  line: Schema.optional(filePositionSchema),
+  column: Schema.optional(filePositionSchema),
+})
+const absoluteExternalOpenInputSchema = Schema.Struct({
+  path: nonEmptyStringSchema,
+  editor: externalEditorIdSchema,
+  line: Schema.optional(filePositionSchema),
+  column: Schema.optional(filePositionSchema),
 })
 
 function assertBoundedDocumentEditWorkload(input: {
@@ -199,6 +207,14 @@ function registerWorkspaceFileMutationHandlers() {
       const projectPath = yield* validatedProjectPath(input.projectPath)
       const workspaceFiles = yield* WorkspaceFileService
       yield* workspaceFiles.openFile({ ...input, projectPath })
+    }),
+  )
+
+  typedHandle('workspace-files:open-absolute-external', (_event, rawInput) =>
+    Effect.gen(function* () {
+      const input = decodeUnknownOrThrow(absoluteExternalOpenInputSchema, rawInput)
+      const workspaceFiles = yield* WorkspaceFileService
+      yield* workspaceFiles.openAbsoluteFile(input)
     }),
   )
 

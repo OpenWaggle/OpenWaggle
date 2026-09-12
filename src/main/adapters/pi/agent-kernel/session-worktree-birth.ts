@@ -1,5 +1,4 @@
 import { existsSync } from 'node:fs'
-import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { createLogger } from '../../../logger'
@@ -7,28 +6,33 @@ import { resolveSessionWorktreeBranch } from '../../../services/git/session-bran
 import { resolveWorkspaceWorktreePath } from '../../../services/git/session-worktree-path'
 // ponytail: direct store import (persistence); route through a session port if the Pi adapter grows more store touchpoints.
 import {
+  adoptSessionWorktreeForSetup,
   type BoundWorkspaceResource,
   getBoundWorkspaceResource,
+  resetSessionWorktreeSetup,
   setSessionWorktree,
 } from '../../../store/session-details'
 import { runGit } from '../../git/run-git'
-import {
-  applyWorkspaceHandoffSeed,
-  releaseWorkspaceHandoffSeed,
-} from '../../git/workspace-handoff-snapshot'
 import { createGitWorktree } from '../../git/worktree'
 import { requireSessionProjectPath } from './session-manager'
 import { validateWorkspaceBirthAuthority } from './session-worktree-birth-authority'
+import {
+  applyPendingHandoffSeed,
+  fallbackWorkspace,
+  isWorktreeOf,
+  releaseAppliedHandoffSeed,
+} from './session-worktree-birth-support'
+import {
+  dispatchPendingSessionWorktreeSetup,
+  type SessionWorktreeSetupDispatchOptions,
+} from './session-worktree-setup-dispatch'
 
 const logger = createLogger('session-worktree-birth')
 
 /** Serialize birth per session so concurrent runs (classic + waggle, double-send) can't race. */
 const birthInFlight = new Map<string, Promise<string>>()
 
-interface SessionWorktreeBirthOptions {
-  readonly onProgress?: (progress: WorktreeLaunchProgress) => void
-  readonly signal?: AbortSignal
-}
+type SessionWorktreeBirthOptions = SessionWorktreeSetupDispatchOptions
 
 export async function ensureSessionWorktreeProjectPath(
   session: SessionDetail,
@@ -64,57 +68,6 @@ export async function ensureSessionWorktreeProjectPath(
   return await pending
 }
 
-function fallbackWorkspace(session: SessionDetail, primaryPath: string): BoundWorkspaceResource {
-  const sessionId = String(session.id)
-  return {
-    id: sessionId,
-    projectPath: primaryPath,
-    kind: 'managed-worktree',
-    workingPath: session.worktreePath ?? resolveWorkspaceWorktreePath(primaryPath, sessionId),
-    lifecycleState: session.worktreePath ? 'ready' : 'pending',
-    worktreeBranch: null,
-    worktreeBaseRef: session.worktreeBaseRef ?? null,
-    worktreeStartFromOrigin: session.worktreeStartFromOrigin === true,
-    handoffSeedRef: null,
-    handoffSeedBaseRef: null,
-    handoffSeedState: 'none',
-  }
-}
-
-async function isWorktreeOf(repositoryPath: string, candidatePath: string): Promise<boolean> {
-  const [candidate, primary] = await Promise.all([
-    runGit(candidatePath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
-    runGit(repositoryPath, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
-  ])
-  if (candidate.code !== 0 || primary.code !== 0) return false
-  return candidate.stdout.trim() !== '' && candidate.stdout.trim() === primary.stdout.trim()
-}
-
-async function applyPendingHandoffSeed(
-  primaryPath: string,
-  workingPath: string,
-  workspace: BoundWorkspaceResource,
-) {
-  if (
-    workspace.handoffSeedState !== 'pending' ||
-    !workspace.handoffSeedRef ||
-    !workspace.handoffSeedBaseRef
-  ) {
-    return
-  }
-  await applyWorkspaceHandoffSeed({
-    projectPath: primaryPath,
-    workingPath,
-    sourceHead: workspace.handoffSeedBaseRef,
-    snapshotRef: workspace.handoffSeedRef,
-  })
-}
-
-async function releaseAppliedHandoffSeed(primaryPath: string, workspace: BoundWorkspaceResource) {
-  if (workspace.handoffSeedState !== 'pending' || !workspace.handoffSeedRef) return
-  await releaseWorkspaceHandoffSeed(primaryPath, workspace.handoffSeedRef)
-}
-
 async function recoverRecordedWorktree(input: {
   readonly session: SessionDetail
   readonly workspace: BoundWorkspaceResource
@@ -136,6 +89,13 @@ async function recoverRecordedWorktree(input: {
       input.workspace.worktreeBranch ?? undefined,
     )
     await releaseAppliedHandoffSeed(input.primaryPath, input.workspace)
+    await dispatchPendingSessionWorktreeSetup({
+      session: input.session,
+      options: input.options,
+      primaryPath: input.primaryPath,
+      sessionId: String(input.session.id),
+      worktreePath: input.existing,
+    })
     input.options.onProgress?.({
       stage: 'worktree-created',
       details: ['Recovered the existing session worktree'],
@@ -166,6 +126,7 @@ function requireBirthableWorkspace(workspace: BoundWorkspaceResource) {
 }
 
 async function adoptDeterministicWorktree(input: {
+  readonly session: SessionDetail
   readonly sessionId: string
   readonly primaryPath: string
   readonly worktreePath: string
@@ -180,7 +141,19 @@ async function adoptDeterministicWorktree(input: {
     })
     const branch = input.workspace.worktreeBranch ?? undefined
     await applyPendingHandoffSeed(input.primaryPath, input.worktreePath, input.workspace)
+    const pending = await adoptSessionWorktreeForSetup(
+      SessionId(input.sessionId),
+      input.worktreePath,
+    )
     await setSessionWorktree(SessionId(input.sessionId), 'worktree', input.worktreePath, branch)
+    await dispatchPendingSessionWorktreeSetup({
+      session: input.session,
+      options: input.options,
+      primaryPath: input.primaryPath,
+      sessionId: input.sessionId,
+      worktreePath: input.worktreePath,
+      ...(pending ? { pending } : {}),
+    })
     await releaseAppliedHandoffSeed(input.primaryPath, input.workspace)
     input.options.onProgress?.({
       stage: 'worktree-created',
@@ -204,6 +177,7 @@ async function adoptDeterministicWorktree(input: {
 }
 
 async function createSessionWorktree(input: {
+  readonly session: SessionDetail
   readonly sessionId: string
   readonly primaryPath: string
   readonly worktreePath: string
@@ -226,6 +200,8 @@ async function createSessionWorktree(input: {
     branch,
     baseRef,
   })
+  input.options.signal?.throwIfAborted()
+  const pending = await resetSessionWorktreeSetup(SessionId(input.sessionId), input.worktreePath)
   input.options.signal?.throwIfAborted()
   const payload = {
     path: input.worktreePath,
@@ -250,6 +226,16 @@ async function createSessionWorktree(input: {
     worktreePath: input.worktreePath,
     branch,
     baseRef,
+  })
+  await dispatchPendingSessionWorktreeSetup({
+    session: input.session,
+    options: input.options,
+    primaryPath: input.primaryPath,
+    sessionId: input.sessionId,
+    worktreePath: input.worktreePath,
+    branch,
+    baseRef,
+    pending,
   })
   return input.worktreePath
 }
@@ -282,6 +268,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(
   await validateWorkspaceBirthAuthority(session, workspace, worktreePath)
 
   const adopted = await adoptDeterministicWorktree({
+    session,
     sessionId,
     primaryPath,
     worktreePath,
@@ -293,7 +280,14 @@ async function ensureSessionWorktreeProjectPathUnlocked(
     stage: 'preparing-workspace',
     details: ['Preparing the session worktree'],
   })
-  return createSessionWorktree({ sessionId, primaryPath, worktreePath, workspace, options })
+  return createSessionWorktree({
+    session,
+    sessionId,
+    primaryPath,
+    worktreePath,
+    workspace,
+    options,
+  })
 }
 
 /**

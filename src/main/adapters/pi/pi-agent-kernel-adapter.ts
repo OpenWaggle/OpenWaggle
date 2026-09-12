@@ -9,12 +9,15 @@ import {
   type ForkAgentKernelSessionInput,
   type NavigateAgentKernelSessionInput,
 } from '../../ports/agent-kernel-service'
+import { BrowserPreviewAutomationService } from '../../ports/browser-preview-automation-service'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { InlineVisualizationService } from '../../ports/inline-visualization-service'
 import { McpConfigService } from '../../ports/mcp-config-service'
 import { McpRuntimeService } from '../../ports/mcp-runtime-service'
+import { TerminalService } from '../../ports/terminal-service'
+import { SettingsService } from '../../services/settings-service'
 import type { PiRuntimeExtensionIsolationInput } from './agent-kernel/runtime-extension-isolation'
 import {
   compactPiSession,
@@ -37,6 +40,22 @@ const logger = createLogger('pi-agent-kernel')
 
 function toAgentKernelError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
+}
+
+export function readBrowserPreviewAutomationEnabled(settings: {
+  readonly get: () => Effect.Effect<{ readonly enableAgentBrowserAccess: boolean }, unknown>
+}) {
+  return settings.get().pipe(
+    Effect.map((snapshot) => snapshot.enableAgentBrowserAccess === true),
+    Effect.catchAllCause((cause) =>
+      Effect.sync(() => {
+        logger.warn('Failed to read browser preview agent access; disabling it', {
+          cause: String(cause),
+        })
+        return false
+      }),
+    ),
+  )
 }
 
 function loadEnabledOpenWaggleExtensionPackages(
@@ -88,6 +107,9 @@ export const PiAgentKernelLive = Layer.effect(
     const mcpConfigService = yield* McpConfigService
     const mcpRuntimeService = yield* McpRuntimeService
     const inlineVisualizationService = yield* InlineVisualizationService
+    const terminalService = yield* TerminalService
+    const browserPreviewAutomationService = yield* BrowserPreviewAutomationService
+    const settingsService = yield* SettingsService
 
     return AgentKernelService.of({
       createSession: (input) =>
@@ -102,11 +124,16 @@ export const PiAgentKernelLive = Layer.effect(
             input,
             extensionSelectionServices,
           )
+          const enableBrowserPreviewAutomation =
+            yield* readBrowserPreviewAutomationEnabled(settingsService)
           return yield* runPiAgentKernel(input, {
             runtimeExtensionIsolation,
             mcpConfig: mcpConfigService,
             mcpRuntime: mcpRuntimeService,
             inlineVisualization: inlineVisualizationService,
+            terminal: terminalService,
+            browserPreviewAutomation: browserPreviewAutomationService,
+            enableBrowserPreviewAutomation,
           })
         }),
 

@@ -8,6 +8,7 @@ import type { AgentAuthorizationMode } from './agent-authorization'
  * grant the user never meant to give.
  */
 export const AGENT_AUTHORIZATION_CAPABILITIES = [
+  'browser.preview',
   'mcp.tool-call',
   'mcp.sampling',
   'sessions.export-write',
@@ -101,6 +102,7 @@ export function findMatchingGrant(
 
 /** Human-readable label for a capability, for prompts and the Settings list. */
 export const AGENT_AUTHORIZATION_CAPABILITY_LABELS = {
+  'browser.preview': 'Control browser preview',
   'mcp.tool-call': 'Run a tool',
   'mcp.sampling': 'Use your model',
   'sessions.export-write': 'Write Session exports',

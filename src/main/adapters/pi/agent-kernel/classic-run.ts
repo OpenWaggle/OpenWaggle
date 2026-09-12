@@ -16,6 +16,24 @@ import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isola
 import { createSessionListener } from './session-listener'
 import { captureTurnCheckpoint } from './turn-capture'
 
+function runtimeResources(
+  input: {
+    readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+    readonly systemPromptAppendices?: readonly string[]
+  },
+  extensionFactories: readonly ExtensionFactory[],
+) {
+  return {
+    extensionFactories: [...extensionFactories],
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
+  }
+}
+
 /**
  * Runs a classic (non-Waggle) Pi turn.
  *
@@ -33,6 +51,9 @@ export async function runPiSession(
       readonly visualizationDirectory?: string
       readonly mcpExtensionFactory?: ExtensionFactory
       readonly sessionsExtensionFactory?: ExtensionFactory
+      readonly extensionFactories?: readonly ExtensionFactory[]
+      readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+      readonly systemPromptAppendices?: readonly string[]
     },
 ) {
   const projectPath = input.workingPath
@@ -58,6 +79,7 @@ export async function runPiSession(
     specificationUpdates.factory,
     input.sessionsExtensionFactory,
     input.mcpExtensionFactory,
+    ...(input.extensionFactories ?? []),
     ...(input.sessionIdentityContext
       ? [
           createAgentRunContextExtension({
@@ -90,7 +112,7 @@ export async function runPiSession(
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
-    ...(extensionFactories.length > 0 ? { extensionFactories } : {}),
+    ...runtimeResources(input, extensionFactories),
   })
 
   const unregisterLiveRun = registerPiLiveRun({

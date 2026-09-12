@@ -2,6 +2,7 @@ import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useTerminalStore } from '@/features/terminal'
 import { Button } from '@/shared/ui/Button'
 import { Header } from '../Header'
 import { useUIStore } from '../ui-store'
@@ -48,6 +49,8 @@ vi.mock('@/features/chat/hooks', () => ({
       messages: [],
       createdAt: 1,
       updatedAt: 2,
+      environmentMode: 'worktree',
+      worktreePath: headerMocks.workingPath,
     },
     activeSessionId: SessionId('session-1'),
   }),
@@ -97,6 +100,10 @@ vi.mock('@/features/git/hooks', () => ({
     workingPath: headerMocks.workingPath,
     repositoryPath: headerMocks.projectPath,
   }),
+}))
+
+vi.mock('@/features/project-actions', () => ({
+  ProjectActionsControl: () => null,
 }))
 
 vi.mock('@/features/sessions/hooks', () => ({
@@ -176,6 +183,7 @@ describe('Header', () => {
       toastData: null,
       toastMessage: null,
     })
+    useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
     headerMocks.refreshStatus.mockClear()
     headerMocks.refreshBranches.mockClear()
     headerMocks.commit.mockClear()
@@ -195,13 +203,21 @@ describe('Header', () => {
     expect(screen.getByText('release-lead')).toBeInTheDocument()
     expect(screen.getByText('/ feat/actual-checkout')).toBeInTheDocument()
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open terminal' })).toHaveAttribute(
+      'title',
+      'Open session terminal (Ctrl + J)',
+    )
+    expect(screen.getByRole('button', { name: 'Open terminal' })).toHaveAttribute(
+      'aria-keyshortcuts',
+      'Control+J',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
-    expect(useUIStore.getState().terminalOpen).toBe(true)
+    expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().feedbackModalOpen).toBe(true)
     expect(headerMocks.toggleSessionTree).toHaveBeenCalledOnce()
     expect(headerMocks.toggleDiff).toHaveBeenCalledOnce()

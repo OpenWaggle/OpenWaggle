@@ -8,14 +8,14 @@ import {
   SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
 } from './adapters/multilingual-e5-session-embedding-model'
 import { startAgentsCliIfRequested } from './agents-cli-entry'
-import { completeAppRuntimeShutdown } from './application/app-runtime-shutdown'
+import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
 import { startDelegationsCliIfRequested } from './delegations-cli-entry'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
-import { env } from './env'
+import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
 import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
@@ -71,12 +71,12 @@ const appIconPath = is.dev
 const logger = createLogger('main/index')
 const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
-let beforeQuitCleanupDone = false
 let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
 let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 let sessionHostLifecycleOnce: GuiSessionHostLifecycle | null = null
+let cleanupDesktopServicesOnce: (() => Promise<void>) | null = null
 
 function startupMark(label: string) {
   if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
@@ -113,7 +113,6 @@ function getRuntimeModule() {
   runtimeModulePromise ??= importRuntimeModule()
   return runtimeModulePromise
 }
-
 async function registerIpcHandlersOnce() {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
@@ -147,14 +146,10 @@ async function persistActiveRunsBeforeQuit() {
     getRuntimeModule(),
     persistAllActiveRunsOnce ? Promise.resolve(null) : importAgentHandlerModule(),
   ])
-  const persistAllActiveRuns =
-    persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  const resolved = persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  if (!resolved) return
 
-  if (!persistAllActiveRuns) {
-    return
-  }
-
-  await runtimeModule.runAppEffect(persistAllActiveRuns())
+  await runtimeModule.runAppEffect(resolved())
 }
 
 async function bootstrapServicesAndWindow() {
@@ -172,7 +167,9 @@ async function bootstrapServicesAndWindow() {
   const [runtimeModule, settingsStoreModule] = await Promise.all([
     getRuntimeModule(),
     importSettingsStoreModule(),
+    installDesktopShellEnvironment(),
   ])
+  startupMark('desktop-shell-environment-installed')
   startupMark('startup-modules-imported')
 
   await runtimeModule.initializeAppRuntime()
@@ -199,6 +196,14 @@ async function bootstrapServicesAndWindow() {
   if (!settings.handled) throw new Error('Attached GUI lost its Session Host settings route.')
   settingsStoreModule.hydrateSettingsStoreFromHost(settings.result)
   startupMark('settings-store-hydrated-from-host')
+
+  const { startAppGuiDesktopServices } = await import('./gui-desktop-services')
+  cleanupDesktopServicesOnce = await startAppGuiDesktopServices({
+    client: sessionHostLifecycleOnce.client,
+    runEffect: runtimeModule.runAppEffect,
+    disposeRuntime: runtimeModule.disposeAppRuntime,
+  })
+  startupMark('desktop-native-ownership-reconciled')
 
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')
@@ -233,8 +238,16 @@ function registerAppLifecycle() {
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))
 
-      void bootstrapServicesAndWindow().catch((error: unknown) => {
+      void bootstrapServicesAndWindow().catch(async (error: unknown) => {
         logger.error('Bootstrap failed; quitting for safety', describeError(error))
+        try {
+          await cleanupDesktopServicesOnce?.()
+        } catch (cleanupError) {
+          logger.error(
+            'Bootstrap native cleanup failed; ownership remains quarantined',
+            describeError(cleanupError),
+          )
+        }
         app.exit(FAILURE_EXIT_CODE)
       })
 
@@ -249,40 +262,31 @@ function registerAppLifecycle() {
     })
 
   app.on('window-all-closed', () => {
-    cleanupTerminalsOnce?.()
+    // Session terminals outlive window closes; shells die in the quit shutdown.
     if (process.platform !== 'darwin') {
       app.quit()
     }
   })
 
-  app.on('before-quit', (e) => {
-    disposeAutoUpdaterOnce?.()
-    if (!beforeQuitCleanupDone) {
-      e.preventDefault()
-      completeAppRuntimeShutdown({
-        persistActiveRuns: persistActiveRunsBeforeQuit,
-        disposeRuntime: async () => {
-          const sessionHostLifecycle = sessionHostLifecycleOnce
-          try {
-            await sessionHostLifecycle?.stop()
-          } finally {
-            try {
-              await (await getRuntimeModule()).disposeAppRuntime()
-            } finally {
-              sessionHostLifecycleOnce = null
-            }
-          }
-        },
-      })
-        .then(() => {
-          beforeQuitCleanupDone = true
-          app.quit()
-        })
-        .catch(() => {
-          beforeQuitCleanupDone = true
-          app.quit()
-        })
-    }
+  registerAppQuitCleanup({
+    disposeAutoUpdater: () => disposeAutoUpdaterOnce?.(),
+    persistActiveRuns: persistActiveRunsBeforeQuit,
+    cleanupTerminals: async () => {
+      if (cleanupDesktopServicesOnce) await cleanupDesktopServicesOnce()
+      else await cleanupTerminalsOnce?.()
+    },
+    disposeRuntime: async () => {
+      try {
+        await sessionHostLifecycleOnce?.stop()
+      } finally {
+        try {
+          await (await getRuntimeModule()).disposeAppRuntime()
+        } finally {
+          sessionHostLifecycleOnce = null
+          cleanupDesktopServicesOnce = null
+        }
+      }
+    },
   })
 }
 

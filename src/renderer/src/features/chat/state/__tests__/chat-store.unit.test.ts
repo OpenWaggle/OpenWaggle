@@ -2,6 +2,12 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionCatalogPage, SessionDetail, SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
+import {
+  runtimeKeyOf,
+  terminalInputDispatcher,
+  terminalSidePanelLayoutKey,
+  useTerminalStore,
+} from '@/features/terminal'
 import { useChatStore } from '../chat-store'
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -16,6 +22,7 @@ const mockApi = {
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  unregisterBrowserPreviewOwner: vi.fn(async (_ownerKey: string) => undefined),
 }
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -28,6 +35,8 @@ vi.mock('@/shared/lib/ipc', () => ({
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),
     deleteSession: (...args: unknown[]) => mockApi.deleteSession(...args),
+    unregisterBrowserPreviewOwner: (ownerKey: string) =>
+      mockApi.unregisterBrowserPreviewOwner(ownerKey),
   },
 }))
 
@@ -50,6 +59,7 @@ function resetStore() {
     draftBranch: null,
     error: null,
   })
+  useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
 }
 
 function makeSessionDetail(id: SessionId, title = 'Session') {
@@ -154,6 +164,7 @@ describe('useChatStore unit', () => {
     it('throws and restores state when api deletion fails', async () => {
       const id = SessionId('delete-session-id')
       const session = makeSessionDetail(id)
+      const clearInputOwner = vi.spyOn(terminalInputDispatcher, 'clearOwner')
       useChatStore.getState().upsertSession(session)
       useChatStore.getState().setActiveSessionId(id)
       mockApi.deleteSession.mockRejectedValueOnce(new Error('Delete failed'))
@@ -174,6 +185,47 @@ describe('useChatStore unit', () => {
       expect(useChatStore.getState().activeSessionId).toBe(id)
       expect(useChatStore.getState().activeSession).toBe(session)
       expect(useChatStore.getState().missingSessionIds.has(id)).toBe(false)
+      expect(clearInputOwner).not.toHaveBeenCalled()
+      clearInputOwner.mockRestore()
+    })
+
+    it('removes base and side terminal state only after session deletion succeeds', async () => {
+      const id = SessionId('delete-session-id')
+      const ownerKey = String(id)
+      const sideOwnerKey = terminalSidePanelLayoutKey(ownerKey)
+      const clearInputOwner = vi.spyOn(terminalInputDispatcher, 'clearOwner')
+      const terminalStore = useTerminalStore.getState()
+      const baseTerminalId = terminalStore.createTerminal(ownerKey, '/repo')
+      const sideTerminalId = terminalStore.createTerminal(sideOwnerKey, '/repo')
+      if (baseTerminalId === null || sideTerminalId === null) {
+        throw new Error('Expected base and side terminals')
+      }
+      for (const terminalId of [baseTerminalId, sideTerminalId]) {
+        terminalStore.applyRuntimeEvent(ownerKey, terminalId, {
+          type: 'activity',
+          processName: 'node',
+        })
+        terminalStore.applyRuntimeEvent(ownerKey, terminalId, {
+          type: 'port-previews',
+          previews: [{ host: 'localhost', port: 3000, url: 'http://localhost:3000/' }],
+        })
+        terminalStore.applyRuntimeEvent(ownerKey, terminalId, { type: 'exited', exitCode: 3 })
+      }
+      mockApi.deleteSession.mockResolvedValueOnce(undefined)
+
+      await useChatStore.getState().deleteSession(id)
+
+      const state = useTerminalStore.getState()
+      expect(state.groups[ownerKey]).toBeUndefined()
+      expect(state.groups[sideOwnerKey]).toBeUndefined()
+      expect(clearInputOwner).toHaveBeenCalledOnce()
+      expect(clearInputOwner).toHaveBeenCalledWith(ownerKey)
+      for (const terminalId of [baseTerminalId, sideTerminalId]) {
+        expect(state.activity[runtimeKeyOf(ownerKey, terminalId)]).toBeUndefined()
+        expect(state.portPreviews[runtimeKeyOf(ownerKey, terminalId)]).toBeUndefined()
+        expect(state.exits[runtimeKeyOf(ownerKey, terminalId)]).toBeUndefined()
+      }
+      clearInputOwner.mockRestore()
     })
 
     it('clears active state when a refreshed session no longer exists', async () => {

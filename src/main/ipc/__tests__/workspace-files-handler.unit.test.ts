@@ -17,6 +17,7 @@ const {
   invalidateGitStatusCacheMock,
   invokeHostMock,
   listExternalEditorsMock,
+  openAbsoluteFileMock,
   openFileMock,
   searchContentMock,
   searchFilesMock,
@@ -26,6 +27,7 @@ const {
   invalidateGitStatusCacheMock: vi.fn(),
   invokeHostMock: vi.fn(),
   listExternalEditorsMock: vi.fn(),
+  openAbsoluteFileMock: vi.fn(),
   openFileMock: vi.fn(),
   searchContentMock: vi.fn(),
   searchFilesMock: vi.fn(),
@@ -52,6 +54,7 @@ const PROJECT_PATH = process.cwd()
 function mutationLayer() {
   const service = fromPartial<WorkspaceFileServiceShape>({
     listExternalEditors: listExternalEditorsMock,
+    openAbsoluteFile: openAbsoluteFileMock,
     openFile: openFileMock,
     searchContent: searchContentMock,
     searchFiles: searchFilesMock,
@@ -86,6 +89,7 @@ describe('workspace file mutation handlers', () => {
     invalidateGitStatusCacheMock.mockReset()
     invokeHostMock.mockReset().mockResolvedValue({ handled: false })
     listExternalEditorsMock.mockReset()
+    openAbsoluteFileMock.mockReset()
     openFileMock.mockReset()
     searchContentMock.mockReset()
     searchFilesMock.mockReset()
@@ -97,6 +101,7 @@ describe('workspace file mutation handlers', () => {
       ]),
     )
     openFileMock.mockReturnValue(Effect.succeed(undefined))
+    openAbsoluteFileMock.mockReturnValue(Effect.succeed(undefined))
     searchContentMock.mockReturnValue(Effect.succeed([]))
     searchFilesMock.mockReturnValue(Effect.succeed([]))
     writeFileMock.mockReturnValue(Effect.succeed({ status: 'saved' }))
@@ -116,7 +121,7 @@ describe('workspace file mutation handlers', () => {
     ])
   })
 
-  it('validates and forwards the selected editor and line to the workspace service', async () => {
+  it('validates and forwards the selected editor and position to the workspace service', async () => {
     const canonicalProjectPath = await fs.realpath(PROJECT_PATH)
 
     await registeredHandler('workspace-files:open-external', mutationLayer())?.(
@@ -126,6 +131,7 @@ describe('workspace file mutation handlers', () => {
         path: 'src/example.ts',
         editor: 'vscode',
         line: 14,
+        column: 3,
       },
     )
 
@@ -134,6 +140,26 @@ describe('workspace file mutation handlers', () => {
       path: 'src/example.ts',
       editor: 'vscode',
       line: 14,
+      column: 3,
+    })
+  })
+
+  it('opens a validated absolute file without requiring project authorization', async () => {
+    await registeredHandler('workspace-files:open-absolute-external', mutationLayer())?.(
+      {},
+      {
+        path: '/Users/tester/.config/tool/settings.ts',
+        editor: 'cursor',
+        line: 8,
+        column: 2,
+      },
+    )
+
+    expect(openAbsoluteFileMock).toHaveBeenCalledExactlyOnceWith({
+      path: '/Users/tester/.config/tool/settings.ts',
+      editor: 'cursor',
+      line: 8,
+      column: 2,
     })
   })
 

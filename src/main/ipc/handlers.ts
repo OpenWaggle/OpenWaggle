@@ -2,6 +2,7 @@ import { registerAgentDefinitionsHandlers } from './agent-definitions-handler'
 import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
+import { registerBrowserPreviewHandlers } from './browser-preview-handler'
 import { registerComposerHandlers } from './composer-handler'
 import { registerDocsHandlers } from './docs-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
@@ -12,6 +13,7 @@ import { registerGitHandlers } from './git'
 import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
 import { registerMcpHandlers } from './mcp-handler'
 import { registerProfileAccessHandlers } from './profile-access-handler'
+import { registerProjectActionHandlers } from './project-actions-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
 import { registerSessionControlHandlers } from './session-control-handler'
@@ -34,6 +36,7 @@ export function registerAllIpcHandlers(): void {
   registerProfileAccessHandlers()
   registerAgentDefinitionsHandlers()
   registerAuthHandlers()
+  registerBrowserPreviewHandlers()
   registerAgentHandlers()
   registerSessionControlHandlers()
   registerSettingsHandlers()
@@ -47,6 +50,7 @@ export function registerAllIpcHandlers(): void {
   registerExtensionFrameHandlers()
   registerInlineVisualizationFrameHandlers()
   registerMcpHandlers()
+  registerProjectActionHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
   registerTerminalHandlers()

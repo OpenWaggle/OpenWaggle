@@ -22,6 +22,9 @@ export type PiWaggleKernelRunInput = AgentKernelRunInput & {
   readonly visualizationDirectory?: string
   readonly mcpExtensionFactory?: ExtensionFactory
   readonly sessionsExtensionFactory?: ExtensionFactory
+  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
 } & PiRuntimeExtensionIsolationInput
 
 export function createWaggleRunExtensions(
@@ -52,7 +55,7 @@ export function createWaggleRunExtensions(
       specificationUpdates.factory,
       ...(input.sessionsExtensionFactory ? [input.sessionsExtensionFactory] : []),
       ...(input.mcpExtensionFactory ? [input.mcpExtensionFactory] : []),
-      waggleFactory,
+      ...(input.extensionFactories ?? []),
       ...(input.sessionIdentityContext
         ? [
             createAgentRunContextExtension({
@@ -63,6 +66,7 @@ export function createWaggleRunExtensions(
           ]
         : []),
     ],
+    trustedFactories: [...(input.trustedExtensionFactories ?? []), waggleFactory],
     close() {
       peerReports.close()
       orchestrationUpdates.close()

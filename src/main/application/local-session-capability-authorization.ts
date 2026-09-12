@@ -21,6 +21,7 @@ type CapabilityAuthorizedPayload = Exclude<
       | 'session-waggle-v1'
       | 'session-waggle-cancel-v1'
       | 'host-ui-v1'
+      | 'desktop-service-v1'
   }
 >
 

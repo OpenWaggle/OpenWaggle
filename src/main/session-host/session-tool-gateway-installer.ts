@@ -5,6 +5,7 @@ import { dispatchNonHostUiLocalSessionCommand } from '../application/local-sessi
 import type { AgentKernelService } from '../ports/agent-kernel-service'
 import type { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import type { AgentSteeringService } from '../ports/agent-steering-service'
+import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { ExplicitWaggleOperationJournal } from '../ports/explicit-waggle-operation-journal'
 import type { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import type { ExtensionManagerService } from '../ports/extension-manager-service'
@@ -37,6 +38,7 @@ import type { SessionReportRepository } from '../ports/session-report-repository
 import type { SessionRepository } from '../ports/session-repository'
 import type { SessionWaitService } from '../ports/session-wait-service'
 import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-handoff-service'
+import type { TerminalService } from '../ports/terminal-service'
 import type { SettingsService } from '../services/settings-service'
 import { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 import { installSessionToolGateway } from './session-tool-gateway'
@@ -56,6 +58,8 @@ type SessionToolDependencies =
   | AgentKernelService
   | AgentRunInterruptionService
   | AgentSteeringService
+  | DesktopServiceBroker
+  | TerminalService
   | ExtensionLifecycleRepository
   | ExtensionManagerService
   | ExtensionProjectOverridesRepository
@@ -94,7 +98,10 @@ export const installAppSessionToolGateway = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   const dependencies = yield* Effect.context<SessionToolDependencies>()
   const release = installSessionToolGateway(async (input) => {
-    if (input.payload.contract === 'host-ui-v1') {
+    if (
+      input.payload.contract === 'host-ui-v1' ||
+      input.payload.contract === 'desktop-service-v1'
+    ) {
       throw new Error('The agent Session tool cannot invoke Host UI operations.')
     }
     const payload = input.payload

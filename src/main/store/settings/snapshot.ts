@@ -1,5 +1,14 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import {
+  shortcutBindingsFromRules,
+  shortcutRulesFromBindings,
+  shortcutRulesWithDefaults,
+} from '@shared/types/shortcuts'
 import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
+import {
+  resolveNextBrowserSettings,
+  resolveStoredBrowserSettings,
+} from './browser-settings-snapshot'
 import {
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
@@ -11,16 +20,11 @@ import {
   SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
   SETTINGS_KEY_FAVORITE_MODELS,
-  SETTINGS_KEY_MULTI_AGENT_ENABLED,
-  SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
-  SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
-  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
-  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
-  SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
   SETTINGS_KEY_SHORTCUT_BINDINGS,
+  SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
   SETTINGS_KEY_THINKING_LEVEL,
@@ -38,25 +42,24 @@ import {
   resolveDiffWrapLines,
   resolveEnabledModels,
   resolveFavoriteModels,
-  resolveMultiAgentEnabled,
   resolveProjectPath,
   resolveRecentProjects,
   resolveSelectedModel,
-  resolveSessionHostIdleGracePeriodMs,
-  resolveSessionHostParentConcurrencyLimit,
-  resolveSessionHostRunCeiling,
   resolveSkillTogglesByProject,
   resolveSyntaxThemeSelections,
   resolveThinkingLevel,
-  sanitizeBooleanByProject,
   sanitizeEnabledModels,
   sanitizeFavoriteModels,
-  sanitizePositiveIntegerByProject,
   sanitizeProjectDisplayNames,
   sanitizeRecentProjects,
   sanitizeShortcutBindings,
+  sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
+import {
+  resolveNextSessionHostSettings,
+  resolveStoredSessionHostSettings,
+} from './session-host-settings-snapshot'
 
 export function createDefaultSettingsSnapshot() {
   return {
@@ -92,10 +95,22 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
-  const shortcutBindings = sanitizeShortcutBindings(
-    getStoredValue(storedSettings, SETTINGS_KEY_SHORTCUT_BINDINGS) ??
-      DEFAULT_SETTINGS.shortcutBindings,
+  const storedLegacyShortcutBindings = getStoredValue(
+    storedSettings,
+    SETTINGS_KEY_SHORTCUT_BINDINGS,
   )
+  const legacyShortcutBindings = sanitizeShortcutBindings(
+    storedLegacyShortcutBindings ?? DEFAULT_SETTINGS.shortcutBindings,
+  )
+  const storedShortcutRules = getStoredValue(storedSettings, SETTINGS_KEY_SHORTCUT_RULES)
+  const sanitizedShortcutRules = sanitizeShortcutRules(storedShortcutRules)
+  const shortcutRules = shortcutRulesWithDefaults(
+    sanitizedShortcutRules ??
+      (storedLegacyShortcutBindings === undefined
+        ? DEFAULT_SETTINGS.shortcutRules
+        : shortcutRulesFromBindings(legacyShortcutBindings)),
+  )
+  const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
   const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
   )
@@ -112,30 +127,14 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
   )
-  const sessionHostParentConcurrencyLimit = resolveSessionHostParentConcurrencyLimit(
-    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT),
-  )
-  const sessionHostParentConcurrencyLimitsByProject = sanitizePositiveIntegerByProject(
-    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT),
-  )
-  const sessionHostRunCeiling = resolveSessionHostRunCeiling(
-    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_RUN_CEILING),
-  )
-  const sessionHostIdleGracePeriodMs = resolveSessionHostIdleGracePeriodMs(
-    getStoredValue(storedSettings, SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS),
-  )
-  const multiAgentEnabled = resolveMultiAgentEnabled(
-    getStoredValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED),
-  )
-  const multiAgentEnabledByProject = sanitizeBooleanByProject(
-    getStoredValue(storedSettings, SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT),
-  )
+  const hostSettings = resolveStoredSessionHostSettings(storedSettings)
   const compactionThresholdPercent = resolveCompactionThresholdPercent(
     getStoredValue(storedSettings, SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT),
   )
   const appearancePreferences = resolveAppearancePreferences(
     getStoredValue(storedSettings, SETTINGS_KEY_APPEARANCE_PREFERENCES),
   )
+  const browserSettings = resolveStoredBrowserSettings(storedSettings)
 
   return {
     settings: {
@@ -147,6 +146,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       recentProjects,
       skillTogglesByProject,
       projectDisplayNames,
+      shortcutRules,
       shortcutBindings,
       defaultSessionEnvironmentMode,
       defaultAuthorizationMode,
@@ -154,14 +154,10 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       syntaxThemeSelections,
       diffView,
       diffWrapLines,
-      sessionHostParentConcurrencyLimit,
-      sessionHostParentConcurrencyLimitsByProject,
-      sessionHostRunCeiling,
-      sessionHostIdleGracePeriodMs,
-      multiAgentEnabled,
-      multiAgentEnabledByProject,
+      ...hostSettings,
       compactionThresholdPercent,
       appearancePreferences,
+      ...browserSettings,
     } satisfies Settings,
   }
 }
@@ -195,6 +191,36 @@ function resolveNextAppearanceSettings(current: Settings, partial: Partial<Setti
   }
 }
 
+function resolveUpdatedSetting<Input, Output>(
+  candidate: Input | undefined,
+  current: Output,
+  resolve: (value: Input) => Output,
+): Output {
+  if (candidate === undefined) return current
+  return resolve(candidate)
+}
+
+function resolveValidatedSetting<Value>(
+  candidate: Value | undefined,
+  current: Value,
+  isValid: (value: Value) => boolean,
+): Value {
+  if (candidate === undefined) return current
+  return isValid(candidate) ? candidate : current
+}
+
+function resolveNextShortcutRules(current: Settings, partial: Partial<Settings>) {
+  if (partial.shortcutRules !== undefined) {
+    return shortcutRulesWithDefaults(
+      sanitizeShortcutRules(partial.shortcutRules) ?? current.shortcutRules,
+    )
+  }
+  if (partial.shortcutBindings === undefined) return current.shortcutRules
+  return shortcutRulesWithDefaults(
+    shortcutRulesFromBindings(sanitizeShortcutBindings(partial.shortcutBindings)),
+  )
+}
+
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
   const coreSettings = resolveNextCoreSettings(current, partial)
   const hostSettings = resolveNextSessionHostSettings(current, partial)
@@ -208,52 +234,63 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
         : current.compactionThresholdPercent,
     ...resolveNextDiffSettings(current, partial),
     ...resolveNextAppearanceSettings(current, partial),
+    ...resolveNextBrowserSettings(current, partial),
   } satisfies Settings
 }
 
 function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) {
-  const enabledModels =
-    partial.enabledModels !== undefined
-      ? sanitizeEnabledModels(partial.enabledModels)
-      : current.enabledModels
-  const selectedModel =
-    partial.selectedModel !== undefined
-      ? resolveSelectedModel(partial.selectedModel, enabledModels)
-      : current.selectedModel
-  const favoriteModels =
-    partial.favoriteModels !== undefined
-      ? sanitizeFavoriteModels(partial.favoriteModels)
-      : current.favoriteModels
-  const projectPath = partial.projectPath !== undefined ? partial.projectPath : current.projectPath
-  const thinkingLevel =
-    partial.thinkingLevel !== undefined && isValidThinkingLevel(partial.thinkingLevel)
-      ? partial.thinkingLevel
-      : current.thinkingLevel
-  const recentProjects =
-    partial.recentProjects !== undefined
-      ? sanitizeRecentProjects(partial.recentProjects)
-      : current.recentProjects
-  const skillTogglesByProject =
-    partial.skillTogglesByProject !== undefined
-      ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
-      : current.skillTogglesByProject
-  const projectDisplayNames =
-    partial.projectDisplayNames !== undefined
-      ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
-      : current.projectDisplayNames
-  const shortcutBindings =
-    partial.shortcutBindings !== undefined
-      ? sanitizeShortcutBindings(partial.shortcutBindings)
-      : current.shortcutBindings
-  const defaultSessionEnvironmentMode =
-    partial.defaultSessionEnvironmentMode !== undefined &&
-    isValidSessionEnvironmentMode(partial.defaultSessionEnvironmentMode)
-      ? partial.defaultSessionEnvironmentMode
-      : current.defaultSessionEnvironmentMode
-  const defaultAuthorizationMode =
-    partial.defaultAuthorizationMode !== undefined
-      ? resolveDefaultAuthorizationMode(partial.defaultAuthorizationMode)
-      : current.defaultAuthorizationMode
+  const enabledModels = resolveUpdatedSetting(
+    partial.enabledModels,
+    current.enabledModels,
+    sanitizeEnabledModels,
+  )
+  const selectedModel = resolveUpdatedSetting(
+    partial.selectedModel,
+    current.selectedModel,
+    (value) => resolveSelectedModel(value, enabledModels),
+  )
+  const favoriteModels = resolveUpdatedSetting(
+    partial.favoriteModels,
+    current.favoriteModels,
+    sanitizeFavoriteModels,
+  )
+  const projectPath = resolveUpdatedSetting(
+    partial.projectPath,
+    current.projectPath,
+    (value) => value,
+  )
+  const thinkingLevel = resolveValidatedSetting(
+    partial.thinkingLevel,
+    current.thinkingLevel,
+    isValidThinkingLevel,
+  )
+  const recentProjects = resolveUpdatedSetting(
+    partial.recentProjects,
+    current.recentProjects,
+    sanitizeRecentProjects,
+  )
+  const skillTogglesByProject = resolveUpdatedSetting(
+    partial.skillTogglesByProject,
+    current.skillTogglesByProject,
+    sanitizeSkillTogglesByProject,
+  )
+  const projectDisplayNames = resolveUpdatedSetting(
+    partial.projectDisplayNames,
+    current.projectDisplayNames,
+    sanitizeProjectDisplayNames,
+  )
+  const shortcutRules = shortcutRulesWithDefaults(resolveNextShortcutRules(current, partial))
+  const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const defaultSessionEnvironmentMode = resolveValidatedSetting(
+    partial.defaultSessionEnvironmentMode,
+    current.defaultSessionEnvironmentMode,
+    isValidSessionEnvironmentMode,
+  )
+  const defaultAuthorizationMode = resolveUpdatedSetting(
+    partial.defaultAuthorizationMode,
+    current.defaultAuthorizationMode,
+    resolveDefaultAuthorizationMode,
+  )
   return {
     selectedModel,
     favoriteModels,
@@ -263,44 +300,9 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     recentProjects,
     skillTogglesByProject,
     projectDisplayNames,
+    shortcutRules,
     shortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
-  }
-}
-
-function resolveNextSessionHostSettings(current: Settings, partial: Partial<Settings>) {
-  const sessionHostParentConcurrencyLimit =
-    partial.sessionHostParentConcurrencyLimit !== undefined
-      ? resolveSessionHostParentConcurrencyLimit(partial.sessionHostParentConcurrencyLimit)
-      : current.sessionHostParentConcurrencyLimit
-  const sessionHostParentConcurrencyLimitsByProject =
-    partial.sessionHostParentConcurrencyLimitsByProject !== undefined
-      ? sanitizePositiveIntegerByProject(partial.sessionHostParentConcurrencyLimitsByProject)
-      : current.sessionHostParentConcurrencyLimitsByProject
-  const sessionHostRunCeiling =
-    partial.sessionHostRunCeiling !== undefined
-      ? resolveSessionHostRunCeiling(partial.sessionHostRunCeiling)
-      : current.sessionHostRunCeiling
-  const sessionHostIdleGracePeriodMs =
-    partial.sessionHostIdleGracePeriodMs !== undefined
-      ? resolveSessionHostIdleGracePeriodMs(partial.sessionHostIdleGracePeriodMs)
-      : current.sessionHostIdleGracePeriodMs
-  const multiAgentEnabled =
-    partial.multiAgentEnabled !== undefined
-      ? resolveMultiAgentEnabled(partial.multiAgentEnabled)
-      : current.multiAgentEnabled
-  const multiAgentEnabledByProject =
-    partial.multiAgentEnabledByProject !== undefined
-      ? sanitizeBooleanByProject(partial.multiAgentEnabledByProject)
-      : current.multiAgentEnabledByProject
-
-  return {
-    sessionHostParentConcurrencyLimit,
-    sessionHostParentConcurrencyLimitsByProject,
-    sessionHostRunCeiling,
-    sessionHostIdleGracePeriodMs,
-    multiAgentEnabled,
-    multiAgentEnabledByProject,
   }
 }

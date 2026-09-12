@@ -7,8 +7,24 @@ import {
   DEFAULT_APPEARANCE_PREFERENCES,
 } from './appearance-preferences'
 import { SupportedModelId } from './brand'
+import {
+  type BrowserPreviewAppearance,
+  type BrowserPreviewRecordingFrameRate,
+  type BrowserPreviewViewport,
+  type BrowserPreviewZoomFactor,
+  DEFAULT_BROWSER_PREVIEW_AUTO_SHOW_FLOATING,
+  DEFAULT_BROWSER_PREVIEW_INITIAL_CONTROLS,
+  DEFAULT_BROWSER_PREVIEW_RECORDING_FRAME_RATE,
+} from './browser-preview-controls'
+import type { BrowserProfile } from './browser-profile'
+import { DEFAULT_BROWSER_PROFILE_ID } from './browser-profile'
 import type { SessionEnvironmentMode } from './git'
-import { DEFAULT_SHORTCUT_BINDINGS, type ShortcutBindings } from './shortcuts'
+import {
+  DEFAULT_SHORTCUT_RULES,
+  type ShortcutBindings,
+  type ShortcutRules,
+  shortcutBindingsFromRules,
+} from './shortcuts'
 import { DEFAULT_SYNTAX_THEME_SELECTIONS, type SyntaxThemeSelections } from './syntax'
 
 export type Provider = string
@@ -38,6 +54,9 @@ export const DIFF_SYNTAX_THEMES = [
 ] as const
 export type DiffSyntaxTheme = (typeof DIFF_SYNTAX_THEMES)[number]
 
+export const BROWSER_LINK_TARGETS = ['system', 'app'] as const
+export type BrowserLinkTarget = (typeof BROWSER_LINK_TARGETS)[number]
+
 export const DEFAULT_MODEL_REF = SupportedModelId('')
 export const DEFAULT_SESSION_HOST_PARENT_CONCURRENCY_LIMIT = 4
 export const DEFAULT_SESSION_HOST_RUN_CEILING = 16
@@ -54,6 +73,9 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly projectDisplayNames: Readonly<Record<string, string>>
+  /** Canonical ordered built-in command rules. Later active rules win. */
+  readonly shortcutRules: ShortcutRules
+  /** Derived compatibility view for surfaces that display one representative binding. */
   readonly shortcutBindings: ShortcutBindings
   /** Default Session environment mode applied to new sessions (ADR 0010). */
   readonly defaultSessionEnvironmentMode: SessionEnvironmentMode
@@ -79,6 +101,24 @@ export interface Settings {
   readonly multiAgentEnabled: boolean
   /** Optional project overrides for model-initiated launch and spawn capability. */
   readonly multiAgentEnabledByProject: Readonly<Record<string, boolean>>
+  /** Default destination for http(s) links opened from Session surfaces. */
+  readonly browserLinkTarget: BrowserLinkTarget
+  /** User-created persistent browser profiles; built-ins are resolved at runtime. */
+  readonly browserProfiles: readonly BrowserProfile[]
+  /** Storage profile used when opening a new in-app browser tab. */
+  readonly browserDefaultProfileId: string
+  /** Viewport applied before a new browser guest paints. */
+  readonly browserDefaultViewport: BrowserPreviewViewport
+  /** Page zoom applied before a new browser guest paints. */
+  readonly browserDefaultZoomFactor: BrowserPreviewZoomFactor
+  /** Preferred colour scheme applied before a new browser guest paints. */
+  readonly browserDefaultAppearance: BrowserPreviewAppearance
+  /** Capture rate for user and agent preview recordings. */
+  readonly browserRecordingFrameRate: BrowserPreviewRecordingFrameRate
+  /** Whether an agent-opened preview appears in the floating chat player by default. */
+  readonly browserAutoShowFloatingPreview: boolean
+  /** Whether Pi sessions receive the collaborative browser tools and instructions. */
+  readonly enableAgentBrowserAccess: boolean
   /** Context-window usage percentage at which Pi automatically compacts. */
   readonly compactionThresholdPercent: number
   /** User overrides layered above the active Appearance package defaults. */
@@ -94,7 +134,8 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   projectDisplayNames: {},
-  shortcutBindings: DEFAULT_SHORTCUT_BINDINGS,
+  shortcutRules: DEFAULT_SHORTCUT_RULES,
+  shortcutBindings: shortcutBindingsFromRules(DEFAULT_SHORTCUT_RULES),
   defaultSessionEnvironmentMode: 'local',
   defaultAuthorizationMode: DEFAULT_AGENT_AUTHORIZATION_MODE,
   diffSyntaxTheme: 'pierre-dark',
@@ -107,6 +148,15 @@ export const DEFAULT_SETTINGS: Settings = {
   sessionHostIdleGracePeriodMs: DEFAULT_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
   multiAgentEnabled: true,
   multiAgentEnabledByProject: {},
+  browserLinkTarget: 'system',
+  browserProfiles: [],
+  browserDefaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
+  browserDefaultViewport: DEFAULT_BROWSER_PREVIEW_INITIAL_CONTROLS.viewport,
+  browserDefaultZoomFactor: DEFAULT_BROWSER_PREVIEW_INITIAL_CONTROLS.zoomFactor,
+  browserDefaultAppearance: DEFAULT_BROWSER_PREVIEW_INITIAL_CONTROLS.appearance,
+  browserRecordingFrameRate: DEFAULT_BROWSER_PREVIEW_RECORDING_FRAME_RATE,
+  browserAutoShowFloatingPreview: DEFAULT_BROWSER_PREVIEW_AUTO_SHOW_FLOATING,
+  enableAgentBrowserAccess: true,
   compactionThresholdPercent: DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   appearancePreferences: DEFAULT_APPEARANCE_PREFERENCES,
 }

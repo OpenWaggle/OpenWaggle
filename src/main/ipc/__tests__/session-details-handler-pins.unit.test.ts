@@ -3,11 +3,11 @@ import type { PinnedSession } from '@shared/types/session'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   dispatchLocalSessionCommandMock,
-  getInvokeHandler,
   listPinnedSessionsMock,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 /**
  * Pinned session IPC channels (issue #97).

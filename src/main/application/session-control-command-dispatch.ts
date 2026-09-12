@@ -21,6 +21,7 @@ import type {
 import type * as Effect from 'effect/Effect'
 import type { AgentRunInterruptionService } from '../ports/agent-run-interruption-service'
 import type { AgentSteeringService } from '../ports/agent-steering-service'
+import type { DesktopServiceBroker } from '../ports/desktop-service-broker'
 import type { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import type { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import type { SessionControlIdentityService } from '../ports/session-control-identity-service'
@@ -39,6 +40,7 @@ import type { SessionQueryRepository } from '../ports/session-query-repository'
 import type { SessionReportDeliveryService } from '../ports/session-report-delivery-service'
 import type { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionWorkspaceHandoffService } from '../ports/session-workspace-handoff-service'
+import type { TerminalService } from '../ports/terminal-service'
 import { setSessionAuthorization } from './session-authorization-service'
 import {
   interruptSessionDescendants,
@@ -85,6 +87,8 @@ export type SessionControlCommandDependencies =
   | SessionOrchestrationUpdateDeliveryService
   | SessionOrganizationRepository
   | SessionWorkspaceHandoffService
+  | TerminalService
+  | DesktopServiceBroker
 
 type Command = SessionControlMutationRequest['command']
 type Commands<Operation extends Command['operation']> = Extract<

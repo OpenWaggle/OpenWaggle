@@ -3,9 +3,11 @@ import { toHostUiJsonValue } from '@shared/host-ui-json'
 import type { HostBackedGuiChannel, HostUiV1Request } from '@shared/types/host-ui-protocol'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
-import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { manageHostUiAgentDefinitions } from './host-ui-agent-definition-operation'
+import {
+  decodeAgentDefinitionInput,
+  manageHostUiAgentDefinitions,
+} from './host-ui-agent-definition-operation'
 import { getHostUiAgentContextUsage, listHostUiActiveActivities } from './host-ui-agent-operation'
 import { discoverHostUiDocs } from './host-ui-docs-operation'
 import {
@@ -32,6 +34,10 @@ import {
   requiredHostUiString,
   requireHostUiArgCount,
 } from './host-ui-operation-validation'
+import {
+  dispatchHostUiProjectActionOperation,
+  isHostUiProjectActionChannel,
+} from './host-ui-project-action-operations'
 import { getHostUiProviderModels } from './host-ui-provider-operation'
 import { raceHostUiRequestWithSignal } from './host-ui-request-cancellation'
 import {
@@ -57,19 +63,7 @@ import { authorizeHostUiWorkspaceProject } from './workspace-project-authorizati
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
 const REMOTE_GUI_SENDER_ID = 0
-
-function decodeAgentDefinitionInput(value: unknown) {
-  if (!isRecord(value) || !Object.hasOwn(value, 'command')) {
-    return { command: value, selectedSourcePaths: undefined }
-  }
-  if (
-    !Array.isArray(value.selectedSourcePaths) ||
-    !value.selectedSourcePaths.every((sourcePath) => typeof sourcePath === 'string')
-  ) {
-    return null
-  }
-  return { command: value.command, selectedSourcePaths: value.selectedSourcePaths }
-}
+const PROJECT_ACTIONS_PROTOCOL_REVISION = 11
 
 function oneInput<A, E, R>(
   args: readonly unknown[],
@@ -183,6 +177,15 @@ function dispatchHostUiChannel(
   }
   if (isSkillsChannel(channel)) {
     return dispatchHostUiSkillsOperation(channel, args)
+  }
+  if (isHostUiProjectActionChannel(channel)) {
+    if (
+      negotiatedRevision !== undefined &&
+      negotiatedRevision < PROJECT_ACTIONS_PROTOCOL_REVISION
+    ) {
+      return invalidHostUiInput('Project actions require Local Session protocol revision 11.')
+    }
+    return dispatchHostUiProjectActionOperation(channel, args)
   }
   return match(channel)
     .with('workspace-files:authorize-project', () =>

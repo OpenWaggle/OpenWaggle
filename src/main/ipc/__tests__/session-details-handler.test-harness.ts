@@ -1,23 +1,44 @@
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { Layer } from 'effect'
-import * as Effect from 'effect/Effect'
+import type { SessionId } from '@shared/types/brand'
+import type { PinnedSession, PinnedSessionMove } from '@shared/types/session'
 import { type Mock, vi } from 'vitest'
-import { EmptyExtensionRuntimeLayer } from '../../application/__tests__/extension-runtime-test-layer'
-import { emptySessionCatalogMethods } from '../../application/__tests__/session-repository-test-support'
-import { SessionProjectionRepositoryError } from '../../errors'
-import { AgentKernelService } from '../../ports/agent-kernel-service'
-import { InlineVisualizationService } from '../../ports/inline-visualization-service'
-import { ProviderService } from '../../ports/provider-service'
-import { SessionProjectionRepository } from '../../ports/session-projection-repository'
-import { SessionRepository } from '../../ports/session-repository'
-import { SettingsService } from '../../services/settings-service'
 import type * as SessionDetailsHandler from '../session-details-handler'
 import { sessionDetailsCommandResponse } from './session-details-handler-command-response'
-import { SESSION_DETAILS_HANDLER_SOURCE_TREE } from './session-details-handler-tree-fixture'
 
-type TestMock = Mock
+interface SessionDetailsHandlerMocks {
+  readonly typedHandleMock: Mock
+  readonly cleanupSessionRunMock: Mock
+  readonly createRuntimeSessionMock: Mock<
+    (input: { readonly projectPath: string }) => Promise<{
+      readonly piSessionId: string
+      readonly piSessionFile: string
+    }>
+  >
+  readonly forkRuntimeSessionMock: Mock
+  readonly persistSnapshotMock: Mock
+  readonly listSessionDetailsMock: Mock
+  readonly getSessionDetailMock: Mock
+  readonly createSessionMock: Mock
+  readonly deleteSessionMock: Mock
+  readonly archiveSessionMock: Mock
+  readonly unarchiveSessionMock: Mock
+  readonly listArchivedSessionsMock: Mock
+  readonly updateSessionTitleMock: Mock
+  readonly setAuthorizationModeMock: Mock
+  readonly listPinnedSessionsMock: Mock<() => Promise<readonly PinnedSession[]>>
+  readonly pinSessionMock: Mock<(id: SessionId) => Promise<undefined>>
+  readonly unpinSessionMock: Mock<(id: SessionId) => Promise<undefined>>
+  readonly movePinnedSessionMock: Mock<(move: PinnedSessionMove) => Promise<undefined>>
+  readonly cancelSessionRunsMock: Mock
+  readonly waitForSessionRunsMock: Mock
+  readonly clearAgentPhaseMock: Mock
+  readonly clearStreamBufferMock: Mock
+  readonly emitRunCompletedMock: Mock
+  readonly dispatchLocalSessionCommandMock: Mock
+  readonly deleteVisualizationSessionMock: Mock
+  readonly rollbackVisualizationSessionDeletionMock: Mock
+}
 
-const mocks = vi.hoisted(() => ({
+const mocks: SessionDetailsHandlerMocks = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   cleanupSessionRunMock: vi.fn(),
   createRuntimeSessionMock: vi.fn(async (_input: { readonly projectPath: string }) => ({
@@ -26,18 +47,21 @@ const mocks = vi.hoisted(() => ({
   })),
   forkRuntimeSessionMock: vi.fn(),
   persistSnapshotMock: vi.fn(),
+  listSessionDetailsMock: vi.fn(),
   getSessionDetailMock: vi.fn(),
   createSessionMock: vi.fn(),
   deleteSessionMock: vi.fn(),
   archiveSessionMock: vi.fn(),
   unarchiveSessionMock: vi.fn(),
+  listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
   setAuthorizationModeMock: vi.fn(),
-  listPinnedSessionsMock: vi.fn(async () => []),
-  pinSessionMock: vi.fn(async () => undefined),
-  unpinSessionMock: vi.fn(async () => undefined),
-  movePinnedSessionMock: vi.fn(async () => undefined),
+  listPinnedSessionsMock: vi.fn<() => Promise<readonly PinnedSession[]>>(async () => []),
+  pinSessionMock: vi.fn(async (_id: SessionId) => undefined),
+  unpinSessionMock: vi.fn(async (_id: SessionId) => undefined),
+  movePinnedSessionMock: vi.fn(async (_move: PinnedSessionMove) => undefined),
   cancelSessionRunsMock: vi.fn(),
+  waitForSessionRunsMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   clearStreamBufferMock: vi.fn(),
   emitRunCompletedMock: vi.fn(),
@@ -46,243 +70,50 @@ const mocks = vi.hoisted(() => ({
   rollbackVisualizationSessionDeletionMock: vi.fn(),
 }))
 
-export const typedHandleMock: TestMock = mocks.typedHandleMock
-export const cleanupSessionRunMock: TestMock = mocks.cleanupSessionRunMock
-export const createRuntimeSessionMock: TestMock = mocks.createRuntimeSessionMock
-export const forkRuntimeSessionMock: TestMock = mocks.forkRuntimeSessionMock
-export const persistSnapshotMock: TestMock = mocks.persistSnapshotMock
-export const getSessionDetailMock: TestMock = mocks.getSessionDetailMock
-export const createSessionMock: TestMock = mocks.createSessionMock
-export const deleteSessionMock: TestMock = mocks.deleteSessionMock
-export const archiveSessionMock: TestMock = mocks.archiveSessionMock
-export const unarchiveSessionMock: TestMock = mocks.unarchiveSessionMock
-export const updateSessionTitleMock: TestMock = mocks.updateSessionTitleMock
-export const setAuthorizationModeMock: TestMock = mocks.setAuthorizationModeMock
-export const listPinnedSessionsMock: TestMock = mocks.listPinnedSessionsMock
-export const pinSessionMock: TestMock = mocks.pinSessionMock
-export const unpinSessionMock: TestMock = mocks.unpinSessionMock
-export const movePinnedSessionMock: TestMock = mocks.movePinnedSessionMock
-export const cancelSessionRunsMock: TestMock = mocks.cancelSessionRunsMock
-export const clearAgentPhaseMock: TestMock = mocks.clearAgentPhaseMock
-export const clearStreamBufferMock: TestMock = mocks.clearStreamBufferMock
-export const emitRunCompletedMock: TestMock = mocks.emitRunCompletedMock
-export const dispatchLocalSessionCommandMock: TestMock = mocks.dispatchLocalSessionCommandMock
-export const deleteVisualizationSessionMock: TestMock = mocks.deleteVisualizationSessionMock
-export const rollbackVisualizationSessionDeletionMock: TestMock =
-  mocks.rollbackVisualizationSessionDeletionMock
+export const {
+  typedHandleMock,
+  cleanupSessionRunMock,
+  createRuntimeSessionMock,
+  forkRuntimeSessionMock,
+  listSessionDetailsMock,
+  getSessionDetailMock,
+  createSessionMock,
+  deleteSessionMock,
+  archiveSessionMock,
+  setAuthorizationModeMock,
+  cancelSessionRunsMock,
+  waitForSessionRunsMock,
+  clearAgentPhaseMock,
+  clearStreamBufferMock,
+  emitRunCompletedMock,
+  dispatchLocalSessionCommandMock,
+  deleteVisualizationSessionMock,
+  rollbackVisualizationSessionDeletionMock,
+  listArchivedSessionsMock,
+  listPinnedSessionsMock,
+  movePinnedSessionMock,
+  persistSnapshotMock,
+  pinSessionMock,
+  unarchiveSessionMock,
+  unpinSessionMock,
+  updateSessionTitleMock,
+}: SessionDetailsHandlerMocks = mocks
 
-vi.mock('../typed-ipc', () => ({
-  hostHandle: typedHandleMock,
-}))
-
-vi.mock('../../agent/session-cleanup', () => ({
-  cleanupSessionRun: cleanupSessionRunMock,
-}))
-
-vi.mock('../active-agent-runs', () => ({
+vi.mock('../typed-ipc', () => ({ hostHandle: typedHandleMock }))
+vi.mock('../../agent/session-cleanup', () => ({ cleanupSessionRun: cleanupSessionRunMock }))
+vi.mock('../active-agent-runs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../active-agent-runs')>()),
   cancelSessionRuns: cancelSessionRunsMock,
+  waitForSessionRuns: waitForSessionRunsMock,
 }))
-
 vi.mock('../../utils/stream-bridge', () => ({
   clearAgentPhase: clearAgentPhaseMock,
   clearStreamBuffer: clearStreamBufferMock,
   emitRunCompleted: emitRunCompletedMock,
 }))
-
 vi.mock('../../application/local-session-command-dispatcher', () => ({
   dispatchLocalSessionCommand: dispatchLocalSessionCommandMock,
 }))
-
-const TestSessionProjectionRepoLayer = Layer.succeed(
-  SessionProjectionRepository,
-  SessionProjectionRepository.of({
-    get: (id) =>
-      Effect.tryPromise({
-        try: async () => getSessionDetailMock(id),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
-      }),
-    getOptional: (id) =>
-      Effect.tryPromise({
-        try: async () => getSessionDetailMock(id),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
-      }),
-    list: () => Effect.succeed([]),
-    listDetails: () => Effect.succeed([]),
-    create: (input) =>
-      Effect.tryPromise({
-        try: async () => createSessionMock(input),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'create', cause }),
-      }),
-    delete: (id) =>
-      Effect.tryPromise({
-        try: async () => {
-          await deleteSessionMock(id)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
-      }),
-    archive: (id) =>
-      Effect.tryPromise({
-        try: async () => {
-          await archiveSessionMock(id)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'archive', cause }),
-      }),
-    unarchive: (id) =>
-      Effect.tryPromise({
-        try: async () => {
-          await unarchiveSessionMock(id)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'unarchive', cause }),
-      }),
-    listArchived: () => Effect.succeed([]),
-    updateTitle: (id, title) =>
-      Effect.tryPromise({
-        try: async () => {
-          await updateSessionTitleMock(id, title)
-        },
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
-      }),
-    setWorktreePlan: () => Effect.void,
-    setAuthorizationMode: (id, authorizationMode) =>
-      Effect.tryPromise({
-        try: async () => {
-          await setAuthorizationModeMock(id, authorizationMode)
-        },
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
-      }),
-    listTurnCheckpoints: () => Effect.succeed([]),
-    getTurnDiff: () => Effect.succeed(null),
-    setTurnCheckpointAnchor: () => Effect.void,
-    listPinnedSessions: () =>
-      Effect.tryPromise({
-        try: () => listPinnedSessionsMock(),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'listPinnedSessions', cause }),
-      }),
-    pinSession: (id) =>
-      Effect.tryPromise({
-        try: () => pinSessionMock(id),
-        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'pinSession', cause }),
-      }),
-    unpinSession: (id) =>
-      Effect.tryPromise({
-        try: () => unpinSessionMock(id),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'unpinSession', cause }),
-      }),
-    movePinnedSession: (move) =>
-      Effect.tryPromise({
-        try: () => movePinnedSessionMock(move),
-        catch: (cause) =>
-          new SessionProjectionRepositoryError({ operation: 'movePinnedSession', cause }),
-      }),
-  }),
-)
-
-const TestAgentKernelLayer = Layer.succeed(
-  AgentKernelService,
-  AgentKernelService.of({
-    createSession: (input) =>
-      Effect.tryPromise({
-        try: async () => createRuntimeSessionMock(input),
-        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-      }),
-    run: () => Effect.fail(new Error('agent run not used by session detail handler tests')),
-    getContextUsage: () =>
-      Effect.fail(new Error('context usage not used by session detail handler tests')),
-    compact: () => Effect.fail(new Error('compaction not used by session detail handler tests')),
-    navigateTree: () =>
-      Effect.fail(new Error('tree navigation not used by session detail handler tests')),
-    forkSession: (input) =>
-      Effect.tryPromise({
-        try: async () => forkRuntimeSessionMock(input),
-        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-      }),
-    getSessionSnapshot: () =>
-      Effect.fail(new Error('session snapshot not used by session detail handler tests')),
-  }),
-)
-
-const TestSessionRepoLayer = Layer.succeed(SessionRepository, {
-  ...emptySessionCatalogMethods,
-  list: () => Effect.succeed([]),
-  listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(SESSION_DETAILS_HANDLER_SOURCE_TREE),
-  getWorkspace: () => Effect.succeed(null),
-  persistSnapshot: (input) =>
-    Effect.sync(() => {
-      persistSnapshotMock(input)
-    }),
-  updateRuntime: () => Effect.void,
-  renameBranch: () => Effect.void,
-  archiveBranch: () => Effect.void,
-  restoreBranch: () => Effect.void,
-  updateTreeUiState: () => Effect.void,
-  recordActiveRun: () => Effect.void,
-  clearActiveRun: () => Effect.void,
-  clearInterruptedRuns: () => Effect.void,
-  listActiveRunsForRecovery: () => Effect.succeed([]),
-  markActiveRunInterrupted: () => Effect.void,
-})
-
-const TestProviderLayer = Layer.succeed(ProviderService, {
-  get: () => Effect.succeed(undefined),
-  getAll: () => Effect.succeed([]),
-  getProviderForModel: () => Effect.dieMessage('getProviderForModel is not used'),
-  isKnownModel: () => Effect.succeed(true),
-})
-
-const TestSettingsLayer = Layer.succeed(SettingsService, {
-  get: () => Effect.succeed(DEFAULT_SETTINGS),
-  update: () => Effect.void,
-  initialize: () => Effect.void,
-  flushForTests: () => Effect.void,
-})
-
-const TestInlineVisualizationLayer = Layer.succeed(
-  InlineVisualizationService,
-  InlineVisualizationService.of({
-    prepareSession: () => Effect.succeed('/visualizations/session'),
-    deleteSession: (sessionId) =>
-      Effect.sync(() => {
-        deleteVisualizationSessionMock(sessionId)
-      }),
-    stageSessionDeletion: (sessionId) =>
-      Effect.succeed({
-        commit: Effect.sync(() => {
-          deleteVisualizationSessionMock(sessionId)
-        }),
-        rollback: Effect.sync(() => {
-          rollbackVisualizationSessionDeletionMock(sessionId)
-        }),
-      }),
-    readSource: () => Effect.succeed({ status: 'unavailable', reason: 'missing' }),
-  }),
-)
-
-const TestRuntimeLayer = Layer.mergeAll(
-  TestSessionProjectionRepoLayer,
-  TestAgentKernelLayer,
-  TestSessionRepoLayer,
-  TestProviderLayer,
-  TestSettingsLayer,
-  TestInlineVisualizationLayer,
-  EmptyExtensionRuntimeLayer,
-)
-
-export function getInvokeHandler(name: string) {
-  const call = typedHandleMock.mock.calls.find(
-    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
-  )
-  const handler = call?.[1]
-  if (typeof handler !== 'function') {
-    return undefined
-  }
-
-  return (...args: unknown[]) =>
-    Effect.runPromise(Effect.provide(handler(...args), TestRuntimeLayer))
-}
 
 export function resetSessionDetailsHandlerMocks() {
   for (const mock of Object.values(mocks)) mock.mockReset()
@@ -295,6 +126,7 @@ export function resetSessionDetailsHandlerMocks() {
   unpinSessionMock.mockResolvedValue(undefined)
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
+  waitForSessionRunsMock.mockResolvedValue(true)
   dispatchLocalSessionCommandMock.mockImplementation(sessionDetailsCommandResponse)
 }
 

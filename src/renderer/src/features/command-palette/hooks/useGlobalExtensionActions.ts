@@ -2,6 +2,10 @@ import { useNavigate } from '@tanstack/react-router'
 import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import {
+  extensionRightSidebarRequest,
+  useRightSidebarCoordinator,
+} from '@/shared/lib/right-sidebar-coordinator'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, useUIStore } from '@/shell/ui-store'
 import {
   type ExtensionCommandActionInput,
@@ -56,6 +60,16 @@ export function useGlobalExtensionActions(input: {
       contentHash: entry.contentHash,
     } as const
     close()
+    useRightSidebarCoordinator
+      .getState()
+      .claimRoute(
+        extensionRightSidebarRequest(
+          target.extensionId,
+          target.sidePanelId,
+          target.packagePath,
+          target.contentHash,
+        ),
+      )
     setLastRightSidebarPanel(target)
     const search = {
       diff: undefined,

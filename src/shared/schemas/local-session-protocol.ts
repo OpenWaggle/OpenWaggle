@@ -1,36 +1,28 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
 import { SESSION_INPUT_LIMITS } from '@shared/session-input-limits'
-import {
-  HOST_BACKED_MCP_GUI_CHANNELS,
-  HOST_UI_REVISION_7_NEW_CHANNELS,
-  HOST_UI_REVISION_9_REQUIRED_CHANNELS,
-  HOST_UI_REVISION_10_REQUIRED_CHANNELS,
-  type HostBackedGuiChannel,
-} from '@shared/types/host-ui-protocol'
+
 import {
   isLocalSessionProfileCredential,
   LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
 } from '@shared/types/local-session-profile'
 import {
-  LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
-  LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
+  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
   LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH,
   LOCAL_SESSION_MAX_SUPPORTED_REVISIONS,
-  LOCAL_SESSION_MCP_AUTH_REVISION,
-  LOCAL_SESSION_MCP_HOST_UI_REVISION,
   LOCAL_SESSION_PROTOCOL_NAME,
   LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT,
   LOCAL_SESSION_WAGGLE_REVISION,
-  LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
   type LocalSessionClientFrame,
   type LocalSessionClientHello,
   type LocalSessionCommandPayload,
   SESSION_WAGGLE_CONTRACT_VERSION,
 } from '@shared/types/local-session-protocol'
+import { desktopServiceRequestSchema } from './desktop-service'
 import { hostUiV1RequestSchema } from './host-ui-protocol'
+import { requiredHostUiRevision } from './local-session-command-revision'
 import { localSessionNegotiationResultSchema } from './local-session-negotiation'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
@@ -43,7 +35,7 @@ import {
 } from './session-input'
 import { sessionLifecycleRequestSchema } from './session-lifecycle'
 import { sessionQueryRequestSchema } from './session-query'
-import { agentSendPayloadSchema } from './validation'
+import { agentSendPayloadSchema, browserPreviewAttachmentSchema } from './validation'
 import { waggleConfigSchema } from './waggle'
 
 const localSessionCredentialSchema = Schema.String.pipe(
@@ -100,13 +92,23 @@ export const localSessionClientFrameSchema: Schema.Schema<LocalSessionClientFram
 export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommandPayload> =
   Schema.Union(
     Schema.Struct({
+      contract: Schema.Literal('desktop-service-v1'),
+      request: desktopServiceRequestSchema,
+    }),
+    Schema.Struct({
       contract: Schema.Literal('local-attachments-v1'),
       request: Schema.Struct({
         requestId: sessionInputIdSchema,
         entries: Schema.Array(
           Schema.Struct({
             path: sessionInputPathSchema,
-            origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text')),
+            origin: Schema.optional(
+              Schema.Literal('user-file', 'auto-paste-text', 'browser-preview'),
+            ),
+            browserPreview: Schema.optional(browserPreviewAttachmentSchema),
+            browserAnnotationText: Schema.optional(
+              Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)),
+            ),
           }),
         ).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
       }),
@@ -260,23 +262,16 @@ export function decodeLocalSessionCommandPayload(value: unknown) {
   return decodeUnknownExactOrThrow(localSessionCommandPayloadSchema, value)
 }
 
-function requiredHostUiRevision(channel: HostBackedGuiChannel) {
-  if (HOST_UI_REVISION_10_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION
-  }
-  if (HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION
-  }
-  if (HOST_UI_REVISION_7_NEW_CHANNELS.some((candidate) => candidate === channel)) {
-    return LOCAL_SESSION_MCP_AUTH_REVISION
-  }
-  return HOST_BACKED_MCP_GUI_CHANNELS.some((candidate) => candidate === channel)
-    ? LOCAL_SESSION_MCP_HOST_UI_REVISION
-    : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
-}
-
 export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
   const payload = decodeLocalSessionCommandPayload(value)
+  if (
+    payload.contract === 'desktop-service-v1' &&
+    revision < LOCAL_SESSION_DESKTOP_SERVICE_REVISION
+  ) {
+    throw new Error(
+      `This command requires Local Session protocol revision ${LOCAL_SESSION_DESKTOP_SERVICE_REVISION}.`,
+    )
+  }
   if (
     payload.contract === 'session-control-v2' &&
     (payload.request.command.operation === 'steer' ||

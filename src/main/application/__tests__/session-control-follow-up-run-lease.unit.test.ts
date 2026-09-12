@@ -35,9 +35,11 @@ import { activeRuns } from '../active-session-runs'
 import { executeSessionControlMutation } from '../session-control-command-service'
 import { SessionHostEventHub } from '../session-host-event-hub'
 import { SessionHostLiveness } from '../session-host-liveness'
+import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 
 function unusedCommandDependencies() {
   return Layer.mergeAll(
+    NoopSessionDesktopLayer,
     Layer.succeed(AgentRunInterruptionService, fromPartial({})),
     Layer.succeed(AgentSteeringService, fromPartial({})),
     Layer.succeed(SessionAuthorizationTargetRepository, fromPartial({})),

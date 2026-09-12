@@ -84,6 +84,9 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        terminal: fromPartial({}),
+        browserPreviewAutomation: fromPartial({}),
+        enableBrowserPreviewAutomation: false,
         mcpConfig,
         mcpRuntime,
         inlineVisualization,
@@ -155,6 +158,9 @@ describe('runPiAgentKernel', () => {
     await Effect.runPromise(
       runPiAgentKernel(input, {
         runtimeExtensionIsolation: {},
+        terminal: fromPartial({}),
+        browserPreviewAutomation: fromPartial({}),
+        enableBrowserPreviewAutomation: false,
         mcpConfig,
         mcpRuntime,
         inlineVisualization,

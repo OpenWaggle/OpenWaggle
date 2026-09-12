@@ -205,4 +205,27 @@ describe('desktop app release workflow', () => {
       'pnpm exec tsx scripts/verify-installed-cli.ts "$HOME/.local/bin/openwaggle"',
     )
   })
+
+  it('runs the semantic packaged PTY smoke after every platform build', () => {
+    const buildCommands = [
+      'pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never',
+      'pnpm exec electron-builder --linux --publish never',
+      'pnpm exec electron-builder --win --publish never',
+    ]
+    const smokeStepNames = [
+      'Smoke packaged macOS PTY runtime',
+      'Smoke packaged Linux PTY runtime',
+      'Smoke packaged Windows PTY runtimes',
+    ]
+
+    for (const [index, buildCommand] of buildCommands.entries()) {
+      const buildIndex = WORKFLOW.indexOf(buildCommand)
+      const smokeIndex = WORKFLOW.indexOf(smokeStepNames[index] ?? '')
+      const nextUploadIndex = WORKFLOW.indexOf('actions/upload-artifact@', buildIndex)
+      expect(buildIndex).toBeGreaterThan(-1)
+      expect(smokeIndex).toBeGreaterThan(buildIndex)
+      expect(nextUploadIndex).toBeGreaterThan(smokeIndex)
+    }
+    expect(WORKFLOW.match(/run: pnpm packaged-app:smoke/gu)).toHaveLength(3)
+  })
 })

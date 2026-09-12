@@ -7,9 +7,9 @@ import { SessionControlAttachmentService } from '../ports/session-control-attach
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
-import { reserveSessionTreeMutation } from './active-session-runs'
 import { dismissInterruptedAgentRun } from './agent-run-service'
 import { navigateAgentSessionTree } from './agent-session-service'
+import { withSessionDesktopRemoval } from './session-desktop-removal'
 import { deleteSessionWithVisualizations } from './session-visualization-deletion'
 
 type LocalUiPayload = Extract<LocalSessionCommandPayload, { contract: 'local-ui-v1' }>
@@ -112,14 +112,9 @@ function executeLocalUiMutation(command: LocalUiPayload['request']['command']) {
         updateTreeUiState(sessionRepository, sessionId, update),
       )
       .with('delete', () =>
-        Effect.acquireUseRelease(
-          Effect.try({
-            try: () => reserveSessionTreeMutation(sessionId),
-            catch: () => new Error('Stop the active Run before deleting this Hive Session.'),
-          }),
-          () => deleteSessionWithVisualizations(sessionId),
-          (reservation) => Effect.sync(reservation.release),
-        ).pipe(Effect.as({ effect: 'session-deleted' as const })),
+        withSessionDesktopRemoval(sessionId, deleteSessionWithVisualizations(sessionId)).pipe(
+          Effect.as({ effect: 'session-deleted' as const }),
+        ),
       )
       .exhaustive()
   })

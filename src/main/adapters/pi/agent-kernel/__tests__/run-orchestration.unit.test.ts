@@ -1,12 +1,13 @@
-import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { WAGGLE_INHERIT_MODEL, type WaggleConfig } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runPiSession } from '../classic-run'
 import { runPiWaggle } from '../waggle-run'
+import { EXPECTED_WAGGLE_TURN_EVENTS, WAGGLE_ATTACHMENTS } from './run-orchestration.fixtures'
 import {
   createFakePi,
   createFakeSession,
   fakeRuntimeServices,
+  installRuntimeFactories,
   modelFromReference,
   PRIMARY_MODEL,
   payload,
@@ -89,36 +90,67 @@ describe('Pi run orchestration', () => {
     expect(result.newMessages.map((message) => message.role)).toEqual(['user', 'assistant'])
     expect(runMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })
+  it('installs every inline extension factory for classic and Waggle runs', async () => {
+    const fakePi = createFakePi()
+    const session = createFakeSession(fakePi.getAgentEndHandler)
+    const classicFactory = vi.fn()
+    const waggleFactory = vi.fn()
+    const classicTrustedFactory = vi.fn()
+    const waggleTrustedFactory = vi.fn()
+    runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => {
+      installRuntimeFactories(input, fakePi.pi)
+      return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
+    })
+    runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
+
+    await runPiSession({
+      session: sessionDetail(),
+      workingPath: '/repo',
+      runId: 'run-classic-extensions',
+      payload: payload('Run classic tools'),
+      model: PRIMARY_MODEL,
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+      extensionFactories: [classicFactory],
+      trustedExtensionFactories: [classicTrustedFactory],
+      systemPromptAppendices: ['Classic browser guidance'],
+    })
+    await runPiWaggle({
+      session: sessionDetail(),
+      workingPath: '/repo',
+      runId: 'run-waggle-extensions',
+      payload: payload('Run collaborative tools'),
+      model: PRIMARY_MODEL,
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+      extensionFactories: [waggleFactory],
+      trustedExtensionFactories: [waggleTrustedFactory],
+      systemPromptAppendices: ['Waggle browser guidance'],
+      waggle: {
+        config: waggleConfig(),
+        inheritedModel: PRIMARY_MODEL,
+        onWaggleEvent: vi.fn(),
+        onTurnEvent: vi.fn(),
+      },
+    })
+
+    expect(classicFactory).toHaveBeenCalledExactlyOnceWith(fakePi.pi)
+    expect(waggleFactory).toHaveBeenCalledExactlyOnceWith(fakePi.pi)
+    expect(classicTrustedFactory).toHaveBeenCalledExactlyOnceWith(fakePi.pi)
+    expect(waggleTrustedFactory).toHaveBeenCalledExactlyOnceWith(fakePi.pi)
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({ systemPromptAppendices: ['Classic browser guidance'] }),
+    )
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({ systemPromptAppendices: ['Waggle browser guidance'] }),
+    )
+  })
   it('keeps original text and image attachments in OpenWaggle Waggle turn prompts', async () => {
     const fakePi = createFakePi()
     const session = createFakeSession(fakePi.getAgentEndHandler)
     const config = waggleConfig()
-    const attachments = [
-      {
-        id: 'img-1',
-        kind: 'image',
-        name: 'diagram.png',
-        path: '/tmp/diagram.png',
-        mimeType: 'image/png',
-        sizeBytes: 128,
-        extractedText: 'Architecture diagram OCR',
-        source: { type: 'data', value: 'base64-image', mimeType: 'image/png' },
-      },
-      {
-        id: 'text-1',
-        kind: 'text',
-        name: 'notes.txt',
-        path: '/tmp/notes.txt',
-        mimeType: 'text/plain',
-        sizeBytes: 64,
-        extractedText: 'Important notes for every Waggle turn',
-        source: null,
-      },
-    ] satisfies HydratedAgentSendPayload['attachments']
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => {
-      for (const factory of input.extensionFactories ?? []) {
-        factory(fakePi.pi)
-      }
+      installRuntimeFactories(input, fakePi.pi)
       return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
@@ -126,7 +158,7 @@ describe('Pi run orchestration', () => {
       session: sessionDetail(),
       workingPath: '/repo',
       runId: 'run-waggle-attachments',
-      payload: payload('Review attached context', { attachments }),
+      payload: payload('Review attached context', { attachments: WAGGLE_ATTACHMENTS }),
       model: PRIMARY_MODEL,
       signal: new AbortController().signal,
       onEvent: vi.fn(),
@@ -176,9 +208,7 @@ describe('Pi run orchestration', () => {
     }
     const turnEvents: unknown[] = []
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => {
-      for (const factory of input.extensionFactories ?? []) {
-        factory(fakePi.pi)
-      }
+      installRuntimeFactories(input, fakePi.pi)
       return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
@@ -212,9 +242,7 @@ describe('Pi run orchestration', () => {
     const config = waggleConfig()
     const turnEvents: unknown[] = []
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => {
-      for (const factory of input.extensionFactories ?? []) {
-        factory(fakePi.pi)
-      }
+      installRuntimeFactories(input, fakePi.pi)
       return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
@@ -248,51 +276,14 @@ describe('Pi run orchestration', () => {
     )
     expect(session.agent.waitForIdle).toHaveBeenCalled()
     expect(session.agent.hasQueuedMessages).toHaveBeenCalled()
-    expect(turnEvents).toEqual([
-      { type: 'turn-start', turnNumber: 0, agentIndex: 0, agentLabel: 'Architect' },
-      {
-        type: 'turn-end',
-        turnNumber: 0,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: PRIMARY_MODEL,
-      },
-      { type: 'turn-start', turnNumber: 1, agentIndex: 1, agentLabel: 'Reviewer' },
-      {
-        type: 'turn-end',
-        turnNumber: 1,
-        agentIndex: 1,
-        agentLabel: 'Reviewer',
-        agentColor: 'amber',
-        agentModel: SECONDARY_MODEL,
-      },
-      { type: 'turn-start', turnNumber: 2, agentIndex: 0, agentLabel: 'Architect' },
-      {
-        type: 'turn-end',
-        turnNumber: 2,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: PRIMARY_MODEL,
-      },
-      { type: 'turn-start', turnNumber: 3, agentIndex: 1, agentLabel: 'Reviewer' },
-      {
-        type: 'turn-end',
-        turnNumber: 3,
-        agentIndex: 1,
-        agentLabel: 'Reviewer',
-        agentColor: 'amber',
-        agentModel: SECONDARY_MODEL,
-      },
-      {
-        type: 'collaboration-complete',
-        reason: 'Reached maximum turns (4)',
-        totalTurns: 4,
-      },
+    expect(turnEvents).toEqual(EXPECTED_WAGGLE_TURN_EVENTS)
+    expect(result.newMessages.map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+      'assistant',
+      'assistant',
+      'assistant',
     ])
-    const roles = result.newMessages.map((message) => message.role)
-    expect(roles).toEqual(['user', 'assistant', 'assistant', 'assistant', 'assistant'])
     expect(session.setModel).toHaveBeenCalledWith(modelFromReference(PRIMARY_MODEL))
     expect(runMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })

@@ -4,11 +4,14 @@ import { devNull } from 'node:os'
 import type {
   BaseWindow,
   BaseWindowConstructorOptions,
+  BrowserWindow,
   BrowserWindowConstructorOptions,
+  MenuItemConstructorOptions,
   MessageBoxOptions,
   OpenDialogOptions,
   SaveDialogOptions,
   WebContents,
+  WebFrameMain,
 } from 'electron'
 import * as Electron from 'electron'
 import { env, getSafeChildEnv } from './env'
@@ -105,6 +108,7 @@ export function installAutomationDesktopUiBlockers() {
   for (const method of ['focus', 'restore', 'show', 'showInactive'] as const) {
     replaceMethod(NativeBaseWindow.prototype, method, blockedSyncMethod(`BaseWindow.${method}`))
   }
+  replaceMethod(Electron.Menu.prototype, 'popup', blockedSyncMethod('Menu.popup'))
   // Electron exposes both window classes as non-configurable module properties,
   // so their constructors cannot be safely replaced. Core construction is
   // confined statically to the hidden-by-default helpers below, while the native
@@ -121,8 +125,20 @@ export function createBaseWindow(options: BaseWindowConstructorOptions) {
 export function createBrowserWindow(options: BrowserWindowConstructorOptions) {
   return new Electron.BrowserWindow({
     ...options,
-    ...(isAutomationMode() ? { show: false } : {}),
+    ...(isAutomationMode()
+      ? {
+          show: false,
+          // Exercise foreground rendering without revealing an OS window.
+          // Hidden Chromium otherwise reduces animation frames to 1 Hz on Linux.
+          webPreferences: { ...options.webPreferences, backgroundThrottling: false },
+        }
+      : {}),
   })
+}
+
+export function revealBrowserWindowInactive(window: BrowserWindow) {
+  if (isAutomationMode()) throw new AutomationDesktopUiError('BrowserWindow.showInactive')
+  window.showInactive()
 }
 
 export function getAllBrowserWindows() {
@@ -131,6 +147,19 @@ export function getAllBrowserWindows() {
 
 export function browserWindowFromWebContents(webContents: WebContents) {
   return Electron.BrowserWindow.fromWebContents(webContents)
+}
+
+export function popupWebContentsMenu(
+  window: BrowserWindow,
+  contents: WebContents,
+  template: MenuItemConstructorOptions[],
+  frame: WebFrameMain | null,
+) {
+  const menu = Electron.Menu.buildFromTemplate(template)
+  // Editing roles must target the guest, even when the host composer had focus.
+  contents.focus()
+  menu.popup({ window, ...(frame ? { frame } : {}) })
+  return menu
 }
 
 export function openExternal(url: string) {
@@ -244,6 +273,10 @@ export function launchHeadlessBackgroundProcess(input: {
 export function launchExternalApplication(command: string, args: readonly string[]): Promise<void> {
   assertExternalApplicationLaunchAllowed()
   return launchDetachedProcess({ command, args, environment: getSafeChildEnv() })
+}
+
+export function showErrorBox(title: string, content: string) {
+  Electron.dialog.showErrorBox(title, content)
 }
 
 export function showMessageBox(ownerWindow: BaseWindow | null, options: MessageBoxOptions) {

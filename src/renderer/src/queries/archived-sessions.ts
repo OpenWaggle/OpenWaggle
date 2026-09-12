@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
+import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { queryKeys } from './query-keys'
 
 const ARCHIVED_PAGE_SIZE = 100
@@ -65,6 +66,9 @@ export function useRestoreSessionBranchMutation() {
 
 export function useArchivedDeleteSessionMutation() {
   return useMutation({
-    mutationFn: (sessionId: SessionId) => api.deleteSession(sessionId),
+    mutationFn: async (sessionId: SessionId) => {
+      await api.deleteSession(sessionId)
+      await deleteWorkspaceOwner(String(sessionId))
+    },
   })
 }

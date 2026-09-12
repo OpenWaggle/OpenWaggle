@@ -53,6 +53,13 @@ describe('Local Session snapshot boundary', () => {
       branch: 'ow/session-running',
       baseRef: 'main',
       errorMessage: 'Task startup failed.',
+      setupAction: {
+        terminalId: 'setup-terminal',
+        actionId: 'setup-action',
+        actionName: 'Install',
+        projectRoot: '/project',
+        cwd: '/project/.worktrees/session-running',
+      },
     } satisfies Required<WorktreeLaunchSnapshot>
     let releaseAuthorization: (() => void) | undefined
     const authorizationGate = new Promise<void>((resolve) => {

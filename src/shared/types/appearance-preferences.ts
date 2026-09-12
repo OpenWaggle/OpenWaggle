@@ -15,6 +15,40 @@ export const TERMINAL_FONT_SIZE_MIN = 10
 export const TERMINAL_FONT_SIZE_MAX = 24
 export const FONT_FAMILY_MAX_LENGTH = 240
 
+export const TERMINAL_PALETTE_ROLES = [
+  'background',
+  'foreground',
+  'cursor',
+  'selection',
+  'scrollbar',
+] as const
+export type TerminalPaletteRole = (typeof TERMINAL_PALETTE_ROLES)[number]
+
+const TERMINAL_PALETTE_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/iu
+const SHORT_TERMINAL_PALETTE_COLOR_LENGTH = 5
+
+/** User-authored terminal colours. Null keeps the active theme in control of that role. */
+export interface AppearanceTerminalPalettePreferences {
+  readonly background: string | null
+  readonly foreground: string | null
+  readonly cursor: string | null
+  readonly selection: string | null
+  readonly scrollbar: string | null
+}
+
+/** Accepts CSS hex colours and canonicalizes short/upper-case forms for persistence. */
+export function normalizeTerminalPaletteColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  if (!TERMINAL_PALETTE_COLOR_PATTERN.test(normalized)) return null
+  if (normalized.length > SHORT_TERMINAL_PALETTE_COLOR_LENGTH) return normalized
+  return `#${Array.from(normalized.slice(1), (digit) => `${digit}${digit}`).join('')}`
+}
+
+export function isTerminalPaletteColor(value: unknown): value is string {
+  return normalizeTerminalPaletteColor(value) !== null
+}
+
 export const DEFAULT_INTERFACE_FONT_FAMILY =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif'
 export const DEFAULT_DOCUMENT_FONT_FAMILY = DEFAULT_INTERFACE_FONT_FAMILY
@@ -39,6 +73,7 @@ export interface AppearanceTypographyPreferences {
 
 export interface AppearancePreferences {
   readonly typography: AppearanceTypographyPreferences
+  readonly terminalPalette: AppearanceTerminalPalettePreferences
   readonly motion: AppearanceMotionPreference
 }
 
@@ -57,7 +92,16 @@ export const DEFAULT_APPEARANCE_TYPOGRAPHY: AppearanceTypographyPreferences = {
   codeLigatures: false,
 }
 
+export const DEFAULT_APPEARANCE_TERMINAL_PALETTE: AppearanceTerminalPalettePreferences = {
+  background: null,
+  foreground: null,
+  cursor: null,
+  selection: null,
+  scrollbar: null,
+}
+
 export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   typography: DEFAULT_APPEARANCE_TYPOGRAPHY,
+  terminalPalette: DEFAULT_APPEARANCE_TERMINAL_PALETTE,
   motion: 'system',
 }

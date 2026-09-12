@@ -1,5 +1,6 @@
 import type {
   AppearanceMotionPreference,
+  AppearanceTerminalPalettePreferences,
   AppearanceTypographyPreferences,
 } from '@shared/types/appearance-preferences'
 import type { Settings } from '@shared/types/settings'
@@ -63,4 +64,17 @@ export function persistAppearanceMotion(
   get: PreferencesGet,
 ) {
   return persistOptimisticAppearance({ ...get().settings.appearancePreferences, motion }, set, get)
+}
+
+export function persistAppearanceTerminalPalette(
+  palettePatch: Partial<AppearanceTerminalPalettePreferences>,
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
+  const current = get().settings.appearancePreferences
+  return persistOptimisticAppearance(
+    { ...current, terminalPalette: { ...current.terminalPalette, ...palettePatch } },
+    set,
+    get,
+  )
 }

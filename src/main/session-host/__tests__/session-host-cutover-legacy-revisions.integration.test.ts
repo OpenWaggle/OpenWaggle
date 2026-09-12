@@ -9,6 +9,7 @@ import type { SessionEmbeddingModel } from '../../adapters/multilingual-e5-sessi
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { APP_MIGRATIONS } from '../../services/database-migrations'
 import { runAppDatabaseMigrations } from '../../services/database-service'
+import { SESSION_HOST_BASELINE_MIGRATION_ID } from '../../services/session-host-schema-identity'
 import { runSessionHostCutover } from '../session-host-cutover'
 
 const fakeEmbeddingModel: SessionEmbeddingModel = {
@@ -185,8 +186,17 @@ describe('Session Host cutover from older legacy revisions', () => {
     const target = new DatabaseSync(targetDatabasePath, { readOnly: true })
     try {
       expect(
-        target.prepare('SELECT id FROM _migrations WHERE id IN (19, 22, 25, 26) ORDER BY id').all(),
-      ).toEqual([{ id: 19 }, { id: 22 }, { id: 25 }, { id: 26 }])
+        target
+          .prepare('SELECT id FROM _migrations WHERE id IN (19, 22, 25, 26, 27, ?) ORDER BY id')
+          .all(SESSION_HOST_BASELINE_MIGRATION_ID),
+      ).toEqual([
+        { id: 19 },
+        { id: 22 },
+        { id: 25 },
+        { id: 26 },
+        { id: 27 },
+        { id: SESSION_HOST_BASELINE_MIGRATION_ID },
+      ])
     } finally {
       target.close()
     }

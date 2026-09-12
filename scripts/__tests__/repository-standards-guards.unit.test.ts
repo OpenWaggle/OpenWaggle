@@ -44,6 +44,14 @@ describe('session branch prefix detection', () => {
 })
 
 describe('non-disruptive Electron automation boundary', () => {
+  it('keeps native context-menu presentation inside the desktop UI policy', () => {
+    expect(
+      collectUnguardedDesktopUiViolations('src/main/preview.ts', 'menu.popup({ window })'),
+    ).toHaveLength(1)
+    expect(
+      collectUnguardedDesktopUiViolations('src/main/desktop-ui.ts', 'menu.popup({ window })'),
+    ).toEqual([])
+  })
   it('rejects native dialogs, external applications, and window activation in main code', () => {
     const source = [
       'dialog.showMessageBox({ message: "Continue?" })',

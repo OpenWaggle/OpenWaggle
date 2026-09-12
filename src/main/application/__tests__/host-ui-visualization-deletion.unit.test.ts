@@ -18,6 +18,7 @@ import { installSessionHostEventPublisher } from '../../session-host/session-hos
 import { hasAnyActiveRun, reserveActiveSessionRun } from '../active-session-runs'
 import { dispatchHostBackedSessionGuiOperation } from '../host-ui-session-operation-dispatcher'
 import { prepareInlineVisualizationSourceOwner } from '../inline-visualization-source-owner'
+import { NoopSessionDesktopLayer } from './desktop-service-test-layer'
 import { settingsLayer } from './local-session-command-dispatcher.test-support'
 
 let temporaryRoot = ''
@@ -36,6 +37,7 @@ async function prepareDeletion(
   await fs.writeFile(sourcePath, '<main>Session data</main>')
   let ownerExists = true
   const layer = Layer.mergeAll(
+    NoopSessionDesktopLayer,
     settingsLayer,
     Layer.succeed(InlineVisualizationService, visualizations),
     Layer.succeed(
@@ -113,13 +115,17 @@ it('restores staged visualization files when Host persistence rejects deletion',
   expect(hasAnyActiveRun(fixture.sessionId)).toBe(false)
 })
 
-it('does not stage files when an active Pi writer prevents deletion', async () => {
+it('waits for an interrupted Pi writer before staging files for deletion', async () => {
   const fixture = await prepareDeletion()
   const run = reserveActiveSessionRun(fixture.sessionId, 'active-run')
   try {
-    await expect(Effect.runPromise(fixture.deleteFromHost)).rejects.toThrow('Stop the active Run')
+    const deleting = Effect.runPromise(fixture.deleteFromHost)
+    await vi.waitFor(() => expect(run.controller.signal.aborted).toBe(true))
     expect(await fs.readFile(fixture.sourcePath, 'utf8')).toBe('<main>Session data</main>')
     expect(await fs.readdir(path.dirname(fixture.directory))).toEqual([String(fixture.sessionId)])
+    run.release()
+    await deleting
+    await expect(fs.stat(fixture.directory)).rejects.toMatchObject({ code: 'ENOENT' })
   } finally {
     run.release()
   }

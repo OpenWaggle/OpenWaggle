@@ -1,12 +1,7 @@
 import * as DatabaseSchema from './database-schema'
-import { SESSION_HOST_DISCOVERY_TERM_MIGRATION } from './session-host-discovery-term-migration'
-import { SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION } from './session-host-export-selected-path-migration'
-import {
-  SESSION_HOST_DATABASE_MIGRATION,
-  SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION,
-} from './session-host-migration'
-import { SESSION_HOST_NODE_DELETE_MIGRATION } from './session-host-node-delete-migration'
-import { SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION } from './session-host-transcript-term-migration'
+import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
+import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
+import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
 
 export interface AppMigration {
   readonly id: number
@@ -293,10 +288,7 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     skipIfColumns: { table: 'sessions', columns: ['authorization_mode_override'] },
     statements: [...DatabaseSchema.SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
-  SESSION_HOST_DATABASE_MIGRATION,
-  SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION,
-  SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION,
-  SESSION_HOST_EXPORT_SELECTED_PATH_MIGRATION,
-  SESSION_HOST_NODE_DELETE_MIGRATION,
-  SESSION_HOST_DISCOVERY_TERM_MIGRATION,
+  SESSION_WORKTREE_SETUP_MIGRATION,
+  SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION,
+  ...SESSION_HOST_APP_MIGRATIONS,
 ]

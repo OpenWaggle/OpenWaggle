@@ -1,10 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { useUIStore } from '../ui-store'
 import {
   getWorkspaceLifecycleMocks,
+  getWorkspaceTerminalState,
   loadUseWorkspaceLifecycle,
   resetWorkspaceLifecycleMocks,
   runWorkspaceHotkey,
@@ -61,7 +62,7 @@ describe('useWorkspaceLifecycle', () => {
     act(() => runWorkspaceHotkey('Mod+N'))
     expect(useUIStore.getState().commandSurface).toBeNull()
 
-    expect(useUIStore.getState().terminalOpen).toBe(true)
+    expect(getWorkspaceTerminalState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().sidebarOpen).toBe(false)
     expect(lifecycleMocks.startDraftSession).toHaveBeenCalledWith('/repo')
     expect(lifecycleMocks.navigate).toHaveBeenCalledWith({ to: '/' })
@@ -217,5 +218,67 @@ describe('useWorkspaceLifecycle', () => {
     await waitFor(() =>
       expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-2'),
     )
+  })
+
+  it('does not route application shortcuts while terminal input owns focus', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    const pane = document.createElement('div')
+    pane.dataset.terminalPane = 'term-1'
+    const textarea = document.createElement('textarea')
+    pane.append(textarea)
+
+    act(() => runWorkspaceHotkey('Mod+N', textarea))
+    act(() => runWorkspaceHotkey('Mod+D', textarea))
+
+    expect(lifecycleMocks.startDraftSession).not.toHaveBeenCalled()
+    expect(lifecycleMocks.toggleDiff).not.toHaveBeenCalled()
+  })
+
+  it('captures global chords before xterm and suppresses the paired key release', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    const pane = document.createElement('div')
+    pane.dataset.terminalPane = 'term-1'
+    const textarea = document.createElement('textarea')
+    pane.append(textarea)
+    document.body.append(pane)
+    const terminalKeyDown = vi.fn()
+    const terminalKeyUp = vi.fn()
+    textarea.addEventListener('keydown', terminalKeyDown)
+    textarea.addEventListener('keyup', terminalKeyUp)
+
+    const press = new KeyboardEvent('keydown', {
+      key: 'b',
+      code: 'KeyB',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => textarea.dispatchEvent(press))
+
+    expect(useUIStore.getState().sidebarOpen).toBe(false)
+    expect(press.defaultPrevented).toBe(true)
+    expect(terminalKeyDown).not.toHaveBeenCalled()
+
+    // The physical shortcut key may be released after its modifier.
+    const release = new KeyboardEvent('keyup', {
+      key: 'b',
+      code: 'KeyB',
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => textarea.dispatchEvent(release))
+    expect(release.defaultPrevented).toBe(true)
+    expect(terminalKeyUp).not.toHaveBeenCalled()
+
+    const laterRelease = new KeyboardEvent('keyup', {
+      key: 'b',
+      code: 'KeyB',
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => textarea.dispatchEvent(laterRelease))
+    expect(laterRelease.defaultPrevented).toBe(false)
+    expect(terminalKeyUp).toHaveBeenCalledOnce()
+    pane.remove()
   })
 })

@@ -6,6 +6,7 @@ import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 import { ArchivedSection } from '../sections/ArchivedSection'
 
 const {
+  closeBrowserPreviewMock,
   deleteSessionMock,
   listArchivedSessionBranchesMock,
   loadMoreArchivedSessionsMock,
@@ -13,7 +14,9 @@ const {
   restoreSessionBranchMock,
   showConfirmMock,
   unarchiveSessionMock,
+  unregisterBrowserPreviewOwnerMock,
 } = vi.hoisted(() => ({
+  closeBrowserPreviewMock: vi.fn(),
   deleteSessionMock: vi.fn(),
   listArchivedSessionBranchesMock: vi.fn(),
   loadMoreArchivedSessionsMock: vi.fn(),
@@ -21,15 +24,18 @@ const {
   restoreSessionBranchMock: vi.fn(),
   showConfirmMock: vi.fn(),
   unarchiveSessionMock: vi.fn(),
+  unregisterBrowserPreviewOwnerMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    closeBrowserPreview: closeBrowserPreviewMock,
     listArchivedSessionBranches: listArchivedSessionBranchesMock,
     unarchiveSession: unarchiveSessionMock,
     restoreSessionBranch: restoreSessionBranchMock,
     deleteSession: deleteSessionMock,
     showConfirm: showConfirmMock,
+    unregisterBrowserPreviewOwner: unregisterBrowserPreviewOwnerMock,
   },
 }))
 
@@ -111,6 +117,7 @@ function createDeferredPromise<T>() {
 
 describe('ArchivedSection', () => {
   beforeEach(() => {
+    closeBrowserPreviewMock.mockReset()
     deleteSessionMock.mockReset()
     listArchivedSessionBranchesMock.mockReset()
     loadMoreArchivedSessionsMock.mockReset()
@@ -123,7 +130,10 @@ describe('ArchivedSection', () => {
     sessionStoreState.archivedSessionsLoadingMore = false
     listArchivedSessionBranchesMock.mockResolvedValue({ sessions: [] })
     loadMoreArchivedSessionsMock.mockResolvedValue(undefined)
+    unregisterBrowserPreviewOwnerMock.mockReset()
+    closeBrowserPreviewMock.mockResolvedValue(undefined)
     loadSessionsMock.mockResolvedValue(undefined)
+    unregisterBrowserPreviewOwnerMock.mockResolvedValue(undefined)
   })
 
   it('shows a loading state while archived sessions are being fetched', () => {
@@ -251,6 +261,7 @@ describe('ArchivedSection', () => {
       expect(showConfirmMock).toHaveBeenCalled()
       expect(deleteSessionMock).toHaveBeenCalledWith(session.id)
       expect(loadSessionsMock).toHaveBeenCalledOnce()
+      expect(unregisterBrowserPreviewOwnerMock).toHaveBeenCalledWith(String(session.id))
     })
   })
 

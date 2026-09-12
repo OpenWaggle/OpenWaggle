@@ -1,6 +1,6 @@
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
 import { LOCAL_SESSION_REVISION_9_CAPABILITIES } from '@shared/types/local-session-protocol'
-import { fromPartial } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeLocalSessionCommand } from '../local-session-client'
 import {
@@ -27,13 +27,13 @@ describe('Local Session grant client fail-closed boundary', () => {
         fromPartial({
           socket: { destroy },
           reader: { next },
-          negotiation: {
+          negotiation: fromAny({
             accepted: true,
             protocol: 'openwaggle-local-session',
             revision: 9,
             hostInstanceId: 'old-host',
             capabilities: LOCAL_SESSION_REVISION_9_CAPABILITIES,
-          },
+          }),
         }),
       )
       const payload: LocalSessionCommandPayload = {

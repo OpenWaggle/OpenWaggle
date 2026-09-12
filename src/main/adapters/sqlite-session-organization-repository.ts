@@ -11,10 +11,7 @@ import {
   type SessionOrganizationRepositoryShape,
 } from '../ports/session-organization-repository'
 import { organizationOutcome, persistOrganizationMutation } from './session-organization-outcome'
-import {
-  newWorkspacePlan,
-  type ResolveHandoffWorkspaceInput,
-} from './session-organization-workspace-plan'
+import { prepareSessionArchive } from './sqlite-session-archive-preflight'
 import {
   assertBoundSessionAuthoritySnapshot,
   refreshHandoffAuthority,
@@ -25,6 +22,10 @@ import {
   completeExistingHandoff,
 } from './sqlite-session-existing-workspace-handoff-finalization'
 import { completeHandoffCleanup } from './sqlite-session-handoff-cleanup'
+import {
+  type OrganizationWorkspaceRow,
+  resolveHandoffWorkspace,
+} from './sqlite-session-organization-workspace'
 
 interface OperationRow {
   readonly request_json: string
@@ -37,26 +38,6 @@ interface OrganizationSessionRow {
   readonly workspace_id: string | null
   readonly workspace_state: OrganizationWorkspaceRow['lifecycle_state'] | null
   readonly active_run_id: string | null
-}
-
-interface OrganizationWorkspaceRow {
-  readonly id: string
-  readonly project_path: string
-  readonly kind: 'local' | 'managed-worktree'
-  readonly working_path: string
-  readonly lifecycle_state:
-    | 'pending'
-    | 'ready'
-    | 'materializing'
-    | 'missing'
-    | 'releasing'
-    | 'failed'
-  readonly worktree_branch: string | null
-  readonly worktree_base_ref: string | null
-  readonly handoff_seed_ref: string | null
-  readonly handoff_seed_base_ref: string | null
-  readonly handoff_seed_state: 'none' | 'pending' | 'applied' | 'failed'
-  readonly worktree_start_from_origin: number
 }
 
 function repositoryError(operation: string, cause: unknown) {
@@ -80,62 +61,6 @@ function loadOrganizationSession(sql: SqlClient.SqlClient, sessionId: string) {
     WHERE sessions.id = ${sessionId}
     LIMIT 1
   `
-}
-
-function loadWorkspace(sql: SqlClient.SqlClient, workspaceId: string) {
-  return sql<OrganizationWorkspaceRow>`
-    SELECT
-      id, project_path, kind, working_path, lifecycle_state,
-      worktree_branch, worktree_base_ref, handoff_seed_ref,
-      handoff_seed_base_ref, handoff_seed_state, worktree_start_from_origin
-    FROM workspace_resources WHERE id = ${workspaceId} LIMIT 1
-  `
-}
-
-function resolveHandoffWorkspace(sql: SqlClient.SqlClient, input: ResolveHandoffWorkspaceInput) {
-  return Effect.gen(function* () {
-    if (input.workspace.mode === 'existing') {
-      const rows = yield* loadWorkspace(sql, input.workspace.workspaceId)
-      return rows[0] ?? null
-    }
-    const plan = newWorkspacePlan(input)
-    const existing = yield* sql<OrganizationWorkspaceRow>`
-      SELECT
-        id, project_path, kind, working_path, lifecycle_state,
-        worktree_branch, worktree_base_ref, handoff_seed_ref,
-        handoff_seed_base_ref, handoff_seed_state, worktree_start_from_origin
-      FROM workspace_resources
-      WHERE project_path = ${input.projectPath} AND working_path = ${plan.workingPath}
-      LIMIT 1
-    `
-    if (existing[0]) return existing[0]
-    yield* sql`
-      INSERT INTO workspace_resources (
-        id, project_path, kind, working_path, lifecycle_state,
-        worktree_branch, worktree_base_ref, handoff_seed_ref, handoff_seed_base_ref,
-        handoff_seed_state, worktree_start_from_origin,
-        created_at, updated_at
-      ) VALUES (
-        ${plan.id}, ${input.projectPath}, ${plan.kind}, ${plan.workingPath},
-        ${plan.lifecycleState}, ${plan.worktreeBranch}, ${plan.worktreeBaseRef},
-        ${plan.seedRef}, ${plan.seedBaseRef}, ${plan.seedState}, ${plan.startFromOrigin},
-        ${input.now}, ${input.now}
-      )
-    `
-    return {
-      id: plan.id,
-      project_path: input.projectPath,
-      kind: plan.kind,
-      working_path: plan.workingPath,
-      lifecycle_state: plan.lifecycleState,
-      worktree_branch: plan.worktreeBranch,
-      worktree_base_ref: plan.worktreeBaseRef,
-      handoff_seed_ref: plan.seedRef,
-      handoff_seed_base_ref: plan.seedBaseRef,
-      handoff_seed_state: plan.seedState,
-      worktree_start_from_origin: plan.startFromOrigin,
-    } satisfies OrganizationWorkspaceRow
-  })
 }
 
 function applyHandoff(
@@ -298,6 +223,8 @@ export const SqliteSessionOrganizationRepositoryLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionOrganizationRepository.of({
+      prepareArchive: (input) =>
+        prepareSessionArchive(sql, input, () => executeOrganization(sql, input)),
       execute: (input) => executeOrganization(sql, input),
       admitExistingHandoff: (input) => admitExistingHandoff(sql, input),
       completeExistingHandoff: (input) => completeExistingHandoff(sql, input),

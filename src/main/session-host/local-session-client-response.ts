@@ -1,5 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { decodeDesktopServiceResponse } from '@shared/schemas/desktop-service'
 import { decodeHostUiV1Result } from '@shared/schemas/host-ui-protocol'
 import { decodeLocalSessionProfileManagementResponse } from '@shared/schemas/local-session-profile-management'
 import { decodeSessionControlMutationResponse } from '@shared/schemas/session-control'
@@ -131,6 +132,10 @@ function isLocalCompactionCancellationResponse(
 
 function decodeCommandPayload(payload: Record<string, unknown>): LocalSessionCommandResult {
   return match(payload.contract)
+    .with('desktop-service-v1', () => ({
+      contract: 'desktop-service-v1' as const,
+      response: decodeDesktopServiceResponse(payload.response),
+    }))
     .with('local-attachments-v1', () => {
       const response = decodeUnknownExactOrThrow(localAttachmentsResponseSchema, payload.response)
       return { contract: 'local-attachments-v1' as const, response }

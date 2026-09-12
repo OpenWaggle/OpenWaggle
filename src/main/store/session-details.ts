@@ -41,6 +41,21 @@ export {
   validateSessionWorktreeBirthAuthority,
 } from './session-details/session-worktree-authority'
 export type {
+  ClaimedSessionWorktreeSetup,
+  PendingSessionWorktreeSetup,
+  SessionWorktreeSetupDispatch,
+} from './session-details/session-worktree-setup'
+export {
+  adoptSessionWorktreeForSetup,
+  claimSessionWorktreeSetup,
+  completeSessionWorktreeSetup,
+  getPendingSessionWorktreeSetup,
+  getSessionWorktreeSetupDispatch,
+  releaseSessionWorktreeSetupClaim,
+  resetRecordedSessionWorktreeSetup,
+  resetSessionWorktreeSetup,
+} from './session-details/session-worktree-setup'
+export type {
   CreateSessionInput,
   SessionNodeRow,
   UpdateSessionRuntimeInput,

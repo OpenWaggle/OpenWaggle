@@ -101,4 +101,31 @@ describe('Session Host completion seal', () => {
       'completion metadata is missing or incompatible',
     )
   })
+
+  it('accepts an exact pre-release Hive seal read-only before owner-side ledger repair', () => {
+    const target = completionDatabase()
+    database = target
+    target
+      .prepare('UPDATE _migrations SET id = 26 WHERE id = ?')
+      .run(SESSION_HOST_BASELINE_MIGRATION_ID)
+    target
+      .prepare('INSERT INTO _migrations VALUES (31, ?, ?)')
+      .run('session-host-native-discovery-signatures', 'alpha-time')
+    const before = target.prepare('SELECT * FROM _migrations ORDER BY id').all()
+    target.exec('PRAGMA query_only = ON')
+    expect(() => validateSessionHostCompletionSeal(target)).not.toThrow()
+    expect(target.prepare('SELECT * FROM _migrations ORDER BY id').all()).toEqual(before)
+  })
+
+  it('rejects a mixed alpha/released ledger without altering the completion seal', () => {
+    const target = completionDatabase()
+    database = target
+    target
+      .prepare('UPDATE _migrations SET id = 26 WHERE id = ?')
+      .run(SESSION_HOST_BASELINE_MIGRATION_ID)
+    target.exec("INSERT INTO _migrations VALUES (27, 'session-worktree-setup-receipt', 'released')")
+    expect(() => validateSessionHostCompletionSeal(target)).toThrow(
+      'completion metadata is missing or incompatible',
+    )
+  })
 })

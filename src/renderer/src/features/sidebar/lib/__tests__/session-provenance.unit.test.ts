@@ -121,11 +121,15 @@ describe('buildSessionProvenance', () => {
   it('reports running terminals, with the singular for one', () => {
     expect(
       buildSessionProvenance({ session: session(), gitBranch: null, terminalCount: 1 })[0],
-    ).toEqual({ kind: 'terminal', description: '1 terminal process running' })
+    ).toEqual({ kind: 'terminal', count: 1, description: '1 terminal running a subprocess' })
 
     expect(
       buildSessionProvenance({ session: session(), gitBranch: null, terminalCount: 3 })[0],
-    ).toEqual({ kind: 'terminal', description: '3 terminal processes running' })
+    ).toEqual({
+      kind: 'terminal',
+      count: 3,
+      description: '3 terminals running subprocesses',
+    })
   })
 
   it('identifies the persisted source of a fork without confusing it with Hive lineage', () => {

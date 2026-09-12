@@ -3,6 +3,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import { FollowUpId, ReportCorrelationId, ReportId, RunId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { NoopSessionDesktopLayer } from '../../application/__tests__/desktop-service-test-layer'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import {
   SessionWorkspaceHandoffService,
@@ -92,6 +93,7 @@ export function makeSessionControlTestLayer(
     },
   )
   return Layer.mergeAll(
+    NoopSessionDesktopLayer,
     sqliteLayer,
     schemaLayer,
     repositoryLayer,

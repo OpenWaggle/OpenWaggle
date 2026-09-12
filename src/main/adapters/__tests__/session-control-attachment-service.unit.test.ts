@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-attachment-schema'
+import { SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION } from '../../services/session-host-browser-attachment-migration'
 import { sessionControlAttachmentServiceLayer } from '../session-control-attachment-service'
 
 const roots: string[] = []
@@ -36,7 +37,10 @@ function testLayer(
       yield* sql.unsafe(
         'CREATE TABLE session_follow_ups (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, intent_json TEXT NOT NULL)',
       )
-      for (const statement of SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS) {
+      for (const statement of [
+        ...SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS,
+        ...SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION.statements,
+      ]) {
         yield* sql.unsafe(statement)
       }
       yield* sql`INSERT INTO sessions (id) VALUES (${'session-a'}), (${'session-b'})`

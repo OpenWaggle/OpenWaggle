@@ -32,6 +32,26 @@ describe('Playwright Electron launch mode', () => {
     })
   })
 
+  it('allows shell fixtures without yielding automation or storage authority', () => {
+    expect(
+      buildPlaywrightElectronEnvironment({
+        userDataDir: '/tmp/hidden',
+        hidden: true,
+        environment: {
+          OPENWAGGLE_AUTOMATION: '0',
+          OPENWAGGLE_USER_DATA_DIR: '/tmp/wrong',
+          SHELL: '/bin/test-shell',
+          ZDOTDIR: '/tmp/test-zdotdir',
+        },
+      }),
+    ).toMatchObject({
+      OPENWAGGLE_AUTOMATION: '1',
+      OPENWAGGLE_USER_DATA_DIR: '/tmp/hidden',
+      SHELL: '/bin/test-shell',
+      ZDOTDIR: '/tmp/test-zdotdir',
+    })
+  })
+
   it('does not forward unrelated parent secrets', () => {
     process.env.OPENWAGGLE_QA_TEST_SECRET = 'must-not-leak'
     try {

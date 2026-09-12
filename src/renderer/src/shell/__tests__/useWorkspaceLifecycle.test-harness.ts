@@ -1,10 +1,11 @@
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
+import type { ShortcutBinding } from '@shared/types/shortcuts'
 import { type Mock, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
+import { useTerminalStore } from '@/features/terminal'
 import { useUIStore } from '../ui-store'
 
 type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
@@ -126,6 +127,12 @@ vi.mock('@/features/chat/hooks', () => ({
   }),
   useChat: () => ({
     activeSessionId: lifecycleMocks.activeSessionId,
+    activeSession: {
+      id: SessionId(lifecycleMocks.activeSessionId),
+      projectPath: lifecycleMocks.projectPath,
+      environmentMode: 'worktree',
+      worktreePath: lifecycleMocks.workingPath,
+    },
     startDraftSession: lifecycleMocks.startDraftSession,
     loadSessions: lifecycleMocks.loadChatSessions,
     refreshSession: lifecycleMocks.refreshSession,
@@ -161,24 +168,44 @@ vi.mock('@/features/sessions/hooks', () => ({
   useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
 }))
 
+vi.mock('@/features/project-actions', () => ({
+  useProjectActions: () => ({ data: [] }),
+  useRunProjectAction: () => vi.fn(),
+}))
+
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
     onSessionHostEvent: lifecycleMocks.onSessionHostEvent,
     onSessionHostResyncRequired: lifecycleMocks.onSessionHostResyncRequired,
+    setBrowserPreviewShortcutBindings: vi.fn().mockResolvedValue(undefined),
+    onBrowserPreviewKeyEvent: vi.fn(() => vi.fn()),
   },
 }))
 
-export function runWorkspaceHotkey(hotkey: string) {
-  const binding = lifecycleMocks.hotkeys.find(
-    (candidate) => shortcutBindingKey(candidate.hotkey) === hotkey,
+export function getWorkspaceTerminalState() {
+  return useTerminalStore.getState()
+}
+
+export function runWorkspaceHotkey(hotkey: string, target?: Element) {
+  const parts = hotkey.split('+')
+  const key = parts.at(-1) ?? ''
+  ;(target ?? window).dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: key.toLowerCase(),
+      code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+      ctrlKey: parts.includes('Mod'),
+      altKey: parts.includes('Alt'),
+      shiftKey: parts.includes('Shift'),
+      cancelable: true,
+      bubbles: true,
+    }),
   )
-  if (!binding) throw new Error(`Expected hotkey ${hotkey}`)
-  binding.callback()
 }
 
 export function resetWorkspaceLifecycleMocks() {
   useUIStore.setState({ sidebarOpen: true, terminalOpen: false, slashCommandMenuOpen: false })
+  useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
   usePreferencesStore.setState({
     settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' },
     isLoaded: true,
@@ -220,3 +247,5 @@ export function resetWorkspaceLifecycleMocks() {
 export function loadUseWorkspaceLifecycle() {
   return import('../useWorkspaceLifecycle')
 }
+
+import { SessionId } from '@shared/types/brand'

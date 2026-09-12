@@ -8,6 +8,7 @@ import {
 import { SessionAuthorizationTargetRepository } from '../ports/session-authorization-target-repository'
 import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
 import { SettingsService } from '../services/settings-service'
+import { dispatchDesktopServiceRequest } from './desktop-service-request-dispatcher'
 import { dispatchConfiguredGuiSessionCommand } from './gui-session-command-router'
 import { dispatchHostUiRequest } from './host-ui-request-dispatcher'
 import { acquirePreparedLocalSessionMutation } from './local-session-admitted-mutation'
@@ -89,7 +90,7 @@ export function lifecycleCallerCapabilities(
 
 type NonHostUiLocalSessionCommandPayload = Exclude<
   LocalSessionCommandPayload,
-  { readonly contract: 'host-ui-v1' }
+  { readonly contract: 'host-ui-v1' | 'desktop-service-v1' }
 >
 
 interface NonHostUiLocalSessionCommandInput {
@@ -260,6 +261,15 @@ export function dispatchLocalSessionCommand(input: {
 }) {
   const remote = dispatchConfiguredGuiSessionCommand(input)
   if (remote) return remote
+  if (input.payload.contract === 'desktop-service-v1') {
+    return dispatchDesktopServiceRequest({
+      caller: input.caller,
+      request: input.payload.request,
+      ...(input.negotiatedRevision !== undefined
+        ? { negotiatedRevision: input.negotiatedRevision }
+        : {}),
+    })
+  }
   if (input.payload.contract === 'host-ui-v1') {
     return dispatchHostUiRequest({
       caller: input.caller,

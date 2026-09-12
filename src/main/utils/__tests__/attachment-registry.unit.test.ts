@@ -9,6 +9,7 @@ import {
   configurePreparedAttachmentRegistry,
   rememberPreparedAttachment,
   resetPreparedAttachmentRegistryForTests,
+  resolvePreparedAttachmentCapability,
 } from '../attachment-registry'
 
 const temporaryDirectories: string[] = []
@@ -39,6 +40,39 @@ afterEach(async () => {
 })
 
 describe('prepared attachment registry', () => {
+  it('retains browser provenance on restart and rejects changed optional source metadata', async () => {
+    const { userDataPath, filePath, attachment } = await makeFixture()
+    const browserAttachment = {
+      ...attachment,
+      origin: 'browser-preview',
+      browserPreview: {
+        pageUrl: 'http://localhost:3000',
+        pageTitle: 'Preview',
+        selector: '#save',
+        tagName: 'button',
+        role: 'button',
+        elementText: 'Save',
+        comment: 'Check this',
+        sourceFile: 'src/button.tsx',
+        sourceLine: 12,
+        elementCount: 1,
+      },
+    } satisfies PreparedAttachment
+    configurePreparedAttachmentRegistry(userDataPath)
+    await rememberPreparedAttachment(browserAttachment, filePath)
+    resetPreparedAttachmentRegistryForTests()
+    configurePreparedAttachmentRegistry(userDataPath)
+    await expect(resolvePreparedAttachmentCapability(browserAttachment)).resolves.toMatchObject({
+      browserPreview: browserAttachment.browserPreview,
+    })
+    await expect(
+      resolvePreparedAttachmentCapability({
+        ...browserAttachment,
+        browserPreview: { ...browserAttachment.browserPreview, sourceLine: 99 },
+      }),
+    ).rejects.toThrow('metadata does not match')
+  })
+
   it('rehydrates a compact capability after a full main-process restart', async () => {
     const { userDataPath, filePath, attachment } = await makeFixture()
     configurePreparedAttachmentRegistry(userDataPath)

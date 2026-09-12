@@ -6,6 +6,7 @@ import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { isEnoent } from '@shared/utils/node-error'
 import { toPublicPreparedAttachment } from './attachment-preparation'
+import { browserAttachmentMetadataJson } from './browser-attachment-metadata'
 
 interface PreparedAttachmentCapability {
   readonly attachment: PreparedAttachment
@@ -44,6 +45,13 @@ function compactAttachment(attachment: PreparedAttachment): PreparedAttachment {
 
 function sameOptionalValue(left: string | undefined, right: string | undefined) {
   return (left ?? null) === (right ?? null)
+}
+
+function sameBrowserPreviewMetadata(
+  left: PreparedAttachment['browserPreview'],
+  right: PreparedAttachment['browserPreview'],
+) {
+  return browserAttachmentMetadataJson(left) === browserAttachmentMetadataJson(right)
 }
 
 async function loadRegistry(filePath: string) {
@@ -161,7 +169,8 @@ export async function resolvePreparedAttachmentCapability(
     prepared.name !== attachment.name ||
     prepared.mimeType !== attachment.mimeType ||
     prepared.sizeBytes !== attachment.sizeBytes ||
-    !sameOptionalValue(prepared.origin, attachment.origin)
+    !sameOptionalValue(prepared.origin, attachment.origin) ||
+    !sameBrowserPreviewMetadata(prepared.browserPreview, attachment.browserPreview)
   ) {
     throw new Error(`Attachment metadata does not match prepared file: ${attachment.name}`)
   }

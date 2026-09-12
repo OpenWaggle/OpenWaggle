@@ -3,11 +3,11 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   dispatchLocalSessionCommandMock,
-  getInvokeHandler,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
   setAuthorizationModeMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('Session detail authorization handlers', () => {
   let registerSessionDetailsHandlers: Awaited<

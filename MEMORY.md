@@ -76,6 +76,7 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 - Native addons have separate Node and Electron ABI targets. Rebuild with the repo scripts before blaming app code.
+- xterm 6.0 stable lacks Kitty keyboard-protocol negotiation. The terminal pins the supply-chain-aged `@xterm/xterm@6.1.0-beta.303` exactly and enables `vtExtensions.kittyKeyboard`; a real-DOM test covers legacy-before-negotiation plus CSI-u press/release after `CSI > 3 u`. xterm calls custom key handlers on keydown and keyup in this line, so every app-owned/clipboard keydown must retain `event.code` and swallow its paired release or report-event-types clients receive an orphan keyup. Move back to stable only after those protocol tests and real-Electron performance/IME QA pass.
 - Packaged apps may not inherit a shell PATH. Pi package/resource loading and Pi-run child processes that shell out to tools need an adapter-controlled npm-compatible PATH, including common user tool dirs such as `~/Library/pnpm` on macOS.
 - `electron-builder` with pnpm can omit transitive runtime modules unless explicit dependencies are present; `ms` is intentionally explicit for `electron-updater`.
 - macOS `electron-updater` requires ZIP artifacts in GitHub release metadata; DMG-only mac releases can advertise an update but fail with "ZIP file not provided".
@@ -166,6 +167,39 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 - Workspace file UI is route-backed, but all indexing, root confinement, preview reads, optimistic-revision writes, and external-open resolution stay behind `WorkspaceFileService` in the main process.
 - **React Compiler runs in the app build (`electron.vite.config.ts` -> `reactCompilerPreset()`) and, since this work, in the component test config too — but not in the node unit config, which renders nothing.** Any component that reads render data from a library-owned *mutable* instance can pass a suite that does not run the compiler and still render permanently stale in the real app: the compiler memoizes on referential identity, and the instance is mutated in place so its identity never changes. Hit for real with `@headless-tree` in the Changed-file navigator — `tree.getItems()` returned 262 items while zero rows reached the DOM. Fix is the scoped `'use no memo'` directive on the component that maps the mutable instance (an official compiler escape hatch, not a lint-ignore comment). See "The React Compiler now runs in component tests" below for the mechanism that now catches this class; for anything outside component tests, still treat a green suite as no evidence and verify in real Electron over CDP.
 - Corollary: prefer libraries whose render input is a plain value over ones exposing a mutable instance, precisely because our tests cannot see the difference.
+
+### Session-bound terminals (ADR 0030, September 2026)
+
+Hidden automation windows disable background throttling while preserving their secure web preferences and `show: false`. Otherwise Linux Chromium schedules animation frames at roughly 1 Hz, making a two-frame terminal geometry check take three seconds. Normal app windows retain their requested throttling policy; performance budgets remain unchanged.
+
+Responsive sidebar layout must retain the main subtree across docked/sheet breakpoints. Replacing the docked wrapper with a fragment remounts ChatPanel and Lexical; the new editor's autofocus steals terminal input during native window resizing. Keep the docked main container mounted and switch only the sidebar presentation. The regression checks DOM identity/focus/selection plus 18 native key events during delayed zsh startup and repeated breakpoint crossings. Clearing DOM selection does not fix a remount.
+
+node-pty 1.1.0 leaves its master-side tty.ReadStream paused in Electron. The runner now pauses deliberately before listeners attach; the service resumes only after attachment, preserving the first prompt without an output race. Integration probes must resume after installing listeners too. xterm's WebGL path failed real-Electron visible-ink checks despite correct canvas geometry, so the DOM renderer remains the release path. Do not restore another renderer without the same in-app evidence.
+Terminals are keyed `(ownerKey, terminalId)` where ownerKey is the session id or `draft:<projectPath>`; the shell cwd is the session's Working path (`resolveSessionWorkingDir`), never the raw project path. Main-process ownership lives in `makeNodePtyTerminalService` -> `terminal-runtime.ts` (registry + 10ms targeted output coalescing + byte offsets + spawn generation guards) -> focused lifecycle/input actions. Terminal ids are unique across every tab owned by one group, not merely within a tab; persisted layouts and live/retained records have per-owner and application-wide caps. Scrollback persists under `userData/terminal-logs/` with SHA-256 owner/key filenames plus collision-checked metadata, private file modes, serialized mutations, and both byte and 5,000-line caps. Persisted chunks must be sanitized (strip query escape sequences and neutralize cold TUI state) or replay can answer old terminal queries or impersonate a live old TUI; the sanitizer carries incomplete escape tails across chunks. Renderer-held startup input is a bounded UTF-8 queue with a stable generation and monotonic sequence, acknowledged/deduplicated by main and retained across viewport moves, hot reload, restart, clear, and draft-owner migration. Lifecycle operations register their in-flight turn before any awaited work; input waits through context re-open, clear, restart, and owner migration, then re-resolves the terminal alias rather than writing into the old generation. It releases only after nonce-bearing zsh/Bash/fish/PowerShell/cmd prompt integration reports readiness; unknown shells expose **Send now**. Archive kills runtime trees and clears transient input/native views while retaining layout/history; permanent delete removes both. Session and worktree mutations keep an owner/path fence held through terminal cleanup so a new operation cannot repopulate state mid-delete. Pane mounts detach rather than close, one attachment owns a PTY during side/bottom moves, and output goes only to attached WebContents. macOS Playwright hotkey gotcha: use lowercase `+j`; uppercase injects Shift. The release gate covers exact 200,000-line delivery, ≤50 ms renderer long tasks, ≤16 ms p95 input dispatch, ≤50 ms pane usability, and bounded flood close/restart.
+
+Terminal shutdown treats PIDs as reusable names, not identities. POSIX root identity is captured at spawn; Darwin signals with an identity-checked audit token and Linux with retained pidfds. The exact master/slave identity authorizes tty membership discovery, while previously observed detached descendants retain birth-checked ownership. A close request stops new membership discovery but is not physical tty-close proof. Success waits for ownership termination, native resource drain, and public final output exit. Separate POSIX reader and duplicated writer descriptors keep an in-flight fs.write from reaching a reused fd. Once termination is proven, resume a paused finite output tail so drain can complete. Never fall back to upstream Unix destroy or raw PID signaling. A child that detaches before its first reliable ownership observation is outside this ownership claim.
+
+Windows ConPTY roots enter a per-terminal Job while suspended; WinPTY's agent enters its Job before spawning the shell. Native handle-based termination precedes a replay-safe tree-exit event, output-drain acknowledgement, off-main-thread ClosePseudoConsole, resource drain, and final public exit. The app waits for both drain and public exit. Windows metadata uses bounded asynchronous Toolhelp and IP Helper queries with no periodic PowerShell spawn. Queries remain single-flight even after a caller times out. Inspector polling schedules after completion, backs off failures to 60 seconds, and discards stale target/lifecycle results. This metadata never authorizes termination. Native installation and packaged-app probes require the patched contract and test owned descendants, I/O, final output, and a real Windows TCP listener.
+
+Terminal file links inside the Working path open in OpenWaggle. Absolute links outside it use the remembered curated external-editor choice, preserve line and column in both CLI and macOS app-bundle fallbacks, and fail visibly when no supported editor exists; never delegate them to an arbitrary OS default application.
+
+### Session-owned Browser preview (ADR 0031, September 2026)
+
+Native preview context menus must focus the clicked guest and pass the event's frame to `Menu.popup`; otherwise native editing roles can act on the host composer. Install the same handler on OAuth popups, dismiss it on navigation or disposal, and revoke captured spelling/image/link callbacks with a generation check. Native menu presentation belongs in `desktop-ui.ts` and its automation blocker, just like dialogs and window activation. Hidden QA can verify event routing and the blocker, but cannot establish on-screen native menu presentation.
+
+The September 8 T3 comparison targets stable v0.0.40 and main 50a76cee. Floating previews retain the source CSS viewport as presentation-only bounds metadata; never mutate fill/fixed user intent just to scale the mini player. Preserve the user's requested size when chat temporarily shrinks, keep all eight resize handles outside native guest bounds, and test keyboard resizing. Recording prefers supported H.264 with resolution/frame-rate-aware bounded bitrate. Focused page editing uses native menu roles; background automation must never invoke the host's clipboard or undo actions.
+
+Browser preview lifetime follows the Session, not the mounted React panel. Switching Sessions hides or detaches native views; only explicit tab close, Session deletion, renderer/window teardown, or app teardown disposes them. Electron main must authenticate each owner key to a renderer before materialization. Background opens are a two-phase request with a unique request id and monotonic generation: both renderer acknowledgement and manager-observed native creation are required, while cancellation, timeout, navigation, or teardown rejects late work. Each owner has an explicit current tab used when `tabId` is omitted.
+
+Native view creation is asynchronous. Keep authenticated current-tab intent while creation is pending, and never substitute an older tab for that pending selection. Renderer bounds updates start only after native creation resolves. A late creation response may hide an unmounted view only when no replacement presentation owns that tab id, including a replacement using a different profile. Match this guard to the bounds IPC target, not to the narrower profile identity. Hiding an already-disposed view is idempotent; showing a missing view still fails. Owner unregistration clears only that renderer's pending selection.
+
+Floating and fixed-viewport resize rails prevent pointer defaults to suppress selection while dragging. Explicitly focus the activated resize button, with preventScroll, or clicking it suppresses native focus and subsequent arrow keys never reach its resize handler. Test pointer activation followed by keyboard input, not only directly dispatched key events. Header dragging must not take focus.
+
+A tab's Browser profile is its immutable Electron partition identity. Persistent profiles retain site data, Incognito never does, and switching profiles recreates the native view at the same URL. Browser imports copy bounded compatible cookies into an OpenWaggle persistent profile without modifying the source; empty results caused by a running browser, OS credentials, or filesystem authority must surface as diagnostics.
+
+Agent Browser preview access is one fail-closed setting. When disabled or unreadable, withhold both trusted built-in `preview_*` tools and their prompt appendix, and recheck the setting inside every service operation so disabling it revokes a tool captured by an already-running turn. User controls and agent actions share the canonical CDP identity and serialized controller queue; expected synthetic input must be matched narrowly because unmatched keyboard or pointer input means the human has taken over. Cross-document navigation increments document identity so an old locator, click retry, or snapshot cannot finish against a new page. Every open, queued action, CDP command, retry, navigation, and recording handshake needs cancellation and a bounded deadline.
+
+Recording is a main/renderer protocol, not merely a `desktopCapturer` grant: success requires the matching renderer to acknowledge a live `MediaRecorder`, and stop returns only after its bounded artifact is saved. Screenshots, recordings, element context, diagnostics, and action history have independent count and byte caps. Pi depends on the Browser preview service port; keep Electron view/CDP details in the desktop adapter so a future remote transport can preserve Session, approval, and target semantics.
 
 ## Syntax And Workspace Editing Memory
 
@@ -445,9 +479,61 @@ Clicking a sidebar row leaves it focused. Chromium re-evaluates `:focus-visible`
 
 The consequence that outlives the ring: anything hidden behind `group-focus-within:*` on a row stays hidden for as long as that row holds focus, not just while the pointer is over it. A roll-up pip hidden that way vanished on click and stayed gone.
 
+### Startup compatibility needs persisted-profile tests
+
+Startup compatibility checks must exercise the complete SQLite-to-settings path with maps from older releases. A literal-key Effect `Schema.Record` requires every current command, so fill missing shortcut keys before strict persisted-settings validation; do not replace present malformed values. Zustand terminal layout version 2 also needs a `migrate` callback, otherwise it skips the existing merge decoder for version-1 layouts and logs an error while discarding their tabs. Both paths now have actual-store hydration regressions.
+
+New settings must join `CURRENT_SETTINGS_KEYS` as well as the shared update schema, snapshot builder, and persistence plan. The global compaction threshold follows the same fail-closed saved-data contract: absence uses 80 percent, but a present invalid value remains untouched and blocks settings reads.
+
+Linux terminal integration and E2E jobs explicitly install zsh. Shell-specific PTY tests assert the selected shell because the production fallback chain can otherwise exercise Bash while a test claims to cover zsh startup files. CI step changes also need the exact step contract and workflow AST hash updated without weakening the existing required gates.
+
+GitHub's Linux runner completion directories can fail `compaudit`, leaving interactive zsh blocked on a trust question. Repair ownership/write permissions only on audited paths in disposable CI runners, then require a clean audit. Do not bypass the user's completion security check in production.
+
+Electron native-addon probes load the addon in Electron but pass the invoking console Node executable for the PTY child. On Windows, an Electron RunAsNode child reached JavaScript with neither stdin nor stdout attached as a TTY, producing no ConPTY output. The console child preserves the identity, I/O, containment, drain, and final-output assertions across all three Windows backends.
+
+Browser owner registrations are leases, not navigation history. Release idle owners before allocating the next binding; retain owners with previews, pending materialization, or active agent runs. Serialize unregister/register so a rapid A→B→A navigation cannot unregister the new A binding, and publish selected-preview intent only after registration succeeds. A real-Electron regression visits 70 sessions without reloading the renderer or exhausting the 64-owner limit.
+
+Hidden Linux compositor timing is separate from background timer throttling. Even with `getBackgroundThrottling() === false`, the full app produced roughly 1,016 ms animation-frame intervals under Xvfb. A native presentation subscription restored roughly 16 ms frames, including after idle. Terminal performance QA owns and disposes that subscription; it never replaces animation callbacks, reveals a window, or relaxes budgets. Fit the initial xterm viewport synchronously after `open()` so its first paint is correctly sized; retain the two-frame geometry gate before PTY spawn.
+
+xterm checks its 12 ms parser budget between writes, not inside one write. Sending an entire 128 KiB delivery event or attach history can exceed the 50 ms renderer gate on a slower CPU. Slice writes into at most 4,096 UTF-16 code units without splitting surrogate pairs, and attach the event ACK only to the final slice. A real-Electron 4× CPU-throttled flood reproduced a 70 ms long task before this change and passed three times afterward with no long-task entries. Keep IPC byte offsets, generation filtering, and backpressure unchanged.
+
+xterm's synchronous `reset()` does not discard its queued writes. During clear/restart, old bytes can repaint the cleared viewport or leave a partial escape sequence ahead of replacement output. Queue RIS (`ESC c`) through the same writer before replacement data instead. Tests use real xterm with 10,000 queued old lines and incomplete CSI, OSC, and DCS sequences to verify only replacement content survives.
+
+Performance probes must not subtract independent process wall clocks. Hosted macOS produced negative renderer-keydown-to-main-write samples. Sample the renderer's monotonic clock again after the real main handler returns `written`; the extra return trip is a conservative upper bound under the same 16 ms budget. Native PTY prompt probes must send carriage return for Enter, because Windows console line input does not submit on LF. PTY test fixtures must await both latched process exit and resource drain before removing temporary HOME directories, or Bash can recreate history during recursive removal.
+
+The same Enter rule applies to direct preload `writeTerminal` calls in Electron E2E. A replacement-shell usability probe that appends LF can successfully write bytes on Windows without submitting its command. Preserve the real restart, generation, offset, and marker assertions; send CR as xterm does for Enter.
+
+Closed responsive sidebars keep their content mounted for transitions and state retention. Pair `inert` with `aria-hidden` on the closed container so accessible-role queries and assistive navigation cannot expose offscreen controls. Exercise both docked and sheet breakpoints explicitly instead of relying on the runner's native viewport.
+
+Composer draft hydration must finish before editing or sending becomes available. The selected Session can render before its workspace arrives; restoring a blank scoped draft later erases newly typed slash commands. Existing Session draft keys must use that workspace's project path, not separately hydrated global project settings, or a second context switch can erase input after the first restore. New-session drafts still use the selected project.
+
+Source-view syntax requests must not tokenize an entire 1 MiB file before returning its first 60 visible lines. Retain the source and a resumable Shiki grammar-state prefix in the worker, extend only through the requested end line, and return cached earlier ranges without re-tokenizing. Reapply the cache byte cap as prefixes grow, accounting for retained UTF-16 source and tokens. Real-Shiki differential tests cover multiline grammar state, LF/CRLF, empty/trailing lines, Unicode, and eviction. The Windows loading timeout implicated whole-file work, but that platform's exact failure still requires CI verification; local renderer CPU throttling does not throttle the worker.
+
+Windows native final-output probes must interpret the console host's VT screen updates with xterm before requiring the exact 256 KiB payload and both boundary markers. Stripping escapes is insufficient: cursor redraws repeat bytes without adding visible characters, and regex stripping can leave fragments of OSC titles containing Windows paths. Retain the entire bounded payload in parser scrollback, and still reject missing, duplicated, or changed visible characters. Keep Unix output byte-exact. Never classify raw ConPTY stream length alone as data corruption.
+
+The same VT rule applies to native-probe identity records and readiness markers. Windows can append erase-line and cursor-visibility controls to a TTY field or split a marker with a title change. Match these against the parsed screen, retain raw bytes for diagnostics, use an explicit identity terminator instead of a physical row boundary, and resize the probe parser with the PTY. PID and TTY validation remains strict.
+
+Electron rebuild calls node-gyp without running node-pty's package postinstall. A clean build therefore loses the bundled `conpty.dll` and `OpenConsole.exe` unless `binding.gyp` copies the vendored binaries into `build/Release/conpty` itself. Keep this in the dependency's source-build patch so both development and packaging rebuilds restore the target-architecture payload.
+
+The September 12 T3 Code comparison at `b1e223e2b0d87124883b1410ab52dd6a1338e40d` found automatic node-pty backend selection in its adapter and manual-only Windows tests. OpenWaggle's normal native probe now uses the same automatic selection as its shipping adapter, plus bundled ConPTY, without weakening lifecycle or payload assertions. Forced system ConPTY, bundled ConPTY, and WinPTY remain in the explicit `all-backends` diagnostic profile and manual Windows workflow. WinPTY's 3,000-row screen scraper lost the start of a 256 KiB burst at 80 columns before emitting any data; raw and parsed output both lacked the prefix while retaining the suffix. Increasing timeouts or changing VT parsing cannot restore those bytes. A green modern-Windows runtime probe does not establish lossless WinPTY support. Older hosts that select WinPTY still fail preparation on this probe. Windows app E2E remains a required Full-tier check, unlike T3's manual-only Windows lane.
+
+On the local macOS host, login-shell probes with long `-c` arguments exited via signal before producing output, including a harmless `printf` followed by a long comment. Keep the allowlisted capture command compact with one loop, not one expanded capture block per variable. The compact probe preserves markers, shell startup, timeout, output bound, and process-tree cleanup. The exact OS-level signal source was not established.
+
 ### Reserved shortcuts have to be declared where the conflict check looks
 
 `Mod+F` and `Mod+1` to `Mod+9` are registered directly by sidebar hooks rather than through `shortcutBindings`, so the settings conflict check could not see them and a user could bind a command onto one. The result was two live handlers and a console warning from the hotkey library with nothing in the UI to explain it. `RESERVED_SHORTCUT_KEYS` in `src/shared/types/shortcuts.ts` is where a directly-registered combination gets declared so the check can find it.
+
+### Project action bindings are an ordered rule stack
+
+Project action bindings deliberately do not use the conflict-free product Shortcut registry. T3 Code resolves its full keybinding list from the end, and several conditional rules may target the same project action or chord. OpenWaggle preserves that behavior: `when` uses the T3 boolean grammar, unknown context names are false, and the last active matching rule wins. Likely overlap is a warning, not a save blocker. Keep the legacy one-shortcut project shape readable, but write the ordered multi-rule shape after an action is edited.
+
+### Setup dispatch belongs to a worktree generation
+
+A Setup action needs a durable per-worktree-generation dispatch record, not a callback attached only to `git worktree add`. Record pending intent before Git creation or manual recreation and preserve it through deterministic adoption. Before terminal handoff, atomically change pending to claimed with a unique token. A reported pre-handoff failure may release that exact claim for retry; terminal acceptance marks it accepted without deleting the receipt. SQLite and a PTY cannot share a transaction, so a claimed row left by a crashed process is indeterminate and must never replay automatically. This gives arbitrary setup side effects at-most-once crash behaviour. It does not promise exactly-once shell execution, and the user may need to run the visible action manually when a crash happened before delivery. Legacy recorded trees have no row and do not run Setup retroactively.
+
+### Project Action completion is not an activity-change event
+
+The reuse barrier must observe every successful process sample, including an unchanged idle snapshot. The authenticated next prompt is authoritative on integrated shells. A fast command can start and finish between polls, so two reliable idle observations after a 1.5-second grace release that missed transition; any unreliable sample resets the streak. This fallback cannot identify a long-running builtin in an unsupported shell because no child process or authenticated prompt exists, so keep that limitation visible in user documentation.
 
 ### The menu role and its keyboard model are one decision
 
@@ -519,9 +605,9 @@ Incremental updates tokenize one document in a shared staging FTS inside the sam
 using the same native tokenizer. The staging table must be empty after success or rollback. A live
 instance vocabulary filtered by document does not seek that document and would scan the entire
 corpus per edit.
-Migration 31 and legacy cutover group a single native vocabulary traversal, validate mappings
+Migration 33 and legacy cutover group a single native vocabulary traversal, validate mappings
 (including empty documents), postings and signatures, then install incremental triggers. Keep
-schema revision 18 and the one-time cutover contract; existing targets apply migration 31 once.
+schema revision 18 and the one-time cutover contract; existing targets apply migration 33 once.
 
 Lexical evidence prepares query clauses and snippet terms once per result batch, lazily on the
 first discovery match. Entirely ASCII input skips per-character Unicode normalization but retains
@@ -531,8 +617,24 @@ do not broaden this fast path without token-sequence parity tests.
 Node-delete search triggers must requeue semantic work only while the owning Session still
 exists. During a Session cascade, the parent row is already gone; unconditional queue inserts
 recreated a foreign-key dependency and made deletion preflight reject populated Sessions.
-Migration 30 replaces that trigger in existing targets without repeating the legacy cutover or
+Migration 32 replaces that trigger in existing targets without repeating the legacy cutover or
 changing schema revision 18. Standalone node deletion must still invalidate the surviving Session.
+
+The September 2026 terminal/browser merge preserves released setup migrations 26/27 and moves
+the prerelease Hive identities 26–31 to 28–33. `session-host-ledger-compatibility.ts` plans only
+exact known-name mappings, and the owner applies them descending in one transaction, preserving
+timestamps. Read-only completion preflight recognizes old alpha ledgers without mutating them.
+Unknown or mixed identities fail closed. Desktop owner/fence journals are migration 34; immutable
+browser attachment metadata is migration 35. Never reuse the old bare numeric Hive IDs in tests.
+
+Session Host authority does not imply native desktop ownership: GUI owns actual PTYs/WebContents,
+Host owns canonical mutations and uses the revision-11 authenticated desktop reverse bridge.
+Native fences and exact GUI/Host closure receipts are durable. A released token remains until its
+GUI native hold is acknowledged; lease expiry or PID absence never establishes process settlement.
+Unclean GUI ownership and orphan active Host mutation fences remain in doubt, not auto-released.
+`execFile` Git children have no kill-on-Host-death guardian, so closing GUI resources alone cannot
+prove an old filesystem mutation settled. Browser screenshots become composer attachments only
+after Host preparation returns a durable capability, including immutable bytes/context/provenance.
 
 Semantic backfill must bound the ordered queue page before joining Session documents. Rebuilding
 and sorting the entire hot tier for each 128-row batch made the 100,000-Session preparation exceed

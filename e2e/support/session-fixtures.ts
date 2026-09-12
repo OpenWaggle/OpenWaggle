@@ -14,6 +14,7 @@ const ASSISTANT_MESSAGE_KIND = 'assistant_message'
 const SYSTEM_MESSAGE_KIND = 'system_message'
 const STANDARD_FUTURE_MODE = 'standard'
 const WAGGLE_FUTURE_MODE = 'waggle'
+const LOCAL_ENVIRONMENT_MODE = 'local'
 const DEFAULT_BRANCH_UI_STATE_JSON = '{}'
 const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
 const TREE_SIDEBAR_EXPANDED = 0
@@ -38,6 +39,13 @@ export interface SeedSessionInput {
   readonly executionModel?: SupportedModelId
   readonly waggleConfig?: unknown
   readonly archived?: boolean
+  /**
+   * Session environment columns (ADR 0010). A worktree-mode session with a
+   * worktree path makes the Session terminal bind to that worktree (ADR 0030)
+   * without the test having to run a real agent send.
+   */
+  readonly environmentMode?: 'local' | 'worktree'
+  readonly worktreePath?: string | null
   /**
    * Leave a run on the session's main branch recorded as interrupted.
    *
@@ -220,6 +228,8 @@ function seedSessionRow(
               project_path = ?,
               waggle_config_json = ?,
               archived = ?,
+              environment_mode = ?,
+              worktree_path = ?,
               updated_at = ?,
               last_active_node_id = ?,
               last_active_branch_id = ?
@@ -231,20 +241,26 @@ function seedSessionRow(
         projectPath,
         waggleConfigJson,
         sessionInput.archived ? SQLITE_TRUE : SQLITE_FALSE,
+        sessionInput.environmentMode ?? LOCAL_ENVIRONMENT_MODE,
+        sessionInput.worktreePath ?? null,
         sessionInput.updatedAt,
         lastMessageId,
         row.branchId,
         row.id,
       )
 
-    const workspaceId = fixtureWorkspaceId(projectPath)
+    const workingPath = sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
+      ? sessionInput.worktreePath
+      : projectPath
+    const workspaceKind = workingPath === projectPath ? 'local' : 'managed-worktree'
+    const workspaceId = fixtureWorkspaceId(workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`)
     database
       .prepare(
         `INSERT OR IGNORE INTO workspace_resources (
            id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
-         ) VALUES (?, ?, 'local', ?, 'ready', ?, ?)`,
+         ) VALUES (?, ?, ?, ?, 'ready', ?, ?)`,
       )
-      .run(workspaceId, projectPath, projectPath, row.createdAt, sessionInput.updatedAt)
+      .run(workspaceId, projectPath, workspaceKind, workingPath, row.createdAt, sessionInput.updatedAt)
     database
       .prepare(
         `INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)

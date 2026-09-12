@@ -74,8 +74,11 @@ function branchSummaryComposerMode(
   return {
     disabled:
       sessionDetailPending || branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
-    placeholder:
-      branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined,
+    placeholder: sessionDetailPending
+      ? 'Loading session draft…'
+      : branchSummaryMode === 'custom'
+        ? 'Custom instructions for the branch summary'
+        : undefined,
     requiresText: branchSummaryMode === 'custom',
     clearOnSubmit: branchSummaryMode !== 'custom',
     recordHistory: branchSummaryMode !== 'custom',

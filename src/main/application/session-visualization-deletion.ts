@@ -8,6 +8,7 @@ import {
 } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import { TerminalService } from '../ports/terminal-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { withInlineVisualizationOwnerOperation } from './inline-visualization-owner-operation'
 
@@ -25,6 +26,21 @@ function commitVisualizationDeletion(
       })
       return Effect.void
     }),
+    Effect.zipRight(
+      Effect.gen(function* () {
+        const terminals = yield* TerminalService
+        yield* terminals.closeAllForOwner(sessionId, true)
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            logger.warn('Deferred terminal history cleanup after session deletion', {
+              sessionId: String(sessionId),
+              error: error.message,
+            })
+          }),
+        ),
+      ),
+    ),
     Effect.ensuring(
       Effect.sync(() =>
         publishSessionHostEvent({ kind: 'session-list-changed', sessionId, change: 'deleted' }),

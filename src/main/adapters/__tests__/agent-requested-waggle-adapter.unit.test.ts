@@ -3,7 +3,12 @@ import type { Message } from '@shared/types/agent'
 import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { cancelAllSessionRuns, cancelSessionRuns } from '../../application/active-session-runs'
+import {
+  acquireSessionRemovalFence,
+  activeWaggleRuns,
+  cancelAllSessionRuns,
+  cancelSessionRuns,
+} from '../../application/active-session-runs'
 import type { WaggleRunInput, WaggleRunResult } from '../../application/waggle-run-service'
 import { toJsonValue } from '../pi/pi-message-mapper'
 
@@ -114,6 +119,24 @@ describe('agent-requested Waggle adapter', () => {
     abortedInput.controller.abort()
     expect(await Effect.runPromise(runRequestedWaggleWith(abortedInput, runWaggle))).toBe(false)
     expect(runWaggle).not.toHaveBeenCalled()
+  })
+
+  it('refuses a durable handoff when removal acquired admission before the next run', async () => {
+    const completedClassicRun = input()
+    const runWaggle = runner()
+    const release = acquireSessionRemovalFence(SESSION_ID)
+    try {
+      await expect(
+        Effect.runPromise(runRequestedWaggleWith(completedClassicRun, runWaggle)),
+      ).rejects.toThrow('being archived or deleted')
+      expect(runWaggle).not.toHaveBeenCalled()
+      expect(activeWaggleRuns.has(SESSION_ID)).toBe(false)
+      expect(mocks.publishSessionHostEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'session-waggle-turn' }),
+      )
+    } finally {
+      release()
+    }
   })
 
   it('publishes a structured terminal error for a refused Waggle run', async () => {

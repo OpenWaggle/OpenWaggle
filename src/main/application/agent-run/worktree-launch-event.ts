@@ -9,6 +9,11 @@ export function createWorktreeLaunchEventCollector() {
   const details: string[] = []
   const detailSet = new Set<string>()
   let createdEvent: DurableAgentLoopEvent | null = null
+  let createdAt: number | null = null
+  let worktreePath: string | undefined
+  let branch: string | undefined
+  let baseRef: string | undefined
+  let setupAction: WorktreeLaunchProgress['setupAction']
 
   return {
     record(progress: WorktreeLaunchProgress) {
@@ -17,19 +22,25 @@ export function createWorktreeLaunchEventCollector() {
         detailSet.add(detail)
         details.push(detail)
       }
-      if (progress.stage !== 'worktree-created') return
+      if (progress.worktreePath !== undefined) worktreePath = progress.worktreePath
+      if (progress.branch !== undefined) branch = progress.branch
+      if (progress.baseRef !== undefined) baseRef = progress.baseRef
+      if (progress.setupAction !== undefined) setupAction = progress.setupAction
+      if (progress.stage === 'worktree-created' && createdAt === null) createdAt = Date.now()
+      if (createdAt === null) return
 
       createdEvent = {
         type: 'custom',
         name: WORKTREE_CREATED_CUSTOM_EVENT,
-        timestamp: Date.now(),
+        timestamp: createdAt,
         value: {
           stage: 'starting-task',
           status: 'complete',
           details: [...details],
-          ...(progress.worktreePath ? { worktreePath: progress.worktreePath } : {}),
-          ...(progress.branch ? { branch: progress.branch } : {}),
-          ...(progress.baseRef ? { baseRef: progress.baseRef } : {}),
+          ...(worktreePath ? { worktreePath } : {}),
+          ...(branch ? { branch } : {}),
+          ...(baseRef ? { baseRef } : {}),
+          ...(setupAction ? { setupAction } : {}),
         },
       }
     },

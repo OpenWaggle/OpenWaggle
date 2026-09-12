@@ -222,5 +222,13 @@ describe('useScopedComposerDrafts workspace hydration', () => {
       expect(editorRef.current?.isEditable()).toBe(true)
       expect(screen.getByRole('textbox').textContent).toBe('')
     })
+
+    rerender(<Harness sessionId={firstSession} editorRef={editorRef} />)
+    expect(editorRef.current?.isEditable()).toBe(false)
+    await act(async () => useSessionStore.setState({ activeWorkspace: workspace(firstSession) }))
+    await waitFor(() => {
+      expect(editorRef.current?.isEditable()).toBe(true)
+      expect(screen.getByRole('textbox')).toHaveTextContent('first session draft')
+    })
   })
 })

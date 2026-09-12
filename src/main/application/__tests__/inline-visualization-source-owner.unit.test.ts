@@ -16,6 +16,7 @@ import { SessionRepository, type SessionRepositoryShape } from '../../ports/sess
 import { reserveActiveSessionRun } from '../active-session-runs'
 import { prepareInlineVisualizationSourceOwner } from '../inline-visualization-source-owner'
 import { deleteSessionWithVisualizations } from '../session-visualization-deletion'
+import { NoopTerminalServiceLayer } from './terminal-service-test-layer'
 
 const sessionId = SessionId('source-owner')
 const session = {
@@ -32,6 +33,7 @@ const prepareSession = vi.fn<InlineVisualizationServiceShape['prepareSession']>(
 const stageSessionDeletion = vi.fn<InlineVisualizationServiceShape['stageSessionDeletion']>()
 const deleteSession = vi.fn<SessionProjectionRepositoryShape['delete']>()
 const layer = Layer.mergeAll(
+  NoopTerminalServiceLayer,
   Layer.succeed(SessionRepository, fromPartial<SessionRepositoryShape>({ listByIds })),
   Layer.succeed(
     InlineVisualizationService,

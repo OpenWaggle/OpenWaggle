@@ -13,12 +13,12 @@ import {
   PanelLeft,
   PanelRight,
   Settings as SettingsIcon,
-  TerminalSquare,
   Waypoints,
 } from 'lucide-react'
 import { projectName } from '@/shared/lib/format'
 import { formatShortcutBinding } from '@/shared/lib/shortcut-display'
 import type { CommandPaletteItem } from '../model'
+import { createTerminalCommandItems } from './global-command-terminal-items'
 
 const RECENT_SESSION_LIMIT = 12
 
@@ -35,6 +35,12 @@ export interface CoreCommandActions {
   readonly setProjectPath: (path: string) => Promise<void>
   readonly toggleSidebar: () => void
   readonly toggleTerminal: () => void
+  readonly newTerminal: () => void
+  readonly newSideTerminal: () => void
+  readonly splitTerminal: () => void
+  readonly splitTerminalVertical: () => void
+  readonly toggleSidePanelMaximized: () => void
+  readonly closeActiveTerminal: () => Promise<void>
   readonly navigateTo: (target: 'extensions' | 'settings' | 'skills' | 'waggle') => void
 }
 
@@ -150,14 +156,7 @@ function createViewAndOpenItems(
       trailing: formatShortcutBinding(settings.shortcutBindings['sidebar.toggle']),
       action: () => actions.finish(actions.toggleSidebar),
     },
-    {
-      id: 'toggle-terminal',
-      label: 'Toggle terminal',
-      icon: <TerminalSquare className="size-3.5" />,
-      section: 'View',
-      trailing: formatShortcutBinding(settings.shortcutBindings['terminal.toggle']),
-      action: () => actions.finish(actions.toggleTerminal),
-    },
+    ...createTerminalCommandItems(settings, actions),
     {
       id: 'settings',
       label: 'Settings',
@@ -236,16 +235,28 @@ export function createRecentProjectItems(
 export function createRecentSessionItems(
   sessions: readonly SessionSummary[],
   actions: CoreCommandActions,
+  runningTerminalCounts: ReadonlyMap<string, number> = new Map(),
 ): CommandPaletteItem[] {
   return [...sessions]
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .slice(0, RECENT_SESSION_LIMIT)
-    .map((session) => ({
-      id: `session:${String(session.id)}`,
-      label: session.title || 'Untitled session',
-      description: projectName(session.projectPath),
-      icon: <Command className="size-3.5" />,
-      section: 'Recent sessions',
-      action: () => actions.finish(() => actions.routeToSession(String(session.id))),
-    }))
+    .map((session) => {
+      const runningTerminalCount = runningTerminalCounts.get(String(session.id)) ?? 0
+      return {
+        id: `session:${String(session.id)}`,
+        label: session.title || 'Untitled session',
+        description: projectName(session.projectPath),
+        icon: <Command className="size-3.5" />,
+        section: 'Recent sessions',
+        ...(runningTerminalCount > 0
+          ? {
+              trailingBadge:
+                runningTerminalCount === 1
+                  ? '1 terminal running'
+                  : `${String(runningTerminalCount)} terminals running`,
+            }
+          : {}),
+        action: () => actions.finish(() => actions.routeToSession(String(session.id))),
+      }
+    })
 }

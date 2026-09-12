@@ -17,21 +17,48 @@ export function workspaceExternalEditorLaunchArguments(
   editorId: WorkspaceExternalEditorId,
   filePath: string,
   line?: number,
+  column?: number,
 ): readonly string[] {
   const editor = workspaceExternalEditorDefinition(editorId)
-  if (editor === undefined || line === undefined || line < 1) return [filePath]
+  if (editor === undefined) return [filePath]
+  const baseArgs = 'baseArgs' in editor ? editor.baseArgs : []
+  if (line === undefined || line < 1) return [...baseArgs, filePath]
+  const positionedPath = `${filePath}:${String(line)}${column && column > 0 ? `:${String(column)}` : ''}`
 
-  return match(editor.launchStyle)
-    .with('direct-path', () => [filePath])
-    .with('goto', () => ['--goto', `${filePath}:${String(line)}`])
-    .with('line', () => ['--line', String(line), filePath])
+  const targetArgs = match(editor.launchStyle)
+    .with('direct-path', () => [positionedPath])
+    .with('goto', () => ['--goto', positionedPath])
+    .with('line-column', () => [
+      '--line',
+      String(line),
+      ...(column && column > 0 ? ['--column', String(column)] : []),
+      filePath,
+    ])
     .exhaustive()
+  return [...baseArgs, ...targetArgs]
+}
+
+export function workspaceExternalEditorMacApplicationLaunchArguments(
+  application: string,
+  editorId: WorkspaceExternalEditorId,
+  filePath: string,
+  line?: number,
+  column?: number,
+): readonly string[] {
+  if (line === undefined || line < 1) return ['-a', application, filePath]
+  return [
+    '-a',
+    application,
+    '--args',
+    ...workspaceExternalEditorLaunchArguments(editorId, filePath, line, column),
+  ]
 }
 
 export async function openWorkspaceFileInExternalEditor(input: {
   readonly editor: WorkspaceExternalEditorId
   readonly filePath: string
   readonly line?: number
+  readonly column?: number
 }): Promise<void> {
   const editor = workspaceExternalEditorDefinition(input.editor)
   if (editor === undefined) throw new Error(`Unknown external editor: ${String(input.editor)}`)
@@ -43,7 +70,12 @@ export async function openWorkspaceFileInExternalEditor(input: {
     try {
       await launchExternalApplication(
         command,
-        workspaceExternalEditorLaunchArguments(input.editor, input.filePath, input.line),
+        workspaceExternalEditorLaunchArguments(
+          input.editor,
+          input.filePath,
+          input.line,
+          input.column,
+        ),
       )
       return
     } catch (error) {
@@ -61,7 +93,16 @@ export async function openWorkspaceFileInExternalEditor(input: {
     )
     if (application !== undefined) {
       try {
-        await launchExternalApplication('/usr/bin/open', ['-a', application, input.filePath])
+        await launchExternalApplication(
+          '/usr/bin/open',
+          workspaceExternalEditorMacApplicationLaunchArguments(
+            application,
+            input.editor,
+            input.filePath,
+            input.line,
+            input.column,
+          ),
+        )
         return
       } catch (error) {
         throw new Error(`Unable to launch ${workspaceExternalEditorLabel(input.editor)}.`, {

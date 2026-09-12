@@ -21,6 +21,17 @@ export type ExistingWorkspaceHandoffAdmission =
   | { readonly status: 'completed'; readonly response: SessionControlMutationResponse }
 
 export interface SessionOrganizationRepositoryShape {
+  /** Classify archive replays/rejections before interrupting any current desktop work. */
+  readonly prepareArchive: (input: {
+    readonly callerId: string
+    readonly request: SessionOrganizationRequest & {
+      readonly command: Extract<SessionOrganizationCommand, { operation: 'archive' }>
+    }
+  }) => Effect.Effect<
+    | { readonly status: 'ready' }
+    | { readonly status: 'completed'; readonly response: SessionControlMutationResponse },
+    SessionControlRepositoryError
+  >
   readonly execute: (input: {
     readonly callerId: string
     readonly request: SessionOrganizationRequest

@@ -10,10 +10,11 @@ import type { SessionProjectionRepositoryShape } from '../session-projection-rep
 
 export const PINNED_SESSION_REPOSITORY_STUB: Pick<
   SessionProjectionRepositoryShape,
-  'listPinnedSessions' | 'pinSession' | 'unpinSession' | 'movePinnedSession'
+  'listPinnedSessions' | 'pinSession' | 'unpinSession' | 'movePinnedSession' | 'resetWorktreeSetup'
 > = {
   listPinnedSessions: () => Effect.succeed([]),
   pinSession: () => Effect.void,
   unpinSession: () => Effect.void,
   movePinnedSession: () => Effect.void,
+  resetWorktreeSetup: () => Effect.void,
 }

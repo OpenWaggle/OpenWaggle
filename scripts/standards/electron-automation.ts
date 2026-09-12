@@ -30,6 +30,7 @@ const UNGUARDED_DESKTOP_UI_PATTERNS: readonly {
     pattern: /\bdetached\s*:\s*true\b/gu,
   },
   { api: 'application focus', pattern: /\bapp\s*\.\s*focus\s*\(/gu },
+  { api: 'native context menu', pattern: /\.\s*popup\s*\(/gu },
   { api: 'native notification', pattern: /\bnew\s+Notification\s*\(/gu },
 ]
 

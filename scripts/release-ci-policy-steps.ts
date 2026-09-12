@@ -141,6 +141,27 @@ const LINUX_ELECTRON_DEPENDENCIES_STEP = `      - name: Install Linux Electron d
         run: pnpm exec playwright install-deps chromium`
 const WINDOWS_PIPE_ISOLATION_STEP = `      - name: Verify Windows Session Host pipe isolation
         run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts`
+const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+          /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
+const LINUX_E2E_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
+        run: |
+          sudo apt-get install --yes zsh
+          /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
 /*
  * NSIS is required by `pnpm check:installer`, which compile-checks build/installer.nsh.
  * Pinned here because a broken installer script otherwise only surfaces when the release
@@ -213,6 +234,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       PNPM_SETUP_STEP,
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
+      TERMINAL_SHELLS_INSTALL_STEP,
       '      - run: pnpm test:integration && pnpm test:component',
     ],
   ],
@@ -251,6 +273,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
       LINUX_ELECTRON_DEPENDENCIES_STEP,
+      LINUX_E2E_SHELLS_INSTALL_STEP,
       '      - run: xvfb-run --auto-servernum pnpm test:e2e:functional',
       e2eFailureArtifactStep('linux'),
       e2eReportArtifactStep('linux'),

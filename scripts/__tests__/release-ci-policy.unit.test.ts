@@ -38,6 +38,27 @@ describe('release CI policy', () => {
     )
   })
 
+  it('rejects removal of the real zsh dependency from either Linux test job', () => {
+    const installCommand = '          sudo apt-get install --yes zsh\n'
+    const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]
+    expect(positions).toHaveLength(2)
+    for (const match of positions) {
+      const index = match.index
+      const withoutShell = compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
+      expect(validateReleaseCiPolicy(withoutShell)).not.toEqual([])
+    }
+  })
+
+  it.each([
+    '            sudo chown root -- "$insecure_path"\n',
+    '            sudo chmod go-w -- "$insecure_path"\n',
+    "          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'\n",
+  ])('requires secure completion directories and a successful final audit: %s', (command) => {
+    expect(compliantWorkflow.split(command)).toHaveLength(3)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(command, ''))).not.toEqual([])
+    expect(validateReleaseCiPolicy(compliantWorkflow.replaceAll(command, ''))).not.toEqual([])
+  })
+
   it('rejects a workflow that skips release commits or omits dispatched-ref checkout', () => {
     const violations = validateReleaseCiPolicy(
       compliantWorkflow

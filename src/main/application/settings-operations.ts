@@ -1,10 +1,6 @@
-import { PERCENT_BASE } from '@shared/constants/math'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
-import { APPEARANCE_MOTION_PREFERENCES } from '@shared/types/appearance-preferences'
+import { safeDecodeUnknown } from '@shared/schema'
+import { settingsUpdateSchema } from '@shared/schemas/settings'
 import { SupportedModelId } from '@shared/types/brand'
-import { SESSION_ENVIRONMENT_MODES } from '@shared/types/git'
-import { DIFF_SYNTAX_THEMES, DIFF_VIEWS, THINKING_LEVELS } from '@shared/types/settings'
 import {
   isMandatoryShortcutCommand,
   SHORTCUT_COMMANDS,
@@ -12,6 +8,7 @@ import {
   type ShortcutBindings,
   type ShortcutCommand,
   shortcutBindingKey,
+  shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -24,8 +21,6 @@ import { testCredentials } from './provider-test-service'
 
 const logger = createLogger('ipc-settings')
 const MAX_SHORTCUT_KEY_LENGTH = 20
-const positiveIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.positive())
-const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
 function isString(value: string | undefined) {
   return value !== undefined
@@ -73,7 +68,7 @@ function validateShortcutBindingsUpdate(
     if (Object.hasOwn(patch, command)) candidate[command] = patch[command] ?? null
   }
 
-  const owners = new Map<string, ShortcutCommand>()
+  const owners = new Map<string, ShortcutCommand[]>()
   for (const command of SHORTCUT_COMMANDS) {
     const binding = candidate[command]
     if (!binding) {
@@ -86,95 +81,13 @@ function validateShortcutBindingsUpdate(
       return { ok: false, error: `Shortcut ${command} has an invalid key.` }
     }
     const key = shortcutBindingKey(binding)
-    const owner = owners.get(key)
-    if (owner) return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
-    owners.set(key, command)
+    const owner = owners.get(key)?.find((existing) => shortcutScopesOverlap(command, existing))
+    if (owner !== undefined)
+      return { ok: false, error: `Shortcut ${key} is already assigned to ${owner}.` }
+    owners.set(key, [...(owners.get(key) ?? []), command])
   }
   return { ok: true, value: candidate }
 }
-
-const settingsUpdateSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  compactionThresholdPercent: Schema.optional(
-    Schema.Number.pipe(Schema.int(), Schema.between(1, PERCENT_BASE)),
-  ),
-  recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  skillTogglesByProject: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.String,
-        value: Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
-      }),
-    ),
-  ),
-  projectDisplayNames: Schema.optional(
-    Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.String })),
-  ),
-  defaultAuthorizationMode: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  defaultSessionEnvironmentMode: Schema.optional(Schema.Literal(...SESSION_ENVIRONMENT_MODES)),
-  diffSyntaxTheme: Schema.optional(Schema.Literal(...DIFF_SYNTAX_THEMES)),
-  syntaxThemeSelections: Schema.optional(
-    Schema.Struct({
-      light: Schema.String,
-      dark: Schema.String,
-      'high-contrast-light': Schema.String,
-      'high-contrast-dark': Schema.String,
-    }),
-  ),
-  diffView: Schema.optional(Schema.Literal(...DIFF_VIEWS)),
-  diffWrapLines: Schema.optional(Schema.Boolean),
-  appearancePreferences: Schema.optional(
-    Schema.Struct({
-      typography: Schema.Struct({
-        interfaceFontFamily: Schema.String,
-        documentFontFamily: Schema.String,
-        codeFontFamily: Schema.String,
-        terminalFontFamily: Schema.String,
-        terminalUsesCodeFont: Schema.Boolean,
-        interfaceScale: Schema.Number,
-        documentFontSize: Schema.Number,
-        documentLineHeight: Schema.Number,
-        codeFontSize: Schema.Number,
-        codeLineHeight: Schema.Number,
-        terminalFontSize: Schema.Number,
-        codeLigatures: Schema.Boolean,
-      }),
-      motion: Schema.Literal(...APPEARANCE_MOTION_PREFERENCES),
-    }),
-  ),
-  sessionHostParentConcurrencyLimit: Schema.optional(positiveIntegerSchema),
-  sessionHostParentConcurrencyLimitsByProject: Schema.optional(
-    Schema.mutable(Schema.Record({ key: Schema.String, value: positiveIntegerSchema })),
-  ),
-  sessionHostRunCeiling: Schema.optional(positiveIntegerSchema),
-  sessionHostIdleGracePeriodMs: Schema.optional(nonNegativeIntegerSchema),
-  multiAgentEnabled: Schema.optional(Schema.Boolean),
-  multiAgentEnabledByProject: Schema.optional(
-    Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
-  ),
-  shortcutBindings: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.Literal(...SHORTCUT_COMMANDS),
-        value: Schema.Union(
-          Schema.Struct({
-            key: Schema.String,
-            mod: Schema.optional(Schema.Boolean),
-            ctrl: Schema.optional(Schema.Boolean),
-            shift: Schema.optional(Schema.Boolean),
-            alt: Schema.optional(Schema.Boolean),
-            meta: Schema.optional(Schema.Boolean),
-          }),
-          Schema.Null,
-        ),
-      }),
-    ),
-  ),
-})
 
 export function getSettingsOperation() {
   return SettingsService.pipe(Effect.flatMap((settings) => settings.get()))

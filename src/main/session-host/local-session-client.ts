@@ -5,6 +5,7 @@ import {
   HOST_UI_REVISION_7_REQUIRED_CHANNELS,
   HOST_UI_REVISION_9_REQUIRED_CHANNELS,
   HOST_UI_REVISION_10_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_11_REQUIRED_CHANNELS,
 } from '@shared/types/host-ui-protocol'
 import type {
   LocalSessionCommandPayload,
@@ -13,6 +14,7 @@ import type {
 import {
   LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
   LOCAL_SESSION_COMPACTION_REVISION,
+  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
   LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
   LOCAL_SESSION_MCP_AUTH_REVISION,
   LOCAL_SESSION_MCP_HOST_UI_REVISION,
@@ -41,6 +43,7 @@ export {
 const LONG_RUNNING_COMMAND_GRACE_MS = 5_000
 
 function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'desktop-service-v1') return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
   if (
     payload.contract === 'session-control-v2' &&
     (payload.request.command.operation === 'steer' ||
@@ -55,6 +58,11 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
     return LOCAL_SESSION_COMPACTION_REVISION
   }
   if (payload.contract === 'host-ui-v1') {
+    if (
+      HOST_UI_REVISION_11_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
+    ) {
+      return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
+    }
     if (
       HOST_UI_REVISION_10_REQUIRED_CHANNELS.some((channel) => channel === payload.request.channel)
     ) {
@@ -81,6 +89,8 @@ function minimumProtocolRevision(payload: LocalSessionCommandPayload) {
 }
 
 function unsupportedRevisionMessage(payload: LocalSessionCommandPayload) {
+  if (payload.contract === 'desktop-service-v1')
+    return 'The connected Session Host does not support desktop services.'
   if (payload.contract === 'session-control-v2') {
     return 'The connected Session Host does not support steering delivery receipts.'
   }

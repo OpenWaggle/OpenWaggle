@@ -1,5 +1,10 @@
+import { execFile as execFileCallback } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
+
+const execFile = promisify(execFileCallback)
 
 const DIST_DIR = 'dist'
 const APP_NAME = 'OpenWaggle.app'
@@ -15,6 +20,8 @@ const ASAR_JSON_SIZE_OFFSET = 12
 const FIRST_USER_ARGUMENT_INDEX = 2
 const ARGUMENT_SEPARATOR = '--'
 const PREVIEW_LIMIT = 20
+const PACKAGED_PTY_TIMEOUT_MS = 30_000
+const EXEC_MAX_BUFFER_BYTES = 10_000_000
 const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as const
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
@@ -63,33 +70,36 @@ async function pathExists(filePath: string) {
   }
 }
 
-async function findPackagedApp() {
-  const explicitAppPath = process.argv
+export async function findPackagedApps(
+  args: readonly string[] = process.argv,
+  distDirectory: string = DIST_DIR,
+) {
+  const explicitAppPaths = args
     .slice(FIRST_USER_ARGUMENT_INDEX)
-    .find((argument) => argument !== ARGUMENT_SEPARATOR)
-  if (explicitAppPath) return explicitAppPath
+    .filter((argument) => argument !== ARGUMENT_SEPARATOR)
+  if (explicitAppPaths.length > 0) return explicitAppPaths.map((appPath) => path.resolve(appPath))
 
-  const distEntries = await fs.readdir(DIST_DIR, { withFileTypes: true })
+  const distEntries = await fs.readdir(distDirectory, { withFileTypes: true })
   const appPaths: string[] = []
 
   for (const entry of distEntries) {
     if (!entry.isDirectory()) continue
 
-    const appPath = path.join(DIST_DIR, entry.name, APP_NAME)
+    const appPath = path.join(distDirectory, entry.name, APP_NAME)
     if (await pathExists(appPath)) {
       appPaths.push(appPath)
     }
 
-    const unpackedResourcesPath = path.join(DIST_DIR, entry.name, 'resources', ASAR_FILE)
+    const unpackedResourcesPath = path.join(distDirectory, entry.name, 'resources', ASAR_FILE)
     if (await pathExists(unpackedResourcesPath)) {
-      appPaths.push(path.join(DIST_DIR, entry.name))
+      appPaths.push(path.join(distDirectory, entry.name))
     }
   }
 
-  if (appPaths.length === 1) return appPaths[0]
+  if (appPaths.length > 0) return appPaths.sort((left, right) => left.localeCompare(right))
 
   throw new Error(
-    `Expected exactly one packaged ${APP_NAME} under ${DIST_DIR}, found ${appPaths.length}.`,
+    `Expected at least one packaged ${APP_NAME} under ${distDirectory}, found ${appPaths.length}.`,
   )
 }
 
@@ -199,8 +209,51 @@ async function assertRequiredFiles(rootPath: string, relativeFiles: readonly str
   }
 }
 
-async function main() {
-  const appPath = await findPackagedApp()
+export function packagedPtyProbeInvocation(
+  appPath: string,
+  asarPath: string,
+  projectRoot: string = process.cwd(),
+  platform: NodeJS.Platform = process.platform,
+) {
+  const executablePath = platform === 'darwin'
+    ? path.join(appPath, 'Contents', 'MacOS', 'OpenWaggle')
+    : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
+  return {
+    command: executablePath,
+    args: [
+      '--import',
+      'tsx',
+      path.join(projectRoot, 'scripts', 'native-load-probe.ts'),
+      'electron',
+      asarPath,
+      process.execPath,
+    ],
+  }
+}
+
+export function packagedAppMatchesHostArchitecture(
+  appPath: string,
+  platform: NodeJS.Platform = process.platform,
+  architecture: string = process.arch,
+) {
+  if (platform !== 'darwin') return true
+  const outputDirectory = path.basename(path.dirname(appPath))
+  if (outputDirectory === 'mac-arm64') return architecture === 'arm64'
+  if (outputDirectory === 'mac' || outputDirectory === 'mac-x64') return architecture === 'x64'
+  return true
+}
+
+async function runPackagedPtyProbe(appPath: string, asarPath: string) {
+  const invocation = packagedPtyProbeInvocation(appPath, asarPath)
+  await execFile(invocation.command, invocation.args, {
+    cwd: process.cwd(),
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    maxBuffer: EXEC_MAX_BUFFER_BYTES,
+    timeout: PACKAGED_PTY_TIMEOUT_MS,
+  })
+}
+
+async function smokePackagedApp(appPath: string) {
   const resourcesPath = await packagedAppResourcesPath(appPath)
   const asarPath = path.join(resourcesPath, ASAR_FILE)
   const asarHeader = await readAsarHeader(asarPath)
@@ -213,10 +266,27 @@ async function main() {
     REQUIRED_SESSION_EMBEDDING_MODEL_FILES,
   )
 
-  console.log(`packaged app smoke passed: ${appPath}`)
+  if (packagedAppMatchesHostArchitecture(appPath)) {
+    await runPackagedPtyProbe(appPath, asarPath)
+    console.log(`packaged PTY smoke passed: ${appPath}`)
+    return true
+  }
+  return false
 }
 
-void main().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+async function main() {
+  const appPaths = await findPackagedApps()
+  const probeResults = []
+  for (const appPath of appPaths) probeResults.push(await smokePackagedApp(appPath))
+  if (!probeResults.includes(true)) {
+    throw new Error('No packaged app matched the host architecture for the PTY runtime smoke.')
+  }
+  console.log(`packaged app smoke passed: ${appPaths.length} app(s)`)
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

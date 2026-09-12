@@ -6,7 +6,9 @@ import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { CommitDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
+import { ProjectActionsControl } from '@/features/project-actions'
 import { useProject, useSessions } from '@/features/sessions/hooks'
+import { useTerminalCommands } from '@/features/terminal'
 import { cn } from '@/shared/lib/cn'
 import { useUIStore } from '@/shell/ui-store'
 import {
@@ -38,10 +40,8 @@ export function Header() {
   const { projectPath } = useProject()
 
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
-  const terminalOpen = useUIStore((s) => s.terminalOpen)
 
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
   const showToast = useUIStore((s) => s.showToast)
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
@@ -59,6 +59,7 @@ export function Header() {
   } = useGit()
 
   const [commitOpen, setCommitOpen] = useState(false)
+  const { panelOpen: terminalOpen, toggleTerminal } = useTerminalCommands()
   const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
     useDiffRouteNavigation()
 
@@ -115,6 +116,7 @@ export function Header() {
         />
 
         <div data-qa="header-actions" className="flex shrink-0 items-center gap-2">
+          <ProjectActionsControl projectPath={projectPath} />
           <TerminalButton open={terminalOpen} projectPath={projectPath} onToggle={toggleTerminal} />
           <CommitButton
             isCommitting={gitCommitting}

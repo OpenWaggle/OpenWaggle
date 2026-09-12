@@ -25,6 +25,7 @@ export function ModelSelectorDropdown({
     <div
       ref={dropdownRef}
       role="listbox"
+      data-model-picker-open
       tabIndex={0}
       onKeyDown={onKeyDown}
       className="absolute z-[9999] flex flex-col overflow-hidden rounded-xl border border-border bg-bg p-1.5 shadow-2xl"

@@ -1,3 +1,4 @@
+import { HOST_UI_REVISION_11_REQUIRED_CHANNELS } from '@shared/types/host-ui-protocol'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -39,6 +40,42 @@ function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>): 
 }
 
 describe('Host UI request dispatcher', () => {
+  it.each(HOST_UI_REVISION_11_REQUIRED_CHANNELS)(
+    'requires revision 11 before executing %s',
+    async (channel) => {
+      await expect(
+        runWithoutRequirements(
+          dispatchHostUiRequest({
+            caller: { callerId: 'gui:local-user' },
+            negotiatedRevision: 10,
+            request: {
+              contractVersion: 1,
+              requestId: 'old-project-actions-client',
+              channel,
+              args: [],
+            },
+          }),
+        ),
+      ).rejects.toThrow('protocol revision 11')
+    },
+  )
+
+  it('does not authorize external callers to mutate project config through GUI channels', async () => {
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'local-user:machine' },
+          negotiatedRevision: 11,
+          request: {
+            contractVersion: 1,
+            requestId: 'external-project-actions',
+            channel: 'project-actions:add',
+            args: [],
+          },
+        }),
+      ),
+    ).rejects.toThrow('only available to the local OpenWaggle GUI')
+  })
   it('returns a correlated result for an authorized local GUI caller', async () => {
     const result = await runWithoutRequirements(
       dispatchHostUiRequest({

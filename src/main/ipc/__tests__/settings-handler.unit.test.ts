@@ -110,28 +110,19 @@ describe('registerSettingsHandlers', () => {
 
     it('rejects invalid Session Host policy settings', async () => {
       const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
-      await expect(handler?.({}, { sessionHostParentConcurrencyLimit: 0 })).resolves.toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
-      await expect(
-        handler?.({}, { sessionHostParentConcurrencyLimitsByProject: { '/project': -1 } }),
-      ).resolves.toEqual({ ok: false, error: expect.any(String) })
-      await expect(handler?.({}, { sessionHostRunCeiling: 1.5 })).resolves.toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
-      await expect(handler?.({}, { sessionHostIdleGracePeriodMs: -1 })).resolves.toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
-      await expect(handler?.({}, { multiAgentEnabled: 'yes' })).resolves.toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
-      await expect(
-        handler?.({}, { multiAgentEnabledByProject: { '/project': 'yes' } }),
-      ).resolves.toEqual({ ok: false, error: expect.any(String) })
+      for (const patch of [
+        { sessionHostParentConcurrencyLimit: 0 },
+        { sessionHostParentConcurrencyLimitsByProject: { '/project': -1 } },
+        { sessionHostRunCeiling: 1.5 },
+        { sessionHostIdleGracePeriodMs: -1 },
+        { multiAgentEnabled: 'yes' },
+        { multiAgentEnabledByProject: { '/project': 'yes' } },
+      ]) {
+        await expect(handler?.({}, patch)).resolves.toEqual({
+          ok: false,
+          error: expect.any(String),
+        })
+      }
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
@@ -140,6 +131,41 @@ describe('registerSettingsHandlers', () => {
 
       const result = await handler?.({}, { thinkingLevel: 'invalid-mode' })
       expect(result).toEqual({ ok: false, error: expect.any(String) })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
+    it('validates browser defaults before they reach persistence', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      const valid = await handler?.(
+        {},
+        {
+          browserDefaultViewport: {
+            mode: 'fixed',
+            width: 390,
+            height: 844,
+            presetId: 'iphone-12-pro',
+          },
+          browserDefaultZoomFactor: 1.25,
+          browserDefaultAppearance: 'dark',
+          browserRecordingFrameRate: 60,
+          browserAutoShowFloatingPreview: false,
+        },
+      )
+
+      expect(valid).toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          browserDefaultZoomFactor: 1.25,
+          browserRecordingFrameRate: 60,
+          browserAutoShowFloatingPreview: false,
+        }),
+      )
+
+      updateSettingsMock.mockClear()
+      const invalid = await handler?.({}, { browserRecordingFrameRate: 120 })
+      expect(invalid).toEqual({ ok: false, error: expect.any(String) })
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
@@ -255,6 +281,7 @@ describe('registerSettingsHandlers', () => {
         diffView: 'split',
         diffWrapLines: true,
         appearancePreferences: {
+          ...DEFAULT_SETTINGS.appearancePreferences,
           typography: {
             ...DEFAULT_SETTINGS.appearancePreferences.typography,
             interfaceFontFamily: 'Inter, system-ui, sans-serif',

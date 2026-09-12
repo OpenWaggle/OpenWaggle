@@ -1,4 +1,5 @@
 import type { SessionSummary } from '@shared/types/session'
+import { useRunningTerminalCount } from '@/features/terminal'
 import { sessionLineagePresentation } from '../lib/session-lineage'
 import { buildSessionProvenance, describeSessionRow } from '../lib/session-provenance'
 import { useSessionGitBranch, useSessionGitIndicator } from './useSessionGitIndicators'
@@ -19,10 +20,11 @@ export function useSessionRowDescription(input: {
 }): string | undefined {
   const gitBranch = useSessionGitBranch(input.session)
   const gitIndicator = useSessionGitIndicator(input.session)
+  const terminalCount = useRunningTerminalCount(String(input.session.id))
   const indicators = buildSessionProvenance({
     session: input.session,
     gitBranch,
-    terminalCount: 0,
+    terminalCount,
   })
 
   return describeSessionRow({

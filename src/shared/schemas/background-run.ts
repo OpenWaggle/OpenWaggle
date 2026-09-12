@@ -8,6 +8,14 @@ const activityEventBase = {
 }
 const compactionReason = Schema.Literal('manual', 'threshold', 'overflow')
 
+export const worktreeSetupActionTerminalSchema = Schema.Struct({
+  terminalId: Schema.String,
+  actionId: Schema.String,
+  actionName: Schema.String,
+  projectRoot: Schema.String,
+  cwd: Schema.String,
+})
+
 export const backgroundRunActivityEventsSchema = Schema.Array(
   Schema.Union(
     Schema.Struct({

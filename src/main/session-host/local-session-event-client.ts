@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { Socket } from 'node:net'
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
-import { backgroundRunActivityEventsSchema } from '@shared/schemas/background-run'
+import {
+  backgroundRunActivityEventsSchema,
+  worktreeSetupActionTerminalSchema,
+} from '@shared/schemas/background-run'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
@@ -74,6 +77,7 @@ const worktreeLaunchSnapshotSchema = Schema.Struct({
   worktreePath: Schema.optional(Schema.String),
   branch: Schema.optional(Schema.String),
   baseRef: Schema.optional(Schema.String),
+  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
   errorMessage: Schema.optional(Schema.String),
 })
 

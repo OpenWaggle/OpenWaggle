@@ -15,6 +15,7 @@ describe('appearance preference sanitization', () => {
       }),
     ).toEqual({
       motion: 'reduced',
+      terminalPalette: DEFAULT_APPEARANCE_PREFERENCES.terminalPalette,
       typography: {
         ...DEFAULT_APPEARANCE_PREFERENCES.typography,
         codeFontFamily: 'JetBrains Mono, monospace',
@@ -39,5 +40,25 @@ describe('appearance preference sanitization', () => {
     expect(resolved.typography.codeFontSize).toBe(CODE_FONT_SIZE_MAX)
     expect(resolved.typography.codeLineHeight).toBe(CODE_FONT_SIZE_MAX + 2)
     expect(resolved.motion).toBe('system')
+  })
+
+  it('normalizes valid terminal colors and resets invalid roles to the theme', () => {
+    const resolved = resolveAppearancePreferences({
+      terminalPalette: {
+        background: ' #AbC ',
+        foreground: '#AABBCCDD',
+        cursor: 'rgb(1, 2, 3)',
+        selection: null,
+        scrollbar: '#12345',
+      },
+    })
+
+    expect(resolved.terminalPalette).toEqual({
+      background: '#aabbcc',
+      foreground: '#aabbccdd',
+      cursor: null,
+      selection: null,
+      scrollbar: null,
+    })
   })
 })

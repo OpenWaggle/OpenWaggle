@@ -11,9 +11,12 @@ import { validateSessionHostCompletionSeal } from '../../session-host/session-ho
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
 import { runAppDatabaseMigrations } from '../database-service'
 import { SESSION_DISCOVERY_TERM_TRIGGER_NAMES } from '../session-host-discovery-term-triggers'
-import { SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID } from '../session-host-schema-identity'
+import {
+  SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
+  SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
+} from '../session-host-schema-identity'
 
-const MIGRATION_ID = 31
+const MIGRATION_ID = SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID
 let temporaryRoot = ''
 
 function withDatabase<A>(
@@ -35,7 +38,7 @@ function withDatabase<A>(
   )
 }
 
-function revision30(sql: SqlClient.SqlClient) {
+function previousRevision(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     yield* runAppDatabaseMigrations
     for (const name of SESSION_DISCOVERY_TERM_TRIGGER_NAMES) {
@@ -49,8 +52,8 @@ function revision30(sql: SqlClient.SqlClient) {
     ]) {
       yield* sql.unsafe(`DROP TABLE ${name}`)
     }
-    yield* sql`DELETE FROM _migrations WHERE id = ${MIGRATION_ID}`
-    expect(yield* sql`SELECT MAX(id) AS id FROM _migrations`).toEqual([{ id: 30 }])
+    yield* sql`DELETE FROM _migrations WHERE id >= ${MIGRATION_ID}`
+    expect(yield* sql`SELECT MAX(id) AS id FROM _migrations`).toEqual([{ id: MIGRATION_ID - 1 }])
     yield* sql.unsafe(`
       INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at)
       VALUES ('a', 'pi-a', 'Preserved', 1, 1), ('b', 'pi-b', 'Second', 1, 1),
@@ -74,8 +77,8 @@ describe('Session discovery native signature migration', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('upgrades a reopened revision30 target once without repeating legacy cutover or tokenization', async () => {
-    await withDatabase(revision30)
+  it('upgrades a reopened previous target once without repeating legacy cutover or tokenization', async () => {
+    await withDatabase(previousRevision)
     await withDatabase((sql) =>
       Effect.gen(function* () {
         yield* runAppDatabaseMigrations
@@ -136,12 +139,14 @@ describe('Session discovery native signature migration', () => {
     const database = new DatabaseSync(path.join(temporaryRoot, 'migration.sqlite'))
     try {
       expect(() => validateSessionHostCompletionSeal(database)).not.toThrow()
-      database.exec("INSERT INTO _migrations VALUES (32, 'future', 'now')")
+      database
+        .prepare("INSERT INTO _migrations VALUES (?, 'future', 'now')")
+        .run(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID + 1)
       expect(() => validateSessionHostCompletionSeal(database)).toThrow('incompatible')
     } finally {
       database.close()
     }
-    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBe(MIGRATION_ID)
+    expect(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID).toBeGreaterThanOrEqual(MIGRATION_ID)
   })
 
   it.each(['missing mapping', ''])(
@@ -149,7 +154,7 @@ describe('Session discovery native signature migration', () => {
     async (text) => {
       await withDatabase((sql) =>
         Effect.gen(function* () {
-          yield* revision30(sql)
+          yield* previousRevision(sql)
           yield* sql`INSERT INTO session_node_discovery_search
         (session_id, archived, initial_objective, current_preview)
         VALUES ('orphan', 0, ${text}, '')`

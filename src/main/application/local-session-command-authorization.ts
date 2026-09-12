@@ -35,6 +35,7 @@ type AuthorizedLocalSessionCommandPayload = Exclude<
       | 'session-waggle-v1'
       | 'session-waggle-cancel-v1'
       | 'host-ui-v1'
+      | 'desktop-service-v1'
   }
 >
 
@@ -230,25 +231,34 @@ function authorizeWaitTargets(
   })
 }
 
+function classifyLocalSessionPayload(payload: LocalSessionCommandPayload) {
+  return matchBy(payload, 'contract')
+    .with(
+      'local-ui-v1',
+      'host-ui-v1',
+      'desktop-service-v1',
+      'local-attachments-v1',
+      'local-compaction-v1',
+      'local-compaction-cancel-v1',
+      'session-waggle-v1',
+      'session-waggle-cancel-v1',
+      () => ({ kind: 'gui-only' as const }),
+    )
+    .otherwise((payload) => ({ kind: 'external' as const, payload }))
+}
+
 export function authorizeLocalSessionCommand(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: LocalSessionCommandPayload
 }) {
   return Effect.gen(function* () {
-    const payload = input.payload
-    if (
-      payload.contract === 'local-ui-v1' ||
-      payload.contract === 'host-ui-v1' ||
-      payload.contract === 'local-attachments-v1' ||
-      payload.contract === 'local-compaction-v1' ||
-      payload.contract === 'local-compaction-cancel-v1' ||
-      payload.contract === 'session-waggle-v1' ||
-      payload.contract === 'session-waggle-cancel-v1'
-    ) {
+    const classified = classifyLocalSessionPayload(input.payload)
+    if (classified.kind === 'gui-only') {
       return yield* Effect.fail(
         new LocalSessionCommandAuthorizationError({ code: 'capability_denied' }),
       )
     }
+    const payload = classified.payload
     yield* authorizeLocalSessionCommandCapabilities(input.caller, payload)
     if (payload.contract === 'local-access-v1') return
     if (

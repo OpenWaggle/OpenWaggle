@@ -2,10 +2,13 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
+import { SessionId } from '@shared/types/brand'
 import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { reserveActiveSessionRun } from '../../application/active-session-runs'
 import { organizeSession } from '../../application/session-organization-service'
+import { SessionOrganizationRepository } from '../../ports/session-organization-repository'
 import {
   decodeSessionAuthoritySnapshot,
   encodeSessionAuthoritySnapshot,
@@ -139,6 +142,63 @@ describe('SQLite Session organization repository', () => {
       lifecycle_state: 'pending',
       worktree_base_ref: 'main',
     })
+  })
+
+  it('classifies a replay before interrupting work in a Session restored after its original archive', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'archive-replay.sqlite'))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const request = {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'archive-original',
+          idempotencyKey: 'archive-original-key',
+          command: { operation: 'archive', sessionId: 'session-target' },
+        } as const
+        const original = yield* organizeSession({ callerId: 'local-user', request })
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`UPDATE sessions SET archived = ${0} WHERE id = ${'session-target'}`
+        const run = reserveActiveSessionRun(SessionId('session-target'), 'later-run')
+        try {
+          const replay = yield* organizeSession({
+            callerId: 'local-user',
+            request: { ...request, requestId: 'archive-retry' },
+          })
+          expect(replay).toEqual({ ...original, requestId: 'archive-retry', replayed: true })
+          expect(run.controller.signal.aborted).toBe(false)
+          const rows = yield* sql<{ readonly archived: number }>`
+          SELECT archived FROM sessions WHERE id = ${'session-target'}
+        `
+          expect(rows[0]?.archived).toBe(0)
+        } finally {
+          run.release()
+        }
+      }).pipe(Effect.provide(layer)),
+    )
+  })
+
+  it('preflights missing Sessions into durable rejections without admitting desktop work', async () => {
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'archive-missing.sqlite'))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionOrganizationRepository
+        const input = {
+          callerId: 'local-user',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: 'archive-missing',
+            idempotencyKey: 'archive-missing-key',
+            command: { operation: 'archive', sessionId: 'missing' },
+          },
+        } as const
+        const first = yield* repository.prepareArchive(input)
+        const replay = yield* repository.prepareArchive(input)
+        expect(first).toMatchObject({
+          status: 'completed',
+          response: { replayed: false, outcome: { effect: 'rejected', code: 'session_not_found' } },
+        })
+        expect(replay).toMatchObject({ status: 'completed', response: { replayed: true } })
+      }).pipe(Effect.provide(layer)),
+    )
   })
 
   it('refreshes ready-handoff authority atomically and no longer depends on the old tree', async () => {

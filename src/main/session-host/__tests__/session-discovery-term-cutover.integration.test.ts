@@ -9,6 +9,11 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
 import { runAppDatabaseMigrations } from '../../services/database-service'
+import {
+  SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
+  SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION_ID,
+  SESSION_HOST_NODE_DELETE_MIGRATION_ID,
+} from '../../services/session-host-schema-identity'
 import { runSessionHostCutover } from '../session-host-cutover'
 import { fakeEmbeddingModel, seedLegacyDatabase } from './session-host-cutover-test-support'
 
@@ -87,10 +92,11 @@ describe('Session discovery native term cutover', () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
-        const before = yield* sql`SELECT * FROM _migrations WHERE id = 31`
+        const before =
+          yield* sql`SELECT * FROM _migrations WHERE id = ${SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID}`
         expect(before).toEqual([
           {
-            id: 31,
+            id: SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
             name: 'session-host-native-discovery-signatures',
             applied_at: new Date(1_000).toISOString(),
           },
@@ -101,10 +107,16 @@ describe('Session discovery native term cutover', () => {
           return Effect.succeed(statement)
         })
         expect(statements.some((statement) => statement.includes('fts5vocab'))).toBe(false)
-        expect(yield* sql`SELECT * FROM _migrations WHERE id = 31`).toEqual(before)
         expect(
-          yield* sql`SELECT id FROM _migrations WHERE id BETWEEN 27 AND 30 ORDER BY id`,
-        ).toEqual([{ id: 27 }, { id: 28 }, { id: 29 }, { id: 30 }])
+          yield* sql`SELECT * FROM _migrations WHERE id = ${SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID}`,
+        ).toEqual(before)
+        expect(
+          yield* sql`SELECT id FROM _migrations WHERE id BETWEEN ${SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION_ID} AND ${SESSION_HOST_NODE_DELETE_MIGRATION_ID} ORDER BY id`,
+        ).toEqual(
+          Array.from({ length: 4 }, (_, index) => ({
+            id: SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION_ID + index,
+          })),
+        )
         expect(
           yield* sql`SELECT term, member_count FROM session_discovery_term_signatures`,
         ).toEqual([{ term: 'beta', member_count: 1 }])

@@ -17,6 +17,7 @@ function guiRemoteClient(paths: LocalSessionHostPaths, clientVersion: string) {
 }
 
 export interface GuiSessionHostLifecycle {
+  readonly client: { readonly paths: LocalSessionHostPaths; readonly clientVersion: string }
   readonly start: () => Promise<void>
   readonly stop: () => Promise<void>
 }
@@ -68,6 +69,7 @@ export async function prepareGuiSessionHostLifecycle(input: {
   }
 
   return {
+    client: remoteClient,
     start: async () => {
       stopping = false
       if (!(await attachToExistingHost())) {

@@ -17,6 +17,8 @@ export interface PiRuntimeServicesOptions {
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
 }
 
@@ -111,6 +113,60 @@ function allowFirstPartyExtensionFactoriesForAutomation() {
   return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
 }
 
+function systemPromptAppendices(options: PiRuntimeServicesOptions) {
+  const appendices = [...(options.systemPromptAppendices ?? [])]
+  if (options.visualizationDirectory) {
+    appendices.unshift(
+      [
+        '## Inline visualization authoring',
+        `The durable visualization directory for this session is ${JSON.stringify(options.visualizationDirectory)}.`,
+        'When using the visualize skill, write its HTML fragment there and emit the absolute path in the documented visualize reference.',
+      ].join('\n'),
+    )
+  }
+  return appendices
+}
+
+function configuredExtensionFactories(
+  options: PiRuntimeServicesOptions,
+  disableExtensions: boolean,
+) {
+  return [
+    ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
+      ? (options.extensionFactories ?? [])
+      : []),
+    ...(options.trustedExtensionFactories ?? []),
+  ]
+}
+
+function configuredResourcePaths(
+  projectPath: string,
+  options: PiRuntimeServicesOptions,
+  settingsManager: SettingsManager | undefined,
+  builtInSkillPaths: readonly string[],
+  disableExtensions: boolean,
+) {
+  if (settingsManager) {
+    return {
+      additionalExtensionPaths: [],
+      additionalSkillPaths: [...builtInSkillPaths],
+      additionalPromptTemplatePaths: [],
+      additionalThemePaths: [],
+    }
+  }
+  return {
+    additionalExtensionPaths: disableExtensions
+      ? []
+      : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
+    additionalSkillPaths: [
+      ...builtInSkillPaths,
+      ...includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
+    ],
+    additionalPromptTemplatePaths: includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
+    additionalThemePaths: includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
+  }
+}
+
 export function createOpenWaggleGlobalPiResourceLoaderOptions(): PiResourceLoaderOptions {
   return disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}
 }
@@ -123,39 +179,20 @@ export function createOpenWagglePiResourceLoaderOptions(
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
   const disableExtensions = disableExecutableExtensionsForAutomation()
-  const allowInlineExtensions =
-    !disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
+  const appendSystemPrompt = systemPromptAppendices(options)
+  const extensionFactories = configuredExtensionFactories(options, disableExtensions)
   return {
-    additionalExtensionPaths:
-      disableExtensions || settingsManager
-        ? []
-        : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
-    additionalSkillPaths: [
-      ...builtInSkillPaths,
-      ...(settingsManager ? [] : includeExistingPath(getOpenWaggleSkillsRoot(projectPath))),
-    ],
-    additionalPromptTemplatePaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
-    additionalThemePaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
+    ...configuredResourcePaths(
+      projectPath,
+      options,
+      settingsManager,
+      builtInSkillPaths,
+      disableExtensions,
+    ),
     skillsOverride: (base) =>
       filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
-    ...(options.visualizationDirectory
-      ? {
-          appendSystemPrompt: [
-            [
-              '## Inline visualization authoring',
-              `The durable visualization directory for this session is ${JSON.stringify(options.visualizationDirectory)}.`,
-              'When using the visualize skill, write its HTML fragment there and emit the absolute path in the documented visualize reference.',
-            ].join('\n'),
-          ],
-        }
-      : {}),
+    ...(appendSystemPrompt.length > 0 ? { appendSystemPrompt } : {}),
     ...(disableExtensions ? { noExtensions: true } : {}),
-    ...(allowInlineExtensions && options.extensionFactories
-      ? { extensionFactories: [...options.extensionFactories] }
-      : {}),
+    ...(extensionFactories.length > 0 ? { extensionFactories } : {}),
   }
 }

@@ -66,6 +66,7 @@ import { activateTrustedMainExtensionsForActiveProjectSafely } from './applicati
 import { runSessionExportRecoveryBackground } from './application/session-export-recovery'
 import { SessionWaitServiceLive } from './application/session-wait-service'
 import { OperationAdapterLive } from './operation-adapter-layer'
+import { DesktopServicesLive } from './runtime-desktop-services'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
@@ -105,6 +106,8 @@ const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
       ExtensionRuntimeSelectionLive,
       McpServicesLive,
       FilesystemInlineVisualizationLive,
+      DesktopServicesLive,
+      SettingsService.Live,
     ),
   ),
 )
@@ -227,6 +230,7 @@ const AppLayer = Layer.mergeAll(
   SessionControlServicesLive,
   WorkspaceProjectAuthorizationLive,
   FilesystemInlineVisualizationLive,
+  DesktopServicesLive,
 )
 
 let currentRuntime = ManagedRuntime.make(AppLayer)
@@ -258,13 +262,8 @@ export async function disposeAppRuntime(): Promise<void> {
 
 export async function startSessionHostOwnedServices(): Promise<void> {
   if (stopHostOwnedServices) return
-  let markStarted: () => void = () => undefined
-  let failStarted: (error: Error) => void = () => undefined
+  const started = Promise.withResolvers<void>()
   let didStart = false
-  const started = new Promise<void>((resolve, reject) => {
-    markStarted = resolve
-    failStarted = reject
-  })
   const fiber = getAppRuntime().runFork(
     Effect.scoped(
       Effect.gen(function* () {
@@ -274,7 +273,7 @@ export async function startSessionHostOwnedServices(): Promise<void> {
         yield* activateTrustedMainExtensionsForActiveProjectSafely()
         yield* Effect.sync(() => {
           didStart = true
-          markStarted()
+          started.resolve()
         })
         return yield* Effect.never
       }),
@@ -287,9 +286,10 @@ export async function startSessionHostOwnedServices(): Promise<void> {
   void getAppRuntime()
     .runPromise(Fiber.await(fiber))
     .then(() => {
-      if (!didStart) failStarted(new Error('Session Host-owned services stopped during startup.'))
+      if (!didStart)
+        started.reject(new Error('Session Host-owned services stopped during startup.'))
     })
-  await started
+  await started.promise
 }
 
 export async function stopSessionHostOwnedServices(): Promise<void> {

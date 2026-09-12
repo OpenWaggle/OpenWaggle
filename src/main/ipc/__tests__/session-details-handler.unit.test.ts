@@ -7,12 +7,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { setProjectPreferences } from '../../config/project-config'
 import {
   dispatchLocalSessionCommandMock,
-  getInvokeHandler,
   getSessionDetailMock,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
   typedHandleMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('registerSessionDetailsHandlers', () => {
   let registerSessionDetailsHandlers: Awaited<

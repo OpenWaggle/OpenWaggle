@@ -11,12 +11,18 @@ import {
   ODT_MIME_TYPE,
   RTF_MIME_TYPE,
 } from './attachment-text-extraction'
+import {
+  browserAttachmentMetadataJson,
+  parseBrowserAttachmentMetadata,
+} from './browser-attachment-metadata'
 import { assertCanonicalDirectoryRoots } from './canonical-directory-roots'
 import { isPathInsideDirectory } from './project-path-validation'
 
 export interface AttachmentPreparationEntry {
   readonly path: string
   readonly origin?: AttachmentOrigin
+  readonly browserPreview?: PreparedAttachment['browserPreview']
+  readonly browserAnnotationText?: string
 }
 
 /** Internal snapshot persisted by the Session Host; never exposed to renderer clients. */
@@ -35,6 +41,7 @@ export function toPublicPreparedAttachment(attachment: PreparedAttachment): Prep
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
     extractedText: attachment.extractedText,
+    ...(attachment.browserPreview ? { browserPreview: { ...attachment.browserPreview } } : {}),
   }
 }
 
@@ -124,6 +131,8 @@ interface AttachmentSnapshot {
   readonly name: string
   readonly origin: AttachmentOrigin
   readonly path: string
+  readonly browserPreview?: PreparedAttachment['browserPreview']
+  readonly browserAnnotationText?: string
 }
 
 async function readAttachmentSnapshot(
@@ -192,17 +201,20 @@ async function extractAttachmentSnapshot(
     id: randomUUID(),
     kind: snapshot.kind,
     origin: snapshot.origin,
+    ...(snapshot.browserPreview ? { browserPreview: snapshot.browserPreview } : {}),
     name: snapshot.name,
     path: snapshot.path,
     mimeType: snapshot.mimeType,
     sizeBytes: snapshot.buffer.byteLength,
     immutableSourceBase64: snapshot.buffer.toString('base64'),
-    extractedText: await extractAttachmentText({
-      kind: snapshot.kind,
-      mimeType: snapshot.mimeType,
-      buffer: snapshot.buffer,
-      attachmentName: snapshot.name,
-    }),
+    extractedText:
+      snapshot.browserAnnotationText ??
+      (await extractAttachmentText({
+        kind: snapshot.kind,
+        mimeType: snapshot.mimeType,
+        buffer: snapshot.buffer,
+        attachmentName: snapshot.name,
+      })),
   }
 }
 
@@ -215,22 +227,41 @@ export async function prepareAttachmentFiles(input: {
   if (input.entries.length > ATTACHMENT.MAX_COUNT) {
     throw new Error(`A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments is supported.`)
   }
-  const normalized = input.entries.map((entry) => ({
-    path: path.normalize(
-      path.isAbsolute(entry.path) ? entry.path : path.resolve(input.baseDirectory, entry.path),
-    ),
-    origin: entry.origin ?? 'user-file',
-  }))
-  const unique = [
-    ...new Map(normalized.map((entry) => [`${entry.origin}:${entry.path}`, entry])).values(),
-  ]
+  const normalized = input.entries.map((entry) => {
+    const metadata = browserAttachmentMetadataJson(entry.browserPreview)
+    if (
+      (metadata !== null || entry.browserAnnotationText !== undefined) &&
+      entry.origin !== 'browser-preview'
+    ) {
+      throw new Error('Browser annotation context requires a browser-preview attachment.')
+    }
+    if (
+      entry.browserAnnotationText !== undefined &&
+      entry.browserAnnotationText.length > ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS
+    ) {
+      throw new Error('Browser annotation context exceeds the attachment text limit.')
+    }
+    return {
+      path: path.normalize(
+        path.isAbsolute(entry.path) ? entry.path : path.resolve(input.baseDirectory, entry.path),
+      ),
+      origin: entry.origin ?? 'user-file',
+      ...(metadata === null ? {} : { browserPreview: parseBrowserAttachmentMetadata(metadata) }),
+      ...(entry.browserAnnotationText === undefined
+        ? {}
+        : { browserAnnotationText: entry.browserAnnotationText }),
+    }
+  })
+  const unique = [...new Map(normalized.map((entry) => [JSON.stringify(entry), entry])).values()]
   const roots = input.allowedRoots
     ? await assertCanonicalDirectoryRoots(input.allowedRoots, 'Profile attachment root')
     : undefined
   const snapshots = await Promise.all(
-    unique.map((entry) =>
-      readAttachmentSnapshot(entry.path, entry.origin, roots, input.beforeRead),
-    ),
+    unique.map(async (entry) => ({
+      ...(await readAttachmentSnapshot(entry.path, entry.origin, roots, input.beforeRead)),
+      browserPreview: entry.browserPreview,
+      browserAnnotationText: entry.browserAnnotationText,
+    })),
   )
   const totalSize = snapshots.reduce((sum, snapshot) => sum + snapshot.buffer.byteLength, 0)
   if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {

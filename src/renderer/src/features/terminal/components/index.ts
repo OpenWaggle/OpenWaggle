@@ -1,1 +1,5 @@
+export { TerminalPane } from './TerminalPane'
+export { TerminalPaneGrid } from './TerminalPaneGrid'
 export { TerminalPanel } from './TerminalPanel'
+export { TerminalSearchBar } from './TerminalSearchBar'
+export { TerminalTabStrip } from './TerminalTabStrip'

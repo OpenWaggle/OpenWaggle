@@ -27,6 +27,46 @@ afterEach(async () => {
 })
 
 describe('attachment preparation', () => {
+  it('snapshots browser context before asynchronous file reads and keeps distinct annotations', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-browser-attachment-'))
+    temporaryDirectories.push(directory)
+    const source = path.join(directory, 'capture.png')
+    await writeFile(source, 'captured image bytes')
+    const metadata = {
+      pageUrl: 'http://localhost:3000',
+      pageTitle: 'Preview',
+      selector: '#save',
+      tagName: 'button',
+      role: 'button',
+      elementText: 'Save',
+      comment: 'Make this clear',
+      sourceLine: 12,
+    }
+    const result = await prepareAttachmentFiles({
+      baseDirectory: directory,
+      entries: [
+        {
+          path: source,
+          origin: 'browser-preview',
+          browserPreview: metadata,
+          browserAnnotationText: 'Untrusted page context: original',
+        },
+        {
+          path: source,
+          origin: 'browser-preview',
+          browserPreview: { ...metadata, comment: 'Another observation' },
+        },
+      ],
+      beforeRead: async () => {
+        metadata.comment = 'changed later'
+      },
+    })
+    expect(result).toHaveLength(2)
+    expect(result[0]?.browserPreview?.comment).toBe('Make this clear')
+    expect(result[0]?.extractedText).toBe('Untrusted page context: original')
+    expect(result[1]?.browserPreview?.comment).toBe('Another observation')
+  })
+
   it('validates aggregate raw bytes before starting any extraction', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-attachment-total-'))
     temporaryDirectories.push(directory)

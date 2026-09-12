@@ -1,5 +1,4 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import { WAGGLE_INHERIT_MODEL, type WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,12 +83,16 @@ vi.mock('../../session-host/session-host-events', () => ({
   tryGetSessionHostEventRuntime: vi.fn(() => null),
 }))
 
-import { cancelAllSessionRuns } from '../../application/active-session-runs'
+import {
+  acquireSessionRemovalFence,
+  cancelAllSessionRuns,
+} from '../../application/active-session-runs'
 import { executeExplicitWaggleCancellation } from '../../application/explicit-waggle-command-cancellation'
 import { executeExplicitWaggleCommand } from '../../application/explicit-waggle-command-service'
 import { ExplicitWaggleOperationJournal } from '../../ports/explicit-waggle-operation-journal'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { registerWaggleHandlers } from '../waggle-handler'
+import { inheritedFirstAgentConfig } from './waggle-handler.test-fixtures'
 
 const SESSION_ID = SessionId('session-1')
 const SELECTED_MODEL = SupportedModelId('openai/gpt-5.4')
@@ -110,27 +113,6 @@ function provideExplicitWaggleServices<A, E, R>(effect: Effect.Effect<A, E, R>) 
     Effect.provideService(SessionControlAttachmentService, attachmentService),
     Effect.provideService(ExplicitWaggleOperationJournal, operationJournal),
   )
-}
-
-function inheritedFirstAgentConfig(): WaggleConfig {
-  return {
-    mode: 'sequential',
-    agents: [
-      {
-        label: 'Architect',
-        model: WAGGLE_INHERIT_MODEL,
-        roleDescription: 'Plans the implementation',
-        color: 'blue',
-      },
-      {
-        label: 'Reviewer',
-        model: SupportedModelId('anthropic/claude-sonnet-4-5'),
-        roleDescription: 'Reviews the implementation',
-        color: 'amber',
-      },
-    ],
-    stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
 }
 
 function getSendHandler() {
@@ -257,6 +239,18 @@ describe('registerWaggleHandlers', () => {
       config: inheritedFirstAgentConfig(),
       payload: { text: 'Review this patch' },
     })
+  })
+
+  it('refuses explicit Waggle starts while the Host holds session removal admission', async () => {
+    const release = acquireSessionRemovalFence(SESSION_ID)
+    try {
+      registerWaggleHandlers()
+      await expect(sendWaggle()).rejects.toThrow('being archived or deleted')
+      expect(executeWaggleRunMock).not.toHaveBeenCalled()
+      expect(prepareExternalSessionRunReplacementMock).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
   })
 
   it('cancels an owner-side Waggle while durable replacement preparation is pending', async () => {

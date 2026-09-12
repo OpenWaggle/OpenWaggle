@@ -216,6 +216,10 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     steeringInputHook: true,
     extensionFactories: extensions.factories,
+    trustedExtensionFactories: extensions.trustedFactories,
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
   })
 
   const unregisterLiveRun = registerPiLiveRun({

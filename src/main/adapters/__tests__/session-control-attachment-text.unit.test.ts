@@ -11,6 +11,7 @@ import * as Layer from 'effect/Layer'
 import { expect, it } from 'vitest'
 import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
 import { SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-attachment-schema'
+import { SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION } from '../../services/session-host-browser-attachment-migration'
 import { decodeLocalSessionCommandResponse } from '../../session-host/local-session-client-response'
 import { sessionControlAttachmentServiceLayer } from '../session-control-attachment-service'
 
@@ -25,7 +26,10 @@ it('submits a bounded paste preview while resolving the full immutable Host snap
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql.unsafe('CREATE TABLE sessions (id TEXT PRIMARY KEY)')
-        for (const statement of SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS) {
+        for (const statement of [
+          ...SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS,
+          ...SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION.statements,
+        ]) {
           yield* sql.unsafe(statement)
         }
         yield* sql`INSERT INTO sessions (id) VALUES (${'session-a'})`

@@ -8,7 +8,7 @@ import {
   authorizationScopeKeysMatch,
   type ScopedAuthorizationGrant,
 } from '@shared/types/agent-authorization-grants'
-import { isEnoent } from '@shared/utils/node-error'
+import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 import {
   type ParsedProjectSettingsFile,
@@ -17,6 +17,7 @@ import {
   type ProjectPreferencesUpdate,
   parseProjectConfig,
 } from './project-config-parsing'
+import { enqueueProjectConfigWrite } from './project-config-write-queue'
 
 export type { ProjectConfig, ProjectPreferences, ProjectPreferencesUpdate }
 
@@ -99,7 +100,11 @@ async function ensureSettingsFile(projectPath: string, configPath: string) {
     if (!isEnoent(error)) {
       throw error
     }
-    await writeFile(configPath, EMPTY_SETTINGS_JSON, 'utf-8')
+    try {
+      await writeFile(configPath, EMPTY_SETTINGS_JSON, { encoding: 'utf-8', flag: 'wx' })
+    } catch (writeError) {
+      if (!isNodeError(writeError, 'EEXIST')) throw writeError
+    }
   }
 
   return configPath
@@ -134,37 +139,15 @@ async function updateProjectSettingsFile(
   return next
 }
 
-/**
- * Serializes writes per project, because every write is read-modify-write.
- *
- * Two overlapping calls both read the pre-change file and the second `rename` wins, silently dropping
- * the first change. That is reachable in normal use: a run can raise several authorization requests
- * close together, and "Always allow" on two of them would keep only one grant while the UI reported
- * both as saved.
- *
- * A per-path promise chain, not a lock library: the critical section is one small file write.
- */
-const projectWriteQueues = new Map<string, Promise<unknown>>()
-
-function enqueueProjectWrite<T>(configPath: string, operation: () => Promise<T>): Promise<T> {
-  const previous = projectWriteQueues.get(configPath) ?? Promise.resolve()
-  // Swallow the predecessor's rejection so one failed write does not fail the next caller.
-  const result = previous.then(operation, operation)
-  projectWriteQueues.set(
-    configPath,
-    result.catch(() => undefined),
-  )
-  return result
-}
-
 export async function updateProjectConfig(
   projectPath: string,
   updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
 ): Promise<ProjectConfig> {
-  const configPath = await ensureProjectSettingsFile(projectPath)
-  const next = await enqueueProjectWrite(configPath, () =>
-    updateProjectSettingsFile(configPath, updater),
-  )
+  const configPath = getProjectSettingsPath(projectPath)
+  const next = await enqueueProjectConfigWrite(configPath, async () => {
+    await ensureSettingsFile(projectPath, configPath)
+    return updateProjectSettingsFile(configPath, updater)
+  })
   return parseProjectConfig(next)
 }
 

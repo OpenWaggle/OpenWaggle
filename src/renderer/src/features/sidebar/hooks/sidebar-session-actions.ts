@@ -6,6 +6,7 @@ import { useChatStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
+import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -111,6 +112,7 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
         )
         if (!confirmed) return
         await api.archiveSession(sessionId)
+        await archiveWorkspaceOwner(String(sessionId))
         clearComposerDraftForSession(sessionId)
         await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
         navigateHomeAfterActiveSessionChange(deps, sessionId)

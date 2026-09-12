@@ -50,19 +50,22 @@ describe('typedOn', () => {
   })
 
   it('registers a listener on ipcMain.on with the given channel', () => {
-    typedOn('terminal:write', (_event, _terminalId, _data) => Effect.void)
+    typedOn(
+      'terminal:ack-output',
+      (_event, _ownerKey, _terminalId, _generation, _offset) => Effect.void,
+    )
 
     expect(ipcMainOnMock).toHaveBeenCalledOnce()
-    expect(ipcMainOnMock).toHaveBeenCalledWith('terminal:write', expect.any(Function))
+    expect(ipcMainOnMock).toHaveBeenCalledWith('terminal:ack-output', expect.any(Function))
   })
 
   it('runs the effect handler when the listener fires', async () => {
     const effectBody = vi.fn()
-    typedOn('terminal:write', (_event, _terminalId, _data) => Effect.sync(() => effectBody()))
+    typedOn('terminal:ack-output', () => Effect.sync(() => effectBody()))
 
     const registeredListener = ipcMainOnMock.mock.calls[0][1]
     const fakeEvent = { sender: {} }
-    await registeredListener(fakeEvent, 'terminal-id', 'input')
+    await registeredListener(fakeEvent, 'owner', 'terminal-id', 1, 42)
 
     expect(effectBody).toHaveBeenCalledOnce()
   })

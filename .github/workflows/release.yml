@@ -505,7 +505,7 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Verify packaged resources
+      - name: Smoke packaged macOS PTY runtime and resources
         run: pnpm packaged-app:smoke -- "dist/${{ matrix.app_dir }}/OpenWaggle.app"
 
       - name: Verify packaged startup, cutover, and semantic embedding
@@ -545,7 +545,7 @@ jobs:
       - name: Build Linux AppImage
         run: pnpm exec electron-builder --linux --publish never
 
-      - name: Verify packaged resources
+      - name: Smoke packaged Linux PTY runtime and resources
         run: pnpm packaged-app:smoke -- dist/linux-unpacked
 
       - name: Verify packaged startup, cutover, and semantic embedding
@@ -585,7 +585,7 @@ jobs:
       - name: Build Windows NSIS installer
         run: pnpm exec electron-builder --win --publish never
 
-      - name: Verify packaged resources
+      - name: Smoke packaged Windows PTY runtimes and resources
         run: pnpm packaged-app:smoke -- dist/win-unpacked
 
       - name: Verify packaged startup, cutover, and semantic embedding

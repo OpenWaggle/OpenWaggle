@@ -11,8 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getDatabasePath, seedSessions, seedSingleSession } from '../../e2e/support/session-fixtures'
 import { SqliteSessionQueryRepositoryLive } from '../../src/main/adapters/sqlite-session-query-repository'
 import { SessionQueryRepository } from '../../src/main/ports/session-query-repository'
-import { CURRENT_SESSION_SCHEMA_STATEMENTS } from '../../src/main/services/database-schema'
-import { SESSION_HOST_TARGET_SCHEMA_STATEMENTS } from '../../src/main/services/session-host-target-schema'
+import { runAppDatabaseMigrations } from '../../src/main/services/database-service'
 
 describe('interrupted E2E Session fixtures', () => {
   let userDataDir = ''
@@ -20,17 +19,9 @@ describe('interrupted E2E Session fixtures', () => {
   beforeEach(async () => {
     userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-fixture-test-'))
     await fs.mkdir(path.dirname(getDatabasePath(userDataDir)), { recursive: true })
-    const database = new DatabaseSync(getDatabasePath(userDataDir))
-    try {
-      for (const statement of [
-        ...CURRENT_SESSION_SCHEMA_STATEMENTS,
-        ...SESSION_HOST_TARGET_SCHEMA_STATEMENTS,
-      ]) {
-        database.exec(statement)
-      }
-    } finally {
-      database.close()
-    }
+    await Effect.runPromise(runAppDatabaseMigrations.pipe(
+      Effect.provide(SqliteClient.layer({ filename: getDatabasePath(userDataDir) })),
+    ))
   })
 
   afterEach(async () => {
@@ -110,6 +101,24 @@ describe('interrupted E2E Session fixtures', () => {
     } finally {
       database.close()
     }
+  })
+
+  it('binds a worktree terminal fixture to its actual Host Working path', async () => {
+    const projectPath = path.join(userDataDir, 'project')
+    const worktreePath = path.join(projectPath, '.openwaggle', 'worktrees', 'fixture')
+    const sessionId = await seedSingleSession(userDataDir, {
+      title: 'Worktree fixture', projectPath, environmentMode: 'worktree', worktreePath,
+      updatedAt: 10, messages: [],
+    })
+    const database = new DatabaseSync(getDatabasePath(userDataDir))
+    try {
+      expect(database.prepare(`SELECT resources.kind, resources.working_path
+        FROM session_workspace_bindings AS binding
+        JOIN workspace_resources AS resources ON resources.id = binding.workspace_id
+        WHERE binding.session_id = ?`).get(sessionId)).toEqual({
+        kind: 'managed-worktree', working_path: worktreePath,
+      })
+    } finally { database.close() }
   })
 
   it('rolls back the canonical Run when its branch projection cannot be seeded', async () => {

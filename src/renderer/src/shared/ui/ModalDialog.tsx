@@ -8,6 +8,8 @@ interface ModalDialogProps {
   readonly labelledBy?: string
   /** Invoked on Escape, backdrop dismissal, and any native close. */
   readonly onClose: () => void
+  /** Disable every user dismissal while an operation owns the dialog. */
+  readonly dismissible?: boolean
   /** Classes for the dialog panel itself. */
   readonly className?: string
   readonly children: React.ReactNode
@@ -20,7 +22,14 @@ interface ModalDialogProps {
  *
  * Mount it only while the modal should be shown; it opens on mount.
  */
-export function ModalDialog({ label, labelledBy, onClose, className, children }: ModalDialogProps) {
+export function ModalDialog({
+  label,
+  labelledBy,
+  onClose,
+  dismissible = true,
+  className,
+  children,
+}: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -35,8 +44,16 @@ export function ModalDialog({ label, labelledBy, onClose, className, children }:
     <dialog
       ref={dialogRef}
       {...(labelledBy ? { 'aria-labelledby': labelledBy } : { 'aria-label': label })}
-      onCancel={onClose}
-      onClose={onClose}
+      aria-busy={!dismissible || undefined}
+      onCancel={(event) => {
+        // Keep ownership in React and avoid a second callback from the native
+        // close event. This is also what makes an in-flight dialog truly modal.
+        event.preventDefault()
+        if (dismissible) onClose()
+      }}
+      onClose={() => {
+        if (dismissible) onClose()
+      }}
       className={cn(
         // Tailwind's preflight sets `margin: 0` on every element, which overrides the
         // UA stylesheet's `margin: auto` that centres a modal dialog — so centring

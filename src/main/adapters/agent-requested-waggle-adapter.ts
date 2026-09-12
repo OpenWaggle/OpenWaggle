@@ -7,7 +7,7 @@ import type { WaggleHandoffRequest, WaggleInvocation } from '@shared/types/waggl
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { classifyAgentError } from '../agent/error-classifier'
-import { activeWaggleRuns } from '../application/active-session-runs'
+import { activeWaggleRuns, ensureSessionRunStartAllowed } from '../application/active-session-runs'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import {
   executeWaggleRun,
@@ -80,6 +80,7 @@ export function runRequestedWaggleWith(
   const handoff = findWaggleHandoffRequest(input.messages)
   if (!handoff || input.controller.signal.aborted) return Effect.succeed(false)
   return Effect.gen(function* () {
+    yield* ensureSessionRunStartAllowed(input.sessionId)
     const waggleInvocation = invocation(handoff)
     yield* Effect.sync(() => {
       activeWaggleRuns.register(input.sessionId, input.controller, { runId: input.runId })

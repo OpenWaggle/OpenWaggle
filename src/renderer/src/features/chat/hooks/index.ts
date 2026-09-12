@@ -6,3 +6,8 @@ export {
   sessionFollowUpQueueOptions,
   useSessionFollowUpQueue,
 } from './useSessionFollowUpQueue'
+export {
+  reconcileDurableSetupActionEvents,
+  reconcileLiveSetupActionTerminals,
+  useSetupActionTerminalReconciliation,
+} from './useSetupActionTerminalReconciliation'

@@ -45,6 +45,8 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0029-tier-ci-gates-behind-a-merge-queue.md`
 - `docs/adr/0030-adopt-single-local-session-host.md`
 - `docs/adr/0031-adopt-visualize-compatible-inline-visualizations.md`
+- `docs/adr/0030-session-bound-terminals.md`
+- `docs/adr/0031-session-owned-browser-preview.md`
 
 ## Testing
 

@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Fiber from 'effect/Fiber'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitWorktreeService } from '../../ports/git-worktree-service'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import {
   SessionWorkspaceResourceRepository,
   type SessionWorkspaceResourceRepositoryShape,
@@ -27,6 +29,7 @@ import {
   recoverPendingManagedWorktreeRemovals,
   removeHostUiWorktree,
 } from '../host-ui-worktree-operation'
+import { NoopTerminalServiceLayer } from './terminal-service-test-layer'
 
 function workspaceRepository(input: {
   readonly admission?: 'reserved' | 'unavailable'
@@ -59,6 +62,13 @@ function workspaceRepository(input: {
 
 function operationLayer(repository: SessionWorkspaceResourceRepositoryShape) {
   return Layer.mergeAll(
+    NoopTerminalServiceLayer,
+    Layer.succeed(
+      SessionProjectionRepository,
+      fromPartial<SessionProjectionRepository['Type']>({
+        resetWorktreeSetup: () => Effect.void,
+      }),
+    ),
     Layer.succeed(SessionWorkspaceResourceRepository, repository),
     Layer.succeed(
       GitWorktreeService,

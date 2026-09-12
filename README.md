@@ -88,7 +88,11 @@ OpenWaggle is now a UI and product shell over Pi's coding-agent runtime:
 
 ### Built-in Terminal
 
-Full PTY terminal emulation powered by xterm.js. Toggle with `Ctrl+J` / `Cmd+J`.
+Session-bound PTY terminals powered by xterm.js, with tabs, four-pane splits, bottom/right-panel
+docking, process-aware close protection, safe links, selection-to-chat, and persisted scrollback.
+New terminals start in the active session's checkout or worktree and load the user's normal shell
+configuration. A Session-owned native Browser preview adds tabs, profiles, responsive viewports,
+capture tools, and collaborative agent control. Toggle the terminal with `Ctrl+J` / `Cmd+J`.
 
 ## Install
 

@@ -1,195 +1,75 @@
 import { SessionId } from '@shared/types/brand'
-import { type UseHotkeyDefinition, useHotkeys } from '@tanstack/react-hotkeys'
-import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
-import { sessionFollowUpQueueOptions, useChat } from '@/features/chat/hooks'
+import { useEffect } from 'react'
+import { useChat } from '@/features/chat/hooks'
 import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
+import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
-import { useSessionStatusStore } from '@/features/sessions/state'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
-import { api } from '@/shared/lib/ipc'
+import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
 import { useUIStore } from '@/shell/ui-store'
+import { useSessionHostRefresh } from './useSessionHostRefresh'
+import {
+  type BuiltInShortcutHandlers,
+  useUnifiedShortcutCapture,
+} from './useUnifiedShortcutCapture'
+import {
+  closeWorkspaceRightPanel,
+  focusWorkspacePreviewAddress,
+  hasActiveWorkspaceRightPanel,
+  refreshWorkspacePreview,
+  toggleWorkspacePanelMaximized,
+  toggleWorkspacePreview,
+  toggleWorkspaceRightPanel,
+  zoomWorkspacePreview,
+} from './workspace-panel-actions'
 
-const SESSION_QUERY_ROOT_SEGMENTS = 2
-
-type ChatLifecycle = Pick<
-  ReturnType<typeof useChat>,
-  'activeSessionId' | 'loadSessions' | 'refreshSession' | 'updateSessionTitle'
+type PreviewShortcutHandlers = Pick<
+  BuiltInShortcutHandlers,
+  | 'preview.toggle'
+  | 'preview.refresh'
+  | 'preview.focusUrl'
+  | 'preview.zoomIn'
+  | 'preview.zoomOut'
+  | 'preview.resetZoom'
 >
-type SessionTreeLifecycle = Pick<
-  ReturnType<typeof useSessions>,
-  'loadSessions' | 'refreshCatalogSessions' | 'refreshSessionTree'
->
 
-interface PendingSessionHostRefresh {
-  readonly sessionIds: Set<string>
-  readonly queueSessionIds: Set<string>
-  catalog: boolean
-  relationshipMayHaveChanged: boolean
-  scheduled: boolean
-}
-
-function acceptsHostEvent(
-  cursor: { readonly hostInstanceId: string; readonly sequence: number },
-  previous: { readonly hostInstanceId: string; readonly sequence: number } | null,
-) {
-  return !previous ||
-    cursor.hostInstanceId !== previous.hostInstanceId ||
-    cursor.sequence > previous.sequence
-    ? cursor
-    : null
-}
-
-function takePendingSessionHostRefresh(
-  pending: PendingSessionHostRefresh,
-  activeSessionId: ChatLifecycle['activeSessionId'],
-) {
-  const refreshActiveSession = activeSessionId ? pending.sessionIds.has(activeSessionId) : false
-  const refresh = {
-    catalog: pending.catalog,
-    catalogSessionIds: [...pending.sessionIds].map(SessionId),
-    queueSessionIds: [...pending.queueSessionIds],
-    refreshActiveSession,
-    refreshActiveTree: Boolean(
-      activeSessionId && (refreshActiveSession || pending.relationshipMayHaveChanged),
-    ),
+function previewShortcutHandlers(
+  ownerKey: string,
+  showToast: (message: string, type: 'error') => void,
+): PreviewShortcutHandlers {
+  const run = (action: () => Promise<boolean>, fallback: string) => {
+    void action().catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : fallback, 'error')
+    })
   }
-  pending.catalog = false
-  pending.relationshipMayHaveChanged = false
-  pending.scheduled = false
-  pending.sessionIds.clear()
-  pending.queueSessionIds.clear()
-  return refresh
-}
-
-function useSessionHostRefresh(input: {
-  readonly activeSessionId: ChatLifecycle['activeSessionId']
-  readonly loadChatSessions: ChatLifecycle['loadSessions']
-  readonly loadSessionTrees: SessionTreeLifecycle['loadSessions']
-  readonly refreshCatalogSessions: SessionTreeLifecycle['refreshCatalogSessions']
-  readonly refreshSession: ChatLifecycle['refreshSession']
-  readonly refreshSessionTree: SessionTreeLifecycle['refreshSessionTree']
-  readonly updateSessionTitle: ChatLifecycle['updateSessionTitle']
-}) {
-  const {
-    activeSessionId,
-    loadChatSessions,
-    loadSessionTrees,
-    refreshCatalogSessions,
-    refreshSession,
-    refreshSessionTree,
-    updateSessionTitle,
-  } = input
-  const queryClient = useQueryClient()
-  const latestHostCursor = useRef<{
-    readonly hostInstanceId: string
-    readonly sequence: number
-  } | null>(null)
-  const pendingRefresh = useRef<PendingSessionHostRefresh>({
-    sessionIds: new Set(),
-    queueSessionIds: new Set(),
-    catalog: false,
-    relationshipMayHaveChanged: false,
-    scheduled: false,
-  })
-  useEffect(
-    () =>
-      api.onSessionTitleUpdated(({ sessionId, title }) => {
-        updateSessionTitle(sessionId, title)
-      }),
-    [updateSessionTitle],
-  )
-  useEffect(() => {
-    let active = true
-    const flush = () => {
-      if (!active) return
-      const refresh = takePendingSessionHostRefresh(pendingRefresh.current, activeSessionId)
-      for (const sessionId of refresh.queueSessionIds) {
-        void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
+  return {
+    'preview.toggle': () => void toggleWorkspacePreview(ownerKey),
+    'preview.refresh': () =>
+      run(() => refreshWorkspacePreview(ownerKey), 'Preview could not reload.'),
+    'preview.focusUrl': () => {
+      if (!focusWorkspacePreviewAddress(ownerKey)) {
+        showToast('Open a browser preview first.', 'error')
       }
-      if (refresh.catalog) {
-        void refreshCatalogSessions(refresh.catalogSessionIds)
-      }
-      if (refresh.refreshActiveSession && activeSessionId) {
-        void refreshSession(activeSessionId)
-      }
-      if (refresh.refreshActiveTree && activeSessionId) {
-        void refreshSessionTree(SessionId(String(activeSessionId)))
-      }
-    }
-    const schedule = () => {
-      if (pendingRefresh.current.scheduled) return
-      pendingRefresh.current.scheduled = true
-      queueMicrotask(flush)
-    }
-    const unsubscribe = api.onSessionHostEvent((event) => {
-      const accepted = acceptsHostEvent(event.cursor, latestHostCursor.current)
-      if (!accepted) return
-      latestHostCursor.current = accepted
-      if (event.payload.kind === 'semantic-discovery-readiness-changed') return
-      const { sessionId } = event.payload
-      if (
-        event.payload.kind === 'session-list-changed' &&
-        (event.payload.change === 'archived' || event.payload.change === 'deleted')
-      ) {
-        useSessionStatusStore.getState().clearStatus(SessionId(sessionId))
-      }
-      if (event.payload.kind === 'session-list-changed' && event.payload.change === 'deleted') {
-        pendingRefresh.current.relationshipMayHaveChanged = true
-      }
-      pendingRefresh.current.sessionIds.add(sessionId)
-      if (
-        event.payload.kind === 'session-state-changed' ||
-        event.payload.kind === 'session-list-changed'
-      ) {
-        pendingRefresh.current.catalog = true
-        pendingRefresh.current.queueSessionIds.add(sessionId)
-      }
-      schedule()
-    })
-    return () => {
-      active = false
-      pendingRefresh.current.scheduled = false
-      pendingRefresh.current.catalog = false
-      pendingRefresh.current.relationshipMayHaveChanged = false
-      pendingRefresh.current.sessionIds.clear()
-      pendingRefresh.current.queueSessionIds.clear()
-      unsubscribe()
-    }
-  }, [activeSessionId, refreshCatalogSessions, queryClient, refreshSession, refreshSessionTree])
-  useEffect(() => {
-    return api.onSessionHostResyncRequired(() => {
-      const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(
-        0,
-        SESSION_QUERY_ROOT_SEGMENTS,
-      )
-      void queryClient.invalidateQueries({ queryKey })
-      void loadChatSessions()
-      void loadSessionTrees()
-      if (activeSessionId) {
-        void refreshSession(activeSessionId)
-        void refreshSessionTree(SessionId(String(activeSessionId)))
-      }
-    })
-  }, [
-    activeSessionId,
-    loadChatSessions,
-    loadSessionTrees,
-    queryClient,
-    refreshSession,
-    refreshSessionTree,
-  ])
+    },
+    'preview.zoomIn': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'in'), 'Preview could not zoom in.'),
+    'preview.zoomOut': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'out'), 'Preview could not zoom out.'),
+    'preview.resetZoom': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'reset'), 'Preview zoom could not reset.'),
+  }
 }
 
 export function useWorkspaceLifecycle(): void {
   const { projectPath } = useProject()
   const {
     activeSessionId,
+    activeSession,
     startDraftSession,
     loadSessions: loadChatSessions,
     refreshSession,
@@ -208,15 +88,14 @@ export function useWorkspaceLifecycle(): void {
   } = useGit()
 
   const navigate = useNavigate()
-  const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const openCommandSurface = useUIStore((s) => s.openCommandSurface)
   const closeCommandSurface = useUIStore((s) => s.closeCommandSurface)
   const commandSurface = useUIStore((s) => s.commandSurface)
-  const shortcutBindings = usePreferencesStore((s) => s.settings.shortcutBindings)
+  const showToast = useUIStore((s) => s.showToast)
+  const shortcutRules = usePreferencesStore((s) => s.settings.shortcutRules)
   const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
-
   function startDraftSessionRoute() {
     closeCommandSurface()
     startDraftSession(projectPath)
@@ -265,42 +144,42 @@ export function useWorkspaceLifecycle(): void {
   usePinnedSessionShortcuts()
   useSidebarSearchShortcut()
 
-  const hotkeys: UseHotkeyDefinition[] = [
-    {
-      binding: shortcutBindings['commandPalette.toggle'],
-      callback: () =>
+  const terminalCommands = useTerminalCommands()
+  const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
+  const projectActions = useProjectActions(projectPath).data ?? []
+  const runProjectAction = useRunProjectAction(projectPath)
+  useUnifiedShortcutCapture({
+    actions: projectActions,
+    builtInRules: shortcutRules,
+    handlers: {
+      'commandPalette.toggle': () =>
         commandSurface === 'commands' ? closeCommandSurface() : openCommandSurface('commands'),
-    },
-    {
-      binding: shortcutBindings['filePicker.toggle'],
-      callback: () =>
+      'filePicker.toggle': () =>
         commandSurface === 'files' ? closeCommandSurface() : openCommandSurface('files'),
+      'chat.new': startDraftSessionRoute,
+      'terminal.toggle': terminalCommands.toggleTerminal,
+      'terminal.new': terminalCommands.newTerminal,
+      'terminal.split': terminalCommands.splitTerminal,
+      'terminal.splitVertical': terminalCommands.splitTerminalVertical,
+      'terminal.close': () => void terminalCommands.closeActiveTerminal(),
+      'rightPanel.toggle': () => {
+        if (!toggleWorkspaceRightPanel(terminalOwner.ownerKey)) terminalCommands.newSideTerminal()
+      },
+      'rightPanel.toggleMaximized': () => {
+        if (!toggleWorkspacePanelMaximized(terminalOwner.ownerKey)) {
+          showToast('Open the workspace right panel first.', 'error')
+        }
+      },
+      'rightPanel.close': () => closeWorkspaceRightPanel(terminalOwner.ownerKey),
+      'sidebar.toggle': toggleSidebar,
+      'diff.toggle': toggleDiff,
+      ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
+      'sessionTree.toggle': toggleSessionTree,
+      'request.focus': focusPendingRequest,
     },
-    {
-      binding: shortcutBindings['chat.new'],
-      callback: startDraftSessionRoute,
-    },
-    {
-      binding: shortcutBindings['terminal.toggle'],
-      callback: toggleTerminal,
-    },
-    {
-      binding: shortcutBindings['sidebar.toggle'],
-      callback: toggleSidebar,
-    },
-    {
-      binding: shortcutBindings['diff.toggle'],
-      callback: toggleDiff,
-    },
-    {
-      binding: shortcutBindings['sessionTree.toggle'],
-      callback: toggleSessionTree,
-    },
-    {
-      binding: shortcutBindings['request.focus'],
-      callback: focusPendingRequest,
-    },
-  ].flatMap((item) => (item.binding ? [{ hotkey: item.binding, callback: item.callback }] : []))
-
-  useHotkeys(hotkeys, { preventDefault: true })
+    onRunProjectAction: (action) => void runProjectAction(action),
+    shouldHandleBuiltIn: (command) =>
+      command !== 'rightPanel.close' || hasActiveWorkspaceRightPanel(terminalOwner.ownerKey),
+    terminalOpen: terminalCommands.panelOpen,
+  })
 }

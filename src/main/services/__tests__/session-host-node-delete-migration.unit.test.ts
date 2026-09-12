@@ -11,12 +11,13 @@ import { validateSessionHostCompletionSeal } from '../../session-host/session-ho
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
 import { runAppDatabaseMigrations } from '../database-service'
 import {
+  SESSION_HOST_NODE_DELETE_MIGRATION_ID,
   SESSION_HOST_SCHEMA_REVISION,
   SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
 } from '../session-host-schema-identity'
 import { sessionTranscriptSearchContentSql } from '../session-transcript-search-content-sql'
 
-const MIGRATION_ID = 30
+const MIGRATION_ID = SESSION_HOST_NODE_DELETE_MIGRATION_ID
 const MIGRATION_NAME = 'session-host-cascade-safe-node-deletion'
 const LEGACY_DELETE_TRIGGER = `
   CREATE TRIGGER session_node_search_delete BEFORE DELETE ON session_nodes BEGIN
@@ -88,14 +89,14 @@ function seedSession(sql: SqlClient.SqlClient, id: string) {
   })
 }
 
-function installRevision29(sql: SqlClient.SqlClient) {
+function installPreviousRevision(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
     yield* runAppDatabaseMigrations
     yield* sql.unsafe('DROP TRIGGER session_node_search_delete')
     yield* sql.unsafe(LEGACY_DELETE_TRIGGER)
     yield* sql`DELETE FROM _migrations WHERE id >= ${MIGRATION_ID}`
     const latest = yield* sql<{ readonly id: number }>`SELECT MAX(id) AS id FROM _migrations`
-    expect(latest).toEqual([{ id: 29 }])
+    expect(latest).toEqual([{ id: MIGRATION_ID - 1 }])
   })
 }
 
@@ -108,10 +109,10 @@ describe('Session Host cascade-safe node-delete migration', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('upgrades a reopened revision-29 target without changing its Session data or schema seal', async () => {
+  it('upgrades the previous target without changing its Session data or schema seal', async () => {
     await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* installRevision29(sql)
+        yield* installPreviousRevision(sql)
         yield* seedSession(sql, 'cascade-target')
         const rejected = yield* sql`DELETE FROM sessions WHERE id = ${'cascade-target'}`.pipe(
           Effect.as(false),
@@ -161,8 +162,8 @@ describe('Session Host cascade-safe node-delete migration', () => {
     expectValidCompletionSeal()
   })
 
-  it('records migration 30 once and skips all trigger DDL on the next runtime initialization', async () => {
-    await withDatabase(installRevision29)
+  it('records the node-delete migration once and skips all trigger DDL on the next runtime initialization', async () => {
+    await withDatabase(installPreviousRevision)
     const first = await withDatabase((sql) =>
       Effect.gen(function* () {
         yield* runAppDatabaseMigrations
