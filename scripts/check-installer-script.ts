@@ -186,11 +186,9 @@ function commandOutput(error: unknown) {
  * config), or null when it is absent or not a single path.
  */
 async function resolveInstallerScript(): Promise<string | null> {
-  const { default: config } = (await import('../electron-builder')) as {
-    default: { nsis?: { include?: string | string[] | null } }
-  }
-  const include = config.nsis?.include
-  return typeof include === 'string' && include.length > 0 ? include : null
+  const { default: config } = await import('../electron-builder')
+  const include = config.nsis.include
+  return include.length > 0 ? include : null
 }
 
 async function main() {

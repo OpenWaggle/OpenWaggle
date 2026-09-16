@@ -12,15 +12,12 @@ const RELEASE_CHANNEL_ENV = 'OPENWAGGLE_RELEASE_CHANNEL'
 const DEV_SLUG_ENV = 'OPENWAGGLE_DEV_SLUG'
 const SLUG_MAX_LENGTH = 40
 
-export type IconVariant = 'stable' | 'alpha' | 'prerelease' | 'dev'
-
 export interface ResolvedBuildIdentity {
   readonly channel: BuildChannel
   /** Source provenance for dev builds; null for released channels. */
   readonly slug: string | null
   readonly productName: string
   readonly appId: string
-  readonly iconVariant: IconVariant
 }
 
 /**
@@ -74,7 +71,6 @@ export function resolveBuildIdentity(
       slug: null,
       productName: 'OpenWaggle',
       appId: 'com.openwaggle.app',
-      iconVariant: 'stable',
     }
   }
   if (channel === 'dev') {
@@ -84,7 +80,6 @@ export function resolveBuildIdentity(
       slug,
       productName: `OpenWaggle Dev · ${slug}`,
       appId: `com.openwaggle.dev.${slug}`,
-      iconVariant: 'dev',
     }
   }
   const label = channel === 'alpha' ? 'Alpha' : channel === 'beta' ? 'Beta' : 'RC'
@@ -93,18 +88,15 @@ export function resolveBuildIdentity(
     slug: null,
     productName: `OpenWaggle ${label}`,
     appId: `com.openwaggle.${channel}`,
-    iconVariant: channel === 'alpha' ? 'alpha' : 'prerelease',
   }
 }
 
-/** Absolute icon path for a channel, relative to the repo `build/` directory. */
-export function resolveIconBasePath(
-  variant: IconVariant,
-  buildResourcesDir: string,
-): string {
-  // Stable keeps the hand-authored platform icons; other channels use a single
-  // tinted PNG that electron-builder converts per platform.
-  // ponytail: tint-only variants, swap for badged icons if the wash reads poorly.
-  const file = variant === 'stable' ? 'icon.png' : `icon-${variant}.png`
+/**
+ * Icon path for a channel, relative to the repo `build/` directory. Stable keeps
+ * the hand-authored platform icons; other channels use a committed variant that
+ * wears a labelled ribbon so builds are distinguishable at a glance.
+ */
+export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: string): string {
+  const file = channel === 'stable' ? 'icon.png' : `icon-${channel}.png`
   return path.join(buildResourcesDir, file)
 }

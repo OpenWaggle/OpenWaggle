@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveBuildChannel, resolveBuildIdentity, resolveDevSlug } from '../build-identity'
+import { resolveBuildChannel, resolveBuildIdentity, resolveDevSlug, resolveIconBasePath } from '../build-identity'
 
 const CWD = process.cwd()
 
@@ -45,7 +45,6 @@ describe('build identity', () => {
       slug: null,
       productName: 'OpenWaggle',
       appId: 'com.openwaggle.app',
-      iconVariant: 'stable',
     })
   })
 
@@ -57,12 +56,9 @@ describe('build identity', () => {
     expect(beta.appId).toBe('com.openwaggle.beta')
     expect(rc.appId).toBe('com.openwaggle.rc')
     expect(new Set([alpha.appId, beta.appId, rc.appId]).size).toBe(3)
-    expect(alpha.iconVariant).toBe('alpha')
-    expect(beta.iconVariant).toBe('prerelease')
-    expect(rc.iconVariant).toBe('prerelease')
   })
 
-  it('folds dev provenance into name, appId, and icon so dev builds coexist', () => {
+  it('folds dev provenance into name and appId so dev builds coexist', () => {
     const identity = resolveBuildIdentity(
       { OPENWAGGLE_DEV_SLUG: 'feature/terminal-worktree-sessions' },
       CWD,
@@ -71,6 +67,15 @@ describe('build identity', () => {
     expect(identity.slug).toBe('feature-terminal-worktree-sessions')
     expect(identity.productName).toBe('OpenWaggle Dev · feature-terminal-worktree-sessions')
     expect(identity.appId).toBe('com.openwaggle.dev.feature-terminal-worktree-sessions')
-    expect(identity.iconVariant).toBe('dev')
+  })
+})
+
+describe('icon path', () => {
+  it('keeps the hand-authored icon for stable and a labelled variant per channel', () => {
+    expect(resolveIconBasePath('stable', 'build')).toBe('build/icon.png')
+    expect(resolveIconBasePath('alpha', 'build')).toBe('build/icon-alpha.png')
+    expect(resolveIconBasePath('beta', 'build')).toBe('build/icon-beta.png')
+    expect(resolveIconBasePath('rc', 'build')).toBe('build/icon-rc.png')
+    expect(resolveIconBasePath('dev', 'build')).toBe('build/icon-dev.png')
   })
 })

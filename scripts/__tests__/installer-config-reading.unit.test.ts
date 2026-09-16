@@ -9,7 +9,7 @@ import config from '../../electron-builder'
  */
 describe('electron-builder nsis.include', () => {
   it('declares exactly one installer script path', () => {
-    const include = config.nsis?.include
+    const include = config.nsis.include
     expect(typeof include).toBe('string')
     expect(include).toBe('build/installer.nsh')
   })

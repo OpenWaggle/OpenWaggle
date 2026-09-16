@@ -1,12 +1,13 @@
-import type { Configuration } from 'electron-builder'
 import { resolveBuildIdentity, resolveIconBasePath } from './scripts/build-identity'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
  * identity — name, appId, icon — is resolved once here from the build context;
  * userData follows productName automatically at runtime. electron-builder loads
- * `.ts` config via jiti and calls this default export, so nothing else invokes
- * it. Replaces the former static electron-builder.yml.
+ * `.ts` config via jiti and consumes this default export; it validates the shape
+ * at runtime. Left untyped: electron-builder re-exports its `Configuration` type
+ * from the transitive `app-builder-lib`, which does not resolve under this repo's
+ * module resolution. Replaces the former static electron-builder.yml.
  */
 const identity = resolveBuildIdentity()
 const buildResourcesDir = 'build'
@@ -16,13 +17,13 @@ const stableIcons = {
   win: 'build/icon.ico',
   linux: 'build/icon.png',
 }
-const channelIcon = resolveIconBasePath(identity.iconVariant, buildResourcesDir)
+const channelIcon = resolveIconBasePath(identity.channel, buildResourcesDir)
 const icons =
-  identity.iconVariant === 'stable'
+  identity.channel === 'stable'
     ? stableIcons
     : { mac: channelIcon, win: channelIcon, linux: channelIcon }
 
-const config: Configuration = {
+const config = {
   appId: identity.appId,
   productName: identity.productName,
   // Packaging rebuilds native dependencies once per target architecture. Always

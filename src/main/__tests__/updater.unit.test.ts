@@ -1,3 +1,4 @@
+import type { BuildChannel } from '@shared/types/build-identity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // vi.hoisted() callbacks are hoisted above all imports, so they cannot reference
@@ -14,10 +15,11 @@ const {
   const autoUpdaterRef: {
     current: import('node:events').EventEmitter | null
   } = { current: null }
+  const mockBuildChannel: { value: BuildChannel } = { value: 'alpha' }
 
   return {
     mockIsDev: { value: false },
-    mockBuildChannel: { value: 'alpha' as 'stable' | 'alpha' | 'beta' | 'rc' | 'dev' },
+    mockBuildChannel,
     mockBroadcastToWindows: vi.fn(),
     mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
     mockQuitAndInstall: vi.fn(),
@@ -180,9 +182,8 @@ describe('updater service', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'alpha'
       initAutoUpdater()
-      const updater = emitter() as unknown as { channel: string; allowPrerelease: boolean }
-      expect(updater.channel).toBe('alpha')
-      expect(updater.allowPrerelease).toBe(true)
+      expect(Reflect.get(emitter(), 'channel')).toBe('alpha')
+      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(true)
     })
   })
 

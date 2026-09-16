@@ -33,6 +33,7 @@
     "doctor.config.ts",
     "eslint.config.ts",
     "electron.vite.config.ts",
+    "electron-builder.ts",
     "playwright.config.ts"
   ]
 }
