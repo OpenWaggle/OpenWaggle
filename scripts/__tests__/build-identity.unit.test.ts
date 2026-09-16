@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { resolveBuildChannel, resolveBuildIdentity, resolveDevSlug, resolveIconBasePath } from '../build-identity'
@@ -40,26 +42,32 @@ describe('dev slug', () => {
 })
 
 describe('build identity', () => {
-  it('gives stable the canonical name and appId', () => {
+  it('gives stable the canonical identity and does not isolate userData', () => {
     expect(resolveBuildIdentity({ OPENWAGGLE_RELEASE_CHANNEL: 'stable' }, CWD)).toEqual({
       channel: 'stable',
       slug: null,
       productName: 'OpenWaggle',
       appId: 'com.openwaggle.app',
+      isolateUserData: false,
     })
   })
 
-  it('gives each prerelease channel a distinct coexisting appId', () => {
+  it('gives release channels the canonical appId but a distinct display name', () => {
     const alpha = resolveBuildIdentity({ OPENWAGGLE_RELEASE_CHANNEL: 'alpha' }, CWD)
     const beta = resolveBuildIdentity({ OPENWAGGLE_RELEASE_CHANNEL: 'beta' }, CWD)
     const rc = resolveBuildIdentity({ OPENWAGGLE_RELEASE_CHANNEL: 'rc' }, CWD)
-    expect(alpha.appId).toBe('com.openwaggle.alpha')
-    expect(beta.appId).toBe('com.openwaggle.beta')
-    expect(rc.appId).toBe('com.openwaggle.rc')
-    expect(new Set([alpha.appId, beta.appId, rc.appId]).size).toBe(3)
+    // Released channels share one identity (no install-base migration); they
+    // differ only in display name and icon.
+    for (const id of [alpha, beta, rc]) {
+      expect(id.appId).toBe('com.openwaggle.app')
+      expect(id.isolateUserData).toBe(false)
+    }
+    expect(alpha.productName).toBe('OpenWaggle Alpha')
+    expect(beta.productName).toBe('OpenWaggle Beta')
+    expect(rc.productName).toBe('OpenWaggle RC')
   })
 
-  it('folds dev provenance into name and appId so dev builds coexist', () => {
+  it('folds dev provenance into a distinct, isolated identity so dev builds coexist', () => {
     const identity = resolveBuildIdentity(
       { OPENWAGGLE_DEV_SLUG: 'feature/terminal-worktree-sessions' },
       CWD,
@@ -68,6 +76,7 @@ describe('build identity', () => {
     expect(identity.slug).toBe('feature-terminal-worktree-sessions')
     expect(identity.productName).toBe('OpenWaggle Dev · feature-terminal-worktree-sessions')
     expect(identity.appId).toBe('com.openwaggle.dev.feature-terminal-worktree-sessions')
+    expect(identity.isolateUserData).toBe(true)
   })
 })
 
@@ -84,5 +93,13 @@ describe('icon path', () => {
     const expected = resolveIconBasePath(resolveBuildChannel(), 'build')
     const runtimeIcon = electronBuilderConfig.extraResources.find((entry) => entry.to === 'icon.png')
     expect(runtimeIcon?.from).toBe(expected)
+  })
+
+  it('has a committed icon asset for every channel', () => {
+    const repoRoot = path.resolve(__dirname, '..', '..')
+    for (const channel of ['stable', 'alpha', 'beta', 'rc', 'dev'] as const) {
+      const iconPath = path.join(repoRoot, resolveIconBasePath(channel, 'build'))
+      expect(existsSync(iconPath), `${iconPath} is missing`).toBe(true)
+    }
   })
 })

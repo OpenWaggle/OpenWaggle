@@ -8,15 +8,12 @@ import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('updater')
 
-// A build only ever updates along its own Build channel's feed (docs/adr/0032).
-// Dev builds never auto-update.
-const UPDATER_FEED_CHANNEL = {
-  stable: 'latest',
-  alpha: 'alpha',
-  beta: 'beta',
-  rc: 'rc',
-  dev: 'latest',
-} as const
+// Releases are a single published train (the GitHub "latest" feed, latest.yml /
+// latest-mac.yml). The version carries a prerelease id (e.g. 0.3.0-alpha.N), so
+// allowPrerelease is required or electron-updater derives an "alpha" channel and
+// requests alpha-mac.yml, which is never published — the original "Update check
+// failed". Dev builds never auto-update. (docs/adr/0032)
+const UPDATER_FEED_CHANNEL = 'latest'
 
 function updatesDisabled() {
   return is.dev || BUILD_CHANNEL === 'dev'
@@ -56,8 +53,8 @@ export function initAutoUpdater(): void {
     return
   }
 
-  autoUpdater.channel = UPDATER_FEED_CHANNEL[BUILD_CHANNEL]
-  autoUpdater.allowPrerelease = BUILD_CHANNEL !== 'stable'
+  autoUpdater.channel = UPDATER_FEED_CHANNEL
+  autoUpdater.allowPrerelease = true
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null // We use our own logger

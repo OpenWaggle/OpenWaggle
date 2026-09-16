@@ -3,21 +3,46 @@ import path from 'node:path'
 import type { BuildChannel } from '../src/shared/types/build-identity'
 
 /**
- * Build-time Build identity resolver (see docs/adr/0032). One rule, run by
+ * Build-time Build identity resolver (see docs/adr/0032). One rule, consumed by
  * electron-vite (bakes runtime constants), electron-builder (packaging name /
- * appId / icon), and record-build-meta (provenance). Never hand-set per build.
+ * appId / icon), and the runtime (dev-build userData isolation). Never hand-set
+ * per build.
+ *
+ * Scope (see ADR 0032): released channels (stable/alpha/beta/rc) share the
+ * canonical app identity — same appId, executable, and userData — and differ
+ * only in display name and icon. Only `dev` builds get a distinct, isolated
+ * identity, because that is the incident this exists to prevent (a stale local
+ * build acting on the installed release's data). Coexisting *release* channels
+ * with separate appIds/userData is deferred: it needs an install-base migration
+ * and, for GitHub releases, per-channel update feeds that the provider does not
+ * currently emit.
  */
 
 const RELEASE_CHANNEL_ENV = 'OPENWAGGLE_RELEASE_CHANNEL'
 const DEV_SLUG_ENV = 'OPENWAGGLE_DEV_SLUG'
 const SLUG_MAX_LENGTH = 40
 
+/** The canonical released app identity. All release channels use it. */
+export const CANONICAL_APP_ID = 'com.openwaggle.app'
+/** Stable across every channel so packaged binary/bundle names never change. */
+export const CANONICAL_EXECUTABLE_NAME = 'OpenWaggle'
+
+const RELEASE_DISPLAY_NAME: Record<Exclude<BuildChannel, 'dev'>, string> = {
+  stable: 'OpenWaggle',
+  alpha: 'OpenWaggle Alpha',
+  beta: 'OpenWaggle Beta',
+  rc: 'OpenWaggle RC',
+}
+
 export interface ResolvedBuildIdentity {
   readonly channel: BuildChannel
   /** Source provenance for dev builds; null for released channels. */
   readonly slug: string | null
+  /** Display name (CFBundleName / window title / About). */
   readonly productName: string
   readonly appId: string
+  /** Only dev builds isolate userData (via app.setName); releases share it. */
+  readonly isolateUserData: boolean
 }
 
 /**
@@ -65,14 +90,6 @@ export function resolveBuildIdentity(
   cwd: string = process.cwd(),
 ): ResolvedBuildIdentity {
   const channel = resolveBuildChannel(env)
-  if (channel === 'stable') {
-    return {
-      channel,
-      slug: null,
-      productName: 'OpenWaggle',
-      appId: 'com.openwaggle.app',
-    }
-  }
   if (channel === 'dev') {
     const slug = resolveDevSlug(env, cwd)
     return {
@@ -80,23 +97,25 @@ export function resolveBuildIdentity(
       slug,
       productName: `OpenWaggle Dev · ${slug}`,
       appId: `com.openwaggle.dev.${slug}`,
+      isolateUserData: true,
     }
   }
-  const label = channel === 'alpha' ? 'Alpha' : channel === 'beta' ? 'Beta' : 'RC'
   return {
     channel,
     slug: null,
-    productName: `OpenWaggle ${label}`,
-    appId: `com.openwaggle.${channel}`,
+    productName: RELEASE_DISPLAY_NAME[channel],
+    appId: CANONICAL_APP_ID,
+    isolateUserData: false,
   }
 }
 
 /**
  * Icon path for a channel, relative to the repo `build/` directory. Stable keeps
  * the hand-authored platform icons; other channels use a committed variant that
- * wears a labelled ribbon so builds are distinguishable at a glance.
+ * wears a labelled ribbon so builds are distinguishable at a glance. POSIX
+ * separators: this value is an electron-builder config path.
  */
 export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: string): string {
   const file = channel === 'stable' ? 'icon.png' : `icon-${channel}.png`
-  return path.join(buildResourcesDir, file)
+  return path.posix.join(buildResourcesDir, file)
 }

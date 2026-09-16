@@ -14,47 +14,62 @@ sharing one userData directory. A four-month-old dev build (`0.3.0-alpha.32`)
 was launched instead of the installed release (`0.3.0-alpha.65`) with no way to
 tell them apart, and — because userData was shared — that stale build could read
 and write the real app's settings and sessions. Separately, the in-app updater
-reported "Update check failed" for every user, because the app ships on a
-prerelease train (`0.3.0-alpha.N`) while electron-updater defaulted to
-`allowPrerelease: false` / channel `latest` and the release published no
-channel-matched feed.
+reported "Update check failed": the app ships on a prerelease train
+(`0.3.0-alpha.N`) and electron-updater derives an `alpha` channel from that
+version, requesting `alpha-mac.yml`, which the release does not publish (only
+`latest-mac.yml`).
 
 ## Decision
 
 **One derived Build identity per build.** A single `resolve-build-identity`
-module computes four facets — display name, `appId`, icon, userData location —
-from two inputs: the **Build channel** and, for dev builds, a provenance slug.
-electron-builder consumes it as a config-as-function
-(`electron-builder.config.cjs`), and the same module writes channel + slug into
-`build-meta.json` for the About view. Identity is never hand-set per build.
+module computes display name, `appId`, and icon from two inputs: the **Build
+channel** and, for dev builds, a provenance slug. electron-builder consumes it
+as `electron-builder.ts` (a `.ts` config loaded by electron-builder's jiti
+loader); electron-vite bakes the channel and product name as runtime constants
+for the About view and the updater/userData decisions.
 
-- **Channel is provenance-gated, never version-derived.** The App release
-  workflow is the sole authority that stamps a non-dev channel (via an explicit
-  build-time signal derived from the tag). Any build with no such signal is
-  `dev`. The version string is not the signal, because every build off the
-  release train carries the same `-alpha.N` version whether or not it was
-  actually released — that ambiguity is what caused the original incident.
-- **Coexistence with isolated data.** Distinct `appId` + userData per identity,
-  so stable, alpha, and dev builds install side by side and no build can read or
-  overwrite another's settings, sessions, or credentials.
-- **Per-channel icons** (canonical / alpha / beta-rc / dev), a bounded set of
-  committed assets. Dev builds are told apart from each other by name, not by
-  generated per-worktree icons.
-- **Update track equals Build channel.** A build follows the feed for its own
-  channel; the release publishes channel-matched update metadata; dev builds
-  never auto-update.
-- **Update detection now, signed installation later.** Reliable detection +
-  notify ships without code signing. Unattended one-click install (macOS
-  Squirrel, Windows SmartScreen) requires an Apple Developer ID + notarization
-  and a Windows signing certificate; that is a staged follow-up gated on
-  obtaining those credentials, not a blocker for shipping detection.
+- **Channel is provenance-gated, never version-derived at runtime.** The App
+  release workflow is the sole authority that stamps a non-dev channel (an
+  explicit `OPENWAGGLE_RELEASE_CHANNEL`, derived once from the tag inside the
+  workflow and failing closed on an unrecognized prerelease id). Any build with
+  no signal is `dev`.
+- **Dev builds get a distinct, isolated identity.** Display name
+  `OpenWaggle Dev · <slug>`, `appId com.openwaggle.dev.<slug>`, a dev-badged
+  icon, **isolated userData** (`app.setName(productName)` before any userData
+  consumer), and **no auto-update**. This is the incident fix: a stale local
+  build can neither be mistaken for the release nor act on its data.
+- **Released channels share the canonical identity.** Stable/alpha/beta/rc all
+  use `appId com.openwaggle.app`, the canonical `executableName "OpenWaggle"`
+  (so the packaged bundle/executable names never change and release
+  verification, packaged-app smoke, `install.sh`, the NSIS shim, and the
+  Homebrew cask keep working), and the canonical `openwaggle` userData. They
+  differ only in **display name** (`OpenWaggle Alpha`, …) and **icon** (a
+  labelled ribbon badge). No install-base migration is required.
+- **Per-channel icons** (canonical / alpha / beta / rc / dev), a bounded set of
+  committed assets, shipped both as the packaged bundle icon and as the runtime
+  `icon.png` resource (so the runtime dock icon set via `app.dock.setIcon`
+  matches the channel).
+- **Updater follows the single published `latest` feed with `allowPrerelease`.**
+  That reads the published `latest-mac.yml` and accepts the prerelease-versioned
+  train, fixing "Update check failed". Dev builds never auto-update.
+
+## Deferred (explicitly out of scope)
+
+- **Separate appId/userData per *release* channel** (installing stable and alpha
+  side by side). It requires migrating the existing `com.openwaggle.app` install
+  base off the canonical identity; without a migration it orphans every current
+  user's sessions/settings/credentials.
+- **Per-channel GitHub update feeds** (`alpha.yml` distinct from `latest.yml`).
+  electron-builder's `generateUpdatesFilesForAllChannels` is a no-op for the
+  GitHub provider — a release publishes exactly one channel file — so true
+  per-channel release feeds need a different publish strategy.
 
 ## Consequences
 
-- A build wears a visibly distinct name + icon, and its About view states its
-  channel and dev provenance, so a running window is self-identifying.
-- Channels do not share login/sessions: authenticating in an alpha build does
-  not carry into stable. This is intentional — a dev build touching production
-  credentials was the bug, not a feature.
-- Turning on code signing later upgrades detection to seamless install with no
-  rework, because the feed is already keyed to the channel.
+- A build wears a visibly distinct name + icon; the About Version row shows the
+  product name, so a running window is self-identifying.
+- Released channels remain one updater train and one data directory, so there is
+  no migration and no risk of a stable build pulling a prerelease (or vice
+  versa) until the deferred work lands.
+- Dev builds authenticate and store data separately from the installed release,
+  by design — a dev build touching production credentials was the bug.

@@ -1,4 +1,4 @@
-import { resolveBuildIdentity, resolveIconBasePath } from './scripts/build-identity'
+import { CANONICAL_EXECUTABLE_NAME, resolveBuildIdentity, resolveIconBasePath } from './scripts/build-identity'
 
 /**
  * electron-builder configuration as a function (see docs/adr/0032). The Build
@@ -26,12 +26,14 @@ const icons =
 const config = {
   appId: identity.appId,
   productName: identity.productName,
+  // Canonical across every channel so the packaged bundle/executable names never
+  // change (release verification, packaged-app smoke, install.sh, the NSIS shim
+  // and the Homebrew cask all reference "OpenWaggle"). Channels differ by display
+  // name (productName → CFBundleName) and icon, not by executable name. (ADR 0032)
+  executableName: CANONICAL_EXECUTABLE_NAME,
   // Packaging rebuilds native dependencies once per target architecture. Always
   // compile patched node-pty sources instead of accepting its upstream prebuilds.
   buildDependenciesFromSource: true,
-  // Publish a channel-matched update feed (latest.yml plus e.g. alpha.yml) so a
-  // build on a given Build channel can detect updates on its own track (ADR 0032).
-  generateUpdatesFilesForAllChannels: true,
   directories: {
     buildResources: buildResourcesDir,
   },

@@ -16,7 +16,6 @@ import { resolveBuildIdentity } from './scripts/build-identity'
 const BUILD_IDENTITY = resolveBuildIdentity()
 const BUILD_DEFINE = {
   __OW_BUILD_CHANNEL__: JSON.stringify(BUILD_IDENTITY.channel),
-  __OW_BUILD_SLUG__: JSON.stringify(BUILD_IDENTITY.slug),
   __OW_PRODUCT_NAME__: JSON.stringify(BUILD_IDENTITY.productName),
 }
 

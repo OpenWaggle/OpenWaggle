@@ -178,11 +178,11 @@ describe('updater service', () => {
       expect(emitter().listenerCount('checking-for-update')).toBe(0)
     })
 
-    it('keys the update feed to the build channel', () => {
+    it('uses the published latest feed and allows prereleases', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'alpha'
       initAutoUpdater()
-      expect(Reflect.get(emitter(), 'channel')).toBe('alpha')
+      expect(Reflect.get(emitter(), 'channel')).toBe('latest')
       expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(true)
     })
   })

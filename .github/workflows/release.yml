@@ -462,11 +462,13 @@ jobs:
       - name: Stamp release Build channel
         shell: bash
         run: |
+          set -euo pipefail
           version='${{ needs.version.outputs.new_version }}'
           case "$version" in
             *-alpha.*) channel=alpha ;;
             *-beta.*) channel=beta ;;
             *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
             *) channel=stable ;;
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
@@ -512,11 +514,13 @@ jobs:
       - name: Stamp release Build channel
         shell: bash
         run: |
+          set -euo pipefail
           version='${{ needs.version.outputs.new_version }}'
           case "$version" in
             *-alpha.*) channel=alpha ;;
             *-beta.*) channel=beta ;;
             *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
             *) channel=stable ;;
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
@@ -559,11 +563,13 @@ jobs:
       - name: Stamp release Build channel
         shell: bash
         run: |
+          set -euo pipefail
           version='${{ needs.version.outputs.new_version }}'
           case "$version" in
             *-alpha.*) channel=alpha ;;
             *-beta.*) channel=beta ;;
             *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
             *) channel=stable ;;
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
