@@ -459,6 +459,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
+
       - run: pnpm build
 
       - name: Build macOS artifacts (arm64 + x64)
@@ -497,6 +509,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
+
       - run: pnpm build
 
       - name: Build Linux AppImage
@@ -531,6 +555,18 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
       - run: pnpm build
 

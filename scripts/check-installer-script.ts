@@ -34,19 +34,9 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-const ELECTRON_BUILDER_CONFIG = 'electron-builder.yml'
+const ELECTRON_BUILDER_CONFIG = 'electron-builder.ts'
 /** Fallback only for the error message when the config does not declare one. */
 const DEFAULT_INSTALLER_SCRIPT = 'build/installer.nsh'
-/**
- * The `include:` that belongs to the top-level `nsis:` block.
- *
- * Scoped deliberately: an unanchored search would match an `include:` under any other key - `files`,
- * `dmg`, a linux target - and compile a path that is not the installer script at all.
- */
-const NSIS_BLOCK = /^nsis:\s*(?:#.*)?$/mu
-/** Any indented `key: value` inside the block, whatever the indent width. */
-const BLOCK_ENTRY = /^(?<indent>\s+)(?<key>[A-Za-z_][\w-]*):\s*(?<value>.*)$/u
-const TOP_LEVEL_KEY = /^\S/u
 const MAKENSIS_MISSING_EXIT_CODES = new Set(['ENOENT'])
 /** electron-builder compiles with warnings-as-errors; mirror it or the check is weaker. */
 const MAKENSIS_ARGS = ['-WX'] as const
@@ -190,44 +180,22 @@ function commandOutput(error: unknown) {
  * check compiling a path that no longer ships - it would pass while the real installer went
  * unchecked, or fail for a file nothing uses.
  */
-async function resolveInstallerScript(repositoryRoot: string) {
-  const config = await readFile(path.join(repositoryRoot, ELECTRON_BUILDER_CONFIG), 'utf8')
-  return resolveInstallerScriptFrom(config)
-}
-
-/** The `nsis.include` path declared by a config, or null when there is not exactly one. */
-export function resolveInstallerScriptFrom(config: string): string | null {
-  // A CRLF file left `\r` on every value, so the path did not exist and the check died with a raw ENOENT.
-  const lines = config.split('\n').map((line) => line.replace(/\r$/u, ''))
-  const start = lines.findIndex((line) => NSIS_BLOCK.test(line))
-  if (start === -1) return null
-
-  for (const line of lines.slice(start + 1)) {
-    // Blank lines and comments do not end the block.
-    const withoutComment = line.replace(/(?:^|\s)#.*$/u, '')
-    if (withoutComment.trim().length === 0) continue
-    // The block ends at the next top-level key.
-    if (TOP_LEVEL_KEY.test(withoutComment)) return null
-
-    const entry = BLOCK_ENTRY.exec(withoutComment)
-    if (entry?.groups?.['key'] !== 'include') continue
-    const value = (entry.groups['value'] ?? '').trim()
-    // A list or an empty value is not a single path this check can compile.
-    if (value.length === 0 || value.startsWith('[') || value.startsWith('-')) return null
-    return stripYamlQuotes(value)
+/**
+ * The `nsis.include` path electron-builder will actually compile, read straight
+ * from the canonical electron-builder config (docs/adr/0032 moved it to a `.ts`
+ * config), or null when it is absent or not a single path.
+ */
+async function resolveInstallerScript(): Promise<string | null> {
+  const { default: config } = (await import('../electron-builder')) as {
+    default: { nsis?: { include?: string | string[] | null } }
   }
-  return null
-}
-
-/** Remove matching surrounding quotes, which YAML allows around a path. */
-function stripYamlQuotes(value: string) {
-  const quoted = /^(?<quote>["'])(?<inner>.*)\k<quote>$/u.exec(value)
-  return quoted?.groups?.['inner'] ?? value
+  const include = config.nsis?.include
+  return typeof include === 'string' && include.length > 0 ? include : null
 }
 
 async function main() {
   const repositoryRoot = process.cwd()
-  const declaredScript = await resolveInstallerScript(repositoryRoot)
+  const declaredScript = await resolveInstallerScript()
   if (declaredScript === null) {
     console.error(
       `Could not read a single nsis.include path from ${ELECTRON_BUILDER_CONFIG}. This check compiles ` +

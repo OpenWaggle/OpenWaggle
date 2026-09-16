@@ -8,6 +8,17 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { isolatedTailwindSourcePlugin } from './scripts/vite/isolated-tailwind-source'
+import { resolveBuildIdentity } from './scripts/build-identity'
+
+// Bake this build's Build identity (docs/adr/0032) into the bundles so the
+// running app and the updater know their channel without disk IO. The same
+// resolver drives electron-builder packaging and record-build-meta.
+const BUILD_IDENTITY = resolveBuildIdentity()
+const BUILD_DEFINE = {
+  __OW_BUILD_CHANNEL__: JSON.stringify(BUILD_IDENTITY.channel),
+  __OW_BUILD_SLUG__: JSON.stringify(BUILD_IDENTITY.slug),
+  __OW_PRODUCT_NAME__: JSON.stringify(BUILD_IDENTITY.productName),
+}
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
 const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/extensions/loader.js'
@@ -191,6 +202,7 @@ function disablePluginTimingWarningsPlugin(): Plugin {
 
 export default defineConfig({
   main: {
+    define: BUILD_DEFINE,
     plugins: [piExtensionLoaderBundlePlugin(), unpdfCjsResolvePlugin(), rolldownExternalFixPlugin()],
     build: {
       minify: false,
@@ -225,6 +237,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: BUILD_DEFINE,
     worker: {
       // Module workers preserve Shiki's per-language dynamic imports. The IIFE
       // default inlines every bundled grammar into one 10+ MiB first-use asset.

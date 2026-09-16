@@ -1,4 +1,5 @@
 import { is } from '@electron-toolkit/utils'
+import { BUILD_CHANNEL } from '@shared/build-identity-runtime'
 import { UPDATER_TIMING } from '@shared/constants/time'
 import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
@@ -6,6 +7,20 @@ import { createLogger } from './logger'
 import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('updater')
+
+// A build only ever updates along its own Build channel's feed (docs/adr/0032).
+// Dev builds never auto-update.
+const UPDATER_FEED_CHANNEL = {
+  stable: 'latest',
+  alpha: 'alpha',
+  beta: 'beta',
+  rc: 'rc',
+  dev: 'latest',
+} as const
+
+function updatesDisabled() {
+  return is.dev || BUILD_CHANNEL === 'dev'
+}
 
 let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
@@ -20,8 +35,8 @@ export function getUpdateStatus(): UpdateStatus {
 }
 
 export function checkForUpdates(): void {
-  if (is.dev) {
-    logger.info('Skipping update check in dev mode')
+  if (updatesDisabled()) {
+    logger.info('Skipping update check', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
   autoUpdater.checkForUpdates().catch((error: unknown) => {
@@ -36,11 +51,13 @@ export function installUpdate(): void {
 }
 
 export function initAutoUpdater(): void {
-  if (is.dev) {
-    logger.info('Auto-updater disabled in dev mode')
+  if (updatesDisabled()) {
+    logger.info('Auto-updater disabled', { channel: BUILD_CHANNEL, dev: is.dev })
     return
   }
 
+  autoUpdater.channel = UPDATER_FEED_CHANNEL[BUILD_CHANNEL]
+  autoUpdater.allowPrerelease = BUILD_CHANNEL !== 'stable'
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null // We use our own logger

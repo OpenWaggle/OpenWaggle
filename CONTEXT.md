@@ -1371,3 +1371,27 @@ _Avoid_: initialization hook (it is a visible user command), setup script (the c
 **Checked-in action candidate**:
 An untrusted Project action definition discovered in the project's root `t3.json` but not saved or runnable by OpenWaggle until the user imports it.
 _Avoid_: project action (it is only a candidate), auto-imported script
+
+### Build identity
+
+**Build identity**:
+What one produced OpenWaggle app artifact calls itself so that a human and the operating system can tell it apart from every other OpenWaggle build and run them side by side. It is a single derived value with four facets — display name, application id, icon, and user-data location — resolved by one rule from the build context, never hand-set per build.
+_Avoid_: build flavor, build variant (do not name only the icon or only the channel; the identity is all four facets together)
+
+**Build channel**:
+The release stage a build belongs to: `stable`, a prerelease stage (`alpha`, `beta`, `rc`), or `dev`. The **App release workflow** owns the non-dev channels; any build produced outside it is `dev`.
+_Avoid_: update track (that is the updater's feed selection, not the artifact's own identity), release train
+
+**Isolated build data**:
+Every coexisting **Build identity** owns its settings, sessions, and credentials under its own user-data location, so one build can never read or overwrite another build's data. This is the structural guarantee that a stale or dev build cannot act on the installed release's real state.
+_Avoid_: shared config, shared profile
+
+**Dev build**:
+Any build not produced by the **App release workflow**. Its **Build identity** carries its source provenance (the worktree or branch it was built from), because several dev builds may be installed at once and must each be distinguishable.
+_Avoid_: local build (a dev build may be copied to another machine), debug build (dev is about provenance, not optimization level)
+
+- The **App release workflow** is the sole authority that assigns a non-dev **Build channel**; a build produced with no channel signal is a **Dev build**. The channel is never inferred from the version string, because every build off the release train carries the same prerelease version whether or not it was actually released.
+- A build surfaces its own **Build identity** (channel and, for a **Dev build**, its provenance slug) in the app's About view, so a running window can be identified without inspecting the artifact on disk.
+
+- A build follows the update feed for its own **Build channel**: a `stable` build reads the stable feed, an `alpha` build reads the alpha feed, and a **Dev build** never auto-updates. This is the **Update track**, and it is the same axis as the **Build channel**, not a second setting a user picks.
+- **Update detection** (seeing that a newer build exists on the track) is independent of **Update installation** (replacing the running app). Detection needs only a reachable feed; unattended installation additionally needs a signed, and on macOS notarized, build.
