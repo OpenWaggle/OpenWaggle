@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { resolveBuildChannel, resolveBuildIdentity, resolveDevSlug, resolveIconBasePath } from '../build-identity'
+import electronBuilderConfig from '../../electron-builder'
 
 const CWD = process.cwd()
 
@@ -77,5 +78,11 @@ describe('icon path', () => {
     expect(resolveIconBasePath('beta', 'build')).toBe('build/icon-beta.png')
     expect(resolveIconBasePath('rc', 'build')).toBe('build/icon-rc.png')
     expect(resolveIconBasePath('dev', 'build')).toBe('build/icon-dev.png')
+  })
+
+  it('ships the channel icon as the runtime icon resource (dock/taskbar match the channel)', () => {
+    const expected = resolveIconBasePath(resolveBuildChannel(), 'build')
+    const runtimeIcon = electronBuilderConfig.extraResources.find((entry) => entry.to === 'icon.png')
+    expect(runtimeIcon?.from).toBe(expected)
   })
 })
