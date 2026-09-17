@@ -34,7 +34,7 @@ pnpm test:coverage      # Coverage report
 
 ## CI Gates
 
-CI is tiered (see `docs/adr/0029-tier-ci-gates-behind-a-merge-queue.md`). Per-push runs execute the Fast gate: Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and macOS Electron E2E. Windows and Linux E2E run on merge-queue merge results and dispatched `full` runs, where they are required; the package and website rehearsals also run there, whenever the merged diff touches their surfaces. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run. UI PRs that change rendered pixels must regenerate the Darwin visual baselines (`pnpm test:e2e` then copy approved snapshots, or `playwright test --update-snapshots`); CI macOS runners are the source of truth.
+CI is decoupled from releases, mirroring `pingdotgg/t3code` (see `docs/adr/0033-t3code-style-release-pipeline.md`, superseding ADR 0029). `ci.yml` runs on pull requests and on the push to `main` — no merge queue — with three jobs: `Check` (`pnpm check`), `Test` (`pnpm test:unit && pnpm test:integration && pnpm test:component`), and `Release Smoke` (`pnpm build`). A feature therefore triggers one PR run plus one main run, not the former five. Releases are a deliberate event: `release.yml` runs only on a pushed `v*` tag (stable), a nightly `schedule`, or `workflow_dispatch`, and is the only place the cross-platform installer build runs. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
 
 ## Repository Model
 
