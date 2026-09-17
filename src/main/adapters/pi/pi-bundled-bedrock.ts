@@ -11,9 +11,12 @@ let registered = false
  * out/main/index.js — where the chunk was never emitted — and every Bedrock
  * request fails with "Cannot find module .../bedrock-converse-stream.js".
  *
- * Register the statically-imported implementation before constructing a
- * ModelRuntime (the same escape hatch Pi uses for its standalone Bun binary),
- * so the lazy loader uses the override and skips the unresolvable import.
+ * Register the statically-imported implementation before the first Bedrock
+ * stream (the same escape hatch Pi uses for its standalone Bun binary), so the
+ * lazy loader uses the override and skips the unresolvable import. The override
+ * is read per stream call and never memoized, so registering any time before a
+ * request is issued is sufficient. Called both at runtime module load and at
+ * the ModelRuntime construction chokepoint; the guard makes repeats free.
  */
 export function registerPiBundledBedrockProvider() {
   if (registered) {
