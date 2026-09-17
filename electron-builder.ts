@@ -116,6 +116,11 @@ const config = {
   linux: {
     icon: icons.linux,
     artifactName: '${name}-${version}-${arch}.${ext}',
+    // Keep the Linux executable lowercase (the pre-existing default from the
+    // package name). The top-level executableName "OpenWaggle" pins the macOS
+    // bundle/binary and the Windows exe, but on Linux the packaged binary,
+    // install.sh, and packaged-app smoke all expect lowercase `openwaggle`.
+    executableName: 'openwaggle',
     target: [{ target: 'AppImage', arch: ['x64'] }],
   },
 }
