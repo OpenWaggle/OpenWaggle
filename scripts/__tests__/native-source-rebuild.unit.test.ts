@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
+import electronBuilderConfig from '../../electron-builder'
 import { collectNativeArtifactSignatures } from '../native-rebuild-artifacts'
 import {
   createNativeRebuildPlan,
@@ -56,10 +56,8 @@ describe('native source rebuild', () => {
     })
   })
 
-  it('forces electron-builder to rebuild from source for every package target', async () => {
-    const configuration: unknown = parse(await fs.readFile('electron-builder.yml', 'utf8'))
-
-    expect(configuration).toEqual(
+  it('forces electron-builder to rebuild from source for every package target', () => {
+    expect(electronBuilderConfig).toEqual(
       expect.objectContaining({ buildDependenciesFromSource: true }),
     )
   })

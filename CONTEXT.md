@@ -1371,3 +1371,27 @@ _Avoid_: initialization hook (it is a visible user command), setup script (the c
 **Checked-in action candidate**:
 An untrusted Project action definition discovered in the project's root `t3.json` but not saved or runnable by OpenWaggle until the user imports it.
 _Avoid_: project action (it is only a candidate), auto-imported script
+
+### Build identity
+
+**Build identity**:
+What one produced OpenWaggle app artifact calls itself so a human and the operating system can tell it apart from other OpenWaggle builds. It is derived by one rule from the build context, never hand-set per build. A **Dev build** gets a fully distinct identity — display name, application id, icon, and isolated user-data location. Released channels share the canonical application id, executable name, and user-data location, and differ only in display name and icon.
+_Avoid_: build flavor, build variant (do not name only the icon or only the channel)
+
+**Build channel**:
+The release stage a build belongs to: `stable`, a prerelease stage (`alpha`, `beta`, `rc`), or `dev`. The **App release workflow** owns the non-dev channels; any build produced outside it is `dev`.
+_Avoid_: update track (that is the updater's feed selection, not the artifact's own identity), release train
+
+**Isolated build data**:
+A **Dev build** owns its settings, sessions, and credentials under its own user-data location (its display name, applied via `app.setName`), so a stale or dev build can never read or overwrite the installed release's real state. Released channels share the canonical user-data location; isolating them from each other is deferred until the existing install base can be migrated (see docs/adr/0032).
+_Avoid_: shared config, shared profile
+
+**Dev build**:
+Any build not produced by the **App release workflow**. Its **Build identity** carries its source provenance (the worktree or branch it was built from), because several dev builds may be installed at once and must each be distinguishable.
+_Avoid_: local build (a dev build may be copied to another machine), debug build (dev is about provenance, not optimization level)
+
+- The **App release workflow** is the sole authority that assigns a non-dev **Build channel**; a build produced with no channel signal is a **Dev build**. The channel is never inferred from the version string, because every build off the release train carries the same prerelease version whether or not it was actually released.
+- A build surfaces its own **Build identity** through its display name (`OpenWaggle`, `OpenWaggle Alpha`, or `OpenWaggle Dev (<slug>)`), shown in the app's About Version row, so a running window can be identified without inspecting the artifact on disk. Display names stay ASCII-only, because the name flows into Electron's User-Agent (an HTTP ByteString header) and a non-ASCII character throws on every request.
+
+- Released builds share one **Update track**: the single published `latest` feed, read with prereleases allowed so the prerelease-versioned train updates within itself. A **Dev build** never auto-updates. Per-channel release feeds are deferred, because the GitHub publish provider emits one channel file per release.
+- **Update detection** (seeing that a newer build exists on the track) is independent of **Update installation** (replacing the running app). Detection needs only a reachable feed; unattended installation additionally needs a signed, and on macOS notarized, build.
