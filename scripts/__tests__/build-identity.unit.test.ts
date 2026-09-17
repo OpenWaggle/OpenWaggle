@@ -106,3 +106,12 @@ describe('icon path', () => {
     }
   })
 })
+
+describe('packaged executable naming', () => {
+  it('pins the canonical executable but keeps the Linux binary lowercase', () => {
+    // macOS bundle/binary and Windows exe are "OpenWaggle"; the Linux binary,
+    // install.sh, and packaged-app smoke expect lowercase "openwaggle".
+    expect(electronBuilderConfig.executableName).toBe('OpenWaggle')
+    expect(electronBuilderConfig.linux.executableName).toBe('openwaggle')
+  })
+})
