@@ -34,7 +34,7 @@ pnpm test:coverage      # Coverage report
 
 ## CI Gates
 
-CI is decoupled from releases, mirroring `pingdotgg/t3code` (see `docs/adr/0033-t3code-style-release-pipeline.md`, superseding ADR 0029). `ci.yml` runs on pull requests and on the push to `main` — no merge queue — with three jobs: `Check` (`pnpm check`), `Test` (`pnpm test:unit && pnpm test:integration && pnpm test:component`), and `Release Smoke` (`pnpm build`). A feature therefore triggers one PR run plus one main run, not the former five. Releases are a deliberate event: `release.yml` runs only on a pushed `v*` tag (stable), a nightly `schedule`, or `workflow_dispatch`, and is the only place the cross-platform installer build runs. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
+CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, macOS Electron E2E), a PR merges directly. Windows and Linux E2E plus the package/website rehearsals are available via `workflow_dispatch` rather than gating a merge result. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `pnpm check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
 
 ## Repository Model
 

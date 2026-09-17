@@ -1,244 +1,470 @@
-# Mirrors pingdotgg/t3code .github/workflows/release.yml: releases are decoupled
-# from feature merges. A feature just lands on main (CI runs once); a release is
-# a deliberate event driven by a pushed tag (stable), a scheduled nightly, or a
-# manual dispatch. The heavy cross-platform build runs ONLY here, never per PR.
-#
-# Adapted to OpenWaggle: pnpm + electron-builder instead of t3code's Vite+/
-# blacksmith infra, and WITHOUT code signing/notarization (t3code's Azure
-# Trusted Signing + Apple notarization steps are intentionally omitted) and
-# without their CLI/relay/AUR/web-deploy/Discord jobs, which OpenWaggle has not.
-# The non-standard `queue: max` concurrency field t3code uses is also omitted:
-# GitHub Actions only supports `group` + `cancel-in-progress`.
 name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
-      - "!v*-nightly.*"
-  schedule:
-    # Off minute zero: GitHub delays scheduled runs most at the top of the hour.
-    - cron: "38 */3 * * *"
-  workflow_dispatch:
-    inputs:
-      channel:
-        description: "Release channel"
-        required: false
-        default: stable
-        type: choice
-        options:
-          - stable
-          - nightly
-      version:
-        description: "Release version (for example 1.2.3 or v1.2.3)"
-        required: false
-        type: string
+    branches: [main]
 
-# Serialize nightlies so overlapping runs cannot build the same commit twice.
-# Stable tag releases get their own group so a nightly never blocks them.
-# Running publishers are never canceled.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
-  group: release-${{ (github.event_name == 'schedule' || github.event.inputs.channel == 'nightly') && 'nightly' || 'stable' }}
+  group: "${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}"
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  check_changes:
-    name: Check for changes since last nightly
-    if: github.event_name == 'schedule'
+  version:
+    name: Prepare or Publish Protected Version
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
     outputs:
-      has_changes: ${{ steps.check.outputs.has_changes }}
+      new_version: ${{ steps.release.outputs.new_version }}
+      new_tag: ${{ steps.release.outputs.new_tag }}
+      should_release: ${{ steps.release.outputs.should_release }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
-      - id: check
-        name: Compare HEAD to last nightly tag
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Determine bump from conventional commits
+        if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+        id: bump
         run: |
-          last_nightly_tag=$(git tag --list 'v*-nightly.*' --sort=-creatordate | head -n 1)
-          if [[ -z "$last_nightly_tag" ]]; then
-            echo "No previous nightly tag found. Proceeding with release."
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); then
+            RANGE="${LAST_TAG}..HEAD"
+          else
+            LAST_TAG=""
+            RANGE="HEAD"
+          fi
+
+          echo "Last tag: ${LAST_TAG:-none}"
+          echo "Commit range: ${RANGE}"
+          COMMITS=$(git log --format='%s' "$RANGE")
+          BODIES=$(git log --format='%b' "$RANGE")
+          HAS_BREAKING=false
+          HAS_FEAT=false
+          HAS_FIX=false
+
+          while IFS= read -r message; do
+            [ -z "$message" ] && continue
+            if grep -qiE '^[a-z]+(\(.+\))?!:' <<<"$message"; then
+              HAS_BREAKING=true
+            fi
+            if grep -qE '^feat(\(.+\))?:' <<<"$message"; then
+              HAS_FEAT=true
+            fi
+            if grep -qE '^fix(\(.+\))?:' <<<"$message"; then
+              HAS_FIX=true
+            fi
+          done <<<"$COMMITS"
+
+          if grep -q 'BREAKING CHANGE' <<<"$BODIES"; then
+            HAS_BREAKING=true
+          fi
+
+          if [ "$HAS_BREAKING" = true ]; then
+            BUMP="major"
+          elif [ "$HAS_FEAT" = true ]; then
+            BUMP="minor"
+          elif [ "$HAS_FIX" = true ]; then
+            BUMP="patch"
+          else
+            echo "No feat: or fix: commits since last release; skipping."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          last_nightly_sha=$(git rev-parse "$last_nightly_tag^{commit}")
-          head_sha=$(git rev-parse HEAD)
-
-          if [[ "$last_nightly_sha" == "$head_sha" ]]; then
-            echo "No changes on main since last nightly release ($last_nightly_tag). Skipping."
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          CURRENT=$(node -p "require('./package.json').version")
+          if grep -qE 'alpha|beta' <<<"$CURRENT"; then
+            BASE_VERSION="${CURRENT%%-*}"
+            PRERELEASE_TAG=$(sed 's/.*-\(alpha\|beta\)\..*/\1/' <<<"$CURRENT")
+            PRERELEASE_NUM=$(sed 's/.*\(alpha\|beta\)\.\([0-9]*\).*/\2/' <<<"$CURRENT")
+            NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"
           else
-            echo "Changes detected on main since $last_nightly_tag. Proceeding."
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            IFS='.' read -r MAJOR MINOR PATCH <<<"$CURRENT"
+            case "$BUMP" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           fi
 
-  preflight:
-    name: Preflight
-    needs: [check_changes]
-    if: |
-      !failure() && !cancelled() &&
-      (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      release_channel: ${{ steps.release_meta.outputs.release_channel }}
-      version: ${{ steps.release_meta.outputs.version }}
-      tag: ${{ steps.release_meta.outputs.tag }}
-      release_name: ${{ steps.release_meta.outputs.name }}
-      is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
-      make_latest: ${{ steps.release_meta.outputs.make_latest }}
-      ref: ${{ github.sha }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
 
-      - id: release_meta
-        name: Resolve release version
-        shell: bash
+      - name: Prepare release PR or publish its protected merge
+        id: release
         env:
-          DISPATCH_CHANNEL: ${{ github.event.inputs.channel }}
-          DISPATCH_VERSION: ${{ github.event.inputs.version }}
-          NIGHTLY_DATE: ${{ github.run_started_at }}
-          NIGHTLY_SHA: ${{ github.sha }}
-          NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
+          BUMP_SHOULD_RELEASE: ${{ steps.bump.outputs.should_release }}
+          BUMP_VERSION: ${{ steps.bump.outputs.new_version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || ( "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-stable}" == "nightly" ) ]]; then
-            # Nightly version: <base>-nightly.<date>.<run>+<shortsha>, base from package.json.
-            base="$(node -p "require('./package.json').version.split('-')[0]")"
-            nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
-            short_sha="${NIGHTLY_SHA:0:7}"
-            version="${base}-nightly.${nightly_date}.${NIGHTLY_RUN_NUMBER}"
-            echo "release_channel=nightly" >> "$GITHUB_OUTPUT"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
-            echo "name=OpenWaggle v$version ($short_sha)" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
-          else
-            if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-              raw="${DISPATCH_VERSION}"
-              if [[ -z "$raw" ]]; then
-                echo "workflow_dispatch stable releases require the version input." >&2
-                exit 1
-              fi
-            else
-              raw="${GITHUB_REF_NAME}"
-            fi
 
-            version="${raw#v}"
-            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-              echo "Invalid release version: $raw" >&2
+          HEAD_SUBJECT=$(git show -s --format=%s HEAD)
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          RELEASE_SUBJECT_VERSION=$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
+            --subject "$HEAD_SUBJECT" 2>/dev/null || true)
+
+          write_no_release_output() {
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          }
+
+          if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]; then
+            VERSION="$CURRENT_VERSION"
+          elif [[ "$HEAD_SUBJECT" == "chore(release):"* ]]; then
+            write_no_release_output
+            exit 0
+          elif [ "$BUMP_SHOULD_RELEASE" = "true" ]; then
+            VERSION="$BUMP_VERSION"
+          else
+            write_no_release_output
+            exit 0
+          fi
+
+          RELEASE_BRANCH="app-release-v${VERSION}"
+          TAG="v${VERSION}"
+
+          verify_version_only_tree() {
+            local base_ref="$1"
+            local candidate_ref="$2"
+            test "$(git diff --name-only "${base_ref}...${candidate_ref}")" = "package.json"
+            git show "${base_ref}:package.json" > "$RUNNER_TEMP/base-package.json"
+            git show "${candidate_ref}:package.json" > "$RUNNER_TEMP/candidate-package.json"
+            pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+              --base "$RUNNER_TEMP/base-package.json" \
+              --output "$RUNNER_TEMP/expected-package.json" \
+              --version "$VERSION"
+            cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"
+          }
+
+          verify_release_commit() {
+            local commit_sha="$1"
+            [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+            git fetch origin \
+              "+refs/heads/main:refs/remotes/origin/main"
+            git merge-base --is-ancestor "$commit_sha" origin/main
+            local commit_subject
+            commit_subject=$(git show -s --format=%s "$commit_sha")
+            test "$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
+              --subject "$commit_subject")" = "$VERSION"
+            local parent_sha
+            parent_sha=$(git rev-parse "${commit_sha}^")
+            verify_version_only_tree "$parent_sha" "$commit_sha"
+          }
+
+          write_release_outputs() {
+            echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "new_tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          }
+
+          if [ "$RELEASE_SUBJECT_VERSION" = "$VERSION" ]; then
+            MERGE_SHA="$GITHUB_SHA"
+            verify_release_commit "$MERGE_SHA"
+
+            ASSOCIATED_PRS=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls")
+            MATCHING_PRS=$(jq -c \
+              --arg branch "$RELEASE_BRANCH" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg sha "$MERGE_SHA" \
+              --arg title "chore(release): v${VERSION}" \
+              '[.[] | select(
+                .state == "closed" and
+                .merged_at != null and
+                .merge_commit_sha == $sha and
+                .base.ref == "main" and
+                .head.ref == $branch and
+                .head.repo.full_name == $repository and
+                .title == $title
+              )]' <<<"$ASSOCIATED_PRS")
+            test "$(jq -er 'length' <<<"$MATCHING_PRS")" = "1"
+            MATCHING_PR_NUMBER=$(jq -er '.[0].number' <<<"$MATCHING_PRS")
+            MATCHING_PR=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}")
+            test "$(jq -er '.number' <<<"$MATCHING_PR")" = "$MATCHING_PR_NUMBER"
+            test "$(jq -er '.state' <<<"$MATCHING_PR")" = "closed"
+            test "$(jq -er '.merge_commit_sha' <<<"$MATCHING_PR")" = "$MERGE_SHA"
+            test "$(jq -er '.base.ref' <<<"$MATCHING_PR")" = "main"
+            test "$(jq -er '.head.ref' <<<"$MATCHING_PR")" = "$RELEASE_BRANCH"
+            test "$(jq -er '.head.repo.full_name' <<<"$MATCHING_PR")" = "$GITHUB_REPOSITORY"
+            test "$(jq -er '.title' <<<"$MATCHING_PR")" = "chore(release): v${VERSION}"
+            test "$(jq -er '.merged_by.type' <<<"$MATCHING_PR")" = "User"
+            test "$(jq -er '.merged_by.login' <<<"$MATCHING_PR")" != "github-actions[bot]"
+
+            RELEASE_PR_HEAD_SHA=$(jq -er '.head.sha' <<<"$MATCHING_PR")
+            [[ "$RELEASE_PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+            RELEASE_PR_RUNS=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20")
+            test "$(jq -er --arg sha "$RELEASE_PR_HEAD_SHA" \
+              '[.workflow_runs[] | select(
+                .head_sha == $sha and
+                .event == "pull_request" and
+                .status == "completed" and
+                .conclusion == "success"
+              )] | length' <<<"$RELEASE_PR_RUNS")" -ge "1"
+
+            if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+              test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -a "$TAG" "$MERGE_SHA" -m "Release ${TAG}"
+              git push origin "refs/tags/${TAG}"
+            fi
+            write_release_outputs
+            exit 0
+          fi
+
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "${TAG} is already published; no release PR is needed."
+            write_no_release_output
+            exit 0
+          fi
+
+          ALL_PRS=$(gh pr list --state all --head "$RELEASE_BRANCH" --limit 100 \
+            --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url)
+          PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+            --branch "$RELEASE_BRANCH" \
+            --owner "$GITHUB_REPOSITORY_OWNER" \
+            --repository "${GITHUB_REPOSITORY#*/}" \
+            <<<"$ALL_PRS")
+          PR_COUNT=$(jq -er 'length' <<<"$PRS")
+          if [ "$PR_COUNT" -gt 1 ]; then
+            echo "Multiple release PRs use ${RELEASE_BRANCH}."
+            exit 1
+          fi
+
+          PR_URL=""
+          PR_STATE=""
+          if [ "$PR_COUNT" -eq 1 ]; then
+            PR_URL=$(jq -er '.[0].url' <<<"$PRS")
+            PR_STATE=$(jq -er '.[0].state' <<<"$PRS")
+            test "$(jq -er '.[0].baseRefName' <<<"$PRS")" = "main"
+            test "$(jq -er '.[0].headRefName' <<<"$PRS")" = "$RELEASE_BRANCH"
+            test "$(jq -er '.[0].title' <<<"$PRS")" = "chore(release): v${VERSION}"
+            if [ "$PR_STATE" = "MERGED" ]; then
+              echo "Release PR is already merged; its protected-merge run owns publication."
+              write_no_release_output
+              exit 0
+            elif [ "$PR_STATE" != "OPEN" ]; then
+              echo "Release PR is closed without being merged: ${PR_URL}"
               exit 1
             fi
-
-            echo "release_channel=stable" >> "$GITHUB_OUTPUT"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
-            echo "name=OpenWaggle v$version" >> "$GITHUB_OUTPUT"
-            # A bare X.Y.Z is a full release; anything with a pre-release suffix
-            # (e.g. alpha/beta/rc) is a prerelease and not marked latest.
-            if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-              echo "make_latest=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-              echo "make_latest=false" >> "$GITHUB_OUTPUT"
-            fi
           fi
 
-  quality:
-    name: Release quality checks
-    needs: [preflight]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+          if [ -z "$PR_URL" ]; then
+            if git ls-remote --exit-code origin "refs/heads/${RELEASE_BRANCH}" >/dev/null 2>&1; then
+              git fetch origin "refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              git switch --detach "origin/${RELEASE_BRANCH}"
+            else
+              pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+                --base package.json \
+                --output package.json \
+                --version "$VERSION"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git switch -c "$RELEASE_BRANCH"
+              git add package.json
+              git commit -m "chore(release): v${VERSION}"
+              git push origin "$RELEASE_BRANCH"
+            fi
+
+            git fetch origin \
+              "+refs/heads/main:refs/remotes/origin/main" \
+              "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+            verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+            PR_CREATE_ERROR="$RUNNER_TEMP/release-pr-create-error.log"
+            for PR_CREATE_ATTEMPT in $(seq 1 4); do
+              if PR_URL=$(gh pr create \
+                --base main \
+                --head "$RELEASE_BRANCH" \
+                --title "chore(release): v${VERSION}" \
+                --body "Automated desktop app version release. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release." \
+                2>"$PR_CREATE_ERROR"); then
+                break
+              fi
+
+              cat "$PR_CREATE_ERROR" >&2
+              PR_URL=""
+              RECOVERY_ALL_PRS=""
+              if RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH" --limit 100 \
+                --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url); then
+                RECOVERY_PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+                  --branch "$RELEASE_BRANCH" \
+                  --owner "$GITHUB_REPOSITORY_OWNER" \
+                  --repository "${GITHUB_REPOSITORY#*/}" \
+                  <<<"$RECOVERY_ALL_PRS")
+                RECOVERY_PR_COUNT=$(jq -er 'length' <<<"$RECOVERY_PRS")
+                if [ "$RECOVERY_PR_COUNT" -gt 1 ]; then
+                  echo "Multiple release PRs appeared after creation failed for ${RELEASE_BRANCH}." >&2
+                  exit 1
+                fi
+                if [ "$RECOVERY_PR_COUNT" -eq 1 ]; then
+                  test "$(jq -er '.[0].baseRefName' <<<"$RECOVERY_PRS")" = "main"
+                  test "$(jq -er '.[0].headRefName' <<<"$RECOVERY_PRS")" = "$RELEASE_BRANCH"
+                  test "$(jq -er '.[0].state' <<<"$RECOVERY_PRS")" = "OPEN"
+                  test "$(jq -er '.[0].title' <<<"$RECOVERY_PRS")" = "chore(release): v${VERSION}"
+                  PR_URL=$(jq -er '.[0].url' <<<"$RECOVERY_PRS")
+                  echo "Adopted release PR after an ambiguous creation failure: ${PR_URL}" >&2
+                  break
+                fi
+              fi
+
+              if [ "$PR_CREATE_ATTEMPT" -eq 4 ]; then
+                echo "GitHub did not create the release PR after ${PR_CREATE_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "GitHub PR creation failed; retrying (${PR_CREATE_ATTEMPT}/4)." >&2
+              sleep $((PR_CREATE_ATTEMPT * 5))
+            done
+            test -n "$PR_URL"
+            PR_STATE="OPEN"
+          fi
+
+          if [ "$PR_STATE" = "OPEN" ]; then
+            PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq '.number')
+            for VALIDATION_ATTEMPT in $(seq 1 3); do
+              PR_DETAILS=$(gh pr view "$PR_URL" \
+                --json baseRefName,headRefName,headRefOid,mergeStateStatus,state,title)
+              CURRENT_PR_STATE=$(jq -er '.state' <<<"$PR_DETAILS")
+              if [ "$CURRENT_PR_STATE" = "MERGED" ]; then
+                echo "Release PR merged after validation; its protected-merge run owns publication."
+                write_no_release_output
+                exit 0
+              fi
+              test "$CURRENT_PR_STATE" = "OPEN"
+              test "$(jq -er '.baseRefName' <<<"$PR_DETAILS")" = "main"
+              test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
+              test "$(jq -er '.title' <<<"$PR_DETAILS")" = "chore(release): v${VERSION}"
+              HEAD_SHA=$(jq -er '.headRefOid' <<<"$PR_DETAILS")
+              MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$PR_DETAILS")
+              [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+              if [ "$MERGE_STATE" = "BEHIND" ]; then
+                gh api --method PUT \
+                  "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" \
+                  -f "expected_head_sha=${HEAD_SHA}" >/dev/null
+                for UPDATE_ATTEMPT in $(seq 1 30); do
+                  UPDATED_SHA=$(gh pr view "$PR_URL" --json headRefOid --jq '.headRefOid')
+                  if [ "$UPDATED_SHA" != "$HEAD_SHA" ]; then
+                    HEAD_SHA="$UPDATED_SHA"
+                    break
+                  fi
+                  echo "Waiting for release branch update (${UPDATE_ATTEMPT}/30)."
+                  sleep 2
+                done
+                test "$HEAD_SHA" != "$(jq -er '.headRefOid' <<<"$PR_DETAILS")"
+              fi
+
+              git fetch origin \
+                "+refs/heads/main:refs/remotes/origin/main" \
+                "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
+              verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+
+              RUN_ID=""
+              for RUN_ATTEMPT in $(seq 1 60); do
+                RUNS=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20")
+                if RUN_ID=$(jq -er --arg sha "$HEAD_SHA" \
+                  '.workflow_runs | map(select(.head_sha == $sha and .event == "pull_request")) | first | .id' <<<"$RUNS"); then
+                  break
+                fi
+                echo "Waiting for PR-associated exact-head CI run (${RUN_ATTEMPT}/60)."
+                sleep 5
+              done
+              test -n "$RUN_ID"
+
+              RUN_DETAILS=$(gh run view "$RUN_ID" --json attempt,conclusion,event,headSha,status)
+              test "$(jq -er '.event' <<<"$RUN_DETAILS")" = "pull_request"
+              test "$(jq -er '.headSha' <<<"$RUN_DETAILS")" = "$HEAD_SHA"
+              RUN_STATUS=$(jq -er '.status' <<<"$RUN_DETAILS")
+              RUN_CONCLUSION=$(jq -r '.conclusion // ""' <<<"$RUN_DETAILS")
+              if [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" = "action_required" ]; then
+                PREVIOUS_ATTEMPT=$(jq -er '.attempt' <<<"$RUN_DETAILS")
+                gh run rerun "$RUN_ID"
+                for RERUN_ATTEMPT in $(seq 1 30); do
+                  CURRENT_ATTEMPT=$(gh run view "$RUN_ID" --json attempt --jq '.attempt')
+                  if [ "$CURRENT_ATTEMPT" -gt "$PREVIOUS_ATTEMPT" ]; then
+                    break
+                  fi
+                  echo "Waiting for PR-associated CI rerun (${RERUN_ATTEMPT}/30)."
+                  sleep 2
+                done
+                test "$CURRENT_ATTEMPT" -gt "$PREVIOUS_ATTEMPT"
+              elif [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" != "success" ]; then
+                echo "PR-associated CI is in terminal state: ${RUN_CONCLUSION}."
+                exit 1
+              fi
+              gh run watch "$RUN_ID" --exit-status
+
+              AFTER_VALIDATION=$(gh pr view "$PR_URL" \
+                --json headRefOid,mergeStateStatus,state)
+              test "$(jq -er '.headRefOid' <<<"$AFTER_VALIDATION")" = "$HEAD_SHA"
+              AFTER_VALIDATION_STATE=$(jq -er '.state' <<<"$AFTER_VALIDATION")
+              if [ "$AFTER_VALIDATION_STATE" = "MERGED" ]; then
+                echo "Release PR merged after validation; its protected-merge run owns publication."
+                write_no_release_output
+                exit 0
+              fi
+              test "$AFTER_VALIDATION_STATE" = "OPEN"
+              if [ "$(jq -er '.mergeStateStatus' <<<"$AFTER_VALIDATION")" != "BEHIND" ]; then
+                break
+              fi
+              if [ "$VALIDATION_ATTEMPT" -eq 3 ]; then
+                echo "Release PR remained behind main after strict-base validation retries."
+                exit 1
+              fi
+            done
+          fi
+
+          echo "Release PR ready for maintainer review: ${PR_URL}"
+          write_no_release_output
+
+  build-macos:
+    name: Build macOS
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: macos-14
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          ref: ${{ needs.preflight.outputs.ref }}
+          ref: ${{ needs.version.outputs.new_tag }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 24.14.0
+          node-version: 24
           cache: pnpm
 
-      - name: Install dependencies
-        uses: ./.github/actions/pnpm-install
+      - run: pnpm install --frozen-lockfile
 
-      - name: Install terminal integration shells
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
-
-      - name: Check
-        run: pnpm check
-
-      - name: Test
-        run: pnpm test:unit && pnpm test:integration && pnpm test:component
-
-  build:
-    name: Build ${{ matrix.label }}
-    needs: [preflight, quality]
-    if: ${{ !cancelled() && needs.preflight.result == 'success' && needs.quality.result == 'success' }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: macOS (arm64 + x64)
-            runner: macos-latest
-            platform: macos
-            build_flags: --mac --arm64 --x64 --publish never
-          - label: Linux x64
-            runner: ubuntu-latest
-            platform: linux
-            build_flags: --linux --publish never
-          - label: Windows x64
-            runner: windows-latest
-            platform: windows
-            build_flags: --win --publish never
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-
-      - name: Install dependencies
-        uses: ./.github/actions/pnpm-install
-
-      - name: Align package version to release version
-        shell: bash
-        run: npm version --no-git-tag-version --allow-same-version "${{ needs.preflight.outputs.version }}"
-
-      - name: Stamp release build channel
+      - name: Stamp release Build channel
         shell: bash
         run: |
           set -euo pipefail
-          version='${{ needs.preflight.outputs.version }}'
+          version='${{ needs.version.outputs.new_version }}'
           case "$version" in
-            *-nightly.*) channel=nightly ;;
             *-alpha.*) channel=alpha ;;
             *-beta.*) channel=beta ;;
             *-rc.*) channel=rc ;;
@@ -247,133 +473,258 @@ jobs:
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
-      - name: Build production bundle
-        run: pnpm build
+      - run: pnpm build
 
-      - name: Package installers
-        run: pnpm exec electron-builder ${{ matrix.build_flags }}
+      - name: Build macOS artifacts (arm64 + x64)
+        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
         env:
-          # We do not sign or notarize; keep electron-builder from trying to
-          # discover a macOS signing identity (t3code's Azure/Apple signing
-          # steps are intentionally omitted).
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Smoke packaged PTY runtime
+      - name: Smoke packaged macOS PTY runtime
         run: pnpm packaged-app:smoke
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ${{ matrix.platform }}-artifacts
+          name: macos-artifacts
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.yml
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
+
+      - run: pnpm build
+
+      - name: Build Linux AppImage
+        run: pnpm exec electron-builder --linux --publish never
+
+      - name: Smoke packaged Linux PTY runtime
+        run: pnpm packaged-app:smoke
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-artifacts
+          path: |
             dist/*.AppImage
+            dist/*.yml
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
+
+      - run: pnpm build
+
+      - name: Build Windows NSIS installer
+        run: pnpm exec electron-builder --win --publish never
+
+      - name: Smoke packaged Windows PTY runtimes
+        run: pnpm packaged-app:smoke
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-artifacts
+          path: |
             dist/*.exe
             dist/*.yml
           if-no-files-found: error
 
+  verify-installers:
+    name: Verify release installers
+    needs: [version, build-macos, build-linux, build-windows]
+    if: needs.version.outputs.should_release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact_name: linux-artifacts
+          - os: macos-latest
+            platform: macos
+            artifact_name: macos-artifacts
+          - os: windows-latest
+            platform: windows
+            artifact_name: windows-artifacts
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ runner.temp }}/release/${{ matrix.platform }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        if: matrix.platform == 'windows'
+        with:
+          node-version: 24.14.0
+
+      - name: Verify Linux installer
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ needs.version.outputs.new_version }}'
+          ARTIFACT_DIR="$RUNNER_TEMP/release/linux"
+          APPIMAGE_NAME="openwaggle-${VERSION}-x86_64.AppImage"
+          APPIMAGE_PATH="$ARTIFACT_DIR/$APPIMAGE_NAME"
+          test -f "$APPIMAGE_PATH"
+          chmod +x "$APPIMAGE_PATH"
+
+          bash -n scripts/install.sh
+          MOCK_RELEASE_DIR="$RUNNER_TEMP/mock-release"
+          mkdir -p "$MOCK_RELEASE_DIR"
+          cp "$APPIMAGE_PATH" "$MOCK_RELEASE_DIR/$APPIMAGE_NAME"
+          (
+            cd "$MOCK_RELEASE_DIR"
+            sha256sum "$APPIMAGE_NAME" > SHA256SUMS.txt
+          )
+
+          RELEASE_JSON_PATH="$MOCK_RELEASE_DIR/release.json"
+          APPIMAGE_URL="file://$MOCK_RELEASE_DIR/$APPIMAGE_NAME"
+          SHA_URL="file://$MOCK_RELEASE_DIR/SHA256SUMS.txt"
+          cat > "$RELEASE_JSON_PATH" <<JSON
+          {
+            "tag_name": "v${VERSION}",
+            "assets": [
+              { "browser_download_url": "${APPIMAGE_URL}" },
+              { "browser_download_url": "${SHA_URL}" }
+            ]
+          }
+          JSON
+
+          TMP_HOME="$RUNNER_TEMP/home"
+          mkdir -p "$TMP_HOME"
+          export HOME="$TMP_HOME"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export PATH="$HOME/.local/bin:$PATH"
+          export OPENWAGGLE_RELEASE_API_URL="file://$RELEASE_JSON_PATH"
+          bash scripts/install.sh
+
+          test -x "$HOME/.local/bin/openwaggle"
+          test -f "$HOME/.local/share/applications/openwaggle.desktop"
+
+      - name: Verify macOS installers
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ needs.version.outputs.new_version }}'
+          ARTIFACT_DIR="$RUNNER_TEMP/release/macos"
+          ARM64_DMG="openwaggle-${VERSION}-arm64.dmg"
+          X64_DMG="openwaggle-${VERSION}-x64.dmg"
+          ARM64_ZIP="openwaggle-${VERSION}-arm64.zip"
+          X64_ZIP="openwaggle-${VERSION}-x64.zip"
+          test -f "$ARTIFACT_DIR/$ARM64_DMG"
+          test -f "$ARTIFACT_DIR/$X64_DMG"
+          test -f "$ARTIFACT_DIR/$ARM64_ZIP"
+          test -f "$ARTIFACT_DIR/$X64_ZIP"
+
+          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
+          trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
+          APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
+          test -d "$APP_PATH"
+          APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
+          test -x "$APP_BINARY"
+
+      - name: Verify Windows installer
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
+        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+
   release:
     name: Create GitHub Release
-    needs: [preflight, build]
-    if: ${{ !failure() && !cancelled() && needs.build.result == 'success' }}
+    needs: [version, verify-installers]
+    if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 
       - name: Collect release assets
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.blockmap' -o -name '*.yml' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v3
+      - name: Create draft release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          tag_name: ${{ needs.preflight.outputs.tag }}
-          name: ${{ needs.preflight.outputs.release_name }}
-          target_commitish: ${{ needs.preflight.outputs.ref }}
+          tag_name: ${{ needs.version.outputs.new_tag }}
+          name: ${{ needs.version.outputs.new_tag }}
           draft: false
-          prerelease: ${{ needs.preflight.outputs.is_prerelease }}
-          make_latest: ${{ needs.preflight.outputs.make_latest }}
           generate_release_notes: true
-          fail_on_unmatched_files: true
           files: release/*
-          token: ${{ github.token }}
-
-  finalize:
-    name: Finalize release
-    needs: [preflight, release]
-    # Stable only: after a tagged stable release, bump main's package version so
-    # the next development cycle starts from the released version. Nightlies
-    # never touch main. Mirrors t3code's finalize job, but pushes with the
-    # built-in GITHUB_TOKEN instead of a GitHub App (no App/secret needed on a
-    # personal repo). The push requires a ruleset bypass for the
-    # `github-actions` app on main; add it once with:
-    #   gh api -X PUT repos/OpenWaggle/OpenWaggle/rulesets/<id> ...  (see PR notes)
-    # Until that bypass exists the push is blocked, so the step tolerates a
-    # failed push and records a notice rather than failing the whole release.
-    if: ${{ !failure() && !cancelled() && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'stable' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v6
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.14.0
-
-      - name: Update version string
-        env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-        run: npm version --no-git-tag-version --allow-same-version "$RELEASE_VERSION"
-
-      - name: Refresh lockfile
-        run: pnpm install --lockfile-only --ignore-scripts
-
-      - name: Commit and push version bump
-        env:
-          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
-        run: |
-          if git diff --quiet -- package.json pnpm-lock.yaml; then
-            echo "No version changes to commit." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json pnpm-lock.yaml
-          git commit -m "chore(release): prepare $RELEASE_TAG"
-          if git push origin HEAD:main; then
-            echo "Bumped main to $RELEASE_TAG." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Version bump push was blocked (add a github-actions ruleset bypass on main to enable it)." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Summarize release
-        run: |
-          {
-            echo "## Released ${{ needs.preflight.outputs.tag }}"
-            echo ""
-            echo "- Channel: ${{ needs.preflight.outputs.release_channel }}"
-            echo "- Prerelease: ${{ needs.preflight.outputs.is_prerelease }}"
-            echo "- Latest: ${{ needs.preflight.outputs.make_latest }}"
-          } >> "$GITHUB_STEP_SUMMARY"
