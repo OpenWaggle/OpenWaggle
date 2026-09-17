@@ -95,7 +95,7 @@ export function resolveBuildIdentity(
     return {
       channel,
       slug,
-      productName: `OpenWaggle Dev · ${slug}`,
+      productName: `OpenWaggle Dev (${slug})`,
       appId: `com.openwaggle.dev.${slug}`,
       isolateUserData: true,
     }

@@ -74,9 +74,12 @@ describe('build identity', () => {
     )
     expect(identity.channel).toBe('dev')
     expect(identity.slug).toBe('feature-terminal-worktree-sessions')
-    expect(identity.productName).toBe('OpenWaggle Dev · feature-terminal-worktree-sessions')
+    expect(identity.productName).toBe('OpenWaggle Dev (feature-terminal-worktree-sessions)')
     expect(identity.appId).toBe('com.openwaggle.dev.feature-terminal-worktree-sessions')
     expect(identity.isolateUserData).toBe(true)
+    // ASCII-only: a non-ASCII product name propagates into Electron's User-Agent
+    // (an HTTP ByteString header) and throws on every request. Regression guard.
+    expect([...identity.productName].every((c) => c.charCodeAt(0) <= 127)).toBe(true)
   })
 })
 

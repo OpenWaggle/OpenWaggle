@@ -34,7 +34,7 @@ for the About view and the updater/userData decisions.
   workflow and failing closed on an unrecognized prerelease id). Any build with
   no signal is `dev`.
 - **Dev builds get a distinct, isolated identity.** Display name
-  `OpenWaggle Dev · <slug>`, `appId com.openwaggle.dev.<slug>`, a dev-badged
+  `OpenWaggle Dev (<slug>)`, `appId com.openwaggle.dev.<slug>`, a dev-badged
   icon, **isolated userData** (`app.setName(productName)` before any userData
   consumer), and **no auto-update**. This is the incident fix: a stale local
   build can neither be mistaken for the release nor act on its data.
