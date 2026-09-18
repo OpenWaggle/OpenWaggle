@@ -1,9 +1,8 @@
 import type { SessionId } from '@shared/types/brand'
 import type { InlineVisualizationReference } from '@shared/types/inline-visualization'
 import {
-  parseInlineVisualizationReference,
-  VISUALIZE_REFERENCE_END,
-  VISUALIZE_REFERENCE_START,
+  findNextVisualizationReferenceMatch,
+  withholdUnresolvedVisualizationSuffix,
 } from '@shared/utils/inline-visualization'
 import rehypeSanitize from 'rehype-sanitize'
 import { cn } from '@/shared/lib/cn'
@@ -36,32 +35,21 @@ type StreamingContentSegment =
     }
 
 function splitStreamingContent(text: string, isStreaming: boolean): StreamingContentSegment[] {
-  let visibleText = text
-  if (isStreaming) {
-    const maximumSuffixLength = Math.min(text.length, VISUALIZE_REFERENCE_START.length - 1)
-    for (let length = maximumSuffixLength; length > 0; length -= 1) {
-      if (text.endsWith(VISUALIZE_REFERENCE_START.slice(0, length))) {
-        visibleText = text.slice(0, -length)
-        break
-      }
-    }
-  }
+  const visibleText = isStreaming ? withholdUnresolvedVisualizationSuffix(text) : text
   const segments: StreamingContentSegment[] = []
   let scanFrom = 0
   let markdownStart = 0
 
   while (scanFrom < visibleText.length) {
-    const start = visibleText.indexOf(VISUALIZE_REFERENCE_START, scanFrom)
-    if (start === -1) break
+    const match = findNextVisualizationReferenceMatch(visibleText, scanFrom)
+    if (!match) break
 
-    const payloadStart = start + VISUALIZE_REFERENCE_START.length
-    const end = visibleText.indexOf(VISUALIZE_REFERENCE_END, payloadStart)
-    if (end === -1) {
+    if (match.kind === 'unterminated') {
       if (isStreaming) {
-        if (start > markdownStart) {
+        if (match.start > markdownStart) {
           segments.push({
             type: 'markdown',
-            text: visibleText.slice(markdownStart, start),
+            text: visibleText.slice(markdownStart, match.start),
             sourceOffset: markdownStart,
           })
         }
@@ -70,21 +58,15 @@ function splitStreamingContent(text: string, isStreaming: boolean): StreamingCon
       break
     }
 
-    const reference = parseInlineVisualizationReference(visibleText.slice(payloadStart, end))
-    if (reference === null) {
-      scanFrom = end + VISUALIZE_REFERENCE_END.length
-      continue
-    }
-
-    if (start > markdownStart) {
+    if (match.start > markdownStart) {
       segments.push({
         type: 'markdown',
-        text: visibleText.slice(markdownStart, start),
+        text: visibleText.slice(markdownStart, match.start),
         sourceOffset: markdownStart,
       })
     }
-    segments.push({ type: 'visualization', reference, sourceOffset: start })
-    scanFrom = end + VISUALIZE_REFERENCE_END.length
+    segments.push({ type: 'visualization', reference: match.reference, sourceOffset: match.start })
+    scanFrom = match.end
     markdownStart = scanFrom
   }
 

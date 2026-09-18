@@ -45,6 +45,34 @@ describe('StreamingText', () => {
     )
   })
 
+  it('mounts a delimiter-free own-line reference emitted from the visible skill template', () => {
+    const path = '/Users/diego/.codex/visualizations/thread-1/settle.html'
+
+    render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={['Before.', '', `visualize{"path":"${path}"}`, '', 'After.'].join('\n')}
+      />,
+    )
+
+    expect(screen.getByText('Before.')).toBeInTheDocument()
+    expect(screen.getByText('After.')).toBeInTheDocument()
+    expect(screen.queryByText(/visualize/)).toBeNull()
+    expect(screen.getByRole('region')).toHaveAttribute('data-visualization-path', path)
+  })
+
+  it('keeps a delimiter-free reference inside prose as literal text', () => {
+    render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={'See visualize{"path":"/tmp/map.html"} inline.'}
+      />,
+    )
+
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByText(/visualize/)).toBeInTheDocument()
+  })
+
   it('withholds an incomplete visualize reference until streaming completes it', () => {
     const path = '/Users/diego/.codex/visualizations/thread-1/stream-map.html'
     const { rerender } = render(
