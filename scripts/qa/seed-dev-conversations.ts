@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { seedSessions } from '../../e2e/support/session-fixtures'
+import { seedSessions } from '../support/session-fixtures'
 
 const DEFAULT_MESSAGE_COUNT = 400
 const ROLE_ALTERNATION = 2

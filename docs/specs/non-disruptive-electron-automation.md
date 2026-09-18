@@ -32,8 +32,6 @@ Visible Electron automation requires an explicitly headed command. An agent may 
 | `pnpm dev` | Visible | Normal development profile | None by default | Ordinary interactive development |
 | `pnpm dev:debug` | Hidden | Ephemeral | Reserved port 9223 | Managed agent-QA launcher |
 | `pnpm dev:debug:headed` | Visible | Normal development profile | Port 9222 | Exact-run maintainer approval required for agents |
-| Headless Electron E2E | Hidden | Ephemeral per app | Playwright-managed | Default E2E path |
-| Headed Electron E2E | Visible | Ephemeral per app | Playwright-managed | Exact-run maintainer approval required for agents |
 | Startup measurement | Hidden | Ephemeral | Dynamically allocated by its measurement harness | Scripted automation |
 | Website screenshot capture | Hidden | Ephemeral | Playwright-managed | Hidden rendering still produces screenshots |
 
@@ -93,7 +91,7 @@ Regression coverage must prove:
   prompts, themes, context, models, and auth metadata continue to load;
 - the repository check rejects an intentionally introduced unguarded OS-UI call.
 
-Hidden E2E remains the final real-runtime verification. Headed-only native UI behavior is reported as a coverage gap unless the maintainer approves a headed run.
+Hidden packaged-app QA (`pnpm dev:debug` + electron-qa, and the nightly packaged canary) is the real-runtime verification path; there is no Electron E2E suite (ADR 0033). Headed-only native UI behavior is reported as a coverage gap unless the maintainer approves a headed run.
 
 ## QA evidence
 

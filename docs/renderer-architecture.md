@@ -174,7 +174,6 @@ Rules:
 - Hook tests live under the owning hook folder's `__tests__/`.
 - Pure logic tests live under the owning `lib/__tests__/` or `state/__tests__/`.
 - Route-only tests may live in `routes/__tests__/` because TanStack Router files are route-owned.
-- E2E tests stay under `e2e/`.
 
 Test behavior through public interfaces where practical. Extract important logic from React components into hooks, stores, or pure modules before testing it.
 
