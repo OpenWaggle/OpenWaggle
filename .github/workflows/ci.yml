@@ -118,6 +118,10 @@ jobs:
 
   test-unit:
     name: Unit Tests
+    # Skip on the Release Please version-bump PR: it carries no source changes, so the
+    # suite would re-validate a tree already proven on the feature PRs and on push to main.
+    # The release-pr gate tier accepts this skip; every ordinary PR still runs it.
+    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -149,6 +153,8 @@ jobs:
 
   test-integration-component:
     name: Integration & Component Tests
+    # Skipped on the Release Please version-bump PR (see test-unit).
+    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -192,6 +198,8 @@ jobs:
 
   test-mcp-conformance:
     name: MCP Conformance
+    # Skipped on the Release Please version-bump PR (see test-unit).
+    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -269,7 +277,8 @@ jobs:
   electron-e2e-macos:
     name: Electron E2E (macOS)
     # The merge queue and dispatched runs validate E2E; main pushes stay a static canary.
-    if: github.event_name != 'push'
+    # Also skipped on the Release Please version-bump PR (see test-unit).
+    if: github.event_name != 'push' && (github.head_ref || github.ref_name) != 'release-please--branches--main'
     # macOS runs both the shared functional suite and the native Darwin visual baselines.
     runs-on: macos-15
     timeout-minutes: 20
@@ -698,7 +707,7 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
-      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast-no-e2e' || 'fast' }}
+      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast-no-e2e' || (github.head_ref || github.ref_name) == 'release-please--branches--main' && 'release-pr' || 'fast' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:

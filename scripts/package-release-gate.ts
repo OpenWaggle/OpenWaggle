@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url'
 const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_ARGUMENT_COUNT = 13
 
-const GATE_TIERS = ['full', 'fast', 'fast-no-e2e', 'visual'] as const
+const GATE_TIERS = ['full', 'fast', 'fast-no-e2e', 'release-pr', 'visual'] as const
 export type PackageReleaseGateTier = (typeof GATE_TIERS)[number]
 
 /**
@@ -67,6 +67,17 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
     'mcpConformanceResult',
     'candidateResult',
   ],
+  /*
+   * The Release Please version-bump PR carries no source changes, only version and
+   * changelog edits, so the app test suite (unit, integration/component, MCP, E2E) would
+   * re-validate a tree already proven on the feature PRs and on the push to main, and is
+   * skipped on that branch. This tier therefore does not require those jobs. `check` still
+   * runs the fail-closed release policy and `candidate` still builds and attests the
+   * release tarballs, both required. This tier is only selected for the authenticated
+   * `release-please--branches--main` branch (classify-package-release rejects forks and
+   * non-bot authors), so it cannot skip tests on an ordinary PR.
+   */
+  'release-pr': ['commitPolicyResult', 'checkResult', 'candidateResult'],
   visual: ['e2eMacosResult'],
 }
 

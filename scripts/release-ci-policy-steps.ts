@@ -42,10 +42,20 @@ export const CONCURRENCY_CANCEL_LINE =
  * ordinary pull-request pushes by design (ADR 0025): the merge queue and dispatched full
  * runs are their enforcement points, so the condition text is part of the contract.
  */
+// Jobs permitted an exact job-level `if`. The E2E/rehearsal jobs are queue/dispatch-gated;
+// the three app-test jobs carry only the Release Please skip (source is unchanged on that
+// authenticated version-bump branch, so re-running is redundant). Asserted exactly, so no
+// job here can carry an arbitrary skip.
+const RELEASE_PR_SKIP = "    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'\n"
 export const QUEUE_ONLY_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['Unit Tests', [RELEASE_PR_SKIP]],
+  ['Integration & Component Tests', [RELEASE_PR_SKIP]],
+  ['MCP Conformance', [RELEASE_PR_SKIP]],
   [
     'Electron E2E (macOS)',
-    ["    if: github.event_name != 'push'\n"],
+    [
+      "    if: github.event_name != 'push' && (github.head_ref || github.ref_name) != 'release-please--branches--main'\n",
+    ],
   ],
   [
     'Electron E2E (Linux)',

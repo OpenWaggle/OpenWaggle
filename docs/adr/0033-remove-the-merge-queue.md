@@ -29,3 +29,7 @@ Remove the merge queue. Drop the `merge_queue` rule from the `main` branch rules
 - Windows and Linux Electron E2E and the package/website rehearsals no longer run on a merge result; they remain available via `workflow_dispatch`. macOS Electron E2E plus commit policy, static checks, unit, integration/component, and MCP conformance still gate every PR.
 - No workflow code changes: the supply-chain provenance attestation for `@openwaggle/*` and the human-approved app-release flow are preserved exactly.
 - Adoption is a one-time ruleset edit (drop the `merge_queue` rule) plus updating the required-status-check contexts if any referenced only the merge queue.
+
+## Follow-up: skip the redundant suite on the Release Please PR
+
+The Release Please version-bump PR carried no source changes yet re-ran the full app suite (unit, integration/component, MCP, macOS E2E) that the feature PRs and the push to `main` already proved. Those four jobs now skip on the authenticated `release-please--branches--main` branch, and a new fail-closed gate tier `release-pr` accepts that skip while still requiring commit policy, `check`, and the package candidate (so `prepare-package-release` still builds and attests the release tarballs). The skip is scoped by exact branch match and `classify-package-release` already rejects forks and non-bot authors, so it cannot skip tests on an ordinary PR. This keeps provenance attestation and human-approved releases intact while removing the last redundant test re-run.

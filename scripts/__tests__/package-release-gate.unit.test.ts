@@ -67,6 +67,26 @@ describe('Package Release Gate', () => {
     ).not.toThrow()
   })
 
+  it('passes the release-pr tier when the app test suite is skipped on the version-bump PR', () => {
+    expect(() =>
+      validatePackageReleaseGate({
+        results: {
+          ...ALL_SUCCESS,
+          testUnitResult: 'skipped',
+          testIntegrationComponentResult: 'skipped',
+          mcpConformanceResult: 'skipped',
+          e2eMacosResult: 'skipped',
+          e2eLinuxResult: 'skipped',
+          e2eWindowsResult: 'skipped',
+          changesResult: 'skipped',
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'release-pr',
+      }),
+    ).not.toThrow()
+  })
+
   it('passes the visual tier when only the macOS E2E job ran', () => {
     expect(() =>
       validatePackageReleaseGate({
@@ -97,6 +117,8 @@ describe('Package Release Gate', () => {
     ['fast', 'e2eMacosResult', 'skipped', 'Electron E2E (macOS)'],
     ['fast', 'candidateResult', 'failure', 'package release candidate'],
     ['fast-no-e2e', 'testUnitResult', 'cancelled', 'unit tests'],
+    ['release-pr', 'checkResult', 'failure', 'typecheck and lint'],
+    ['release-pr', 'candidateResult', 'skipped', 'package release candidate'],
     ['visual', 'e2eMacosResult', 'failure', 'Electron E2E (macOS)'],
   ] as const)('fails on tier %s when %s is %s', (tier, job, result, label) => {
     expect(() =>

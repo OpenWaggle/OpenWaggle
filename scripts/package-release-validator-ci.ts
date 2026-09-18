@@ -8,7 +8,10 @@ import {
 } from './package-release-validator-shared'
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
-const REHEARSAL_BRANCH_GUARD_COUNT = 2
+// Two rehearsal triggers plus the gate's release-pr CI_TIER selector reference the exact
+// Release Please branch with `==`; the skip conditions on the test/E2E jobs use `!=` and are
+// not counted here.
+const REHEARSAL_BRANCH_GUARD_COUNT = 3
 
 export function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
   validateYaml(CI_WORKFLOW_PATH, ciWorkflowText, violations)

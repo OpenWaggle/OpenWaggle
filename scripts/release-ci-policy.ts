@@ -199,12 +199,13 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
   const runner = REQUIRED_JOB_RUNNERS.get(job.name)
-  const expectedKeys =
-    runner === undefined
-      ? [...REQUIRED_JOB_KEYS]
-      : QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
-        ? [...REQUIRED_JOB_KEYS, 'if']
-        : [...REQUIRED_JOB_KEYS]
+  // A job may carry a job-level `if` only if it is registered in
+  // QUEUE_ONLY_JOB_CONDITIONS with an exact condition (queue-only E2E jobs and the
+  // release-pr-skipped test jobs). This is independent of the runner: the test jobs
+  // run on ubuntu-latest yet legitimately carry the Release Please skip condition.
+  const expectedKeys = QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
+    ? [...REQUIRED_JOB_KEYS, 'if']
+    : [...REQUIRED_JOB_KEYS]
   const contractRunner = runner ?? 'ubuntu-latest'
   const hasExactJobContract =
     jobKeys.length === expectedKeys.length &&
