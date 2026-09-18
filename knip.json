@@ -8,8 +8,7 @@
     "src/renderer/src/**/*.d.ts",
     "src/shared/types/**/*.d.ts",
     "scripts/**/*.ts",
-    "vitest.*.config.ts",
-    "playwright.config.ts"
+    "vitest.*.config.ts"
   ],
   "project": [
     "src/**/*.{ts,tsx}",

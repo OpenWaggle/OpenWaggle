@@ -1,9 +1,9 @@
 import { pathToFileURL } from 'node:url'
 
 const CLI_ARGUMENT_START_INDEX = 2
-const EXPECTED_ARGUMENT_COUNT = 13
+const EXPECTED_ARGUMENT_COUNT = 10
 
-const GATE_TIERS = ['full', 'fast', 'fast-no-e2e', 'visual'] as const
+const GATE_TIERS = ['full', 'fast', 'release-pr'] as const
 export type PackageReleaseGateTier = (typeof GATE_TIERS)[number]
 
 /**
@@ -16,9 +16,6 @@ export type PackageReleaseGateResults = Readonly<
     | 'changesResult'
     | 'checkResult'
     | 'commitPolicyResult'
-    | 'e2eLinuxResult'
-    | 'e2eMacosResult'
-    | 'e2eWindowsResult'
     | 'mcpConformanceResult'
     | 'rehearsalPackageResult'
     | 'rehearsalWebsiteResult'
@@ -32,6 +29,12 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
   Record<PackageReleaseGateTier, readonly (keyof PackageReleaseGateResults)[]>
 > = {
   /*
+   * `full` and `fast` currently require the same jobs (the E2E entries that distinguished
+   * them were removed with the E2E suite, ADR 0033). Both are retained because ci.yml still
+   * selects `full` on the (currently dormant) merge_group event and `fast` on PR/push, so a
+   * future divergence has a place to land without re-plumbing the CI_TIER selector.
+   */
+  /*
    * The rehearsals stay conditional even in the full tier: they are path-scoped, so a
    * merge result that touches no package or website/docs surfaces legitimately skips
    * them. A rehearsal that RUNS and fails still fails the gate through the generic
@@ -44,30 +47,27 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
     'testUnitResult',
     'testIntegrationComponentResult',
     'mcpConformanceResult',
-    'e2eMacosResult',
-    'e2eLinuxResult',
-    'e2eWindowsResult',
     'candidateResult',
   ],
   fast: [
     'commitPolicyResult',
     'checkResult',
-    'changesResult',
-    'testUnitResult',
-    'testIntegrationComponentResult',
-    'mcpConformanceResult',
-    'e2eMacosResult',
-    'candidateResult',
-  ],
-  'fast-no-e2e': [
-    'commitPolicyResult',
-    'checkResult',
     'testUnitResult',
     'testIntegrationComponentResult',
     'mcpConformanceResult',
     'candidateResult',
   ],
-  visual: ['e2eMacosResult'],
+  /*
+   * The Release Please version-bump PR carries no source changes, only version and
+   * changelog edits, so the app test suite (unit, integration/component, MCP) would
+   * re-validate a tree already proven on the feature PRs and on the push to main, and is
+   * skipped on that branch. This tier therefore does not require those jobs. `check` still
+   * runs the fail-closed release policy and `candidate` still builds and attests the
+   * release tarballs, both required. This tier is only selected for the authenticated
+   * `release-please--branches--main` branch (classify-package-release rejects forks and
+   * non-bot authors), so it cannot skip tests on an ordinary PR.
+   */
+  'release-pr': ['commitPolicyResult', 'checkResult', 'candidateResult'],
 }
 
 const JOB_LABELS: Readonly<Record<keyof PackageReleaseGateResults, string>> = {
@@ -75,9 +75,6 @@ const JOB_LABELS: Readonly<Record<keyof PackageReleaseGateResults, string>> = {
   changesResult: 'changed-surface detection',
   checkResult: 'typecheck and lint',
   commitPolicyResult: 'commit policy',
-  e2eLinuxResult: 'Electron E2E (Linux)',
-  e2eMacosResult: 'Electron E2E (macOS)',
-  e2eWindowsResult: 'Electron E2E (Windows)',
   mcpConformanceResult: 'MCP conformance',
   rehearsalPackageResult: 'package consumer rehearsal',
   rehearsalWebsiteResult: 'website and docs rehearsal',
@@ -96,9 +93,6 @@ const RESULT_KEYS = [
   'testUnitResult',
   'testIntegrationComponentResult',
   'mcpConformanceResult',
-  'e2eMacosResult',
-  'e2eLinuxResult',
-  'e2eWindowsResult',
   'rehearsalPackageResult',
   'rehearsalWebsiteResult',
   'candidateResult',
@@ -139,9 +133,6 @@ function readGateResults(args: readonly (string | undefined)[]): PackageReleaseG
     testUnitResult,
     testIntegrationComponentResult,
     mcpConformanceResult,
-    e2eMacosResult,
-    e2eLinuxResult,
-    e2eWindowsResult,
     rehearsalPackageResult,
     rehearsalWebsiteResult,
     candidateResult,
@@ -151,9 +142,6 @@ function readGateResults(args: readonly (string | undefined)[]): PackageReleaseG
     changesResult: changesResult ?? '',
     checkResult: checkResult ?? '',
     commitPolicyResult: commitPolicyResult ?? '',
-    e2eLinuxResult: e2eLinuxResult ?? '',
-    e2eMacosResult: e2eMacosResult ?? '',
-    e2eWindowsResult: e2eWindowsResult ?? '',
     mcpConformanceResult: mcpConformanceResult ?? '',
     rehearsalPackageResult: rehearsalPackageResult ?? '',
     rehearsalWebsiteResult: rehearsalWebsiteResult ?? '',
@@ -165,7 +153,7 @@ function readGateResults(args: readonly (string | undefined)[]): PackageReleaseG
 export function runPackageReleaseGateCli(args: readonly string[]) {
   if (args.length !== EXPECTED_ARGUMENT_COUNT) {
     throw new Error(
-      'Usage: package-release-gate.ts <tier> <commit-policy-result> <check-result> <changes-result> <test-unit-result> <test-integration-component-result> <test-mcp-conformance-result> <e2e-macos-result> <e2e-linux-result> <e2e-windows-result> <rehearsal-package-result> <rehearsal-website-result> <candidate-result>.',
+      'Usage: package-release-gate.ts <tier> <commit-policy-result> <check-result> <changes-result> <test-unit-result> <test-integration-component-result> <test-mcp-conformance-result> <rehearsal-package-result> <rehearsal-website-result> <candidate-result>.',
     )
   }
   const [tier, ...resultArgs] = args

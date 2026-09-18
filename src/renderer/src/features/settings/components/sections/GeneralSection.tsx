@@ -1,4 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
+import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -232,7 +233,9 @@ export function GeneralSection() {
           <div className="flex h-14 items-center justify-between border-b border-border px-5">
             <div className="flex flex-col gap-0.5">
               <span className="text-xs font-medium text-text-primary">Version</span>
-              <span className="text-xs text-text-tertiary">OpenWaggle v{version}</span>
+              <span className="text-xs text-text-tertiary">
+                {PRODUCT_NAME} v{version}
+              </span>
             </div>
           </div>
 

@@ -18,6 +18,7 @@ import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-
 import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { NodePtyTerminalServiceLive } from './adapters/node-pty-terminal-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
+import { registerPiBundledBedrockProvider } from './adapters/pi/pi-bundled-bedrock'
 import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
@@ -113,6 +114,7 @@ const ActiveProjectChangeWithDependenciesLive = ActiveProjectChangeServiceLive.p
 )
 
 registerPiBundledOAuthFlows()
+registerPiBundledBedrockProvider()
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,

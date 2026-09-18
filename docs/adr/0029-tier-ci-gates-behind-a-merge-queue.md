@@ -1,6 +1,6 @@
 # Tier CI Gates Behind a Merge Queue
 
-Status: accepted
+Status: accepted (refined by ADR 0033)
 
 CI spent most of its red runs on expensive per-push jobs that did not actually gate merges — the ruleset only required three fast checks, while the full platform E2E matrix and package rehearsals ran informationally on every push and blocked releases only indirectly. We tier the pipeline: per-push runs execute the **Fast gate** (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, macOS Electron E2E), and a GitHub merge queue requires the **Full gate** (adding Windows and Linux Electron E2E plus the path-scoped package rehearsals) on each speculative merge result before anything lands on `main`.
 

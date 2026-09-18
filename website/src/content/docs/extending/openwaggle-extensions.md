@@ -690,19 +690,16 @@ Use `pnpm extension:qa:install` to copy fixture packages into the current checko
 
 ## Extension Host QA Proof
 
-The repeatable automated Electron proof is:
+The repeatable automated proof is the extension-host unit/integration coverage
+(the E2E spec that formerly drove this was removed with the E2E suite — ADR 0033):
 
 ```bash
-pnpm test:e2e:headless:quick e2e/extension-host.e2e.test.ts
+pnpm test:unit && pnpm test:integration
 ```
 
-Use the full build-backed variant when the built app may be stale:
-
-```bash
-pnpm test:e2e:headless e2e/extension-host.e2e.test.ts
-```
-
-The E2E test creates an isolated user-data directory and temporary project, installs the `openwaggle-github-issues-overview` fixture into that project's `.openwaggle/extensions/`, seeds a project-scoped session so Settings discovers the project scope, then drives Settings > Extensions through trust, enable, reload, iframe render, SDK-backed configuration save, disable, and package removal from discovery.
+These cover extension trust, enable, reload, iframe render, SDK-backed
+configuration save, disable, and package removal from discovery through the
+extension runtime and Settings component tests.
 
 Human-driven real-Electron QA uses the explicitly visible debug path. Agents must not run this command without the maintainer's approval for that exact run:
 

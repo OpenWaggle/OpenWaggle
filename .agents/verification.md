@@ -12,12 +12,12 @@ pnpm verify
 
 ## CI Gate Tiers
 
-CI is tiered (ADR 0029). Per-push runs execute the Fast gate; the merge queue's merge result runs the Full gate:
+CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
 
-- **Fast gate (per push):** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Electron E2E (macOS, includes the Darwin visual baselines and the syntax performance benchmark).
-- **Full gate (merge queue result):** everything above plus Electron E2E (Linux), Electron E2E (Windows), and the package rehearsals when the merged diff touches package or website/docs surfaces.
+- **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them.
+- **Nightly canary (non-gating):** `.github/workflows/nightly.yml` builds and runs `packaged-app:smoke` on macOS/Linux/Windows, and runs the syntax performance benchmark on macOS. It never blocks a merge.
 
-Red jobs on a PR branch are the Fast gate; a red Windows or Linux E2E job on a queue run is the Full gate. Pushes to `main` run the static checks only.
+Pushes to `main` run the same checks as a PR (the path-scoped `changes` job is skipped on push, which the gate tolerates).
 
 ### Windows native diagnostics
 
@@ -35,8 +35,9 @@ screen buffer loses the beginning before scraping. Do not treat a green runtime
 profile as proof of lossless WinPTY support.
 
 This follows T3 Code's separation of ordinary CI from manual Windows investigation,
-not its coverage level: OpenWaggle still requires Windows and Linux Electron E2E in
-the Full gate. The reference is T3 Code commit
+and its test strategy: OpenWaggle no longer runs Electron E2E in CI at all
+(ADR 0033), relying on unit + integration + MCP conformance, with the manual
+Windows diagnostics workflow for native investigation. The reference is T3 Code commit
 `b1e223e2b0d87124883b1410ab52dd6a1338e40d`, specifically
 `apps/server/src/terminal/NodePtyAdapter.ts` and `.github/workflows/windows-tests.yml`.
 
@@ -115,25 +116,16 @@ pnpm build:mac
 
 Packaged regressions require packaged-app QA, not only dev-mode validation.
 
-## E2E
+## Packaged app validation
+
+There is no Electron E2E suite (ADR 0033). Per-PR gating relies on unit + integration + component + MCP conformance. For the real packaged app:
 
 ```bash
-pnpm test:e2e:headless
-pnpm test:e2e:headless:quick
+pnpm build                      # production bundle
+pnpm packaged-app:smoke         # asar shape + native (node-pty/sqlite) load probe
 ```
 
-Use quick E2E only when the built app is current or the test intentionally avoids a full rebuild. Every `*:quick` E2E script verifies `out/` build provenance against the current HEAD and refuses a stale build ("run `pnpm test:e2e` to rebuild first"): a rebase or pull that moved HEAD invalidates the previous build even though `out/` still exists. E2E defaults to one worker locally. Linux CI uses two workers (`PLAYWRIGHT_WORKERS`); macOS and Windows CI use one to isolate strict frame-budget measurements from another Electron instance. Windows has a 40-minute job timeout for the serial suite. CI retries each test twice on flaky assertions, capturing a Playwright report plus traces on retry. Performance budgets and coverage are identical across worker settings.
-
-### Visual Baselines
-
-The visual baselines in `e2e/visual-regression.e2e.test.ts-snapshots/` are native Darwin images generated on the `macos-15` CI runner image; local macOS rendering can differ by a small margin, so the runner is the source of truth. When a change intentionally moves rendered pixels:
-
-1. Update the snapshots: `pnpm test:e2e -- --update-snapshots` (or run `e2e/visual-regression.e2e.test.ts` only) and review the diff.
-2. Push and let the Fast gate's macOS E2E verify on the runner image.
-3. For a fast visual-only E2E check on an exact commit, dispatch the CI workflow with the `visual` tier from the branch that carries the commit (`gh workflow run ci.yml --ref <branch> -f head_sha=<sha> -f ci_tier=visual`). The static checks still run alongside it; only the E2E step is visual-only.
-
-Do not hand-edit baseline PNGs or loosen `maxDiffPixelRatio` to make a baseline check pass.
-
+The nightly canary (`.github/workflows/nightly.yml`) runs this build + smoke on macOS/Linux/Windows as a non-gating signal. For UI-visible behavior use `pnpm dev:debug` with `.agents/skills/electron-qa/SKILL.md`. Renderer boot, CSP, visual pixels, and timing budgets are no longer checked in CI — validate them locally/manually when the change touches them.
 ## Release Work
 
 For publishable package work, `pnpm check` should include package import-boundary checks and package API snapshot checks. Snapshot drift must be fixed by either correcting the public API change or intentionally updating the committed package API snapshot in the same PR.
