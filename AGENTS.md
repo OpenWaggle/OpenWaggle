@@ -34,7 +34,7 @@ pnpm test:coverage      # Coverage report
 
 ## CI Gates
 
-CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, macOS Electron E2E), a PR merges directly. Windows and Linux E2E plus the package/website rehearsals are available via `workflow_dispatch` rather than gating a merge result. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `pnpm check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
+CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance), a PR merges directly. There is no Electron E2E suite — it was removed and per-PR gating relies on unit + integration + MCP conformance (mirroring `pingdotgg/t3code`); a non-gating nightly cross-OS packaged canary (`.github/workflows/nightly.yml`) builds and smokes the app on macOS/Linux/Windows. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `pnpm check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
 
 ## Repository Model
 

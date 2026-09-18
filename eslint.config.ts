@@ -166,6 +166,16 @@ const config: object[] = [
     },
   },
   {
+    // Relocated from e2e/support (which lint never covered). QA seed + website
+    // screenshot fixtures: fixture data, not production code.
+    files: ['scripts/support/**/*.ts'],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+      'openwaggle/prefer-inferred-internal-return-types': 'off',
+    },
+  },
+  {
     files: ['website/src/**/*.astro'],
     plugins: {
       openwaggle: openwagglePlugin,

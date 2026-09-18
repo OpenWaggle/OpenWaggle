@@ -16,7 +16,6 @@ import {
   QUEUE_ONLY_JOB_CONDITIONS,
   REQUIRED_COMMANDS,
   REQUIRED_JOB_RUNNERS,
-  WINDOWS_DISPATCH_GUARD_STEP,
 } from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
@@ -25,9 +24,6 @@ export const REQUIRED_CI_CHECKS = [
   'Unit Tests',
   'Integration & Component Tests',
   'MCP Conformance',
-  'Electron E2E (macOS)',
-  'Electron E2E (Linux)',
-  'Electron E2E (Windows)',
 ] as const
 const EXPECTED_CI_JOBS = [
   ...REQUIRED_CI_CHECKS,
@@ -100,12 +96,7 @@ function validateDispatchSupport(
   }
 
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
-  const guardedJobs = requiredJobs.filter((job) => {
-    const expectedGuard = job.name === 'Electron E2E (Windows)'
-      ? WINDOWS_DISPATCH_GUARD_STEP
-      : DISPATCH_GUARD_STEP
-    return readSteps(job)[0] === expectedGuard
-  })
+  const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
   const checkoutJobs = requiredJobs.filter((job) =>
     readSteps(job).some(
       (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
@@ -126,9 +117,7 @@ function validateDispatchSupport(
 
   for (const job of requiredJobs) {
     const steps = readSteps(job)
-    const expectedGuard = job.name === 'Electron E2E (Windows)'
-      ? WINDOWS_DISPATCH_GUARD_STEP
-      : DISPATCH_GUARD_STEP
+    const expectedGuard = DISPATCH_GUARD_STEP
     const hasContract =
       steps[0] === expectedGuard &&
       steps.some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP)

@@ -1,0 +1,69 @@
+# Nightly cross-platform packaged-app canary.
+#
+# E2E was removed from CI (ADR 0033): per-PR gating relies on unit + integration
+# + MCP conformance, mirroring pingdotgg/t3code. This scheduled canary is the
+# compensating control for the one thing unit/integration cannot cover - that the
+# real packaged Electron app builds and its native runtime (node-pty, sqlite)
+# loads on each OS. It is non-gating: it never blocks a merge, it surfaces
+# packaging/native regressions between releases as a signal.
+name: Nightly
+
+on:
+  schedule:
+    # 04:17 UTC daily (off the top of the hour; GitHub delays on-the-hour crons).
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  packaged-canary:
+    name: Packaged canary ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS
+            runner: macos-latest
+            build_flags: --mac --arm64 --x64 --publish never
+          - label: Linux
+            runner: ubuntu-latest
+            build_flags: --linux --publish never
+          - label: Windows
+            runner: windows-latest
+            build_flags: --win --publish never
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Build production bundle
+        run: pnpm build
+
+      - name: Package installers
+        run: pnpm exec electron-builder ${{ matrix.build_flags }}
+        env:
+          # We do not sign or notarize; keep electron-builder from trying to
+          # discover a macOS signing identity.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Smoke packaged runtime
+        run: pnpm packaged-app:smoke
