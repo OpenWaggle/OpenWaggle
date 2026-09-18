@@ -11,7 +11,7 @@ Durable OpenWaggle project memory. Keep this compact and technical. Do not add p
 
 ## Current Architecture Direction
 
-### CI is tiered behind a merge queue (ADR 0029, September 2026)
+### CI is tiered behind a merge queue (ADR 0029, September 2026 — superseded by ADR 0033; see "Merge queue removed" below. Retained for history.)
 
 A 2026-09-01 audit of ~300 CI runs (~36h) found 51% green / 21% failed / 27% cancelled, with 85% of failures concentrated on three agent PRs. The enforced merge gate was only three ubuntu checks; the 3-OS E2E matrix and package rehearsals ran informationally per push, so agents burned multi-hour loops on reds that never gated merges. Windows E2E failed 33% of runs — two-thirds of failures were "all 29 tests pass, then `Worker teardown timeout of 90000ms`" (a hanging shutdown, not a test problem), the rest Windows-timing test timeouts and locator misses. `hive-sessions.e2e.test.ts` on PR #181 failed 8× consecutively on a JSON parse race: `applicationCliStdout` returns raw stdout when its extraction grammar does not match, so a leading `{}` empty payload plus trailing content explodes in `JSON.parse`.
 

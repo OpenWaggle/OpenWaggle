@@ -146,8 +146,6 @@ pnpm test
 pnpm build
 pnpm website:build
 npx -y react-doctor@latest . --verbose --scope changed --base main
-pnpm test:e2e:headless:quick e2e/extension-host.e2e.test.ts
-pnpm test:e2e:headless
 ```
 
 React Doctor was run with an isolated npm cache because the shared npm cache had root-owned entries. It reported 100/100 with no issues.

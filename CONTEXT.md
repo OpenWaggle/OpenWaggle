@@ -602,13 +602,13 @@ _Avoid_: extension-local pending prompt
 
 ### CI gates
 
-**Fast gate**:
-The required checks that run on every pull-request branch update and prove a change is safe to request merge.
-_Avoid_: pre-merge CI, push checks, quick checks
+**CI gate**:
+The required checks that run on every pull-request update and on the push to `main` (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and the aggregating Package Release Gate). Once they pass, a pull request merges directly — there is no merge queue and no Electron E2E (ADR 0033).
+_Avoid_: Fast gate, Full gate, merge queue, post-merge CI
 
-**Full gate**:
-The complete required-check set the merge queue evaluates on a speculative merge result; the only path that lands a pull request on `main`.
-_Avoid_: post-merge CI, main CI, landing checks
+**Nightly canary**:
+The non-gating scheduled workflow that builds and smokes the packaged app on macOS/Linux/Windows. It never blocks a merge.
+_Avoid_: nightly gate, release gate
 
 ### Source control and diff
 
@@ -832,8 +832,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 
 ## Relationships
 
-- A **Fast gate** passes before a pull request asks for merge; the **Full gate** is what actually lands it.
-- The **Full gate** always includes the **Fast gate** plus the platform and package checks that do not run per push.
+- The **CI gate** passes before a pull request merges directly; there is no separate landing gate or merge queue (ADR 0033).
 - An **OpenWaggle extension package** declares zero or more **OpenWaggle desktop contributions** across one or more **Extension contribution surfaces**.
 - A **Development extension fixture** may be copied into a project for manual QA, but it is not an installed or bundled product extension.
 - An installed OpenWaggle app exposes **Extension authoring roots** for user-authored and agent-authored OpenWaggle extension packages.
@@ -1260,7 +1259,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - "mode" is ambiguous between appearance polarity and git isolation. Resolved: **Colour scheme** is light-or-dark polarity; **Session environment mode** is `local` versus `worktree` git isolation.
 - "pin" was used for both projects and sessions (issue #97 was written as project pinning). Resolved: only sessions are pinnable. A **Pinned session** is reachable by one **Pinned shortcut**, whereas a pinned project never could be — it has no single thing to open.
 - "pinned order" conflated two ideas. Resolved: **Manual order** is the sequence the user drags and owns; **Pinned sort** is the rule currently ordering the section. Switching **Pinned sort** away from Manual and back must return the user's **Manual order** unchanged.
-- "green CI" was used to mean both the three enforced merge checks and the whole pipeline including Electron E2E. Resolved: the enforced pre-merge set is the **Fast gate**; the **Full gate** runs only on the merge queue's speculative merge result. Documentation claiming "current green CI" is required for merges described the Full gate, not the enforced reality.
+- "green CI" was used to mean both the three enforced merge checks and the whole pipeline including Electron E2E. Resolved: there is one **CI gate** (ADR 0033 removed the merge queue and the Electron E2E suite); it runs on PRs and on the push to `main`, and passing it merges a PR directly.
 
 ### Terminals
 

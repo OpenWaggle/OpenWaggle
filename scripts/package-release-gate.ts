@@ -29,6 +29,12 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
   Record<PackageReleaseGateTier, readonly (keyof PackageReleaseGateResults)[]>
 > = {
   /*
+   * `full` and `fast` currently require the same jobs (the E2E entries that distinguished
+   * them were removed with the E2E suite, ADR 0033). Both are retained because ci.yml still
+   * selects `full` on the (currently dormant) merge_group event and `fast` on PR/push, so a
+   * future divergence has a place to land without re-plumbing the CI_TIER selector.
+   */
+  /*
    * The rehearsals stay conditional even in the full tier: they are path-scoped, so a
    * merge result that touches no package or website/docs surfaces legitimately skips
    * them. A rehearsal that RUNS and fails still fails the gate through the generic

@@ -7,15 +7,14 @@ import {
 import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
 import {
   CHECKOUT_STEP,
+  ALLOWED_JOB_CONDITIONS,
   COMMIT_POLICY_CHECKOUT_STEP,
   CONCURRENCY_CANCEL_LINE,
   CONCURRENCY_GROUP,
   DISPATCH_GUARD_STEP,
   EXPECTED_STEPS,
   IMMUTABLE_ACTIONS,
-  QUEUE_ONLY_JOB_CONDITIONS,
   REQUIRED_COMMANDS,
-  REQUIRED_JOB_RUNNERS,
 } from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
@@ -186,15 +185,13 @@ function validateSecurity(
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
-  const runner = REQUIRED_JOB_RUNNERS.get(job.name)
   // A job may carry a job-level `if` only if it is registered in
-  // QUEUE_ONLY_JOB_CONDITIONS with an exact condition (queue-only E2E jobs and the
-  // release-pr-skipped test jobs). This is independent of the runner: the test jobs
-  // run on ubuntu-latest yet legitimately carry the Release Please skip condition.
-  const expectedKeys = QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
+  // ALLOWED_JOB_CONDITIONS with an exact condition (the release-pr-skipped test jobs).
+  // Every required job runs on ubuntu-latest.
+  const expectedKeys = ALLOWED_JOB_CONDITIONS.has(job.name)
     ? [...REQUIRED_JOB_KEYS, 'if']
     : [...REQUIRED_JOB_KEYS]
-  const contractRunner = runner ?? 'ubuntu-latest'
+  const contractRunner = 'ubuntu-latest'
   const hasExactJobContract =
     jobKeys.length === expectedKeys.length &&
     expectedKeys.every((key) => jobKeys.includes(key)) &&
@@ -209,14 +206,14 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
 function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
   const jobNames = new Set(jobs.map((job) => job.name))
   for (const requiredName of REQUIRED_CI_CHECKS) {
-    if (QUEUE_ONLY_JOB_CONDITIONS.has(requiredName)) continue
+    if (ALLOWED_JOB_CONDITIONS.has(requiredName)) continue
     const job = jobs.find((candidate) => candidate.name === requiredName)
     if (job !== undefined && job.keys.includes('if')) {
       violations.push('CI required jobs must run unconditionally for every configured trigger.')
       break
     }
   }
-  for (const [jobName, conditionLines] of QUEUE_ONLY_JOB_CONDITIONS) {
+  for (const [jobName, conditionLines] of ALLOWED_JOB_CONDITIONS) {
     const job = jobs.find((candidate) => candidate.name === jobName)
     if (job === undefined) continue
     const hasExactCondition = conditionLines.every((line) => job.block.includes(line))
