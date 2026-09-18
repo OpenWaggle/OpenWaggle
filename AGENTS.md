@@ -28,7 +28,8 @@ pnpm test               # Unit + integration + component tests
 pnpm test:unit          # Unit tests
 pnpm test:integration   # Integration tests
 pnpm test:component     # Component tests
-pnpm test:e2e           # Playwright E2E, builds first
+pnpm verify               # Fast pre-push verification: commit policy, typecheck, lint, unit tests
+pnpm test                 # Unit + integration + component tests
 pnpm test:coverage      # Coverage report
 ```
 

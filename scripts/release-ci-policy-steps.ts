@@ -13,8 +13,6 @@
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
 const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
-const ACTION_UPLOAD_ARTIFACT =
-  'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7'
 export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
 export const REQUIRED_JOB_RUNNERS = new Map<string, string>([])
 export const REQUIRED_COMMANDS = new Map<string, string>([
@@ -39,7 +37,7 @@ export const CONCURRENCY_CANCEL_LINE =
 // the three app-test jobs carry only the Release Please skip (source is unchanged on that
 // authenticated version-bump branch, so re-running is redundant). Asserted exactly, so no
 // job here can carry an arbitrary skip.
-const RELEASE_PR_SKIP = "    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'\n"
+const RELEASE_PR_SKIP = "    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}\n"
 export const QUEUE_ONLY_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['Unit Tests', [RELEASE_PR_SKIP]],
   ['Integration & Component Tests', [RELEASE_PR_SKIP]],

@@ -21,7 +21,6 @@ on:
         options:
           - full
           - fast
-          - visual
 
 permissions:
   contents: read
@@ -31,9 +30,6 @@ env:
   # Makes `pnpm check:installer` fail when NSIS is absent instead of skipping, so the
   # installer compile check cannot silently stop running in CI.
   REQUIRE_NSIS: '1'
-  # E2E worker count. Each E2E test launches its own Electron instance with isolated user
-  # data, so two workers halve suite wall-clock; override to '1' if parallel flakes appear.
-  PLAYWRIGHT_WORKERS: '2'
 
 # Pull-request runs cancel superseded runs for the same PR. Merge-queue runs are never
 # cancelled here: each queue entry validates one speculative merge result, and killing it
@@ -121,7 +117,7 @@ jobs:
     # Skip on the Release Please version-bump PR: it carries no source changes, so the
     # suite would re-validate a tree already proven on the feature PRs and on push to main.
     # The release-pr gate tier accepts this skip; every ordinary PR still runs it.
-    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -154,7 +150,7 @@ jobs:
   test-integration-component:
     name: Integration & Component Tests
     # Skipped on the Release Please version-bump PR (see test-unit).
-    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -199,7 +195,7 @@ jobs:
   test-mcp-conformance:
     name: MCP Conformance
     # Skipped on the Release Please version-bump PR (see test-unit).
-    if: (github.head_ref || github.ref_name) != 'release-please--branches--main'
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -525,7 +521,7 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
-      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast' || (github.head_ref || github.ref_name) == 'release-please--branches--main' && 'release-pr' || 'fast' }}
+      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast' || (github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) && 'release-pr' || 'fast' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:

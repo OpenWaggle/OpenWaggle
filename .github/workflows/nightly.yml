@@ -6,6 +6,11 @@
 # real packaged Electron app builds and its native runtime (node-pty, sqlite)
 # loads on each OS. It is non-gating: it never blocks a merge, it surfaces
 # packaging/native regressions between releases as a signal.
+#
+# Scope note: this builds + packages + runs `packaged-app:smoke` (asar shape,
+# packaged docs, and a native node-pty/sqlite load probe via ELECTRON_RUN_AS_NODE).
+# It does NOT launch a window, so it does not cover renderer boot, CSP, visual
+# pixels, or timing budgets - those are local/manual only after E2E removal.
 name: Nightly
 
 on:
@@ -31,23 +36,32 @@ jobs:
           - label: macOS
             runner: macos-latest
             build_flags: --mac --arm64 --x64 --publish never
+            syntax_budget: true
           - label: Linux
             runner: ubuntu-latest
             build_flags: --linux --publish never
+            syntax_budget: false
           - label: Windows
             runner: windows-latest
             build_flags: --win --publish never
+            syntax_budget: false
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      # Package a real release identity (icons, appId, productName) rather than the
+      # dev fallback, so the canary exercises the same packaging path releases use.
+      OPENWAGGLE_RELEASE_CHANNEL: stable
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.15.1
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
           cache: pnpm
@@ -58,12 +72,29 @@ jobs:
       - name: Build production bundle
         run: pnpm build
 
+      # The syntax performance budget previously ran only in the deleted macOS E2E
+      # job. Kept alive here on the macOS canary as a non-gating regression signal.
+      - name: Check syntax performance budgets
+        if: matrix.syntax_budget
+        run: pnpm benchmark:syntax
+        env:
+          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
+
       - name: Package installers
         run: pnpm exec electron-builder ${{ matrix.build_flags }}
         env:
-          # We do not sign or notarize; keep electron-builder from trying to
-          # discover a macOS signing identity.
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Smoke packaged runtime
         run: pnpm packaged-app:smoke
+
+      - name: Upload build artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-${{ matrix.label }}-dist
+          path: |
+            dist/*.yml
+            dist/*.log
+          if-no-files-found: ignore
+          retention-days: 7

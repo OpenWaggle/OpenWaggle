@@ -46,7 +46,6 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
   fast: [
     'commitPolicyResult',
     'checkResult',
-    'changesResult',
     'testUnitResult',
     'testIntegrationComponentResult',
     'mcpConformanceResult',

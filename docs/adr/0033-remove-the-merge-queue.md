@@ -1,6 +1,6 @@
-# Remove the Merge Queue; Keep Release Security Intact
+# Lean CI: Remove the Merge Queue and Electron E2E; Keep Release Security Intact
 
-Status: proposed
+Status: accepted
 
 Refines ADR 0029 (Tier CI Gates Behind a Merge Queue).
 
@@ -15,20 +15,26 @@ Gutting either to fit a leaner shape would remove real, test-enforced security f
 
 ## Decision
 
-Remove the merge queue. Drop the `merge_queue` rule from the `main` branch ruleset so PRs merge directly once the required per-PR checks pass. Leave `ci.yml`, `release.yml`, `package-release.yml`, and every release guard unchanged. This eliminates the merge-queue re-run (and the flaky Windows gate on the merge path) without touching supply-chain or app-release security.
+Move to t3code's *test strategy* while keeping OpenWaggle's supply-chain and app-release security. Concretely (see the follow-up sections below for the full rollout that shipped in one PR):
+
+1. **Remove the merge queue.** Drop the `merge_queue` rule from the `main` ruleset so PRs merge directly once the required per-PR checks pass.
+2. **Remove the Electron E2E suite.** Delete `e2e/` + `playwright.config.ts` and the three `electron-e2e-*` jobs; per-PR gating is commit policy + static + unit + integration/component + MCP conformance. A non-gating nightly cross-OS packaged canary is the compensating control.
+3. **Skip the redundant app suite on the Release Please version-bump PR** via a scoped `release-pr` gate tier.
+
+The supply-chain provenance attestation for `@openwaggle/*` (`package-release.yml` + the fail-closed guards) and the human-approved `release.yml` flow are unchanged.
 
 ## Considered Options
 
-- **Full t3code parity (lean CI + tag/nightly release)** — biggest reduction, but removes npm-package provenance attestation and human-approved app-release verification; rejected as a security downgrade riding inside a speed change.
-- **Keep ADR 0029 as-is** — main is provably green at merge, but every merge pays the ~15–25 minute Full-gate re-run on the flaky Windows E2E, which is the pain this refinement removes.
-- **Right-size the package-release apparatus** — a legitimate separate question (the fail-closed AST contract and 4-manager consumer rehearsal are heavy for a v0.1 alpha with no external consumers), deliberately deferred to its own future decision.
+- **Full t3code parity (also tag/nightly *release* + no npm attestation)** — rejected: removing provenance attestation and human-approved app-release verification is a security downgrade. Only the *test strategy* (no queue, no E2E, unit/integration gating) was adopted.
+- **Keep ADR 0029 as-is** — main is provably green at merge, but every merge pays the ~15–25 minute Full-gate re-run on the flaky Windows E2E, which is the pain this removes.
+- **Right-size the package-release apparatus** — a legitimate separate question (the fail-closed AST contract and 4-manager consumer rehearsal are heavy for a v0.1 alpha), deliberately deferred to its own future decision.
 
 ## Consequences
 
-- Merging is no longer gated by the merge queue: once the required per-PR checks pass, a PR merges directly. `main` can briefly go red from a semantic conflict between two independently-green PRs.
-- Windows and Linux Electron E2E and the package/website rehearsals no longer run on a merge result; they remain available via `workflow_dispatch`. macOS Electron E2E plus commit policy, static checks, unit, integration/component, and MCP conformance still gate every PR.
-- No workflow code changes: the supply-chain provenance attestation for `@openwaggle/*` and the human-approved app-release flow are preserved exactly.
-- Adoption is a one-time ruleset edit (drop the `merge_queue` rule) plus updating the required-status-check contexts if any referenced only the merge queue.
+- Merging is no longer gated by a merge queue: once the required per-PR checks pass, a PR merges directly. `main` can briefly go red from a semantic conflict between two independently-green PRs.
+- There is no Electron E2E in CI. Renderer boot, CSP enforcement, visual baselines, and app timing budgets have no automated CI control; the nightly canary covers packaged build + native runtime load (+ the renderer syntax budget on macOS), and the rest is local/manual. See `docs/agents/e2e-removal-coverage-map.md`.
+- Workflow code did change: `ci.yml`, the fail-closed gate/policy/AST-contract, and the required-status-check contexts were all updated; `release.yml` and `package-release.yml` were not.
+- Adoption is a one-time ruleset edit: drop the `merge_queue` rule and set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`.
 
 ## Follow-up: skip the redundant suite on the Release Please PR
 

@@ -117,9 +117,8 @@ function validateDispatchSupport(
 
   for (const job of requiredJobs) {
     const steps = readSteps(job)
-    const expectedGuard = DISPATCH_GUARD_STEP
     const hasContract =
-      steps[0] === expectedGuard &&
+      steps[0] === DISPATCH_GUARD_STEP &&
       steps.some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP)
     if (!hasContract) {
       violations.push(`CI job ${job.name} must independently guard and check out inputs.head_sha.`)

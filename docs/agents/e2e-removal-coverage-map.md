@@ -6,11 +6,11 @@ all). This maps each removed E2E spec to where its behavior is (or is not)
 covered, so the coverage trade is explicit.
 
 The finding: the E2E suite was almost entirely **belt-and-suspenders** over
-existing unit/integration/component tests. Topic coverage already present in
-`src/**/__tests__` (file counts): terminal 177, waggle 344, extension 187, diff
-115, workspace 95, browser-preview 72, compaction 70, transcript 52, scroll 40,
-visualization 40, appearance 39, tool-call 33, project-draft 14, inspector 9,
-thread 6, session-branch 5, access-mode 4.
+existing unit/integration/component tests. Every removed spec's functional topic
+has substantial existing coverage under `src/**/__tests__` (terminal, waggle,
+extension, diff, workspace, browser-preview, compaction, transcript, scroll,
+visualization, appearance, tool-call, project-draft, inspector, thread,
+session-branch, access-mode all have dedicated unit/integration/component tests).
 
 ## Already covered by unit/integration/component — no conversion needed
 
@@ -44,16 +44,20 @@ These assert properties that only exist in the real packaged/rendered app:
 
 | Removed E2E spec | Why it cannot become unit/integration | Compensating control |
 |---|---|---|
-| visual-regression | pixel baselines of six surfaces in a real renderer | none in CI; run `--update-snapshots` locally when doing UI work |
-| security-csp | CSP actually blocking inline script in the Electron renderer | manual QA; CSP headers unit-checked in `electron-security` |
-| diff-performance / terminal-performance / workspace-editor (timing budgets) | wall-clock budgets on the main thread in the packaged app (the *logic* — off-main-thread parsing — is unit-covered; only the timing budget is E2E-only) | nightly packaged canary + local perf runs |
-| inline-visualization (isolated frame lifecycle) | real isolated Electron `<iframe>` teardown/limits | nightly packaged canary |
-| app (real boot) | the packaged app actually launching main+renderer+preload | nightly packaged canary (`packaged-app:smoke` on macOS/Linux/Windows) |
+| visual-regression | pixel baselines of six surfaces in a real renderer | **none** — dropped from CI; verify locally when doing UI work |
+| security-csp | CSP actually blocking inline script in the Electron renderer | **none in CI** for enforcement; CSP headers are unit-checked in `electron-security`; manual QA otherwise |
+| diff-performance / terminal-performance / workspace-editor (timing budgets) | wall-clock budgets on the main thread in the packaged app (the *logic* — e.g. off-main-thread parsing — is unit-covered; only the timing budget is E2E-only) | **none in CI** for the app timing budgets (local perf runs only). The renderer **syntax** performance budget runs in the nightly canary. |
+| inline-visualization (isolated frame lifecycle) | real isolated Electron `<iframe>` teardown/limits | **none** — dropped from CI; manual QA |
+| app (real boot) | the packaged app actually launching main+renderer+preload | **partial** — the nightly canary proves the packaged app builds and its native runtime loads (`packaged-app:smoke` runs the binary as Node via `ELECTRON_RUN_AS_NODE`); it does **not** launch a window (no main+renderer+preload boot) |
 
 ## Net
 
 No functional behavior is lost from the merge gate: it was already unit/integration
-covered. The genuinely E2E-only guarantees (real boot, packaged native runtime,
-CSP, visual, timing) are now caught by the **nightly cross-OS packaged canary**
-(`.github/workflows/nightly.yml`) as a non-blocking signal, plus local runs — not
-by a flaky 3-OS suite gating every merge.
+covered. The only guarantees dropped are genuinely E2E-only. Of those, the nightly
+cross-OS packaged canary (`.github/workflows/nightly.yml`) covers exactly two:
+**the packaged app builds** and **its native runtime (node-pty/sqlite) loads** on
+macOS/Linux/Windows, plus the **renderer syntax performance budget** on macOS. It
+does not launch a window, so **renderer boot, CSP enforcement, visual pixels, and
+app timing budgets have no automated control** after this change — validate them
+locally/manually when a change touches them. This is the deliberate trade: no flaky
+3-OS E2E gating every merge, in exchange for those checks moving off CI.

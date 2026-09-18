@@ -45,7 +45,6 @@ const config: object[] = [
       'scripts/**/*.ts',
       'website/**/*.{ts,tsx}',
       'electron.vite.config.ts',
-      'playwright.config.ts',
     ],
     languageOptions: {
       parser: babelParser,

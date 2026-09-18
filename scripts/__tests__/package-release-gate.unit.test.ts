@@ -45,6 +45,23 @@ describe('Package Release Gate', () => {
     ).not.toThrow()
   })
 
+  it('passes the fast tier on a push where the path-scoped changes job is skipped', () => {
+    // The `changes` job carries `if: github.event_name != 'push'`, so on a push to main it
+    // reports `skipped`. The fast tier must tolerate that (a changes job that actually runs
+    // and fails is still rejected by the generic non-success check).
+    expect(() =>
+      validatePackageReleaseGate({
+        results: {
+          ...ALL_SUCCESS,
+          changesResult: 'skipped',
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'fast',
+      }),
+    ).not.toThrow()
+  })
+
   it('passes the release-pr tier when the app test suite is skipped on the version-bump PR', () => {
     expect(() =>
       validatePackageReleaseGate({

@@ -8,10 +8,10 @@ import {
 } from './package-release-validator-shared'
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
-// Two rehearsal triggers plus the gate's release-pr CI_TIER selector reference the exact
-// Release Please branch with `==`; the skip conditions on the test/E2E jobs use `!=` and are
-// not counted here.
-const REHEARSAL_BRANCH_GUARD_COUNT = 3
+// Occurrences of the exact `== 'release-please--branches--main'` guard in ci.yml: two
+// rehearsal triggers, the gate's release-pr CI_TIER selector, and the three release-pr skip
+// conditions on the test jobs (each identity-scoped with `github.head_ref == '...'`).
+const REHEARSAL_BRANCH_GUARD_COUNT = 6
 
 export function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
   validateYaml(CI_WORKFLOW_PATH, ciWorkflowText, violations)
