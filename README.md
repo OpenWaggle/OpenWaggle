@@ -267,11 +267,10 @@ pnpm lint:fix         # Lint + auto-fix
 pnpm format           # Biome format
 pnpm check            # typecheck + lint combined
 pnpm test             # All tests (unit + integration + component)
-pnpm test:all         # All tests including headless E2E
+pnpm test:all         # Unit + integration + component tests
 pnpm test:unit        # Unit tests only
 pnpm test:integration # Integration tests only
 pnpm test:component   # Component tests only
-pnpm test:e2e         # Playwright E2E (headless, requires build)
 pnpm prepush:main     # Pre-push quality gate for main
 ```
 

@@ -28,13 +28,14 @@ pnpm test               # Unit + integration + component tests
 pnpm test:unit          # Unit tests
 pnpm test:integration   # Integration tests
 pnpm test:component     # Component tests
-pnpm test:e2e           # Playwright E2E, builds first
+pnpm verify               # Fast pre-push verification: commit policy, typecheck, lint, unit tests
+pnpm test                 # Unit + integration + component tests
 pnpm test:coverage      # Coverage report
 ```
 
 ## CI Gates
 
-CI is tiered (see `docs/adr/0029-tier-ci-gates-behind-a-merge-queue.md`). Per-push runs execute the Fast gate: Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and macOS Electron E2E. Windows and Linux E2E run on merge-queue merge results and dispatched `full` runs, where they are required; the package and website rehearsals also run there, whenever the merged diff touches their surfaces. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run. UI PRs that change rendered pixels must regenerate the Darwin visual baselines (`pnpm test:e2e` then copy approved snapshots, or `playwright test --update-snapshots`); CI macOS runners are the source of truth.
+CI runs on pull requests and, after ADR 0033, without a merge queue: once the required per-PR checks pass (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance), a PR merges directly. There is no Electron E2E suite — it was removed and per-PR gating relies on unit + integration + MCP conformance (mirroring `pingdotgg/t3code`); a non-gating nightly cross-OS packaged canary (`.github/workflows/nightly.yml`) builds and smokes the app on macOS/Linux/Windows. The npm-package supply-chain provenance attestation (`package-release.yml` + the fail-closed guards enforced by `pnpm check`) and the human-approved app-release flow in `release.yml` are unchanged. The husky pre-push hook runs `pnpm verify` for feature branches — run it before pushing instead of discovering deterministic failures from a red CI run.
 
 ## Repository Model
 

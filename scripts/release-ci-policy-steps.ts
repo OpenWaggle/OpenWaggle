@@ -13,14 +13,7 @@
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
 const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
-const ACTION_UPLOAD_ARTIFACT =
-  'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7'
 export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
-export const REQUIRED_JOB_RUNNERS = new Map<string, string>([
-  ['Electron E2E (macOS)', 'macos-15'],
-  ['Electron E2E (Linux)', 'ubuntu-latest'],
-  ['Electron E2E (Windows)', 'windows-latest'],
-])
 export const REQUIRED_COMMANDS = new Map<string, string>([
   ['Typecheck & Lint', 'pnpm check'],
   ['Unit Tests', 'pnpm test:unit'],
@@ -29,36 +22,20 @@ export const REQUIRED_COMMANDS = new Map<string, string>([
     'pnpm test:integration && pnpm test:component',
   ],
   ['MCP Conformance', 'pnpm prepare:native:node && pnpm test:mcp:conformance'],
-  ['Electron E2E (macOS)', 'pnpm test:e2e'],
-  ['Electron E2E (Linux)', 'xvfb-run --auto-servernum pnpm test:e2e:functional'],
-  ['Electron E2E (Windows)', 'pnpm test:e2e:functional'],
 ])
 export const CONCURRENCY_GROUP =
   'group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
 export const CONCURRENCY_CANCEL_LINE =
   'cancel-in-progress: ${{ github.event_name != \'merge_group\' }}'
-/*
- * Byte-exact job-level conditions for the queue-only jobs. These jobs are skipped on
- * ordinary pull-request pushes by design (ADR 0029): the merge queue and dispatched full
- * runs are their enforcement points, so the condition text is part of the contract.
- */
-export const QUEUE_ONLY_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
-  [
-    'Electron E2E (macOS)',
-    ["    if: github.event_name != 'push'\n"],
-  ],
-  [
-    'Electron E2E (Linux)',
-    [
-      "    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')\n",
-    ],
-  ],
-  [
-    'Electron E2E (Windows)',
-    [
-      "    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')\n",
-    ],
-  ],
+// Jobs permitted an exact job-level `if`. The three app-test jobs carry only the Release
+// Please skip (source is unchanged on that authenticated version-bump branch, so re-running
+// is redundant); the two rehearsals are dispatch-gated and path-scoped. Asserted exactly, so
+// no job here can carry an arbitrary skip.
+const RELEASE_PR_SKIP = "    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}\n"
+export const ALLOWED_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['Unit Tests', [RELEASE_PR_SKIP]],
+  ['Integration & Component Tests', [RELEASE_PR_SKIP]],
+  ['MCP Conformance', [RELEASE_PR_SKIP]],
   [
     'Package Consumer Rehearsal (Node 22.19.0)',
     [
@@ -84,14 +61,6 @@ export const DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit ident
         run: |
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$DISPATCHED_SHA" = "$EXPECTED_SHA"`
-export const WINDOWS_DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: \${{ github.sha }}
-          EXPECTED_SHA: \${{ inputs.head_sha }}
-        run: |
-          if ($env:EXPECTED_SHA -notmatch '^[0-9a-f]{40}$') { exit 1 }
-          if ($env:DISPATCHED_SHA -ne $env:EXPECTED_SHA) { exit 1 }`
 export const CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
         with:
           ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
@@ -112,48 +81,9 @@ const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
  * instead of red a whole run on one timeout.
  */
 const INSTALL_COMPOSITE_STEP = '      - uses: ./.github/actions/pnpm-install'
-/*
- * Syntax performance budgets from #180, calibrated for the hosted macOS runner. Kept in
- * the macOS E2E job so a renderer syntax regression surfaces per push in the Fast gate.
- */
-const SYNTAX_BENCHMARK_STEP = `      - run: pnpm benchmark:syntax
-        env:
-          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json`
-const e2eFailureArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
-  `      - name: Upload Electron E2E failure artifacts
-        if: failure()
-        uses: ${ACTION_UPLOAD_ARTIFACT}
-        with:
-          name: electron-e2e-${platform}-failure
-          path: test-results
-          if-no-files-found: ignore
-          retention-days: 7`
-const e2eReportArtifactStep = (platform: 'linux' | 'macos' | 'windows') =>
-  `      - name: Upload Electron E2E Playwright report
-        if: failure()
-        uses: ${ACTION_UPLOAD_ARTIFACT}
-        with:
-          name: electron-e2e-${platform}-report
-          path: playwright-report
-          if-no-files-found: ignore
-          retention-days: 7`
-const LINUX_ELECTRON_DEPENDENCIES_STEP = `      - name: Install Linux Electron dependencies
-        run: pnpm exec playwright install-deps chromium`
-const WINDOWS_PIPE_ISOLATION_STEP = `      - name: Verify Windows Session Host pipe isolation
-        run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts`
 const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
         run: |
           sudo apt-get update
-          sudo apt-get install --yes zsh
-          /bin/zsh --version
-          while IFS= read -r insecure_path; do
-            [ -n "$insecure_path" ] || continue
-            sudo chown root -- "$insecure_path"
-            sudo chmod go-w -- "$insecure_path"
-          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
-          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
-const LINUX_E2E_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
-        run: |
           sudo apt-get install --yes zsh
           /bin/zsh --version
           while IFS= read -r insecure_path; do
@@ -173,22 +103,10 @@ const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script c
 const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
 const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
         env:
-          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
+          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
-            COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")"
-            test "\${#COMMIT_POLICY_FROM}" -eq 40
-            [[ "$COMMIT_POLICY_FROM" =~ ^[0-9a-f]{40}$ ]]
-          fi
-          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
-const MACOS_FULL_E2E_STEP = `      - name: Run Electron E2E (full suite including visual baselines)
-        if: github.event_name != 'workflow_dispatch' || inputs.ci_tier != 'visual'
-        run: pnpm test:e2e`
-const MACOS_VISUAL_E2E_STEP = `      - name: Run Electron E2E (visual baselines only)
-        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'visual'
-        run: pnpm test:e2e:visual`
+        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
 
 export const EXPECTED_STEPS = new Map<string, readonly string[]>([
   [
@@ -247,50 +165,6 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
       '      - run: pnpm prepare:native:node && pnpm test:mcp:conformance',
-    ],
-  ],
-  [
-    'Electron E2E (macOS)',
-    [
-      DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_STEP,
-      SYNTAX_BENCHMARK_STEP,
-      MACOS_FULL_E2E_STEP,
-      MACOS_VISUAL_E2E_STEP,
-      e2eFailureArtifactStep('macos'),
-      e2eReportArtifactStep('macos'),
-    ],
-  ],
-  [
-    'Electron E2E (Linux)',
-    [
-      DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_STEP,
-      LINUX_ELECTRON_DEPENDENCIES_STEP,
-      LINUX_E2E_SHELLS_INSTALL_STEP,
-      '      - run: xvfb-run --auto-servernum pnpm test:e2e:functional',
-      e2eFailureArtifactStep('linux'),
-      e2eReportArtifactStep('linux'),
-    ],
-  ],
-  [
-    'Electron E2E (Windows)',
-    [
-      WINDOWS_DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_COMPOSITE_STEP,
-      WINDOWS_PIPE_ISOLATION_STEP,
-      '      - run: pnpm test:e2e:functional',
-      e2eFailureArtifactStep('windows'),
-      e2eReportArtifactStep('windows'),
     ],
   ],
 ])

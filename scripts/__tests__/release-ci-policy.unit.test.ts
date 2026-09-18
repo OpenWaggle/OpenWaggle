@@ -23,25 +23,10 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
-  it.each([
-    ['manual-only range', `if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then`, 'if true; then'],
-    ['authoritative base', 'git merge-base --all origin/main', 'git merge-base --all HEAD'],
-    ['exact candidate', 'origin/main "$COMMIT_POLICY_TO"', 'origin/main HEAD'],
-    ['unambiguous base', '[[ "$COMMIT_POLICY_FROM" =~ ^[0-9a-f]{40}$ ]]', 'true'],
-    ['single base', 'test "${#COMMIT_POLICY_FROM}" -eq 40', 'true'],
-    ['failure propagation', 'COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")"', 'COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")" || true'],
-    ['queue base binding', "github.event_name == 'merge_group' && github.event.merge_group.base_sha", "github.event_name == 'merge_group' && github.sha"],
-  ])('rejects dispatched range weakening through %s', (_name, target, replacement) => {
-    expect(compliantWorkflow).toContain(target)
-    expect(validateReleaseCiPolicy(compliantWorkflow.replace(target, replacement))).toContain(
-      'CI workflow must match its exact fail-closed AST contract.',
-    )
-  })
-
-  it('rejects removal of the real zsh dependency from either Linux test job', () => {
+  it('rejects removal of the real zsh dependency from the Linux test job', () => {
     const installCommand = '          sudo apt-get install --yes zsh\n'
     const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]
-    expect(positions).toHaveLength(2)
+    expect(positions).toHaveLength(1)
     for (const match of positions) {
       const index = match.index
       const withoutShell = compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
@@ -54,7 +39,7 @@ describe('release CI policy', () => {
     '            sudo chmod go-w -- "$insecure_path"\n',
     "          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'\n",
   ])('requires secure completion directories and a successful final audit: %s', (command) => {
-    expect(compliantWorkflow.split(command)).toHaveLength(3)
+    expect(compliantWorkflow.split(command)).toHaveLength(2)
     expect(validateReleaseCiPolicy(compliantWorkflow.replace(command, ''))).not.toEqual([])
     expect(validateReleaseCiPolicy(compliantWorkflow.replaceAll(command, ''))).not.toEqual([])
   })
@@ -176,7 +161,7 @@ describe('release CI policy', () => {
     ],
   ])('rejects %s jobs outside the stable job set', (_kind, workflow) => {
     expect(validateReleaseCiPolicy(workflow)).toContain(
-      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Electron E2E (macOS), Electron E2E (Linux), Electron E2E (Windows), Session Performance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
+      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Session Performance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
     )
   })
 
@@ -230,28 +215,6 @@ describe('release CI policy', () => {
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
       'CI job Typecheck & Lint must run pnpm check as an exact, fail-closed step.',
-    )
-  })
-
-  it.each([
-    ['Linux', 'xvfb-run --auto-servernum pnpm test:e2e:functional'],
-    ['Windows', 'pnpm test:e2e:functional'],
-  ])('rejects a weakened %s Electron E2E command', (platform, command) => {
-    const weakenedWorkflow = compliantWorkflow.replace(`      - run: ${command}`, '      - run: echo skipped')
-
-    expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      `CI job Electron E2E (${platform}) must run ${command} as an exact, fail-closed step.`,
-    )
-  })
-
-  it('rejects removing the macOS syntax performance gate', () => {
-    const weakenedWorkflow = compliantWorkflow.replace(
-      '      - run: pnpm benchmark:syntax\n',
-      '',
-    )
-
-    expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Electron E2E (macOS) steps must match the fail-closed required sequence.',
     )
   })
 
