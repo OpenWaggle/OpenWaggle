@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
@@ -9,6 +8,14 @@ import type {
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import {
+  type NormalizedClaim,
+  type ResolvedClaim,
+  type ResolvedStoredClaim,
+  recordDelegationClaimConflicts,
+  type StoredClaimRow,
+} from './session-delegation-claim-conflicts'
+import { createSessionDelegationClaimPathResolver } from './session-delegation-claim-paths'
+import {
   type DelegationContractRow,
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
@@ -17,29 +24,12 @@ import {
 interface DelegationWorkspaceRow {
   readonly project_path: string
   readonly workspace_id: string
+  readonly working_path: string
 }
 
-interface StoredClaimRow {
-  readonly delegation_id: string
-  readonly revision: number
-  readonly ordinal: number
-  readonly workspace_id: string
-  readonly target_kind: DelegationClaimTarget['type']
-  readonly target_value: string
-  readonly target_namespace: string | null
-  readonly target_scope: 'project' | 'repository' | null
-}
-
-interface NormalizedClaim {
-  readonly access: 'read' | 'write'
-  readonly targetKind: DelegationClaimTarget['type']
-  readonly targetValue: string
-  readonly targetNamespace: string | null
-  readonly targetScope: 'project' | 'repository' | null
-}
+type ClaimPathResolver = ReturnType<typeof createSessionDelegationClaimPathResolver>
 
 const GLOB_CHARACTERS = /[*?[\]{}]/u
-const CONFLICT_ID_DIGEST_LENGTH = 24
 
 function normalizeWorkspacePath(target: Extract<DelegationClaimTarget, { path: string }>) {
   const value = target.path.trim()
@@ -97,50 +87,51 @@ function normalizeClaims(claims: readonly DelegationScopeClaimInput[]) {
   return normalized
 }
 
-function pathWithinTree(candidate: string, tree: string) {
-  return tree === '.' || candidate === tree || candidate.startsWith(`${tree}/`)
-}
-
-function targetsOverlap(left: NormalizedClaim, right: StoredClaimRow) {
-  if (left.targetKind === 'named-resource' || right.target_kind === 'named-resource') {
-    return (
-      left.targetKind === 'named-resource' &&
-      right.target_kind === 'named-resource' &&
-      left.targetScope === right.target_scope &&
-      left.targetNamespace === right.target_namespace &&
-      left.targetValue === right.target_value
-    )
-  }
-  if (left.targetKind === 'workspace-file' && right.target_kind === 'workspace-file') {
-    return left.targetValue === right.target_value
-  }
-  if (left.targetKind === 'workspace-file') {
-    return pathWithinTree(left.targetValue, right.target_value)
-  }
-  if (right.target_kind === 'workspace-file') {
-    return pathWithinTree(right.target_value, left.targetValue)
-  }
-  return (
-    pathWithinTree(left.targetValue, right.target_value) ||
-    pathWithinTree(right.target_value, left.targetValue)
+async function resolveClaims(
+  claims: readonly NormalizedClaim[],
+  workingPath: string,
+  resolvePath: ClaimPathResolver,
+) {
+  const keys = await Promise.all(
+    claims.map((claim) =>
+      claim.targetKind === 'named-resource'
+        ? claim.targetValue
+        : resolvePath(workingPath, claim.targetValue),
+    ),
   )
+  const resolved: ResolvedClaim[] = []
+  const seen = new Set<string>()
+  for (const [index, claim] of claims.entries()) {
+    const targetKey = keys[index]
+    if (targetKey === undefined) return undefined
+    const key = canonicalJson({ ...claim, targetValue: targetKey })
+    if (seen.has(key)) continue
+    seen.add(key)
+    resolved.push({ claim, targetKey })
+  }
+  return resolved
 }
 
-function conflictId(input: {
-  readonly currentDelegationId: string
-  readonly currentRevision: number
-  readonly currentOrdinal: number
-  readonly other: StoredClaimRow
-}) {
-  return `conflict-${createHash('sha256')
-    .update(canonicalJson(input))
-    .digest('hex')
-    .slice(0, CONFLICT_ID_DIGEST_LENGTH)}`
+function resolveStoredClaims(rows: readonly StoredClaimRow[], resolvePath: ClaimPathResolver) {
+  return Promise.all(
+    rows.map(async (row): Promise<ResolvedStoredClaim> => {
+      const targetKey =
+        row.target_kind === 'named-resource'
+          ? row.target_value
+          : await resolvePath(row.working_path, row.target_value)
+      if (targetKey === undefined) {
+        throw new Error(
+          `A stored Delegation claim escapes its bound workspace: ${row.delegation_id}`,
+        )
+      }
+      return { row, targetKey }
+    }),
+  )
 }
 
 function loadDelegationWorkspace(sql: SqlClient.SqlClient, contract: DelegationContractRow) {
   return sql<DelegationWorkspaceRow>`
-    SELECT resources.project_path, resources.id AS workspace_id
+    SELECT resources.project_path, resources.id AS workspace_id, resources.working_path
     FROM session_workspace_bindings AS bindings
     JOIN workspace_resources AS resources ON resources.id = bindings.workspace_id
     WHERE bindings.session_id = ${contract.child_session_id}
@@ -155,7 +146,8 @@ function loadOtherWriteClaims(
 ) {
   return sql<StoredClaimRow>`
     SELECT claims.delegation_id, claims.revision, claims.ordinal,
-      resources.id AS workspace_id, claims.target_kind, claims.target_value,
+      resources.id AS workspace_id, resources.working_path,
+      claims.target_kind, claims.target_value,
       claims.target_namespace, claims.target_scope
     FROM delegation_scope_claims AS claims
     JOIN delegation_contracts AS contracts ON contracts.id = claims.delegation_id
@@ -207,16 +199,24 @@ export function updateDelegationClaims(
     if (command.reason.trim().length === 0) {
       return rejectedDelegationOutcome(input, 'claim_reason_required')
     }
-    const claims = normalizeClaims(command.claims)
-    if (!claims) return rejectedDelegationOutcome(input, 'claim_target_invalid')
+    const normalizedClaims = normalizeClaims(command.claims)
+    if (!normalizedClaims) return rejectedDelegationOutcome(input, 'claim_target_invalid')
     const workspace = yield* loadDelegationWorkspace(sql, contract)
     if (!workspace) return rejectedDelegationOutcome(input, 'delegation_workspace_missing')
+    const resolvePath = createSessionDelegationClaimPathResolver()
+    const claims = yield* Effect.promise(() =>
+      resolveClaims(normalizedClaims, workspace.working_path, resolvePath),
+    )
+    if (!claims) return rejectedDelegationOutcome(input, 'claim_target_invalid')
     const revisionRows = yield* sql<{ revision: number }>`
       SELECT COALESCE(MAX(revision), 0) + 1 AS revision
       FROM delegation_claim_revisions WHERE delegation_id = ${contract.id}
     `
     const revision = revisionRows[0]?.revision ?? 1
     const otherClaims = yield* loadOtherWriteClaims(sql, contract, workspace.project_path)
+    const resolvedOtherClaims = yield* Effect.promise(() =>
+      resolveStoredClaims(otherClaims, resolvePath),
+    )
     yield* sql`
       INSERT INTO delegation_claim_revisions (
         delegation_id, revision, actor_session_id, authored_by, reason, created_at
@@ -225,7 +225,7 @@ export function updateDelegationClaims(
         ${command.reason.trim()}, ${input.now}
       )
     `
-    for (const [ordinal, claim] of claims.entries()) {
+    for (const [ordinal, { claim }] of claims.entries()) {
       yield* sql`
         INSERT INTO delegation_scope_claims (
           delegation_id, revision, ordinal, access, target_kind, target_value,
@@ -241,44 +241,14 @@ export function updateDelegationClaims(
       WHERE resolved_at IS NULL
         AND (left_delegation_id = ${contract.id} OR right_delegation_id = ${contract.id})
     `
-    const conflictIds: string[] = []
-    for (const [ordinal, claim] of claims.entries()) {
-      if (claim.access !== 'write') continue
-      for (const other of otherClaims) {
-        if (!targetsOverlap(claim, other)) continue
-        const id = conflictId({
-          currentDelegationId: contract.id,
-          currentRevision: revision,
-          currentOrdinal: ordinal,
-          other,
-        })
-        const [leftDelegationId, rightDelegationId] = [contract.id, other.delegation_id].sort()
-        const kind =
-          workspace.workspace_id === other.workspace_id ? 'live-overlap' : 'merge-overlap'
-        const evidence = {
-          current: { delegationId: contract.id, revision, ordinal, claim },
-          other: {
-            delegationId: other.delegation_id,
-            revision: other.revision,
-            ordinal: other.ordinal,
-            targetKind: other.target_kind,
-            targetValue: other.target_value,
-            targetNamespace: other.target_namespace,
-            targetScope: other.target_scope,
-          },
-          workspaces: [workspace.workspace_id, other.workspace_id],
-        }
-        yield* sql`
-          INSERT INTO delegation_conflicts (
-            id, left_delegation_id, right_delegation_id, kind, evidence_json, created_at
-          ) VALUES (
-            ${id}, ${leftDelegationId}, ${rightDelegationId}, ${kind},
-            ${JSON.stringify(evidence)}, ${input.now}
-          )
-        `
-        conflictIds.push(id)
-      }
-    }
+    const conflictIds = yield* recordDelegationClaimConflicts(sql, {
+      delegationId: contract.id,
+      workspaceId: workspace.workspace_id,
+      revision,
+      claims,
+      otherClaims: resolvedOtherClaims,
+      now: input.now,
+    })
     return claimsOutcome(input, revision, conflictIds)
   })
 }

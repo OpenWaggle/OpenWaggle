@@ -48,6 +48,7 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
   ) {}
 
   private resourceSpoolOffset = 0
+  private readonly bundleResourcePaths = new Set<string>()
 
   private async closeHandles() {
     const handles = new Set(
@@ -96,22 +97,31 @@ class FilesystemSessionExportArtifactSink implements SessionExportArtifactSink {
           if (!this.stagingPath || !this.resourceSpoolHandle) {
             throw new Error('Resources require the bundle export format.')
           }
-          const relativePath = normalizeResourcePath(input.path)
-          const offset = this.resourceSpoolOffset
-          const size = await copyFileHandles(input.sourceHandle, this.resourceSpoolHandle, {
-            expectedSize: input.expectedSize,
-            expectedIdentity: input.expectedIdentity,
-            destinationOffset: offset,
-            signal,
-          })
-          this.resourceSpoolOffset += size
-          this.bundleSources.push({
-            path: `resources/${relativePath}`,
-            handle: this.resourceSpoolHandle,
-            offset,
-            size,
-          })
-          return size
+          const resourcePath = `resources/${normalizeResourcePath(input.path)}`
+          if (this.bundleResourcePaths.has(resourcePath)) {
+            throw new Error(`Duplicate export resource path: ${resourcePath}`)
+          }
+          this.bundleResourcePaths.add(resourcePath)
+          try {
+            const offset = this.resourceSpoolOffset
+            const size = await copyFileHandles(input.sourceHandle, this.resourceSpoolHandle, {
+              expectedSize: input.expectedSize,
+              expectedIdentity: input.expectedIdentity,
+              destinationOffset: offset,
+              signal,
+            })
+            this.resourceSpoolOffset += size
+            this.bundleSources.push({
+              path: resourcePath,
+              handle: this.resourceSpoolHandle,
+              offset,
+              size,
+            })
+            return size
+          } catch (error) {
+            this.bundleResourcePaths.delete(resourcePath)
+            throw error
+          }
         } finally {
           await input.sourceHandle.close().catch(() => undefined)
         }

@@ -69,6 +69,24 @@ function mediaType(filePath: string) {
     .otherwise(() => 'application/octet-stream')
 }
 
+function assertUniqueBundleSourcePaths(sources: readonly SessionExportBundleSource[]) {
+  const seen = new Set([BUNDLE_MANIFEST_PATH])
+  for (const source of sources) {
+    const normalized = path.posix.normalize(source.path.replaceAll('\\', '/'))
+    if (seen.has(normalized)) throw new Error(`Duplicate bundle entry path: ${normalized}`)
+    if (
+      normalized !== source.path ||
+      normalized === '.' ||
+      normalized === '..' ||
+      normalized.startsWith('../') ||
+      path.posix.isAbsolute(normalized)
+    ) {
+      throw new Error(`Bundle entry path is not canonical: ${source.path}`)
+    }
+    seen.add(normalized)
+  }
+}
+
 async function bundleEntry(
   source: SessionExportBundleSource,
   signal?: AbortSignal,
@@ -150,6 +168,7 @@ export async function finalizeSessionExportBundle(input: {
   readonly exportManifest: SessionExportManifest
   readonly signal?: AbortSignal
 }) {
+  assertUniqueBundleSourcePaths(input.sources)
   const transcript = input.sources.find((source) => source.path === BUNDLE_TRANSCRIPT_PATH)
   if (!transcript) throw new Error('Bundle transcript is missing.')
   await validateTranscript(transcript, input.signal)

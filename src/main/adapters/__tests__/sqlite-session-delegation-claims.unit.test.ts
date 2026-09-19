@@ -228,4 +228,52 @@ describe('SQLite Delegation scope claims', () => {
       { reason: 'The Workers have coordinated their edits.' },
     ])
   })
+
+  it('detects write conflicts through symlink aliases in the bound workspace', async () => {
+    if (process.platform === 'win32') return
+    const workspacePath = path.join(root, 'workspace')
+    await fs.mkdir(path.join(workspacePath, 'src'), { recursive: true })
+    await fs.writeFile(path.join(workspacePath, 'src', 'Foo.ts'), 'export const value = 1\n')
+    await fs.symlink('src', path.join(workspacePath, 'alias'), 'dir')
+    const layer = makeSessionLifecycleTestLayer(path.join(root, 'alias-claims.db'))
+
+    const outcome = await Effect.runPromise(
+      Effect.gen(function* () {
+        const lifecycle = yield* SessionLifecycleRepository
+        const delegations = yield* SessionDelegationRepository
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          UPDATE workspace_resources SET working_path = ${workspacePath}
+          WHERE id = ${'workspace-parent'}
+        `
+        yield* lifecycle.execute(spawnLifecycleInput())
+        yield* insertSecondWorker(sql)
+        yield* delegations.execute({
+          callerId: 'worker-one',
+          request: claimRequest('alias-one', {
+            sessionId: 'session-worker',
+            delegationId: 'delegation-worker',
+            claims: [{ access: 'write', target: { type: 'workspace-file', path: 'alias/Foo.ts' } }],
+            reason: 'Editing through the alias.',
+          }),
+          now: 3000,
+        })
+        return yield* delegations.execute({
+          callerId: 'worker-two',
+          request: claimRequest('alias-two', {
+            sessionId: 'session-worker-two',
+            delegationId: 'delegation-worker-two',
+            claims: [{ access: 'write', target: { type: 'workspace-file', path: 'src/Foo.ts' } }],
+            reason: 'Editing the same file.',
+          }),
+          now: 4000,
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(outcome.outcome).toMatchObject({ effect: 'delegation-claims-updated' })
+    if (outcome.outcome.effect === 'delegation-claims-updated') {
+      expect(outcome.outcome.conflictIds).toHaveLength(1)
+    }
+  })
 })
