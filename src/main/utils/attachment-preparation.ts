@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -207,6 +207,7 @@ async function extractAttachmentSnapshot(
     path: snapshot.path,
     mimeType: snapshot.mimeType,
     sizeBytes: snapshot.buffer.byteLength,
+    contentSha256: createHash('sha256').update(snapshot.buffer).digest('hex'),
     immutableSourceBase64: snapshot.buffer.toString('base64'),
     extractedText:
       snapshot.browserAnnotationText ??

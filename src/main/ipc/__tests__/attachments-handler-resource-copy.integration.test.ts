@@ -1,6 +1,6 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ocrRecognizeMock } from './attachment-extraction-mocks.test-support'
+import { ocrRecognizeMock, parserWorkerMock } from './attachment-extraction-mocks.test-support'
 import {
   files,
   loadAttachmentHandlers,
@@ -56,7 +56,11 @@ describe('managed Session resource attachment copies', () => {
       ),
     })
     expect(attachment.path).not.toContain('Architecture diagram')
-    expect(ocrRecognizeMock).toHaveBeenCalledWith(bytes, 'eng')
+    expect(parserWorkerMock).toHaveBeenCalledWith(
+      { kind: 'image', buffer: bytes },
+      expect.any(AbortSignal),
+    )
+    expect(ocrRecognizeMock).toHaveBeenCalledOnce()
     expect(writeFileMock).toHaveBeenCalledWith(attachment.path, bytes, {
       flag: 'wx',
       mode: PRIVATE_ATTACHMENT_FILE_MODE,

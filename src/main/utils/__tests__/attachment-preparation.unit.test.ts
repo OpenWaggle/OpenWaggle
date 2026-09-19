@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs, { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -99,6 +100,7 @@ describe('attachment preparation', () => {
     await writeFile(source, 'replacement evidence')
 
     expect(Buffer.from(prepared?.immutableSourceBase64 ?? '', 'base64')).toEqual(original)
+    expect(prepared?.contentSha256).toBe(createHash('sha256').update(original).digest('hex'))
   })
 
   it('rejects a file that grows beyond the byte limit after its metadata check', async () => {

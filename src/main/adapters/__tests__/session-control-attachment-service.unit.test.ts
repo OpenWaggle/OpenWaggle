@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -74,6 +75,9 @@ describe('Session Control prepared attachment storage', () => {
           requestId: 'prepare-a',
         })
         if (!prepared) return yield* Effect.die('Expected a prepared attachment.')
+        yield* Effect.promise(() =>
+          fs.writeFile(input.source, Buffer.alloc(Buffer.byteLength('immutable evidence'), 'x')),
+        )
         const resolved = yield* service.resolve({
           attachmentIds: [prepared.id],
           sessionId: 'session-a',
@@ -130,6 +134,9 @@ describe('Session Control prepared attachment storage', () => {
     )
 
     expect(result.resolved).toHaveLength(1)
+    const originalHash = createHash('sha256').update('immutable evidence').digest('hex')
+    expect(result.prepared.contentSha256).toBe(originalHash)
+    expect(result.resolved[0]?.contentSha256).toBe(originalHash)
     expect(Object.keys(result.prepared)).not.toContain('immutableSourceBase64')
     expect(result.replay._tag).toBe('Left')
     expect(result.wrongOwner._tag).toBe('Left')

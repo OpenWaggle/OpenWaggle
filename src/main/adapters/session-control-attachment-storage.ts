@@ -101,6 +101,7 @@ function attachmentFromRow(row: PreparedAttachmentRow): PreparedAttachment {
     path: row.real_path,
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,
+    contentSha256: createHash('sha256').update(row.source_base64, 'base64').digest('hex'),
     extractedText: row.extracted_text,
     ...(row.browser_preview_json === null
       ? {}
