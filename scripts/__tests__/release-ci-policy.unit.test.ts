@@ -23,6 +23,16 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it('requires a dispatched candidate merge base rather than the moving main tip', () => {
+    const weakened = compliantWorkflow.replace(
+      'COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"',
+      'COMMIT_POLICY_FROM=refs/remotes/origin/main',
+    )
+    expect(validateReleaseCiPolicy(weakened)).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
   it('rejects removal of the real zsh dependency from the Linux test job', () => {
     const installCommand = '          sudo apt-get install --yes zsh\n'
     const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]

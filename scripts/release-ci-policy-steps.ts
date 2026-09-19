@@ -103,10 +103,19 @@ const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script c
 const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
 const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
         env:
-          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && 'refs/remotes/origin/main' || '' }}
+          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          COMMIT_POLICY_EVENT: \${{ github.event_name }}
           PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
+        run: |
+          if [ "$COMMIT_POLICY_EVENT" = workflow_dispatch ]; then
+            git fetch --no-tags origin main:refs/remotes/origin/main
+            COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"
+            test -n "$COMMIT_POLICY_FROM"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" "$COMMIT_POLICY_TO"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" refs/remotes/origin/main
+          fi
+          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
 
 export const EXPECTED_STEPS = new Map<string, readonly string[]>([
   [

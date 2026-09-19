@@ -175,13 +175,36 @@ describe('model download HTTP retries', () => {
     expect(wait.mock.calls).toEqual([[300_000]])
   })
 
-  it('does not retry unknown transport failures', async () => {
+  it('recovers from a transient transport failure', async () => {
     const failure = new Error('transport failed')
+    const fetch = vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce(new Response('model'))
+    const wait = vi.fn().mockResolvedValue(undefined)
+    const response = await fetchModelDownloadResponse(MODEL_URL, { fetch, wait })
+    expect(await response.text()).toBe('model')
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(wait).toHaveBeenCalledWith(1_000)
+  })
+
+  it('bounds persistent transport failures to five attempts', async () => {
+    const failure = new Error('connection reset')
     const fetch = vi.fn().mockRejectedValue(failure)
     const wait = vi.fn().mockResolvedValue(undefined)
     await expect(fetchModelDownloadResponse(MODEL_URL, { fetch, wait })).rejects.toBe(failure)
+    expect(fetch).toHaveBeenCalledTimes(5)
+    expect(wait.mock.calls).toEqual([[1_000], [2_000], [4_000], [8_000]])
+  })
+
+  it('does not retry a transport failure after the elapsed retry budget is spent', async () => {
+    let now = 0
+    const failure = new Error('connection reset')
+    const fetch = vi.fn().mockRejectedValue(failure)
+    const wait = vi.fn(async () => {
+      now = 360_001
+    })
+    await expect(
+      fetchModelDownloadResponse(MODEL_URL, { fetch, wait, now: () => now }),
+    ).rejects.toBe(failure)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(wait).not.toHaveBeenCalled()
   })
 
   it('waits for cancellation to settle before retrying', async () => {

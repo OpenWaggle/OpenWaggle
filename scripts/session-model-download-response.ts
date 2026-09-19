@@ -36,11 +36,29 @@ function responseRetryDelay(response: Response, attempt: number, now: number) {
   const resetSeconds = rateLimit?.match(HUGGING_FACE_RATE_LIMIT_PATTERN)?.[1]
   const resetDelay =
     resetSeconds === undefined ? undefined : Number(resetSeconds) * MILLISECONDS_PER_SECOND
-  const fallback = Math.min(
-    INITIAL_BACKOFF_MS * BACKOFF_MULTIPLIER ** (attempt - 1),
-    MAX_BACKOFF_MS,
-  )
+  const fallback = retryBackoffDelay(attempt)
   return Math.max(INITIAL_BACKOFF_MS, retryAfter ?? resetDelay ?? fallback)
+}
+
+function retryBackoffDelay(attempt: number) {
+  return Math.min(INITIAL_BACKOFF_MS * BACKOFF_MULTIPLIER ** (attempt - 1), MAX_BACKOFF_MS)
+}
+
+async function waitBeforeRetry(input: {
+  readonly attempt: number
+  readonly delay: number
+  readonly failure: unknown
+  readonly now: () => number
+  readonly startedAt: number
+  readonly waitedMs: number
+  readonly wait: (milliseconds: number) => Promise<void>
+}) {
+  const remainingMs = RETRY_BUDGET_MS - Math.max(input.waitedMs, input.now() - input.startedAt)
+  if (input.attempt === MAX_ATTEMPTS || input.delay >= remainingMs) throw input.failure
+  await input.wait(input.delay)
+  const waitedMs = input.waitedMs + input.delay
+  if (Math.max(waitedMs, input.now() - input.startedAt) >= RETRY_BUDGET_MS) throw input.failure
+  return waitedMs
 }
 
 /** Bounds retry admission and waiting, not successful model transfer duration. */
@@ -54,7 +72,21 @@ export async function fetchModelDownloadResponse(
   const startedAt = now()
   let waitedMs = 0
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    const response = await fetchResponse(url)
+    let response: Response
+    try {
+      response = await fetchResponse(url)
+    } catch (failure) {
+      waitedMs = await waitBeforeRetry({
+        attempt,
+        delay: retryBackoffDelay(attempt),
+        failure,
+        now,
+        startedAt,
+        waitedMs,
+        wait,
+      })
+      continue
+    }
     if (response.status >= HTTP_SUCCESS_MINIMUM && response.status < HTTP_SUCCESS_MAXIMUM) {
       return response
     }
@@ -63,17 +95,8 @@ export async function fetchModelDownloadResponse(
       `Model download failed with HTTP ${String(response.status)} for ${url}.`,
     )
     const delay = responseRetryDelay(response, attempt, now())
-    const remainingMs = RETRY_BUDGET_MS - Math.max(waitedMs, now() - startedAt)
-    if (
-      !RETRYABLE_STATUSES.has(response.status) ||
-      attempt === MAX_ATTEMPTS ||
-      delay >= remainingMs
-    ) {
-      throw failure
-    }
-    await wait(delay)
-    waitedMs += delay
-    if (Math.max(waitedMs, now() - startedAt) >= RETRY_BUDGET_MS) throw failure
+    if (!RETRYABLE_STATUSES.has(response.status)) throw failure
+    waitedMs = await waitBeforeRetry({ attempt, delay, failure, now, startedAt, waitedMs, wait })
   }
   throw new Error('Model download exhausted its HTTP attempts.')
 }
