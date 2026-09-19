@@ -10,19 +10,22 @@ import { useSessionStore } from '@/features/sessions/state/session-store'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
-/** Set of session IDs that are currently in a waggle run. */
-const activeWaggleSessions = new Set<SessionId>()
 const RUNTIME_HYDRATION_CONCURRENCY = 8
 const logger = createRendererLogger('session-status-monitor')
 
 async function hydrateLiveSessionStatuses(input: {
   readonly cancelled: () => boolean
   readonly setStatus: (sessionId: SessionId, status: SessionStatus, updatedAt: number) => void
+  readonly registerWaggleRun: (sessionId: SessionId) => void
 }) {
   const runs = await api.listActiveRuns()
   if (input.cancelled()) return
 
-  for (const run of runs) input.setStatus(run.sessionId, 'working', run.startedAt)
+  for (const run of runs) {
+    const waggle = run.activity === 'agent-run' && run.mode === 'waggle'
+    if (waggle) input.registerWaggleRun(run.sessionId)
+    input.setStatus(run.sessionId, waggle ? 'waggle-running' : 'working', run.startedAt)
+  }
   if (typeof api.querySessionControl !== 'function') return
 
   for (let offset = 0; offset < runs.length; offset += RUNTIME_HYDRATION_CONCURRENCY) {
@@ -80,6 +83,7 @@ export function useSessionStatusMonitor(): void {
 
   useEffect(() => {
     let cancelled = false
+    const activeWaggleSessions = new Set<SessionId>()
 
     function setStatusWithVisitCheck(
       sessionId: SessionId,
@@ -185,6 +189,7 @@ export function useSessionStatusMonitor(): void {
     void hydrateLiveSessionStatuses({
       cancelled: () => cancelled,
       setStatus: setStatusWithVisitCheck,
+      registerWaggleRun: (sessionId) => activeWaggleSessions.add(sessionId),
     }).catch((error: unknown) => {
       logger.warn('Failed to hydrate live Session statuses', { error: String(error) })
     })

@@ -215,10 +215,12 @@ describe('useSessionStatusMonitor', () => {
 
   it('hydrates every active Run and pending interaction after a new window misses broadcasts', async () => {
     const runs = Array.from({ length: 101 }, (_value, index) => ({
+      activity: 'agent-run' as const,
       sessionId: SessionId(`session-${String(index)}`),
       model: SupportedModelId('openai/gpt-5'),
-      mode: 'classic' as const,
+      mode: index === 0 ? ('waggle' as const) : ('classic' as const),
       startedAt: index + 1,
+      activityEvents: [],
     }))
     const lastRun = runs.at(-1)
     if (!lastRun) throw new Error('Expected an active Run fixture')
@@ -255,7 +257,7 @@ describe('useSessionStatusMonitor', () => {
     })
     const firstRun = runs[0]
     if (!firstRun) throw new Error('Expected an active Run fixture')
-    expect(useSessionStatusStore.getState().statuses.get(firstRun.sessionId)).toBe('working')
+    expect(useSessionStatusStore.getState().statuses.get(firstRun.sessionId)).toBe('waggle-running')
     expect(monitorMocks.querySessionControl).toHaveBeenCalledTimes(101)
 
     firstWindow.unmount()
@@ -273,5 +275,26 @@ describe('useSessionStatusMonitor', () => {
         'awaiting-input',
       )
     })
+    expect(useSessionStatusStore.getState().statuses.get(firstRun.sessionId)).toBe('waggle-running')
+
+    const phaseHandler = monitorMocks.getAgentPhaseHandler()
+    const eventHandler = monitorMocks.getAgentEventHandler()
+    if (!phaseHandler || !eventHandler) throw new Error('Expected lifecycle subscriptions')
+    act(() => {
+      phaseHandler({ sessionId: firstRun.sessionId, phase: { label: 'Thinking', startedAt: 150 } })
+      eventHandler({
+        sessionId: firstRun.sessionId,
+        event: {
+          type: 'agent_interaction_resolved',
+          timestamp: 160,
+          runId: 'run-first',
+          interactionId: 'confirm-first',
+          kind: 'confirm',
+          status: 'resolved',
+          response: { kind: 'confirm', accepted: true },
+        },
+      })
+    })
+    expect(useSessionStatusStore.getState().statuses.get(firstRun.sessionId)).toBe('waggle-running')
   })
 })
