@@ -111,7 +111,7 @@ Choose a non-image local file to open it with its normal desktop handler, or use
 
 ## Viewing images
 
-Images shared by either the user or the agent open in one session gallery from the transcript, Summary, or Resource Browser. The gallery contains only the opened session's images, with every image on the active transcript path—including shared ancestors—before images exclusive to other branches. A deep link opens immediately with its true position and correct previous/next images, without loading every earlier page.
+Images shared by either the user or the agent appear on that person's side of the chat. Multiple images in one message form a compact two-column grid, which stacks into one column when the message becomes too narrow. Open a chat image to move through that message's images with the previous and next buttons or arrow keys; navigation wraps from the last image to the first. Images opened from the Summary or Resource Browser use the broader session gallery instead. That gallery contains only the opened session's images, with every image on the active transcript path—including shared ancestors—before images exclusive to other branches. A deep link opens immediately with its true position and correct previous/next images, without loading every earlier page.
 
 The viewer supports:
 

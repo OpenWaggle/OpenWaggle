@@ -65,28 +65,26 @@ export function SessionMessageImages({ messageId }: { readonly messageId: string
   const images = useSessionMessageImageResources(messageId)
 
   if (!context || images.length === 0) return null
+  const galleryResourceIds = images.map((image) => image.id)
 
   return (
     <fieldset
-      className="m-0 flex max-w-2xl flex-wrap gap-2 border-0 p-0"
+      className="session-message-image-grid m-0 grid w-52 max-w-full gap-2 border-0 p-0"
       aria-label="Message images"
     >
       {images.map((resource) => (
         <Button
           key={resource.id}
           variant="unstyled"
-          className="group/image relative overflow-hidden rounded-lg border border-border bg-bg-secondary"
+          className="group/image aspect-[4/3] min-w-0 overflow-hidden rounded-lg border border-border bg-bg-secondary"
           aria-label={`Open image ${resource.title}`}
-          onClick={() => openViewer(context.sessionId, resource.id)}
+          onClick={() => openViewer(context.sessionId, resource.id, galleryResourceIds)}
         >
           <SessionResourcePreview
             resource={resource}
             sessionId={context.sessionId}
-            className="h-32 max-w-64 object-cover transition-transform group-hover/image:scale-[1.02]"
+            className="size-full object-cover transition-transform group-hover/image:scale-[1.02]"
           />
-          <span className="absolute inset-x-0 bottom-0 truncate bg-bg/80 px-2 py-1 text-left text-xs text-text-primary">
-            {resource.title}
-          </span>
         </Button>
       ))}
     </fieldset>

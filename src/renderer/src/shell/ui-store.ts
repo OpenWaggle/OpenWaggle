@@ -73,7 +73,11 @@ interface UIState {
   feedbackErrorContext: AgentErrorInfo | null
   feedbackCooldownActive: boolean
   lastRightSidebarPanel: RightSidebarPanel
-  resourceViewer: { readonly sessionId: string; readonly resourceId: string } | null
+  resourceViewer: {
+    readonly sessionId: string
+    readonly resourceId: string
+    readonly galleryResourceIds?: readonly string[]
+  } | null
   workspaceTreeOpen: boolean
 
   toggleSidebar: () => void
@@ -95,7 +99,11 @@ interface UIState {
   closeFeedbackModal: () => void
   startFeedbackCooldown: () => void
   setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
-  openResourceViewer: (sessionId: string, resourceId: string) => void
+  openResourceViewer: (
+    sessionId: string,
+    resourceId: string,
+    galleryResourceIds?: readonly string[],
+  ) => void
   closeResourceViewer: () => void
   toggleWorkspaceTree: () => void
 }
@@ -217,8 +225,12 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ lastRightSidebarPanel: panel })
   },
 
-  openResourceViewer(sessionId, resourceId) {
-    set({ resourceViewer: { sessionId, resourceId } })
+  openResourceViewer(sessionId, resourceId, galleryResourceIds) {
+    set({
+      resourceViewer: galleryResourceIds
+        ? { sessionId, resourceId, galleryResourceIds }
+        : { sessionId, resourceId },
+    })
   },
 
   closeResourceViewer() {

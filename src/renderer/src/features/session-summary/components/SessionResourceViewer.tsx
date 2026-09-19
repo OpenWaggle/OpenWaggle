@@ -18,6 +18,16 @@ function displayedPathNodeIds(pathNodeIds: readonly string[] | undefined) {
   return pathNodeIds ?? []
 }
 
+function viewerGalleryPosition(controller: ReturnType<typeof useSessionResourceViewerController>) {
+  return {
+    index: controller.messageScoped
+      ? controller.index
+      : (controller.imageLocation.data?.index ??
+        (controller.targetIsLoaded ? controller.index : null)),
+    count: controller.count ?? controller.imageLocation.data?.total ?? controller.catalog.total,
+  }
+}
+
 export function SessionResourceViewer({
   activeSessionId,
   activeBranchId = null,
@@ -60,9 +70,7 @@ export function SessionResourceViewer({
   const navigate = (resourceId: string) => controller.open(viewer.sessionId, resourceId)
   const headerProps = {
     resource,
-    index:
-      controller.imageLocation.data?.index ?? (controller.targetIsLoaded ? controller.index : null),
-    count: controller.imageLocation.data?.total ?? controller.catalog.total,
+    ...viewerGalleryPosition(controller),
     zoom: controller.zoom,
     source: controller.source.source,
     downloadUrl: controller.source.downloadUrl,

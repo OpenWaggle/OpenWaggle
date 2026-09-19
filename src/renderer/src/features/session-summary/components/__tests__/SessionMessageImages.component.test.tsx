@@ -91,6 +91,39 @@ describe('SessionMessageImages', () => {
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'matching',
+      galleryResourceIds: ['matching'],
+    })
+  })
+
+  it('shows multiple images in a compact grid and opens their message gallery in order', async () => {
+    listSessionResources.mockResolvedValue([
+      image('first', 'message-1'),
+      image('second', 'message-1'),
+      image('third', 'message-1'),
+      image('elsewhere', 'message-2'),
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const buttons = await screen.findAllByRole('button', { name: /^Open image / })
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open image first.png',
+      'Open image second.png',
+      'Open image third.png',
+    ])
+    expect(screen.getByRole('group', { name: 'Message images' })).toHaveClass(
+      'session-message-image-grid',
+    )
+    expect(buttons[0]).toHaveClass('aspect-[4/3]')
+
+    fireEvent.click(buttons[1])
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'second',
+      galleryResourceIds: ['first', 'second', 'third'],
     })
   })
 
@@ -110,6 +143,7 @@ describe('SessionMessageImages', () => {
     expect(useUIStore.getState().resourceViewer).toEqual({
       sessionId: 'session-1',
       resourceId: 'remote',
+      galleryResourceIds: ['remote'],
     })
     expect(readSessionResource).not.toHaveBeenCalled()
   })

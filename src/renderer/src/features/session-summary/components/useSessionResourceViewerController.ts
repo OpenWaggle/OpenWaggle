@@ -26,7 +26,8 @@ function useViewerKeyboardNavigation(
   viewerSessionId: string | null,
   previousResourceId: string | null,
   nextResourceId: string | null,
-  open: (sessionId: string, resourceId: string) => void,
+  galleryResourceIds: readonly string[] | undefined,
+  open: (sessionId: string, resourceId: string, galleryResourceIds?: readonly string[]) => void,
 ) {
   useEffect(() => {
     if (!viewerSessionId) return
@@ -54,11 +55,11 @@ function useViewerKeyboardNavigation(
             : null
       if (!resourceId) return
       event.preventDefault()
-      open(sessionId, resourceId)
+      open(sessionId, resourceId, galleryResourceIds)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [nextResourceId, open, previousResourceId, viewerSessionId])
+  }, [galleryResourceIds, nextResourceId, open, previousResourceId, viewerSessionId])
 }
 
 function selectedImage(resourceId: string | null, images: readonly SessionResource[]) {
@@ -74,20 +75,46 @@ function selectedZoom(
   return resource && zoomState?.resourceId === resource.id ? zoomState.zoom : 'fit'
 }
 
+function messageGalleryAdjacency(
+  resourceId: string | null,
+  galleryResourceIds: readonly string[] | undefined,
+) {
+  if (!resourceId || !galleryResourceIds) return null
+  const index = galleryResourceIds.indexOf(resourceId)
+  if (index < 0) return null
+  const count = galleryResourceIds.length
+  return {
+    index,
+    count,
+    messageScoped: true,
+    previousResourceId:
+      count > 1 ? (galleryResourceIds[(index - 1 + count) % count] ?? null) : null,
+    nextResourceId: count > 1 ? (galleryResourceIds[(index + 1) % count] ?? null) : null,
+  }
+}
+
 function galleryAdjacency(
   images: readonly SessionResource[],
   loadedIndex: number,
   location: SessionResourceImageLocation | null,
+  resourceId: string | null,
+  galleryResourceIds: readonly string[] | undefined,
 ) {
+  const message = messageGalleryAdjacency(resourceId, galleryResourceIds)
+  if (message) return message
   if (location) {
     return {
       index: location.index,
+      count: null,
+      messageScoped: false,
       previousResourceId: location.previous ? location.previous.id : null,
       nextResourceId: location.next ? location.next.id : null,
     }
   }
   return {
     index: loadedIndex,
+    count: null,
+    messageScoped: false,
     previousResourceId: images[loadedIndex - 1]?.id ?? null,
     nextResourceId: images[loadedIndex + 1]?.id ?? null,
   }
@@ -99,6 +126,7 @@ function resolveGalleryState(
   activeMessageIds: ReadonlySet<string>,
   resourceId: string | null,
   location: SessionResourceImageLocation | null,
+  galleryResourceIds: readonly string[] | undefined,
 ) {
   const serverImages = resources.filter(isViewableSessionImage)
   const images =
@@ -109,7 +137,13 @@ function resolveGalleryState(
   const locatedImage = location?.resource ?? null
   const resource =
     locatedImage && isViewableSessionImage(locatedImage) ? locatedImage : loadedSelection.resource
-  const adjacency = galleryAdjacency(images, loadedSelection.index, location)
+  const adjacency = galleryAdjacency(
+    images,
+    loadedSelection.index,
+    location,
+    resourceId,
+    galleryResourceIds,
+  )
   return {
     images,
     resource,
@@ -179,6 +213,7 @@ export function useSessionResourceViewerController(
     activeMessageIds,
     identity.resourceId,
     imageLocation.data ?? null,
+    viewer?.galleryResourceIds,
   )
   const source = useViewerSource(querySessionId, gallery.resource, sessionIsActive)
   const actions = useViewerResourceActions(viewerSessionId, gallery.resource, activeSessionRef)
@@ -198,12 +233,13 @@ export function useSessionResourceViewerController(
     viewerSessionId,
     gallery.previousResourceId,
     gallery.nextResourceId,
+    viewer?.galleryResourceIds,
     open,
   )
   usePrefetchNextGalleryPage(
     gallery.loadedIndex,
     gallery.images.length,
-    catalog.hasNextPage,
+    !gallery.messageScoped && catalog.hasNextPage,
     catalog.isFetchingNextPage,
     catalog.loadNextPage,
   )
@@ -211,7 +247,8 @@ export function useSessionResourceViewerController(
   return {
     viewer,
     close,
-    open,
+    open: (sessionId: string, resourceId: string) =>
+      open(sessionId, resourceId, viewer?.galleryResourceIds),
     viewerSessionId,
     branchNames,
     catalog,

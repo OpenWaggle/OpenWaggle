@@ -59,6 +59,29 @@ describe('SessionResourceViewer', () => {
     ).toBeInTheDocument()
   })
 
+  it('wraps within the originating message gallery without entering another message', async () => {
+    listSessionResources.mockResolvedValue([
+      image('image-1', 'first.png'),
+      image('image-2', 'other-message.png'),
+      image('image-3', 'third.png'),
+    ])
+    useUIStore.getState().openResourceViewer('session-1', 'image-1', ['image-1', 'image-3'])
+    renderViewer('session-1')
+
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: first.png' })).toBeVisible()
+    expect(screen.getByText('1 of 2')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: third.png' })).toBeVisible()
+    expect(screen.getByText('2 of 2')).toBeVisible()
+    expect(useUIStore.getState().resourceViewer?.galleryResourceIds).toEqual(['image-1', 'image-3'])
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: first.png' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous image' }))
+    expect(await screen.findByRole('dialog', { name: 'Image viewer: third.png' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Image viewer: other-message.png' })).toBeNull()
+  })
+
   it('navigates chronologically within the same transcript-path group', async () => {
     listSessionResources.mockResolvedValue([
       { ...image('image-new', 'new.png'), createdAt: 2000, updatedAt: 2000 },
