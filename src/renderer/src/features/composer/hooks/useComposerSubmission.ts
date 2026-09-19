@@ -166,12 +166,12 @@ export function useComposerSubmission({
     const dispatch = dispatchPayload(payload)
     if (dispatch.type === 'blocked') return false
     if (dispatch.type === 'sent') {
-      markSessionResourceAttachmentsSubmitted(payload.attachments)
+      if (clearOnSubmit) markSessionResourceAttachmentsSubmitted(payload.attachments)
       finishSuccessfulSubmission(payload)
       if (dispatch.completion) {
         const completion = dispatch.completion.catch((cause: unknown) => {
           const disposition = onSendFailure?.(cause) ?? { kind: 'retain' as const }
-          if (disposition.kind === 'restore') {
+          if (clearOnSubmit && disposition.kind === 'restore') {
             unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
             const limitReason = restoreFailedSendDraft(
               payload,
@@ -183,7 +183,7 @@ export function useComposerSubmission({
             )
             if (limitReason) onToast?.(attachmentLimitMessage(limitReason))
           }
-          if (disposition.kind === 'discard') {
+          if (clearOnSubmit && disposition.kind === 'discard') {
             unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
             discardSessionResourceAttachments(payload.attachments)
           }
@@ -196,7 +196,7 @@ export function useComposerSubmission({
     const result = dispatch.completion.then(
       (accepted) => {
         if (accepted === false) return false
-        markSessionResourceAttachmentsSubmitted(payload.attachments)
+        if (clearOnSubmit) markSessionResourceAttachmentsSubmitted(payload.attachments)
         finishSuccessfulSubmission(payload, draftSnapshot)
         return true
       },
