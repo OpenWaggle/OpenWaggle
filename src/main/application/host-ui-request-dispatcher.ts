@@ -145,7 +145,12 @@ function dispatchExtensionOperation(
     .with('extensions:apply-package-remove', () =>
       oneInput(args, applyHostUiExtensionPackageRemove),
     )
-    .with('extensions:invoke', () => oneInput(args, invokeHostUiExtension))
+    .with('extensions:invoke', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 1, TWO_ARGUMENTS)
+        return yield* invokeHostUiExtension(args[0], args[1])
+      }),
+    )
     .with('extensions:set-trusted', () => oneInput(args, setHostUiExtensionTrusted))
     .with('extensions:set-enabled', () => oneInput(args, setHostUiExtensionEnabled))
     .with('extensions:set-project-disabled', () =>

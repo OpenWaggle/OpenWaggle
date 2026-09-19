@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { sessionFollowUpQueueOptions, type useChat } from '@/features/chat/hooks'
 import type { useSessions } from '@/features/sessions/hooks'
 import { useSessionStatusStore } from '@/features/sessions/state'
+import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
 import { api } from '@/shared/lib/ipc'
 
 const SESSION_QUERY_ROOT_SEGMENTS = 2
@@ -160,6 +161,7 @@ export function useSessionHostRefresh(input: {
         SESSION_QUERY_ROOT_SEGMENTS,
       )
       void queryClient.invalidateQueries({ queryKey })
+      void invalidateExtensionContributionsQueries(queryClient)
       void loadChatSessions()
       void loadSessionTrees()
       if (activeSessionId) {

@@ -157,6 +157,21 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
   })
 
+  it('invalidates mounted extension contributions after a Session Host resync', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.invalidateQueries.mockClear()
+
+    const resyncHandler = lifecycleMocks.getSessionHostResyncHandler()
+    if (!resyncHandler) throw new Error('Expected Session Host resync subscription')
+
+    act(() => resyncHandler({ reason: 'slow-consumer' }))
+
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['extensionContributions'],
+    })
+  })
+
   it('clears retained runtime status when the Host archives a Session', async () => {
     useSessionStatusStore.getState().setStatus(SessionId('session-2'), 'completed', Date.now())
     renderHook(() => useWorkspaceLifecycle())
