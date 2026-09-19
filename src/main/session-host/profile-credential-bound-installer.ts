@@ -10,17 +10,29 @@ import {
 } from '../utils/validated-child-process'
 
 const ROLLBACK_DESTINATION_OCCUPIED_EXIT_CODE = 77
+const PENDING_CLEANUP_FAILED_EXIT_CODE = 78
+const ROLLBACK_OCCUPIED_AND_PENDING_CLEANUP_FAILED_EXIT_CODE = 79
+const ROLLBACK_RESTORED_EXIT_CODE = 74
+const INSTALLATION_FAILED_EXIT_CODE = 75
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
 const OPEN_DIRECTORY_NO_FOLLOW =
   filesystemConstants.O_RDONLY |
   (filesystemConstants.O_DIRECTORY ?? 0) |
   (filesystemConstants.O_NOFOLLOW ?? 0)
 
-const CREDENTIAL_INSTALLER = `
+export const CREDENTIAL_INSTALLER = `
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const [mode, target, pending, displaced, expectedDirectory, expectedIdentity, expectedDigest] = process.argv.slice(1);
 const identity = (stats) => String(stats.dev) + ':' + String(stats.ino);
+const cleanupPending = () => {
+  try { fs.unlinkSync(pending); return false; }
+  catch (cleanupError) {
+    if (cleanupError.code === 'ENOENT') return false;
+    process.stderr.write(' Pending credential cleanup failed: ' + (cleanupError instanceof Error ? cleanupError.message : String(cleanupError)));
+    return true;
+  }
+};
 if (identity(fs.statSync('.')) !== expectedDirectory) process.exit(73);
 process.stdout.write('ready');
 process.stdin.once('data', () => {
@@ -42,6 +54,7 @@ process.stdin.once('data', () => {
     if (identity(displacedStats) !== expectedIdentity || digest !== expectedDigest) {
       if (fs.existsSync(target)) process.exitCode = 77;
       else { fs.linkSync(displaced, target); fs.unlinkSync(displaced); process.exitCode = 74; }
+      if (cleanupPending()) process.exitCode = process.exitCode === 77 ? 79 : 78;
       return;
     }
     if (mode === 'replace') {
@@ -50,21 +63,70 @@ process.stdin.once('data', () => {
     }
     fs.unlinkSync(displaced);
   } catch (error) {
+    let displacedPresent = false;
     try {
-      if (fs.existsSync(displaced)) {
+      try { fs.lstatSync(displaced); displacedPresent = true; }
+      catch (lookupError) {
+        if (lookupError.code !== 'ENOENT') throw lookupError;
+      }
+      if (displacedPresent) {
         if (fs.existsSync(target)) process.exitCode = 77;
         else { fs.linkSync(displaced, target); fs.unlinkSync(displaced); }
       }
     } catch (rollbackError) {
+      process.exitCode = 77;
       process.stderr.write(' Credential rollback failed: ' + (rollbackError instanceof Error ? rollbackError.message : String(rollbackError)));
     }
-    try { if (fs.existsSync(pending)) fs.unlinkSync(pending); } catch {}
+    const pendingCleanupFailed = cleanupPending();
     process.stderr.write(error instanceof Error ? error.message : String(error));
-    if (process.exitCode !== 77) process.exitCode = 75;
+    if (pendingCleanupFailed) process.exitCode = process.exitCode === 77 ? 79 : 78;
+    else if (process.exitCode !== 77) process.exitCode = 75;
   }
 });
 process.stdin.resume();
 `
+
+export class ProfileCredentialInstallerRecoveryError extends Error {
+  constructor(
+    readonly recoveryLocations: readonly string[],
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Credential installation did not finish. Protected installer artifacts may remain at ${recoveryLocations.join(' and ')}.`,
+      options,
+    )
+    this.name = 'ProfileCredentialInstallerRecoveryError'
+  }
+}
+
+export function profileCredentialInstallerFailure(input: {
+  readonly exitCode: number | null
+  readonly directory: string
+  readonly pendingName: string
+  readonly displacedName: string
+}): Error | null {
+  if (input.exitCode === 0) return null
+  const pendingPath = path.join(input.directory, input.pendingName)
+  const displacedPath = path.join(input.directory, input.displacedName)
+  if (input.exitCode === ROLLBACK_DESTINATION_OCCUPIED_EXIT_CODE) {
+    return new ProfileCredentialInstallerRecoveryError([displacedPath])
+  }
+  if (input.exitCode === PENDING_CLEANUP_FAILED_EXIT_CODE) {
+    return new ProfileCredentialInstallerRecoveryError([pendingPath])
+  }
+  if (input.exitCode === ROLLBACK_OCCUPIED_AND_PENDING_CLEANUP_FAILED_EXIT_CODE) {
+    return new ProfileCredentialInstallerRecoveryError([pendingPath, displacedPath])
+  }
+  if (
+    input.exitCode !== ROLLBACK_RESTORED_EXIT_CODE &&
+    input.exitCode !== INSTALLATION_FAILED_EXIT_CODE
+  ) {
+    // A signal or unexpected exit after the validated child was released can leave
+    // either artifact behind; neither outcome is safe to infer from its exit code.
+    return new ProfileCredentialInstallerRecoveryError([pendingPath, displacedPath])
+  }
+  return new Error('The credential destination changed after it was prepared.')
+}
 
 export async function installCredentialInBoundDirectory(input: {
   readonly directory: string
@@ -128,15 +190,22 @@ export async function installCredentialInBoundDirectory(input: {
       await abortValidatedChild(child, exitCodePromise)
       throw error
     }
-    const exitCode = await exitCodePromise
-    if (exitCode === ROLLBACK_DESTINATION_OCCUPIED_EXIT_CODE) {
-      throw new Error(
-        `The credential destination was occupied during rollback; the original remains recoverable at ${path.join(input.directory, displacedName)}.`,
+    let exitCode: number | null
+    try {
+      exitCode = await exitCodePromise
+    } catch (cause) {
+      throw new ProfileCredentialInstallerRecoveryError(
+        [path.join(input.directory, pendingName), path.join(input.directory, displacedName)],
+        { cause },
       )
     }
-    if (exitCode !== 0) {
-      throw new Error('The credential destination changed after it was prepared.')
-    }
+    const failure = profileCredentialInstallerFailure({
+      exitCode,
+      directory: input.directory,
+      pendingName,
+      displacedName,
+    })
+    if (failure) throw failure
   } finally {
     await directoryHandle.close()
   }

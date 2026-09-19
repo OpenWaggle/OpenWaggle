@@ -683,9 +683,25 @@ non-inherited Allow ACE for the current user, a protected DACL, and that exact m
 Native regression probes must validate later pipe instances without reapplying protection;
 descriptor fixtures also check that narrower rights, extra principals and extra rights fail.
 
+After a Windows Host replacement rotates `endpoint.capability`, GUI commands must reread the
+protected endpoint before their first dispatch, including non-replayable Waggle, compaction,
+attachment, and Local UI mutations. Only replay-safe contracts may retry after an ambiguous
+transport failure. Renderer event watches must refresh their retained paths before reconnecting;
+Host UI and MCP owner operations use the same refreshed authority. Fence asynchronous GUI route
+refreshes by the external configuration/retirement epoch, not the route object's identity, so
+concurrent ordinary commands do not invalidate otherwise valid Host UI work.
+
 After profile revocation, stored credential and receipt cleanup may ignore only `ENOENT`.
 Permission, locked-file, and directory-read failures must reach the CLI/GUI so retained files
 can be removed. Cleanup failure does not undo revocation or prevent admission disconnection.
+
+The bound credential installer has two generated protected artifacts in its destination directory:
+`pending` for the new bearer and `displaced` for the original during replacement. A failed
+pending unlink may ignore only `ENOENT`; failed rollback must report `displaced`, and an
+indeterminate child exit after mutation must conservatively report both possible paths. Propagate
+those additional recovery locations through the staged commit error and accepted GUI/CLI response,
+alongside the original staging path. VM tests cover cleanup errors and rollback branches, but do
+not substitute for native Windows locking and ACL checks.
 
 Restricted event subscriptions are filtered at admission before bounded buffering. Exact Session,
 project, workspace, and Hive scopes use a synchronously readable authorized-Session snapshot that

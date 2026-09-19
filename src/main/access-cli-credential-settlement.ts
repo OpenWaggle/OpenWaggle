@@ -13,10 +13,15 @@ export class AcceptedProfileCredentialRecoveryError extends Error {
     readonly cause: ProfileCredentialCommitError
   }) {
     const effect = input.operation === 'create' ? 'created' : 'rotated'
+    const additionalRecoveryLocations = input.cause.additionalRecoveryLocations ?? []
     super(
       `Profile "${input.profileName}" (${input.profileId}) was ${effect}, but its credential ` +
         `installation did not finish. The protected secret remains recoverable at ` +
-        `${input.recoveryLocation}. Retry the accepted operation with ` +
+        `${input.recoveryLocation}. ` +
+        (additionalRecoveryLocations.length > 0
+          ? `Additional protected installer artifacts may remain at ${additionalRecoveryLocations.join(' and ')}. `
+          : '') +
+        `Retry the accepted operation with ` +
         `--idempotency-key ${input.idempotencyKey}.`,
       { cause: input.cause },
     )

@@ -3,6 +3,7 @@ export class ProfileCredentialCommitError extends Error {
     message: string,
     readonly recoveryLocation: string,
     options?: ErrorOptions,
+    readonly additionalRecoveryLocations: readonly string[] = [],
   ) {
     super(message, options)
     this.name = 'ProfileCredentialCommitError'

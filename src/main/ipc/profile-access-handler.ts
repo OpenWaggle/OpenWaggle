@@ -83,6 +83,7 @@ class RetainedProfileCredentialRecoveryError extends Error {
 
 export class AcceptedProfileCredentialRecoveryError extends Error {
   readonly code = 'profile_credential_recovery_required'
+  readonly additionalRecoveryLocations: readonly string[]
 
   constructor(
     readonly operation: 'create' | 'rotate',
@@ -90,17 +91,22 @@ export class AcceptedProfileCredentialRecoveryError extends Error {
     readonly profileName: string,
     readonly idempotencyKey: string,
     readonly recoveryLocation: string,
-    options: ErrorOptions,
+    options: ErrorOptions & { readonly additionalRecoveryLocations?: readonly string[] },
   ) {
     const effect = operation === 'create' ? 'created' : 'rotated'
+    const additionalRecoveryLocations = options.additionalRecoveryLocations ?? []
     super(
       `Profile "${profileName}" was ${effect}, but its credential installation did not finish. ` +
         `The protected secret remains recoverable at ${recoveryLocation}. ` +
+        (additionalRecoveryLocations.length > 0
+          ? `Additional protected installer artifacts may remain at ${additionalRecoveryLocations.join(' and ')}. `
+          : '') +
         `Operation reference: ${idempotencyKey}. ` +
         'Recover the credential before removing it; a new GUI or CLI request is not a replay.',
       options,
     )
     this.name = 'AcceptedProfileCredentialRecoveryError'
+    this.additionalRecoveryLocations = additionalRecoveryLocations
   }
 }
 
@@ -182,7 +188,7 @@ function settleProfileCredential(input: {
             outcome.profile.name,
             input.response.idempotencyKey,
             cause.recoveryLocation,
-            { cause },
+            { cause, additionalRecoveryLocations: cause.additionalRecoveryLocations },
           )
         },
       })

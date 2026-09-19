@@ -2,7 +2,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { open } from 'node:fs/promises'
 import path from 'node:path'
 import { ensureDirectoryPathPinned } from '../utils/pinned-directory-creation'
-import { installCredentialInBoundDirectory } from './profile-credential-bound-installer'
+import {
+  installCredentialInBoundDirectory,
+  ProfileCredentialInstallerRecoveryError,
+} from './profile-credential-bound-installer'
 import {
   ProfileCredentialCleanupError,
   ProfileCredentialCommitError,
@@ -147,6 +150,20 @@ async function recoverCommittedCredential(input: {
   return credential
 }
 
+function credentialCommitFailure(cause: unknown, temporaryPath: string) {
+  const additionalRecoveryLocations =
+    cause instanceof ProfileCredentialInstallerRecoveryError ? cause.recoveryLocations : []
+  return new ProfileCredentialCommitError(
+    `Credential installation did not finish. The protected credential remains recoverable at ${temporaryPath}.` +
+      (additionalRecoveryLocations.length > 0
+        ? ` Protected installer artifacts may also remain at ${additionalRecoveryLocations.join(' and ')}.`
+        : ''),
+    temporaryPath,
+    { cause },
+    additionalRecoveryLocations,
+  )
+}
+
 export async function stageProfileCredential(input: ProfileCredentialStagingOptions) {
   validateCredential(input.credential)
   const targetPath = destinationPath(input.destination, input.profileName)
@@ -249,11 +266,7 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
         })
         await unlinkOwnedFile(stagingDirectory, pending.temporaryName, pending.pendingIdentity)
       } catch (cause) {
-        throw new ProfileCredentialCommitError(
-          `Credential installation did not finish. The protected credential remains recoverable at ${temporaryPath}.`,
-          temporaryPath,
-          { cause },
-        )
+        throw credentialCommitFailure(cause, temporaryPath)
       } finally {
         await sourceHandle.close()
       }

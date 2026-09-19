@@ -13,6 +13,8 @@ const {
     constructor(
       message: string,
       readonly recoveryLocation: string,
+      _options?: ErrorOptions,
+      readonly additionalRecoveryLocations: readonly string[] = [],
     ) {
       super(message)
     }
@@ -204,7 +206,12 @@ describe('Access CLI credential recovery', () => {
     const recoveryLocation = '/tmp/protected/create.pending'
     executeCommandMock.mockResolvedValue(PROFILE_RESPONSE)
     commitMock.mockRejectedValue(
-      new ProfileCredentialCommitError('credential installation failed', recoveryLocation),
+      new ProfileCredentialCommitError(
+        'credential installation failed',
+        recoveryLocation,
+        undefined,
+        ['/tmp/protected/installer.pending'],
+      ),
     )
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
@@ -216,6 +223,7 @@ describe('Access CLI credential recovery', () => {
     expect(output).toContain('Profile "reviewer" (profile-1) was created')
     expect(output).toContain(`--idempotency-key ${String(generatedKey)}`)
     expect(output).toContain(recoveryLocation)
+    expect(output).toContain('/tmp/protected/installer.pending')
     expect(output).not.toContain('generated-credential')
     expect(discardMock).not.toHaveBeenCalled()
   })

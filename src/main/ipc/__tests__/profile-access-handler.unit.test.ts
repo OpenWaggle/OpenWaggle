@@ -237,9 +237,12 @@ describe('profile access IPC', () => {
   })
 
   it('preserves accepted-create recovery identity when credential installation fails', async () => {
-    const commitFailure = new mocks.ProfileCredentialCommitError(
-      'credential installation failed',
-      '/tmp/protected-create.pending',
+    const commitFailure = Object.assign(
+      new mocks.ProfileCredentialCommitError(
+        'credential installation failed',
+        '/tmp/protected-create.pending',
+      ),
+      { additionalRecoveryLocations: ['/tmp/credential-dir/installer.pending'] },
     )
     mocks.commit.mockRejectedValue(commitFailure)
     mocks.dispatch.mockReturnValue(
@@ -270,7 +273,11 @@ describe('profile access IPC', () => {
       profileName: 'reviewer',
       idempotencyKey: 'stable-idempotency-key',
       recoveryLocation: '/tmp/protected-create.pending',
+      additionalRecoveryLocations: ['/tmp/credential-dir/installer.pending'],
       message: expect.stringContaining('stable-idempotency-key'),
+    })
+    expect(error).toMatchObject({
+      message: expect.stringContaining('/tmp/credential-dir/installer.pending'),
     })
 
     expect(mocks.discard).not.toHaveBeenCalled()
