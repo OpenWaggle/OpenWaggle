@@ -82,6 +82,8 @@ export function ArchivedSection() {
             void loadSessions()
           })
           .catch((error: unknown) => {
+            // The Host may have committed deletion before local workspace cleanup failed.
+            void loadSessions()
             setActionError(
               describeArchivedError(error, 'Failed to permanently delete archived session.'),
             )

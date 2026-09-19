@@ -62,9 +62,12 @@ export function validateSessionHostCompletionSeal(database: DatabaseSync) {
       )
       .all(),
   )
-  let baselineId = SESSION_HOST_BASELINE_MIGRATION_ID
+  let baselineId: number
   try {
-    if (planSessionHostLedgerUpgrade(rows).length > 0) baselineId = SESSION_HOST_ALPHA_BASELINE_ID
+    planSessionHostLedgerUpgrade(rows)
+    baselineId =
+      rows.find((row) => row.name === SESSION_HOST_BASELINE_MIGRATION_NAME)?.id ??
+      SESSION_HOST_BASELINE_MIGRATION_ID
   } catch {
     throw new Error('Session Host target completion metadata is missing or incompatible.')
   }

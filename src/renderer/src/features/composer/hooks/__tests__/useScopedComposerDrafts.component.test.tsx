@@ -73,22 +73,22 @@ describe('useScopedComposerDrafts workspace hydration', () => {
     usePreferencesStore.setState({ settings: { ...DEFAULT_SETTINGS, projectPath: null } })
   })
 
-  it('waits for the workspace before accepting edits and preserves them across refreshes', async () => {
+  it('accepts pending edits before workspace hydration and preserves them across refreshes', async () => {
     const editorRef = createRef<LexicalEditor>()
     const sessionId = SessionId('session-a')
     render(<Harness sessionId={sessionId} editorRef={editorRef} />)
     await waitFor(() => expect(editorRef.current).not.toBeNull())
     const editor = editorRef.current
     if (!editor) throw new Error('Expected an editor.')
-    expect(editor.isEditable()).toBe(false)
-    await act(async () => useSessionStore.setState({ activeWorkspace: workspace(sessionId) }))
-    await waitFor(() => expect(editor.isEditable()).toBe(true))
+    expect(editor.isEditable()).toBe(true)
     act(() => setEditorText(editor, 'also check whether any are already fixed on main'))
     await waitFor(() =>
       expect(useComposerStore.getState().input).toBe(
         'also check whether any are already fixed on main',
       ),
     )
+    await act(async () => useSessionStore.setState({ activeWorkspace: workspace(sessionId) }))
+    await waitFor(() => expect(editor.isEditable()).toBe(true))
     await act(async () => useSessionStore.setState({ activeWorkspace: workspace(sessionId) }))
     await waitFor(() =>
       expect(screen.getByRole('textbox', { name: 'Message input' })).toHaveTextContent(
@@ -208,7 +208,9 @@ describe('useScopedComposerDrafts workspace hydration', () => {
     })
 
     rerender(<Harness sessionId={nextSession} editorRef={editorRef} />)
-    expect(editorRef.current?.isEditable()).toBe(false)
+    expect(editorRef.current?.isEditable()).toBe(true)
+    expect(screen.getByRole('textbox').textContent).toBe('')
+    expect(useComposerStore.getState().activeDraftContextKey).toBe(`session:${nextSession}:pending`)
     await act(async () =>
       useSessionStore.setState({ activeWorkspace: workspace(nextSession, 'review') }),
     )
@@ -224,7 +226,11 @@ describe('useScopedComposerDrafts workspace hydration', () => {
     })
 
     rerender(<Harness sessionId={firstSession} editorRef={editorRef} />)
-    expect(editorRef.current?.isEditable()).toBe(false)
+    expect(editorRef.current?.isEditable()).toBe(true)
+    expect(screen.getByRole('textbox').textContent).toBe('')
+    expect(useComposerStore.getState().activeDraftContextKey).toBe(
+      `session:${firstSession}:pending`,
+    )
     await act(async () => useSessionStore.setState({ activeWorkspace: workspace(firstSession) }))
     await waitFor(() => {
       expect(editorRef.current?.isEditable()).toBe(true)

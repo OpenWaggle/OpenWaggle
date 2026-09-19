@@ -27,6 +27,19 @@ const {
   unregisterBrowserPreviewOwnerMock: vi.fn(),
 }))
 
+const cleanupFailure = vi.hoisted(() => ({ enabled: false }))
+
+vi.mock('@/shell/workspace-panel-cleanup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shell/workspace-panel-cleanup')>()
+  return {
+    ...actual,
+    deleteWorkspaceOwner: async (ownerKey: string) => {
+      await actual.deleteWorkspaceOwner(ownerKey)
+      if (cleanupFailure.enabled) throw new Error('Cleanup failed')
+    },
+  }
+})
+
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     closeBrowserPreview: closeBrowserPreviewMock,
@@ -117,6 +130,7 @@ function createDeferredPromise<T>() {
 
 describe('ArchivedSection', () => {
   beforeEach(() => {
+    cleanupFailure.enabled = false
     closeBrowserPreviewMock.mockReset()
     deleteSessionMock.mockReset()
     listArchivedSessionBranchesMock.mockReset()
@@ -278,6 +292,23 @@ describe('ArchivedSection', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Delete exploded')
       expect(screen.getByText('Archived session')).toBeInTheDocument()
+    })
+  })
+
+  it('refreshes the archived catalog if cleanup fails after deletion commits', async () => {
+    const session = createArchivedSession()
+    sessionStoreState.archivedSessions = [session]
+    showConfirmMock.mockResolvedValueOnce(true)
+    deleteSessionMock.mockResolvedValueOnce(undefined)
+    cleanupFailure.enabled = true
+
+    renderWithQueryClient(<ArchivedSection />)
+    fireEvent.click(await screen.findByTitle('Delete permanently'))
+
+    await waitFor(() => {
+      expect(deleteSessionMock).toHaveBeenCalledWith(session.id)
+      expect(screen.getByRole('alert')).toHaveTextContent('Cleanup failed')
+      expect(loadSessionsMock).toHaveBeenCalledOnce()
     })
   })
 

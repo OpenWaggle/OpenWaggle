@@ -14,21 +14,24 @@ export function setEditorDraft(
   text: string,
   wagglePreset: WagglePreset | null,
 ): void {
-  editor.update(() => {
-    const root = $getRoot()
-    root.clear()
-    const paragraph = $createParagraphNode()
-    if (text) {
-      paragraph.append($createTextNode(text))
-    }
-    if (wagglePreset) {
-      if (text && !text.endsWith(' ')) paragraph.append($createTextNode(' '))
-      paragraph.append($createWaggleMentionNode(wagglePreset))
-      paragraph.append($createTextNode(' '))
-    }
-    root.append(paragraph)
-    root.selectEnd()
-  })
+  editor.update(
+    () => {
+      const root = $getRoot()
+      root.clear()
+      const paragraph = $createParagraphNode()
+      if (text) {
+        paragraph.append($createTextNode(text))
+      }
+      if (wagglePreset) {
+        if (text && !text.endsWith(' ')) paragraph.append($createTextNode(' '))
+        paragraph.append($createWaggleMentionNode(wagglePreset))
+        paragraph.append($createTextNode(' '))
+      }
+      root.append(paragraph)
+      root.selectEnd()
+    },
+    { discrete: true },
+  )
 }
 
 /**

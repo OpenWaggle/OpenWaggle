@@ -117,6 +117,25 @@ describe('Session Host completion seal', () => {
     expect(target.prepare('SELECT * FROM _migrations ORDER BY id').all()).toEqual(before)
   })
 
+  it('accepts a pre-Summary Host seal with released Setup migrations before ledger repair', () => {
+    const target = completionDatabase()
+    database = target
+    target
+      .prepare('UPDATE _migrations SET id = 28 WHERE id = ?')
+      .run(SESSION_HOST_BASELINE_MIGRATION_ID)
+    target.exec(`
+      INSERT INTO _migrations VALUES
+        (26, 'session-worktree-setup-dispatch', 'released'),
+        (27, 'session-worktree-setup-receipt', 'released'),
+        (35, 'session-host-browser-preview-attachments', 'pre-summary')
+    `)
+    const before = target.prepare('SELECT * FROM _migrations ORDER BY id').all()
+    target.exec('PRAGMA query_only = ON')
+
+    expect(() => validateSessionHostCompletionSeal(target)).not.toThrow()
+    expect(target.prepare('SELECT * FROM _migrations ORDER BY id').all()).toEqual(before)
+  })
+
   it('rejects a mixed alpha/released ledger without altering the completion seal', () => {
     const target = completionDatabase()
     database = target

@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { refreshAfterCommittedSessionMutation } from './committed-session-refresh'
 import { queryKeys } from './query-keys'
 
 const ARCHIVED_PAGE_SIZE = 100
@@ -19,6 +20,10 @@ export function refreshArchivedSessions(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({
       queryKey: queryKeys.archivedSessions,
+      exact: true,
+    }),
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.archivedSessionBranches,
       exact: true,
     }),
     queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives }),
@@ -76,10 +81,14 @@ export function useRestoreSessionBranchMutation() {
 }
 
 export function useArchivedDeleteSessionMutation() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (sessionId: SessionId) => {
       await api.deleteSession(sessionId)
-      await deleteWorkspaceOwner(String(sessionId))
+      await refreshAfterCommittedSessionMutation(
+        () => deleteWorkspaceOwner(String(sessionId)),
+        () => refreshArchivedSessions(queryClient),
+      )
     },
   })
 }

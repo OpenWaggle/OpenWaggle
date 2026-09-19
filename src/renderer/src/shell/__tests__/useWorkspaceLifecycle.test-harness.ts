@@ -100,7 +100,8 @@ export function getWorkspaceLifecycleMocks(): WorkspaceLifecycleMocks {
   return lifecycleMocks
 }
 
-vi.mock('@tanstack/react-query', () => ({
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
   useQueryClient: () => ({ invalidateQueries: lifecycleMocks.invalidateQueries }),
 }))
 
