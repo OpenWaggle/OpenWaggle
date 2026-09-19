@@ -25,7 +25,12 @@ export function useSidebarTerminalCounts(stateBySessionId: ReadonlyMap<string, S
           setTerminalCounts(result.counts)
         }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (countGeneration.current === requestGeneration) {
+          // An old Host count must not override the locally known rows after a failed refresh.
+          setTerminalCounts({})
+        }
+      })
   }, [terminalStateKey])
 
   return { terminalCounts, setTerminalCounts }
