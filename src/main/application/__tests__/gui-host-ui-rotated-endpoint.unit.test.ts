@@ -128,6 +128,21 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
   })
 
+  it.each(['extensions:list-packages', 'extensions:list-contributions'] as const)(
+    'recovers the pure %s catalog after Host loss',
+    async (channel) => {
+      const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+      mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce([])
+
+      await expect(invokeConfiguredHostUiRaw(channel, [])).resolves.toEqual({
+        handled: true,
+        result: [],
+      })
+      expect(mocks.ensureHost).toHaveBeenCalledOnce()
+      expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
+    },
+  )
+
   it('recovers a replay-safe read when endpoint refresh itself reports Host loss', async () => {
     const unavailable = Object.assign(new Error('Host endpoint disappeared'), { code: 'ENOENT' })
     mocks.refreshPaths.mockRejectedValueOnce(unavailable).mockImplementation(async (paths) => ({
