@@ -1,4 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { VISUALIZE_REFERENCE_START } from '@shared/utils/inline-visualization'
 import * as Effect from 'effect/Effect'
 import type { PersistSessionSnapshotInput } from '../../ports/session-repository'
 import { EMPTY_INDEX } from './constants'
@@ -8,7 +9,6 @@ import type {
   SessionBranchStateRow,
   SessionRow,
 } from './types'
-import { VISUALIZE_REFERENCE_START } from './visualization-ownership-projection'
 
 interface ExistingVisualizationMetadataRow {
   readonly id: string
@@ -74,7 +74,10 @@ function selectExistingVisualizationMetadata(
     FROM session_nodes
     WHERE session_id = ${sessionId}
       AND kind = 'assistant_message'
-      AND content_json LIKE ${`%${VISUALIZE_REFERENCE_START}%`}
+      AND (
+        content_json LIKE ${`%${VISUALIZE_REFERENCE_START}%`} OR
+        content_json LIKE '%visualize{%'
+      )
   `
 }
 
