@@ -11,6 +11,7 @@ export async function deleteProjectSessionsChildrenFirst(
     sessions.some(
       (session) =>
         session.lineage?.role === 'worker' &&
+        session.lineage.historical !== true &&
         (session.lineage.delegationState === 'working' ||
           session.lineage.delegationState === 'waiting'),
     )

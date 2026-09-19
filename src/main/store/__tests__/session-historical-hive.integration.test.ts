@@ -55,7 +55,7 @@ describe('historical MCP Hive display', () => {
           INSERT INTO session_lineage (
             session_id, parent_session_id, agent_definition_name,
             delegation_state, created_at, updated_at
-          ) VALUES (${worker.id}, ${queen.id}, ${'reviewer'}, ${'accepted'}, ${1}, ${1})
+          ) VALUES (${worker.id}, ${queen.id}, ${'reviewer'}, ${'working'}, ${1}, ${1})
         `
       }),
     )
@@ -70,7 +70,8 @@ describe('historical MCP Hive display', () => {
       role: 'worker',
       parentSessionId: queen.id,
       agentDefinitionName: 'reviewer',
-      delegationState: 'accepted',
+      delegationState: 'working',
+      historical: true,
     })
 
     const queenPage = await listHiveSessionCatalogPage(queen.id, 50)

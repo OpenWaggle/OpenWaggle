@@ -88,6 +88,8 @@ function loadSessionRows(sql: SqlClient.SqlClient, sessionIds: readonly string[]
         AS direct_worker_count,
       session_execution_profiles.profile_json,
       legacy_lineage.agent_definition_name AS legacy_agent_definition_name,
+      (legacy_lineage.session_id IS NOT NULL
+        AND session_spawn_lineage.child_session_id IS NULL) AS historical_lineage,
       delegation_contracts.id AS delegation_id,
       COALESCE(delegation_contracts.state, legacy_lineage.delegation_state)
         AS delegation_state

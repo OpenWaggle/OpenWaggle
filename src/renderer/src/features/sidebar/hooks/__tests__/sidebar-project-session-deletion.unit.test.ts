@@ -75,6 +75,21 @@ describe('project Session deletion order', () => {
     },
   )
 
+  it('allows leaf-first removal of a historical Worker last recorded as working', async () => {
+    const queen = session('queen', null, 1)
+    const worker = session('worker', queen.id, 0, 'working')
+    const lineage = worker.lineage
+    if (!lineage) throw new Error('Worker fixture is missing lineage.')
+    const deleteSession = vi.fn(async (_sessionId: SessionId) => undefined)
+
+    await deleteProjectSessionsChildrenFirst(
+      [queen, { ...worker, lineage: { ...lineage, historical: true } }],
+      deleteSession,
+    )
+
+    expect(deleteSession.mock.calls.map(([id]) => id)).toEqual([worker.id, queen.id])
+  })
+
   it('rejects missing project Workers before deleting a sibling', async () => {
     const deleteSession = vi.fn(async () => undefined)
     await expect(

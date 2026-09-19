@@ -97,7 +97,7 @@ export function HiveSummarySection({
     onNavigateSession(targetSessionId)
   }
 
-  const { activeWorkers, doneWorkers } = model
+  const { activeWorkers, doneWorkers, historicalWorkers } = model
   return (
     <section ref={expansion.sectionRef} className="border-t border-border" aria-label="Hive">
       <HiveSummaryHeader model={model} expansion={expansion} contentId={contentId} />
@@ -135,6 +135,12 @@ export function HiveSummarySection({
               label="Done"
               workers={doneWorkers}
               rowLabel="Done"
+              onNavigateSession={navigateSession}
+            />
+            <HiveWorkerGroup
+              label="Historical"
+              workers={historicalWorkers}
+              rowLabel="Past Worker"
               onNavigateSession={navigateSession}
             />
             <HiveArchivedWorkers

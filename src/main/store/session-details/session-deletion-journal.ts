@@ -101,10 +101,16 @@ function assertSessionHasNoForks(sql: SqlClient.SqlClient, id: SessionId) {
 function assertSessionHasNoWorkers(sql: SqlClient.SqlClient, id: SessionId) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly child_session_id: string }>`
-      SELECT child_session_id
-      FROM session_spawn_lineage
-      WHERE parent_session_id = ${id} OR hive_root_session_id = ${id}
-      ORDER BY depth, created_at, child_session_id
+      SELECT child_session_id FROM (
+        SELECT child_session_id, created_at
+        FROM session_spawn_lineage
+        WHERE parent_session_id = ${id} OR hive_root_session_id = ${id}
+        UNION ALL
+        SELECT session_id AS child_session_id, created_at
+        FROM session_lineage
+        WHERE parent_session_id = ${id}
+      )
+      ORDER BY created_at, child_session_id
       LIMIT 1
     `
     const worker = rows[EMPTY_INDEX]

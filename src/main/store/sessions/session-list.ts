@@ -102,18 +102,15 @@ export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: rea
           AND NOT EXISTS (SELECT 1 FROM session_spawn_lineage AS live_lineage
             WHERE live_lineage.child_session_id = historical_lineage.session_id)))
         AS direct_worker_count,
-      ((SELECT COUNT(*)
+      (SELECT COUNT(*)
         FROM delegation_contracts
         WHERE delegation_contracts.parent_session_id = sessions.id
           AND delegation_contracts.state NOT IN (${'accepted'}, ${'cancelled'}))
-       + (SELECT COUNT(*) FROM session_lineage AS historical_lineage
-         WHERE historical_lineage.parent_session_id = sessions.id
-           AND historical_lineage.delegation_state NOT IN (${'accepted'}, ${'cancelled'})
-           AND NOT EXISTS (SELECT 1 FROM session_spawn_lineage AS live_lineage
-             WHERE live_lineage.child_session_id = historical_lineage.session_id)))
         AS active_direct_worker_count,
       session_execution_profiles.profile_json
       , legacy_lineage.agent_definition_name AS legacy_agent_definition_name
+      , (legacy_lineage.session_id IS NOT NULL
+         AND session_spawn_lineage.child_session_id IS NULL) AS historical_lineage
       , delegation_contracts.id AS delegation_id
       , COALESCE(delegation_contracts.state, legacy_lineage.delegation_state)
         AS delegation_state

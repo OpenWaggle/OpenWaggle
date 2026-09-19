@@ -112,6 +112,25 @@ describe('Session deletion dependency safety', () => {
     await expectRefusedBeforePiCleanup(parent.session.id, parent.piSessionFile ?? '')
   })
 
+  it('refuses a historical Hive parent before Pi cleanup', async () => {
+    const parent = await makeSession('historical-parent', true)
+    const child = await makeSession('historical-child')
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_lineage (
+            session_id, parent_session_id, delegation_state, created_at, updated_at
+          ) VALUES (
+            ${child.session.id}, ${parent.session.id}, ${'working'}, ${1}, ${1}
+          )
+        `
+      }),
+    )
+
+    await expectRefusedBeforePiCleanup(parent.session.id, parent.piSessionFile ?? '')
+  })
+
   it('deletes owned reports and detaches surviving replies', async () => {
     const reporter = await makeSession('reporter', true)
     const replier = await makeSession('replier')

@@ -140,7 +140,8 @@ export function sessionAgentBlockReason(
       SELECT sessions.project_path, session_execution_profiles.profile_json,
         session_execution_profiles.authorization_ceiling,
         session_execution_profiles.authority_origin_caller_id,
-        session_spawn_lineage.parent_session_id,
+        COALESCE(session_spawn_lineage.parent_session_id, session_lineage.parent_session_id)
+          AS parent_session_id,
         derived_child_management_grants.capabilities_json,
         derived_child_management_grants.authorization_ceiling AS grant_authorization_ceiling,
         derived_child_management_grants.revoked_at AS grant_revoked_at,
@@ -150,6 +151,7 @@ export function sessionAgentBlockReason(
       FROM sessions
       JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
       LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
+      LEFT JOIN session_lineage ON session_lineage.session_id = sessions.id
       LEFT JOIN derived_child_management_grants
         ON derived_child_management_grants.child_session_id = sessions.id
       LEFT JOIN derived_child_management_grants AS target_grant

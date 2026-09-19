@@ -84,7 +84,7 @@ export function HiveSessionRow({
   const status = useSessionStatusStore((store) => store.statuses.get(session.id) ?? 'idle')
   const statusView = resolveSessionStatusPill(status)
   const state = session.lineage?.delegationState ?? null
-  const statusLabel = state ? HIVE_DELEGATION_LABELS[state] : (statusView?.shortLabel ?? 'Idle')
+  const statusLabel = hiveSessionStatusLabel(session, statusView?.shortLabel ?? 'Idle')
   const Icon = session.lineage?.role === 'queen' ? ChessQueen : Pickaxe
   return (
     <Button
@@ -112,4 +112,12 @@ export function HiveSessionRow({
       <ChevronRight aria-hidden="true" className="size-3 text-text-muted" />
     </Button>
   )
+}
+
+function hiveSessionStatusLabel(session: HiveSession, fallback: string) {
+  const state = session.lineage?.delegationState
+  if (session.lineage?.historical) {
+    return state ? `Last: ${HIVE_DELEGATION_LABELS[state]}` : 'Historical'
+  }
+  return state ? HIVE_DELEGATION_LABELS[state] : fallback
 }

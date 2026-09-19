@@ -58,5 +58,7 @@ export interface SessionQuerySummary {
   readonly agentDefinitionName?: string
   readonly delegationId?: string
   readonly delegationState?: DelegationState
+  /** Historical MCP ancestry does not grant Session Host delegation authority. */
+  readonly historical?: boolean
   readonly discoveryEvidence?: SessionDiscoveryEvidence
 }

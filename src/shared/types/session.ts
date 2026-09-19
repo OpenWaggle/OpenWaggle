@@ -33,6 +33,8 @@ export interface SessionLineageSummary {
   readonly agentDefinitionName?: string
   readonly delegationId?: string
   readonly delegationState?: DelegationState
+  /** Navigation-only ancestry from the retired MCP task runner, never Host authority. */
+  readonly historical?: boolean
 }
 
 export interface SessionDerivationSummary {

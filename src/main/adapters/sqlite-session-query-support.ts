@@ -24,6 +24,7 @@ export interface SessionQuerySummaryRow {
   readonly direct_worker_count: number
   readonly profile_json: string | null
   readonly legacy_agent_definition_name?: string | null
+  readonly historical_lineage?: number | null
   readonly delegation_id: string | null
   readonly delegation_state: DelegationState | null
 }
@@ -72,6 +73,7 @@ export function sessionQuerySummary(row: SessionQuerySummaryRow): SessionQuerySu
     ...(definitionName ? { agentDefinitionName: definitionName } : {}),
     ...(row.delegation_id ? { delegationId: row.delegation_id } : {}),
     ...(isDelegationState(row.delegation_state) ? { delegationState: row.delegation_state } : {}),
+    ...(row.historical_lineage ? { historical: true } : {}),
   }
 }
 

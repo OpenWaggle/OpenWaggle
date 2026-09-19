@@ -11,6 +11,7 @@ export interface SessionLineageRow {
   readonly active_direct_worker_count: number
   readonly profile_json: string | null
   readonly legacy_agent_definition_name: string | null
+  readonly historical_lineage: number
   readonly delegation_id: string | null
   readonly delegation_state: DelegationState | null
   readonly source_session_id: string | null
@@ -78,6 +79,7 @@ export function attachSessionLineage(
         ...(definitionName ? { agentDefinitionName: definitionName } : {}),
         ...(row.delegation_id ? { delegationId: row.delegation_id } : {}),
         ...(row.delegation_state ? { delegationState: row.delegation_state } : {}),
+        ...(row.historical_lineage ? { historical: true } : {}),
       },
     }
   })

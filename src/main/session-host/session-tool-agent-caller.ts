@@ -30,6 +30,7 @@ interface AuthorityRow {
   readonly origin_profile_scope_json: string | null
   readonly origin_profile_authorization_ceiling: 'yolo' | 'ask-for-approval' | null
   readonly parent_session_id: string | null
+  readonly historical_parent_session_id: string | null
   readonly capabilities_json: string | null
   readonly derived_grant_id: string | null
   readonly derived_grant_revoked_at: number | null
@@ -59,6 +60,9 @@ function decodeCapabilities(value: string | null): readonly SessionCapability[] 
 
 function assertLiveAuthority(row: AuthorityRow | undefined, sessionId: string) {
   if (!row) throw new Error(`Sessions tool source Session was not found: ${sessionId}`)
+  if (row.historical_parent_session_id !== null && row.parent_session_id === null) {
+    throw new Error('Historical Worker ancestry does not grant Session Host agent authority.')
+  }
   const expectsOriginProfile = row.authority_origin_caller_id.startsWith('profile:')
   if ((expectsOriginProfile && !row.origin_profile_id) || row.origin_profile_revoked_at !== null) {
     throw new Error('The CLI client profile that originated this Session authority was revoked.')
@@ -161,12 +165,14 @@ function loadAuthorityRow(sql: SqlClient.SqlClient, sessionId: string) {
       session_client_profiles.authorization_ceiling AS origin_profile_authorization_ceiling,
       session_client_profiles.revoked_at AS origin_profile_revoked_at,
       session_spawn_lineage.parent_session_id,
+      session_lineage.parent_session_id AS historical_parent_session_id,
       derived_child_management_grants.id AS derived_grant_id,
       derived_child_management_grants.capabilities_json,
       derived_child_management_grants.revoked_at AS derived_grant_revoked_at
     FROM sessions
     JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
     LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
+    LEFT JOIN session_lineage ON session_lineage.session_id = sessions.id
     LEFT JOIN derived_child_management_grants
       ON derived_child_management_grants.child_session_id = sessions.id
     LEFT JOIN session_client_profiles

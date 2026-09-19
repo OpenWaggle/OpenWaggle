@@ -264,7 +264,8 @@ export async function getSessionCallerAuthorizationBoundary(callerId: string) {
         readonly profile_revoked_at: number | null
       }>`
         SELECT execution.authorization_ceiling AS execution_ceiling,
-          lineage.parent_session_id,
+          COALESCE(lineage.parent_session_id, historical.parent_session_id)
+            AS parent_session_id,
           grants.authorization_ceiling AS grant_ceiling,
           grants.revoked_at AS grant_revoked_at,
           profiles.authorization_ceiling AS profile_ceiling,
@@ -272,6 +273,8 @@ export async function getSessionCallerAuthorizationBoundary(callerId: string) {
         FROM session_execution_profiles AS execution
         LEFT JOIN session_spawn_lineage AS lineage
           ON lineage.child_session_id = execution.session_id
+        LEFT JOIN session_lineage AS historical
+          ON historical.session_id = execution.session_id
         LEFT JOIN derived_child_management_grants AS grants
           ON grants.child_session_id = execution.session_id
         LEFT JOIN session_client_profiles AS profiles

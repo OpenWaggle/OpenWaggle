@@ -123,12 +123,15 @@ export function liveSessionAuthorityBlockReason(
       readonly grant_revoked_at: number | null
     }>`
       SELECT session_execution_profiles.authority_origin_caller_id,
-        session_spawn_lineage.parent_session_id,
+        COALESCE(session_spawn_lineage.parent_session_id, session_lineage.parent_session_id)
+          AS parent_session_id,
         derived_child_management_grants.id AS grant_id,
         derived_child_management_grants.revoked_at AS grant_revoked_at
       FROM session_execution_profiles
       LEFT JOIN session_spawn_lineage
         ON session_spawn_lineage.child_session_id = session_execution_profiles.session_id
+      LEFT JOIN session_lineage
+        ON session_lineage.session_id = session_execution_profiles.session_id
       LEFT JOIN derived_child_management_grants
         ON derived_child_management_grants.child_session_id = session_execution_profiles.session_id
       WHERE session_execution_profiles.session_id = ${sourceId}

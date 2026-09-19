@@ -41,7 +41,7 @@ describe('Session Host historical Hive cutover', () => {
         INSERT INTO session_lineage (
           session_id, parent_session_id, agent_definition_name, delegation_state,
           created_at, updated_at
-        ) VALUES ('session-worker', 'session-root', 'reviewer', 'accepted', 12, 22);
+        ) VALUES ('session-worker', 'session-root', 'reviewer', 'working', 12, 22);
       `)
     } finally {
       source.close()
@@ -63,7 +63,7 @@ describe('Session Host historical Hive cutover', () => {
       ).toMatchObject({
         parent_session_id: 'session-root',
         agent_definition_name: 'reviewer',
-        delegation_state: 'accepted',
+        delegation_state: 'working',
       })
       expect(target.prepare('SELECT COUNT(*) AS count FROM session_spawn_lineage').get()).toEqual({
         count: 0,
