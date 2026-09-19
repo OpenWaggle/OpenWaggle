@@ -68,6 +68,14 @@ function agentImage(id: string, nodeId: string): SessionResource {
   }
 }
 
+function renderAgentImages() {
+  renderWithQueryClient(
+    <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['agent-message']}>
+      <SessionMessageImages messageId="agent-message" />
+    </SessionMessageResourcesProvider>,
+  )
+}
+
 describe('SessionMessageImages occurrence ordering', () => {
   beforeEach(() => {
     useUIStore.setState({ resourceViewer: null })
@@ -147,14 +155,7 @@ describe('SessionMessageImages occurrence ordering', () => {
         ],
       },
     ])
-    renderWithQueryClient(
-      <SessionMessageResourcesProvider
-        sessionId={SessionId('session-1')}
-        nodeIds={['agent-message']}
-      >
-        <SessionMessageImages messageId="agent-message" />
-      </SessionMessageResourcesProvider>,
-    )
+    renderAgentImages()
 
     const buttons = await screen.findAllByRole('button', { name: /^Open image / })
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
@@ -176,14 +177,7 @@ describe('SessionMessageImages occurrence ordering', () => {
         occurrences: [{ ...early.occurrences[0], id: 'session-1:agent-message:read:link:0:hash' }],
       },
     ])
-    renderWithQueryClient(
-      <SessionMessageResourcesProvider
-        sessionId={SessionId('session-1')}
-        nodeIds={['agent-message']}
-      >
-        <SessionMessageImages messageId="agent-message" />
-      </SessionMessageResourcesProvider>,
-    )
+    renderAgentImages()
 
     const buttons = await screen.findAllByRole('button', { name: /^Open image / })
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
@@ -204,14 +198,7 @@ describe('SessionMessageImages occurrence ordering', () => {
         })),
       },
     ])
-    renderWithQueryClient(
-      <SessionMessageResourcesProvider
-        sessionId={SessionId('session-1')}
-        nodeIds={['agent-message']}
-      >
-        <SessionMessageImages messageId="agent-message" />
-      </SessionMessageResourcesProvider>,
-    )
+    renderAgentImages()
 
     expect(await screen.findByRole('button', { name: 'Open image tool-output.png' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Open image imagegen' })).toBeNull()
@@ -242,5 +229,71 @@ describe('SessionMessageImages occurrence ordering', () => {
       resourceId: 'old',
       galleryTitles: ['new-name.png'],
     })
+  })
+
+  it('orders linked and generated images using their shared message position', async () => {
+    const generated = agentImage('a-generated', 'agent-message')
+    const linked = remoteImage('z-linked', 'agent-message')
+    listSessionResources.mockResolvedValue([
+      { ...generated, occurrences: [{ ...generated.occurrences[0], displayOrder: 1 }] },
+      { ...linked, occurrences: [{ ...linked.occurrences[0], displayOrder: 0 }] },
+    ])
+    renderAgentImages()
+
+    const buttons = await screen.findAllByRole('button', { name: /^Open image / })
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open image z-linked.png',
+      'Open image a-generated.png',
+    ])
+  })
+
+  it('uses a reused agent image occurrence name without replacing tool provenance', async () => {
+    const reused = agentImage('reused', 'agent-message')
+    listSessionResources.mockResolvedValue([
+      {
+        ...reused,
+        title: 'original.png',
+        occurrences: [
+          {
+            ...reused.occurrences[0],
+            actor: 'tool',
+            label: 'imagegen',
+            displayName: 'new-name.png',
+          },
+        ],
+      },
+    ])
+    renderAgentImages()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open image new-name.png' }))
+    expect(useUIStore.getState().resourceViewer?.galleryTitles).toEqual(['new-name.png'])
+  })
+
+  it('keeps a user attachment before a linked image even when both have position zero', async () => {
+    const attachment = image('attachment', 'message-1')
+    const link = remoteImage('linked', 'message-1')
+    listSessionResources.mockResolvedValue([
+      {
+        ...link,
+        occurrences: [{ ...link.occurrences[0], id: 'session-1:message-1:provided:link:0:hash' }],
+      },
+      {
+        ...attachment,
+        occurrences: [
+          { ...attachment.occurrences[0], id: 'session-1:message-1:provided:attachment:a:0' },
+        ],
+      },
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const buttons = await screen.findAllByRole('button', { name: /^Open image / })
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open image attachment.png',
+      'Open image linked.png',
+    ])
   })
 })

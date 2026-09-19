@@ -48,6 +48,11 @@ export interface SessionResourceOccurrenceSelector {
   readonly prefix: boolean
 }
 
+export interface SessionResourceDisplayMetadata extends SessionResourceOccurrenceSelector {
+  readonly displayName: string
+  readonly displayOrder: number
+}
+
 export interface SessionResourceRepositoryShape {
   readonly upsert: (
     input: UpsertSessionResourceInput,
@@ -104,6 +109,11 @@ export interface SessionResourceRepositoryShape {
     sessionId: SessionId,
     selectors: readonly SessionResourceOccurrenceSelector[],
   ) => Effect.Effect<readonly SessionResource[], SessionResourceRepositoryError>
+  /** Fill legacy occurrence metadata without re-capturing or duplicating image bytes. */
+  readonly enrichOccurrenceDisplayMetadata: (
+    sessionId: SessionId,
+    metadata: readonly SessionResourceDisplayMetadata[],
+  ) => Effect.Effect<void, SessionResourceRepositoryError>
   readonly listByNodeIds: (
     sessionId: SessionId,
     nodeIds: readonly string[],

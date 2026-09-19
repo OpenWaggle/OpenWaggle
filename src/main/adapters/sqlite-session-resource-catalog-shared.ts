@@ -213,7 +213,8 @@ export function hydrateResources(
       WITH RECURSIVE active_path(node_id) AS (
         ${activeCatalogPath(sql, sessionId, identity)}
       ), ranked_occurrences AS (
-        SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at,
+        SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+               display_name, display_order, created_at,
           ROW_NUMBER() OVER (
             PARTITION BY resource_id
             ORDER BY CASE
@@ -227,7 +228,8 @@ export function hydrateResources(
         WHERE resource_id IN ${sql.in(rows.map(({ id }) => id))}
           AND ${activityFilter(sql, view)}
       )
-      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
+      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+             display_name, display_order, created_at
       FROM ranked_occurrences
       WHERE occurrence_rank <= ${SESSION_RESOURCE_OCCURRENCE_PREVIEW_LIMIT}
       ORDER BY resource_id ASC, created_at ASC, id ASC

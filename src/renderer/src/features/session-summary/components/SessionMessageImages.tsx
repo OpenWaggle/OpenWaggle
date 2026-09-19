@@ -35,12 +35,22 @@ function imageSlot(occurrence: SessionResourceOccurrence) {
 }
 
 function compareMessageImages(left: MessageImage, right: MessageImage) {
-  const leftSlot = imageSlot(left.occurrence)
-  const rightSlot = imageSlot(right.occurrence)
-  if (leftSlot !== null && rightSlot !== null && leftSlot !== rightSlot) {
-    return leftSlot - rightSlot
+  const attachmentRank = (image: MessageImage) =>
+    image.occurrence.actor === 'user' && providedAttachmentIndex(image.occurrence) !== null ? 0 : 1
+  const typeDifference = attachmentRank(left) - attachmentRank(right)
+  if (typeDifference !== 0) return typeDifference
+
+  const hasOrder = (image: MessageImage) => image.occurrence.displayOrder != null
+  if (hasOrder(left) !== hasOrder(right)) return hasOrder(left) ? -1 : 1
+  const leftPosition = left.occurrence.displayOrder ?? imageSlot(left.occurrence)
+  const rightPosition = right.occurrence.displayOrder ?? imageSlot(right.occurrence)
+  if (leftPosition !== null && rightPosition !== null && leftPosition !== rightPosition) {
+    return leftPosition - rightPosition
   }
-  return left.occurrence.createdAt - right.occurrence.createdAt
+  return (
+    left.occurrence.createdAt - right.occurrence.createdAt ||
+    left.occurrence.id.localeCompare(right.occurrence.id)
+  )
 }
 
 function indexMessageImages(sessionId: string, resources: readonly SessionResource[]) {
@@ -55,9 +65,10 @@ function indexMessageImages(sessionId: string, resources: readonly SessionResour
         resource,
         occurrence,
         title:
-          occurrence.actor === 'user' && occurrence.activity === 'provided'
+          occurrence.displayName ??
+          (occurrence.actor === 'user' && occurrence.activity === 'provided'
             ? (occurrence.label ?? resource.title)
-            : resource.title,
+            : resource.title),
         attachmentIndex: providedAttachmentIndex(occurrence),
       }
       if (images) images.push(image)

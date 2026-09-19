@@ -94,15 +94,17 @@ export function captureBackfilledUserResources(
       }
       yield* attemptBackfilledAttachment(attachmentInput, attachmentState)
     }
+    const links = collectExplicitResources(message.parts).links
     yield* captureBackfilledLinks({
       sessionId,
       runId,
-      links: collectExplicitResources(message.parts).links,
+      links,
       nodeId,
       actor: 'user',
       activity: 'provided',
       createdAt: message.createdAt,
       branchId,
+      displayOrders: links.map((link, index) => (link.image ? attachments.length + index : null)),
       state: linkState,
     })
   })

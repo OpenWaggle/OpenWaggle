@@ -184,4 +184,46 @@ export const SESSION_RESOURCE_MIGRATIONS = [
        ON session_resources (session_id, kind, is_output, updated_at DESC, id ASC)`,
     ],
   },
+  {
+    id: 46,
+    name: 'session-resource-occurrence-display-name',
+    skipIfColumn: { table: 'session_resource_occurrences', column: 'display_name' },
+    statements: [`ALTER TABLE session_resource_occurrences ADD COLUMN display_name TEXT`],
+  },
+  {
+    id: 47,
+    name: 'session-resource-occurrence-display-order',
+    skipIfColumn: { table: 'session_resource_occurrences', column: 'display_order' },
+    statements: [`ALTER TABLE session_resource_occurrences ADD COLUMN display_order INTEGER`],
+  },
+  {
+    id: 48,
+    name: 'session-resource-display-metadata-reindex',
+    statements: [
+      `UPDATE session_resource_occurrences
+       SET display_name = COALESCE(display_name, label),
+           display_order = COALESCE(
+             display_order,
+             CAST(substr(id, length(rtrim(id, '0123456789')) + 1) AS INTEGER)
+           )
+       WHERE actor = 'user'
+         AND activity = 'provided'
+         AND id LIKE '%:provided:attachment:%'
+         AND id GLOB '*:[0-9]*'
+         AND label IS NOT NULL
+         AND (display_name IS NULL OR display_order IS NULL)`,
+      `DELETE FROM session_resource_backfill_state
+       WHERE EXISTS (
+         SELECT 1
+         FROM session_resources resource
+         INNER JOIN session_resource_occurrences occurrence
+           ON occurrence.resource_id = resource.id
+         WHERE resource.session_id = session_resource_backfill_state.session_id
+           AND resource.kind = 'image'
+           AND occurrence.actor IN ('user', 'agent', 'tool')
+           AND occurrence.node_id IS NOT NULL
+           AND (occurrence.display_name IS NULL OR occurrence.display_order IS NULL)
+       )`,
+    ],
+  },
 ] as const

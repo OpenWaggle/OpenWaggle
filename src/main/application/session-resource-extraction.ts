@@ -45,6 +45,10 @@ export interface CapturedSite {
   readonly activity: 'created' | 'updated'
 }
 
+export type CapturedResourceOrder =
+  | { readonly kind: 'image'; readonly index: number }
+  | { readonly kind: 'link'; readonly index: number }
+
 function enqueueMarkdownChildren(candidate: Readonly<Record<string, unknown>>, pending: unknown[]) {
   const children = candidate.children
   if (!Array.isArray(children)) return
@@ -132,7 +136,7 @@ function capturedMarkdownLink(
   }
 }
 
-function collectMarkdownLinks(text: string, links: CapturedLink[]) {
+function collectMarkdownLinks(text: string, links: CapturedLink[], order: CapturedResourceOrder[]) {
   if (links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) return
   const root = markdownParser.parse(text)
   const definitions = markdownDefinitions(root)
@@ -141,7 +145,10 @@ function collectMarkdownLinks(text: string, links: CapturedLink[]) {
     const candidate = pending.pop()
     if (!isRecord(candidate)) continue
     const link = capturedMarkdownLink(candidate, definitions)
-    if (link) links.push(link)
+    if (link) {
+      order.push({ kind: 'link', index: links.length })
+      links.push(link)
+    }
     enqueueMarkdownChildren(candidate, pending)
   }
 }
@@ -149,6 +156,7 @@ function collectMarkdownLinks(text: string, links: CapturedLink[]) {
 function collectGeneratedImageRecord(
   candidate: Readonly<Record<string, unknown>>,
   images: CapturedImage[],
+  order: CapturedResourceOrder[],
   remainingTextCharacters: number,
 ) {
   if (
@@ -165,6 +173,7 @@ function collectGeneratedImageRecord(
     boundedTitle.length > 0 &&
     images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages
   ) {
+    order.push({ kind: 'image', index: images.length })
     images.push({ data: candidate.data, mimeType: candidate.mimeType, title: boundedTitle })
   }
   return { consumed, handled: true }
@@ -200,6 +209,7 @@ function collectSiteRecord(
 function collectResourceLinkRecord(
   candidate: Readonly<Record<string, unknown>>,
   links: CapturedLink[],
+  order: CapturedResourceOrder[],
   remainingTextCharacters: number,
 ) {
   if (candidate.type !== 'resource_link' || typeof candidate.uri !== 'string') return null
@@ -213,6 +223,7 @@ function collectResourceLinkRecord(
     consumed === candidate.uri.length + rawTitle.length &&
     links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
   ) {
+    order.push({ kind: 'link', index: links.length })
     links.push({
       url,
       title,
@@ -227,12 +238,13 @@ function collectRecord(
   images: CapturedImage[],
   links: CapturedLink[],
   sites: CapturedSite[],
+  order: CapturedResourceOrder[],
   remainingTextCharacters: number,
 ) {
   return (
-    collectGeneratedImageRecord(candidate, images, remainingTextCharacters) ??
+    collectGeneratedImageRecord(candidate, images, order, remainingTextCharacters) ??
     collectSiteRecord(candidate, sites, remainingTextCharacters) ??
-    collectResourceLinkRecord(candidate, links, remainingTextCharacters) ?? {
+    collectResourceLinkRecord(candidate, links, order, remainingTextCharacters) ?? {
       consumed: 0,
       handled: false,
     }
@@ -270,6 +282,7 @@ export function collectExplicitResources(value: unknown) {
   const images: CapturedImage[] = []
   const links: CapturedLink[] = []
   const sites: CapturedSite[] = []
+  const order: CapturedResourceOrder[] = []
   const seen = new WeakSet<object>()
   const pending: unknown[] = [value]
   let scheduled = 1
@@ -279,7 +292,7 @@ export function collectExplicitResources(value: unknown) {
     const candidate = pending.pop()
     if (typeof candidate === 'string') {
       const consumed = Math.min(candidate.length, remainingTextCharacters)
-      if (consumed > 0) collectMarkdownLinks(candidate.slice(0, consumed), links)
+      if (consumed > 0) collectMarkdownLinks(candidate.slice(0, consumed), links, order)
       remainingTextCharacters -= consumed
       continue
     }
@@ -290,11 +303,11 @@ export function collectExplicitResources(value: unknown) {
     }
     if (!isRecord(candidate) || seen.has(candidate)) continue
     seen.add(candidate)
-    const collected = collectRecord(candidate, images, links, sites, remainingTextCharacters)
+    const collected = collectRecord(candidate, images, links, sites, order, remainingTextCharacters)
     remainingTextCharacters -= collected.consumed
     if (!collected.handled) {
       scheduled = enqueueRecord(candidate, pending, scheduled)
     }
   }
-  return { images, links, sites }
+  return { images, links, sites, order }
 }

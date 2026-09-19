@@ -66,6 +66,10 @@ function captureUserLinks(
   state: LinkCaptureState,
 ) {
   return Effect.gen(function* () {
+    const persistedAttachmentCount = context.message?.parts.filter(
+      (part) => part.type === 'attachment',
+    ).length
+    const attachmentCount = persistedAttachmentCount || input.payload.attachments.length
     for (const [index, link] of collectExplicitResources(input.payload.text).links.entries()) {
       if (state.count >= SESSION_LINK_CAPTURE_LIMIT) return
       state.count += 1
@@ -78,6 +82,7 @@ function captureUserLinks(
         actor: 'user',
         activity: 'provided',
         label: null,
+        displayOrder: link.image ? attachmentCount + index : null,
         createdAt: context.createdAt,
       }).pipe(Effect.catchAll(() => Effect.void))
     }

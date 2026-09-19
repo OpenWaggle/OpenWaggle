@@ -21,6 +21,10 @@ export interface SessionResourceOccurrence {
   readonly actor: SessionResourceActor
   readonly activity: SessionResourceActivity
   readonly label: string | null
+  /** Name of this particular image use; resource.title may belong to an earlier deduplicated use. */
+  readonly displayName?: string | null
+  /** Image position in its message, shared by generated and linked images. */
+  readonly displayOrder?: number | null
   /** Original path or URL observed for this exact use, before resource-level deduplication. */
   readonly locator: string | null
   readonly createdAt: number

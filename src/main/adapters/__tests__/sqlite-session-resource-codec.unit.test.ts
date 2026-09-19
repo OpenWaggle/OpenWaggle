@@ -30,6 +30,8 @@ const BASE_OCCURRENCE_ROW: SessionResourceOccurrenceRow = {
   activity: 'read',
   label: null,
   locator: null,
+  display_name: null,
+  display_order: null,
   created_at: 1,
 }
 

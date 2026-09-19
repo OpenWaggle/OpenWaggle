@@ -23,6 +23,7 @@ import {
   listResourcesByNodeIdsPage,
   locateSessionImage,
 } from './sqlite-session-resource-catalog'
+import { enrichSessionResourceDisplayMetadata } from './sqlite-session-resource-display-metadata'
 import { findResourcesByOccurrences } from './sqlite-session-resource-occurrence-progress'
 import { listResources } from './sqlite-session-resource-reader'
 import { rekeyResource, upsertResource } from './sqlite-session-resource-writer'
@@ -131,6 +132,8 @@ export const SqliteSessionResourceRepositoryLive = Layer.effect(
         sql
           .withTransaction(findResourcesByOccurrences(sql, sessionId, selectors))
           .pipe(Effect.mapError((cause) => repositoryError('findByOccurrences', cause))),
+      enrichOccurrenceDisplayMetadata: (sessionId, metadata) =>
+        enrichSessionResourceDisplayMetadata(sql, sessionId, metadata),
       listByNodeIds: (sessionId, nodeIds, kind, limit) =>
         sql
           .withTransaction(listResourcesByNodeIds(sql, sessionId, nodeIds, kind, limit))

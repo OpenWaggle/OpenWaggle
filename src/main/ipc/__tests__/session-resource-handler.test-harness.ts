@@ -216,6 +216,7 @@ const TestLayer = Layer.mergeAll(
         hasOccurrence: () => Effect.succeed(false),
         hasOccurrences: () => Effect.succeed(new Set()),
         findByOccurrences: () => Effect.succeed([]),
+        enrichOccurrenceDisplayMetadata: () => Effect.void,
         listByNodeIds: () => Effect.succeed([]),
         listByNodeIdsPage: (sessionId: SessionId, input: SessionResourceNodePageRequest) =>
           Effect.sync(() => handlerMocks.listByNodeIdsPage(sessionId, input)),

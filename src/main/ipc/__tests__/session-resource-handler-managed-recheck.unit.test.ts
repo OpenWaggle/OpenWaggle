@@ -112,6 +112,7 @@ const TestLayer = Layer.mergeAll(
             orderRevision: 'test-revision',
           }),
         findByOccurrences: () => Effect.succeed([MANAGED_RESOURCE]),
+        enrichOccurrenceDisplayMetadata: () => Effect.void,
         listManagedNodeIds: () => Effect.succeed(['node-one']),
         hasOccurrences: () =>
           Effect.succeed(new Set(['session-one:node-one:provided:attachment:attachment-one:0'])),

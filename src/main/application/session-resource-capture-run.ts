@@ -1,7 +1,6 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionResourceActivity, SessionResourceActor } from '@shared/types/session-resource'
-import type { ToolCallResult } from '@shared/types/tools'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import * as Effect from 'effect/Effect'
 import { SessionRepository } from '../ports/session-repository'
@@ -15,18 +14,14 @@ import { captureLink } from './session-resource-capture-link'
 import {
   captureToolResultMetadata,
   SESSION_TOOL_CAPTURE_LIMIT,
-  toolResultOutputGroups,
 } from './session-resource-capture-tool'
 import {
   captureUserResources,
   type LinkCaptureState,
   SESSION_LINK_CAPTURE_LIMIT,
 } from './session-resource-capture-user'
-import {
-  type CapturedImage,
-  type CapturedLink,
-  collectExplicitResources,
-} from './session-resource-extraction'
+import type { CapturedImage, CapturedLink } from './session-resource-extraction'
+import { assistantMessageResourcePlan } from './session-resource-image-positions'
 import { withSessionResourceInvalidation } from './session-resource-invalidation'
 import { withSessionResourceLock } from './session-resource-lock'
 
@@ -76,6 +71,7 @@ function captureImages(input: {
   readonly images: readonly CapturedImage[]
   readonly actor: SessionResourceActor
   readonly label: string | null
+  readonly displayOrders: readonly (number | null)[]
   readonly state: AssistantCaptureState
 }) {
   return Effect.gen(function* () {
@@ -97,6 +93,7 @@ function captureImages(input: {
         validatedImage: prepared.image,
         actor: input.actor,
         label: input.label,
+        displayOrder: input.displayOrders[localIndex],
       }).pipe(Effect.catchAll(() => Effect.void))
     }
   })
@@ -109,6 +106,7 @@ function captureLinks(input: {
   readonly actor: SessionResourceActor
   readonly activity: SessionResourceActivity
   readonly label: string | null
+  readonly displayOrders: readonly (number | null)[]
   readonly state: LinkCaptureState
 }) {
   return Effect.gen(function* () {
@@ -127,6 +125,7 @@ function captureLinks(input: {
         actor: input.actor,
         activity: input.activity,
         label: input.label,
+        displayOrder: input.displayOrders[localIndex],
         createdAt: input.context.message.createdAt,
       }).pipe(Effect.catchAll(() => Effect.void))
     }
@@ -136,17 +135,17 @@ function captureLinks(input: {
 function captureCompletedToolResult(input: {
   readonly run: SuccessfulRunResourceInput
   readonly context: MessageCaptureContext
-  readonly toolResult: ToolCallResult
+  readonly planned: ReturnType<typeof assistantMessageResourcePlan>['toolResults'][number]
   readonly workingPath: string | null
   readonly state: AssistantCaptureState
 }) {
   return Effect.gen(function* () {
-    const groups = toolResultOutputGroups(input.toolResult)
+    const groups = input.planned.groups
     if (groups.length === 0) return
     if (input.state.toolCount >= SESSION_TOOL_CAPTURE_LIMIT) {
       // Backfill enumerates every group. Reserve deferred slots before later assistant content.
       for (const group of groups) {
-        const resources = collectExplicitResources(group.result)
+        const resources = group.resources
         input.context.imageIndex += resources.images.length
         input.context.linkIndex += resources.links.length
       }
@@ -155,20 +154,21 @@ function captureCompletedToolResult(input: {
     input.state.toolCount += 1
     yield* captureToolResultMetadata({
       sessionId: input.run.sessionId,
-      toolResult: input.toolResult,
+      toolResult: input.planned.toolResult,
       nodeId: input.context.nodeId,
       branchId: input.context.branchId,
       workingPath: input.workingPath,
       createdAt: input.context.message.createdAt,
     }).pipe(Effect.catchAll(() => Effect.void))
     for (const group of groups) {
-      const resources = collectExplicitResources(group.result)
+      const { resources, positions } = group
       yield* captureImages({
         run: input.run,
         context: input.context,
         images: resources.images,
         actor: 'tool',
         label: group.label,
+        displayOrders: positions.images,
         state: input.state,
       })
       yield* captureLinks({
@@ -178,6 +178,7 @@ function captureCompletedToolResult(input: {
         actor: 'tool',
         activity: 'read',
         label: group.label,
+        displayOrders: positions.links,
         state: input.state.links,
       })
     }
@@ -192,33 +193,33 @@ function captureAssistantMessage(input: {
 }) {
   return Effect.gen(function* () {
     const context = messageCaptureContext(input.run, input.message)
-    for (const part of input.message.parts) {
-      if (part.type !== 'tool-result') continue
+    const plan = assistantMessageResourcePlan(input.message)
+    for (const planned of plan.toolResults) {
       yield* captureCompletedToolResult({
         run: input.run,
         context,
-        toolResult: part.toolResult,
+        planned,
         workingPath: input.workingPath,
         state: input.state,
       })
     }
-    const textParts = input.message.parts.filter((part) => part.type === 'text')
-    const resources = collectExplicitResources(textParts)
     yield* captureImages({
       run: input.run,
       context,
-      images: resources.images,
+      images: plan.textResources.images,
       actor: 'agent',
       label: null,
+      displayOrders: plan.textPositions.images,
       state: input.state,
     })
     yield* captureLinks({
       run: input.run,
       context,
-      links: resources.links,
+      links: plan.textResources.links,
       actor: 'agent',
       activity: 'read',
       label: null,
+      displayOrders: plan.textPositions.links,
       state: input.state.links,
     })
   })

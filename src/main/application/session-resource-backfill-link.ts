@@ -23,6 +23,7 @@ export function captureBackfilledLinks(input: {
   readonly createdAt: number
   readonly branchId: string | null
   readonly indexOffset?: number
+  readonly displayOrders?: readonly (number | null)[]
   readonly state: BackfillLinkState
 }) {
   return Effect.gen(function* () {
@@ -37,6 +38,7 @@ export function captureBackfilledLinks(input: {
         actor: input.actor,
         activity: input.activity,
         ...(input.label !== undefined ? { label: input.label } : {}),
+        displayOrder: input.displayOrders?.[localIndex],
         createdAt: input.createdAt,
         branchId: input.branchId,
       }

@@ -14,6 +14,7 @@ import {
   captureBackfilledAssistantResources,
 } from './session-resource-backfill-assistant'
 import * as AttachmentRepairs from './session-resource-backfill-attachment-repairs'
+import { backfillDisplayMetadata } from './session-resource-backfill-display-metadata'
 import type { BackfillLinkState } from './session-resource-backfill-link'
 import { projectResourceMessages } from './session-resource-backfill-messages'
 import {
@@ -187,6 +188,12 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
           input.sessionId,
           backfillCandidateOccurrenceIds(input.sessionId, projectedMessages),
         )
+        if (resources.length > 0 || knownOccurrenceIds.size > 0) {
+          yield* repository.enrichOccurrenceDisplayMetadata(
+            input.sessionId,
+            backfillDisplayMetadata(input.sessionId, projectedMessages),
+          )
+        }
         const progress = yield* loadSessionResourceBackfillProgress(
           resources,
           repository,

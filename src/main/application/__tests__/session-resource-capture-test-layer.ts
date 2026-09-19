@@ -186,6 +186,7 @@ export function sessionResourceTestLayer(
               return occurrences.length > 0 ? [{ ...resource, occurrences }] : []
             }),
           ),
+        enrichOccurrenceDisplayMetadata: () => Effect.void,
         listByNodeIds: (_sessionId, nodeIds, kind, limit) =>
           Effect.succeed(
             (options.listedResources ?? [])

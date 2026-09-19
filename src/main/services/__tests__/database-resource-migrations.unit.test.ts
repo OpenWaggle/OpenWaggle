@@ -51,6 +51,31 @@ describe('session resource catalog migrations', () => {
     expect(result.ledger).toEqual([{ id: 38, name: 'session-resource-occurrence-locator' }])
   })
 
+  it('adds per-occurrence image names and order to an existing catalog', async () => {
+    const result = await withMigrationDatabase(tmpRoot, (sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 45)
+        yield* sql.unsafe(`ALTER TABLE session_resource_occurrences DROP COLUMN display_name`)
+        yield* sql.unsafe(`ALTER TABLE session_resource_occurrences DROP COLUMN display_order`)
+        yield* applyMigrations(sql, 47)
+        yield* applyMigrations(sql, 47)
+        const columns = yield* sql<ColumnInfo>`PRAGMA table_info(session_resource_occurrences)`
+        const ledger = yield* sql<{ readonly id: number; readonly name: string }>`
+          SELECT id, name FROM _migrations WHERE id IN (46, 47) ORDER BY id
+        `
+        return { columns, ledger }
+      }),
+    )
+
+    expect(result.columns.find((column) => column.name === 'display_name')).toMatchObject({
+      notnull: 0,
+    })
+    expect(result.columns.find((column) => column.name === 'display_order')).toMatchObject({
+      notnull: 0,
+    })
+    expect(result.ledger.map(({ id }) => id)).toEqual([46, 47])
+  })
+
   it('materializes occurrence-derived resource roles and bounded catalog indexes', async () => {
     const result = await withMigrationDatabase(tmpRoot, (sql) =>
       Effect.gen(function* () {
@@ -178,5 +203,86 @@ describe('session resource catalog migrations', () => {
     expect(result.ledger).toEqual([
       { id: 45, name: 'session-resource-change-request-catalog-index' },
     ])
+  })
+
+  it('replays only completed sessions with legacy image metadata at migration 48', async () => {
+    const result = await withMigrationDatabase(tmpRoot, (sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 47)
+        yield* insertSession(sql, 'legacy-images')
+        yield* insertSession(sql, 'modern-images')
+        yield* insertSession(sql, 'extension-images')
+        yield* insertSession(sql, 'attachment-images')
+        for (const sessionId of [
+          'legacy-images',
+          'modern-images',
+          'extension-images',
+          'attachment-images',
+        ]) {
+          yield* sql`
+            INSERT INTO session_resources (
+              id, session_id, canonical_key, kind, title, available,
+              is_source, is_output, created_at, updated_at
+            ) VALUES (
+              ${`resource-${sessionId}`}, ${sessionId}, ${`image:${sessionId}`},
+              'image', 'image.png', 1, 0, 1, 1, 1
+            )
+          `
+          yield* sql`
+            INSERT INTO session_resource_backfill_state (session_id, through_created_order)
+            VALUES (${sessionId}, 10)
+          `
+        }
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, node_id, actor, activity, created_at
+          ) VALUES (
+            'legacy-occurrence', 'resource-legacy-images', 'legacy-node', 'agent', 'created', 1
+          )
+        `
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, actor, activity, display_name, display_order, created_at
+          ) VALUES (
+            'modern-occurrence', 'resource-modern-images', 'agent', 'created', 'modern.png', 0, 1
+          )
+        `
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, node_id, actor, activity, created_at
+          ) VALUES (
+            'extension-occurrence', 'resource-extension-images', 'extension-node',
+            'extension', 'created', 1
+          )
+        `
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, node_id, actor, activity, label, created_at
+          ) VALUES (
+            'attachment-images:node:provided:attachment:old-id:12',
+            'resource-attachment-images', 'node', 'user', 'provided', 'recent.png', 1
+          )
+        `
+        yield* applyMigrations(sql, 48)
+        const cursors = yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_backfill_state ORDER BY session_id
+        `
+        const attachment = yield* sql<{
+          readonly display_name: string | null
+          readonly display_order: number | null
+        }>`
+          SELECT display_name, display_order FROM session_resource_occurrences
+          WHERE id = 'attachment-images:node:provided:attachment:old-id:12'
+        `
+        return { cursors, attachment }
+      }),
+    )
+
+    expect(result.cursors).toEqual([
+      { session_id: 'attachment-images' },
+      { session_id: 'extension-images' },
+      { session_id: 'modern-images' },
+    ])
+    expect(result.attachment).toEqual([{ display_name: 'recent.png', display_order: 12 }])
   })
 })

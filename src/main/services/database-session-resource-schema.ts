@@ -63,6 +63,8 @@ export const CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS = [
     activity TEXT NOT NULL,
     label TEXT,
     locator TEXT,
+    display_name TEXT,
+    display_order INTEGER,
     created_at INTEGER NOT NULL
   )
   `,

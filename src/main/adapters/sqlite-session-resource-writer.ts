@@ -99,11 +99,13 @@ export function upsertResource(sql: SqlClient.SqlClient, input: UpsertSessionRes
         }
         yield* sql`
           INSERT INTO session_resource_occurrences (
-            id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
+            id, resource_id, node_id, branch_id, actor, activity, label, locator,
+            display_name, display_order, created_at
           ) VALUES (
             ${input.occurrence.id}, ${resourceId}, ${input.occurrence.nodeId},
             ${input.occurrence.branchId}, ${input.occurrence.actor}, ${input.occurrence.activity},
             ${input.occurrence.label}, ${input.occurrence.locator ?? null},
+            ${input.occurrence.displayName ?? null}, ${input.occurrence.displayOrder ?? null},
             ${input.occurrence.createdAt}
           )
           ON CONFLICT(id) DO NOTHING

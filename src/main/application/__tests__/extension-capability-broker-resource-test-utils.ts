@@ -118,6 +118,7 @@ export function makeSessionResourceRepositoryTestLayer(
         ),
       ),
     findByOccurrences: () => Effect.succeed([]),
+    enrichOccurrenceDisplayMetadata: () => Effect.void,
     listByNodeIds: (sessionId, nodeIds, kind, limit) =>
       Effect.succeed(
         resources

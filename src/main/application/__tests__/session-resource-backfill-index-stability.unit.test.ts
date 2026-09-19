@@ -89,3 +89,41 @@ it('keeps later image and link slots stable when an earlier tool projection need
     'https://example.com/first',
   ])
 })
+
+it('backfills mixed linked and generated images in persisted message order', async () => {
+  const tool = assistantToolResultMessage(false, {
+    name: 'imagegen',
+    result: {
+      content: [{ type: 'image', data: PNG_BASE64, mimeType: 'image/png', name: 'drawn.png' }],
+    },
+  })
+  const message: Message = {
+    ...tool,
+    parts: [
+      { type: 'text', text: '![First](https://example.com/first.png)' },
+      ...tool.parts,
+      { type: 'text', text: '![Last](https://example.com/last.png)' },
+    ],
+  }
+  const upserts: UpsertSessionResourceInput[] = []
+  const result = await Effect.runPromise(
+    captureProjectedSessionResources({
+      sessionId: SessionId('session-1'),
+      messages: [message],
+    }).pipe(Effect.provide(sessionResourceTestLayer(upserts, { sessionWorkingPath: '/project' }))),
+  )
+
+  expect(result.fullyProjected).toBe(true)
+  expect(
+    upserts
+      .filter(({ kind }) => kind === 'image')
+      .sort(
+        (left, right) => (left.occurrence.displayOrder ?? 0) - (right.occurrence.displayOrder ?? 0),
+      )
+      .map(({ occurrence }) => [occurrence.displayOrder, occurrence.displayName]),
+  ).toEqual([
+    [0, 'First'],
+    [1, 'drawn.png'],
+    [2, 'Last'],
+  ])
+})

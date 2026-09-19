@@ -19,6 +19,54 @@ describe('SqliteSessionResourceRepositoryLive targeted catalog lookups', () => {
     if (tmpRoot) await fs.rm(tmpRoot, { recursive: true, force: true })
   })
 
+  it('enriches legacy occurrence metadata by exact id and image prefix only within the session', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionResourceRepository
+        const sql = yield* SqlClient.SqlClient
+        const before = yield* sql<{ readonly revision: number }>`
+          SELECT revision FROM session_resource_catalog_state WHERE session_id = 'session-1'
+        `
+        yield* repository.enrichOccurrenceDisplayMetadata(SessionId('session-1'), [
+          {
+            value: 'occurrence-2-1',
+            prefix: false,
+            displayName: 'exact.png',
+            displayOrder: 1,
+          },
+          {
+            value: 'occurrence-3-',
+            prefix: true,
+            displayName: 'prefix.png',
+            displayOrder: 2,
+          },
+        ])
+        const selected = yield* sql<{
+          readonly id: string
+          readonly display_name: string | null
+          readonly display_order: number | null
+        }>`
+          SELECT id, display_name, display_order FROM session_resource_occurrences
+          WHERE id IN ('occurrence-2-1', 'occurrence-3-0', 'occurrence-3-1')
+          ORDER BY id
+        `
+        const after = yield* sql<{ readonly revision: number }>`
+          SELECT revision FROM session_resource_catalog_state WHERE session_id = 'session-1'
+        `
+        return { selected, before: before[0]?.revision, after: after[0]?.revision }
+      }).pipe(
+        Effect.provide(makeSessionResourceCatalogTestLayer(path.join(tmpRoot, 'metadata.sqlite'))),
+      ),
+    )
+
+    expect(result.selected).toEqual([
+      { id: 'occurrence-2-1', display_name: 'exact.png', display_order: 1 },
+      { id: 'occurrence-3-0', display_name: 'prefix.png', display_order: 2 },
+      { id: 'occurrence-3-1', display_name: 'prefix.png', display_order: 2 },
+    ])
+    expect(result.after).toBeGreaterThan(result.before ?? 0)
+  })
+
   it('uses targeted lookups without hydrating an unbounded catalog', async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -129,6 +177,33 @@ describe('SqliteSessionResourceRepositoryLive targeted catalog lookups', () => {
       'occurrence-0-0',
       'session-1:node-0-0:provided:attachment:again:1',
     ])
+  })
+
+  it('hydrates each occurrence image name and mixed-kind display order', async () => {
+    const resources = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const repository = yield* SessionResourceRepository
+        yield* sql`
+          UPDATE session_resource_occurrences
+          SET display_name = 'renamed.png', display_order = 2
+          WHERE id = 'occurrence-0-0'
+        `
+        const page = yield* repository.listByNodeIdsPage(SessionId('session-1'), {
+          nodeIds: ['node-0-0'],
+          kind: 'image',
+          limit: 10,
+        })
+        return page.resources
+      }).pipe(
+        Effect.provide(makeSessionResourceCatalogTestLayer(path.join(tmpRoot, 'display.sqlite'))),
+      ),
+    )
+
+    expect(resources[0]?.occurrences[0]).toMatchObject({
+      displayName: 'renamed.png',
+      displayOrder: 2,
+    })
   })
 
   it('bounds repeated extension occurrences on one node while retaining the message image', async () => {

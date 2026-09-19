@@ -6,6 +6,21 @@ import {
 import { PNG_BASE64 } from './session-resource-capture.fixtures'
 
 describe('session resource extraction limits', () => {
+  it('records one encounter order across generated and linked images', () => {
+    const extracted = collectExplicitResources([
+      '![First](https://example.test/first.png)',
+      { type: 'image', data: PNG_BASE64, mimeType: 'image/png', name: 'Generated' },
+      '[Docs](https://example.test/docs) ![Last](https://example.test/last.png)',
+    ])
+
+    expect(extracted.order).toEqual([
+      { kind: 'link', index: 0 },
+      { kind: 'image', index: 0 },
+      { kind: 'link', index: 1 },
+      { kind: 'link', index: 2 },
+    ])
+  })
+
   it('caps eager image and Markdown-link collection', () => {
     const images = Array.from(
       { length: SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages + 20 },

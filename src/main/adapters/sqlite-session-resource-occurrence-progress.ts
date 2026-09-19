@@ -39,7 +39,8 @@ export function findResourcesByOccurrences(
           ) AS id
           FROM json_each(${JSON.stringify(chunk)}) selector
         )
-        SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
+        SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+               display_name, display_order, created_at
         FROM session_resource_occurrences
         WHERE id IN (SELECT id FROM matched_ids)
       `

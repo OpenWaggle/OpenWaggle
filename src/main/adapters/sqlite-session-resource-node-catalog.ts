@@ -54,7 +54,8 @@ function hydrateRequestedNodeOccurrences(
     sql<SessionResourceOccurrenceRow>`
       WITH ranked_occurrences AS (
         SELECT
-          id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at,
+          id, resource_id, node_id, branch_id, actor, activity, label, locator,
+          display_name, display_order, created_at,
           ROW_NUMBER() OVER (
             PARTITION BY resource_id, node_id,
               CASE WHEN actor = 'extension' THEN 'extension' ELSE id END
@@ -65,7 +66,8 @@ function hydrateRequestedNodeOccurrences(
         WHERE resource_id IN ${sql.in(rows.map(({ id }) => id))}
           AND node_id IN ${sql.in(nodeIds)}
       )
-      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
+      SELECT id, resource_id, node_id, branch_id, actor, activity, label, locator,
+             display_name, display_order, created_at
       FROM ranked_occurrences
       WHERE occurrence_rank = 1
       ORDER BY resource_id ASC, created_at ASC, id ASC

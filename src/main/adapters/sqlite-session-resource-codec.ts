@@ -33,6 +33,8 @@ export interface SessionResourceOccurrenceRow {
   readonly activity: string
   readonly label: string | null
   readonly locator: string | null
+  readonly display_name: string | null
+  readonly display_order: number | null
   readonly created_at: number
 }
 
@@ -79,6 +81,8 @@ function rowToOccurrence(row: SessionResourceOccurrenceRow): SessionResourceOccu
     activity: decodeActivity(row.activity),
     label: row.label,
     locator: normalizedLocator(row.locator),
+    displayName: row.display_name ?? null,
+    displayOrder: row.display_order ?? null,
     createdAt: row.created_at,
   }
 }

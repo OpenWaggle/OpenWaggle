@@ -95,6 +95,7 @@ function makeSessionLayers() {
       hasOccurrence: () => Effect.succeed(false),
       hasOccurrences: () => Effect.succeed(new Set()),
       findByOccurrences: () => Effect.succeed([]),
+      enrichOccurrenceDisplayMetadata: () => Effect.void,
       listByNodeIds: () => Effect.succeed([]),
       listByNodeIdsPage: () =>
         Effect.succeed({ resources: [], total: 0, nextCursor: null, orderRevision: 'none' }),

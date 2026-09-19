@@ -20,7 +20,8 @@ import {
   toolResultOccurrenceId,
   toolResultOutputGroups,
 } from './session-resource-capture-tool'
-import { type CapturedImage, collectExplicitResources } from './session-resource-extraction'
+import type { CapturedImage, collectExplicitResources } from './session-resource-extraction'
+import { assistantMessageResourcePlan } from './session-resource-image-positions'
 
 export interface BackfillImageInput {
   readonly sessionId: SessionId
@@ -32,6 +33,7 @@ export interface BackfillImageInput {
   readonly branchId: string | null
   readonly actor: SessionResourceActor
   readonly label: string | null
+  readonly displayOrder?: number | null
 }
 
 export interface BackfillImageState {
@@ -148,91 +150,82 @@ export function captureBackfilledAssistantResources(
     const runId = `backfill:${nodeId}`
     let imageIndex = 0
     let linkIndex = 0
-    for (const part of message.parts) {
-      if (part.type !== 'tool-result') continue
-      const groups = yield* captureBackfilledToolMetadata({
-        sessionId,
-        nodeId,
-        branchId,
-        toolResult: part.toolResult,
-        createdAt: message.createdAt,
-        workingPath,
-        state: toolState,
-      })
-      if (!groups) {
-        // A deferred metadata write must not renumber later persisted image/link occurrences.
-        for (const group of toolResultOutputGroups(part.toolResult)) {
-          const deferred = collectExplicitResources(group.result)
-          imageIndex += deferred.images.length
-          linkIndex += deferred.links.length
-        }
-        continue
-      }
-      for (const group of groups) {
-        const captured = collectExplicitResources(group.result)
-        for (const image of captured.images) {
+    const plan = assistantMessageResourcePlan(message)
+
+    function reserveGroup(captured: ReturnType<typeof collectExplicitResources>) {
+      imageIndex += captured.images.length
+      linkIndex += captured.links.length
+    }
+
+    function captureGroup(
+      captured: ReturnType<typeof collectExplicitResources>,
+      actor: SessionResourceActor,
+      label: string | null,
+      positions: {
+        readonly images: readonly (number | null)[]
+        readonly links: readonly (number | null)[]
+      },
+    ) {
+      return Effect.gen(function* () {
+        for (const [localIndex, image] of captured.images.entries()) {
           yield* captureOrDeferBackfilledImage(
             {
               sessionId,
               runId,
               image,
-              index: imageIndex,
+              index: imageIndex + localIndex,
               nodeId,
               createdAt: message.createdAt,
               branchId,
-              actor: 'tool',
-              label: group.label,
+              actor,
+              label,
+              displayOrder: positions.images[localIndex],
             },
             imageState,
           )
-          imageIndex += 1
         }
+        imageIndex += captured.images.length
         yield* captureBackfilledLinks({
           sessionId,
           runId,
           links: captured.links,
           nodeId,
-          actor: 'tool',
+          actor,
           activity: 'read',
-          label: group.label,
+          label,
           createdAt: message.createdAt,
           branchId,
           indexOffset: linkIndex,
+          displayOrders: positions.links,
           state: linkState,
         })
         linkIndex += captured.links.length
+      })
+    }
+
+    for (const planned of plan.toolResults) {
+      const groups = yield* captureBackfilledToolMetadata({
+        sessionId,
+        nodeId,
+        branchId,
+        toolResult: planned.toolResult,
+        createdAt: message.createdAt,
+        workingPath,
+        state: toolState,
+      })
+      if (!groups) {
+        // Deferred tool groups still reserve their stable occurrence and display slots.
+        for (const group of planned.groups) {
+          reserveGroup(group.resources)
+        }
+        continue
+      }
+      for (const [index, group] of groups.entries()) {
+        const plannedGroup = planned.groups[index]
+        if (!plannedGroup) continue
+        yield* captureGroup(plannedGroup.resources, 'tool', group.label, plannedGroup.positions)
       }
     }
-    const assistantContent = message.parts.filter((part) => part.type === 'text')
-    const captured = collectExplicitResources(assistantContent)
-    for (const image of captured.images) {
-      yield* captureOrDeferBackfilledImage(
-        {
-          sessionId,
-          runId,
-          image,
-          index: imageIndex,
-          nodeId,
-          createdAt: message.createdAt,
-          branchId,
-          actor: 'agent',
-          label: null,
-        },
-        imageState,
-      )
-      imageIndex += 1
-    }
-    yield* captureBackfilledLinks({
-      sessionId,
-      runId,
-      links: captured.links,
-      nodeId,
-      actor: 'agent',
-      activity: 'read',
-      createdAt: message.createdAt,
-      branchId,
-      indexOffset: linkIndex,
-      state: linkState,
-    })
+    yield* captureGroup(plan.textResources, 'agent', null, plan.textPositions)
   })
 }

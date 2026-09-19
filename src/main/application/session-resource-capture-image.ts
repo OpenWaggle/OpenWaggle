@@ -30,6 +30,7 @@ export function captureGeneratedImage(input: {
   readonly validatedImage?: ValidatedSessionResourceImage
   readonly actor?: SessionResourceActor
   readonly label?: string | null
+  readonly displayOrder?: number | null
 }) {
   return Effect.gen(function* () {
     const validated =
@@ -66,6 +67,8 @@ export function captureGeneratedImage(input: {
           actor: input.actor ?? 'agent',
           activity: 'created',
           label: input.label,
+          displayName: fileName,
+          displayOrder: input.displayOrder,
           createdAt: input.createdAt,
         }),
         createdAt: existing.createdAt,
@@ -99,6 +102,8 @@ export function captureGeneratedImage(input: {
           actor: input.actor ?? 'agent',
           activity: 'created',
           label: input.label,
+          displayName: fileName,
+          displayOrder: input.displayOrder,
           createdAt: input.createdAt,
         }),
         createdAt: input.createdAt,
@@ -132,6 +137,7 @@ export function captureUnavailableGeneratedImage(input: {
   readonly branchId?: string | null
   readonly actor?: SessionResourceActor
   readonly label?: string | null
+  readonly displayOrder?: number | null
 }) {
   return Effect.gen(function* () {
     const repository = yield* SessionResourceRepository
@@ -155,6 +161,8 @@ export function captureUnavailableGeneratedImage(input: {
         actor: input.actor ?? 'agent',
         activity: 'created',
         label: input.label,
+        displayName: input.image.title,
+        displayOrder: input.displayOrder,
         createdAt: input.createdAt,
       }),
       createdAt: existing?.createdAt ?? input.createdAt,

@@ -65,6 +65,8 @@ function attachmentOccurrence(
     activity: 'provided',
     label: input.attachment.name,
     locator: input.attachment.path,
+    displayName: input.attachment.name,
+    displayOrder: input.attachment.kind === 'image' ? input.index : null,
     createdAt: input.createdAt,
   })
 }
