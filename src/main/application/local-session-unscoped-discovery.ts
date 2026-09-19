@@ -6,7 +6,9 @@ export function isUnscopedSessionDiscovery(payload: LocalSessionCommandPayload) 
   return (
     (query.operation === 'list' ||
       query.operation === 'search' ||
-      query.operation === 'delegations-list') &&
-    query.projectPath === undefined
+      query.operation === 'delegations-list' ||
+      query.operation === 'delegations-conflicts') &&
+    query.projectPath === undefined &&
+    (query.operation !== 'delegations-conflicts' || query.delegationId === undefined)
   )
 }

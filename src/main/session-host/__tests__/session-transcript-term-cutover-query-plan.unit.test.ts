@@ -91,7 +91,7 @@ describe('Session transcript term cutover query plans', () => {
   it('reads each previous term count once per batch group instead of once per occurrence', () => {
     database.exec(`
       WITH RECURSIVE sequence(value) AS (
-        SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < 600
+        SELECT 0 UNION ALL SELECT value + 1 FROM sequence WHERE value + 1 < 1200
       )
       INSERT INTO session_nodes (
         id, session_id, created_order, kind, role, content_json, metadata_json
@@ -116,9 +116,9 @@ describe('Session transcript term cutover query plans', () => {
 
     populateSessionTranscriptTermCatalog(database)
 
-    expect(previousCounts).toEqual([null, null, null, 512])
+    expect(previousCounts).toEqual([null, null, null, 1024])
     expect(
       database.prepare('SELECT token_count FROM session_transcript_term_documents').get(),
-    ).toEqual({ token_count: 605 })
+    ).toEqual({ token_count: 1205 })
   })
 })

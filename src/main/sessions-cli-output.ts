@@ -1,4 +1,5 @@
 import { writeCliStdout } from './cli-stdout'
+import { isCommandCliUsageError } from './command-cli-option-contract'
 import { LocalSessionClientProtocolError } from './session-host/local-session-client-protocol-error'
 
 const JSON_INDENT_SPACES = 2
@@ -107,6 +108,7 @@ export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
     const kind = sessionsCliErrorKindForCode(error.code)
     if (kind) return kind
   }
+  if (isCommandCliUsageError(error)) return 'usage'
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
   if (
     includesAny(message, [

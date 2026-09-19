@@ -135,7 +135,7 @@ describe('Session transcript term cutover', () => {
         .get(),
     ).toEqual({ occurrences: 1000, first_node_id: 'skew-node-0000' })
     expect(database.prepare('SELECT COUNT(*) AS count FROM cutover_batch_audit').get()).toEqual({
-      count: 3,
+      count: 2,
     })
     expect(
       database

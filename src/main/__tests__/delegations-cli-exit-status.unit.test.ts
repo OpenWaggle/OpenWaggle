@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { LocalSessionClientProtocolError } from '../session-host/local-session-client-protocol-error'
 
 const mocks = vi.hoisted(() => ({
   createClientInput: vi.fn(),
@@ -101,5 +102,58 @@ describe('Delegations CLI structured failure exit status', () => {
     expect(output).toContain('Delegations List')
     expect(output).toContain('delegation-1')
     expect(output).not.toMatch(/^\{"contract"/)
+  })
+
+  it.each([
+    {
+      name: 'credential lookup',
+      error: new Error('Profile credential file could not be read.'),
+      exitCode: 3,
+      kind: 'authentication',
+    },
+    {
+      name: 'profile authorization',
+      error: new LocalSessionClientProtocolError('capability_denied', 'Access rejected.'),
+      exitCode: 4,
+      kind: 'authorization',
+    },
+    {
+      name: 'Host timeout',
+      error: new Error('Session Host timed out.'),
+      exitCode: 7,
+      kind: 'timeout',
+    },
+    {
+      name: 'Host unavailability',
+      error: new Error('connect ECONNREFUSED'),
+      exitCode: 8,
+      kind: 'host_unavailable',
+    },
+  ])(
+    'preserves the JSON error contract for $name before a result',
+    async ({ error, exitCode, kind }) => {
+      if (kind === 'authentication' || kind === 'host_unavailable') {
+        mocks.createClientInput.mockRejectedValue(error)
+      } else {
+        mocks.executeCommand.mockRejectedValue(error)
+      }
+
+      await expect(runDelegationsCli(['list', '--all', '--json'])).resolves.toBe(exitCode)
+      expect(process.stdout.write).not.toHaveBeenCalled()
+      expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
+        schemaVersion: 1,
+        type: 'error',
+        error: { kind, message: error.message },
+      })
+    },
+  )
+
+  it('keeps usage errors consistent with Sessions without contacting the Host', async () => {
+    await expect(runDelegationsCli(['list', '--unknown', '--json'])).resolves.toBe(2)
+    expect(mocks.createClientInput).not.toHaveBeenCalled()
+    expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toMatchObject({
+      type: 'error',
+      error: { kind: 'usage', message: 'Unknown option for OpenWaggle Delegations: --unknown.' },
+    })
   })
 })

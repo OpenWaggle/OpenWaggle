@@ -1,5 +1,5 @@
 import { writeCliStdout } from './cli-stdout'
-import { isCommandCliUsageError, validateImplicitCliHelp } from './command-cli-option-contract'
+import { validateImplicitCliHelp } from './command-cli-option-contract'
 import { validateDelegationsCliOptions } from './delegations-cli-option-contract'
 import { writeDelegationsCliResponse } from './delegations-cli-output'
 import { buildDelegationsCliPayload } from './delegations-cli-payload'
@@ -11,6 +11,7 @@ import {
   sessionCliResultErrorKind,
 } from './session-cli-exit-status'
 import { executeLocalSessionCommand } from './session-host/local-session-client'
+import { writeSessionsCliError } from './sessions-cli-output'
 
 export function delegationsCliUsage() {
   return `OpenWaggle Delegations
@@ -69,7 +70,7 @@ export async function runDelegationsCli(args: readonly string[]) {
     const resultError = sessionCliResultErrorKind(result)
     return resultError ? sessionCliExitCodeForError(resultError) : EXIT.SUCCESS
   } catch (error) {
-    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
-    return isCommandCliUsageError(error) ? EXIT.USAGE : EXIT.FAILURE
+    const kind = writeSessionsCliError(error, hasFlag(arguments_, 'json'))
+    return sessionCliExitCodeForError(kind)
   }
 }

@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { sessionTranscriptSearchContentSql } from '../services/session-transcript-search-content-sql'
 import { queryCutoverRecord } from './session-host-cutover-database'
 
-const CUTOVER_NODE_BATCH_SIZE = 512
+const CUTOVER_NODE_BATCH_SIZE = 1_024
 const CUTOVER_BATCH_BYTE_LIMIT = 4 * 1_024 * 1_024
 const CUTOVER_SESSION_IDS_TABLE = 'session_transcript_cutover_session_ids'
 const CUTOVER_SOURCE_TABLE = 'session_transcript_cutover_source'
