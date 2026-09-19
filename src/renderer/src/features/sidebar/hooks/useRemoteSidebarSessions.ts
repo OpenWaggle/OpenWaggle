@@ -1,12 +1,12 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
 import {
   hydrateSidebarSessions,
   queryInterruptedSidebarSessions,
   querySidebarSearchPage,
-  queryTerminalSidebarCounts,
   queryTerminalSidebarSessions,
   SIDEBAR_SESSION_HYDRATION_BATCH_SIZE,
   type SidebarRemoteMode,
@@ -18,11 +18,8 @@ import {
   mergeVisibleSidebarSessions,
   sidebarSessionMatchesText,
 } from './remote-sidebar-session-results'
-
-export interface ExactTerminalCounts {
-  readonly completed?: number
-  readonly error?: number
-}
+import { pruneHydratedTerminalIds, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
+import { useSidebarTerminalCounts } from './useSidebarTerminalCounts'
 
 const REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH = 3
 const REMOTE_SIDEBAR_SEARCH_DEBOUNCE_MS = 150
@@ -39,6 +36,11 @@ export function useRemoteSidebarSessions(input: {
   readonly projectPaths: readonly string[]
   readonly projectDisplayNames: Readonly<Record<string, string>>
 }) {
+  // Host pages teach the renderer about persisted terminal rows. Exclude only those newly
+  // discovered rows from the request key, so their hydration cannot rewind the cursor.
+  const hydratedTerminalIds = useRef({ completed: new Set<string>(), error: new Set<string>() })
+  const requestTerminalIds = useRef(new Set<string>())
+  const rawStatuses = useSessionStatusStore((state) => state.statuses)
   const normalizedQuery = input.query.trim().toLowerCase()
   const matchingProjectPaths = [...new Set(input.projectPaths)].filter((projectPath) => {
     const custom = input.projectDisplayNames[projectPath] ?? ''
@@ -49,29 +51,24 @@ export function useRemoteSidebarSessions(input: {
     () => (matchingProjectPathsKey === '' ? [] : matchingProjectPathsKey.split('\u0000')),
     [matchingProjectPathsKey],
   )
-  const statusIds =
-    input.filterState === null || input.filterState === 'interrupted'
-      ? []
-      : [...input.stateBySessionId.entries()]
-          .filter(([, state]) => state === input.filterState)
-          .map(([sessionId]) => SessionId(sessionId))
-          .sort()
+  const statusIds = sidebarRemoteStatusIds(
+    input.filterState,
+    input.stateBySessionId,
+    hydratedTerminalIds.current,
+  )
   const statusIdsKey = statusIds.join('\u0000')
   const stableStatusIds = useMemo(
     () => (statusIdsKey === '' ? [] : statusIdsKey.split('\u0000').map(SessionId)),
     [statusIdsKey],
   )
-  const terminalStateKey = [...input.stateBySessionId.entries()]
-    .filter(([, state]) => isTerminalState(state))
-    .map(([sessionId, state]) => `${sessionId}:${state}`)
-    .sort()
-    .join('\u0000')
+  useEffect(() => {
+    pruneHydratedTerminalIds(hydratedTerminalIds.current, rawStatuses)
+  }, [rawStatuses])
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([])
   const [hasMore, setHasMore] = useState(false)
-  const [terminalCounts, setTerminalCounts] = useState<ExactTerminalCounts>({})
+  const { terminalCounts, setTerminalCounts } = useSidebarTerminalCounts(input.stateBySessionId)
   const mode = useRef<SidebarRemoteMode>({ kind: 'none' })
   const generation = useRef(0)
-  const countGeneration = useRef(0)
   const inFlightGeneration = useRef<number | null>(null)
   const projectDisplayNames = useRef(input.projectDisplayNames)
   const requestKey = `${input.filterState ?? ''}\u0001${normalizedQuery}\u0001${statusIdsKey}\u0001${matchingProjectPathsKey}`
@@ -145,7 +142,21 @@ export function useRemoteSidebarSessions(input: {
   const publishTerminalPage = useCallback(
     async (state: SidebarTerminalState, cursor: string | undefined, requestGeneration: number) => {
       const page = await queryTerminalSidebarSessions(state, cursor)
-      const hydrated = (await hydrateSidebarSessions(page.ids)).filter(
+      if (generation.current !== requestGeneration) return
+      const hydrated = (
+        await hydrateSidebarSessions(page.ids, (fetched) => {
+          if (generation.current !== requestGeneration) return
+          for (const session of fetched) {
+            const id = String(session.id)
+            if (session.archived === true) continue
+            hydratedTerminalIds.current[state].add(id)
+            requestTerminalIds.current.delete(id)
+          }
+          // A fetched ID may already have been in the key before this Host page. Advance
+          // the active key alongside its removal so only genuinely new live IDs restart it.
+          activeRequestKey.current = `${state}\u0001${normalizedQuery}\u0001${[...requestTerminalIds.current].sort().join('\u0000')}\u0001${matchingProjectPathsKey}`
+        })
+      ).filter(
         (session) =>
           session.archived !== true &&
           sidebarSessionMatchesText(session, normalizedQuery, projectDisplayNames.current),
@@ -160,7 +171,7 @@ export function useRemoteSidebarSessions(input: {
         : { kind: 'none' }
       setHasMore(page.nextCursor !== undefined)
     },
-    [normalizedQuery],
+    [matchingProjectPathsKey, normalizedQuery, setTerminalCounts],
   )
 
   const publishInterruptedPage = useCallback(
@@ -182,21 +193,7 @@ export function useRemoteSidebarSessions(input: {
   )
 
   useEffect(() => {
-    countGeneration.current += 1
-    const requestGeneration = countGeneration.current
-    void queryTerminalSidebarCounts(terminalStateKey)
-      .then((result) => {
-        if (
-          countGeneration.current === requestGeneration &&
-          result.refreshKey === terminalStateKey
-        ) {
-          setTerminalCounts(result.counts)
-        }
-      })
-      .catch(() => undefined)
-  }, [terminalStateKey])
-
-  useEffect(() => {
+    if (activeRequestKey.current === requestKey) return
     activeRequestKey.current = requestKey
     generation.current += 1
     const requestGeneration = generation.current
@@ -209,6 +206,7 @@ export function useRemoteSidebarSessions(input: {
     }
     if (isTerminalState(input.filterState)) {
       const terminalState = input.filterState
+      requestTerminalIds.current = new Set(stableStatusIds.map(String))
       mode.current = { kind: 'terminal', state: terminalState }
       runPage(requestGeneration, () =>
         publishTerminalPage(terminalState, undefined, requestGeneration),

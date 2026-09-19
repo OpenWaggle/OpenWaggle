@@ -42,5 +42,10 @@ export function mergeVisibleSidebarSessions(input: {
     }
     return sidebarSessionMatchesText(session, input.normalizedQuery, input.projectDisplayNames)
   })
-  return appendUniqueSidebarSessions(loadedMatches, input.remoteSessions)
+  const remoteMatches = input.remoteSessions.filter((session) => {
+    if (input.filterState !== 'completed' && input.filterState !== 'error') return true
+    const currentState = input.stateBySessionId.get(String(session.id))
+    return currentState === undefined || currentState === input.filterState
+  })
+  return appendUniqueSidebarSessions(loadedMatches, remoteMatches)
 }

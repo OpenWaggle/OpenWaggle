@@ -38,7 +38,10 @@ function terminalRunStatus(state: SidebarTerminalState) {
   return state === 'completed' ? ('completed' as const) : ('failed' as const)
 }
 
-export async function hydrateSidebarSessions(ids: readonly SessionId[]) {
+export async function hydrateSidebarSessions(
+  ids: readonly SessionId[],
+  beforeHydrate?: (sessions: readonly SessionSummary[]) => void,
+) {
   const sessions: SessionSummary[] = []
   for (let offset = 0; offset < ids.length; offset += SIDEBAR_SESSION_HYDRATION_BATCH_SIZE) {
     sessions.push(
@@ -47,6 +50,7 @@ export async function hydrateSidebarSessions(ids: readonly SessionId[]) {
       )),
     )
   }
+  beforeHydrate?.(sessions)
   useSessionStatusStore.getState().hydratePersistedStatuses(sessions)
   return sessions
 }

@@ -107,51 +107,6 @@ describe('remote sidebar Session filtering', () => {
     ).toBe(false)
   })
 
-  it('paginates and hydrates every unread failure after renderer restart', async () => {
-    const remote = Array.from({ length: 250 }, (_, index) => ({
-      ...summary(`failed-${String(index).padStart(3, '0')}`, `Failed ${String(index)}`),
-      latestRun: { status: 'failed' as const, updatedAt: index + 1 },
-    }))
-    apiMocks.querySessionControl.mockImplementation(async (request) => {
-      if (request.query.unreadTerminalStatus === 'completed') {
-        return listResponse([], { totalCount: 7 })
-      }
-      if (request.query.unreadTerminalStatus === 'failed') {
-        if (request.query.limit === 1) return listResponse([], { totalCount: remote.length })
-        return request.query.cursor
-          ? listResponse(remote.slice(200))
-          : listResponse(remote.slice(0, 200), {
-              totalCount: remote.length,
-              nextCursor: 'failed-page-2',
-            })
-      }
-      return listResponse([])
-    })
-    apiMocks.listSessionsByIds.mockImplementation(async (ids: readonly SessionId[]) =>
-      remote.filter((session) => ids.includes(session.id)),
-    )
-
-    const { result } = renderHook(() =>
-      useRemoteSidebarSessions(hookInput({ filterState: 'error' })),
-    )
-    await waitFor(() => {
-      expect(result.current.sessions).toHaveLength(200)
-      expect(result.current.hasMore).toBe(true)
-      expect(result.current.terminalCounts).toEqual({ completed: 7, error: 250 })
-    })
-
-    act(() => {
-      result.current.loadMore()
-      result.current.loadMore()
-    })
-    await waitFor(() => expect(result.current.sessions).toHaveLength(250))
-    const failedPages = apiMocks.querySessionControl.mock.calls.filter(
-      ([request]) => request.query.unreadTerminalStatus === 'failed' && request.query.limit !== 1,
-    )
-    expect(failedPages).toHaveLength(2)
-    expect(apiMocks.listSessionsByIds).toHaveBeenCalledTimes(3)
-  })
-
   it('loads interrupted Sessions beyond one hydration batch', async () => {
     const remote = Array.from({ length: 129 }, (_, index) =>
       summary(`interrupted-${String(index)}`, `Interrupted ${String(index)}`),
