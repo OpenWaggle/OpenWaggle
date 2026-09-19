@@ -14,19 +14,6 @@ import {
 } from './attachment-text-extraction'
 
 const PRIVATE_ATTACHMENT_FILE_MODE = 0o600
-const MAX_DISCARDABLE_SESSION_RESOURCE_ATTACHMENTS = 256
-const discardableSessionResourceAttachmentIds = new Set<string>()
-
-function rememberDiscardableSessionResourceAttachment(id: string) {
-  discardableSessionResourceAttachmentIds.add(id)
-  while (
-    discardableSessionResourceAttachmentIds.size > MAX_DISCARDABLE_SESSION_RESOURCE_ATTACHMENTS
-  ) {
-    const oldestId = discardableSessionResourceAttachmentIds.values().next().value
-    if (typeof oldestId !== 'string') break
-    discardableSessionResourceAttachmentIds.delete(oldestId)
-  }
-}
 
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
@@ -164,7 +151,7 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   const attachment: PreparedAttachment = {
     id: randomUUID(),
     kind,
-    origin: 'user-file',
+    origin: 'session-resource',
     name: attachmentName,
     path: filePath,
     mimeType,
@@ -174,7 +161,6 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   }
   try {
     await rememberPreparedAttachment(attachment, filePath)
-    rememberDiscardableSessionResourceAttachment(attachment.id)
     return attachment
   } catch (cause) {
     await fs.rm(filePath, { force: true }).catch(() => {})
@@ -185,15 +171,11 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
 export async function discardRegisteredImageAttachment(
   attachment: PreparedAttachment,
 ): Promise<void> {
-  if (!discardableSessionResourceAttachmentIds.has(attachment.id)) {
+  if (attachment.origin !== 'session-resource') {
     throw new Error('Only an undelivered Session resource attachment can be discarded.')
   }
   const forgotten = await forgetPreparedAttachment(attachment)
-  if (!forgotten) {
-    discardableSessionResourceAttachmentIds.delete(attachment.id)
-    return
-  }
-  discardableSessionResourceAttachmentIds.delete(attachment.id)
+  if (!forgotten) return
   await fs.rm(attachment.path, { force: true })
 }
 

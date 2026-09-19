@@ -64,6 +64,7 @@ export const revealPath: Mock<OpenWaggleApi['revealPath']> = viewerMocks.revealP
 export const PREPARED_IMAGE: PreparedAttachment = {
   id: 'prepared-image',
   kind: 'image',
+  origin: 'session-resource',
   name: 'first.png',
   path: '/registered/first.png',
   mimeType: 'image/png',

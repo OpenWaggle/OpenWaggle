@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { useProject } from '@/features/sessions/hooks'
 import { useComposerAttachments } from '../hooks/useComposerAttachments'
+import type { SendFailureDisposition } from '../hooks/useComposerSubmission'
 import { useComposerSubmission } from '../hooks/useComposerSubmission'
 import { useComposerVoiceControls } from '../hooks/useComposerVoiceControls'
 import { useSessionScopedFilePicker } from '../hooks/useSessionScopedFilePicker'
@@ -16,8 +17,8 @@ import { ComposerModeControls } from './ComposerModeControls'
 interface ComposerProps {
   readonly sessionId?: string | null
   readonly accessControl?: ReactNode
-  onSend: (payload: AgentSendPayload) => Promise<void> | void
-  onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
+  onSend: (payload: AgentSendPayload) => Promise<void> | void | false
+  onEnqueue: (payload: AgentSendPayload) => Promise<void> | void | false
   onCancel: () => void
   isLoading: boolean
   mode?: {
@@ -28,6 +29,7 @@ interface ComposerProps {
     readonly clearOnSubmit?: boolean
     readonly recordHistory?: boolean
     readonly allowEnqueue?: boolean
+    readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
   }
   onToast?: (message: string) => void
 }
@@ -49,6 +51,7 @@ export function Composer({
   const clearOnSubmit = mode?.clearOnSubmit ?? true
   const recordHistory = mode?.recordHistory ?? true
   const allowEnqueue = mode?.allowEnqueue ?? true
+  const onSendFailure = mode?.onSendFailure
   const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   useSessionScopedFilePicker(sessionId, fileInputRef)
@@ -57,6 +60,7 @@ export function Composer({
   const submission = useComposerSubmission({
     onSend,
     onEnqueue,
+    onSendFailure,
     isLoading,
     disabled,
     requiresText,

@@ -23,6 +23,7 @@ import {
   invalidateDraftMaterialization,
   recordDraftMaterialization,
 } from './draft-session-materialization'
+import { useMessageQueueStore } from './message-queue-store'
 
 type ChatSet = (partial: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void
 type ChatGet = () => ChatState
@@ -214,6 +215,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
   try {
     await api.deleteSession(id)
+    useMessageQueueStore.getState().disposeQueue(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
     await deleteWorkspaceOwner(String(id))

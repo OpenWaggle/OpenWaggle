@@ -21,7 +21,12 @@ import { storedProjectActionsSchema } from './project-actions'
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
-const attachmentOriginSchema = Schema.Literal('user-file', 'auto-paste-text', 'browser-preview')
+const attachmentOriginSchema = Schema.Literal(
+  'user-file',
+  'auto-paste-text',
+  'browser-preview',
+  'session-resource',
+)
 const BROWSER_PREVIEW_PAGE_URL_MAX_LENGTH = 8_192
 const BROWSER_PREVIEW_PAGE_TITLE_MAX_LENGTH = 512
 const BROWSER_PREVIEW_TAG_NAME_MAX_LENGTH = 64

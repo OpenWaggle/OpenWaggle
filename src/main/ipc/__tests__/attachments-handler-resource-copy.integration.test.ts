@@ -46,7 +46,7 @@ describe('managed Session resource attachment copies', () => {
 
     expect(attachment).toMatchObject({
       kind: 'image',
-      origin: 'user-file',
+      origin: 'session-resource',
       name: 'Architecture diagram.png',
       mimeType: 'image/png',
       sizeBytes: bytes.byteLength,
@@ -104,6 +104,9 @@ describe('managed Session resource attachment copies', () => {
     await expect(
       discard({}, { ...attachment, sizeBytes: attachment.sizeBytes + 1 }),
     ).rejects.toThrow('does not match prepared capability')
+    await expect(discard({}, { ...attachment, origin: 'user-file' })).rejects.toThrow(
+      'Only an undelivered Session resource attachment can be discarded',
+    )
 
     expect(files.has(attachment.path)).toBe(true)
     await expect(hydrateAttachmentSources([attachment])).resolves.toHaveLength(1)

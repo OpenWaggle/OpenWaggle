@@ -57,14 +57,13 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
       const sessionId = await createSession(projectPath)
-      await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
-      await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-      /*
-       * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
-       * the send had succeeded: a review submitted as a session's first message was cleared and never
-       * restored, because the promise that would have signalled the failure was dropped.
-       */
-      await sendMessageToSession(sessionId, payload, null)
+      try {
+        await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
+        await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+        await sendMessageToSession(sessionId, payload, null)
+      } catch (error) {
+        throw firstSendFailure(error, sessionId)
+      }
       return
     }
     await sendMessage(withInlineVisualizationContext(activeSessionId, payload))
@@ -81,22 +80,29 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
       const sessionId = await createSession(projectPath)
-      await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
-      await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-      startWaggleCollaboration(sessionId, config)
-      /*
-       * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
-       * fire-and-forget the caller was told the send had succeeded, so a review submitted as a waggle session's
-       * first message was cleared and never restored, and the rejection surfaced as an unhandled error instead
-       * of reaching the caller that was holding the work.
-       */
-      await sendMessageToSession(sessionId, payload, config)
+      try {
+        await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
+        await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+        startWaggleCollaboration(sessionId, config)
+        await sendMessageToSession(sessionId, payload, config)
+      } catch (error) {
+        throw firstSendFailure(error, sessionId)
+      }
       return
     }
     await sendWaggleMessage(withInlineVisualizationContext(activeSessionId, payload), config)
   }
 
   return { handleSend, handleSendText, handleSendWaggle }
+}
+
+function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed {
+  return error instanceof FirstSendFailed
+    ? error
+    : new FirstSendFailed(
+        error instanceof Error ? error : new Error(String(error)),
+        String(sessionId),
+      )
 }
 
 interface UseSendMessageOptions {

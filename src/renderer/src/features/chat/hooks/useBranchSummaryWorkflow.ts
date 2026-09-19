@@ -1,3 +1,4 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type {
   SessionBranchId,
   SessionId,
@@ -132,13 +133,36 @@ function applySummarizedBranchDraft(
     activeBranchId: workspace.activeBranchId,
     activeNodeId: workspace.activeNodeId,
   })
-  const appliedDraft = useComposerStore
-    .getState()
-    .switchScopedDraftContext(
-      contextKey,
-      { input: prompt.draftComposerText, attachments: [] },
-      { input: prompt.draftComposerText, attachments: useComposerStore.getState().attachments },
-    )
+  const sourceAttachments = useComposerStore.getState().attachments
+  const appliedDraft = useComposerStore.getState().switchScopedDraftContext(
+    contextKey,
+    {
+      input: prompt.draftComposerText,
+      attachments: sourceAttachments,
+    },
+    { input: prompt.draftComposerText, attachments: sourceAttachments },
+  )
+  const attachments = [
+    ...new Map(
+      [...appliedDraft.attachments, ...sourceAttachments].map((attachment) => [
+        attachment.id,
+        attachment,
+      ]),
+    ).values(),
+  ]
+  if (attachments.length !== appliedDraft.attachments.length) {
+    useComposerStore.getState().replaceAttachments(attachments)
+  }
+  const exceedsCount = attachments.length > ATTACHMENT.MAX_COUNT
+  const exceedsSize =
+    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
+    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
+  if (exceedsCount) {
+    params.showToast('Your draft has too many attachments to send. Remove some before retrying.')
+  }
+  if (!exceedsCount && exceedsSize) {
+    params.showToast('Your draft exceeds the 20 MB attachment limit. Remove some before retrying.')
+  }
   useComposerStore
     .getState()
     .clearScopedDraft(draftBranchComposerContextKey(params, prompt.sessionId, prompt.sourceNodeId))
