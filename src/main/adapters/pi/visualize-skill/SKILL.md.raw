@@ -80,11 +80,18 @@ Copy into every compaction summary:
   necessary labels, legends, values, and accessible text alternatives.
 - Use the normal response flow. Put any necessary concise explanation outside
   the fragment, and add this visualization content reference on its own line
-  where the visual should appear, using the absolute executor-side file path:
+  where the visual should appear, using the absolute executor-side file path.
+  The line must contain only the reference and nothing else:
 
 ```text
-visualize{"path":"<absolute-path>/<title>.html"}
+visualize{"path":"<absolute-path>/<title>.html"}
 ```
+
+- Wire format: OpenWaggle's parser also accepts the reference wrapped in
+  invisible private-use delimiters (U+E200 before `visualize`, U+E202 between
+  `visualize` and the JSON object, U+E201 after the object). Do not rely on
+  reproducing those invisible characters; the bare line above is the canonical,
+  reliably reproducible emission.
 
 - Add `"mode":"wide"` for a full-screen desktop app mockup, including its
   application shell. For other visuals, add it only when several compact chart
@@ -96,7 +103,7 @@ Copy into every compaction summary:
   1,024px:
 
 ```text
-visualize{"path":"<absolute-path>/<title>.html","mode":"wide"}
+visualize{"path":"<absolute-path>/<title>.html","mode":"wide"}
 ```
 
 - Whenever you create or update an inline visualization, include its content

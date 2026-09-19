@@ -1,9 +1,8 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
+import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
 import { isRecord } from '@shared/utils/validation'
 import type { AgentKernelSessionSnapshot } from '../ports/agent-kernel-service'
-
-const VISUALIZE_REFERENCE_START = 'visualize'
 
 function mergeVisualizationOwner(metadataJson: string, ownerSessionId: SessionId) {
   try {
@@ -40,7 +39,7 @@ export function attributeCopiedVisualizationSources(
     nodes: snapshot.nodes.map((node) => {
       if (
         node.kind !== 'assistant_message' ||
-        !node.contentJson.includes(VISUALIZE_REFERENCE_START)
+        !containsInlineVisualizationReference(node.contentJson)
       ) {
         return node
       }

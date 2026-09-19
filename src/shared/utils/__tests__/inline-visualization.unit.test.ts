@@ -1,7 +1,11 @@
 import {
+  containsInlineVisualizationReference,
   extractInlineVisualizationReferences,
   inlineVisualizationFrameUrl,
   parseInlineVisualizationReference,
+  VISUALIZE_REFERENCE_END,
+  VISUALIZE_REFERENCE_START,
+  withholdUnresolvedVisualizationSuffix,
 } from '@shared/utils/inline-visualization'
 import { describe, expect, it } from 'vitest'
 
@@ -22,6 +26,74 @@ describe('inline visualization references', () => {
     '//server/share/visualizations/map.html',
   ])('accepts the absolute Windows path form %s', (path) => {
     expect(parseInlineVisualizationReference(JSON.stringify({ path }))).toEqual({ path })
+  })
+
+  it('extracts the delimiter-free own-line form emitted from the visible skill template', () => {
+    const path = '/tmp/turn-settle-presentation.html'
+    const text = [
+      'Explanation before.',
+      '',
+      `visualize{"path":"${path}"}`,
+      '',
+      'Explanation after.',
+    ].join('\n')
+
+    expect(extractInlineVisualizationReferences(text)).toEqual([{ path }])
+  })
+
+  it('ignores delimiter-free references that are not alone on their line', () => {
+    const text = 'See visualize{"path":"/tmp/map.html"} in the transcript.'
+
+    expect(extractInlineVisualizationReferences(text)).toEqual([])
+  })
+
+  it('does not let an unterminated delimited marker hide a later bare reference', () => {
+    const text = [
+      `${VISUALIZE_REFERENCE_START}${JSON.stringify({ path: '/tmp/dangling.jsonl' })}`,
+      'visualize{"path":"/tmp/after-dangling.html"}',
+    ].join('\n')
+
+    expect(extractInlineVisualizationReferences(text)).toEqual([
+      { path: '/tmp/after-dangling.html' },
+    ])
+  })
+
+  it('extracts complete mixed-form references in document order', () => {
+    const delimitedFirst = [
+      `${VISUALIZE_REFERENCE_START}{"path":"/tmp/first-delimited.html"}${VISUALIZE_REFERENCE_END}`,
+      'visualize{"path":"/tmp/second-bare.html"}',
+    ].join('\n')
+    const bareFirst = [
+      'visualize{"path":"/tmp/first-bare.html"}',
+      `${VISUALIZE_REFERENCE_START}{"path":"/tmp/second-delimited.html"}${VISUALIZE_REFERENCE_END}`,
+    ].join('\n')
+
+    expect(extractInlineVisualizationReferences(delimitedFirst)).toEqual([
+      { path: '/tmp/first-delimited.html' },
+      { path: '/tmp/second-bare.html' },
+    ])
+    expect(extractInlineVisualizationReferences(bareFirst)).toEqual([
+      { path: '/tmp/first-bare.html' },
+      { path: '/tmp/second-delimited.html' },
+    ])
+  })
+
+  it('rejects bare reference prose embedded in serialized content JSON', () => {
+    const contentJson = JSON.stringify({
+      parts: [{ type: 'text', text: 'See visualize{"path":"/tmp/map.html"} inline.' }],
+    })
+
+    expect(containsInlineVisualizationReference(contentJson)).toBe(false)
+  })
+
+  it('withholds a trailing partial bare line while streaming and renders a completed one', () => {
+    expect(withholdUnresolvedVisualizationSuffix('Done.\n\nvisualize{"path":"/tmp/ma')).toBe(
+      'Done.\n\n',
+    )
+    expect(
+      withholdUnresolvedVisualizationSuffix('Done.\n\nvisualize{"path":"/tmp/map.html"}'),
+    ).toBe('Done.\n\nvisualize{"path":"/tmp/map.html"}')
+    expect(withholdUnresolvedVisualizationSuffix('No reference here.')).toBe('No reference here.')
   })
 
   it('extracts only complete, strict references', () => {
