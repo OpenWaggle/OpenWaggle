@@ -67,6 +67,7 @@ async function hydrateLiveSessionStatuses(input: {
  */
 export function useSessionStatusMonitor(): void {
   const setStatus = useSessionStatusStore((s) => s.setStatus)
+  const markRunCompleted = useSessionStatusStore((s) => s.markRunCompleted)
   const setPhase = useSessionStatusStore((s) => s.setPhase)
   const markVisited = useSessionStatusStore((s) => s.markVisited)
   const hydratePersistedStatuses = useSessionStatusStore((s) => s.hydratePersistedStatuses)
@@ -106,7 +107,8 @@ export function useSessionStatusMonitor(): void {
 
     const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
       activeWaggleSessions.delete(sessionId)
-      setStatusWithVisitCheck(sessionId, 'completed')
+      markRunCompleted(sessionId)
+      if (sessionId === useChatStore.getState().activeSessionId) markVisited(sessionId)
       void useBackgroundRunStore.getState().reconcileTerminalRun(sessionId)
     })
 
@@ -192,5 +194,5 @@ export function useSessionStatusMonitor(): void {
       unsubWaggleTurn()
       unsubEvent()
     }
-  }, [setStatus, setPhase, markVisited])
+  }, [setStatus, markRunCompleted, setPhase, markVisited])
 }

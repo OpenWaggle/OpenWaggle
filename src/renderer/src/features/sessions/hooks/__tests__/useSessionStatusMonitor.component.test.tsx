@@ -112,6 +112,36 @@ describe('useSessionStatusMonitor', () => {
     })
   })
 
+  it('replaces a synthetic completion with the durable failed Run', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(300)
+    useSessionStatusStore.getState().setStatus(SESSION_ID, 'working', 100)
+    renderHook(() => useSessionStatusMonitor())
+
+    const handler = monitorMocks.getRunCompletedHandler()
+    if (!handler) throw new Error('Expected run completion subscription')
+    act(() => handler({ sessionId: SESSION_ID }))
+    expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('completed')
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          {
+            id: SESSION_ID,
+            title: 'Session A',
+            projectPath: '/repo',
+            createdAt: 1,
+            updatedAt: 200,
+            latestRun: { status: 'failed', updatedAt: 200 },
+          },
+        ],
+      })
+    })
+
+    await waitFor(() =>
+      expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('error'),
+    )
+  })
+
   it('hydrates every active Run and pending interaction after a new window misses broadcasts', async () => {
     const runs = Array.from({ length: 101 }, (_value, index) => ({
       sessionId: SessionId(`session-${String(index)}`),

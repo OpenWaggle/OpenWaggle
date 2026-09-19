@@ -38,6 +38,7 @@ interface SessionStatusState {
   phases: Map<SessionId, AgentPhaseLabel>
 
   setStatus: (id: SessionId, status: SessionStatus, updatedAt?: number) => void
+  markRunCompleted: (id: SessionId) => void
   hydratePersistedStatuses: (sessions: readonly SessionSummary[]) => void
   clearStatus: (id: SessionId) => void
   getStatus: (id: SessionId) => SessionStatus
@@ -52,14 +53,15 @@ function updateStatusState(
   id: SessionId,
   status: SessionStatus,
   updatedAt: number,
+  sourceUpdatedAt = updatedAt,
 ) {
   const previousUpdatedAt = state.statusUpdatedAt.get(id)
-  if (previousUpdatedAt !== undefined && previousUpdatedAt > updatedAt) return state
+  if (previousUpdatedAt !== undefined && previousUpdatedAt > sourceUpdatedAt) return state
   const next: Partial<SessionStatusState> = {}
 
-  if (previousUpdatedAt !== updatedAt) {
+  if (previousUpdatedAt !== sourceUpdatedAt) {
     const statusUpdatedAt = new Map(state.statusUpdatedAt)
-    statusUpdatedAt.set(id, updatedAt)
+    statusUpdatedAt.set(id, sourceUpdatedAt)
     next.statusUpdatedAt = statusUpdatedAt
   }
   if (state.statuses.get(id) !== status) {
@@ -222,6 +224,22 @@ const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) =>
 
   setStatus(id: SessionId, status: SessionStatus, updatedAt = Date.now()) {
     set((state) => updateStatusState(state, id, status, updatedAt))
+  },
+
+  markRunCompleted(id: SessionId) {
+    set((state) => {
+      if (TERMINAL_STATUSES.has(state.statuses.get(id) ?? 'idle')) return state
+      // The completion broadcast has no durable outcome or timestamp. Keep the last
+      // source timestamp so a later Host catalog projection can correct failures and
+      // interruptions, while using wall time only for the unread indicator.
+      return updateStatusState(
+        state,
+        id,
+        'completed',
+        Date.now(),
+        state.statusUpdatedAt.get(id) ?? 0,
+      )
+    })
   },
 
   hydratePersistedStatuses(sessions) {
