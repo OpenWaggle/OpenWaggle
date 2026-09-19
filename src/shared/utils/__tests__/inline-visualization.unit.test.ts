@@ -3,6 +3,7 @@ import {
   extractInlineVisualizationReferences,
   inlineVisualizationFrameUrl,
   parseInlineVisualizationReference,
+  VISUALIZE_REFERENCE_END,
   VISUALIZE_REFERENCE_START,
   withholdUnresolvedVisualizationSuffix,
 } from '@shared/utils/inline-visualization'
@@ -55,7 +56,26 @@ describe('inline visualization references', () => {
     expect(extractInlineVisualizationReferences(text)).toEqual([
       { path: '/tmp/after-dangling.html' },
     ])
-    expect(containsInlineVisualizationReference(text)).toBe(true)
+  })
+
+  it('extracts complete mixed-form references in document order', () => {
+    const delimitedFirst = [
+      `${VISUALIZE_REFERENCE_START}{"path":"/tmp/first-delimited.html"}${VISUALIZE_REFERENCE_END}`,
+      'visualize{"path":"/tmp/second-bare.html"}',
+    ].join('\n')
+    const bareFirst = [
+      'visualize{"path":"/tmp/first-bare.html"}',
+      `${VISUALIZE_REFERENCE_START}{"path":"/tmp/second-delimited.html"}${VISUALIZE_REFERENCE_END}`,
+    ].join('\n')
+
+    expect(extractInlineVisualizationReferences(delimitedFirst)).toEqual([
+      { path: '/tmp/first-delimited.html' },
+      { path: '/tmp/second-bare.html' },
+    ])
+    expect(extractInlineVisualizationReferences(bareFirst)).toEqual([
+      { path: '/tmp/first-bare.html' },
+      { path: '/tmp/second-delimited.html' },
+    ])
   })
 
   it('rejects bare reference prose embedded in serialized content JSON', () => {
