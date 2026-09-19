@@ -38,12 +38,25 @@ const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
   'settings:get',
   'extensions:list-packages',
   'extensions:list-contributions',
+  'mcp:list-secrets',
+  'mcp:list-capabilities',
+  'mcp:list-events',
+  'mcp:list-event-subscriptions',
   'providers:get-models',
   'project-actions:list',
   'docs:discover',
   'skills:list',
   'skills:get-preview',
 ])
+
+function isReplaySafeHostUiInvocation(channel: HostBackedGuiChannel, args: readonly unknown[]) {
+  if (channel !== 'mcp:get-settings') return REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)
+  if (args.length === 0 || (args.length === 1 && args[0] === undefined)) return true
+  if (args.length !== 1 || !args[0] || typeof args[0] !== 'object' || Array.isArray(args[0])) {
+    return false
+  }
+  return !('reconcileRuntime' in args[0]) || args[0].reconcileRuntime === false
+}
 
 type GuiSessionCommandRoute =
   | { readonly mode: 'local' }
@@ -132,7 +145,7 @@ export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
   if (route.mode === 'local') return { handled: false }
   if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
   const expectedEpoch = guiSessionCommandRouteEpoch
-  const replaySafe = REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)
+  const replaySafe = isReplaySafeHostUiInvocation(channel, args)
   const client = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
   try {
     const result = await executeConfiguredHostUi({ client, channel, args })

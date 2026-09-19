@@ -143,6 +143,36 @@ describe('GUI Host UI endpoint refresh', () => {
     },
   )
 
+  it.each([
+    ['mcp:get-settings', []],
+    ['mcp:get-settings', [{ projectPath: '/project', reconcileRuntime: false }]],
+    ['mcp:list-secrets', []],
+    ['mcp:list-capabilities', [{ projectPath: '/project' }]],
+    ['mcp:list-events', [{ sessionId: 'session-1' }]],
+    ['mcp:list-event-subscriptions', [{ sessionId: 'session-1' }]],
+  ] as const)('recovers replay-safe %s after Host loss', async (channel, args) => {
+    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+    mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce([])
+
+    await expect(invokeConfiguredHostUiRaw(channel, args)).resolves.toEqual({
+      handled: true,
+      result: [],
+    })
+    expect(mocks.ensureHost).toHaveBeenCalledOnce()
+    expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not replay MCP settings reconciliation after an ambiguous Host failure', async () => {
+    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+    mocks.executeHostUi.mockRejectedValueOnce(unavailable)
+
+    await expect(
+      invokeConfiguredHostUiRaw('mcp:get-settings', [{ reconcileRuntime: true }]),
+    ).rejects.toBe(unavailable)
+    expect(mocks.ensureHost).not.toHaveBeenCalled()
+    expect(mocks.executeHostUi).toHaveBeenCalledOnce()
+  })
+
   it('recovers a replay-safe read when endpoint refresh itself reports Host loss', async () => {
     const unavailable = Object.assign(new Error('Host endpoint disappeared'), { code: 'ENOENT' })
     mocks.refreshPaths.mockRejectedValueOnce(unavailable).mockImplementation(async (paths) => ({
