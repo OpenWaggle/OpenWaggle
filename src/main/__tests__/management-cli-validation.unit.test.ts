@@ -71,7 +71,7 @@ describe('management CLI validation boundaries', () => {
     ).resolves.toBe(2)
 
     expect(stderr).toHaveBeenCalledWith(
-      'error: Unknown option for OpenWaggle Delegations: --evidencejson.\n',
+      'error [usage]: Unknown option for OpenWaggle Delegations: --evidencejson.\n',
     )
   })
 })
