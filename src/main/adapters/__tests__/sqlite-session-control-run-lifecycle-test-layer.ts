@@ -8,6 +8,7 @@ import * as Layer from 'effect/Layer'
 import { submitSessionMessage } from '../../application/session-control-service'
 import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from '../../services/database-session-lineage-schema'
 import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
 import { SqliteSessionControlRepositoryLive } from '../sqlite-session-control-repository'
 import { SqliteSessionControlRunLifecycleRepositoryLive } from '../sqlite-session-control-run-lifecycle-repository'
@@ -27,6 +28,9 @@ export function makeSessionControlRunLifecycleTestLayer(databasePath: string) {
         updated_at INTEGER NOT NULL
       )`)
       for (const statement of SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      for (const statement of CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS) {
         yield* sql.unsafe(statement)
       }
       yield* sql`

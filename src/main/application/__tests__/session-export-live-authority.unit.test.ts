@@ -51,6 +51,12 @@ describe('live Session export authority', () => {
           )
         `)
         yield* sql.unsafe(`
+          CREATE TABLE session_lineage (
+            session_id TEXT PRIMARY KEY,
+            parent_session_id TEXT NOT NULL
+          )
+        `)
+        yield* sql.unsafe(`
           CREATE TABLE derived_child_management_grants (
             id TEXT PRIMARY KEY,
             child_session_id TEXT NOT NULL,
