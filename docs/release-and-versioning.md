@@ -31,13 +31,13 @@ The workflow currently publishes unsigned platform artifacts. Public distributio
 
 ## Versioning
 
-OpenWaggle uses semver with prerelease stages. The current release train is `0.3.0-alpha.N`.
+OpenWaggle uses semver with prerelease stages. The current release train is `0.4.0-alpha.N`.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|
-| Alpha | `0.3.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
-| Beta | `0.3.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
-| Stable | `0.3.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
+| Alpha | `0.4.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
+| Beta | `0.4.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
+| Stable | `0.4.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
 
 To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
 
