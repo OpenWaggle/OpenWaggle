@@ -80,4 +80,56 @@ describe('explicit GUI rotation after an unknown profile outcome', () => {
     expect(mocks.disconnect).toHaveBeenCalledExactlyOnceWith('profile-reviewer')
     expect(mocks.discard).not.toHaveBeenCalled()
   })
+
+  it('reports accepted-rotation recovery identity when credential installation fails', async () => {
+    const commitFailure = new mocks.ProfileCredentialCommitError(
+      'credential installation failed',
+      '/tmp/protected-rotation.pending',
+    )
+    mocks.commit.mockRejectedValue(commitFailure)
+    mocks.dispatch.mockReturnValue(
+      Effect.succeed({
+        contract: 'local-access-v1',
+        response: {
+          contractVersion: 1,
+          requestId: 'profile-request',
+          idempotencyKey: 'stable-idempotency-key',
+          replayed: false,
+          outcome: {
+            operation: 'rotate',
+            effect: 'profile-rotated',
+            profile: {
+              id: 'profile-reviewer',
+              name: 'reviewer',
+              capabilities: ['sessions:read'],
+              scope: { all: true },
+              authorizationCeiling: 'ask-for-approval',
+              revokedAt: null,
+              lastAuthenticatedAt: null,
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          },
+        },
+      }),
+    )
+    registerProfileAccessHandlers()
+    const handler = mocks.typedHandle.mock.calls[0][1]
+
+    const error = await Effect.runPromise(
+      handler({}, { operation: 'rotate', profileName: 'reviewer' }).pipe(Effect.flip),
+    )
+
+    expect(error).toMatchObject({
+      code: 'profile_credential_recovery_required',
+      operation: 'rotate',
+      profileId: 'profile-reviewer',
+      profileName: 'reviewer',
+      idempotencyKey: 'stable-idempotency-key',
+      recoveryLocation: '/tmp/protected-rotation.pending',
+      message: expect.stringContaining('was rotated'),
+    })
+    expect(mocks.disconnect).toHaveBeenCalledExactlyOnceWith('profile-reviewer')
+    expect(mocks.discard).not.toHaveBeenCalled()
+  })
 })

@@ -141,7 +141,9 @@ async function foreignPendingName(
   ownName: string,
 ) {
   const installedCredential = await installedStoreCredential(input)
-  const foreign: { name: string; fileIdentity: string }[] = []
+  // A rejected request may retain a copied artifact alongside its source. Both
+  // protect the same bearer, so they represent one recovery choice, not a conflict.
+  const foreignByCredential = new Map<string, { name: string; fileIdentity: string }>()
   for (const name of await pendingCandidates(input, prefix, profileIdentity)) {
     if (name === ownName) continue
     const sourceLocation = path.join(input.stagingDirectory, name)
@@ -153,14 +155,16 @@ async function foreignPendingName(
       await markConsumedPending(input, prefix, name, pending.fileIdentity)
       continue
     }
-    foreign.push({ name, fileIdentity: pending.fileIdentity })
+    if (!foreignByCredential.has(credential)) {
+      foreignByCredential.set(credential, { name, fileIdentity: pending.fileIdentity })
+    }
   }
-  if (foreign.length > 1) {
+  if (foreignByCredential.size > 1) {
     throw new Error(
       `Multiple protected credential recovery artifacts require manual cleanup in ${input.stagingDirectory}.`,
     )
   }
-  return foreign[0]
+  return foreignByCredential.values().next().value
 }
 
 async function copyForeignPending(

@@ -85,14 +85,16 @@ export class AcceptedProfileCredentialRecoveryError extends Error {
   readonly code = 'profile_credential_recovery_required'
 
   constructor(
+    readonly operation: 'create' | 'rotate',
     readonly profileId: string,
     readonly profileName: string,
     readonly idempotencyKey: string,
     readonly recoveryLocation: string,
     options: ErrorOptions,
   ) {
+    const effect = operation === 'create' ? 'created' : 'rotated'
     super(
-      `Profile "${profileName}" was created, but its credential installation did not finish. ` +
+      `Profile "${profileName}" was ${effect}, but its credential installation did not finish. ` +
         `The protected secret remains recoverable at ${recoveryLocation}. ` +
         `Operation reference: ${idempotencyKey}. ` +
         'Recover the credential before removing it; a new GUI or CLI request is not a replay.',
@@ -169,12 +171,13 @@ function settleProfileCredential(input: {
         try: () => staged.commit(),
         catch: (cause) => {
           if (
-            outcome.effect !== 'profile-created' ||
+            (outcome.effect !== 'profile-created' && outcome.effect !== 'profile-rotated') ||
             !(cause instanceof ProfileCredentialCommitError)
           ) {
             return cause instanceof Error ? cause : new Error(String(cause))
           }
           return new AcceptedProfileCredentialRecoveryError(
+            outcome.operation,
             outcome.profile.id,
             outcome.profile.name,
             input.response.idempotencyKey,
