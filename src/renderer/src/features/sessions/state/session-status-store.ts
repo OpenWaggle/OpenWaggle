@@ -152,7 +152,15 @@ function updateProjectedCompletion(
 
 function hydratePersistedSession(maps: HydrationMaps, session: SessionSummary) {
   let changed = hydrateReceipt(maps, session)
-  const projectedAt = Math.max(session.latestRun?.updatedAt ?? 0, session.pendingInteractionAt ?? 0)
+  const pendingClearedAt =
+    session.pendingInteractionAt === undefined && maps.statuses.get(session.id) === 'awaiting-input'
+      ? (session.pendingInteractionSnapshotAt ?? 0)
+      : 0
+  const projectedAt = Math.max(
+    session.latestRun?.updatedAt ?? 0,
+    session.pendingInteractionAt ?? 0,
+    pendingClearedAt,
+  )
   if (projectedAt === 0 || (maps.statusUpdatedAt.get(session.id) ?? -1) > projectedAt) {
     return changed
   }

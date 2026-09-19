@@ -78,6 +78,46 @@ describe('useSessionStatusMonitor hydration race', () => {
     })
   })
 
+  it('clears Awaiting input after a newer Host catalog resync omits the resolved request', () => {
+    renderHook(() => useSessionStatusMonitor())
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          {
+            id: SESSION_ID,
+            title: 'Session A',
+            projectPath: '/repo',
+            createdAt: 1,
+            updatedAt: 100,
+            latestRun: { status: 'active', updatedAt: 100 },
+            pendingInteractionAt: 120,
+            pendingInteractionSnapshotAt: 130,
+          },
+        ],
+      })
+    })
+    expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('awaiting-input')
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          {
+            id: SESSION_ID,
+            title: 'Session A',
+            projectPath: '/repo',
+            createdAt: 1,
+            updatedAt: 100,
+            latestRun: { status: 'active', updatedAt: 100 },
+            pendingInteractionSnapshotAt: 160,
+          },
+        ],
+      })
+    })
+
+    expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('working')
+  })
+
   it('does not revive a completed Waggle Run from a late active-Run snapshot', async () => {
     const pendingRuns = Promise.withResolvers<ActiveRunInfo[]>()
     monitorMocks.listActiveRuns.mockReturnValue(pendingRuns.promise)

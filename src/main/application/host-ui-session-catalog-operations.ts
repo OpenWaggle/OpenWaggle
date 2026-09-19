@@ -24,9 +24,14 @@ function attachPendingInteractions(sessions: readonly SessionSummary[]) {
       pendingAtBySessionId.set(sessionId, interaction.createdAt)
     }
   }
+  const pendingInteractionSnapshotAt = Date.now()
   return sessions.map((session) => {
     const pendingInteractionAt = pendingAtBySessionId.get(String(session.id))
-    return pendingInteractionAt === undefined ? session : { ...session, pendingInteractionAt }
+    return {
+      ...session,
+      pendingInteractionSnapshotAt,
+      ...(pendingInteractionAt === undefined ? {} : { pendingInteractionAt }),
+    }
   })
 }
 

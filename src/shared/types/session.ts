@@ -79,6 +79,8 @@ export interface SessionSummary {
   readonly latestRun?: SessionLatestRunSummary
   /** Creation time of the oldest outstanding non-notify agent interaction. */
   readonly pendingInteractionAt?: number
+  /** Host time when the pending-interaction set was sampled, including when it was empty. */
+  readonly pendingInteractionSnapshotAt?: number
 }
 
 /** Opaque keyset page used by the GUI Session catalog. */
