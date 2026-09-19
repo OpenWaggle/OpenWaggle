@@ -115,3 +115,12 @@ describe('packaged executable naming', () => {
     expect(electronBuilderConfig.linux.executableName).toBe('openwaggle')
   })
 })
+
+describe('packaged runtime resources', () => {
+  it('includes the prepared semantic model used by packaged Session search', () => {
+    expect(electronBuilderConfig.extraResources).toContainEqual({
+      from: 'build/session-embedding-model',
+      to: 'session-embedding-model',
+    })
+  })
+})
