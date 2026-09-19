@@ -1,6 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
-import { SessionId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
@@ -32,6 +32,7 @@ function hydrateSessionDetailSummary(row: SessionSummaryRow) {
     archived: row.archived === 1 ? true : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(row.selected_model ? { selectedModel: SupportedModelId(row.selected_model) } : {}),
   }
 }
 
@@ -56,6 +57,9 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       worktreeStartFromOrigin: sessionRow.worktree_start_from_origin === 1,
       ...(isAgentAuthorizationMode(sessionRow.authorization_mode_override)
         ? { authorizationMode: sessionRow.authorization_mode_override }
+        : {}),
+      ...(sessionRow.selected_model
+        ? { selectedModel: SupportedModelId(sessionRow.selected_model) }
         : {}),
     }
   } catch (error) {
@@ -86,7 +90,8 @@ function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
       worktree_path,
       worktree_base_ref,
       worktree_start_from_origin,
-      authorization_mode_override
+      authorization_mode_override,
+      selected_model
     FROM sessions
     WHERE id = ${id}
     LIMIT 1
@@ -128,6 +133,7 @@ function summaryCountSql(
       s.archived,
       s.created_at,
       s.updated_at,
+      s.selected_model,
       (
         SELECT COUNT(*)
         FROM session_nodes sn

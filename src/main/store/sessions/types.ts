@@ -10,6 +10,7 @@ export interface SessionSummaryRow {
   /** Resolves each session's working path, for per-session git state in lists. */
   readonly environment_mode: string | null
   readonly worktree_path: string | null
+  readonly selected_model: string | null
 }
 
 export interface SessionBranchRow {
@@ -74,4 +75,5 @@ export const SESSION_SUMMARY_COLUMN_NAMES: readonly string[] = [
   'last_active_branch_id',
   'environment_mode',
   'worktree_path',
+  'selected_model',
 ]

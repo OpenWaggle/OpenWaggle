@@ -1,6 +1,6 @@
 import type { SqlClient } from '@effect/sql'
 import { safeDecodeUnknown } from '@shared/schema'
-import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type {
   SessionBranch,
   SessionBranchState,
@@ -146,6 +146,7 @@ export function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
       : null,
     environmentMode: row.environment_mode === 'worktree' ? 'worktree' : 'local',
     worktreePath: row.worktree_path,
+    ...(row.selected_model ? { selectedModel: SupportedModelId(row.selected_model) } : {}),
   }
 }
 

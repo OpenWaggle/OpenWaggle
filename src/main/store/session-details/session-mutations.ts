@@ -2,6 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
+import type { SupportedModelId } from '@shared/types/llm'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
@@ -66,6 +67,24 @@ export async function setSessionAuthorizationMode(
       yield* sql`
         UPDATE sessions
         SET authorization_mode_override = ${authorizationMode},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+/** Stores the model explicitly picked for this session, so it stops tracking the global default. */
+export async function setSessionSelectedModel(
+  id: SessionId,
+  model: SupportedModelId,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET selected_model = ${model},
             updated_at = ${Date.now()}
         WHERE id = ${id}
       `

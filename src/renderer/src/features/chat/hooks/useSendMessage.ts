@@ -7,6 +7,7 @@ import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
+import { flushDraftSelectedModelToSession } from '@/features/chat/state/draft-selected-model-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { flushDraftWorktreePlanToSession, snapshotDraftWorktreePlan } from '@/features/git'
@@ -59,6 +60,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       const sessionId = await createSession(projectPath)
       await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+      await flushDraftSelectedModelToSession(projectPath, sessionId)
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
        * the send had succeeded: a review submitted as a session's first message was cleared and never
@@ -83,6 +85,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       const sessionId = await createSession(projectPath)
       await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
       await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+      await flushDraftSelectedModelToSession(projectPath, sessionId)
       startWaggleCollaboration(sessionId, config)
       /*
        * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched

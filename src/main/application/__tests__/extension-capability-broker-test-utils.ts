@@ -164,11 +164,7 @@ function makeBrokerLayer(input: {
     }),
     Layer.succeed(ExtensionManagerService, {
       listPackages: ({ projectPath }) =>
-        Effect.succeed(
-          input.packages.filter((extensionPackage) =>
-            isVisiblePackage(extensionPackage, projectPath),
-          ),
-        ),
+        Effect.succeed(input.packages.filter((p) => isVisiblePackage(p, projectPath))),
     }),
     Layer.succeed(ExtensionLifecycleRepository, {
       get: (key) =>
@@ -210,6 +206,7 @@ function makeBrokerLayer(input: {
       updateTitle: () => Effect.void,
       setWorktreePlan: () => Effect.void,
       setAuthorizationMode: () => Effect.void,
+      setSelectedModel: () => Effect.void,
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       setTurnCheckpointAnchor: () => Effect.void,

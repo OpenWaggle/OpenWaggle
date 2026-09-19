@@ -1,0 +1,38 @@
+import type { SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
+import { create } from 'zustand'
+import { api } from '@/shared/lib/ipc'
+
+interface DraftSelectedModelState {
+  readonly byProjectPath: Record<string, SupportedModelId | undefined>
+  readonly setOverride: (projectPath: string, model: SupportedModelId) => void
+  readonly clearOverride: (projectPath: string, expected?: SupportedModelId) => void
+}
+
+/**
+ * Holds only explicit pre-session model picks. An absent entry means the draft still shows the
+ * global default and must not be copied onto the session during first send.
+ */
+export const useDraftSelectedModelStore = create<DraftSelectedModelState>()((set) => ({
+  byProjectPath: {},
+  setOverride: (projectPath, model) =>
+    set((state) => ({ byProjectPath: { ...state.byProjectPath, [projectPath]: model } })),
+  clearOverride: (projectPath, expected) =>
+    set((state) => {
+      if (expected !== undefined && state.byProjectPath[projectPath] !== expected) return state
+      const { [projectPath]: _removed, ...rest } = state.byProjectPath
+      return { byProjectPath: rest }
+    }),
+}))
+
+/** Persist an explicit draft model choice before the first task is dispatched. */
+export async function flushDraftSelectedModelToSession(
+  projectPath: string,
+  sessionId: SessionId,
+): Promise<void> {
+  const override = useDraftSelectedModelStore.getState().byProjectPath[projectPath]
+  if (override === undefined) return
+
+  await api.setSessionSelectedModel(sessionId, override)
+  useDraftSelectedModelStore.getState().clearOverride(projectPath, override)
+}

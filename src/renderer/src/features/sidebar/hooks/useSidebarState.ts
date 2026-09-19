@@ -1,7 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import { useChat } from '@/features/chat/hooks'
+import { useChat, useSelectedSessionModel } from '@/features/chat/hooks'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -57,7 +57,7 @@ export function useSidebarState() {
   const project = useProject()
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const projectDisplayNames = usePreferencesStore((s) => s.settings.projectDisplayNames)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const selectedModel = useSelectedSessionModel().selectedModel
   const setProjectDisplayName = usePreferencesStore((s) => s.setProjectDisplayName)
   const removeProjectReferences = usePreferencesStore((s) => s.removeProjectReferences)
   const chat = useChat()

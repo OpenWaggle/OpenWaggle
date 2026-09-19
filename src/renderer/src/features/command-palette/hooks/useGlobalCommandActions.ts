@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useChat } from '@/features/chat/hooks'
+import { useChat, useSelectedSessionModel } from '@/features/chat/hooks'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useTerminalCommands } from '@/features/terminal'
@@ -31,6 +31,7 @@ export function useGlobalCommandActions() {
   } = useTerminalCommands()
   const showToast = useUIStore((state) => state.showToast)
   const settings = usePreferencesStore((state) => state.settings)
+  const sessionModel = useSelectedSessionModel().selectedModel
   const sessionId = activeSessionId ? String(activeSessionId) : null
 
   function finish(action: () => void) {
@@ -99,7 +100,7 @@ export function useGlobalCommandActions() {
       return
     }
     try {
-      await api.compactSession(activeSessionId, settings.selectedModel)
+      await api.compactSession(activeSessionId, sessionModel)
       await Promise.all([refreshSession(activeSessionId), refreshSessionWorkspace(activeSessionId)])
       showToast('Session compacted.', 'success')
     } catch (error) {

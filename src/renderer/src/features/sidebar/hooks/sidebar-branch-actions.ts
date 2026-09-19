@@ -80,8 +80,16 @@ function switchSessionBranch(
   if (!headNodeId) return
 
   const targetNodeId = SessionNodeId(headNodeId)
+  // Switching branches must not retarget the run to whatever model the last-touched session used:
+  // resolve the target session's own pick, falling back to the global default.
+  const targetSession = deps.sessions.find((item) => String(item.id) === sessionId)
   void api
-    .navigateSessionTree(targetSessionId, deps.selectedModel, targetNodeId, { summarize: false })
+    .navigateSessionTree(
+      targetSessionId,
+      targetSession?.selectedModel ?? deps.selectedModel,
+      targetNodeId,
+      { summarize: false },
+    )
     .catch((error: unknown) => {
       deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
     })

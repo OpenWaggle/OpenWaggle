@@ -1,7 +1,7 @@
 import type { SessionNode } from '@shared/types/session'
 import { useDeferredValue, useReducer, useRef, useState } from 'react'
+import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useSessionStore } from '@/features/sessions/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 import { isSessionTreeFilterMode } from '../constants'
@@ -39,7 +39,7 @@ export function useSessionTreePanelController(
   const treeRowsRef = useRef<HTMLDivElement>(null)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
-  const selectedModel = usePreferencesStore((state) => state.settings.selectedModel)
+  const { selectedModel } = useSelectedSessionModel()
   const showToast = useUIStore((state) => state.showToast)
   const tree = activeWorkspace?.tree ?? null
   const filter = useSessionTreeFilterMode(tree?.session.projectPath ?? null, showToast)

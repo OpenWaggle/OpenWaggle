@@ -106,6 +106,7 @@ const TestSessionProjectionRepoLayer = Layer.succeed(
         catch: (cause) =>
           new SessionProjectionRepositoryError({ operation: 'setAuthorizationMode', cause }),
       }),
+    setSelectedModel: () => Effect.void,
     listTurnCheckpoints: () => Effect.succeed([]),
     getTurnDiff: () => Effect.succeed(null),
     setTurnCheckpointAnchor: () => Effect.void,

@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Check, ChevronDown, Ellipsis } from 'lucide-react'
+import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -20,7 +21,7 @@ export function ThinkingLevelMenu() {
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
   const thinking = useSelectedModelThinkingLevel()
-  const hasSelectedModel = settings.selectedModel.trim().length > 0
+  const hasSelectedModel = useSelectedSessionModel().selectedModel.trim().length > 0
   const canOpenThinkingMenu =
     thinking.capabilitiesKnown && thinking.availableThinkingLevels.length > 0
   const selectedModelOnlySupportsOff =

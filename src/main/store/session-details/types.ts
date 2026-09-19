@@ -21,6 +21,7 @@ export interface SessionRow {
   readonly worktree_base_ref: string | null
   readonly worktree_start_from_origin: number | null
   readonly authorization_mode_override: string | null
+  readonly selected_model: string | null
 }
 
 export interface SessionSummaryRow {
@@ -31,6 +32,7 @@ export interface SessionSummaryRow {
   readonly created_at: number
   readonly updated_at: number
   readonly message_count: number
+  readonly selected_model: string | null
 }
 
 export interface SessionBranchRow {

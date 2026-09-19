@@ -1,8 +1,8 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
+import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
 import { clearEditor } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import { useComposerStore } from '../state/composer-store'
@@ -52,7 +52,7 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const selectedModel = useSelectedSessionModel().selectedModel
   const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
 
   function clearComposerInput() {

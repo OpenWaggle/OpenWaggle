@@ -245,6 +245,10 @@ export interface IpcCoreInvokeChannelMap {
     args: [id: SessionId, mode: AgentAuthorizationMode | null]
     return: undefined
   }
+  'sessions:set-selected-model': {
+    args: [id: SessionId, model: SupportedModelId]
+    return: undefined
+  }
   'sessions:list': {
     args: [limit?: number]
     return: SessionSummary[]

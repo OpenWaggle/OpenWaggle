@@ -20,6 +20,10 @@ vi.mock('@/features/chat/hooks', () => ({
     startDraftSession: vi.fn(),
     refreshSession: mocks.refreshSession,
   }),
+  useSelectedSessionModel: () => ({
+    selectedModel: SupportedModelId('openai/gpt-5'),
+    setSelectedModel: vi.fn(),
+  }),
 }))
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: '/repo', selectFolder: vi.fn(), setProjectPath: vi.fn() }),

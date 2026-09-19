@@ -10,6 +10,7 @@ export {
   deleteSession,
   listSessionWorktreeRefs,
   setSessionAuthorizationMode,
+  setSessionSelectedModel,
   setSessionWorktree,
   setSessionWorktreePlan,
   unarchiveSession,

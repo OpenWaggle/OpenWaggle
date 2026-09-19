@@ -8,6 +8,7 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
+import type { SupportedModelId } from '@shared/types/llm'
 import type {
   PinnedSession,
   PinnedSessionMove,
@@ -62,6 +63,11 @@ export interface SessionProjectionRepositoryShape {
   readonly setAuthorizationMode: (
     id: SessionId,
     mode: AgentAuthorizationMode | null,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Pins this session's model choice so it stops tracking the global default. */
+  readonly setSelectedModel: (
+    id: SessionId,
+    model: SupportedModelId,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,

@@ -14,6 +14,7 @@ function row(overrides: Partial<SessionSummaryRow> = {}): SessionSummaryRow {
     last_active_branch_id: null,
     environment_mode: 'local',
     worktree_path: null,
+    selected_model: null,
     ...overrides,
   }
 }

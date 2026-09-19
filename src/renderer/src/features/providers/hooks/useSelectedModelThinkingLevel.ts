@@ -1,6 +1,7 @@
 import type { ModelDisplayInfo, SupportedModelId } from '@shared/types/llm'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
+import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useProviderStore } from '@/features/providers/state/provider-store'
 import { usePreferencesStore } from '@/features/settings/state'
 
@@ -68,7 +69,7 @@ export function resolveSelectedModelThinkingLevel(
 }
 
 export function useSelectedModelThinkingLevel(): SelectedModelThinkingLevel {
-  const selectedModel = usePreferencesStore((state) => state.settings.selectedModel)
+  const selectedModel = useSelectedSessionModel().selectedModel
   const requestedThinkingLevel = usePreferencesStore((state) => state.settings.thinkingLevel)
   const providerModels = useProviderStore((state) => state.providerModels)
 

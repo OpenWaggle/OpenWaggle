@@ -174,6 +174,14 @@ export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
   `,
 ] as const
 
+/** Model explicitly picked for one session; NULL keeps inheriting the global default. */
+export const SESSION_SELECTED_MODEL_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE sessions
+  ADD COLUMN selected_model TEXT
+  `,
+] as const
+
 /** Pending Setup action dispatches, scoped to one Session worktree generation. */
 export const SESSION_WORKTREE_SETUP_MIGRATION_STATEMENTS = [
   `

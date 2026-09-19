@@ -123,6 +123,7 @@ export const api: OpenWaggleApi = {
   archiveSessionBranch: invoke('sessions:archive-branch'),
   restoreSessionBranch: invoke('sessions:restore-branch'),
   updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
+  setSessionSelectedModel: invoke('sessions:set-selected-model'),
   onSessionTitleUpdated: on('sessions:title-updated'),
   onGitWorkingTreeChanged: on('git:working-tree-changed'),
 

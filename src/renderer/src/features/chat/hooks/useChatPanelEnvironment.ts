@@ -1,5 +1,6 @@
 import type { SessionBranchId } from '@shared/types/brand'
 import { useNavigate } from '@tanstack/react-router'
+import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useChat } from '@/features/chat/hooks/useChat'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessionNav } from '@/features/sessions/hooks'
@@ -26,7 +27,7 @@ export function useChatPanelEnvironment() {
   const slashCommandMenuOpen = useUIStore((s) => s.slashCommandMenuOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const showToast = useUIStore((s) => s.showToast)
-  const model = usePreferencesStore((s) => s.settings.selectedModel)
+  const model = useSelectedSessionModel().selectedModel
   const thinkingLevel = usePreferencesStore((s) => s.settings.thinkingLevel)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()

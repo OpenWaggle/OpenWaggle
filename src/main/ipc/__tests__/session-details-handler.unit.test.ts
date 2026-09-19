@@ -60,6 +60,7 @@ describe('registerSessionDetailsHandlers', () => {
       'sessions:update-title',
       'sessions:set-worktree-plan',
       'sessions:set-authorization-mode',
+      'sessions:set-selected-model',
     ])
   })
 

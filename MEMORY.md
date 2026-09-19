@@ -111,6 +111,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for details.
 ## Renderer And Session Memory
 
 - Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.
+- Per-session user choices (picked model, authorization mode) live on the `sessions` row (`selected_model`, `authorization_mode_override`), never in the global settings row: a settings-row write from one session's UI silently retargets every other session's next run. The composer resolves the effective model as session pick → explicit draft pick (`draft-selected-model-store`, flushed on first send) → global default; `settings.selectedModel` is only the default for sessions that never picked.
 - Switching away from a foreground run should demote it to background state, not reject the send promise as an error.
 - Active-run UI continuity needs a renderer-owned render snapshot keyed by session id; persisted run metadata alone does not prove visible reasoning/tool rows remain continuous.
 - First-message sends must bind to the concrete newly created session before async send begins; do not enqueue by current active session after users can switch projects.

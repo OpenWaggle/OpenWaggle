@@ -32,6 +32,8 @@ export interface SessionSummary {
   readonly updatedAt: number
   readonly lastActiveNodeId?: SessionNodeId | null
   readonly lastActiveBranchId?: SessionBranchId | null
+  /** Model explicitly picked for this session; absent means inherit the global default. */
+  readonly selectedModel?: SupportedModelId
   readonly branches?: readonly SessionBranch[]
   readonly treeUiState?: SessionTreeUiState | null
   /** Resolves this session's working path, so per-session git state can be shown in lists. */
@@ -69,6 +71,8 @@ export interface SessionDetail {
   readonly worktreeStartFromOrigin?: boolean
   /** Authorization mode used by this session's runs. */
   readonly authorizationMode?: AgentAuthorizationMode
+  /** Model explicitly picked for this session; absent means inherit the global default. */
+  readonly selectedModel?: SupportedModelId
 }
 
 /** Per-session worktree birth plan persisted by the composer strip (WS1b). */
