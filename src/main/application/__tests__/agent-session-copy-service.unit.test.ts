@@ -150,6 +150,39 @@ describe('agent session copy commands', () => {
     })
   })
 
+  it('attributes delimiter-free visualization references when copying', () => {
+    const sourcePath = '/app-data/visualizations/original-session/map.html'
+    const snapshot = {
+      activeNodeId: 'assistant-map',
+      nodes: [
+        {
+          id: 'assistant-map',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'assistant_message' as const,
+          role: 'assistant' as const,
+          timestampMs: 1,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: `visualize{"path":"${sourcePath}"}` }],
+          }),
+          metadataJson: JSON.stringify({ provider: 'openai' }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+      ],
+    }
+
+    const copied = attributeCopiedVisualizationSources(snapshot, {
+      id: session.id,
+      nodes: [],
+    })
+
+    expect(JSON.parse(copied.nodes[0]?.metadataJson ?? '{}')).toEqual({
+      provider: 'openai',
+      visualizationSessionId: session.id,
+    })
+  })
+
   beforeEach(() => {
     persistSnapshotMock.mockReset()
     forkSessionMock.mockReset()
