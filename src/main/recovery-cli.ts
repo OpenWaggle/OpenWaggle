@@ -3,6 +3,7 @@ import { writeCliStdout } from './cli-stdout'
 import { isCommandCliUsageError } from './command-cli-option-contract'
 import { hasFlag, parseMcpCliArguments } from './mcp-cli-arguments'
 import { validateRecoveryCliOptions } from './recovery-cli-option-contract'
+import { writeRecoveryCliError } from './recovery-cli-output'
 import { withLegacySessionWriterFence } from './session-host/legacy-session-writer-fence'
 import { resolveLocalSessionHostPaths } from './session-host/local-session-paths'
 import {
@@ -34,10 +35,11 @@ function writeResult(value: unknown, json: boolean) {
 }
 
 export async function runRecoveryCli(args: readonly string[]) {
-  const parsed = parseMcpCliArguments(args)
-  const command = parsed.positionals[0]
-  const arguments_ = { ...parsed, positionals: parsed.positionals.slice(1) }
+  const json = args.includes('--json')
   try {
+    const parsed = parseMcpCliArguments(args)
+    const command = parsed.positionals[0]
+    const arguments_ = { ...parsed, positionals: parsed.positionals.slice(1) }
     validateRecoveryCliOptions(command, arguments_)
     if (!command || command === 'help') {
       await writeCliStdout(`${usage()}\n`)
@@ -45,21 +47,21 @@ export async function runRecoveryCli(args: readonly string[]) {
     }
     const paths = resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') })
     if (command === 'status') {
-      await writeResult(await sessionHostRecoveryStatus(paths), hasFlag(arguments_, 'json'))
+      await writeResult(await sessionHostRecoveryStatus(paths), json)
       return EXIT.SUCCESS
     }
     if (!hasFlag(arguments_, 'yes')) {
-      process.stderr.write('error: This operation requires explicit --yes confirmation.\n')
+      writeRecoveryCliError(new Error('This operation requires explicit --yes confirmation.'), json)
       return EXIT.USAGE
     }
     const result =
       command === 'restore-pre-cutover'
         ? await withLegacySessionWriterFence(() => restorePreCutoverDatabase(paths))
         : await deletePreCutoverDatabase(paths)
-    await writeResult(result, hasFlag(arguments_, 'json'))
+    await writeResult(result, json)
     return EXIT.SUCCESS
   } catch (error) {
-    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`)
+    writeRecoveryCliError(error, json)
     return isCommandCliUsageError(error) ? EXIT.USAGE : EXIT.FAILURE
   }
 }

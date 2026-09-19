@@ -18,6 +18,9 @@ openwaggle recovery status --json
 ```
 
 The result names the active and recovery paths, sizes, timestamps, and active schema compatibility. Inspecting status does not start a second database authority.
+With `--json`, failures write `{"schemaVersion":1,"error":{"message":"..."}}` to stderr, including
+invalid options, missing `--yes`, ownership conflicts, and filesystem or migration errors. Usage
+failures exit with code 2; other failures exit with code 1.
 
 ## Restore explicitly
 
