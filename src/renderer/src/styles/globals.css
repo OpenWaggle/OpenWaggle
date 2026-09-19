@@ -653,7 +653,7 @@
 
 @layer components {
   .session-message-image-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(6rem, 100%), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(6rem, 100%), 1fr));
   }
 
   .inline-visualization-surface {
