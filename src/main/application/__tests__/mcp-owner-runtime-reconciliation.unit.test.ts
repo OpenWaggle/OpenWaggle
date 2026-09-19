@@ -1,6 +1,7 @@
 import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import type { executeLocalSessionCommand } from '../../session-host/local-session-client'
+import type { LocalSessionHostPaths } from '../../session-host/local-session-paths'
 import { reconcileMcpOwnerRuntime } from '../mcp-owner-runtime-reconciliation'
 
 const client = {
@@ -34,10 +35,16 @@ describe('MCP owner runtime reconciliation', () => {
         },
       }))
     const ensure = vi.fn(async () => undefined)
+    const rotatedEndpoint = '/state/replacement-host.sock'
+    const refreshPaths = vi.fn(async (paths: LocalSessionHostPaths) => ({
+      ...paths,
+      endpoint: rotatedEndpoint,
+    }))
 
     await reconcileMcpOwnerRuntime(client, '/project', {
       execute: fromAny<typeof executeLocalSessionCommand, typeof execute>(execute),
       ensure,
+      refreshPaths,
     })
 
     expect(ensure).toHaveBeenCalledOnce()
@@ -45,6 +52,10 @@ describe('MCP owner runtime reconciliation', () => {
     expect(execute.mock.calls[1]?.[0].payload.request.requestId).toBe(
       execute.mock.calls[0]?.[0].payload.request.requestId,
     )
+    expect(execute.mock.calls.map(([input]) => input.paths.endpoint)).toEqual([
+      client.paths.endpoint,
+      rotatedEndpoint,
+    ])
   })
 
   it('does not retry a non-transport owner rejection', async () => {

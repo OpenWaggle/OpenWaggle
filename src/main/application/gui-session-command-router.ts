@@ -11,6 +11,7 @@ import {
   ensureLocalSessionHost,
   isLocalSessionHostUnavailable,
 } from '../session-host/local-session-host-launcher'
+import { refreshLocalSessionHostEndpoint } from '../session-host/local-session-paths'
 import { executeConfiguredHostUi } from './configured-host-ui-client'
 import { reconcileMcpOwnerRuntime } from './mcp-owner-runtime-reconciliation'
 
@@ -25,6 +26,7 @@ type GuiSessionCommandRoute =
   | { readonly mode: 'retired-for-upgrade' }
 
 let guiSessionCommandRoute: GuiSessionCommandRoute = { mode: 'local' }
+let guiSessionCommandRouteEpoch = 0
 
 export class GuiSessionHostRetiredForUpgradeError extends Error {
   constructor() {
@@ -36,6 +38,7 @@ export class GuiSessionHostRetiredForUpgradeError extends Error {
 export interface GuiSessionCommandDependencies {
   readonly execute: typeof executeLocalSessionCommand
   readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
+  readonly refreshPaths: typeof refreshLocalSessionHostEndpoint
 }
 
 function canRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayload) {
@@ -49,10 +52,23 @@ function canRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayl
 
 export function configureGuiSessionCommandClient(input: GuiSessionClientInput | null) {
   guiSessionCommandRoute = input ? { mode: 'remote', client: input } : { mode: 'local' }
+  guiSessionCommandRouteEpoch += 1
 }
 
 export function retireGuiSessionCommandClientForUpgrade() {
   guiSessionCommandRoute = { mode: 'retired-for-upgrade' }
+  guiSessionCommandRouteEpoch += 1
+}
+
+function requireActiveGuiSessionCommandRoute(expectedEpoch: number) {
+  const route = guiSessionCommandRoute
+  if (route.mode === 'retired-for-upgrade') {
+    throw new GuiSessionHostRetiredForUpgradeError()
+  }
+  if (route.mode !== 'remote' || guiSessionCommandRouteEpoch !== expectedEpoch) {
+    throw new Error('The GUI Session Host client changed during command dispatch.')
+  }
+  return route
 }
 
 export type ConfiguredHostUiInvocation =
@@ -73,7 +89,14 @@ export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
   const route = guiSessionCommandRoute
   if (route.mode === 'local') return { handled: false }
   if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
-  const result = await executeConfiguredHostUi({ client: route.client, channel, args })
+  const expectedEpoch = guiSessionCommandRouteEpoch
+  const paths = await refreshLocalSessionHostEndpoint(route.client.paths)
+  const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+  const result = await executeConfiguredHostUi({
+    client: { ...activeRoute.client, paths },
+    channel,
+    args,
+  })
   return { handled: true, result }
 }
 
@@ -81,7 +104,10 @@ export async function reconcileConfiguredMcpOwnerRuntime(projectPath: string | n
   const route = guiSessionCommandRoute
   if (route.mode === 'local') return false
   if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
-  await reconcileMcpOwnerRuntime({ ...route.client, clientKind: 'gui' }, projectPath)
+  const expectedEpoch = guiSessionCommandRouteEpoch
+  const paths = await refreshLocalSessionHostEndpoint(route.client.paths)
+  const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+  await reconcileMcpOwnerRuntime({ ...activeRoute.client, paths, clientKind: 'gui' }, projectPath)
   return true
 }
 
@@ -95,6 +121,7 @@ export function dispatchConfiguredGuiSessionCommand(
   const dependencies: GuiSessionCommandDependencies = {
     execute: executeLocalSessionCommand,
     ensure: ensureLocalSessionHost,
+    refreshPaths: refreshLocalSessionHostEndpoint,
     ...dependencyOverrides,
   }
   const route = guiSessionCommandRoute
@@ -102,14 +129,28 @@ export function dispatchConfiguredGuiSessionCommand(
   if (route.mode === 'retired-for-upgrade') {
     return Effect.fail(new GuiSessionHostRetiredForUpgradeError())
   }
-  const configuredGuiClient = route.client
-  const commandInput = {
-    ...configuredGuiClient,
-    clientKind: 'gui' as const,
-    ...(input.caller.workingDirectory ? { workingDirectory: input.caller.workingDirectory } : {}),
-    payload: input.payload,
-  }
+  const expectedEpoch = guiSessionCommandRouteEpoch
   return Effect.tryPromise(async () => {
+    const configuredGuiClient = requireActiveGuiSessionCommandRoute(expectedEpoch).client
+    let paths: GuiSessionClientInput['paths']
+    try {
+      paths = await dependencies.refreshPaths(configuredGuiClient.paths)
+    } catch (error) {
+      if (!isLocalSessionHostUnavailable(error)) throw error
+      requireActiveGuiSessionCommandRoute(expectedEpoch)
+      await dependencies.ensure({ ...configuredGuiClient, clientKind: 'gui' })
+      requireActiveGuiSessionCommandRoute(expectedEpoch)
+      paths = await dependencies.refreshPaths(configuredGuiClient.paths)
+    }
+    const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    guiSessionCommandRoute = { mode: 'remote', client: { ...activeRoute.client, paths } }
+    const commandInput = {
+      ...configuredGuiClient,
+      paths,
+      clientKind: 'gui' as const,
+      ...(input.caller.workingDirectory ? { workingDirectory: input.caller.workingDirectory } : {}),
+      payload: input.payload,
+    }
     try {
       return await dependencies.execute(commandInput)
     } catch (error) {
@@ -119,11 +160,16 @@ export function dispatchConfiguredGuiSessionCommand(
       ) {
         throw error
       }
-      await dependencies.ensure({
-        ...configuredGuiClient,
-        clientKind: 'gui',
-      })
-      return dependencies.execute(commandInput)
+      requireActiveGuiSessionCommandRoute(expectedEpoch)
+      await dependencies.ensure({ ...configuredGuiClient, paths, clientKind: 'gui' })
+      const currentRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+      const recoveredPaths = await dependencies.refreshPaths(currentRoute.client.paths)
+      const recoveredRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+      guiSessionCommandRoute = {
+        mode: 'remote',
+        client: { ...recoveredRoute.client, paths: recoveredPaths },
+      }
+      return dependencies.execute({ ...commandInput, paths: recoveredPaths })
     }
   })
 }

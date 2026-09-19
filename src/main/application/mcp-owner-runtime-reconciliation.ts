@@ -9,10 +9,12 @@ import {
   ensureLocalSessionHost,
   isLocalSessionHostUnavailable,
 } from '../session-host/local-session-host-launcher'
+import { refreshLocalSessionHostEndpoint } from '../session-host/local-session-paths'
 
 export interface McpOwnerReconciliationDependencies {
   readonly execute: typeof executeLocalSessionCommand
   readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
+  readonly refreshPaths: typeof refreshLocalSessionHostEndpoint
 }
 
 async function executeReconciliation(
@@ -58,6 +60,7 @@ export async function reconcileMcpOwnerRuntime(
   const dependencies: McpOwnerReconciliationDependencies = {
     execute: executeLocalSessionCommand,
     ensure: ensureLocalSessionHost,
+    refreshPaths: refreshLocalSessionHostEndpoint,
     ...dependencyOverrides,
   }
   const requestId = randomUUID()
@@ -66,6 +69,7 @@ export async function reconcileMcpOwnerRuntime(
   } catch (error) {
     if (!isLocalSessionHostUnavailable(error)) throw error
     await dependencies.ensure(client)
-    await executeReconciliation(client, projectPath, requestId, dependencies.execute)
+    const paths = await dependencies.refreshPaths(client.paths)
+    await executeReconciliation({ ...client, paths }, projectPath, requestId, dependencies.execute)
   }
 }

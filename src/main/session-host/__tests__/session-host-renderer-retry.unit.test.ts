@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { LocalSessionWatchInput } from '../local-session-event-client'
+import type { LocalSessionHostPaths } from '../local-session-paths'
 import {
   type RemoteSessionHostRendererBridgeDependencies,
   runRemoteSessionHostRendererPump,
@@ -50,7 +52,13 @@ describe('remote Session Host renderer retry loop', () => {
     await runRemoteSessionHostRendererPump({
       paths,
       clientVersion: 'test',
-      dependencies: { watch, ensure, wait, logger: recoveryLog },
+      dependencies: {
+        watch,
+        ensure,
+        refreshPaths: async (candidate) => candidate,
+        wait,
+        logger: recoveryLog,
+      },
       signal: abortController.signal,
       handlers: recoveryHandlers(),
     })
@@ -76,7 +84,13 @@ describe('remote Session Host renderer retry loop', () => {
     await runRemoteSessionHostRendererPump({
       paths,
       clientVersion: 'test',
-      dependencies: { watch, ensure, wait, logger: recoveryLogger() },
+      dependencies: {
+        watch,
+        ensure,
+        refreshPaths: async (candidate) => candidate,
+        wait,
+        logger: recoveryLogger(),
+      },
       signal: abortController.signal,
       handlers: recoveryHandlers(),
     })
@@ -84,6 +98,48 @@ describe('remote Session Host renderer retry loop', () => {
     expect(watch).toHaveBeenCalledTimes(2)
     expect(ensure).toHaveBeenCalledOnce()
     expect(wait).toHaveBeenCalledWith(250, abortController.signal)
+  })
+
+  it('refreshes a rotated endpoint before reconnecting the event subscription', async () => {
+    const abortController = new AbortController()
+    let currentEndpoint = paths.endpoint
+    const rotatedEndpoint = '/state/replacement-host.sock'
+    const refreshPaths = vi.fn(async (candidate: LocalSessionHostPaths) => ({
+      ...candidate,
+      endpoint: currentEndpoint,
+    }))
+    const watch = vi.fn(async (input: LocalSessionWatchInput) => {
+      if (watch.mock.calls.length === 1) {
+        throw Object.assign(new Error('retired endpoint'), { code: 'ECONNREFUSED' })
+      }
+      expect(input.paths.endpoint).toBe(rotatedEndpoint)
+      abortController.abort()
+      return { status: 'closed' as const }
+    })
+    const ensure = vi.fn(async () => {
+      currentEndpoint = rotatedEndpoint
+    })
+
+    await runRemoteSessionHostRendererPump({
+      paths,
+      clientVersion: 'test',
+      dependencies: {
+        watch,
+        ensure,
+        refreshPaths,
+        wait: async () => undefined,
+        logger: recoveryLogger(),
+      },
+      signal: abortController.signal,
+      handlers: recoveryHandlers(),
+    })
+
+    expect(watch.mock.calls.map(([input]) => input.paths.endpoint)).toEqual([
+      paths.endpoint,
+      rotatedEndpoint,
+    ])
+    expect(ensure).toHaveBeenCalledOnce()
+    expect(refreshPaths).toHaveBeenCalledTimes(2)
   })
 
   it('uses an abortable fallback delay when the configured retry wait rejects', async () => {
@@ -118,6 +174,7 @@ describe('remote Session Host renderer retry loop', () => {
         dependencies: {
           watch,
           ensure: async () => undefined,
+          refreshPaths: async (candidate) => candidate,
           wait,
           logger: recoveryLog,
         },
@@ -165,6 +222,7 @@ describe('remote Session Host renderer retry loop', () => {
         dependencies: {
           watch,
           ensure: async () => undefined,
+          refreshPaths: async (candidate) => candidate,
           wait: async () => Promise.reject(new Error('retry scheduler failed')),
           logger: recoveryLog,
         },

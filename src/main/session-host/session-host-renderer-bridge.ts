@@ -16,7 +16,7 @@ import {
 import { watchLocalSessionEvents } from './local-session-client'
 import { ensureLocalSessionHost } from './local-session-host-launcher'
 import type { LocalSessionHostRuntime } from './local-session-host-runtime'
-import type { LocalSessionHostPaths } from './local-session-paths'
+import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 import {
   type RemoteSessionHostRendererBridgeDependencies,
   runRemoteSessionHostRendererPump,
@@ -139,6 +139,7 @@ export function startRemoteSessionHostRendererBridge(
   const dependencies: RemoteSessionHostRendererBridgeDependencies = {
     watch: watchLocalSessionEvents,
     ensure: ensureLocalSessionHost,
+    refreshPaths: refreshLocalSessionHostEndpoint,
     wait: (milliseconds, signal) =>
       new Promise((resolve, reject) => {
         signal?.throwIfAborted()

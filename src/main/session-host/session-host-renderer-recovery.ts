@@ -5,7 +5,7 @@ import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
 import type { watchLocalSessionEvents } from './local-session-client'
 import { LocalSessionClientProtocolError } from './local-session-client-protocol-error'
 import type { ensureLocalSessionHost } from './local-session-host-launcher'
-import type { LocalSessionHostPaths } from './local-session-paths'
+import type { LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
 
 const REMOTE_RECONNECT_DELAY_MS = 250
 const REMOTE_RECOVERY_MAX_DELAY_MS = 4_000
@@ -25,6 +25,7 @@ class RemoteSessionHostSubscriptionClosedError extends Error {
 export interface RemoteSessionHostRendererBridgeDependencies {
   readonly watch: typeof watchLocalSessionEvents
   readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
+  readonly refreshPaths: typeof refreshLocalSessionHostEndpoint
   readonly wait: (milliseconds: number, signal?: AbortSignal) => Promise<void>
   readonly logger: Pick<Logger, 'warn' | 'error'>
 }
@@ -177,6 +178,7 @@ export async function runRemoteSessionHostRendererPump(input: {
   readonly signal: AbortSignal
   readonly handlers: RemoteSessionHostRendererPumpHandlers
 }) {
+  let paths = input.paths
   let after: SessionHostEventEnvelope['cursor'] | undefined
   let pendingResyncReason: string | undefined
   let recoveryAttempts = 0
@@ -186,9 +188,10 @@ export async function runRemoteSessionHostRendererPump(input: {
 
   while (!input.signal.aborted) {
     try {
+      paths = await awaitWithSignal(input.dependencies.refreshPaths(paths), input.signal)
       const result = await awaitWithSignal(
         input.dependencies.watch({
-          paths: input.paths,
+          paths,
           clientKind: 'gui',
           clientVersion: input.clientVersion,
           supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
@@ -227,7 +230,7 @@ export async function runRemoteSessionHostRendererPump(input: {
       if (input.signal.aborted) break
       recoveryAttempts += 1
       const retry = await recoverRemoteRendererConnection({
-        paths: input.paths,
+        paths,
         clientVersion: input.clientVersion,
         dependencies: input.dependencies,
         signal: input.signal,
