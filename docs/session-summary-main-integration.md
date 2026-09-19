@@ -1,6 +1,6 @@
 # Session Summary integration with terminals and browser previews
 
-The Summary branch incorporates main commit `077e9c04` and app version `v0.3.0-alpha.66`, including session-owned terminals, browser previews, and worktree Setup receipts.
+The Summary branch incorporates main commit `82f862a5` and app version `v0.3.0-alpha.70`, including session-owned terminals, browser previews, worktree Setup receipts, and the CI policy in ADR 0033.
 
 ## Session ownership and overlays
 
@@ -48,11 +48,11 @@ Concurrent Git status and branch-list requests for the same path share their pen
 
 The native startup comparison reduced Git child processes from 74 to 30 for the same clean repository. Three no-retry repetitions then showed the branch in 819–847 ms and loaded local VCS status in 2.3–3.2 seconds. The earlier failing probe took 12.4 seconds for local VCS status, without a Git error or retry. These are local diagnostic measurements, not a guarantee for repositories of every size or host load.
 
-Header controls adapt to the header's available width through CSS container queries. Compact layouts keep the Session title and all actions within the window by hiding secondary metadata and collapsing action text to accessible icons. This fixes the Windows shared navigation failure without removing the title-visibility assertion or extending test timeouts. Native QA covers sidebar collapse/restoration at 800, 1024, 1184, and 1600 content pixels; the visual suite separately covers a 720-pixel viewport. Existing Darwin baselines remain unchanged.
+Header controls adapt to the header's available width through CSS container queries. Compact layouts keep the Session title and all actions within the window by hiding secondary metadata and collapsing action text to accessible icons. This fixes the Windows shared navigation failure without extending test timeouts. Native QA covered sidebar collapse/restoration at 800, 1024, 1184, and 1600 content pixels; the former visual suite also covered a 720-pixel viewport before main removed Electron E2E under ADR 0033.
 
-Component regressions cover overlay restoration, session isolation, sidebar ownership, and native-view occlusion requests. The native coexistence E2E checks the actual Electron browser view's visibility and identity while operating the Summary and preview controls.
+Component regressions cover overlay restoration, session isolation, sidebar ownership, and native-view occlusion requests. The former native coexistence E2E checked the actual Electron browser view's visibility and identity while operating the Summary and preview controls. Since main removed that suite, subsequent changes require focused unit/component coverage and hidden real-Electron QA; the native behavior is no longer a CI assertion.
 
-The September 12 macOS retest passed the complete coexistence sequence and all visual baselines, including the request composer and Settings. Provider scenarios passed GitHub ready requests, GitLab draft requests, and unauthenticated browser fallback. Their fake CLI environment now remains first in PATH after desktop login-shell hydration, without changing the app's production shell behavior.
+The September 12 macOS retest passed the complete coexistence sequence and the then-current visual baselines, including the request composer and Settings. Provider scenarios passed GitHub ready requests, GitLab draft requests, and unauthenticated browser fallback. Their fake CLI environment remained first in PATH after desktop login-shell hydration, without changing the app's production shell behavior.
 
 The Linux integration failure on the preceding revision was a PTY fixture surviving its first SIGHUP. Fixture teardown now escalates after one second through the identity-checked native kill and descriptor-close methods. It retains the original ten-second deadline and requires both process exit and successful resource drain before deleting its temporary home. An isolated Linux probe passed 100 runs, including six escalations. A deterministic native regression starts a Bash shell that ignores SIGHUP.
 
