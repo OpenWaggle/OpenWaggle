@@ -2,11 +2,16 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  ensureHost: vi.fn(),
   executeHostUi: vi.fn(),
   reconcileMcp: vi.fn(),
   refreshPaths: vi.fn(),
 }))
 
+vi.mock('../../session-host/local-session-host-launcher', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../session-host/local-session-host-launcher')>()),
+  ensureLocalSessionHost: mocks.ensureHost,
+}))
 vi.mock('../../session-host/local-session-paths', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../session-host/local-session-paths')>()),
   refreshLocalSessionHostEndpoint: mocks.refreshPaths,
@@ -33,6 +38,7 @@ const newEndpoint = '\\\\.\\pipe\\openwaggle-new-session-host'
 
 describe('GUI Host UI endpoint refresh', () => {
   beforeEach(() => {
+    mocks.ensureHost.mockReset().mockResolvedValue(undefined)
     mocks.executeHostUi.mockReset().mockResolvedValue({ theme: 'dark' })
     mocks.reconcileMcp.mockReset().mockResolvedValue(undefined)
     mocks.refreshPaths.mockReset().mockImplementation(async (paths) => ({
@@ -107,5 +113,54 @@ describe('GUI Host UI endpoint refresh', () => {
     await expect(mcp).resolves.toBe(true)
     expect(mocks.executeHostUi).toHaveBeenCalledOnce()
     expect(mocks.reconcileMcp).toHaveBeenCalledOnce()
+  })
+
+  it('recovers and retries a replay-safe Host UI read after the Host exits', async () => {
+    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNREFUSED' })
+    mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce({ theme: 'dark' })
+
+    await expect(invokeConfiguredHostUiRaw('settings:get', [])).resolves.toEqual({
+      handled: true,
+      result: { theme: 'dark' },
+    })
+    expect(mocks.ensureHost).toHaveBeenCalledOnce()
+    expect(mocks.executeHostUi).toHaveBeenCalledTimes(2)
+    expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
+  })
+
+  it('recovers a replay-safe read when endpoint refresh itself reports Host loss', async () => {
+    const unavailable = Object.assign(new Error('Host endpoint disappeared'), { code: 'ENOENT' })
+    mocks.refreshPaths.mockRejectedValueOnce(unavailable).mockImplementation(async (paths) => ({
+      ...paths,
+      endpoint: newEndpoint,
+    }))
+
+    await expect(invokeConfiguredHostUiRaw('agent:list-active-runs', [])).resolves.toEqual({
+      handled: true,
+      result: { theme: 'dark' },
+    })
+    expect(mocks.ensureHost).toHaveBeenCalledOnce()
+    expect(mocks.executeHostUi).toHaveBeenCalledOnce()
+    expect(mocks.refreshPaths).toHaveBeenCalledTimes(2)
+  })
+
+  it('never replays a mutating Host UI command after an ambiguous transport failure', async () => {
+    const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+    mocks.executeHostUi.mockRejectedValueOnce(unavailable)
+
+    await expect(invokeConfiguredHostUiRaw('settings:update', [{}])).rejects.toBe(unavailable)
+    expect(mocks.ensureHost).not.toHaveBeenCalled()
+    expect(mocks.executeHostUi).toHaveBeenCalledOnce()
+  })
+
+  it('does not replay a read if the GUI route retires during recovery', async () => {
+    const unavailable = Object.assign(new Error('Host exited'), { code: 'EPIPE' })
+    mocks.executeHostUi.mockRejectedValueOnce(unavailable)
+    mocks.ensureHost.mockImplementation(async () => retireGuiSessionCommandClientForUpgrade())
+
+    await expect(invokeConfiguredHostUiRaw('sessions:list-page', [{}])).rejects.toBeInstanceOf(
+      GuiSessionHostRetiredForUpgradeError,
+    )
+    expect(mocks.executeHostUi).toHaveBeenCalledOnce()
   })
 })

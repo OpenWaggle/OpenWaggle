@@ -14,7 +14,7 @@ export function registerAgentDefinitionsHandlers() {
     Effect.gen(function* () {
       const owner = browserWindowFromWebContents(event.sender)
       const options: OpenDialogOptions = {
-        title: 'Import Agent definition',
+        title: 'Select Agent definition source',
         properties: ['openFile'],
         filters: [
           { name: 'Agent definitions', extensions: ['md', 'markdown', 'toml'] },

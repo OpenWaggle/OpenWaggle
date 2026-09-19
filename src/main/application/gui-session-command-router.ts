@@ -20,6 +20,29 @@ type GuiSessionClientInput = Omit<
   'workingDirectory' | 'clientKind'
 >
 
+// Only side-effect-free reads can be replayed after an ambiguous transport failure.
+// Mutations (including mixed read/write channels) must remain single-attempt.
+const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
+  'agent:list-active-runs',
+  'agent:get-context-usage',
+  'sessions:get-detail',
+  'sessions:list-by-ids',
+  'sessions:list-page',
+  'sessions:list-hive-page',
+  'sessions:list-archived-branches',
+  'sessions:get-tree',
+  'sessions:get-workspace',
+  'sessions:turn-checkpoints:list',
+  'sessions:turn-diff:get',
+  'sessions:pins:list',
+  'settings:get',
+  'providers:get-models',
+  'project-actions:list',
+  'docs:discover',
+  'skills:list',
+  'skills:get-preview',
+])
+
 type GuiSessionCommandRoute =
   | { readonly mode: 'local' }
   | { readonly mode: 'remote'; readonly client: GuiSessionClientInput }
@@ -71,6 +94,23 @@ function requireActiveGuiSessionCommandRoute(expectedEpoch: number) {
   return route
 }
 
+async function refreshConfiguredHostUiRoute(expectedEpoch: number, replaySafe: boolean) {
+  const client = requireActiveGuiSessionCommandRoute(expectedEpoch).client
+  let paths: GuiSessionClientInput['paths']
+  try {
+    paths = await refreshLocalSessionHostEndpoint(client.paths)
+  } catch (error) {
+    if (!replaySafe || !isLocalSessionHostUnavailable(error)) throw error
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await ensureLocalSessionHost({ ...client, clientKind: 'gui' })
+    const recovered = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    paths = await refreshLocalSessionHostEndpoint(recovered.client.paths)
+  }
+  const active = requireActiveGuiSessionCommandRoute(expectedEpoch)
+  guiSessionCommandRoute = { mode: 'remote', client: { ...active.client, paths } }
+  return guiSessionCommandRoute.client
+}
+
 export type ConfiguredHostUiInvocation =
   | { readonly handled: false }
   | { readonly handled: true; readonly result: unknown }
@@ -90,14 +130,19 @@ export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
   if (route.mode === 'local') return { handled: false }
   if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
   const expectedEpoch = guiSessionCommandRouteEpoch
-  const paths = await refreshLocalSessionHostEndpoint(route.client.paths)
-  const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
-  const result = await executeConfiguredHostUi({
-    client: { ...activeRoute.client, paths },
-    channel,
-    args,
-  })
-  return { handled: true, result }
+  const replaySafe = REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)
+  const client = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
+  try {
+    const result = await executeConfiguredHostUi({ client, channel, args })
+    return { handled: true, result }
+  } catch (error) {
+    if (!replaySafe || !isLocalSessionHostUnavailable(error)) throw error
+    const active = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await ensureLocalSessionHost({ ...active.client, clientKind: 'gui' })
+    const recoveredClient = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
+    const result = await executeConfiguredHostUi({ client: recoveredClient, channel, args })
+    return { handled: true, result }
+  }
 }
 
 export async function reconcileConfiguredMcpOwnerRuntime(projectPath: string | null | undefined) {

@@ -1,10 +1,26 @@
 import type { AgentDefinitionCatalogItem } from '@shared/types/agent-definition'
-import type { AgentDefinitionManagementCommand } from '@shared/types/agent-definition-management'
+import type {
+  AgentDefinitionImportPlan,
+  AgentDefinitionManagementCommand,
+} from '@shared/types/agent-definition-management'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('agent-definitions')
+
+async function reauthorizeRefreshSource() {
+  // Sources selected before a restart or through the CLI are not authorized for this window.
+  return Boolean(await api.selectAgentDefinitionSource())
+}
+
+function requireRefreshablePlan(plan: AgentDefinitionImportPlan) {
+  if (plan.status === 'blocked')
+    throw new Error(plan.diagnostics.join(' ') || 'The imported definition cannot refresh.')
+  if (!plan.existingContentDigest)
+    throw new Error('The refresh plan did not bind the installed Agent definition.')
+  return plan.existingContentDigest
+}
 
 export function useAgentDefinitions(projectPath: string | null) {
   const [catalog, setCatalog] = useState<{
@@ -90,6 +106,7 @@ export function useAgentDefinitions(projectPath: string | null) {
       const generation = projectGeneration.current
       setError(null)
       try {
+        if (!(await reauthorizeRefreshSource()) || projectGeneration.current !== generation) return
         const result = await api.manageAgentDefinitions({
           operation: 'refresh-plan',
           projectPath,
@@ -101,10 +118,7 @@ export function useAgentDefinitions(projectPath: string | null) {
           throw new Error('Unexpected Agent definition refresh response.')
         }
         const { plan } = result
-        if (plan.status === 'blocked')
-          throw new Error(plan.diagnostics.join(' ') || 'The imported definition cannot refresh.')
-        if (!plan.existingContentDigest)
-          throw new Error('The refresh plan did not bind the installed Agent definition.')
+        const existingContentDigest = requireRefreshablePlan(plan)
         let replaceModified = false
         if (plan.status === 'conflict') {
           replaceModified = await api.showConfirm(
@@ -119,7 +133,7 @@ export function useAgentDefinitions(projectPath: string | null) {
           name: item.name,
           scope: item.scope,
           expectedSourceDigest: plan.sourceDigest,
-          expectedContentDigest: plan.existingContentDigest,
+          expectedContentDigest: existingContentDigest,
           replaceModified,
         })
       } catch (cause) {

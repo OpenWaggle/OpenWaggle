@@ -104,5 +104,8 @@ and baseline digest allow `agents refresh` to detect source and destination chan
 silently overwriting local edits. Scopes are `project`, `portable-project`, and `user`.
 When the same name exists in more than one scope, use `agents refresh <name> --scope <scope>`
 to refresh a specific definition. Without `--scope`, the CLI refreshes the normal highest-precedence definition.
+In Settings, Refresh asks you to select the original source file again. This authorizes the current
+OpenWaggle window to read that file, including after an app restart or a CLI import. The Host checks
+the selected sources against the definition's stored import provenance before refreshing.
 
 Agents can discover names and descriptions on demand through the native `sessions` tool using `agent_definitions_list` or `agent_definitions_search`. Instruction bodies are not injected into every Run.

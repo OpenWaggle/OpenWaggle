@@ -2,14 +2,16 @@ import type { AgentDefinitionCatalogItem } from '@shared/types/agent-definition'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { manageAgentDefinitionsMock, showConfirmMock } = vi.hoisted(() => ({
+const { manageAgentDefinitionsMock, selectSourceMock, showConfirmMock } = vi.hoisted(() => ({
   manageAgentDefinitionsMock: vi.fn(),
+  selectSourceMock: vi.fn(),
   showConfirmMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     manageAgentDefinitions: manageAgentDefinitionsMock,
+    selectAgentDefinitionSource: selectSourceMock,
     showConfirm: showConfirmMock,
   },
 }))
@@ -52,6 +54,50 @@ describe('AgentDefinitionsCard refresh lifecycle', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     setProject(PROJECT)
+    selectSourceMock.mockResolvedValue('/imports/reviewer.md')
+  })
+
+  it('reauthorizes a persisted import source before planning refresh', async () => {
+    const selected = Promise.withResolvers<string | null>()
+    selectSourceMock.mockReturnValue(selected.promise)
+    manageAgentDefinitionsMock.mockImplementation(async (command) =>
+      command.operation === 'list'
+        ? { operation: 'list', items: [IMPORTED_REVIEWER] }
+        : { operation: command.operation },
+    )
+    render(<AgentDefinitionsCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh reviewer' }))
+    expect(selectSourceMock).toHaveBeenCalledOnce()
+    expect(manageAgentDefinitionsMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'refresh-plan' }),
+    )
+
+    await act(async () => selected.resolve('/imports/reviewer.md'))
+    await waitFor(() =>
+      expect(manageAgentDefinitionsMock).toHaveBeenCalledWith({
+        operation: 'refresh-plan',
+        projectPath: PROJECT,
+        name: 'reviewer',
+        scope: 'project',
+      }),
+    )
+  })
+
+  it('does not plan refresh when the source picker is cancelled', async () => {
+    selectSourceMock.mockResolvedValue(null)
+    manageAgentDefinitionsMock.mockImplementation(async (command) =>
+      command.operation === 'list'
+        ? { operation: 'list', items: [IMPORTED_REVIEWER] }
+        : { operation: command.operation },
+    )
+    render(<AgentDefinitionsCard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh reviewer' }))
+    await waitFor(() => expect(selectSourceMock).toHaveBeenCalledOnce())
+    expect(manageAgentDefinitionsMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'refresh-plan' }),
+    )
   })
 
   it('cancels a pending refresh when the selected project changes', async () => {

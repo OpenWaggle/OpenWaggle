@@ -48,7 +48,7 @@ function DefinitionRow(props: {
           <Button
             aria-label={`Refresh ${item.name}`}
             size="icon-sm"
-            title="Refresh from import source"
+            title="Choose the import source to refresh"
             variant="ghost"
             onClick={props.onRefresh}
           >
