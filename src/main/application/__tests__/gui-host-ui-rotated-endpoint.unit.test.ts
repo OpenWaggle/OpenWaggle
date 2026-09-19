@@ -150,6 +150,8 @@ describe('GUI Host UI endpoint refresh', () => {
     ['mcp:list-capabilities', [{ projectPath: '/project' }]],
     ['mcp:list-events', [{ sessionId: 'session-1' }]],
     ['mcp:list-event-subscriptions', [{ sessionId: 'session-1' }]],
+    ['mcp:preview-imports', [{ projectPath: '/project', sources: ['codex'] }]],
+    ['project-actions:discover-t3', ['/project']],
   ] as const)('recovers replay-safe %s after Host loss', async (channel, args) => {
     const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
     mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce([])
