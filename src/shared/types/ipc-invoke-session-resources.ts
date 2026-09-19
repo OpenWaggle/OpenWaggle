@@ -60,7 +60,7 @@ export interface SessionResourceIpcInvokeChannels {
     return: SessionResourceBackfillStatus
   }
   'sessions:resources:read': {
-    args: [sessionId: SessionId, resourceId: string]
+    args: [sessionId: SessionId, resourceId: string, preferredFileName?: string]
     return: SessionResourceContent | null
   }
   'sessions:resources:thumbnail': {
@@ -72,7 +72,7 @@ export interface SessionResourceIpcInvokeChannels {
     return: undefined
   }
   'sessions:resources:prepare-attachment': {
-    args: [sessionId: SessionId, resourceId: string]
+    args: [sessionId: SessionId, resourceId: string, preferredFileName?: string]
     return: PreparedAttachment
   }
   'sessions:resources:retry': {

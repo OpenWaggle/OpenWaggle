@@ -145,6 +145,21 @@ describe('session resource image actions', () => {
     })
   })
 
+  it('uses a safe occurrence name when reattaching a reused image', async () => {
+    await invoke(
+      'sessions:resources:prepare-attachment',
+      SessionId('session-one'),
+      IMAGE.id,
+      '../renamed.png',
+    )
+
+    expect(actionMocks.prepareRegisteredImageAttachmentFromBytes).toHaveBeenCalledWith({
+      bytes: Buffer.from('image-bytes'),
+      fileName: '.._renamed.png',
+      mimeType: 'image/png',
+    })
+  })
+
   it('revokes a prepared attachment when its owning Session changes during preparation', async () => {
     const preparation = Promise.withResolvers<PreparedAttachment>()
     actionMocks.prepareRegisteredImageAttachmentFromBytes.mockReturnValue(preparation.promise)

@@ -36,6 +36,16 @@ function safeDownloadFileName(fileName: string) {
   return ascii.length > 0 ? ascii : 'download'
 }
 
+/** A renderer-provided display name may suggest a download/reattachment name, never a path. */
+export function preferredSessionResourceFileName(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const safe = truncateUtf8(
+    value.trim().replaceAll(/[\\/:\p{Cc}]/gu, '_'),
+    MAX_CONTENT_DISPOSITION_FILENAME_BYTES,
+  ).trim()
+  return safe.length === 0 || safe === '.' || safe === '..' ? null : safe
+}
+
 export function downloadContentDisposition(fileName: string) {
   const bounded = boundedDownloadFileName(fileName)
   const encoded = encodeURIComponent(bounded).replaceAll(

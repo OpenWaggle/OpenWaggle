@@ -1,3 +1,4 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { ActiveCompactionInfo } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -8,6 +9,12 @@ import { ActiveRunManager } from './active-run-manager'
 export interface AgentRunControlMetadata {
   readonly controlRef: { current: AgentKernelRunControl | null }
   readonly steerTailRef: { current: Promise<void> }
+  readonly acceptedSteersRef?: { current: AcceptedAgentSteer[] }
+}
+
+export interface AcceptedAgentSteer {
+  readonly payload: AgentSendPayload
+  readonly durableText: string
 }
 
 interface AgentModelMetadata {

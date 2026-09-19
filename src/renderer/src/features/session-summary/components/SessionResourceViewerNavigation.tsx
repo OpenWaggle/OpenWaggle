@@ -4,11 +4,13 @@ import { Button } from '@/shared/ui/Button'
 export function SessionResourceViewerNavigation({
   previousResourceId,
   nextResourceId,
-  onNavigate,
+  onPrevious,
+  onNext,
 }: {
   readonly previousResourceId: string | null
   readonly nextResourceId: string | null
-  readonly onNavigate: (resourceId: string) => void
+  readonly onPrevious: () => void
+  readonly onNext: () => void
 }) {
   return (
     <>
@@ -18,9 +20,7 @@ export function SessionResourceViewerNavigation({
         aria-label="Previous image"
         disabled={previousResourceId === null}
         className="fixed left-5 top-1/2 z-10"
-        onClick={() => {
-          if (previousResourceId) onNavigate(previousResourceId)
-        }}
+        onClick={onPrevious}
       >
         <ChevronLeft className="size-5" />
       </Button>
@@ -30,9 +30,7 @@ export function SessionResourceViewerNavigation({
         aria-label="Next image"
         disabled={nextResourceId === null}
         className="fixed right-5 top-1/2 z-10"
-        onClick={() => {
-          if (nextResourceId) onNavigate(nextResourceId)
-        }}
+        onClick={onNext}
       >
         <ChevronRight className="size-5" />
       </Button>

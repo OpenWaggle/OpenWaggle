@@ -56,7 +56,8 @@ function hydrateRequestedNodeOccurrences(
         SELECT
           id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at,
           ROW_NUMBER() OVER (
-            PARTITION BY resource_id, node_id
+            PARTITION BY resource_id, node_id,
+              CASE WHEN actor = 'extension' THEN 'extension' ELSE id END
             ORDER BY CASE WHEN branch_id = ${branch} THEN 0 ELSE 1 END ASC,
               created_at DESC, id DESC
           ) AS occurrence_rank

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -94,5 +95,73 @@ describe('SqliteSessionResourceRepositoryLive targeted catalog lookups', () => {
     expect(result.prefix[0]?.occurrences.map(({ id }) => id)).toEqual(['occurrence-2-11'])
     expect(result.foreign).toEqual([])
     expect(result.literalWildcard).toEqual([])
+  })
+
+  it('returns every occurrence when one message includes the same deduplicated image twice', async () => {
+    const resources = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const repository = yield* SessionResourceRepository
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
+          ) VALUES (
+            'session-1:node-0-0:provided:attachment:again:1',
+            'resource-0', 'node-0-0', 'branch-active', 'user', 'provided',
+            'again.png', '/again.png', 100000
+          )
+        `
+        const page = yield* repository.listByNodeIdsPage(SessionId('session-1'), {
+          nodeIds: ['node-0-0'],
+          kind: 'image',
+          limit: 10,
+        })
+        return page.resources
+      }).pipe(
+        Effect.provide(
+          makeSessionResourceCatalogTestLayer(path.join(tmpRoot, 'duplicates.sqlite')),
+        ),
+      ),
+    )
+
+    expect(resources).toHaveLength(1)
+    expect(resources[0]?.occurrences.map(({ id }) => id)).toEqual([
+      'occurrence-0-0',
+      'session-1:node-0-0:provided:attachment:again:1',
+    ])
+  })
+
+  it('bounds repeated extension occurrences on one node while retaining the message image', async () => {
+    const resources = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        const repository = yield* SessionResourceRepository
+        yield* sql`
+          WITH RECURSIVE sequence(value) AS (
+            SELECT 1 UNION ALL SELECT value + 1 FROM sequence WHERE value < 100
+          )
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, node_id, branch_id, actor, activity, label, locator, created_at
+          )
+          SELECT 'extension-' || value, 'resource-0', 'node-0-0', 'branch-active',
+                 'extension', 'created', 'Extension image', '/extension.png', 200000 + value
+          FROM sequence
+        `
+        const page = yield* repository.listByNodeIdsPage(SessionId('session-1'), {
+          nodeIds: ['node-0-0'],
+          kind: 'image',
+          limit: 10,
+        })
+        return page.resources
+      }).pipe(
+        Effect.provide(
+          makeSessionResourceCatalogTestLayer(path.join(tmpRoot, 'extension-bound.sqlite')),
+        ),
+      ),
+    )
+
+    expect(resources).toHaveLength(1)
+    expect(resources[0]?.occurrences).toHaveLength(2)
+    expect(resources[0]?.occurrences.map(({ actor }) => actor)).toEqual(['agent', 'extension'])
   })
 })

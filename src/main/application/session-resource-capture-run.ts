@@ -5,6 +5,7 @@ import type { ToolCallResult } from '@shared/types/tools'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import * as Effect from 'effect/Effect'
 import { SessionRepository } from '../ports/session-repository'
+import type { AcceptedAgentSteer } from './active-session-runs'
 import { captureGeneratedImage } from './session-resource-capture-image'
 import {
   type GeneratedImageCaptureBudget,
@@ -38,6 +39,7 @@ interface SuccessfulRunResourceInput {
   readonly messages: readonly Message[]
   readonly nodeIdByMessageId?: Readonly<Record<string, string>>
   readonly branchIdByMessageId?: Readonly<Record<string, string | null>>
+  readonly acceptedSteers?: readonly AcceptedAgentSteer[]
 }
 
 interface AssistantCaptureState {
@@ -250,6 +252,22 @@ export function captureSuccessfulRunResources(input: SuccessfulRunResourceInput)
       Effect.gen(function* () {
         const links: LinkCaptureState = { count: 0 }
         yield* captureUserResources(input, input.messages[0]?.createdAt ?? 0, links)
+        const remainingUserMessages = input.messages
+          .filter((message) => message.role === 'user')
+          .slice(1)
+        for (const steer of input.acceptedSteers ?? []) {
+          const index = remainingUserMessages.findIndex((message) =>
+            message.parts.some((part) => part.type === 'text' && part.text === steer.durableText),
+          )
+          if (index < 0) continue
+          const [message] = remainingUserMessages.splice(index, 1)
+          if (!message) continue
+          yield* captureUserResources(
+            { ...input, payload: steer.payload, messages: [message] },
+            message.createdAt,
+            links,
+          )
+        }
         yield* captureAssistantResources(input, links)
       }),
     ),

@@ -77,6 +77,9 @@ interface UIState {
     readonly sessionId: string
     readonly resourceId: string
     readonly galleryResourceIds?: readonly string[]
+    /** Position is needed when one message uses the same deduplicated image more than once. */
+    readonly galleryIndex?: number
+    readonly galleryTitles?: readonly string[]
   } | null
   workspaceTreeOpen: boolean
 
@@ -103,6 +106,8 @@ interface UIState {
     sessionId: string,
     resourceId: string,
     galleryResourceIds?: readonly string[],
+    galleryIndex?: number,
+    galleryTitles?: readonly string[],
   ) => void
   closeResourceViewer: () => void
   toggleWorkspaceTree: () => void
@@ -225,10 +230,16 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ lastRightSidebarPanel: panel })
   },
 
-  openResourceViewer(sessionId, resourceId, galleryResourceIds) {
+  openResourceViewer(sessionId, resourceId, galleryResourceIds, galleryIndex, galleryTitles) {
     set({
       resourceViewer: galleryResourceIds
-        ? { sessionId, resourceId, galleryResourceIds }
+        ? {
+            sessionId,
+            resourceId,
+            galleryResourceIds,
+            ...(galleryIndex === undefined ? {} : { galleryIndex }),
+            ...(galleryTitles === undefined ? {} : { galleryTitles }),
+          }
         : { sessionId, resourceId },
     })
   },

@@ -297,6 +297,21 @@ describe('UserMessageBubble', () => {
     expect(screen.getAllByText('duplicate.png')).toHaveLength(1)
   })
 
+  it('hides a renamed image chip by attachment position without hiding an unrelated file', () => {
+    mockSessionMessageImageResources.mockReturnValue([
+      { title: 'original.png', attachmentIndex: 1 },
+    ])
+    const message = createUserMessage('u-renamed-image', [
+      { type: 'text', content: '[Attachment] notes.pdf' },
+      { type: 'text', content: '[Attachment] renamed.png' },
+    ])
+
+    render(<UserMessageBubble message={message} />)
+
+    expect(screen.getByText('notes.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('renamed.png')).toBeNull()
+  })
+
   it('does not mount a network-backed Markdown image in a user message', () => {
     const message = createUserMessage('u-image-markdown', [
       { type: 'text', content: '![Private](http://127.0.0.1/private.png)' },

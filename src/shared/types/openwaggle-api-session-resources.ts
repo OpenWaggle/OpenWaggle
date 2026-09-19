@@ -18,7 +18,7 @@ import type {
 } from './session-resource'
 
 type SessionResourceContentReader = (
-  ...args: [SessionId, string]
+  ...args: [SessionId, string, preferredFileName?: string]
 ) => Promise<SessionResourceContent | null>
 
 type SessionResourceThumbnailReader = (
@@ -63,6 +63,7 @@ export interface OpenWaggleSessionResourceApi {
   prepareSessionResourceAttachment(
     sessionId: SessionId,
     resourceId: string,
+    preferredFileName?: string,
   ): Promise<PreparedAttachment>
   retrySessionResource(sessionId: SessionId, resourceId: string): Promise<void>
   recordSessionChangeRequest(

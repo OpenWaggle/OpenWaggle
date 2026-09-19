@@ -63,6 +63,7 @@ function attachmentOccurrence(
     branchId: input.branchId,
     actor: 'user',
     activity: 'provided',
+    label: input.attachment.name,
     locator: input.attachment.path,
     createdAt: input.createdAt,
   })

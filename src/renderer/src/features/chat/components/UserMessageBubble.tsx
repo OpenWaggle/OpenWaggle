@@ -125,15 +125,22 @@ function AttachmentChip({ name }: { readonly name: string }) {
 
 function visibleAttachmentParts(
   textParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[],
-  capturedImages: readonly { readonly title: string }[],
+  capturedImages: readonly { readonly title: string; readonly attachmentIndex: number | null }[],
 ) {
+  const attachmentParts = textParts.filter((part) => isAttachmentText(part.content))
+  const capturedImageSlots = new Set(
+    capturedImages.flatMap(({ attachmentIndex }) =>
+      typeof attachmentIndex === 'number' ? [attachmentIndex] : [],
+    ),
+  )
   const capturedImageCountByName = new Map<string, number>()
   for (const image of capturedImages) {
+    if (typeof image.attachmentIndex === 'number') continue
     capturedImageCountByName.set(image.title, (capturedImageCountByName.get(image.title) ?? 0) + 1)
   }
 
-  return textParts.filter((part) => {
-    if (!isAttachmentText(part.content)) return false
+  return attachmentParts.filter((part, index) => {
+    if (capturedImageSlots.has(index)) return false
     const name = parseAttachmentName(part.content)
     const capturedCount = capturedImageCountByName.get(name) ?? 0
     if (capturedCount === 0) return true
@@ -202,6 +209,9 @@ export function UserMessageBubble({
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
   )
   const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
+  const attachmentNames = textParts
+    .filter((part) => isAttachmentText(part.content))
+    .map((part) => parseAttachmentName(part.content))
   const attachmentParts = visibleAttachmentParts(textParts, capturedImages)
   const isSteerPreview = message.metadata?.steerDelivery !== undefined
   const isWaitingForCompaction = message.metadata?.steerDelivery === 'waiting-for-compaction'
@@ -218,7 +228,7 @@ export function UserMessageBubble({
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
-        <SessionMessageImages messageId={messageNodeId} />
+        <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
         {attachmentParts.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (

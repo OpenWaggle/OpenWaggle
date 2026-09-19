@@ -67,7 +67,6 @@ export function SessionResourceViewer({
     )
   }
 
-  const navigate = (resourceId: string) => controller.open(viewer.sessionId, resourceId)
   const headerProps = {
     resource,
     ...viewerGalleryPosition(controller),
@@ -95,7 +94,8 @@ export function SessionResourceViewer({
         <SessionResourceViewerNavigation
           previousResourceId={controller.previousResourceId}
           nextResourceId={controller.nextResourceId}
-          onNavigate={navigate}
+          onPrevious={controller.navigatePrevious}
+          onNext={controller.navigateNext}
         />
         <SessionResourceViewerContent
           resource={resource}

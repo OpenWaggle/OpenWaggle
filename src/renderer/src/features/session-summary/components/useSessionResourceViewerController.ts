@@ -26,12 +26,11 @@ function useViewerKeyboardNavigation(
   viewerSessionId: string | null,
   previousResourceId: string | null,
   nextResourceId: string | null,
-  galleryResourceIds: readonly string[] | undefined,
-  open: (sessionId: string, resourceId: string, galleryResourceIds?: readonly string[]) => void,
+  navigatePrevious: () => void,
+  navigateNext: () => void,
 ) {
   useEffect(() => {
     if (!viewerSessionId) return
-    const sessionId = viewerSessionId
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target
       const fromInteractiveControl =
@@ -47,19 +46,19 @@ function useViewerKeyboardNavigation(
       ) {
         return
       }
-      const resourceId =
-        event.key === 'ArrowLeft'
-          ? previousResourceId
-          : event.key === 'ArrowRight'
-            ? nextResourceId
-            : null
-      if (!resourceId) return
-      event.preventDefault()
-      open(sessionId, resourceId, galleryResourceIds)
+      if (event.key === 'ArrowLeft' && previousResourceId) {
+        event.preventDefault()
+        navigatePrevious()
+        return
+      }
+      if (event.key === 'ArrowRight' && nextResourceId) {
+        event.preventDefault()
+        navigateNext()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [galleryResourceIds, nextResourceId, open, previousResourceId, viewerSessionId])
+  }, [navigateNext, navigatePrevious, nextResourceId, previousResourceId, viewerSessionId])
 }
 
 function selectedImage(resourceId: string | null, images: readonly SessionResource[]) {
@@ -78,9 +77,13 @@ function selectedZoom(
 function messageGalleryAdjacency(
   resourceId: string | null,
   galleryResourceIds: readonly string[] | undefined,
+  galleryIndex: number | undefined,
 ) {
   if (!resourceId || !galleryResourceIds) return null
-  const index = galleryResourceIds.indexOf(resourceId)
+  const index =
+    galleryIndex !== undefined && galleryResourceIds[galleryIndex] === resourceId
+      ? galleryIndex
+      : galleryResourceIds.indexOf(resourceId)
   if (index < 0) return null
   const count = galleryResourceIds.length
   return {
@@ -99,8 +102,9 @@ function galleryAdjacency(
   location: SessionResourceImageLocation | null,
   resourceId: string | null,
   galleryResourceIds: readonly string[] | undefined,
+  galleryIndex: number | undefined,
 ) {
-  const message = messageGalleryAdjacency(resourceId, galleryResourceIds)
+  const message = messageGalleryAdjacency(resourceId, galleryResourceIds, galleryIndex)
   if (message) return message
   if (location) {
     return {
@@ -127,6 +131,7 @@ function resolveGalleryState(
   resourceId: string | null,
   location: SessionResourceImageLocation | null,
   galleryResourceIds: readonly string[] | undefined,
+  galleryIndex: number | undefined,
 ) {
   const serverImages = resources.filter(isViewableSessionImage)
   const images =
@@ -143,6 +148,7 @@ function resolveGalleryState(
     location,
     resourceId,
     galleryResourceIds,
+    galleryIndex,
   )
   return {
     images,
@@ -214,18 +220,54 @@ export function useSessionResourceViewerController(
     identity.resourceId,
     imageLocation.data ?? null,
     viewer?.galleryResourceIds,
+    viewer?.galleryIndex,
   )
-  const source = useViewerSource(querySessionId, gallery.resource, sessionIsActive)
-  const actions = useViewerResourceActions(viewerSessionId, gallery.resource, activeSessionRef)
-  const zoom = selectedZoom(gallery.resource, zoomState)
+  const displayTitle = gallery.messageScoped ? viewer?.galleryTitles?.[gallery.index] : undefined
+  const resource =
+    gallery.resource && displayTitle
+      ? { ...gallery.resource, title: displayTitle }
+      : gallery.resource
+  const source = useViewerSource(querySessionId, resource, sessionIsActive, displayTitle)
+  const actions = useViewerResourceActions(
+    viewerSessionId,
+    resource,
+    activeSessionRef,
+    displayTitle,
+  )
+  const zoom = selectedZoom(resource, zoomState)
   const centeredZoom = useCenteredImageZoom(
-    gallery.resource ? gallery.resource.id : null,
+    resource ? resource.id : null,
     zoom,
     source.source !== null,
   )
   const changeZoom = (next: Zoom) => {
     centeredZoom.captureCenter(next)
-    setZoomState({ resourceId: gallery.resource ? gallery.resource.id : 'none', zoom: next })
+    setZoomState({ resourceId: resource ? resource.id : 'none', zoom: next })
+  }
+
+  const navigatePrevious = () => {
+    if (!viewerSessionId || !gallery.previousResourceId) return
+    open(
+      viewerSessionId,
+      gallery.previousResourceId,
+      viewer?.galleryResourceIds,
+      viewer?.galleryIndex === undefined || !gallery.messageScoped || gallery.count === null
+        ? undefined
+        : (gallery.index - 1 + gallery.count) % gallery.count,
+      viewer?.galleryTitles,
+    )
+  }
+  const navigateNext = () => {
+    if (!viewerSessionId || !gallery.nextResourceId) return
+    open(
+      viewerSessionId,
+      gallery.nextResourceId,
+      viewer?.galleryResourceIds,
+      viewer?.galleryIndex === undefined || !gallery.messageScoped || gallery.count === null
+        ? undefined
+        : (gallery.index + 1) % gallery.count,
+      viewer?.galleryTitles,
+    )
   }
 
   useCloseViewerOnSessionChange(viewerSessionId, activeSessionId, close)
@@ -233,8 +275,8 @@ export function useSessionResourceViewerController(
     viewerSessionId,
     gallery.previousResourceId,
     gallery.nextResourceId,
-    viewer?.galleryResourceIds,
-    open,
+    navigatePrevious,
+    navigateNext,
   )
   usePrefetchNextGalleryPage(
     gallery.loadedIndex,
@@ -247,13 +289,14 @@ export function useSessionResourceViewerController(
   return {
     viewer,
     close,
-    open: (sessionId: string, resourceId: string) =>
-      open(sessionId, resourceId, viewer?.galleryResourceIds),
+    navigatePrevious,
+    navigateNext,
     viewerSessionId,
     branchNames,
     catalog,
     imageLocation,
     ...gallery,
+    resource,
     source,
     actions,
     zoom,

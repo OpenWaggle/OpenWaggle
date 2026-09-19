@@ -6,6 +6,7 @@ import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
+import type { AcceptedAgentSteer } from '../application/active-session-runs'
 import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
 import { executeWaggleRun } from '../application/waggle-run-service'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
@@ -137,7 +138,12 @@ function handleSendWaggleMessage(
     const runId = waggleRunId(sessionId)
     const controlRef: { current: AgentKernelRunControl | null } = { current: null }
     const steerTailRef: { current: Promise<void> } = { current: Promise.resolve() }
-    activeWaggleRuns.register(sessionId, abortController, { controlRef, steerTailRef })
+    const acceptedSteersRef: { current: AcceptedAgentSteer[] } = { current: [] }
+    activeWaggleRuns.register(sessionId, abortController, {
+      controlRef,
+      steerTailRef,
+      acceptedSteersRef,
+    })
 
     return yield* Effect.ensuring(
       runRegisteredWaggleMessage(
@@ -148,6 +154,7 @@ function handleSendWaggleMessage(
         config,
         abortController,
         controlRef,
+        acceptedSteersRef,
       ),
       Effect.sync(() => {
         cancelAgentLoopInteractionsForRun({ sessionId, runId })
@@ -165,6 +172,7 @@ function runRegisteredWaggleMessage(
   config: WaggleConfig,
   abortController: AbortController,
   controlRef: { current: AgentKernelRunControl | null },
+  acceptedSteersRef: { current: AcceptedAgentSteer[] },
 ) {
   return Effect.gen(function* () {
     const result: WaggleHandlerResult = yield* executeWaggleRun({
@@ -188,7 +196,7 @@ function runRegisteredWaggleMessage(
         broadcastToWindows('sessions:title-updated', { sessionId, title }),
     })
 
-    yield* captureRunResultResources(sessionId, runId, payload, result)
+    yield* captureRunResultResources(sessionId, runId, payload, result, acceptedSteersRef.current)
 
     if (result.outcome === 'error') {
       emitWorktreeLaunchFailure(sessionId, result.message)

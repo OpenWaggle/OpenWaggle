@@ -22,6 +22,7 @@ interface RegisteredSessionResourceContent {
   readonly controller: AbortController
   readonly ownerId: number
   readonly resourceId: string
+  readonly fileName: string
   readonly sessionId: SessionId
   readonly expiresAt: number
   readonly registeredAt: number
@@ -113,6 +114,7 @@ export function registerSessionResourceContentReference(
     ownerId,
     sessionId: input.sessionId,
     resourceId: input.resourceId,
+    fileName: input.fileName,
     expiresAt: now + registrationTtlMs,
     registeredAt: now,
   })
@@ -272,7 +274,7 @@ export function registerSessionResourceProtocolOnce(
           'content-type': safeMimeType(content.mimeType),
           'content-disposition':
             target.action === SESSION_RESOURCE_PROTOCOL.DOWNLOAD_PATH
-              ? downloadContentDisposition(content.fileName)
+              ? downloadContentDisposition(registration.fileName)
               : 'inline',
           'cache-control': 'no-store',
           'referrer-policy': 'no-referrer',

@@ -91,6 +91,7 @@ export function useViewerSource(
   sessionId: string | null,
   resource: SessionResource | null,
   sessionIsActive: boolean,
+  preferredFileName?: string,
 ) {
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const identity = {
@@ -105,6 +106,7 @@ export function useViewerSource(
       identity.sessionId,
       identity.resourceId,
       identity.updatedAt,
+      preferredFileName,
     ),
     enabled: flags.enabled,
   })
@@ -131,10 +133,21 @@ export function useViewerSource(
   }
 }
 
+function prepareViewerAttachment(
+  sessionId: string,
+  resourceId: string,
+  preferredFileName?: string,
+) {
+  return preferredFileName
+    ? api.prepareSessionResourceAttachment(SessionId(sessionId), resourceId, preferredFileName)
+    : api.prepareSessionResourceAttachment(SessionId(sessionId), resourceId)
+}
+
 export function useViewerResourceActions(
   sessionId: string | null,
   resource: SessionResource | null,
   activeSessionRef: { readonly current: string | null },
+  preferredFileName?: string,
 ) {
   const showToast = useUIStore((state) => state.showToast)
   const [copying, setCopying] = useState(false)
@@ -163,10 +176,7 @@ export function useViewerResourceActions(
     }
     setAddingToChat(true)
     try {
-      const attachment = await api.prepareSessionResourceAttachment(
-        SessionId(sessionId),
-        resource.id,
-      )
+      const attachment = await prepareViewerAttachment(sessionId, resource.id, preferredFileName)
       let added = false
       try {
         const activeViewer = useUIStore.getState().resourceViewer

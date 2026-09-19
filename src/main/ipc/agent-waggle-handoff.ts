@@ -5,6 +5,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleHandoffRequest, WaggleInvocation } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
+import type { AcceptedAgentSteer } from '../application/active-session-runs'
 import { executeWaggleRun } from '../application/waggle-run-service'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -36,6 +37,7 @@ export function runAgentRequestedWaggle(input: {
   readonly model: SupportedModelId
   readonly thinkingLevel: AgentSendPayload['thinkingLevel']
   readonly abortController: AbortController
+  readonly acceptedSteersRef: { current: AcceptedAgentSteer[] }
   readonly onControlAvailable?: (control: AgentKernelRunControl) => void
 }) {
   return Effect.gen(function* () {
@@ -81,7 +83,13 @@ export function runAgentRequestedWaggle(input: {
       },
     })
 
-    yield* captureRunResultResources(input.sessionId, runId, payload, result)
+    yield* captureRunResultResources(
+      input.sessionId,
+      runId,
+      payload,
+      result,
+      input.acceptedSteersRef.current,
+    )
 
     matchBy(result, 'outcome')
       // 'error' joins these: a run that failed is reported like a run that was refused up front.

@@ -13,6 +13,7 @@ import {
 } from '../application/session-resource-content'
 import { SessionResourceRepository } from '../ports/session-resource-repository'
 import { SessionResourceStore } from '../ports/session-resource-store'
+import { preferredSessionResourceFileName } from '../session-resource-content-disposition'
 import {
   activateSessionResourceContentOwner,
   beginSessionResourceContentRequest,
@@ -60,15 +61,23 @@ export function registerSessionResourceImageHandlers() {
     }),
   )
 
-  typedHandle('sessions:resources:read', (event, rawSessionId: unknown, rawResourceId: unknown) =>
-    Effect.gen(function* () {
-      const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
-      const request = beginSessionResourceContentRequest(event.sender, sessionId)
-      if (!request.isCurrent()) return null
-      const location = yield* prepareSessionResourceContent(sessionId, resourceId)
-      if (!location || !request.isCurrent()) return null
-      return registerSessionResourceContentReference(location, event.sender.id)
-    }),
+  typedHandle(
+    'sessions:resources:read',
+    (event, rawSessionId: unknown, rawResourceId: unknown, rawPreferredFileName?: unknown) =>
+      Effect.gen(function* () {
+        const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
+        const request = beginSessionResourceContentRequest(event.sender, sessionId)
+        if (!request.isCurrent()) return null
+        const location = yield* prepareSessionResourceContent(sessionId, resourceId)
+        if (!location || !request.isCurrent()) return null
+        return registerSessionResourceContentReference(
+          {
+            ...location,
+            fileName: preferredSessionResourceFileName(rawPreferredFileName) ?? location.fileName,
+          },
+          event.sender.id,
+        )
+      }),
   )
 
   typedHandle(
@@ -106,7 +115,7 @@ export function registerSessionResourceImageHandlers() {
 
   typedHandle(
     'sessions:resources:prepare-attachment',
-    (event, rawSessionId: unknown, rawResourceId: unknown) =>
+    (event, rawSessionId: unknown, rawResourceId: unknown, rawPreferredFileName?: unknown) =>
       Effect.gen(function* () {
         const { sessionId, resourceId } = decodeResourceTarget(rawSessionId, rawResourceId)
         const request = beginSessionResourceContentRequest(event.sender, sessionId)
@@ -128,7 +137,7 @@ export function registerSessionResourceImageHandlers() {
         const prepared = yield* Effect.promise(() =>
           prepareRegisteredImageAttachmentFromBytes({
             bytes,
-            fileName: location.fileName,
+            fileName: preferredSessionResourceFileName(rawPreferredFileName) ?? location.fileName,
             mimeType: location.mimeType,
           }),
         )

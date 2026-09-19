@@ -159,6 +159,32 @@ describe('Session resource protocol', () => {
     expect(disposition).not.toContain('💣'.repeat(100))
   })
 
+  it('downloads a reused image with the current occurrence name, not its canonical name', async () => {
+    subject.registerSessionResourceProtocolOnce({
+      readContent: async () => ({
+        fileName: 'original.png',
+        mimeType: 'image/png',
+        body: new Blob([new Uint8Array([1])]).stream(),
+      }),
+    })
+    const reference = subject.registerSessionResourceContentReference(
+      {
+        sessionId: SessionId('session-one'),
+        resourceId: 'resource-one',
+        fileName: 'renamed.png',
+        mimeType: 'image/png',
+      },
+      41,
+    )
+
+    const response = await registeredProtocolHandler()({
+      method: 'GET',
+      referrer: 'openwaggle://app/',
+      url: reference.downloadUrl,
+    })
+    expect(response.headers.get('content-disposition')).toContain('filename="renamed.png"')
+  })
+
   it('rejects forged, expired, purged, malformed, and excess registrations', async () => {
     let now = 1_000
     let sequence = 0
@@ -235,7 +261,7 @@ describe('Session resource protocol', () => {
     expect(download.headers.get('content-disposition')).toContain('attachment;')
     expect(download.headers.get('content-disposition')).not.toContain('\r')
     expect(download.headers.get('content-disposition')).not.toContain('\n')
-    expect(download.headers.get('content-disposition')).toContain('%27%0D%0A')
+    expect(download.headers.get('content-disposition')).toContain('filename="third.png"')
 
     subject.unregisterSessionResourceContentReferencesForOwner(42)
     await expect(

@@ -26,9 +26,28 @@ describe('agent handler steering lifecycle', () => {
 
     expect(await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))).toEqual(STEER_RESULT)
     expect(nativeSteer).toHaveBeenCalledWith(PAYLOAD)
+    expect(activeRuns.get(SESSION_ID)?.metadata.acceptedSteersRef?.current).toEqual([
+      { payload: PAYLOAD, durableText: STEER_DELIVERY.durableText },
+    ])
     expect(activeRuns.has(SESSION_ID)).toBe(true)
     expect(mocks.emitRunCompleted).not.toHaveBeenCalled()
 
+    await Effect.runPromise(cancel({}, SESSION_ID))
+    await run
+  })
+
+  it('does not capture a steer handled by an input hook before queueing', async () => {
+    const nativeSteer = vi.fn(async () => ({ delivery: 'handled' as const }))
+    installPendingAgentRun(nativeSteer)
+    const { cancel, send, steer } = registerHandlers()
+    const run = Effect.runPromise(send({}, SESSION_ID, PAYLOAD, MODEL))
+    await vi.waitFor(() => expect(mocks.executeAgentRun).toHaveBeenCalledOnce())
+
+    expect(await Effect.runPromise(steer({}, SESSION_ID, PAYLOAD))).toEqual({
+      preserved: true,
+      delivery: { delivery: 'handled' },
+    })
+    expect(activeRuns.get(SESSION_ID)?.metadata.acceptedSteersRef?.current).toEqual([])
     await Effect.runPromise(cancel({}, SESSION_ID))
     await run
   })

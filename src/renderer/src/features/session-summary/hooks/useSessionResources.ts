@@ -21,7 +21,9 @@ export {
 
 type SessionResourcesQueryKey = readonly ['session-resources', string]
 type SessionResourceBackfillQueryKey = readonly ['session-resource-backfill', string]
-type SessionResourceContentQueryKey = readonly ['session-resource-content', string, string, number]
+type SessionResourceContentQueryKey =
+  | readonly ['session-resource-content', string, string, number]
+  | readonly ['session-resource-content', string, string, number, string]
 type SessionResourceThumbnailQueryKey = readonly [
   'session-resource-thumbnail',
   string,
@@ -166,6 +168,7 @@ export function sessionResourceContentQueryOptions(
   sessionId: string,
   resourceId: string,
   resourceRevision: number,
+  preferredFileName?: string,
 ): OpenWaggleQueryOptions<
   SessionResourceContent | null,
   Error,
@@ -173,8 +176,19 @@ export function sessionResourceContentQueryOptions(
   SessionResourceContentQueryKey
 > {
   return queryOptions({
-    queryKey: ['session-resource-content', sessionId, resourceId, resourceRevision] as const,
-    queryFn: () => api.readSessionResource(SessionId(sessionId), resourceId),
+    queryKey: preferredFileName
+      ? ([
+          'session-resource-content',
+          sessionId,
+          resourceId,
+          resourceRevision,
+          preferredFileName,
+        ] as const)
+      : (['session-resource-content', sessionId, resourceId, resourceRevision] as const),
+    queryFn: () =>
+      preferredFileName
+        ? api.readSessionResource(SessionId(sessionId), resourceId, preferredFileName)
+        : api.readSessionResource(SessionId(sessionId), resourceId),
     gcTime: 0,
     staleTime: Number.POSITIVE_INFINITY,
   })
