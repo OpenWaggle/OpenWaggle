@@ -15,6 +15,7 @@ const logger = createRendererLogger('session-status-monitor')
 
 async function hydrateLiveSessionStatuses(input: {
   readonly cancelled: () => boolean
+  readonly completedDuringHydration: (sessionId: SessionId) => boolean
   readonly setStatus: (sessionId: SessionId, status: SessionStatus, updatedAt: number) => void
   readonly registerWaggleRun: (sessionId: SessionId) => void
 }) {
@@ -22,6 +23,7 @@ async function hydrateLiveSessionStatuses(input: {
   if (input.cancelled()) return
 
   for (const run of runs) {
+    if (input.completedDuringHydration(run.sessionId)) continue
     const waggle = run.activity === 'agent-run' && run.mode === 'waggle'
     if (waggle) input.registerWaggleRun(run.sessionId)
     input.setStatus(run.sessionId, waggle ? 'waggle-running' : 'working', run.startedAt)
@@ -30,22 +32,25 @@ async function hydrateLiveSessionStatuses(input: {
 
   for (let offset = 0; offset < runs.length; offset += RUNTIME_HYDRATION_CONCURRENCY) {
     const pages = await Promise.allSettled(
-      runs.slice(offset, offset + RUNTIME_HYDRATION_CONCURRENCY).map(async (run) => {
-        const response = await api.querySessionControl({
-          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-          requestId: crypto.randomUUID(),
-          query: { operation: 'requests-list', sessionId: run.sessionId },
-        })
-        if (response.outcome.operation !== 'requests-list' || !('requests' in response.outcome)) {
-          return null
-        }
-        const oldest = response.outcome.requests.reduce<number | null>(
-          (current, request) =>
-            current === null || request.createdAt < current ? request.createdAt : current,
-          null,
-        )
-        return oldest === null ? null : { sessionId: run.sessionId, createdAt: oldest }
-      }),
+      runs
+        .slice(offset, offset + RUNTIME_HYDRATION_CONCURRENCY)
+        .filter((run) => !input.completedDuringHydration(run.sessionId))
+        .map(async (run) => {
+          const response = await api.querySessionControl({
+            contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+            requestId: crypto.randomUUID(),
+            query: { operation: 'requests-list', sessionId: run.sessionId },
+          })
+          if (response.outcome.operation !== 'requests-list' || !('requests' in response.outcome)) {
+            return null
+          }
+          const oldest = response.outcome.requests.reduce<number | null>(
+            (current, request) =>
+              current === null || request.createdAt < current ? request.createdAt : current,
+            null,
+          )
+          return oldest === null ? null : { sessionId: run.sessionId, createdAt: oldest }
+        }),
     )
     if (input.cancelled()) return
     for (const page of pages) {
@@ -56,6 +61,7 @@ async function hydrateLiveSessionStatuses(input: {
         continue
       }
       if (!page.value) continue
+      if (input.completedDuringHydration(page.value.sessionId)) continue
       input.setStatus(page.value.sessionId, 'awaiting-input', page.value.createdAt)
     }
   }
@@ -84,6 +90,7 @@ export function useSessionStatusMonitor(): void {
   useEffect(() => {
     let cancelled = false
     const activeWaggleSessions = new Set<SessionId>()
+    const completedDuringHydration = new Set<SessionId>()
 
     function setStatusWithVisitCheck(
       sessionId: SessionId,
@@ -93,6 +100,7 @@ export function useSessionStatusMonitor(): void {
       setStatus(sessionId, status, updatedAt)
       // If the user is currently viewing this session and it's a terminal status, auto-mark visited
       if (TERMINAL_STATUSES.has(status)) {
+        completedDuringHydration.add(sessionId)
         const activeId = useChatStore.getState().activeSessionId
         if (sessionId === activeId) {
           markVisited(sessionId)
@@ -111,6 +119,7 @@ export function useSessionStatusMonitor(): void {
     })
 
     const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
+      completedDuringHydration.add(sessionId)
       activeWaggleSessions.delete(sessionId)
       markRunCompleted(sessionId)
       if (sessionId === useChatStore.getState().activeSessionId) markVisited(sessionId)
@@ -188,6 +197,7 @@ export function useSessionStatusMonitor(): void {
 
     void hydrateLiveSessionStatuses({
       cancelled: () => cancelled,
+      completedDuringHydration: (sessionId) => completedDuringHydration.has(sessionId),
       setStatus: setStatusWithVisitCheck,
       registerWaggleRun: (sessionId) => activeWaggleSessions.add(sessionId),
     }).catch((error: unknown) => {
