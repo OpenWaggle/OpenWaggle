@@ -58,7 +58,7 @@ describe('Pi run orchestration', () => {
     runMocks.createSessionListener.mockReturnValue(() => undefined)
     runMocks.getPiModelAvailableThinkingLevels.mockReturnValue(['off', 'medium', 'high'])
   })
-  it('runs a classic Pi prompt with project runtime, listener subscription, and disposal', async () => {
+  it('runs a classic Pi prompt with project runtime, event subscriptions, and disposal', async () => {
     const fakePi = createFakePi()
     const session = createFakeSession(fakePi.getAgentEndHandler)
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => ({
@@ -83,7 +83,8 @@ describe('Pi run orchestration', () => {
         extensionFactories: expect.any(Array),
       }),
     )
-    expect(session.subscribe).toHaveBeenCalledOnce()
+    // One listener projects Pi events; the other tracks durable Follow-up delivery.
+    expect(session.subscribe).toHaveBeenCalledTimes(2)
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()
     expect(session.agent.hasQueuedMessages).toHaveBeenCalled()
