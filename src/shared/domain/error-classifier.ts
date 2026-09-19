@@ -45,8 +45,9 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'provider-unavailable': {
-    userMessage: 'Could not connect to provider',
-    suggestion: 'Check your network connection and provider base URL in Settings.',
+    userMessage: 'Provider connection failed',
+    suggestion:
+      'Check that the provider is reachable. Long pauses may require a higher Pi HTTP idle timeout.',
     retryable: true,
   },
   'session-not-found': {
@@ -173,13 +174,10 @@ function isModelNotFoundError(lower: string) {
 }
 
 function isProviderUnavailableError(lower: string) {
-  return containsAny(lower, [
-    'econnrefused',
-    'enotfound',
-    'etimedout',
-    'fetch failed',
-    'network error',
-  ])
+  return (
+    lower === 'terminated' ||
+    containsAny(lower, ['econnrefused', 'enotfound', 'etimedout', 'fetch failed', 'network error'])
+  )
 }
 
 const ERROR_CLASSIFICATION_RULES: readonly ErrorClassificationRule[] = [

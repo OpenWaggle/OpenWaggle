@@ -13,6 +13,42 @@ const usage = {
 }
 
 describe('createSessionListener Pi compatibility', () => {
+  it('marks retrying failures as provisional and a stopped retry as cancelled', () => {
+    const emitted: AgentTransportEvent[] = []
+    const listener = createSessionListener(
+      {
+        model: SupportedModelId('spark/GLM-5.3-Flash-EXL3'),
+        onEvent: (event) => emitted.push(event),
+      },
+      'run-1',
+    )
+
+    listener({
+      type: 'agent_end',
+      willRetry: true,
+      messages: [
+        {
+          role: 'assistant',
+          content: [],
+          api: 'openai-completions',
+          provider: 'spark',
+          model: 'GLM-5.3-Flash-EXL3',
+          usage,
+          stopReason: 'error',
+          errorMessage: 'terminated',
+          timestamp: 1,
+        },
+      ],
+    })
+    listener({ type: 'auto_retry_end', success: false, attempt: 1, finalError: 'Retry cancelled' })
+
+    expect(emitted).toMatchObject([
+      { type: 'agent_end', reason: 'error', willRetry: true },
+      { type: 'auto_retry_end', success: false, attempt: 1, cancelled: true },
+    ])
+    expect(emitted[1]).not.toHaveProperty('finalError')
+  })
+
   it('does not duplicate Pi settlement or extension-entry persistence as transport events', () => {
     const emitted: AgentTransportEvent[] = []
     const listener = createSessionListener(
