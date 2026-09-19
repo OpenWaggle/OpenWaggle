@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { agentDefinitionManagementCommandSchema } from '@shared/schemas/agent-definition-management'
+import type { AgentDefinitionScope } from '@shared/types/agent-definition'
 import type { AgentDefinitionManagementCommand } from '@shared/types/agent-definition-management'
 
 const selectedSourcesBySender = new Map<number, Set<string>>()
@@ -37,6 +38,7 @@ export async function authorizeAgentDefinitionUiCommand(input: {
   readonly resolveRefreshSourcePath?: (
     projectPath: string,
     name: string,
+    scope?: AgentDefinitionScope,
   ) => Promise<string | undefined>
 }): Promise<AgentDefinitionManagementCommand> {
   const command = decodeUnknownExactOrThrow(agentDefinitionManagementCommandSchema, input.command)
@@ -67,7 +69,11 @@ export async function authorizeAgentDefinitionUiCommand(input: {
     throw new Error('Import provenance is managed by OpenWaggle and cannot be written by the UI.')
   }
   if (command.operation === 'refresh-plan' || command.operation === 'refresh-apply') {
-    const sourcePath = await input.resolveRefreshSourcePath?.(canonicalProjectPath, command.name)
+    const sourcePath = await input.resolveRefreshSourcePath?.(
+      canonicalProjectPath,
+      command.name,
+      command.scope,
+    )
     if (!sourcePath) throw new Error('This Agent definition has no refreshable import source.')
     const canonicalSourcePath = await canonicalExistingPath(sourcePath, 'Import source')
     if (!selectedSourcePaths?.has(canonicalSourcePath)) {

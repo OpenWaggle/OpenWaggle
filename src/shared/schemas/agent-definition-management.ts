@@ -98,11 +98,13 @@ export const agentDefinitionManagementCommandSchema = Schema.Union(
     operation: Schema.Literal('refresh-plan'),
     ...projectPathSchema,
     name: Schema.String,
+    scope: Schema.optional(scopeSchema),
   }),
   Schema.Struct({
     operation: Schema.Literal('refresh-apply'),
     ...projectPathSchema,
     name: Schema.String,
+    scope: Schema.optional(scopeSchema),
     expectedSourceDigest: Schema.String,
     expectedContentDigest: Schema.String,
     replaceModified: Schema.optional(Schema.Boolean),

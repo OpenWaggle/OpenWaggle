@@ -109,8 +109,14 @@ async function refreshCommand(input: {
   readonly loadSemanticCatalog: AgentDefinitionSemanticCatalogLoader
 }) {
   const name = required(input.arguments_.positionals[0], 'Agent definition name')
+  const scopeOption = option(input.arguments_, 'scope')
+  const target = {
+    projectPath: input.projectPath,
+    name,
+    ...(scopeOption ? { scope: parseAgentDefinitionScope(scopeOption) } : {}),
+  }
   const planned = await executeAgentDefinitionManagement(
-    { operation: 'refresh-plan', projectPath: input.projectPath, name },
+    { operation: 'refresh-plan', ...target },
     managementContext(input),
   )
   if (planned.operation !== 'refresh-plan') throw new Error('Expected an Agent refresh plan.')
@@ -124,8 +130,7 @@ async function refreshCommand(input: {
   return executeAgentDefinitionManagement(
     {
       operation: 'refresh-apply',
-      projectPath: input.projectPath,
-      name,
+      ...target,
       expectedSourceDigest: planned.plan.sourceDigest,
       expectedContentDigest: planned.plan.existingContentDigest,
       ...(hasFlag(input.arguments_, 'replace') ? { replaceModified: true } : {}),

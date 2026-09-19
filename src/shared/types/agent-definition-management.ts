@@ -85,11 +85,13 @@ export type AgentDefinitionManagementCommand =
       readonly operation: 'refresh-plan'
       readonly projectPath: string
       readonly name: string
+      readonly scope?: AgentDefinitionWritableScope
     }
   | {
       readonly operation: 'refresh-apply'
       readonly projectPath: string
       readonly name: string
+      readonly scope?: AgentDefinitionWritableScope
       readonly expectedSourceDigest: string
       readonly expectedContentDigest: string
       readonly replaceModified?: boolean

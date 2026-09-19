@@ -50,8 +50,8 @@ export function manageHostUiAgentDefinitions(
           ...settings.recentProjects,
           ...sessions.map((session) => session.projectPath),
         ].filter((projectPath): projectPath is string => typeof projectPath === 'string'),
-        resolveRefreshSourcePath: async (projectPath, name) => {
-          const definition = await resolve({ projectPath, name })
+        resolveRefreshSourcePath: async (projectPath, name, scope) => {
+          const definition = await resolve({ projectPath, name, ...(scope ? { scope } : {}) })
           return definition.import?.sourcePath
         },
       }),

@@ -13,7 +13,7 @@ const OPTIONS_BY_COMMAND: Readonly<Record<string, readonly string[]>> = {
   duplicate: ['scope', 'project'],
   delete: ['scope', 'project', 'expected-digest'],
   import: ['from', 'scope', 'project', 'source-name', 'dry-run', 'replace', 'expected-digest'],
-  refresh: ['project', 'dry-run', 'replace'],
+  refresh: ['project', 'scope', 'dry-run', 'replace'],
 }
 const BOOLEAN_OPTIONS = new Set(['dry-run', 'json', 'replace'])
 const ARGUMENTS_BY_COMMAND = {

@@ -121,6 +121,7 @@ function semanticDocument(
 async function refreshPlan(input: {
   readonly projectPath: string
   readonly name: string
+  readonly scope?: AgentDefinitionScope
   readonly userHome: string
   readonly now: number
   readonly semanticCatalog?: AgentDefinitionSemanticCatalog

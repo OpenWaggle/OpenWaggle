@@ -94,18 +94,17 @@ export function useAgentDefinitions(projectPath: string | null) {
           operation: 'refresh-plan',
           projectPath,
           name: item.name,
+          scope: item.scope,
         })
         if (projectGeneration.current !== generation) return
         if (result.operation !== 'refresh-plan') {
           throw new Error('Unexpected Agent definition refresh response.')
         }
         const { plan } = result
-        if (plan.status === 'blocked') {
+        if (plan.status === 'blocked')
           throw new Error(plan.diagnostics.join(' ') || 'The imported definition cannot refresh.')
-        }
-        if (!plan.existingContentDigest) {
+        if (!plan.existingContentDigest)
           throw new Error('The refresh plan did not bind the installed Agent definition.')
-        }
         let replaceModified = false
         if (plan.status === 'conflict') {
           replaceModified = await api.showConfirm(
@@ -118,6 +117,7 @@ export function useAgentDefinitions(projectPath: string | null) {
           operation: 'refresh-apply',
           projectPath,
           name: item.name,
+          scope: item.scope,
           expectedSourceDigest: plan.sourceDigest,
           expectedContentDigest: plan.existingContentDigest,
           replaceModified,

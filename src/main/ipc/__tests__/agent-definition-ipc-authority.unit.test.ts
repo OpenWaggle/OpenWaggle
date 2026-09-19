@@ -132,11 +132,15 @@ describe('Agent definition IPC authority', () => {
       }),
     ).rejects.toThrow('cannot be written by the UI')
 
+    const resolvedScopes: Array<string | undefined> = []
     const refreshInput = {
       senderId: SENDER_ID,
-      command: { operation: 'refresh-plan', projectPath, name: 'reviewer' },
+      command: { operation: 'refresh-plan', projectPath, name: 'reviewer', scope: 'user' },
       knownProjectPaths: [projectPath],
-      resolveRefreshSourcePath: async () => sourcePath,
+      resolveRefreshSourcePath: async (_projectPath: string, _name: string, scope?: string) => {
+        resolvedScopes.push(scope)
+        return sourcePath
+      },
     } as const
     await expect(authorizeAgentDefinitionIpcCommand(refreshInput)).rejects.toThrow(
       'before refreshing',
@@ -145,7 +149,9 @@ describe('Agent definition IPC authority', () => {
     await expect(authorizeAgentDefinitionIpcCommand(refreshInput)).resolves.toMatchObject({
       operation: 'refresh-plan',
       name: 'reviewer',
+      scope: 'user',
     })
+    expect(resolvedScopes).toEqual(['user', 'user'])
 
     await expect(
       authorizeAgentDefinitionIpcCommand({
@@ -154,6 +160,7 @@ describe('Agent definition IPC authority', () => {
           operation: 'refresh-apply',
           projectPath,
           name: 'reviewer',
+          scope: 'user',
           expectedSourceDigest: 'source-digest',
         },
       }),
@@ -165,6 +172,7 @@ describe('Agent definition IPC authority', () => {
           operation: 'refresh-apply',
           projectPath,
           name: 'reviewer',
+          scope: 'user',
           expectedSourceDigest: 'source-digest',
           expectedContentDigest: 'content-digest',
         },

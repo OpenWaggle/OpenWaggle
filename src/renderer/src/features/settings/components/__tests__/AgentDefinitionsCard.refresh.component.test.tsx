@@ -81,6 +81,7 @@ describe('AgentDefinitionsCard refresh lifecycle', () => {
         operation: 'refresh-plan',
         projectPath: PROJECT,
         name: 'reviewer',
+        scope: 'project',
       }),
     )
     act(() => setProject(OTHER_PROJECT))
@@ -131,9 +132,61 @@ describe('AgentDefinitionsCard refresh lifecycle', () => {
         operation: 'refresh-apply',
         projectPath: PROJECT,
         name: 'reviewer',
+        scope: 'project',
         expectedSourceDigest: sourceDigest,
         expectedContentDigest: existingContentDigest,
         replaceModified: true,
+      }),
+    )
+  })
+
+  it('binds refresh plan and apply to the selected same-name scope', async () => {
+    const userReviewer: AgentDefinitionCatalogItem = {
+      ...IMPORTED_REVIEWER,
+      scope: 'user',
+      sourcePath: '/home/.openwaggle/agents/reviewer.md',
+    }
+    manageAgentDefinitionsMock.mockImplementation(async (command) => {
+      if (command.operation === 'list') {
+        return { operation: 'list', items: [IMPORTED_REVIEWER, userReviewer] }
+      }
+      if (command.operation === 'refresh-plan') {
+        return {
+          operation: 'refresh-plan',
+          plan: {
+            status: 'ready',
+            sourceDigest: 'source-digest',
+            existingContentDigest: 'content-digest',
+            diagnostics: [],
+          },
+        }
+      }
+      return { operation: command.operation }
+    })
+    render(<AgentDefinitionsCard />)
+
+    const buttons = await screen.findAllByRole('button', { name: 'Refresh reviewer' })
+    const userRefresh = buttons[1]
+    if (!userRefresh) throw new Error('Expected the user-scoped refresh button.')
+    fireEvent.click(userRefresh)
+
+    await waitFor(() =>
+      expect(manageAgentDefinitionsMock).toHaveBeenCalledWith({
+        operation: 'refresh-plan',
+        projectPath: PROJECT,
+        name: 'reviewer',
+        scope: 'user',
+      }),
+    )
+    await waitFor(() =>
+      expect(manageAgentDefinitionsMock).toHaveBeenCalledWith({
+        operation: 'refresh-apply',
+        projectPath: PROJECT,
+        name: 'reviewer',
+        scope: 'user',
+        expectedSourceDigest: 'source-digest',
+        expectedContentDigest: 'content-digest',
+        replaceModified: false,
       }),
     )
   })

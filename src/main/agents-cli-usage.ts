@@ -13,7 +13,7 @@ Usage:
   openwaggle agents import <file> --from auto|openwaggle|codex|claude-code|cursor|gemini-cli|github-copilot|opencode
     --scope <scope> [--project <path>] [--source-name <name>] [--dry-run] [--replace]
     [--expected-digest <sha256>] [--json]
-  openwaggle agents refresh <name> [--project <path>] [--dry-run] [--replace] [--json]
+  openwaggle agents refresh <name> [--scope <scope>] [--project <path>] [--dry-run] [--replace] [--json]
 
 Unknown, missing-value, command-inapplicable, unexpected positional, and -- passthrough input
 fail before files are read or changed. Multi-word search queries remain positional rest operands.

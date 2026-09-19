@@ -100,6 +100,28 @@ describe('Agent definitions CLI', () => {
     expect(stderr).toEqual([])
   })
 
+  it('refreshes a lower-precedence definition by explicit scope', async () => {
+    const projectSource = path.join(root, 'project-reviewer.md')
+    const userSource = path.join(root, 'user-reviewer.md')
+    const original = 'Review authorization boundaries and report concrete findings.'
+    await fs.writeFile(projectSource, definition, 'utf8')
+    await fs.writeFile(userSource, definition.replace(original, 'User version one.'), 'utf8')
+    await expect(run(['import', projectSource, '--scope', 'project'])).resolves.toBe(0)
+    await expect(run(['import', userSource, '--scope', 'user'])).resolves.toBe(0)
+    await fs.writeFile(userSource, definition.replace(original, 'User version two.'), 'utf8')
+
+    await expect(run(['refresh', 'security-reviewer', '--scope', 'user'])).resolves.toBe(0)
+
+    const projectDefinition = parseAgentDefinition(
+      await fs.readFile(path.join(project, '.openwaggle/agents/security-reviewer.md'), 'utf8'),
+    )
+    const userDefinition = parseAgentDefinition(
+      await fs.readFile(path.join(home, '.openwaggle/agents/security-reviewer.md'), 'utf8'),
+    )
+    expect(projectDefinition.instructions).toBe(original)
+    expect(userDefinition.instructions).toBe('User version two.')
+  })
+
   it('refuses an invalid import and does not create a destination file', async () => {
     const sourcePath = path.join(root, 'invalid.md')
     await fs.writeFile(sourcePath, '# missing frontmatter', 'utf8')

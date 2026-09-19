@@ -108,10 +108,15 @@ export async function listAllAgentDefinitions(input: {
 export async function resolveAgentDefinition(input: {
   readonly projectPath: string
   readonly name: string
+  readonly scope?: AgentDefinitionScope
   readonly userHome?: string
 }): Promise<ResolvedAgentDefinitionSnapshot> {
-  const item = (await listAgentDefinitions(input)).find(
-    (candidate) => candidate.name === input.name,
+  const items = input.scope
+    ? await listAllAgentDefinitions(input)
+    : await listAgentDefinitions(input)
+  const item = items.find(
+    (candidate) =>
+      candidate.name === input.name && (!input.scope || candidate.scope === input.scope),
   )
   if (!item) throw new Error(`Agent definition ${JSON.stringify(input.name)} was not found.`)
   if (item.loadError || !item.definition) {
