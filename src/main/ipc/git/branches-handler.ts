@@ -6,7 +6,7 @@ import type {
 } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
-import { listGitBranches } from './branch-list'
+import { readGitBranchList } from './branch-list-cache'
 import { checkoutGitBranch, createGitBranch, validateGitBranchName } from './branch-mutations'
 import { branchCheckoutPayloadSchema, branchCreatePayloadSchema } from './branch-schemas'
 import { withGitMutationLock } from './mutation-lock'
@@ -46,7 +46,7 @@ export function registerGitBranchHandlers(): void {
   typedHandle('git:branches:list', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      return yield* Effect.promise(() => listGitBranches(projectPath))
+      return yield* Effect.promise(() => readGitBranchList(projectPath))
     }),
   )
 

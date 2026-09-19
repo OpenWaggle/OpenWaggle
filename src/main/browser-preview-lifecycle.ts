@@ -7,6 +7,7 @@ import {
   quarantineBrowserPreviewContents,
 } from './browser-preview-quarantine'
 import type { BrowserPreviewRecord } from './browser-preview-records'
+import { BrowserPreviewRetirementCleanup } from './browser-preview-retirement-cleanup'
 import { createLogger } from './logger'
 
 const logger = createLogger('browser-preview-lifecycle')
@@ -27,6 +28,11 @@ export interface BrowserPreviewLifecycleHost {
 export class BrowserPreviewLifecycle {
   private readonly deactivated = new WeakSet<BrowserPreviewRecord>()
   private readonly released = new WeakSet<BrowserPreviewRecord>()
+  private readonly retired = new WeakSet<BrowserPreviewRecord>()
+  private readonly detached = new WeakSet<BrowserPreviewRecord>()
+  private readonly retirementCleanup = new BrowserPreviewRetirementCleanup((record) =>
+    this.close(record),
+  )
 
   constructor(private readonly host: BrowserPreviewLifecycleHost) {}
 
@@ -35,6 +41,8 @@ export class BrowserPreviewLifecycle {
   }
 
   retire(record: BrowserPreviewRecord): void {
+    if (this.retired.has(record) || this.released.has(record)) return
+    this.retired.add(record)
     quarantineBrowserPreviewContents(record.view.webContents)
     attemptCleanup(() => record.view.webContents.setAudioMuted(true))
     attemptCleanup(() => {
@@ -43,15 +51,13 @@ export class BrowserPreviewLifecycle {
     this.deactivate(record)
     this.hideAndDetach(record)
     attemptCleanup(() => installBrowserPreviewQuarantinePolicy(record.view.webContents))
-    if (hasRequestedBrowserPreviewClose(record)) {
-      attemptCleanup(() =>
-        record.view.webContents.once('destroyed', () => this.detachDestroyed(record)),
-      )
-    }
-    this.dispose(record, true)
+    attemptCleanup(() =>
+      record.view.webContents.once('destroyed', () => this.detachDestroyed(record)),
+    )
+    this.retirementCleanup.start(record)
   }
 
-  dispose(record: BrowserPreviewRecord, detached = false): void {
+  dispose(record: BrowserPreviewRecord): void {
     if (hasRequestedBrowserPreviewClose(record)) {
       void this.close(record).catch((error: unknown) => {
         logger.warn('Native preview close failed during owner cleanup', {
@@ -62,7 +68,7 @@ export class BrowserPreviewLifecycle {
       return
     }
     if (!this.release(record)) return
-    if (!detached) this.hideAndDetach(record)
+    this.hideAndDetach(record)
     attemptCleanup(() => {
       if (!record.view.webContents.isDestroyed()) record.view.webContents.close()
     })
@@ -73,20 +79,23 @@ export class BrowserPreviewLifecycle {
     attemptCleanup(() => {
       if (!record.owner.window.isDestroyed()) record.view.setVisible(false)
     })
+    this.detachView(record)
+  }
+
+  private detachView(record: BrowserPreviewRecord) {
+    if (this.detached.has(record)) return
     attemptCleanup(() => {
       if (!record.owner.window.isDestroyed()) {
         record.owner.window.contentView.removeChildView(record.view)
       }
+      this.detached.add(record)
     })
   }
 
   detachDestroyed(record: BrowserPreviewRecord): void {
+    this.retirementCleanup.cancel(record)
     if (!this.release(record)) return
-    attemptCleanup(() => {
-      if (!record.owner.window.isDestroyed()) {
-        record.owner.window.contentView.removeChildView(record.view)
-      }
-    })
+    this.detachView(record)
   }
 
   private release(record: BrowserPreviewRecord) {

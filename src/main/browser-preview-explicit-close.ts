@@ -50,6 +50,7 @@ export function closeBrowserPreviewRecord(
   const timeout = setTimeout(() => {
     fail(new Error('Browser preview native content did not close before the deadline.'))
   }, CLOSE_TIMEOUT_MS)
+  timeout.unref()
   try {
     contents.once('destroyed', destroyed)
     if (contents.isDestroyed()) destroyed()
