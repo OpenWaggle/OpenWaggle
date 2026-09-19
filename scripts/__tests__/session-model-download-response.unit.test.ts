@@ -229,17 +229,37 @@ describe('model download HTTP retries', () => {
     expect(events).toEqual(['cancelled', 'wait', 'fetch'])
   })
 
-  it('fails closed when the failed response body cannot be cancelled', async () => {
-    const failure = new Error('cancel failed')
+  it('retries a transient response when its body has already failed before cancellation', async () => {
+    const failure = new Error('connection reset after headers')
     const body = new ReadableStream({
-      cancel: () => {
-        throw failure
+      start(controller) {
+        controller.error(failure)
       },
     })
-    const fetch = vi.fn().mockResolvedValue(new Response(body, { status: 429 }))
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(body, { status: 429 }))
+      .mockResolvedValueOnce(new Response('model'))
     const wait = vi.fn().mockResolvedValue(undefined)
-    await expect(fetchModelDownloadResponse(MODEL_URL, { fetch, wait })).rejects.toBe(failure)
-    expect(fetch).toHaveBeenCalledTimes(1)
+    const response = await fetchModelDownloadResponse(MODEL_URL, { fetch, wait })
+    expect(await response.text()).toBe('model')
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(wait).toHaveBeenCalledWith(1_000)
+  })
+
+  it('reports a permanent HTTP failure even when its response body cannot be cancelled', async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.error(new Error('connection reset after headers'))
+      },
+    })
+    const fetch = vi.fn().mockResolvedValue(new Response(body, { status: 403 }))
+    const wait = vi.fn().mockResolvedValue(undefined)
+
+    await expect(fetchModelDownloadResponse(MODEL_URL, { fetch, wait })).rejects.toThrow(
+      'HTTP 403',
+    )
+    expect(fetch).toHaveBeenCalledOnce()
     expect(wait).not.toHaveBeenCalled()
   })
 })

@@ -90,7 +90,9 @@ export async function fetchModelDownloadResponse(
     if (response.status >= HTTP_SUCCESS_MINIMUM && response.status < HTTP_SUCCESS_MAXIMUM) {
       return response
     }
-    await response.body?.cancel()
+    // A failed response stream can reject cancellation after headers arrive. Cleanup is
+    // best-effort; the HTTP status still determines whether this attempt may be retried.
+    await response.body?.cancel().catch(() => undefined)
     const failure = new Error(
       `Model download failed with HTTP ${String(response.status)} for ${url}.`,
     )
