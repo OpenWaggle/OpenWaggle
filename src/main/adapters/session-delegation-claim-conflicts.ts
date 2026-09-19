@@ -27,11 +27,13 @@ export interface NormalizedClaim {
 export interface ResolvedClaim {
   readonly claim: NormalizedClaim
   readonly targetKey: string
+  readonly caseSensitive: boolean
 }
 
 export interface ResolvedStoredClaim {
   readonly row: StoredClaimRow
   readonly targetKey: string
+  readonly caseSensitive: boolean
 }
 
 const CONFLICT_ID_DIGEST_LENGTH = 24
@@ -40,7 +42,7 @@ function pathWithinTree(candidate: string, tree: string) {
   return tree === '.' || candidate === tree || candidate.startsWith(`${tree}/`)
 }
 
-function targetsOverlap(left: ResolvedClaim, right: ResolvedStoredClaim) {
+export function targetsOverlap(left: ResolvedClaim, right: ResolvedStoredClaim) {
   const claim = left.claim
   const row = right.row
   if (claim.targetKind === 'named-resource' || row.target_kind === 'named-resource') {
@@ -52,19 +54,19 @@ function targetsOverlap(left: ResolvedClaim, right: ResolvedStoredClaim) {
       left.targetKey === right.targetKey
     )
   }
+  const sharedCaseSensitive = left.caseSensitive && right.caseSensitive
+  const leftKey = sharedCaseSensitive ? left.targetKey : left.targetKey.toLowerCase()
+  const rightKey = sharedCaseSensitive ? right.targetKey : right.targetKey.toLowerCase()
   if (claim.targetKind === 'workspace-file' && row.target_kind === 'workspace-file') {
-    return left.targetKey === right.targetKey
+    return leftKey === rightKey
   }
   if (claim.targetKind === 'workspace-file') {
-    return pathWithinTree(left.targetKey, right.targetKey)
+    return pathWithinTree(leftKey, rightKey)
   }
   if (row.target_kind === 'workspace-file') {
-    return pathWithinTree(right.targetKey, left.targetKey)
+    return pathWithinTree(rightKey, leftKey)
   }
-  return (
-    pathWithinTree(left.targetKey, right.targetKey) ||
-    pathWithinTree(right.targetKey, left.targetKey)
-  )
+  return pathWithinTree(leftKey, rightKey) || pathWithinTree(rightKey, leftKey)
 }
 
 function conflictId(input: {

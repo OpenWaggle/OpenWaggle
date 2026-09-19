@@ -13,6 +13,18 @@ import { createRendererLogger } from '@/shared/lib/logger'
 const RUNTIME_HYDRATION_CONCURRENCY = 8
 const logger = createRendererLogger('session-status-monitor')
 
+async function listPendingNonNotifyInteractions(sessionId: SessionId) {
+  const response = await api.querySessionControl({
+    contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+    requestId: crypto.randomUUID(),
+    query: { operation: 'requests-list', sessionId },
+  })
+  if (response.outcome.operation !== 'requests-list' || !('requests' in response.outcome)) {
+    return null
+  }
+  return response.outcome.requests.filter((request) => request.kind !== 'notify')
+}
+
 async function hydrateLiveSessionStatuses(input: {
   readonly cancelled: () => boolean
   readonly completedDuringHydration: (sessionId: SessionId) => boolean
@@ -36,15 +48,9 @@ async function hydrateLiveSessionStatuses(input: {
         .slice(offset, offset + RUNTIME_HYDRATION_CONCURRENCY)
         .filter((run) => !input.completedDuringHydration(run.sessionId))
         .map(async (run) => {
-          const response = await api.querySessionControl({
-            contractVersion: SESSION_QUERY_CONTRACT_VERSION,
-            requestId: crypto.randomUUID(),
-            query: { operation: 'requests-list', sessionId: run.sessionId },
-          })
-          if (response.outcome.operation !== 'requests-list' || !('requests' in response.outcome)) {
-            return null
-          }
-          const oldest = response.outcome.requests.reduce<number | null>(
+          const requests = await listPendingNonNotifyInteractions(run.sessionId)
+          if (!requests) return null
+          const oldest = requests.reduce<number | null>(
             (current, request) =>
               current === null || request.createdAt < current ? request.createdAt : current,
             null,
@@ -108,6 +114,31 @@ export function useSessionStatusMonitor(): void {
       }
     }
 
+    function setTransientStatus(sessionId: SessionId, status: SessionStatus, updatedAt: number) {
+      if (useSessionStatusStore.getState().getStatus(sessionId) === 'awaiting-input') return
+      setStatusWithVisitCheck(sessionId, status, updatedAt)
+    }
+
+    async function reconcileResolvedInteraction(sessionId: SessionId, resolvedAt: number) {
+      if (typeof api.querySessionControl !== 'function') return
+      const pending = await listPendingNonNotifyInteractions(sessionId)
+      if (cancelled || !pending) return
+      if (TERMINAL_STATUSES.has(useSessionStatusStore.getState().getStatus(sessionId))) return
+      if (pending.length > 0) {
+        const sourceUpdatedAt = pending.reduce(
+          (latest, request) => Math.max(latest, request.createdAt),
+          resolvedAt,
+        )
+        setStatusWithVisitCheck(sessionId, 'awaiting-input', sourceUpdatedAt)
+        return
+      }
+      setStatusWithVisitCheck(
+        sessionId,
+        activeWaggleSessions.has(sessionId) ? 'waggle-running' : 'working',
+        resolvedAt,
+      )
+    }
+
     const unsubPhase = api.onAgentPhase(({ sessionId, phase }) => {
       // Keep the label, not just the fact that something happened. A row can then say what
       // the agent is doing rather than repeating that it is busy.
@@ -115,7 +146,7 @@ export function useSessionStatusMonitor(): void {
       if (!phase) return
       // Don't downgrade waggle-running to working
       if (activeWaggleSessions.has(sessionId)) return
-      setStatusWithVisitCheck(sessionId, 'working', phase.startedAt)
+      setTransientStatus(sessionId, 'working', phase.startedAt)
     })
 
     const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
@@ -129,7 +160,7 @@ export function useSessionStatusMonitor(): void {
     const unsubWorktreeLaunch = api.onWorktreeLaunch(({ sessionId, launch }) => {
       useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, launch)
       if (launch?.status === 'running') {
-        setStatusWithVisitCheck(sessionId, 'connecting', launch.updatedAt)
+        setTransientStatus(sessionId, 'connecting', launch.updatedAt)
       }
     })
 
@@ -139,7 +170,9 @@ export function useSessionStatusMonitor(): void {
           activeWaggleSessions.add(sessionId)
           // Waggle turn events have no source timestamp. Do not let receipt time
           // outrank the Host's durable Run settlement.
-          markWaggleRunning(sessionId)
+          if (useSessionStatusStore.getState().getStatus(sessionId) !== 'awaiting-input') {
+            markWaggleRunning(sessionId)
+          }
         })
         // Terminal waggle events transition to 'completed' via onRunCompleted above.
         .otherwise(() => undefined)
@@ -149,7 +182,7 @@ export function useSessionStatusMonitor(): void {
       matchBy(event, 'type')
         .with('agent_start', () => {
           if (!activeWaggleSessions.has(sessionId)) {
-            setStatusWithVisitCheck(sessionId, 'connecting', event.timestamp)
+            setTransientStatus(sessionId, 'connecting', event.timestamp)
           }
         })
         .with('agent_end', (value) => {
@@ -168,24 +201,25 @@ export function useSessionStatusMonitor(): void {
         })
         .with('agent_interaction_resolved', (value) => {
           if (value.kind === 'notify') return
-          setStatusWithVisitCheck(
-            sessionId,
-            activeWaggleSessions.has(sessionId) ? 'waggle-running' : 'working',
-            value.timestamp,
-          )
+          void reconcileResolvedInteraction(sessionId, value.timestamp).catch((error: unknown) => {
+            logger.warn('Failed to reconcile pending Session interactions', {
+              sessionId,
+              error: String(error),
+            })
+          })
         })
         .with('message_update', (value) => {
           matchBy(value.assistantMessageEvent, 'type')
             .with('text_delta', 'toolcall_start', () => {
               if (!activeWaggleSessions.has(sessionId)) {
-                setStatusWithVisitCheck(sessionId, 'working', value.timestamp)
+                setTransientStatus(sessionId, 'working', value.timestamp)
               }
             })
             .otherwise(() => undefined)
         })
         .with('tool_execution_start', (value) => {
           if (!activeWaggleSessions.has(sessionId)) {
-            setStatusWithVisitCheck(sessionId, 'working', value.timestamp)
+            setTransientStatus(sessionId, 'working', value.timestamp)
           }
         })
         .otherwise((value) => {

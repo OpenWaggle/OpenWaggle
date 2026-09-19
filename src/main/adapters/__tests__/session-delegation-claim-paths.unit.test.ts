@@ -19,8 +19,8 @@ describe('Delegation claim path comparison', () => {
     const insensitive = createSessionDelegationClaimPathResolver({ caseSensitive: false })
     const sensitive = createSessionDelegationClaimPathResolver({ caseSensitive: true })
 
-    expect(await insensitive(root, 'src/Foo.ts')).toBe(await insensitive(root, 'SRC/foo.ts'))
-    expect(await sensitive(root, 'src/Foo.ts')).not.toBe(await sensitive(root, 'SRC/foo.ts'))
+    expect(await insensitive(root, 'src/Foo.ts')).toEqual(await insensitive(root, 'SRC/foo.ts'))
+    expect(await sensitive(root, 'src/Foo.ts')).not.toEqual(await sensitive(root, 'SRC/foo.ts'))
   })
 
   it('detects the bound filesystem case behavior automatically', async () => {
@@ -34,9 +34,10 @@ describe('Delegation claim path comparison', () => {
       })
     const resolve = createSessionDelegationClaimPathResolver()
 
-    expect((await resolve(root, 'src/Foo.ts')) === (await resolve(root, 'SRC/foo.ts'))).toBe(
-      !caseSensitive,
-    )
+    expect(
+      (await resolve(root, 'src/Foo.ts'))?.targetKey ===
+        (await resolve(root, 'SRC/foo.ts'))?.targetKey,
+    ).toBe(!caseSensitive)
   })
 
   it('resolves symlink aliases even when the claimed file does not exist yet', async () => {
@@ -45,8 +46,14 @@ describe('Delegation claim path comparison', () => {
     await fs.symlink('src', path.join(root, 'alias'), 'dir')
     const resolve = createSessionDelegationClaimPathResolver({ caseSensitive: true })
 
-    expect(await resolve(root, 'alias/new-file.ts')).toBe('src/new-file.ts')
-    expect(await resolve(root, 'src/new-file.ts')).toBe('src/new-file.ts')
+    expect(await resolve(root, 'alias/new-file.ts')).toEqual({
+      targetKey: 'src/new-file.ts',
+      caseSensitive: true,
+    })
+    expect(await resolve(root, 'src/new-file.ts')).toEqual({
+      targetKey: 'src/new-file.ts',
+      caseSensitive: true,
+    })
   })
 
   it('rejects a symlink whose resolved path leaves the bound workspace', async () => {

@@ -95,19 +95,19 @@ async function resolveClaims(
   const keys = await Promise.all(
     claims.map((claim) =>
       claim.targetKind === 'named-resource'
-        ? claim.targetValue
+        ? { targetKey: claim.targetValue, caseSensitive: true }
         : resolvePath(workingPath, claim.targetValue),
     ),
   )
   const resolved: ResolvedClaim[] = []
   const seen = new Set<string>()
   for (const [index, claim] of claims.entries()) {
-    const targetKey = keys[index]
-    if (targetKey === undefined) return undefined
-    const key = canonicalJson({ ...claim, targetValue: targetKey })
+    const target = keys[index]
+    if (target === undefined) return undefined
+    const key = canonicalJson({ ...claim, targetValue: target.targetKey })
     if (seen.has(key)) continue
     seen.add(key)
-    resolved.push({ claim, targetKey })
+    resolved.push({ claim, ...target })
   }
   return resolved
 }
@@ -115,16 +115,16 @@ async function resolveClaims(
 function resolveStoredClaims(rows: readonly StoredClaimRow[], resolvePath: ClaimPathResolver) {
   return Promise.all(
     rows.map(async (row): Promise<ResolvedStoredClaim> => {
-      const targetKey =
+      const target =
         row.target_kind === 'named-resource'
-          ? row.target_value
+          ? { targetKey: row.target_value, caseSensitive: true }
           : await resolvePath(row.working_path, row.target_value)
-      if (targetKey === undefined) {
+      if (target === undefined) {
         throw new Error(
           `A stored Delegation claim escapes its bound workspace: ${row.delegation_id}`,
         )
       }
-      return { row, targetKey }
+      return { row, ...target }
     }),
   )
 }

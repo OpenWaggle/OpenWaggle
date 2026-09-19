@@ -6,6 +6,11 @@ interface WorkspacePathContext {
   readonly caseSensitive: boolean
 }
 
+export interface ResolvedDelegationClaimPath {
+  readonly targetKey: string
+  readonly caseSensitive: boolean
+}
+
 function isMissingPath(error: unknown) {
   return (
     error instanceof Error &&
@@ -79,7 +84,10 @@ async function resolveClaimPath(context: WorkspacePathContext, relativePath: str
     return undefined
   }
   const portable = relative === '' ? '.' : relative.split(path.sep).join('/')
-  return context.caseSensitive ? portable : portable.toLowerCase()
+  return {
+    targetKey: context.caseSensitive ? portable : portable.toLowerCase(),
+    caseSensitive: context.caseSensitive,
+  } satisfies ResolvedDelegationClaimPath
 }
 
 /** Resolve aliases for conflict comparison without changing the claim path shown to users. */
@@ -87,7 +95,7 @@ export function createSessionDelegationClaimPathResolver(
   options: { caseSensitive?: boolean } = {},
 ) {
   const contexts = new Map<string, Promise<WorkspacePathContext>>()
-  const targets = new Map<string, Promise<string | undefined>>()
+  const targets = new Map<string, Promise<ResolvedDelegationClaimPath | undefined>>()
   return (workingPath: string, relativePath: string) => {
     const key = JSON.stringify([workingPath, relativePath])
     const cached = targets.get(key)
