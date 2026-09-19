@@ -8,10 +8,7 @@ import {
   ProfileCredentialCommitError,
 } from './profile-credential-destination-errors'
 import {
-  assertReplaceable,
-  credentialContent,
   credentialFingerprint,
-  decodeCredentialContent,
   destinationMetadata,
   destinationPath,
   openUnlinkedCredentialSource,
@@ -20,12 +17,15 @@ import {
   receiptPath,
   recoverInstalledCredential,
 } from './profile-credential-destination-support'
+import { readOwnedFile, unlinkOwnedFile, writeOwnedFile } from './profile-credential-owned-files'
 import {
-  listOwnedFiles,
-  readOwnedFile,
-  unlinkOwnedFile,
-  writeOwnedFile,
-} from './profile-credential-owned-files'
+  markInstalledPendingCredentials,
+  preparePendingCredential,
+} from './profile-credential-pending'
+import {
+  validateCredentialDestination,
+  validateStagedCredentialDestination,
+} from './profile-credential-preflight'
 import { validateProfileCredential } from './profile-credential-storage'
 
 export {
@@ -50,80 +50,14 @@ function validateCredential(credential: string) {
   validateProfileCredential(credential)
 }
 
-interface CredentialStagingInput {
-  readonly destination: ProfileCredentialDestination
-  readonly profileName: string
-  readonly credential: string
-  readonly stagingIdentity: string
-  readonly stagingDirectory: string
-  readonly recoverAnyPending?: boolean
-  readonly beforeStagingWrite?: () => Promise<void>
-}
-
-async function preparePendingCredential(input: CredentialStagingInput) {
-  const profileIdentity = createHash('sha256').update(input.profileName).digest('hex')
-  let temporaryName = `${profileIdentity}.${input.stagingIdentity}.pending`
-  if (input.recoverAnyPending) {
-    const pending = await listOwnedFiles(input.stagingDirectory, `${profileIdentity}.`, '.pending')
-    if (pending.length > 1) {
-      throw new Error('Multiple protected credential recovery artifacts require manual cleanup.')
-    }
-    if (pending[0]) temporaryName = pending[0]
+async function readDestinationDirectoryIdentity(targetPath: string) {
+  const handle = await open(path.dirname(targetPath), 'r')
+  try {
+    const stats = await handle.stat()
+    return `${stats.dev}:${stats.ino}`
+  } finally {
+    await handle.close()
   }
-  let pendingFile = await readOwnedFile(input.stagingDirectory, temporaryName)
-  let recoveredPending = pendingFile.content !== undefined
-  if (!pendingFile.content) {
-    const contentHandle = await openUnlinkedCredentialSource(
-      credentialContent(input.destination, input.credential),
-    )
-    try {
-      await writeOwnedFile({
-        directory: input.stagingDirectory,
-        name: temporaryName,
-        sourceHandle: contentHandle,
-        ...(input.beforeStagingWrite ? { beforeOperation: input.beforeStagingWrite } : {}),
-      })
-    } catch (error) {
-      pendingFile = await readOwnedFile(input.stagingDirectory, temporaryName)
-      if (!pendingFile.content) throw error
-      recoveredPending = true
-    } finally {
-      await contentHandle.close()
-    }
-  }
-  pendingFile = await readOwnedFile(input.stagingDirectory, temporaryName)
-  if (!pendingFile.content || !pendingFile.fileIdentity) {
-    throw new Error('Credential staging produced no recoverable content or file identity.')
-  }
-  const selectedCredential = decodeCredentialContent(input.destination, pendingFile.content)
-  validateCredential(selectedCredential)
-  return {
-    temporaryName,
-    selectedCredential,
-    stagedContent: pendingFile.content,
-    pendingIdentity: pendingFile.fileIdentity,
-    recoveredPending,
-  }
-}
-
-async function matchesInstalledCredential(input: {
-  readonly destination: ProfileCredentialDestination
-  readonly targetPath: string
-  readonly selectedCredential: string
-  readonly replace: boolean
-  readonly stagedDestinationIdentity: Awaited<ReturnType<typeof assertReplaceable>>
-}) {
-  if (!input.stagedDestinationIdentity || input.replace) return false
-  const target = await readOwnedFile(
-    path.dirname(input.targetPath),
-    path.basename(input.targetPath),
-  )
-  if (!target.content) throw new Error('Credential destination changed during preparation.')
-  const targetCredential = decodeCredentialContent(input.destination, target.content)
-  if (credentialFingerprint(targetCredential) === credentialFingerprint(input.selectedCredential)) {
-    return true
-  }
-  throw new Error('Credential destination already exists. Use --replace to update it.')
 }
 
 async function persistCredentialReceipt(input: {
@@ -184,6 +118,35 @@ interface ProfileCredentialStagingOptions {
   readonly beforeReceiptMutation?: () => Promise<void>
 }
 
+function markInstalledCredential(
+  input: ProfileCredentialStagingOptions,
+  stagingDirectory: string,
+  credential: string,
+) {
+  return markInstalledPendingCredentials({
+    destination: input.destination,
+    profileName: input.profileName,
+    stagingDirectory,
+    credential,
+  })
+}
+
+async function recoverCommittedCredential(input: {
+  readonly staging: ProfileCredentialStagingOptions
+  readonly stagingDirectory: string
+  readonly targetPath: string
+  readonly receiptPath: string
+}) {
+  if (!input.staging.stagingKey) return
+  const credential = await recoverInstalledCredential({
+    destination: input.staging.destination,
+    targetPath: input.targetPath,
+    receiptPath: input.receiptPath,
+  })
+  if (credential) await markInstalledCredential(input.staging, input.stagingDirectory, credential)
+  return credential
+}
+
 export async function stageProfileCredential(input: ProfileCredentialStagingOptions) {
   validateCredential(input.credential)
   const targetPath = destinationPath(input.destination, input.profileName)
@@ -192,10 +155,7 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
     targetDirectory: path.dirname(targetPath),
     mode: OWNER_DIRECTORY_MODE,
   })
-  const destinationDirectoryHandle = await open(path.dirname(targetPath), 'r')
-  const destinationDirectoryStats = await destinationDirectoryHandle.stat()
-  await destinationDirectoryHandle.close()
-  const directoryIdentity = `${destinationDirectoryStats.dev}:${destinationDirectoryStats.ino}`
+  const directoryIdentity = await readDestinationDirectoryIdentity(targetPath)
   const stagingIdentity = input.stagingKey
     ? createHash('sha256').update(input.stagingKey).digest('hex')
     : randomUUID()
@@ -207,13 +167,12 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
   })
   const stagingDirectory = path.join(stateRoot, 'profile-credential-staging')
   await ensureDirectoryPathPinned({ targetDirectory: stagingDirectory, mode: OWNER_DIRECTORY_MODE })
-  const installedCredential = input.stagingKey
-    ? await recoverInstalledCredential({
-        destination: input.destination,
-        targetPath,
-        receiptPath: installedReceiptPath,
-      })
-    : undefined
+  const installedCredential = await recoverCommittedCredential({
+    staging: input,
+    stagingDirectory,
+    targetPath,
+    receiptPath: installedReceiptPath,
+  })
   if (installedCredential) {
     return {
       credential: installedCredential,
@@ -230,18 +189,28 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
     credential: input.credential,
     stagingIdentity,
     stagingDirectory,
+    beforeCreate: async () => {
+      await validateCredentialDestination({
+        destination: input.destination,
+        targetPath,
+        selectedCredential: input.credential,
+        replace: input.replace,
+      })
+    },
     ...(input.recoverAnyPending ? { recoverAnyPending: true } : {}),
     ...(input.beforeStagingWrite ? { beforeStagingWrite: input.beforeStagingWrite } : {}),
   })
   const temporaryPath = path.join(stagingDirectory, pending.temporaryName)
-  const stagedDestinationIdentity = await assertReplaceable(targetPath, true)
-  const alreadyInstalled = await matchesInstalledCredential({
-    destination: input.destination,
-    targetPath,
-    selectedCredential: pending.selectedCredential,
-    replace: input.replace,
-    stagedDestinationIdentity,
-  })
+  const { stagedDestinationIdentity, alreadyInstalled } = await validateStagedCredentialDestination(
+    {
+      destination: input.destination,
+      targetPath,
+      selectedCredential: pending.selectedCredential,
+      replace: input.replace,
+      stagingDirectory,
+      temporaryName: pending.temporaryName,
+    },
+  )
   return {
     credential: pending.selectedCredential,
     metadata: destinationMetadata(input.destination, input.profileName, targetPath),
@@ -266,6 +235,7 @@ export async function stageProfileCredential(input: ProfileCredentialStagingOpti
             ...(input.beforeCommitMutation ? { beforeMutation: input.beforeCommitMutation } : {}),
           })
         }
+        await markInstalledCredential(input, stagingDirectory, pending.selectedCredential)
         await input.beforeReceiptWrite?.()
         await persistCredentialReceipt({
           receiptDirectory,

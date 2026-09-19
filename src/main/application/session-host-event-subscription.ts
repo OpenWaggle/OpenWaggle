@@ -20,7 +20,7 @@ export class SessionHostEventSubscription {
     private readonly currentCursor: () => SessionHostEventCursor,
     private readonly onClose: () => void,
     private readonly accepts: (event: SessionHostEventEnvelope) => boolean,
-    private readonly advanceFilteredCursor: boolean,
+    private readonly advanceFilteredCursor: (event: SessionHostEventEnvelope) => boolean,
     private readonly reserveAggregateBytes: (bytes: number) => boolean,
     private readonly releaseAggregateBytes: (bytes: number) => void,
   ) {}
@@ -28,7 +28,7 @@ export class SessionHostEventSubscription {
   enqueue(event: SessionHostEventEnvelope, bytes: number): void {
     if (this.terminal) return
     if (!this.accepts(event)) {
-      if (this.advanceFilteredCursor) this.enqueueCursorAdvance(event.cursor)
+      if (this.advanceFilteredCursor(event)) this.enqueueCursorAdvance(event.cursor)
       return
     }
     if (bytes > this.byteCapacity) {

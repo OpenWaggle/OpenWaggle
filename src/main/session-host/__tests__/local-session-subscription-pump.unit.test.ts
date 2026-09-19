@@ -3,7 +3,7 @@ import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { pumpLocalSessionSubscription } from '../local-session-subscription-pump'
 
 describe('Local Session subscription pump', () => {
-  it('does not expose cursor advances for events filtered by the subscription', async () => {
+  it('emits cursor checkpoints for filtered events before the next visible event', async () => {
     const hub = new SessionHostEventHub({ hostInstanceId: 'host-test' })
     const result = hub.subscribeAfter(
       hub.cursor(),
@@ -13,7 +13,7 @@ describe('Local Session subscription pump', () => {
       { advanceFilteredCursor: true },
     )
     if (result.status !== 'ready') throw new Error('Expected a ready subscription.')
-    hub.publish({
+    const filtered = hub.publish({
       kind: 'session-state-changed',
       sessionId: 'private-session',
       stateRevision: 1,
@@ -40,7 +40,10 @@ describe('Local Session subscription pump', () => {
       },
     })
 
-    expect(sent).toEqual([{ kind: 'event', event: visible }])
+    expect(sent).toEqual([
+      { kind: 'cursor-advanced', cursor: filtered.cursor },
+      { kind: 'event', event: visible },
+    ])
     expect(eventIsDenied).toHaveBeenCalledTimes(1)
     expect(eventIsDenied).toHaveBeenCalledWith(visible)
   })

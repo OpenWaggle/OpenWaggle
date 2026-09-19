@@ -140,6 +140,41 @@ describe('OpenWaggle MCP Session Control v2 scope', () => {
     })
   })
 
+  it('discovers across every granted workspace when the MCP query omits a catalog filter', async () => {
+    const options = {
+      ...scopedOptions(),
+      workspaceRoots: [allowedProject('a'), allowedProject('b')],
+    }
+    const payload = buildMcpSessionPayloadV2({ operation: 'list' })
+    expect(payload.request).toHaveProperty('query')
+    if ('query' in payload.request) {
+      expect(payload.request.query).not.toHaveProperty('workingPath')
+      expect(payload.request.query).not.toHaveProperty('projectPath')
+    }
+
+    const result = await filterMcpSessionQueryResult(options, async () => ({}), {
+      contract: 'session-query-v2',
+      response: {
+        outcome: {
+          operation: 'list',
+          sessions: [
+            { sessionId: 'session-a', projectPath: allowedProject('a') },
+            { sessionId: 'session-b', projectPath: allowedProject('b') },
+            { sessionId: 'session-private', projectPath: privateRoot },
+          ],
+        },
+      },
+    })
+
+    expect(result).toMatchObject({
+      response: {
+        outcome: {
+          sessions: [{ sessionId: 'session-a' }, { sessionId: 'session-b' }],
+        },
+      },
+    })
+  })
+
   it.each(['delegations-list', 'delegations-conflicts'] as const)(
     'trusts the authority-filtered %s page without opening per-result Host connections',
     async (operation) => {

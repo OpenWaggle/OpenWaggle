@@ -56,8 +56,11 @@ function globalCounts(sql: SqlClient.SqlClient, model: SessionEmbeddingModel) {
           AND model_revision = ${model.metadata.revision}
           AND dimensions = ${model.metadata.dimensions}) AS prepared,
       (SELECT COUNT(*) FROM session_transcript_embedding_queue) AS pending,
-      (SELECT COALESCE(MAX(snapshot_revision), 0)
-        FROM session_transcript_embeddings) AS revision
+      MAX(
+        COALESCE((SELECT snapshot_revision FROM session_semantic_transcript_state
+          WHERE singleton = 1), 0),
+        COALESCE((SELECT MAX(snapshot_revision) FROM session_transcript_embeddings), 0)
+      ) AS revision
   `
 }
 
@@ -88,8 +91,11 @@ function publishProjectionBatch(
         return { prepared: 0, pending: counts.pending, snapshotRevision: counts.revision }
       }
       const revisions = yield* sql<{ readonly revision: number }>`
-        SELECT COALESCE(MAX(snapshot_revision), 0) + 1 AS revision
-        FROM session_transcript_embeddings
+        SELECT MAX(
+          COALESCE((SELECT snapshot_revision FROM session_semantic_transcript_state
+            WHERE singleton = 1), 0),
+          COALESCE((SELECT MAX(snapshot_revision) FROM session_transcript_embeddings), 0)
+        ) + 1 AS revision
       `
       const revision = revisions[0]?.revision ?? 1
       for (const [index, row] of rows.entries()) {
@@ -145,7 +151,7 @@ function publishProjectionBatch(
         ON CONFLICT(singleton) DO UPDATE SET
           status = excluded.status, model_id = excluded.model_id,
           model_revision = excluded.model_revision, dimensions = excluded.dimensions,
-          snapshot_revision = excluded.snapshot_revision,
+          snapshot_revision = MAX(snapshot_revision, excluded.snapshot_revision),
           prepared_count = excluded.prepared_count, pending_count = excluded.pending_count,
           preparation_operation_id = COALESCE(
             session_semantic_transcript_state.preparation_operation_id,
@@ -295,7 +301,7 @@ export class SqliteSessionTranscriptSemanticProjection {
         ON CONFLICT(singleton) DO UPDATE SET
           status = excluded.status, model_id = excluded.model_id,
           model_revision = excluded.model_revision, dimensions = excluded.dimensions,
-          snapshot_revision = excluded.snapshot_revision,
+          snapshot_revision = MAX(snapshot_revision, excluded.snapshot_revision),
           prepared_count = excluded.prepared_count, pending_count = excluded.pending_count,
           preparation_operation_id = COALESCE(
             session_semantic_transcript_state.preparation_operation_id,

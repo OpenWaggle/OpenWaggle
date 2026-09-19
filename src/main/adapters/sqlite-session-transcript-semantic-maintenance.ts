@@ -227,9 +227,8 @@ function updateGlobalStateCounts(sql: SqlClient.SqlClient, now: number) {
     UPDATE session_semantic_transcript_state SET
       prepared_count = (SELECT COUNT(*) FROM session_transcript_embeddings),
       pending_count = (SELECT COUNT(*) FROM session_transcript_embedding_queue),
-      snapshot_revision = (
-        SELECT COALESCE(MAX(snapshot_revision), 0) FROM session_transcript_embeddings
-      ),
+      snapshot_revision = MAX(snapshot_revision,
+        (SELECT COALESCE(MAX(snapshot_revision), 0) FROM session_transcript_embeddings)),
       updated_at = ${now}
     WHERE singleton = 1
   `

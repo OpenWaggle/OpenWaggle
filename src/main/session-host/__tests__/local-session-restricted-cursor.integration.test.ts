@@ -304,6 +304,10 @@ describe('Local Session restricted event cursors', () => {
     const subscribed = await reader.next()
     expect(subscribed).toMatchObject({ kind: 'subscribed', requestId: 'resume-filtered' })
     await expect(reader.next()).resolves.toMatchObject({
+      kind: 'cursor-advanced',
+      subscriptionId: subscriptionIdFrom(subscribed),
+    })
+    await expect(reader.next()).resolves.toMatchObject({
       kind: 'event',
       subscriptionId: subscriptionIdFrom(subscribed),
       event: { payload: visible.payload },

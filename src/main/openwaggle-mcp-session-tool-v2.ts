@@ -230,7 +230,7 @@ export function registerOpenWaggleSessionToolV2(
     {
       title: 'OpenWaggle sessions',
       description:
-        'Session Control v2 for durable OpenWaggle Sessions and Runs. Supports independent roots, Hive Worker spawning, provenance-labelled peer reports, exact active-Run Steering, durable Follow-ups, bounded waits, paginated reads, and queue inspection through the same Local Session Host used by the GUI and CLI.',
+        "Session Control v2 for durable OpenWaggle Sessions and Runs. Discovery defaults to all Sessions within the caller's granted workspaces and Session ids; projectPath narrows it. Supports independent roots, Hive Worker spawning, provenance-labelled peer reports, exact active-Run Steering, durable Follow-ups, bounded waits, paginated reads, and queue inspection through the same Local Session Host used by the GUI and CLI.",
       inputSchema: sessionInputSchemaV2,
     },
     async (input) => {

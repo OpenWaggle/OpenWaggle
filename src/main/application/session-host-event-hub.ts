@@ -185,7 +185,8 @@ export class SessionHostEventHub {
         replayView?.detach(subscription)
       },
       effectiveAccepts,
-      options.advanceFilteredCursor ?? false,
+      (event) =>
+        Boolean(options.advanceFilteredCursor && (!replayView || replayView.acceptsEvent(event))),
       (bytes) => {
         if (this.retainedSubscriberBytes + bytes > this.subscriberAggregateByteCapacity) {
           return false

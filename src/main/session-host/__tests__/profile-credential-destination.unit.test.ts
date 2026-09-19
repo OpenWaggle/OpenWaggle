@@ -262,8 +262,9 @@ describe('profile credential destination', () => {
 
     expect(retry.credential).toBe(firstCredential)
     expect(retry.recoveredPending).toBe(true)
-    expect(retry.recoveryLocation).toBe(first.recoveryLocation)
+    expect(retry.recoveryLocation).not.toBe(first.recoveryLocation)
     await first.discard()
+    await expect(fs.readFile(retry.recoveryLocation)).resolves.toBeDefined()
     await retry.discard()
   })
 

@@ -57,6 +57,7 @@ describe('Session Control promotion and replacement', () => {
       runId: RunId('run-active'),
       text: 'Steer this now.',
       attachments: [],
+      requireDurableDelivery: true,
       visualizationContext: {
         title: 'Service map',
         sourcePath: '/repo/service-map.html',

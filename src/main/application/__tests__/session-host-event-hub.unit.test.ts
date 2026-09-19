@@ -273,4 +273,46 @@ describe('Session Host event hub', () => {
     })
     await expect(result.subscription.next()).resolves.toEqual({ status: 'event', event: visible })
   })
+
+  it('advances restricted cursors only across authorized events excluded by the requested filter', async () => {
+    const hub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
+    const view = hub.createReplayView(
+      (event) =>
+        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
+        event.payload.sessionId !== 'session-not-granted',
+      { capacity: 3, byteCapacity: 4096 },
+    )
+    const result = hub.subscribeAfter(
+      { hostInstanceId: view.hostInstanceId, sequence: 0 },
+      (event) =>
+        event.payload.kind !== 'semantic-discovery-readiness-changed' &&
+        event.payload.sessionId === 'session-requested',
+      { advanceFilteredCursor: true },
+    )
+    if (result.status !== 'ready') throw new Error('Expected a restricted subscription.')
+    let delivered = false
+    const next = result.subscription.next().then((delivery) => {
+      delivered = true
+      return delivery
+    })
+
+    hub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'session-not-granted',
+      stateRevision: 1,
+      operation: 'message',
+    })
+    await Promise.resolve()
+    expect(delivered).toBe(false)
+    const authorizedFiltered = hub.publish({
+      kind: 'session-state-changed',
+      sessionId: 'session-other-granted',
+      stateRevision: 1,
+      operation: 'message',
+    })
+    await expect(next).resolves.toEqual({
+      status: 'cursor-advanced',
+      cursor: authorizedFiltered.cursor,
+    })
+  })
 })

@@ -21,3 +21,16 @@ export class ProfileCredentialCleanupError extends Error {
     this.name = 'ProfileCredentialCleanupError'
   }
 }
+
+export class ProfileCredentialPendingRecoveryError extends Error {
+  constructor(
+    readonly recoveryLocation: string,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Protected credential recovery cannot be completed for ${recoveryLocation}. Verify the credential destination before retrying.`,
+      options,
+    )
+    this.name = 'ProfileCredentialPendingRecoveryError'
+  }
+}

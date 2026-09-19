@@ -43,6 +43,7 @@ function promotedSteeringInput(
     runId,
     text: intent.text,
     attachments,
+    requireDurableDelivery: true,
     ...(intent.visualizationContext ? { visualizationContext: intent.visualizationContext } : {}),
   }
 }

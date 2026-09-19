@@ -113,6 +113,41 @@ describe('OpenWaggle MCP Session Control v2 adapter', () => {
     })
   })
 
+  it.each([
+    { operation: 'list' as const },
+    { operation: 'search' as const, message: 'release' },
+    { operation: 'delegations-list' as const },
+    { operation: 'delegations-conflicts' as const },
+  ])('defaults $operation to the caller grant scope, not the MCP process cwd', (input) => {
+    const payload = buildMcpSessionPayloadV2(input)
+    expect(payload).toMatchObject({ request: { query: { operation: input.operation } } })
+    expect(payload.request).toHaveProperty('query')
+    if ('query' in payload.request) {
+      expect(payload.request.query).not.toHaveProperty('workingPath')
+      expect(payload.request.query).not.toHaveProperty('projectPath')
+    }
+  })
+
+  it('preserves explicit MCP discovery scopes', () => {
+    const project = buildMcpSessionPayloadV2({
+      operation: 'list',
+      projectPath: '/repo',
+    })
+    const current = buildMcpSessionPayloadV2({
+      operation: 'list',
+      catalogScope: 'current',
+    })
+    const all = buildMcpSessionPayloadV2({ operation: 'list', catalogScope: 'all' })
+
+    expect(project).toMatchObject({ request: { query: { projectPath: '/repo' } } })
+    expect(current).toMatchObject({ request: { query: { workingPath: process.cwd() } } })
+    expect(all.request).toHaveProperty('query')
+    if ('query' in all.request) {
+      expect(all.request.query).not.toHaveProperty('workingPath')
+      expect(all.request.query).not.toHaveProperty('projectPath')
+    }
+  })
+
   it('maps explicit semantic discovery readiness requirements', () => {
     expect(
       buildMcpSessionPayloadV2({

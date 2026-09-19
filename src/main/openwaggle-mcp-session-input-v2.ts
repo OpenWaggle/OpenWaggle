@@ -27,6 +27,17 @@ function parsedInput(input: SessionToolInputV2): {
 } {
   const message = input.message ?? input.objective ?? input.title
   const { command, options } = mcpSessionCliOptionsV2(input, message)
+  if (
+    (input.operation === 'list' ||
+      input.operation === 'search' ||
+      input.operation === 'delegations-list' ||
+      input.operation === 'delegations-conflicts') &&
+    input.catalogScope === undefined &&
+    input.projectPath === undefined
+  ) {
+    // An MCP caller's current scope is its Host grants, not the server process's cwd.
+    options.set('all', ['true'])
+  }
   return {
     command,
     arguments: { positionals: mcpSessionPositionalsV2(input, message), passthrough: [], options },

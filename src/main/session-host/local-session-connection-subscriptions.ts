@@ -85,6 +85,7 @@ export class LocalSessionConnectionSubscriptions {
           () => (this.input.admission.isFenced() ? null : this.input.caller()),
           sessionIds,
         ),
+        { advanceFilteredCursor: true },
       )
       if (result.status === 'resync-required') {
         await this.input.send({
@@ -209,6 +210,23 @@ export class LocalSessionConnectionSubscriptions {
         } finally {
           releaseAdmissionReader()
         }
+      }
+      return
+    }
+    if (frame.kind === 'cursor-advanced') {
+      const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
+      if (!releaseAdmissionReader) return
+      try {
+        const caller = this.input.caller()
+        if (caller && !this.input.admission.isFenced()) {
+          await this.input.send({
+            kind: 'cursor-advanced',
+            subscriptionId,
+            cursor: this.input.cursorProjection.expose(caller, frame.cursor),
+          })
+        }
+      } finally {
+        releaseAdmissionReader()
       }
       return
     }

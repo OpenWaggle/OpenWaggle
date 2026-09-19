@@ -10,6 +10,7 @@ export interface AgentSteeringInput {
   readonly text: string
   readonly attachments: readonly HydratedAttachment[]
   readonly visualizationContext?: InlineVisualizationContext
+  readonly requireDurableDelivery?: boolean
 }
 
 export type AgentSteeringResult =
