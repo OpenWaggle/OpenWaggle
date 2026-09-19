@@ -149,9 +149,11 @@ describe('Session Control queued Waggle delivery', () => {
       }).pipe(Effect.provide(layer)),
     )
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       mode: 'waggle',
       result: { terminalStatus: 'completed' },
+      resourceResult: { outcome: 'success', newMessages: [] },
+      payload: { text: 'Review next.' },
     })
     expect(runRegisteredExplicitWaggle).toHaveBeenCalledWith(
       expect.objectContaining({

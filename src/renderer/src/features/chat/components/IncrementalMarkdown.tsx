@@ -6,7 +6,7 @@ import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useIncrementalMarkdown } from '@/features/chat/hooks/useIncrementalMarkdown'
-import { SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
+import { NonFetchingMarkdownImage, SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
 import { type RehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
 import { fencedCodeLanguage } from '@/shared/lib/syntax/markdown-components'
 import { CodeBlock } from './CodeBlock'
@@ -27,6 +27,7 @@ interface IncrementalMarkdownProps {
 /** Shared component overrides for both prefix and tail rendering. */
 const markdownComponents: Components = {
   a: SafeMarkdownLink,
+  img: NonFetchingMarkdownImage,
   pre({ children }: { children?: ReactNode }) {
     const language = fencedCodeLanguage(children)
     return <CodeBlock language={language}>{children}</CodeBlock>

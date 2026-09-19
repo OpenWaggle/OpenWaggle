@@ -1,0 +1,257 @@
+import { SessionId } from '@shared/types/brand'
+import type { SessionResource } from '@shared/types/session-resource'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useUIStore } from '@/shell/ui-store'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { SessionMessageImages, SessionMessageResourcesProvider } from '../SessionMessageImages'
+
+const listSessionResources = vi.hoisted(() => vi.fn())
+const readSessionResource = vi.hoisted(() => vi.fn())
+const readSessionResourceThumbnail = vi.hoisted(() => vi.fn())
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: { listSessionResources, readSessionResource, readSessionResourceThumbnail },
+}))
+
+function image(id: string, nodeId: string): SessionResource {
+  return {
+    id,
+    sessionId: SessionId('session-1'),
+    canonicalKey: `sha256:${id}`,
+    kind: 'image',
+    title: `${id}.png`,
+    mimeType: 'image/png',
+    locator: `session-resource://${id}`,
+    managed: true,
+    available: true,
+    isSource: true,
+    isOutput: false,
+    occurrences: [
+      {
+        id: `occurrence-${id}`,
+        nodeId,
+        branchId: null,
+        actor: 'user',
+        activity: 'provided',
+        label: null,
+        locator: `session-resource://${id}`,
+        createdAt: 1000,
+      },
+    ],
+    createdAt: 1000,
+    updatedAt: 1000,
+  }
+}
+
+function remoteImage(id: string, nodeId: string): SessionResource {
+  return {
+    ...image(id, nodeId),
+    canonicalKey: `url:https://images.example/${id}.png`,
+    mimeType: null,
+    locator: `https://images.example/${id}.png`,
+    managed: false,
+  }
+}
+
+function agentImage(id: string, nodeId: string): SessionResource {
+  const resource = image(id, nodeId)
+  return {
+    ...resource,
+    isSource: false,
+    isOutput: true,
+    occurrences: resource.occurrences.map((occurrence) => ({
+      ...occurrence,
+      actor: 'agent' as const,
+      activity: 'created' as const,
+    })),
+  }
+}
+
+describe('SessionMessageImages', () => {
+  beforeEach(() => {
+    useUIStore.setState({ resourceViewer: null })
+    listSessionResources
+      .mockReset()
+      .mockResolvedValue([image('matching', 'message-1'), image('other-message', 'message-2')])
+    readSessionResource.mockReset().mockResolvedValue({
+      resourceId: 'matching',
+      fileName: 'matching.png',
+      mimeType: 'image/png',
+      url: 'openwaggle-session-resource://content/matching/view',
+      downloadUrl: 'openwaggle-session-resource://content/matching/download',
+    })
+    readSessionResourceThumbnail.mockReset().mockResolvedValue({
+      resourceId: 'matching',
+      fileName: 'matching-thumbnail.webp',
+      mimeType: 'image/webp',
+      dataBase64: 'dGh1bWJuYWls',
+    })
+  })
+
+  it('renders only images attached to this message and opens the session viewer', async () => {
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const imageButton = await screen.findByRole('button', { name: 'Open image matching.png' })
+    expect(screen.queryByRole('button', { name: 'Open image other-message.png' })).toBeNull()
+    expect(readSessionResourceThumbnail).toHaveBeenCalledWith(SessionId('session-1'), 'matching')
+    expect(readSessionResource).not.toHaveBeenCalled()
+
+    fireEvent.click(imageButton)
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'matching',
+      galleryResourceIds: ['matching'],
+    })
+  })
+
+  it('shows multiple images in a compact grid and opens their message gallery in order', async () => {
+    listSessionResources.mockResolvedValue([
+      image('first', 'message-1'),
+      image('second', 'message-1'),
+      image('third', 'message-1'),
+      image('elsewhere', 'message-2'),
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const buttons = await screen.findAllByRole('button', { name: /^Open image / })
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open image first.png',
+      'Open image second.png',
+      'Open image third.png',
+    ])
+    expect(screen.getByRole('group', { name: 'Message images' })).toHaveClass(
+      'session-message-image-grid',
+    )
+    expect(buttons[0]).toHaveClass('aspect-[4/3]')
+
+    fireEvent.click(buttons[1])
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'second',
+      galleryResourceIds: ['first', 'second', 'third'],
+    })
+  })
+
+  it('shows multiple agent images on their message and opens only that agent gallery', async () => {
+    listSessionResources.mockResolvedValue([
+      image('user-image', 'user-message'),
+      agentImage('agent-first', 'agent-message'),
+      agentImage('agent-second', 'agent-message'),
+      agentImage('other-agent', 'other-agent-message'),
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider
+        sessionId={SessionId('session-1')}
+        nodeIds={['user-message', 'agent-message', 'other-agent-message']}
+      >
+        <SessionMessageImages messageId="agent-message" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const buttons = await screen.findAllByRole('button', { name: /^Open image / })
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open image agent-first.png',
+      'Open image agent-second.png',
+    ])
+    fireEvent.click(buttons[1])
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'agent-second',
+      galleryResourceIds: ['agent-first', 'agent-second'],
+    })
+  })
+
+  it('does not fetch a remote image merely because its preview is visible', async () => {
+    listSessionResources.mockResolvedValue([remoteImage('remote', 'message-1')])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const imageButton = await screen.findByRole('button', { name: 'Open image remote.png' })
+    expect(readSessionResource).not.toHaveBeenCalled()
+    expect(readSessionResourceThumbnail).not.toHaveBeenCalled()
+
+    fireEvent.click(imageButton)
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'remote',
+      galleryResourceIds: ['remote'],
+    })
+    expect(readSessionResource).not.toHaveBeenCalled()
+  })
+
+  it('does not render an action for unavailable managed images', async () => {
+    listSessionResources.mockResolvedValue([{ ...image('missing', 'message-1'), available: false }])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalled())
+    expect(screen.queryByRole('group', { name: 'Message images' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open image missing.png' })).toBeNull()
+  })
+
+  it('does not expose an SVG demoted to a file as a captured message image', async () => {
+    listSessionResources.mockResolvedValue([
+      {
+        ...image('unsafe-svg', 'message-1'),
+        kind: 'file',
+        title: 'unsafe.svg',
+        mimeType: 'image/svg+xml',
+      },
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('group', { name: 'Message images' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open image unsafe.svg' })).toBeNull()
+  })
+
+  it('indexes one session catalog for every visible message bubble', async () => {
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider
+        sessionId={SessionId('session-1')}
+        nodeIds={['message-1', 'message-2', 'message-without-images']}
+      >
+        <SessionMessageImages messageId="message-1" />
+        <SessionMessageImages messageId="message-2" />
+        <SessionMessageImages messageId="message-without-images" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Open image matching.png' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Open image other-message.png' })).toBeVisible()
+    expect(listSessionResources).toHaveBeenCalledOnce()
+  })
+
+  it('ignores catalog rows that do not belong to the provider session', async () => {
+    listSessionResources.mockResolvedValue([
+      { ...image('foreign', 'message-1'), sessionId: SessionId('session-2') },
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider sessionId={SessionId('session-1')} nodeIds={['message-1']}>
+        <SessionMessageImages messageId="message-1" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    await waitFor(() => expect(listSessionResources).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('group', { name: 'Message images' })).toBeNull()
+  })
+})

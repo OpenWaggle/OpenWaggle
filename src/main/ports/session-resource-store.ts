@@ -1,0 +1,49 @@
+import type { SessionId } from '@shared/types/brand'
+import { Context, type Effect } from 'effect'
+import type { SessionResourceStoreError } from '../errors'
+
+export interface StoredSessionResourceFile {
+  readonly path: string
+  readonly sha256: string
+  readonly sizeBytes: number
+}
+
+export interface StoreSessionResourceBytesInput {
+  readonly sessionId: SessionId
+  readonly resourceId: string
+  readonly fileName: string
+  readonly bytes: Uint8Array
+}
+
+export interface StoreSessionResourceFileInput {
+  readonly sessionId: SessionId
+  readonly resourceId: string
+  readonly fileName: string
+  readonly sourcePath: string
+  readonly expectedSizeBytes: number
+  readonly expectedSha256?: string
+  readonly maxSizeBytes: number
+}
+
+export interface SessionResourceStoreShape {
+  readonly storeBytes: (
+    input: StoreSessionResourceBytesInput,
+  ) => Effect.Effect<StoredSessionResourceFile, SessionResourceStoreError>
+  readonly storeFile: (
+    input: StoreSessionResourceFileInput,
+  ) => Effect.Effect<StoredSessionResourceFile, SessionResourceStoreError>
+  /** Verifies that a managed path is a readable regular file without loading its payload. */
+  readonly inspect: (managedPath: string) => Effect.Effect<void, SessionResourceStoreError>
+  /** Opens a confined managed file for incremental protocol delivery. */
+  readonly openReadStream: (
+    managedPath: string,
+  ) => Effect.Effect<ReadableStream<Uint8Array>, SessionResourceStoreError>
+  readonly read: (managedPath: string) => Effect.Effect<Uint8Array, SessionResourceStoreError>
+  readonly remove: (managedPath: string) => Effect.Effect<void, SessionResourceStoreError>
+  readonly removeSession: (sessionId: SessionId) => Effect.Effect<void, SessionResourceStoreError>
+}
+
+export class SessionResourceStore extends Context.Tag('@openwaggle/SessionResourceStore')<
+  SessionResourceStore,
+  SessionResourceStoreShape
+>() {}

@@ -6,6 +6,7 @@ import { SqliteClient } from '@effect/sql-sqlite-node'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
+import { runMigrations } from '../database-migration-runner'
 import { APP_MIGRATIONS } from '../database-migrations'
 import { SESSION_HOST_LAZY_SEMANTIC_SCOPE_MIGRATION_ID } from '../session-host-schema-identity'
 
@@ -27,43 +28,8 @@ function withDatabase<A>(
   )
 }
 
-function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL
-      )
-    `)
-
-    for (const migration of APP_MIGRATIONS) {
-      if (migration.id > upToId) continue
-      const existing = yield* sql<{ readonly id: number }>`
-        SELECT id FROM _migrations WHERE id = ${migration.id} LIMIT 1
-      `
-      if (existing.length > 0) continue
-      const skip = migration.skipIfColumns
-      if (skip) {
-        const columns = yield* sql<{ readonly name: string }>`
-          SELECT name FROM pragma_table_info(${skip.table})
-        `
-        const names = new Set(columns.map((column) => column.name))
-        if (skip.columns.every((column) => names.has(column))) {
-          yield* sql`
-            INSERT INTO _migrations (id, name, applied_at)
-            VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-          `
-          continue
-        }
-      }
-      for (const statement of migration.statements) yield* sql.unsafe(statement)
-      yield* sql`
-        INSERT INTO _migrations (id, name, applied_at)
-        VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-      `
-    }
-  })
+function applyMigrations(_sql: SqlClient.SqlClient, upToId: number) {
+  return runMigrations(APP_MIGRATIONS.filter((migration) => migration.id <= upToId))
 }
 
 const LEGACY_TRIGGER_STATEMENTS = [

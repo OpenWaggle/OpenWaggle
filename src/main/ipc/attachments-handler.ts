@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { preparedAttachmentSchema } from '@shared/schemas/validation'
 import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
@@ -12,6 +13,7 @@ import {
   configurePreparedAttachmentRegistry,
   rememberPreparedAttachment,
 } from '../utils/attachment-registry'
+import { discardRegisteredImageAttachment } from './attachment-preparation'
 import {
   buildTempPromptFilename,
   cleanupTempAttachments,
@@ -21,6 +23,12 @@ import {
 } from './attachment-temp-files'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
+
+export {
+  discardRegisteredImageAttachment,
+  prepareRegisteredAttachment,
+  prepareRegisteredImageAttachmentFromBytes,
+} from './attachment-preparation'
 
 const logger = createLogger('ipc/attachments')
 
@@ -122,6 +130,15 @@ function registerPrepareFromTextAttachmentHandler() {
   )
 }
 
+function registerDiscardAttachmentHandler() {
+  typedHandle('attachments:discard', (_event, rawAttachment: unknown) =>
+    Effect.gen(function* () {
+      const attachment = decodeUnknownOrThrow(preparedAttachmentSchema, rawAttachment)
+      yield* Effect.promise(() => discardRegisteredImageAttachment(attachment))
+    }),
+  )
+}
+
 export function registerAttachmentHandlers(): void {
   configurePreparedAttachmentRegistry(app.getPath('userData'))
   void cleanupTempAttachments().catch((error: unknown) => {
@@ -130,4 +147,5 @@ export function registerAttachmentHandlers(): void {
 
   registerPrepareAttachmentHandler()
   registerPrepareFromTextAttachmentHandler()
+  registerDiscardAttachmentHandler()
 }

@@ -40,6 +40,7 @@ export function toPublicPreparedAttachment(attachment: PreparedAttachment): Prep
     path: attachment.path,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
+    ...(attachment.contentSha256 ? { contentSha256: attachment.contentSha256 } : {}),
     extractedText: attachment.extractedText,
     ...(attachment.browserPreview ? { browserPreview: { ...attachment.browserPreview } } : {}),
   }

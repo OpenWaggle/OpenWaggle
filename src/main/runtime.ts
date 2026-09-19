@@ -14,6 +14,7 @@ import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-
 import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemSessionExportArtifactWriterLive } from './adapters/filesystem-session-export-artifact-writer'
 import { FilesystemSessionExportResourceResolverLive } from './adapters/filesystem-session-export-resource-resolver'
+import { FilesystemSessionResourceStoreLive } from './adapters/filesystem-session-resource-store'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
 import { GitSessionWorkspaceHandoffServiceLive } from './adapters/git-session-workspace-handoff-service'
 import { LocalSessionCredentialVerifierLive } from './adapters/local-session-credential-verifier'
@@ -31,6 +32,7 @@ import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionOrchestrationUpdateDeliveryServiceLive } from './adapters/pi/pi-session-orchestration-update-delivery-service'
 import { PiSessionReportDeliveryServiceLive } from './adapters/pi/pi-session-report-delivery-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
+import { SecureSessionResourceImageFetcherLive } from './adapters/secure-session-resource-image-fetcher'
 import { LiveSessionControlAttachmentService } from './adapters/session-control-attachment-service'
 import { SessionControlIdentityServiceLive } from './adapters/session-control-identity-service'
 import { SessionControlRunExecutorLive } from './adapters/session-control-run-executor'
@@ -38,6 +40,8 @@ import { SessionLifecycleIdentityServiceLive } from './adapters/session-lifecycl
 import { SessionLifecyclePreparationServiceLive } from './adapters/session-lifecycle-preparation-service'
 import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SharpSessionResourceImageValidatorLive } from './adapters/sharp-session-resource-image-validator'
+import { SharpSessionResourceThumbnailerLive } from './adapters/sharp-session-resource-thumbnailer'
 import { SqliteExplicitWaggleOperationJournalLive } from './adapters/sqlite-explicit-waggle-operation-journal'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
@@ -55,10 +59,13 @@ import { SqliteSessionHostRecoveryRepositoryLive } from './adapters/sqlite-sessi
 import { SqliteSessionLifecycleRepositoryLive } from './adapters/sqlite-session-lifecycle-repository'
 import { SqliteSessionOrchestrationUpdateRepositoryLive } from './adapters/sqlite-session-orchestration-update-repository'
 import { SqliteSessionOrganizationRepositoryLive } from './adapters/sqlite-session-organization-repository'
+import { SqliteSessionOutputRetryRepositoryLive } from './adapters/sqlite-session-output-retry-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionQueryRepositoryLive } from './adapters/sqlite-session-query-repository'
 import { SqliteSessionReportRepositoryLive } from './adapters/sqlite-session-report-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
+import { SqliteSessionResourceCleanupRepositoryLive } from './adapters/sqlite-session-resource-cleanup-repository'
+import { SqliteSessionResourceRepositoryLive } from './adapters/sqlite-session-resource-repository'
 import { SqliteSessionWorkspaceResourceRepositoryLive } from './adapters/sqlite-session-workspace-resource-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { WorkspaceProjectAuthorizationLive } from './adapters/workspace-project-authorization'
@@ -81,6 +88,15 @@ const ExtensionProjectOverridesRepositoryLive = SqliteExtensionProjectOverridesR
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionStorageRepositoryLive = SqliteExtensionStorageRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const SessionResourceRepositoryLive = SqliteSessionResourceRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const SessionResourceCleanupRepositoryLive = SqliteSessionResourceCleanupRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const SessionOutputRetryRepositoryLive = SqliteSessionOutputRetryRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionRuntimeSelectionLive = Layer.mergeAll(
@@ -118,6 +134,10 @@ const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
   FilesystemDocsBundleLive,
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,
+  SessionResourceRepositoryLive,
+  FilesystemSessionResourceStoreLive,
+  SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceImageValidatorLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
 )
@@ -170,6 +190,9 @@ const AgentRequestedWaggleWithDependenciesLive = AgentRequestedWaggleServiceLive
       PiAgentKernelWithExtensionSelectionLive,
       SqliteSessionProjectionRepositoryLive,
       SqliteSessionRepositoryLive,
+      SessionResourceRepositoryLive,
+      FilesystemSessionResourceStoreLive,
+      SharpSessionResourceImageValidatorLive,
       SettingsService.Live,
     ),
   ),
@@ -183,6 +206,9 @@ const SessionControlRunExecutorWithDependenciesLive = SessionControlRunExecutorL
       AgentRequestedWaggleWithDependenciesLive,
       SqliteSessionProjectionRepositoryLive,
       SqliteSessionRepositoryLive,
+      SessionResourceRepositoryLive,
+      FilesystemSessionResourceStoreLive,
+      SharpSessionResourceImageValidatorLive,
       SettingsService.Live,
       SessionControlAttachmentWithDatabaseLive,
       AppDatabaseLive,
@@ -218,6 +244,13 @@ const AppLayer = Layer.mergeAll(
   FilesystemDocsBundleLive,
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,
+  SessionResourceRepositoryLive,
+  SessionResourceCleanupRepositoryLive,
+  SessionOutputRetryRepositoryLive,
+  FilesystemSessionResourceStoreLive,
+  SecureSessionResourceImageFetcherLive,
+  SharpSessionResourceImageValidatorLive,
+  SharpSessionResourceThumbnailerLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,

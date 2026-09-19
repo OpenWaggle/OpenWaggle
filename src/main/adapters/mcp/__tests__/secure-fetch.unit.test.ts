@@ -19,7 +19,7 @@ describe('secure MCP network policy', () => {
     ).rejects.toThrow('resolved outside loopback')
   })
 
-  it.each(['100.64.0.1', '192.0.2.1', '::ffff:127.0.0.1'])(
+  it.each(['100.64.0.1', '192.0.2.1', '240.0.0.1', '255.255.255.255', '::ffff:127.0.0.1'])(
     'rejects non-public or IPv4-mapped destination %s',
     async (address) => {
       await expect(
@@ -52,6 +52,28 @@ describe('secure MCP network policy', () => {
     )
 
     expect(addresses).toEqual([{ address: '93.184.216.34', family: 4 }])
+  })
+
+  it.each([
+    'http://127.0.0.1/private',
+    'https://localhost/private',
+    'http://[::1]/private',
+    'https://[::1]/private',
+  ])('does not follow an image redirect to loopback %s', async (location) => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 302, headers: { location } }))
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://images.example.test/photo.png'),
+      allowPublicRedirects: true,
+      allowLoopback: false,
+      fetchFn,
+      resolveHostname: publicLookup,
+    })
+
+    await expect(secureFetch('https://images.example.test/photo.png')).rejects.toThrow(
+      'loopback target is not permitted',
+    )
+    expect(fetchFn).toHaveBeenCalledOnce()
+    await secureFetch.close()
   })
 
   it('passes the validated target to the HTTP connector instead of resolving again', async () => {
@@ -106,6 +128,31 @@ describe('secure MCP network policy', () => {
       expect(headers.get('x-safe')).toBe('kept')
     },
   )
+
+  it('rejects a public-looking redirect whose DNS resolves to loopback', async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://redirect.example/private' },
+        }),
+    )
+    const secureFetch = createSecureMcpFetch({
+      baseUrl: new URL('https://images.example.test/photo.png'),
+      allowPublicRedirects: true,
+      allowLoopback: false,
+      fetchFn,
+      resolveHostname: vi.fn(async (hostname) => [
+        { address: hostname === 'redirect.example' ? '127.0.0.2' : '93.184.216.34', family: 4 },
+      ]),
+    })
+
+    await expect(secureFetch('https://images.example.test/photo.png')).rejects.toThrow(
+      'resolves to forbidden loopback',
+    )
+    expect(fetchFn).toHaveBeenCalledOnce()
+    await secureFetch.close()
+  })
 
   it('accepts a granted wildcard origin only for its subdomains', async () => {
     const fetchFn = vi

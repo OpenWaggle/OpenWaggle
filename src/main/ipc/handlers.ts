@@ -18,6 +18,8 @@ import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
 import { registerSessionControlHandlers } from './session-control-handler'
 import { registerSessionDetailsHandlers } from './session-details-handler'
+import { registerSessionResourceHandlers } from './session-resource-handler'
+import { registerSessionResourceInvalidationBridge } from './session-resource-invalidation-bridge'
 import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
 import { registerShellHandlers } from './shell-handler'
@@ -43,6 +45,8 @@ export function registerAllIpcHandlers(): void {
   registerSyntaxThemeHandlers()
   registerSessionsHandlers()
   registerSessionDetailsHandlers()
+  registerSessionResourceHandlers()
+  registerSessionResourceInvalidationBridge()
   registerAttachmentHandlers()
   registerGitHandlers()
   registerExtensionsHandlers()

@@ -51,18 +51,19 @@ describe('acknowledged browser preview cleanup', () => {
     expect(electronMocks.createdViews[1]?.webContents.close).not.toHaveBeenCalled()
   })
 
-  it('does not lose a failed native close when the visible registry is empty', async () => {
+  it('retains a failed native close for owner cleanup', async () => {
     const { owner, manager, view } = setup()
     view.webContents.close.mockImplementationOnce(() => {
       throw new Error('native close failed')
     })
-    manager.close(owner, 'preview-1')
-    expect(manager.listOwnedPreviews('session-1')).toHaveLength(0)
+    await expect(manager.close(owner, 'preview-1')).rejects.toThrow('native close failed')
+    expect(manager.listOwnedPreviews('session-1')).toHaveLength(1)
     expect(view.webContents.destroyed).toBe(false)
 
     await manager.closeForOwner('session-1')
     expect(view.webContents.close).toHaveBeenCalledTimes(2)
     expect(view.webContents.destroyed).toBe(true)
+    expect(manager.listOwnedPreviews('session-1')).toHaveLength(0)
   })
 
   it('rejects native close failures and preserves the exact resource for retry', async () => {

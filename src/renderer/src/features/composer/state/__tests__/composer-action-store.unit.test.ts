@@ -12,6 +12,34 @@ beforeEach(() => {
   useComposerActionStore.setState({
     branchQuery: '',
     branchMessage: null,
+    filePickerRequest: null,
+    filePickerRequestRevision: 0,
+  })
+})
+
+describe('session-scoped composer requests', () => {
+  it('lets only the matching opened session consume a file picker request', () => {
+    useComposerActionStore.getState().requestFilePicker('session-a')
+    const request = useComposerActionStore.getState().filePickerRequest
+
+    expect(request).toEqual({ id: 1, sessionId: 'session-a' })
+    expect(
+      request && useComposerActionStore.getState().takeFilePickerRequest(request.id, 'session-b'),
+    ).toBe(false)
+    expect(useComposerActionStore.getState().filePickerRequest).toBeNull()
+  })
+
+  it('consumes a matching request exactly once', () => {
+    useComposerActionStore.getState().requestFilePicker('session-a')
+    const request = useComposerActionStore.getState().filePickerRequest
+    if (!request) throw new Error('Expected a file picker request')
+
+    expect(useComposerActionStore.getState().takeFilePickerRequest(request.id, 'session-a')).toBe(
+      true,
+    )
+    expect(useComposerActionStore.getState().takeFilePickerRequest(request.id, 'session-a')).toBe(
+      false,
+    )
   })
 })
 

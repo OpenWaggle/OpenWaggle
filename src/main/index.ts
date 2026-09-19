@@ -13,23 +13,21 @@ import { startAgentsCliIfRequested } from './agents-cli-entry'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { invokeConfiguredHostUi } from './application/gui-session-command-router'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { openSessionResourceContentStream } from './application/session-resource-content'
 import { applicationCliArguments } from './application-cli-arguments'
+import { registerApplicationProtocols } from './application-protocols'
 import { startDelegationsCliIfRequested } from './delegations-cli-entry'
 import { getAllBrowserWindows, isAutomationMode } from './desktop-ui'
 import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env, installDesktopShellEnvironment } from './env'
 import { describeError } from './error-description'
-import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
-import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
 import { installInlineVisualizationNavigationGuard } from './inline-visualization-navigation'
-import { registerInlineVisualizationProtocolOnce } from './inline-visualization-protocol'
 import { createLogger, initFileLogger } from './logger'
 import { createMainWindow, focusExistingWindow } from './main-window'
 import { startMcpCliIfRequested } from './mcp-cli-entry'
 import { startRecoveryCliIfRequested } from './recovery-cli-entry'
 import {
   configureInlineVisualizationProcessIsolation,
-  registerRendererProtocolOnce,
   registerRendererScheme,
 } from './renderer-protocol'
 import { configureAppStoragePaths } from './session-data'
@@ -81,9 +79,7 @@ let sessionHostLifecycleOnce: GuiSessionHostLifecycle | null = null
 let cleanupDesktopServicesOnce: (() => Promise<void>) | null = null
 
 function startupMark(label: string) {
-  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
-    return
-  }
+  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) return
 
   logger.info('Startup timing', {
     label,
@@ -210,11 +206,13 @@ async function bootstrapServicesAndWindow() {
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')
 
-  registerRendererProtocolOnce()
-  registerExtensionFrameProtocolOnce()
-  registerExtensionRuntimeProtocolOnce()
-  registerInlineVisualizationProtocolOnce({
-    readSource: (input) => runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+  registerApplicationProtocols({
+    readInlineVisualizationSource: (input) =>
+      runtimeModule.runAppEffect(readInlineVisualizationSource(input)),
+    readSessionResourceContent: (input) =>
+      runtimeModule.runAppEffect(
+        openSessionResourceContentStream(input.sessionId, input.resourceId),
+      ),
   })
   startupMark('protocol-handlers-registered')
 

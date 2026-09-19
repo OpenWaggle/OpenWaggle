@@ -71,7 +71,15 @@ function input(messages: readonly Message[] = [handoffMessage()]) {
   }
 }
 
-function runner(result: WaggleRunResult = { outcome: 'success', newMessages: [] }) {
+function runner(
+  result: WaggleRunResult = {
+    outcome: 'success',
+    newMessages: [],
+    resourceMessages: [],
+    resourceNodeIds: {},
+    resourceBranchIds: {},
+  },
+) {
   return vi.fn((runInput: WaggleRunInput) => {
     runInput.onRunPrepared?.(MODEL)
     return Effect.succeed(result)

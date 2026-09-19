@@ -1,12 +1,12 @@
+import type { DatabaseMigrationDefinition } from './database-migration-types'
 import * as DatabaseSchema from './database-schema'
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
+import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
 import { SESSION_HOST_APP_MIGRATIONS } from './session-host-app-migrations'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
 
-export interface AppMigration {
-  readonly id: number
-  readonly name: string
-  readonly statements: readonly string[]
+export interface AppMigration extends DatabaseMigrationDefinition {
   /** Skip a migration when an earlier alpha or cutover already installed every listed column. */
   readonly skipIfColumns?: { readonly table: string; readonly columns: readonly string[] }
 }
@@ -290,5 +290,11 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   },
   SESSION_WORKTREE_SETUP_MIGRATION,
   SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION,
+  {
+    id: 28,
+    name: 'session-hive-lineage',
+    statements: CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
+  },
+  ...SESSION_RESOURCE_MIGRATIONS,
   ...SESSION_HOST_APP_MIGRATIONS,
 ]

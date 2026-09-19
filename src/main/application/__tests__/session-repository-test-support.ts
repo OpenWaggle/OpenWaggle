@@ -7,7 +7,15 @@ export const emptySessionCatalogMethods = {
   listByIds: () => Effect.succeed([]),
   listHiveCatalogPage: () => Effect.succeed({ context: [], workers: [] }),
   listArchivedBranchCatalogPage: () => Effect.succeed({ sessions: [] }),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
 } satisfies Pick<
   SessionRepositoryShape,
-  'listCatalogPage' | 'listByIds' | 'listHiveCatalogPage' | 'listArchivedBranchCatalogPage'
+  | 'listCatalogPage'
+  | 'listByIds'
+  | 'listHiveCatalogPage'
+  | 'listArchivedBranchCatalogPage'
+  | 'listResourceProjectionPage'
+  | 'getResourceProjectionNodes'
 >

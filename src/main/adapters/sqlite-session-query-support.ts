@@ -23,6 +23,7 @@ export interface SessionQuerySummaryRow {
   readonly hive_root_session_id: string | null
   readonly direct_worker_count: number
   readonly profile_json: string | null
+  readonly legacy_agent_definition_name?: string | null
   readonly delegation_id: string | null
   readonly delegation_state: DelegationState | null
 }
@@ -55,7 +56,8 @@ function agentDefinitionName(profileJson: string | null) {
 export function sessionQuerySummary(row: SessionQuerySummaryRow): SessionQuerySummary {
   const worker = row.parent_session_id !== null
   const queen = !worker && row.direct_worker_count > 0
-  const definitionName = agentDefinitionName(row.profile_json)
+  const definitionName =
+    agentDefinitionName(row.profile_json) ?? row.legacy_agent_definition_name ?? undefined
   return {
     sessionId: row.session_id,
     title: row.title,

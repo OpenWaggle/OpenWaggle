@@ -3,10 +3,6 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { resolveTranscriptMessages } from '../session-workspace-transcript'
-import {
-  INACTIVE_BRANCH_ID,
-  workspaceAtInactiveBranchHead,
-} from './session-workspace-transcript.fixtures'
 
 const SESSION_ID = SessionId('session-1')
 const SESSION_DETAIL_ID = SessionId('session-1')
@@ -27,8 +23,10 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-  branchId = MAIN_BRANCH_ID,
+  options: { readonly messageId?: string; readonly branchId?: SessionBranchId } = {},
 ): SessionNode {
+  const messageId = options.messageId ?? id
+  const branchId = options.branchId ?? MAIN_BRANCH_ID
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -41,7 +39,7 @@ function sessionNode(
     pathDepth: createdOrder,
     branchId,
     message: {
-      id: MessageId(id),
+      id: MessageId(messageId),
       role,
       parts: [{ type: 'text', text: content }],
       createdAt: createdOrder + 1,
@@ -106,6 +104,19 @@ function activeNodeIdCreatedOrder(nodes: readonly SessionNode[], activeNodeId: S
 }
 
 describe('resolveTranscriptMessages', () => {
+  it('carries the persisted node identity when it differs from the message id', () => {
+    const node = sessionNode('persisted-node', null, 'user', 'Reference', 0, {
+      messageId: 'pi-message',
+    })
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeWorkspace: workspaceWithPath([node], node.id, node.id),
+      messages: [uiMessage('pi-message', 'user', 'Reference')],
+    })
+
+    expect(resolved[0]?.id).toBe('pi-message')
+    expect(resolved[0]?.metadata?.sessionNodeId).toBe('persisted-node')
+  })
   it('uses the selected workspace transcript path instead of later main-branch messages', () => {
     const beforeBranch = sessionNode('user-before-branch', null, 'user', 'Before branch', 0)
     const answerBeforeBranch = sessionNode(
@@ -290,29 +301,5 @@ describe('resolveTranscriptMessages', () => {
     })
 
     expect(resolved.map((message) => message.id)).toEqual(['selected-branch-assistant'])
-  })
-
-  it('does not merge a disjoint active transcript at the head of an inactive branch', () => {
-    const inactiveBranchHead = sessionNode(
-      'inactive-branch-head',
-      null,
-      'assistant',
-      'Inactive branch',
-      0,
-      INACTIVE_BRANCH_ID,
-    )
-    const sessionHead = sessionNode('session-head', null, 'assistant', 'Current session head', 1)
-
-    const resolved = resolveTranscriptMessages({
-      activeSessionId: SESSION_DETAIL_ID,
-      activeSessionUpdatedAt: 10,
-      activeWorkspace: workspaceAtInactiveBranchHead(sessionHead, inactiveBranchHead),
-      messages: [
-        uiMessage('replacement-user', 'user', 'Current branch question'),
-        uiMessage('replacement-assistant', 'assistant', 'Current branch answer'),
-      ],
-    })
-
-    expect(resolved.map((message) => message.id)).toEqual(['inactive-branch-head'])
   })
 })

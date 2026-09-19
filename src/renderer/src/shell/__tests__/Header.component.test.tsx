@@ -2,6 +2,7 @@ import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useTerminalStore } from '@/features/terminal'
 import { Button } from '@/shared/ui/Button'
 import { Header } from '../Header'
@@ -45,8 +46,8 @@ vi.mock('@/features/chat/hooks', () => ({
     activeSession: {
       id: SessionId('session-1'),
       title: 'Fallback title',
+      messages: [{ id: 'message-1', role: 'user', parts: [], createdAt: 1 }],
       projectPath: headerMocks.projectPath,
-      messages: [],
       createdAt: 1,
       updatedAt: 2,
       environmentMode: 'worktree',
@@ -175,13 +176,19 @@ vi.mock('@/features/sessions/hooks', () => ({
 
 describe('Header', () => {
   beforeEach(() => {
+    localStorage.clear()
     useUIStore.setState({
       diffRefreshKey: 0,
       feedbackModalOpen: false,
       sidebarOpen: true,
-      terminalOpen: false,
       toastData: null,
       toastMessage: null,
+    })
+    useSessionSummaryUIStore.setState({ panels: {}, toggleFocusTargetSessionId: null })
+    useSessionSummaryUIStore.getState().syncPanel('session-1', {
+      available: true,
+      autoHidden: false,
+      rightSidebarOpen: false,
     })
     useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
     headerMocks.refreshStatus.mockClear()
@@ -213,10 +220,12 @@ describe('Header', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Open terminal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Session Summary' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Report a bug' }))
 
+    expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(false)
     expect(useTerminalStore.getState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().feedbackModalOpen).toBe(true)
     expect(headerMocks.toggleSessionTree).toHaveBeenCalledOnce()
@@ -233,6 +242,7 @@ describe('Header', () => {
     await waitFor(() =>
       // Commit writes to the tree being reviewed, not the opened checkout.
       expect(headerMocks.commit).toHaveBeenCalledWith('/wt/openwaggle/session-1', {
+        sessionId: SessionId('session-1'),
         message: 'Ship it',
         amend: false,
         paths: ['src/app.ts'],

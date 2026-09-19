@@ -17,6 +17,7 @@ import {
 } from './browser-preview-annotation-attachment'
 import { BrowserPreviewArtifactStorage } from './browser-preview-artifact-storage'
 import { captureBrowserPreviewPage } from './browser-preview-capture'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 import { showItemInFolder } from './desktop-ui'
 import { rememberPreparedAttachment } from './utils/attachment-registry'
 
@@ -170,6 +171,7 @@ export class BrowserPreviewArtifactStore {
       )
     }
     const stored = await this.storage.write('screenshot', 'png', data)
+    assertBrowserPreviewContentsAvailable(contents)
     return {
       ...stored,
       previewId,

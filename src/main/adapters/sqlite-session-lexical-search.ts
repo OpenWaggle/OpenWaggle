@@ -138,6 +138,26 @@ function lexicalCandidateRows(
   `
 }
 
+function lexicalAuthoritySql(
+  sql: SqlClient.SqlClient,
+  allowed: ReturnType<typeof authorizedSessionScope>,
+) {
+  return {
+    join:
+      allowed.all === 1
+        ? sql``
+        : sql`LEFT JOIN session_spawn_lineage
+          ON session_spawn_lineage.child_session_id = sessions.id`,
+    predicate:
+      allowed.all === 1
+        ? sql`1 = 1`
+        : sql`(sessions.project_path IN ${sql.in(allowed.projectPaths)}
+          OR sessions.id IN ${sql.in(allowed.sessionIds)}
+          OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id)
+            IN ${sql.in(allowed.hiveRootSessionIds)})`,
+  }
+}
+
 export function loadLexicalDiscoveryRows(
   sql: SqlClient.SqlClient,
   authority: LocalSessionProfileAuthority | undefined,
@@ -147,18 +167,7 @@ export function loadLexicalDiscoveryRows(
   const parameters = lexicalSearchParameters(request)
   const { includeArchived } = parameters
   const candidates = lexicalCandidateRows(sql, parameters)
-  const eligibleAuthorityJoin =
-    allowed.all === 1
-      ? sql``
-      : sql`LEFT JOIN session_spawn_lineage
-          ON session_spawn_lineage.child_session_id = sessions.id`
-  const eligibleAuthorityPredicate =
-    allowed.all === 1
-      ? sql`1 = 1`
-      : sql`(sessions.project_path IN ${sql.in(allowed.projectPaths)}
-          OR sessions.id IN ${sql.in(allowed.sessionIds)}
-          OR COALESCE(session_spawn_lineage.hive_root_session_id, sessions.id)
-            IN ${sql.in(allowed.hiveRootSessionIds)})`
+  const authoritySql = lexicalAuthoritySql(sql, allowed)
   return Effect.gen(function* () {
     const seedTranscriptTerm = yield* loadSeedTranscriptTerm(sql, parameters)
     const transcriptCtes = transcriptSessionCtes(
@@ -185,8 +194,8 @@ export function loadLexicalDiscoveryRows(
     ), eligible_sessions AS NOT MATERIALIZED (
       SELECT sessions.id AS session_id
       FROM sessions
-      ${eligibleAuthorityJoin}
-      WHERE ${eligibleAuthorityPredicate}
+      ${authoritySql.join}
+      WHERE ${authoritySql.predicate}
         AND (${includeArchived} = 1 OR sessions.archived = 0)
         AND (${request.query.projectPath ?? null} IS NULL
           OR sessions.project_path = ${request.query.projectPath ?? null})
@@ -221,13 +230,24 @@ export function loadLexicalDiscoveryRows(
       transcript_matches.first_created_order AS transcript_created_order,
       COALESCE(discovery_rows.initial_objective, '') AS discovery_initial_objective,
       COALESCE(discovery_rows.current_preview, '') AS discovery_current_preview,
-      session_spawn_lineage.parent_session_id, session_spawn_lineage.hive_root_session_id,
-      (SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
-        WHERE direct_lineage.parent_session_id = sessions.id) AS direct_worker_count,
-      session_execution_profiles.profile_json, delegation_contracts.id AS delegation_id,
-      delegation_contracts.state AS delegation_state
+      COALESCE(session_spawn_lineage.parent_session_id, legacy_lineage.parent_session_id)
+        AS parent_session_id,
+      session_spawn_lineage.hive_root_session_id,
+      ((SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
+        WHERE direct_lineage.parent_session_id = sessions.id)
+       + (SELECT COUNT(*) FROM session_lineage AS historical_lineage
+        WHERE historical_lineage.parent_session_id = sessions.id
+          AND NOT EXISTS (SELECT 1 FROM session_spawn_lineage AS live_lineage
+            WHERE live_lineage.child_session_id = historical_lineage.session_id)))
+        AS direct_worker_count,
+      session_execution_profiles.profile_json,
+      legacy_lineage.agent_definition_name AS legacy_agent_definition_name,
+      delegation_contracts.id AS delegation_id,
+      COALESCE(delegation_contracts.state, legacy_lineage.delegation_state)
+        AS delegation_state
     FROM matches JOIN sessions ON sessions.id = matches.session_id
     LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
+    LEFT JOIN session_lineage AS legacy_lineage ON legacy_lineage.session_id = sessions.id
     LEFT JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
     LEFT JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
     LEFT JOIN transcript_matches ON transcript_matches.session_id = sessions.id

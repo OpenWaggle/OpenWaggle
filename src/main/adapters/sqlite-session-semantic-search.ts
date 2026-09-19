@@ -86,13 +86,24 @@ function loadSemanticSessionRows(sql: SqlClient.SqlClient, sessionIds: readonly 
   return sql<SessionQuerySummaryRow>`
     SELECT sessions.id AS session_id, sessions.title, sessions.project_path, sessions.archived,
       sessions.created_at, sessions.updated_at,
-      session_spawn_lineage.parent_session_id, session_spawn_lineage.hive_root_session_id,
-      (SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
-        WHERE direct_lineage.parent_session_id = sessions.id) AS direct_worker_count,
-      session_execution_profiles.profile_json, delegation_contracts.id AS delegation_id,
-      delegation_contracts.state AS delegation_state
+      COALESCE(session_spawn_lineage.parent_session_id, legacy_lineage.parent_session_id)
+        AS parent_session_id,
+      session_spawn_lineage.hive_root_session_id,
+      ((SELECT COUNT(*) FROM session_spawn_lineage AS direct_lineage
+        WHERE direct_lineage.parent_session_id = sessions.id)
+       + (SELECT COUNT(*) FROM session_lineage AS historical_lineage
+        WHERE historical_lineage.parent_session_id = sessions.id
+          AND NOT EXISTS (SELECT 1 FROM session_spawn_lineage AS live_lineage
+            WHERE live_lineage.child_session_id = historical_lineage.session_id)))
+        AS direct_worker_count,
+      session_execution_profiles.profile_json,
+      legacy_lineage.agent_definition_name AS legacy_agent_definition_name,
+      delegation_contracts.id AS delegation_id,
+      COALESCE(delegation_contracts.state, legacy_lineage.delegation_state)
+        AS delegation_state
     FROM sessions
     LEFT JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
+    LEFT JOIN session_lineage AS legacy_lineage ON legacy_lineage.session_id = sessions.id
     LEFT JOIN session_execution_profiles ON session_execution_profiles.session_id = sessions.id
     LEFT JOIN delegation_contracts ON delegation_contracts.child_session_id = sessions.id
     WHERE sessions.id IN ${sql.in(sessionIds)}

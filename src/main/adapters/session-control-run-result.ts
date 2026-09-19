@@ -23,7 +23,9 @@ export function publishRunFailure(
 export function terminalRunResult(result: AgentRunResult, interactionTimedOut: boolean) {
   const latestAssistantMessage =
     result.outcome === 'success'
-      ? result.newMessages.findLast((message) => message.role === 'assistant')
+      ? result.newMessages.findLast(
+          (message: { readonly role: string }) => message.role === 'assistant',
+        )
       : undefined
   const finalResponse = latestAssistantMessage ? getMessageText(latestAssistantMessage).trim() : ''
   return {

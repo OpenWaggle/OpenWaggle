@@ -189,24 +189,46 @@ async function captureSessionTreeScreenshot(page: Page) {
 }
 
 /** The Queen, Worker sidebar rows, and reciprocal Hive navigation used by the Hive guide. */
-async function captureHiveScreenshot(page: Page) {
+async function captureHiveScreenshot(page: Page, qaEvidenceDir: string) {
   console.info('[website-shots] capturing Hive screenshot')
   await page.getByText(HIVE_QUEEN_TITLE, { exact: true }).first().click()
   await page.locator('header').getByText('Queen', { exact: true }).waitFor()
-  const hive = page.getByRole('region', { name: 'Hive Sessions' })
+  await page.getByRole('button', { name: /^(Open|Hide) Session Summary$/ }).waitFor()
+  const openSummary = page.getByRole('button', { name: 'Open Session Summary' })
+  if (await openSummary.isVisible()) await openSummary.click()
+  await page.getByRole('complementary', { name: 'Session Summary' }).waitFor()
+  const hive = page.getByRole('region', { name: 'Hive' })
   await hive.waitFor()
 
-  const expandButton = hive.getByRole('button', { name: 'Expand Hive Sessions' })
+  const expandButton = hive.getByRole('button', { name: 'Expand Hive' })
   if (await expandButton.isVisible()) await expandButton.click()
 
   await hive.getByText('Verify queue and steering behavior').waitFor()
   await waitForGitStatus(page)
   await waitForUi(page)
   await page.screenshot({ path: HIVE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
+  await fs.copyFile(HIVE_SCREENSHOT_PATH, path.join(qaEvidenceDir, 'queen-session-summary.png'))
+
+  await hive.getByRole('button', { name: /Open Worker Session: Verify queue and steering behavior/ }).click()
+  await page.locator('header').getByText('Worker', { exact: true }).waitFor()
+  await page.getByRole('button', { name: /^(Open|Hide) Session Summary$/ }).waitFor()
+  const openWorkerSummary = page.getByRole('button', { name: 'Open Session Summary' })
+  if (await openWorkerSummary.isVisible()) await openWorkerSummary.click()
+  const workerHive = page.getByRole('region', { name: 'Hive' })
+  await workerHive.waitFor()
+  const expandWorkerHive = workerHive.getByRole('button', { name: 'Expand Hive' })
+  if (await expandWorkerHive.isVisible()) await expandWorkerHive.click()
+  await page.screenshot({ path: path.join(qaEvidenceDir, 'worker-parent-navigation.png'), animations: 'disabled', scale: 'css' })
+  await workerHive.getByRole('button', { name: /Open Queen Session: Prepare the Sessions release/ }).waitFor()
+  await waitForUi(page)
+  await workerHive.getByRole('button', { name: /Open Queen Session: Prepare the Sessions release/ }).click()
+  await page.locator('header').getByText('Queen', { exact: true }).waitFor()
 }
 
 async function main() {
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-website-shots-'))
+  const qaEvidenceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-hive-qa-'))
+  console.info('[website-shots] Hive QA evidence', qaEvidenceDir)
   const requestedProjectPath = path.join(userDataDir, PROJECT_NAME)
   await fs.mkdir(SCREENSHOT_OUTPUT_DIR, { recursive: true })
   await createScreenshotProject(requestedProjectPath)
@@ -225,13 +247,28 @@ async function main() {
     console.info('[website-shots] restarting app to pick up seeded state')
     launched = await restartApp(launched.app, userDataDir, projectPath)
     currentApp = launched.app
+    const qaErrors: string[] = []
+    launched.page.on('pageerror', (error) => qaErrors.push(error.message))
+    launched.page.on('console', (message) => {
+      if (message.type() === 'error') qaErrors.push(message.text())
+    })
+    const runtime = await launched.page.evaluate(() => ({
+      hasApi: typeof window.api.getSessionDetail === 'function',
+      isElectron: navigator.userAgent.includes('Electron'),
+    }))
+    if (!runtime.hasApi || !runtime.isElectron) {
+      throw new Error('Hive screenshot QA did not launch the Electron app with its preload API.')
+    }
 
-    await captureHiveScreenshot(launched.page)
+    await captureHiveScreenshot(launched.page, qaEvidenceDir)
     await captureHeroScreenshot(launched.page)
     await captureCodingScreenshot(launched.page)
     await captureGitScreenshot(launched.page)
     await captureSessionTreeScreenshot(launched.page)
     await captureExtensibleScreenshot(launched.page)
+    if (qaErrors.length > 0) {
+      throw new Error(`Screenshot QA observed console errors: ${qaErrors.join(' | ')}`)
+    }
     console.info('[website-shots] screenshot capture complete')
   } finally {
     await currentApp?.close().catch(() => undefined)

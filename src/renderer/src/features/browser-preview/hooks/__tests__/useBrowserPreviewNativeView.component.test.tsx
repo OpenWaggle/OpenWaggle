@@ -3,6 +3,8 @@ import { DEFAULT_BROWSER_PREVIEW_CONTROL_STATE } from '@shared/types/browser-pre
 import { act, render, waitFor } from '@testing-library/react'
 import { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { drainBrowserPreviewOwnerWork } from '@/shared/lib/browser-preview-owner-work'
+import { beginWorkspaceOwnerHandoff } from '@/shared/lib/workspace-owner-handoff'
 import type { BrowserPreviewMaterializedTab } from '../../browser-preview-model'
 import { useBrowserPreviewNativeView } from '../useBrowserPreviewNativeView'
 
@@ -55,6 +57,84 @@ function nativeState(): BrowserPreviewState {
 describe('useBrowserPreviewNativeView', () => {
   beforeEach(() => vi.clearAllMocks())
   afterEach(() => vi.restoreAllMocks())
+
+  it('defers native mounting only for handoff owners and resumes after release', async () => {
+    const source = 'draft:/mount-gate'
+    const release = beginWorkspaceOwnerHandoff(source, 'session-mount-gate')
+    const opened = Promise.withResolvers<BrowserPreviewState>()
+    api.registerBrowserPreviewOwner.mockResolvedValue()
+    api.openBrowserPreview.mockReturnValue(opened.promise)
+    const rendered = render(<NativeViewHarness tab={{ ...TAB, ownerKey: source }} />)
+    try {
+      await act(async () => undefined)
+      expect(api.registerBrowserPreviewOwner).not.toHaveBeenCalled()
+      const foreign = render(
+        <NativeViewHarness tab={{ ...TAB, id: 'foreign-preview', ownerKey: 'foreign-owner' }} />,
+      )
+      await waitFor(() => expect(api.openBrowserPreview).toHaveBeenCalledOnce())
+      act(() => release())
+      await waitFor(() => expect(api.openBrowserPreview).toHaveBeenCalledTimes(2))
+      expect(api.registerBrowserPreviewOwner).toHaveBeenCalledWith(source)
+      foreign.unmount()
+    } finally {
+      rendered.unmount()
+      release()
+      await act(async () => opened.resolve(nativeState()))
+    }
+  })
+
+  it('includes an already admitted viewport open in owner quiescence', async () => {
+    const source = 'draft:/pending-mount'
+    const opened = Promise.withResolvers<BrowserPreviewState>()
+    api.registerBrowserPreviewOwner.mockResolvedValue()
+    api.openBrowserPreview.mockReturnValue(opened.promise)
+    const rendered = render(<NativeViewHarness tab={{ ...TAB, ownerKey: source }} />)
+    await waitFor(() => expect(api.openBrowserPreview).toHaveBeenCalledOnce())
+    let release: () => void = () => undefined
+    act(() => {
+      release = beginWorkspaceOwnerHandoff(source, 'session-pending-mount')
+    })
+    try {
+      let drained = false
+      const drain = drainBrowserPreviewOwnerWork(source).then(() => {
+        drained = true
+      })
+      await act(async () => undefined)
+      expect(drained).toBe(false)
+      rendered.unmount()
+      await act(async () => opened.resolve(nativeState()))
+      await drain
+      expect(drained).toBe(true)
+    } finally {
+      rendered.unmount()
+      release()
+    }
+  })
+
+  it.each([
+    { summaryOwner: 'session-1', visible: false },
+    { summaryOwner: 'session-2', visible: true },
+  ])(
+    'does not reveal a newly created native view over Summary owned by $summaryOwner',
+    async ({ summaryOwner, visible }) => {
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(10, 20, 300, 200),
+      )
+      api.registerBrowserPreviewOwner.mockResolvedValueOnce()
+      api.openBrowserPreview.mockImplementationOnce(() => new Promise(() => undefined))
+      render(
+        <>
+          <NativeViewHarness />
+          <aside data-native-preview-occluder={summaryOwner} />
+        </>,
+      )
+      await waitFor(() =>
+        expect(api.openBrowserPreview).toHaveBeenCalledWith(
+          expect.objectContaining({ ownerKey: TAB.ownerKey, visible }),
+        ),
+      )
+    },
+  )
 
   it('does not send geometry updates while native creation is pending', async () => {
     const frames: FrameRequestCallback[] = []

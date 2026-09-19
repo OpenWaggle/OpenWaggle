@@ -1,10 +1,13 @@
 import type { SupportedModelId } from '@shared/types/brand'
 import { type SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
+import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { refreshArchivedSessions } from '@/queries/archived-sessions'
+import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
 import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
@@ -17,6 +20,7 @@ interface SidebarSessionActionDeps {
   readonly matchingActiveWorkspace: SessionWorkspace | null
   readonly navigate: Navigate
   readonly projectPath: string | null
+  readonly queryClient: QueryClient
   readonly selectedModel: SupportedModelId
   readonly showToast: (message: string) => void
   readonly startDraftSession: (projectPath: string | null) => void
@@ -112,9 +116,18 @@ export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
         )
         if (!confirmed) return
         await api.archiveSession(sessionId)
-        await archiveWorkspaceOwner(String(sessionId))
-        clearComposerDraftForSession(sessionId)
-        await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
+        await refreshAfterCommittedSessionMutation(
+          async () => {
+            await archiveWorkspaceOwner(String(sessionId))
+            clearComposerDraftForSession(sessionId)
+          },
+          () =>
+            Promise.all([
+              deps.loadChatSessions(),
+              deps.loadSessionTrees(),
+              refreshArchivedSessions(deps.queryClient),
+            ]),
+        )
         navigateHomeAfterActiveSessionChange(deps, sessionId)
       })().catch((error: unknown) => {
         deps.showToast(`Failed to archive session: ${errorMessage(error)}`)

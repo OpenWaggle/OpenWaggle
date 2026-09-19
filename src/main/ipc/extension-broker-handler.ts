@@ -2,5 +2,7 @@ import { invokeHostUiExtension } from '../application/host-ui-extension-operatio
 import { hostHandle as typedHandle } from './typed-ipc'
 
 export function registerExtensionBrokerHandlers(): void {
-  typedHandle('extensions:invoke', (_event, input: unknown) => invokeHostUiExtension(input))
+  typedHandle('extensions:invoke', (_event, input: unknown, rawInvocationBinding?: unknown) =>
+    invokeHostUiExtension(input, rawInvocationBinding),
+  )
 }

@@ -1,3 +1,4 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type {
   SessionBranchId,
   SessionId,
@@ -115,7 +116,10 @@ async function refreshAfterBranchSummary(
   ])
 }
 
-function applySummarizedBranchDraft(prompt: BranchSummaryPromptState) {
+function applySummarizedBranchDraft(
+  params: BranchSummaryWorkflowParams,
+  prompt: BranchSummaryPromptState,
+) {
   const workspace = useSessionStore.getState().activeWorkspace
   if (workspace?.tree.session.id !== prompt.sessionId) {
     throw new Error('The summarized branch workspace is not available. Please try again.')
@@ -127,13 +131,35 @@ function applySummarizedBranchDraft(prompt: BranchSummaryPromptState) {
     activeBranchId: workspace.activeBranchId,
     activeNodeId: workspace.activeNodeId,
   })
+  const sourceAttachments = useComposerStore.getState().attachments
   const appliedDraft = useComposerStore
     .getState()
     .switchScopedDraftContext(
       contextKey,
-      { input: prompt.draftComposerText, attachments: [] },
-      { input: prompt.draftComposerText, attachments: useComposerStore.getState().attachments },
+      { input: prompt.draftComposerText, attachments: sourceAttachments },
+      { input: prompt.draftComposerText, attachments: sourceAttachments },
     )
+  const attachments = [
+    ...new Map(
+      [...appliedDraft.attachments, ...sourceAttachments].map((attachment) => [
+        attachment.id,
+        attachment,
+      ]),
+    ).values(),
+  ]
+  if (attachments.length !== appliedDraft.attachments.length) {
+    useComposerStore.getState().replaceAttachments(attachments)
+  }
+  const exceedsCount = attachments.length > ATTACHMENT.MAX_COUNT
+  const exceedsSize =
+    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
+    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
+  if (exceedsCount) {
+    params.showToast('Your draft has too many attachments to send. Remove some before retrying.')
+  }
+  if (!exceedsCount && exceedsSize) {
+    params.showToast('Your draft exceeds the 20 MB attachment limit. Remove some before retrying.')
+  }
   useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
   setComposerTextValue(appliedDraft.input)
   return workspace
@@ -158,7 +184,7 @@ async function finishBranchSummary(
   await refreshAfterBranchSummary(params, prompt)
   if (!isCurrentBranchSummaryPrompt(prompt)) return
 
-  const workspace = applySummarizedBranchDraft(prompt)
+  const workspace = applySummarizedBranchDraft(params, prompt)
   useBranchSummaryStore.getState().clearPrompt()
   params.clearDraftBranchForSession(prompt.sessionId)
   routeToSessionSelection(params, prompt.sessionId, {

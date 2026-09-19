@@ -97,43 +97,50 @@ function runQueuedWaggle(
   context: RegisteredRunContext,
   waggle: WaggleInvocation,
 ) {
+  const payload = {
+    text: input.request.intent.text,
+    thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
+    attachments: context.preparedAttachments,
+    waggle,
+    ...(input.request.intent.visualizationContext
+      ? { visualizationContext: input.request.intent.visualizationContext }
+      : {}),
+  }
   return Effect.map(
     runRegisteredExplicitWaggle({
       sessionId: input.request.sessionId,
       runId: input.request.runId,
-      payload: {
-        text: input.request.intent.text,
-        thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
-        attachments: context.preparedAttachments,
-        waggle,
-        ...(input.request.intent.visualizationContext
-          ? { visualizationContext: input.request.intent.visualizationContext }
-          : {}),
-      },
+      payload,
       model: input.execution.model,
       config: waggle.config,
       abortController: input.controller,
       hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),
     }),
-    (result) => ({ mode: 'waggle' as const, result: explicitWaggleTerminalResult(result) }),
+    (result) => ({
+      mode: 'waggle' as const,
+      result: explicitWaggleTerminalResult(result),
+      resourceResult: result,
+      payload,
+    }),
   )
 }
 
 function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
   return Effect.gen(function* () {
+    const payload = {
+      text: input.request.intent.text,
+      thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
+      attachments: context.preparedAttachments,
+      ...(input.request.intent.visualizationContext
+        ? { visualizationContext: input.request.intent.visualizationContext }
+        : {}),
+    }
     const result = yield* executeAgentRun({
       sessionId: input.request.sessionId,
       runId: input.request.runId,
       model: input.execution.model,
-      payload: {
-        text: input.request.intent.text,
-        thinkingLevel: input.request.intent.thinkingLevel ?? input.execution.thinkingLevel,
-        attachments: context.preparedAttachments,
-        ...(input.request.intent.visualizationContext
-          ? { visualizationContext: input.request.intent.visualizationContext }
-          : {}),
-      },
+      payload,
       hydratedAttachments: context.resolvedAttachments,
       ...executionContext(input, context),
       signal: input.controller.signal,
@@ -169,7 +176,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
         controller: input.controller,
       })
     }
-    return { mode: 'classic' as const, result }
+    return { mode: 'classic' as const, result, resourceResult: result, payload }
   })
 }
 

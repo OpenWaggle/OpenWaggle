@@ -5,10 +5,7 @@ import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { emitWorktreeLaunchFailure, emitWorktreeLaunchProgress } from '../utils/stream-bridge'
-import {
-  type ExplicitWaggleCommandResult,
-  publishExplicitWaggleResult,
-} from './explicit-waggle-command-result'
+import { publishExplicitWaggleResult } from './explicit-waggle-command-result'
 import {
   toWaggleKernelExecutionContext,
   type WaggleExecutionContext,
@@ -27,7 +24,7 @@ export function runRegisteredExplicitWaggle(
   } & Partial<WaggleExecutionContext>,
 ) {
   return Effect.gen(function* () {
-    const result: ExplicitWaggleCommandResult = yield* executeWaggleRun({
+    const result = yield* executeWaggleRun({
       sessionId: input.sessionId,
       runId: input.runId,
       payload: input.payload,

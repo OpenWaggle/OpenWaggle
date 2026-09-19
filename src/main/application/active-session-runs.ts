@@ -264,6 +264,16 @@ export function requestExactSessionRunInterruption(sessionId: SessionId, runId: 
   return pendingWaggleRuns.requestInterrupt(sessionId, (metadata) => metadata.runId === runId)
 }
 
+/** Keep ownership until the handler persists partial results and runs its finalizer. */
+export function requestSessionRunCancellation(sessionId: SessionId): void {
+  const controllers = new Set([
+    activeRuns.get(sessionId)?.controller,
+    activeCompactions.get(sessionId)?.controller,
+    activeWaggleRuns.get(sessionId)?.controller,
+  ])
+  for (const controller of controllers) controller?.abort()
+}
+
 export function getAllActiveRunSessionIds(): SessionId[] {
   return [
     ...new Set([
@@ -298,16 +308,10 @@ export function cancelAllSessionRuns(): SessionId[] {
   const sessionIds = getAllActiveRunSessionIds()
   for (const writer of activeSessionWriters.values()) writer.controller.abort()
   activeRuns.cancelAll()
-  for (const sessionId of pendingClassicRuns.keys()) {
-    pendingClassicRuns.requestInterrupt(sessionId, () => true)
+  for (const registry of [pendingClassicRuns, activeWaggleRuns, pendingWaggleRuns]) {
+    for (const sessionId of registry.keys()) registry.requestInterrupt(sessionId, () => true)
   }
   for (const sessionId of activeCompactions.keys()) cancelCompactionSessionRun(sessionId)
-  for (const sessionId of activeWaggleRuns.keys()) {
-    activeWaggleRuns.requestInterrupt(sessionId, () => true)
-  }
-  for (const sessionId of pendingWaggleRuns.keys()) {
-    pendingWaggleRuns.requestInterrupt(sessionId, () => true)
-  }
   requestAllPreAdmissionWaggleInterruptions()
   return sessionIds
 }

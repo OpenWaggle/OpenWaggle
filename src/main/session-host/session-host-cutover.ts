@@ -11,6 +11,8 @@ import {
   SESSION_HOST_CUTOVER_REVISION,
   SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
   SESSION_HOST_DISCOVERY_TERM_MIGRATION_NAME,
+  SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
+  SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
 } from '../services/session-host-schema-identity'
 import {
   SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS,
@@ -102,6 +104,15 @@ function recordMigrationMetadata(
     .run(
       SESSION_HOST_CUTOVER_MIGRATION_ID,
       SESSION_HOST_BASELINE_MIGRATION_NAME,
+      new Date(input.now).toISOString(),
+    )
+  // Cutover builds the normalized term table directly. Replaying migration 51 would copy the
+  // entire transcript corpus on first launch, after it was already indexed in staging.
+  database
+    .prepare('INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)')
+    .run(
+      SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
+      SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
       new Date(input.now).toISOString(),
     )
   database

@@ -29,6 +29,7 @@ export function useGit() {
     repositoryPath,
     status: workingTree.status,
     isLoading: workingTree.isLoading,
+    statusError: workingTree.error,
     error: workingTree.error ?? branchesError,
     branches,
     branchesRepositoryPath,

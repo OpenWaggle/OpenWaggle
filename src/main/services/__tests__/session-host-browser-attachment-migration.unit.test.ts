@@ -2,6 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { runMigrations } from '../database-migration-runner'
 import { APP_MIGRATIONS } from '../database-migrations'
 import { runAppDatabaseMigrations } from '../database-service'
 import { SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID } from '../session-host-schema-identity'
@@ -12,30 +13,11 @@ describe('browser preview prepared attachment migration', () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient
         yield* sql.unsafe('PRAGMA foreign_keys = ON')
-        yield* sql.unsafe(
-          'CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
+        yield* runMigrations(
+          APP_MIGRATIONS.filter(
+            (migration) => migration.id < SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID,
+          ),
         )
-        for (const migration of APP_MIGRATIONS.filter(
-          (row) => row.id < SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID,
-        )) {
-          const skip = migration.skipIfColumns
-          const columns = skip
-            ? yield* sql<{
-                readonly name: string
-              }>`SELECT name FROM pragma_table_info(${skip.table})`
-            : []
-          if (!skip?.columns.every((name) => columns.some((column) => column.name === name))) {
-            for (const statement of migration.statements)
-              yield* sql
-                .unsafe(statement)
-                .pipe(
-                  Effect.mapError(
-                    (cause) => new Error(`Migration ${migration.id}: ${statement}`, { cause }),
-                  ),
-                )
-          }
-          yield* sql`INSERT INTO _migrations VALUES (${migration.id}, ${migration.name}, 'prior-build')`
-        }
         yield* sql`INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at) VALUES ('s', 'pi-s', 'Preserved', 1, 2)`
         yield* sql`INSERT INTO session_prepared_attachments (id, owner_caller_id, preparation_request_id, session_id, kind, origin, name, real_path, mime_type, size_bytes, source_base64, extracted_text, created_at, bound_at, expires_at) VALUES ('a', 'caller', 'request', 's', 'image', 'user-file', 'snapshot.png', '/project/snapshot.png', 'image/png', 3, 'YWJj', '', 1, 2, 100)`
         const before = yield* sql`SELECT * FROM session_prepared_attachments`

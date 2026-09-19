@@ -114,8 +114,12 @@ export async function listHiveSessionCatalogPage(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const parents = yield* sql<{ readonly parent_session_id: string | null }>`
-        SELECT parent_session_id FROM session_spawn_lineage
-        WHERE child_session_id = ${sessionId} LIMIT 1
+        SELECT COALESCE(live.parent_session_id, historical.parent_session_id)
+          AS parent_session_id
+        FROM sessions
+        LEFT JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        LEFT JOIN session_lineage AS historical ON historical.session_id = sessions.id
+        WHERE sessions.id = ${sessionId} LIMIT 1
       `
       const contextIds = [
         String(sessionId),
@@ -127,8 +131,9 @@ export async function listHiveSessionCatalogPage(
       )
       const rows = yield* sql<SessionSummaryRow>`
         SELECT ${sessionSummaryColumns(sql, 'sessions')} FROM sessions
-        JOIN session_spawn_lineage ON session_spawn_lineage.child_session_id = sessions.id
-        WHERE session_spawn_lineage.parent_session_id = ${sessionId}
+        LEFT JOIN session_spawn_lineage AS live ON live.child_session_id = sessions.id
+        LEFT JOIN session_lineage AS historical ON historical.session_id = sessions.id
+        WHERE COALESCE(live.parent_session_id, historical.parent_session_id) = ${sessionId}
           AND (${cursor?.updatedAt ?? null} IS NULL
             OR sessions.updated_at < ${cursor?.updatedAt ?? null}
             OR (sessions.updated_at = ${cursor?.updatedAt ?? null}

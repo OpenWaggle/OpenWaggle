@@ -45,6 +45,7 @@ describe('browser preview controls and page security', () => {
     const manager = new BrowserPreviewManager()
     manager.open(owner, openInput())
     const view = firstView()
+    view.webContents.emit('dom-ready')
     manager.setBounds(owner, 'preview-1', {
       x: 20,
       y: 20,

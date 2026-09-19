@@ -17,6 +17,10 @@ export {
   listSessionsByIds,
 } from './sessions/session-catalog'
 export { listArchivedSessionBranches, listSessions } from './sessions/session-list'
+export {
+  getSessionResourceProjectionNodes,
+  listSessionResourceProjectionPage,
+} from './sessions/session-resource-projection'
 export { getSessionTree } from './sessions/session-tree'
 export { getSessionWorkspace } from './sessions/session-workspace'
 export { updateSessionTreeUiState } from './sessions/tree-ui-state'

@@ -22,6 +22,7 @@ vi.mock('@/features/diff-panel/components', () => ({
 
 function diffSection(): ChatDiffSectionState {
   return {
+    session: null,
     workingPath: WorkingPath('/repo'),
     repositoryPath: RepositoryPath('/repo'),
     sessionId: SessionId('session-a'),

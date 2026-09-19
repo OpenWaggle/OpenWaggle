@@ -103,7 +103,7 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
           Schema.Struct({
             path: sessionInputPathSchema,
             origin: Schema.optional(
-              Schema.Literal('user-file', 'auto-paste-text', 'browser-preview'),
+              Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
             ),
             browserPreview: Schema.optional(browserPreviewAttachmentSchema),
             browserAnnotationText: Schema.optional(

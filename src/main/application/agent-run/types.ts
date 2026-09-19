@@ -13,6 +13,7 @@ import type {
   PendingDelegationSpecificationUpdate,
   PendingSessionOrchestrationUpdate,
 } from '../../ports/session-orchestration-update-repository'
+import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 
 export interface AgentRunInput {
   readonly sessionId: SessionId
@@ -44,13 +45,17 @@ export interface AgentRunInput {
 
 interface AgentRunResultBase {
   readonly assignedTitle?: string
+  readonly resourceMessages?: PersistedRunResourceNodes['resourceMessages']
+  readonly resourceNodeIds?: PersistedRunResourceNodes['resourceNodeIds']
+  readonly resourceBranchIds?: PersistedRunResourceNodes['resourceBranchIds']
 }
 
 export type AgentRunResult =
-  | (AgentRunResultBase & {
-      readonly outcome: 'success'
-      readonly newMessages: readonly Message[]
-    })
+  | (AgentRunResultBase &
+      PersistedRunResourceNodes & {
+        readonly outcome: 'success'
+        readonly newMessages: readonly Message[]
+      })
   | (AgentRunResultBase & { readonly outcome: 'aborted' })
   | (AgentRunResultBase & {
       readonly outcome: 'invalid-model'

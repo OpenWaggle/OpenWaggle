@@ -53,6 +53,15 @@ function sessionWorktreePlan(
   }
 }
 
+function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed {
+  return error instanceof FirstSendFailed
+    ? error
+    : new FirstSendFailed(
+        error instanceof Error ? error : new Error(String(error)),
+        String(sessionId),
+      )
+}
+
 /** Pure factory — testable without React. */
 export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   const {
@@ -73,7 +82,11 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
-      await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+      try {
+        await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+      } catch (error) {
+        throw firstSendFailure(error, sessionId)
+      }
       /*
        * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
        * the send had succeeded: a review submitted as a session's first message was cleared and never
@@ -96,7 +109,11 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
       const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
-      await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+      try {
+        await flushDraftAuthorizationModeToSession(projectPath, sessionId)
+      } catch (error) {
+        throw firstSendFailure(error, sessionId)
+      }
       startWaggleCollaboration(sessionId, config)
       /*
        * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched

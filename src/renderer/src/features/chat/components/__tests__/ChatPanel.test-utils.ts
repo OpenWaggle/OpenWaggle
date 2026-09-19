@@ -107,6 +107,7 @@ export function createSections(
       ...composerOverrides,
     },
     diff: {
+      session: null,
       workingPath,
       repositoryPath,
       sessionId: transcript.activeSessionId,

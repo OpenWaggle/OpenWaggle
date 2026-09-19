@@ -7,11 +7,11 @@ section: "Using OpenWaggle"
 
 OpenWaggle can run several independent agent Sessions through one local Session Host. A connected family of spawned Sessions is a **Hive**. Its root is the **Queen Session** and every descendant is a **Worker Session**. Queen and Worker describe lineage, not authority: a Worker can spawn more Workers, and the Queen does not receive automatic permission to control everything.
 
-Every Worker is a normal durable Session with its own transcript, Run lifecycle, queue, model settings, and Workspace binding. Workers appear in the existing flat Session sidebar rather than in a separate orchestration panel. A `ChessQueen` icon marks a Hive root and a `Pickaxe` icon marks a Worker; the tooltip identifies the relationship. The Session header shows its Hive role and optional Agent definition. The collapsible Hive block above the composer links to the immediate parent and direct Workers without duplicating their transcripts.
+Every Worker is a normal durable Session with its own transcript, Run lifecycle, queue, model settings, and Workspace binding. Workers appear in the existing flat Session sidebar rather than in a separate orchestration panel. A `ChessQueen` icon marks a Hive root and a `Pickaxe` icon marks a Worker; the tooltip identifies the relationship. The Session header shows its Hive role and optional Agent definition. Open the Session Summary from the header for a collapsible Hive section with the immediate parent and direct Workers; the composer has no separate Hive dock.
 
-![A Queen Session coordinating three Worker Sessions in the OpenWaggle sidebar and Hive navigator](/screenshots/hive-sessions.png)
+![A Queen Session coordinating three Worker Sessions in the OpenWaggle sidebar and Session Summary](/screenshots/hive-sessions.png)
 
-_The Queen and all three Workers remain ordinary Sessions in the left sidebar. The expanded Hive block above the composer shows Worker state and provides quick navigation._
+_The Queen and all three Workers remain ordinary Sessions in the left sidebar. The Session Summary's Hive section shows Worker state and provides quick navigation._
 
 ## Try a Hive
 
@@ -21,7 +21,9 @@ Start in a normal Session and ask the agent to split a concrete job:
 
 The current Session becomes the Queen. OpenWaggle creates each Worker as a durable Session, adds it to the normal sidebar, and keeps its Run active when you navigate elsewhere. Workers report results to their parent agent. The Queen reviews those reports and returns one combined answer in the original Session.
 
-Click a Worker in the sidebar or the Hive block to inspect its full transcript. In a Worker Session, the Hive block links back to its immediate parent. Collapsing the block hides these shortcuts without hiding or stopping any Session.
+Click a Worker in the sidebar or the Session Summary's Hive section to inspect its full transcript. In a Worker Session, the same section links back to its immediate parent. Collapsing the section hides these shortcuts without hiding or stopping any Session. The Summary is available even before a newly spawned Worker has sent its first message.
+
+Sessions spawned by the older MCP task feature keep their Queen–Worker links after the one-time Session Host upgrade. The sidebar and Summary show these historical relationships, including their last recorded state and Agent definition. They are navigation and history only: OpenWaggle does not invent a new parent Run, delegation grant, or control permission for those older tasks. New Workers use the live Session Host delegation model.
 
 ## Session and message actions
 

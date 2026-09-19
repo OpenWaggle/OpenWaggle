@@ -11,7 +11,6 @@ import {
   BranchSummaryPrompt,
   CompactionStatusStrip,
   Composer,
-  HiveSessionNavigator,
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
@@ -212,11 +211,6 @@ export function ChatComposerStack({
         {compactionStatus?.type === 'retrying' ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
-        <HiveSessionNavigator
-          key={activeSessionId ?? 'no-session'}
-          sessionId={activeSessionId}
-          onNavigateSession={section.onNavigateSession}
-        />
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}

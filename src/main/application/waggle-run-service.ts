@@ -34,6 +34,7 @@ import {
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
+import { mapPersistedRunResourceNodes } from './session-resource-node-mapping'
 import { extractFilePath } from './waggle-run/metadata'
 import {
   createWaggleSuccessOutcome,
@@ -44,6 +45,7 @@ import {
   waggleValidationErrorOutcome,
 } from './waggle-run/outcome'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
+import { loadPersistedWaggleResourceProvenanceTree } from './waggle-run/resource-provenance'
 import {
   clearDurableWaggleActiveRun,
   recordDurableWaggleRun,
@@ -244,10 +246,14 @@ function runPreparedWaggle(
       waggleConfig: input.config,
     })
 
+    const persistedTree = yield* loadPersistedWaggleResourceProvenanceTree(sessionRepo, input)
+    const resources = mapPersistedRunResourceNodes(existingTree, persistedTree)
+
     if (result.aborted || input.signal.aborted) {
       input.onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
       return {
         outcome: 'aborted' as const,
+        ...(resources.resourceMessages.length > 0 ? resources : {}),
         ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
       }
     }
@@ -255,6 +261,7 @@ function runPreparedWaggle(
     return createWaggleSuccessOutcome({
       sessionId: input.sessionId,
       result,
+      resources,
       ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
     })
   })

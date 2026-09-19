@@ -5,10 +5,17 @@ import {
   SESSION_QUERY_CONTRACT_VERSION,
   SESSION_QUERY_DISCOVERY_LIMIT,
 } from '@shared/types/session-query'
+import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
+import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
 import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
-import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
+import {
+  clearComposerDraftForSession,
+  clearComposerDraftsForSessions,
+  errorMessage,
+} from './sidebar-action-utils'
+import { deleteProjectSessionsChildrenFirst } from './sidebar-project-session-deletion'
 
 type Navigate = ReturnType<typeof useNavigate>
 const SESSION_HYDRATION_BATCH_SIZE = 100
@@ -77,6 +84,7 @@ export interface SidebarProjectActionDeps {
   readonly loadSessionTrees: () => Promise<void>
   readonly navigate: Navigate
   readonly projectPath: string | null
+  readonly queryClient: QueryClient
   readonly refreshGit: (path: RepositoryPath | null) => void
   readonly removeProjectReferences: (path: string) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
@@ -163,7 +171,11 @@ async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: stri
     await archiveWorkspaceOwner(String(session.id))
   })
   clearComposerDraftsForSessions(projectSessions)
-  await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
+  await Promise.all([
+    deps.loadChatSessions(),
+    deps.loadSessionTrees(),
+    refreshArchivedSessions(deps.queryClient),
+  ])
 
   const archivedActiveSession =
     deps.activeSessionId !== null &&
@@ -181,14 +193,33 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
   if (!confirmed) return
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
-  const activeRuns = await api.listActiveRuns()
-  await runWithConcurrency(
-    activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
-    (run) => api.cancelAgent(run.sessionId),
-  )
-  for (const session of sessionsInDeletionOrder(projectSessions)) {
-    await api.deleteSession(session.id)
-    await deleteWorkspaceOwner(String(session.id))
+  try {
+    const currentSessions = await listProjectSessionSummaries(path)
+    if (
+      currentSessions.length !== projectSessionIds.size ||
+      currentSessions.some((session) => !projectSessionIds.has(String(session.id)))
+    ) {
+      throw new Error(
+        'Project sessions changed while confirming removal. Review them and try again.',
+      )
+    }
+    const activeRuns = await api.listActiveRuns()
+    await runWithConcurrency(
+      activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
+      (run) => api.cancelAgent(run.sessionId),
+    )
+    await deleteProjectSessionsChildrenFirst(currentSessions, async (id) => {
+      await api.deleteSession(id)
+      clearComposerDraftForSession(id)
+      await deleteWorkspaceOwner(String(id))
+    })
+  } catch (error) {
+    await Promise.allSettled([
+      deps.loadChatSessions(),
+      deps.loadSessionTrees(),
+      refreshArchivedSessions(deps.queryClient),
+    ])
+    throw error
   }
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)

@@ -1075,6 +1075,16 @@ _Avoid_: git remote (that is the plain URL), forge
 The provider-neutral concept that a GitHub pull request or a GitLab merge request instantiates.
 _Avoid_: PR (as the neutral term), MR (as the neutral term)
 
+The Session Summary's Environment section uses provider-specific language and exposes separate change, environment, branch, Git-action, and Change request rows while delegating mutations to the existing guarded Git workflows.
+
+**Change request composer**:
+The compact Environment-section popover that prepares a GitHub pull request or GitLab merge request, showing source and target refs, editable title and description, optional commit-and-push of local changes, draft and standard creation actions, and an open-in-browser escape hatch. It prepares an editable unique source branch when the working path is on the default ref and otherwise reuses the existing feature ref. Empty generated fields may be completed from the session changes before creation. Native creation is available only through an installed, authenticated provider CLI; otherwise the composer explains the prerequisite and retains its browser fallback.
+_Avoid_: full review dialog, immediate unreviewable change-request creation
+
+**Change request inspector**:
+The Session-bound right-sidebar view for an existing GitHub pull request or GitLab merge request. It shows bounded provider lifecycle detail and only the current-branch request or additional requests recorded as Outputs by that Session. Browser opening remains explicit. A merge is confirmed and then revalidated against the Session working path, repository/request identity, provider availability, merge state, and exact head commit before the provider CLI runs.
+_Avoid_: browser-only request row, repository-wide request feed
+
 **Stacked git action**:
 A single composite git intent that runs an ordered set of steps — for example commit, then push, then open a change request — as one user action.
 _Avoid_: batch commit, macro
@@ -1735,7 +1745,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A surfaced **Authorization request** has exactly one **Authorization history entry**, which changes from pending to the final **Authorization decision** instead of creating separate request and resolution cards.
 - Changing a session to **YOLO (Full Access)** resolves its pending **Authorization request** automatically; changing to **Ask for Approval** governs subsequent requests without revoking completed authorization decisions.
 - **YOLO (Full Access)** does not create authorization prompts, authorization transcript entries, approval counters, or a separate authorization log; authorized work remains visible through its normal activity or result presentation.
-- The composer trigger presents the effective **Authorization mode** compactly as `YOLO` or `Ask for approval`; its open menu exposes exactly the canonical **YOLO (Full Access)** and **Ask for Approval** choices. Inheritance stays internal, and the menu checks the effective choice without adding a user-facing default option.
+- The composer trigger presents the effective **Authorization mode** compactly as `YOLO` or `Ask for approval`; its open menu exposes exactly the canonical **YOLO (Full Access)** and **Ask for Approval** choices. Inheritance stays internal, and the menu checks the effective choice without adding a user-facing default option. This control remains composer-resident before and after first send and is never duplicated in the **Session Summary**.
 - An active **Agent notification** is presented in a **Notification stack** clear of the composer, never as an authorization prompt or transcript card.
 - A **Notification stack** fronts the most severe active notice and stacks additional notices behind it.
 - The composer area is reserved for requests that hold the run, so the surface a user acts on is always the one nearest the prompt input.

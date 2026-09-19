@@ -201,6 +201,8 @@ Foreground `export` continuation is snapshot-bound. When a page returns `nextCre
 
 Successful calls return the canonical local result in both MCP forms: JSON text in `content` and the same object in `structuredContent`. The object contains `contract` (`session-query-v2`, `session-control-v2`, or `session-lifecycle-v2`) and `response`; inspect `response.outcome` for the operation-specific result, cursor, or idempotency metadata. Canonical query errors and rejected mutations are returned as MCP tool errors rather than successful payloads. OpenWaggle revalidates every grant and Session or Workspace scope on each call.
 
+`interrupt` waits for desktop and hosted runs to finish cancellation, including partial-output capture. It defaults to five seconds and accepts `timeoutMs` up to 30 seconds. A response with `completed: false` and `timedOut: true` means cancellation is still finishing; use `wait` before assuming the session is idle. `steer` also waits for finalization and does not start its replacement objective if that wait times out.
+
 ## When something fails
 
 OpenWaggle reports the affected server, impact, cause, responsible side, next action, and whether work may still be running remotely. Use Refresh after correcting config, `openwaggle mcp doctor` for static checks, and the Event Inbox or durable Task card for state that needs inspection. Trust is invalidated when the executable, endpoint, package fingerprint, requested capabilities, security profile, or effective config changes.

@@ -73,6 +73,8 @@ describe('commitGit against a linked worktree', () => {
     const result = await commitGit(worktree, { message: 'agent work', amend: false, paths: [] })
 
     expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('Expected the worktree commit to succeed.')
+    expect(result.commitHash).toMatch(/^[0-9a-f]{40}$/u)
     expect(await headSubject(worktree)).toBe('agent work')
     expect(await headSubject(repository)).toBe(checkoutHeadBefore)
   })
@@ -99,12 +101,9 @@ describe('commitGit against a linked worktree', () => {
    * The commit set includes both paths of a rename, so the commit covers the deletion rather than keeping
    * both files. Two real git behaviours make that awkward, and this pins both:
    *
-   * - a path gone from disk is refused by a plain `git add --`, so `-A` is needed for a deletion and for an
-   *   unstaged rename's source;
-   * - an *already staged* rename's source is gone from disk **and** from the index, so it matches nothing
-   *   for `add` - yet it must stay in the commit pathspec, or the commit keeps both files and leaves the
-   *   deletion staged. Batching makes that fatal (`add -A -- kept.txt moved.txt` exits 128), so staging is
-   *   per-path and an unmatched entry is skipped.
+   * - `update-index --add --remove` stages additions and removals from one NUL-delimited path list;
+   * - an already-staged rename source can be absent from both disk and index without making that batch fail,
+   *   while the same source stays in the commit pathspec so Git records the deletion.
    */
   /**
    * Everything a correct commit needs is settled inside `commitGit`, because there is more than one way in -

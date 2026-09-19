@@ -6,7 +6,8 @@ import { Context, Effect, Layer } from 'effect'
 import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
 import { SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
-import { APP_MIGRATIONS } from './database-migrations'
+import { runMigrations } from './database-migration-runner'
+import { normalizeSessionSummaryMigrationLedger } from './database-summary-migration-compatibility'
 import { repairSessionHostMigrationLedger } from './session-host-ledger-repair'
 
 export interface AppDatabaseService {
@@ -50,56 +51,10 @@ const createMigrationsTable = Effect.gen(function* () {
 })
 
 export const runAppDatabaseMigrations = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
   yield* createMigrationsTable
+  yield* normalizeSessionSummaryMigrationLedger(yield* SqlClient.SqlClient)
   yield* repairSessionHostMigrationLedger
-
-  for (const migration of APP_MIGRATIONS) {
-    const existingRows = yield* sql<{ id: number; name: string }>`
-      SELECT id, name
-      FROM _migrations
-      WHERE id = ${migration.id}
-      LIMIT 1
-    `
-
-    if (existingRows.length > 0) {
-      if (existingRows[0]?.name !== migration.name) {
-        return yield* Effect.fail(
-          new Error(`Migration ledger identity mismatch at ${migration.id}.`),
-        )
-      }
-      continue
-    }
-
-    // A column that is already present means the change landed under a different ledger id, so the
-    // ALTER would fail and take boot with it. Record the migration and move on.
-    const skip = migration.skipIfColumns
-    if (skip) {
-      const columns = yield* sql<{ name: string }>`
-        SELECT name FROM pragma_table_info(${skip.table})
-      `
-      const existingColumns = new Set(columns.map((column) => column.name))
-      if (skip.columns.every((column) => existingColumns.has(column))) {
-        yield* sql`
-          INSERT INTO _migrations (id, name, applied_at)
-          VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-        `
-        continue
-      }
-    }
-
-    yield* sql.withTransaction(
-      Effect.gen(function* () {
-        for (const statement of migration.statements) {
-          yield* sql.unsafe(statement)
-        }
-        yield* sql`
-          INSERT INTO _migrations (id, name, applied_at)
-          VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-        `
-      }),
-    )
-  }
+  yield* runMigrations()
 })
 
 const makeDatabaseLayer = Effect.gen(function* () {

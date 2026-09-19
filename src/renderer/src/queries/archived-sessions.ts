@@ -3,6 +3,7 @@ import type { SessionCatalogPage } from '@shared/types/session'
 import {
   type InfiniteData,
   infiniteQueryOptions,
+  type QueryClient,
   type UseInfiniteQueryOptions,
   useMutation,
   useQueryClient,
@@ -13,6 +14,16 @@ import { queryKeys } from './query-keys'
 
 const ARCHIVED_PAGE_SIZE = 100
 const INITIAL_CURSOR: string | null = null
+
+export function refreshArchivedSessions(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.archivedSessions,
+      exact: true,
+    }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives }),
+  ])
+}
 
 interface RestoreSessionBranchInput {
   readonly sessionId: SessionId

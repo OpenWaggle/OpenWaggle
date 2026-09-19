@@ -28,7 +28,12 @@ import {
 import { toWaggleInvocation, waggleInvocationSchema } from './waggle'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
-const attachmentOriginSchema = Schema.Literal('user-file', 'auto-paste-text', 'browser-preview')
+const attachmentOriginSchema = Schema.Literal(
+  'user-file',
+  'auto-paste-text',
+  'browser-preview',
+  'session-resource',
+)
 const BROWSER_PREVIEW_PAGE_URL_MAX_LENGTH = 8_192
 const BROWSER_PREVIEW_PAGE_TITLE_MAX_LENGTH = 512
 const BROWSER_PREVIEW_TAG_NAME_MAX_LENGTH = 64
@@ -139,6 +144,7 @@ export const preparedAttachmentSchema = Schema.Struct({
   path: sessionInputPathSchema,
   mimeType: sessionInputItemTextSchema,
   sizeBytes: Schema.Number.pipe(Schema.int(), Schema.between(0, ATTACHMENT.MAX_SIZE_BYTES)),
+  contentSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
   extractedText: Schema.String.pipe(Schema.maxLength(ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)),
   browserPreview: Schema.optional(browserPreviewAttachmentSchema),
 })

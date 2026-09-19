@@ -5,6 +5,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type {
   HiveSessionCatalogPage,
   SessionCatalogPage,
+  SessionNode,
   SessionNodeKind,
   SessionSummary,
   SessionTree,
@@ -97,6 +98,22 @@ export interface SessionRepositoryShape {
   readonly getTree: (
     sessionId: SessionId,
   ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>
+  readonly listResourceProjectionPage: (
+    sessionId: SessionId,
+    afterCreatedOrder: number,
+    limit: number,
+  ) => Effect.Effect<
+    {
+      readonly nodes: readonly SessionNode[]
+      readonly throughCreatedOrder: number | null
+      readonly hasMore: boolean
+    },
+    SessionProjectionRepositoryError
+  >
+  readonly getResourceProjectionNodes: (
+    sessionId: SessionId,
+    nodeIds: readonly string[],
+  ) => Effect.Effect<readonly SessionNode[], SessionProjectionRepositoryError>
   readonly getWorkspace: (
     sessionId: SessionId,
     selection?: SessionWorkspaceSelection,

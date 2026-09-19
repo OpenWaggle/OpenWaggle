@@ -4,6 +4,7 @@ import {
   shouldBlockInlineVisualizationDocumentRequest,
   shouldBlockInlineVisualizationFrameNavigation,
 } from './security/electron-security'
+import { shouldBlockSessionResourceRequest } from './session-resource-protocol'
 
 function frameKey(frame: WebFrameMain) {
   return `${String(frame.processId)}:${frame.frameToken}`
@@ -39,11 +40,18 @@ export function installInlineVisualizationNavigationGuard(webContents: WebConten
   })
   webContents.session.webRequest.onBeforeRequest((details, callback) => {
     callback({
-      cancel: shouldBlockInlineVisualizationDocumentRequest({
-        resourceType: details.resourceType,
-        requestUrl: details.url,
-        ...(details.frame ? { frameUrl: details.frame.url } : {}),
-      }),
+      cancel:
+        shouldBlockSessionResourceRequest({
+          url: details.url,
+          ownerId: details.webContentsId,
+          frameUrl: details.frame?.url,
+          isMainFrame: details.frame?.parent === null,
+        }) ||
+        shouldBlockInlineVisualizationDocumentRequest({
+          resourceType: details.resourceType,
+          requestUrl: details.url,
+          ...(details.frame ? { frameUrl: details.frame.url } : {}),
+        }),
     })
   })
 }

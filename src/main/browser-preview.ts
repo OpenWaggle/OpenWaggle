@@ -42,7 +42,7 @@ export class BrowserPreviewManager {
     this.lifecycle.disposeAndWait(record),
   )
   private readonly records = new BrowserPreviewRecordRegistry({
-    disposeRecord: (record) => this.lifecycle.dispose(record),
+    disposeRecord: (record) => this.lifecycle.retire(record),
   })
   private readonly replacement = new BrowserPreviewReplacement({
     findOwned: (ownerKey, previewId) => this.records.findOwned(ownerKey, previewId),
@@ -180,8 +180,8 @@ export class BrowserPreviewManager {
     return this.navigation.stop(this.requirePreview(sender, previewId))
   }
 
-  close(sender: WebContents, previewId: string): void {
-    this.lifecycle.dispose(this.requirePreview(sender, previewId))
+  close(sender: WebContents, previewId: string): Promise<void> {
+    return this.lifecycle.close(this.records.findForDisposal(sender, previewId))
   }
 
   closeForOwner(ownerKey: string): Promise<void> {

@@ -1,6 +1,9 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { extensionInvokeInputSchema } from '@shared/schemas/extension-broker'
+import {
+  extensionInvocationBindingSchema,
+  extensionInvokeInputSchema,
+} from '@shared/schemas/extension-broker'
 import type { ExtensionInvokeFailure } from '@shared/types/extension-broker'
 import type { ExtensionListContributionsInput } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
@@ -153,9 +156,12 @@ function invalidInvokeInput(issues: readonly string[]): ExtensionInvokeFailure {
   }
 }
 
-export function invokeHostUiExtension(input: unknown) {
+export function invokeHostUiExtension(input: unknown, rawInvocationBinding?: unknown) {
   const decoded = safeDecodeUnknown(extensionInvokeInputSchema, input)
-  return decoded.success
-    ? invokeExtensionCapability(decoded.data)
-    : Effect.succeed(invalidInvokeInput(decoded.issues))
+  if (!decoded.success) return Effect.succeed(invalidInvokeInput(decoded.issues))
+  if (rawInvocationBinding === undefined) return invokeExtensionCapability(decoded.data)
+  const binding = safeDecodeUnknown(extensionInvocationBindingSchema, rawInvocationBinding)
+  return binding.success
+    ? invokeExtensionCapability(decoded.data, { invocationBinding: binding.data })
+    : Effect.succeed(invalidInvokeInput(binding.issues))
 }

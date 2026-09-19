@@ -1,6 +1,7 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isSessionSummaryPanelVisible, useSessionSummaryUIStore } from '@/features/session-summary'
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn(),
@@ -54,6 +55,8 @@ import { useGlobalCommandActions } from '../useGlobalCommandActions'
 describe('useGlobalCommandActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
+    useSessionSummaryUIStore.setState({ panels: {}, toggleFocusTargetSessionId: null })
     mocks.compactSession.mockResolvedValue({ compacted: true })
     mocks.refreshSession.mockResolvedValue(undefined)
     mocks.refreshSessionWorkspace.mockResolvedValue(undefined)
@@ -71,5 +74,32 @@ describe('useGlobalCommandActions', () => {
     expect(mocks.refreshSession).toHaveBeenCalledWith(SessionId('session-1'))
     expect(mocks.refreshSessionWorkspace).toHaveBeenCalledWith(SessionId('session-1'))
     expect(mocks.showToast).toHaveBeenCalledWith('Session compacted.', 'success')
+  })
+
+  it('toggles the available active Session Summary from the command surface', () => {
+    useSessionSummaryUIStore.getState().syncPanel('session-1', {
+      available: true,
+      autoHidden: false,
+      rightSidebarOpen: false,
+    })
+    const { result } = renderHook(() => useGlobalCommandActions())
+
+    act(() => result.current.actions.toggleSessionSummary())
+
+    expect(
+      isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-1']),
+    ).toBe(false)
+    expect(mocks.close).not.toHaveBeenCalled()
+  })
+
+  it('explains why a draft session cannot open Session Summary', () => {
+    const { result } = renderHook(() => useGlobalCommandActions())
+
+    act(() => result.current.actions.toggleSessionSummary())
+
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'Send the first message before opening Session Summary.',
+      'error',
+    )
   })
 })

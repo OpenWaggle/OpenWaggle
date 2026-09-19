@@ -6,6 +6,10 @@ import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
+import {
+  useSessionHiveInvalidation,
+  useSessionResourceInvalidation,
+} from '@/features/session-summary'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -66,6 +70,8 @@ function previewShortcutHandlers(
 }
 
 export function useWorkspaceLifecycle(): void {
+  useSessionResourceInvalidation()
+  useSessionHiveInvalidation()
   const { projectPath } = useProject()
   const {
     activeSessionId,

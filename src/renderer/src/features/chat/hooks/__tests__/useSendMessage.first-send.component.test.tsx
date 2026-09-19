@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FirstSendFailed } from '../../lib/message-delivery'
 
 const { flushDraftAuthorizationModeMock, snapshotDraftWorktreePlanMock } = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
@@ -23,6 +24,11 @@ const { createSendHandlers } = await import('../useSendMessage')
 const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', attachments: [] }
 
 describe("a session's first send", () => {
+  beforeEach(() => {
+    flushDraftAuthorizationModeMock.mockReset().mockResolvedValue(undefined)
+    snapshotDraftWorktreePlanMock.mockClear()
+  })
+
   it('persists an explicit draft authorization override before dispatching the turn', async () => {
     const createSession = vi.fn(async () => SessionId('session-a'))
     const sendMessageToSession = vi.fn(async () => {})
@@ -73,5 +79,27 @@ describe("a session's first send", () => {
     })
 
     await expect(handlers.handleSend(PAYLOAD)).rejects.toThrow(/worktree no longer exists/)
+  })
+
+  it('attributes an authorization setup failure to the newly created session', async () => {
+    const failure = new Error('authorization setup failed')
+    flushDraftAuthorizationModeMock.mockRejectedValueOnce(failure)
+    const sendMessageToSession = vi.fn(async () => {})
+    const handlers = createSendHandlers({
+      activeSessionId: null,
+      projectPath: '/repo',
+      thinkingLevel: 'off',
+      createSession: vi.fn(async () => SessionId('created-session')),
+      sendMessage: vi.fn(async () => {}),
+      sendMessageToSession,
+      startWaggleCollaboration: vi.fn(),
+      sendWaggleMessage: vi.fn(async () => {}),
+    })
+
+    await expect(handlers.handleSend(PAYLOAD)).rejects.toMatchObject({
+      createdSessionId: 'created-session',
+      cause: failure,
+    } satisfies Partial<FirstSendFailed>)
+    expect(sendMessageToSession).not.toHaveBeenCalled()
   })
 })

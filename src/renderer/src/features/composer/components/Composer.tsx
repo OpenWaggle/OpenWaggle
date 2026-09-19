@@ -4,8 +4,10 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { useProject } from '@/features/sessions/hooks'
 import { useComposerAttachments } from '../hooks/useComposerAttachments'
+import type { SendFailureDisposition } from '../hooks/useComposerSubmission'
 import { useComposerSubmission } from '../hooks/useComposerSubmission'
 import { useComposerVoiceControls } from '../hooks/useComposerVoiceControls'
+import { useSessionScopedFilePicker } from '../hooks/useSessionScopedFilePicker'
 import { ComposerDropZone } from './ComposerDropZone'
 import { ComposerEditorArea } from './ComposerEditorArea'
 import { ComposerHeader } from './ComposerHeader'
@@ -13,6 +15,7 @@ import { ComposerHiddenFileInput } from './ComposerHiddenFileInput'
 import { ComposerModeControls } from './ComposerModeControls'
 
 interface ComposerProps {
+  readonly sessionId?: string | null
   readonly accessControl?: ReactNode
   onSend: (payload: AgentSendPayload) => Promise<void> | void | false
   onEnqueue: (payload: AgentSendPayload) => Promise<boolean | undefined> | boolean | undefined
@@ -26,11 +29,13 @@ interface ComposerProps {
     readonly clearOnSubmit?: boolean
     readonly recordHistory?: boolean
     readonly allowEnqueue?: boolean
+    readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
   }
   onToast?: (message: string) => void
 }
 
 export function Composer({
+  sessionId = null,
   accessControl,
   onSend,
   onEnqueue,
@@ -46,13 +51,16 @@ export function Composer({
   const clearOnSubmit = mode?.clearOnSubmit ?? true
   const recordHistory = mode?.recordHistory ?? true
   const allowEnqueue = mode?.allowEnqueue ?? true
+  const onSendFailure = mode?.onSendFailure
   const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  useSessionScopedFilePicker(sessionId, fileInputRef)
   const { projectPath } = useProject()
   const attachments = useComposerAttachments({ projectPath, onToast, disabled })
   const submission = useComposerSubmission({
     onSend,
     onEnqueue,
+    onSendFailure,
     isLoading,
     disabled,
     requiresText,

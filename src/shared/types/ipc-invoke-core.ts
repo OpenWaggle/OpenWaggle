@@ -41,6 +41,7 @@ import type {
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from './extensions'
+import type { SessionResourceIpcInvokeChannels } from './ipc-invoke-session-resources'
 import type { IpcSessionInvokeChannelMap } from './ipc-invoke-sessions'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type {
@@ -63,7 +64,9 @@ import type { Settings } from './settings'
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
 
-export interface IpcCoreInvokeChannelMap extends IpcSessionInvokeChannelMap {
+export interface IpcCoreInvokeChannelMap
+  extends IpcSessionInvokeChannelMap,
+    SessionResourceIpcInvokeChannels {
   'agent-definitions:select-source': {
     args: []
     return: string | null
@@ -169,7 +172,7 @@ export interface IpcCoreInvokeChannelMap extends IpcSessionInvokeChannelMap {
     return: ExtensionManagerView
   }
   'extensions:invoke': {
-    args: [input: ExtensionInvokeInput]
+    args: [input: ExtensionInvokeInput, invocationBinding?: string]
     return: ExtensionInvokeResult
   }
   'extensions:register-frame': {

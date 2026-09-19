@@ -1,3 +1,4 @@
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
 import { SESSION_ATTACHMENT_TARGET_SCHEMA_STATEMENTS } from './session-host-attachment-schema'
 import { SESSION_DELEGATION_TARGET_SCHEMA_STATEMENTS } from './session-host-delegation-schema'
 import { SESSION_DISCOVERY_TERM_SCHEMA_STATEMENTS } from './session-host-discovery-term-schema'
@@ -257,6 +258,9 @@ import { SESSION_NODE_MUTATION_REVISION_SCHEMA_STATEMENTS } from './session-host
 import { SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS } from './session-host-search-schema'
 
 export const SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS = [
+  // Preserve released MCP task ancestry as historical, read-only lineage. It must not be
+  // inserted into session_spawn_lineage, which carries live Host delegation authority.
+  ...CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
   ...SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS,
   ...SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS,
   ...SESSION_DISCOVERY_TERM_SCHEMA_STATEMENTS,

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -27,6 +28,7 @@ async function makeFixture() {
     path: filePath,
     mimeType: 'text/plain',
     sizeBytes: Buffer.byteLength('Durable attachment contents'),
+    contentSha256: createHash('sha256').update('Durable attachment contents').digest('hex'),
     extractedText: 'Durable attachment contents',
   }
   return { userDataPath, filePath, attachment }
@@ -80,6 +82,12 @@ describe('prepared attachment registry', () => {
 
     resetPreparedAttachmentRegistryForTests()
     configurePreparedAttachmentRegistry(userDataPath)
+    await expect(resolvePreparedAttachmentCapability(attachment)).resolves.toMatchObject({
+      contentSha256: attachment.contentSha256,
+    })
+    await expect(
+      resolvePreparedAttachmentCapability({ ...attachment, contentSha256: '0'.repeat(64) }),
+    ).rejects.toThrow('metadata does not match')
     const [hydrated] = await hydrateAttachmentSources([{ ...attachment, extractedText: '' }])
 
     expect(hydrated).toMatchObject({

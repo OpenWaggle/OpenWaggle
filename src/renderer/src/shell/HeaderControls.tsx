@@ -1,6 +1,14 @@
-import type { GitStatusSummary } from '@shared/types/git'
 import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
-import { ChessQueen, Hash, ListTree, PanelLeft, Pickaxe, SquareTerminal } from 'lucide-react'
+import {
+  ChessQueen,
+  GitCommitHorizontal,
+  Hash,
+  LayoutList,
+  ListTree,
+  PanelLeft,
+  Pickaxe,
+  SquareTerminal,
+} from 'lucide-react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { projectName } from '@/shared/lib/format'
@@ -10,6 +18,8 @@ import {
   usesAppleShortcuts,
 } from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
+
+export { DiffToggleButton } from './HeaderDiffToggleButton'
 
 interface HeaderLeftProps {
   readonly activeBranchName: string | null
@@ -42,13 +52,10 @@ interface SessionTreeButtonProps {
   readonly onToggle: () => void
 }
 
-interface DiffToggleButtonProps {
-  readonly error: string | null
-  readonly isChatRoute: boolean
-  readonly isLoading: boolean
+interface SessionSummaryButtonProps {
   readonly open: boolean
-  readonly projectPath: string | null
-  readonly status: GitStatusSummary | null
+  readonly panelId: string
+  readonly suppressed: boolean
   readonly onToggle: () => void
 }
 
@@ -185,15 +192,17 @@ export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonPr
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
-        'no-drag h-7 border-button-border px-2.5',
+        'no-drag h-7 border-button-border px-2.5 @max-[720px]/header:px-2',
         !projectPath && 'pointer-events-none opacity-30',
       )}
       disabled={!projectPath}
       title={terminalTitle(projectPath, open, shortcut)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
-      <span className="text-sm font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>
-      <span className="text-xs text-text-tertiary">&#x2228;</span>
+      <span className="text-sm font-medium text-text-primary @max-[720px]/header:hidden">
+        {open ? 'Hide' : 'Open'}
+      </span>
+      <span className="text-xs text-text-tertiary @max-[720px]/header:hidden">&#x2228;</span>
     </Button>
   )
 }
@@ -208,12 +217,19 @@ export function CommitButton({ isCommitting, projectPath, onOpen }: CommitButton
       radius="sm"
       aria-label="Open commit dialog"
       onClick={onOpen}
-      className={cn('no-drag h-7 px-2.5', disabled && 'pointer-events-none opacity-40')}
+      className={cn(
+        'no-drag h-7 px-2.5 @max-[720px]/header:px-2',
+        disabled && 'pointer-events-none opacity-40',
+      )}
       disabled={disabled}
       title={projectPath ? 'Open commit dialog' : 'No project selected'}
     >
-      <span className="text-sm font-semibold text-bg">Commit</span>
-      <span className="text-xs text-bg/50">&#x2228;</span>
+      <GitCommitHorizontal
+        aria-hidden="true"
+        className="hidden size-3.5 @max-[720px]/header:block"
+      />
+      <span className="text-sm font-semibold text-bg @max-[720px]/header:hidden">Commit</span>
+      <span className="text-xs text-bg/50 @max-[720px]/header:hidden">&#x2228;</span>
     </Button>
   )
 }
@@ -246,51 +262,29 @@ export function SessionTreeButton({
   )
 }
 
-function diffStatusText(error: string | null, isLoading: boolean) {
-  if (isLoading) {
-    return 'Loading diff…'
-  }
-
-  return error ? 'Git unavailable' : 'Diff unavailable'
-}
-
-export function DiffToggleButton({
-  error,
-  isChatRoute,
-  isLoading,
+export function SessionSummaryButton({
   open,
-  projectPath,
-  status,
+  panelId,
+  suppressed,
   onToggle,
-}: DiffToggleButtonProps) {
-  const disabled = !projectPath || !isChatRoute
-  const gitStatusState = isLoading ? 'loading' : error ? 'error' : status ? 'ready' : 'unavailable'
-
+}: SessionSummaryButtonProps) {
+  const label = open ? 'Hide Session Summary' : 'Open Session Summary'
+  const title = suppressed ? 'Session Summary is hidden while the side panel is open' : label
   return (
     <Button
-      variant="ghost"
+      variant={open ? 'subtle' : 'secondary'}
       size="none"
-      aria-label="Toggle diff panel"
+      radius="sm"
+      id={`${panelId}-toggle`}
+      aria-pressed={open}
+      aria-controls={panelId}
+      aria-label={label}
       onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'no-drag gap-1 hover:opacity-80',
-        disabled && 'pointer-events-none opacity-30',
-        open && 'opacity-100',
-      )}
-      title="Toggle diff panel"
-      data-git-status-state={gitStatusState}
+      disabled={suppressed}
+      className="no-drag h-7 border-button-border px-2 disabled:opacity-40"
+      title={title}
     >
-      {status ? (
-        <>
-          <span className="text-sm font-medium text-success">+{status.additions}</span>
-          <span className="text-sm font-medium text-error">-{status.deletions}</span>
-        </>
-      ) : (
-        <span className="text-sm font-medium text-text-tertiary">
-          {diffStatusText(error, isLoading)}
-        </span>
-      )}
+      <LayoutList className="size-3.5 text-text-secondary" />
     </Button>
   )
 }

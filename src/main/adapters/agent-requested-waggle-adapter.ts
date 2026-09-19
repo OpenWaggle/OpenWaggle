@@ -8,6 +8,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { classifyAgentError } from '../agent/error-classifier'
 import { activeWaggleRuns, ensureSessionRunStartAllowed } from '../application/active-session-runs'
+import { captureRunResultResources } from '../application/session-resource-run-result'
 import { findWaggleHandoffRequest } from '../application/waggle-handoff'
 import {
   executeWaggleRun,
@@ -21,6 +22,9 @@ import type { ExtensionManagerService } from '../ports/extension-manager-service
 import type { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { SessionResourceStore } from '../ports/session-resource-store'
 import type { SettingsService } from '../services/settings-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { startStreamBuffer } from '../utils/stream-bridge'
@@ -69,6 +73,9 @@ type RequestedWaggleDependencies =
   | ExtensionProjectOverridesRepository
   | SessionProjectionRepository
   | SessionRepository
+  | SessionResourceImageValidator
+  | SessionResourceRepository
+  | SessionResourceStore
   | SettingsService
 
 type RequestedWaggleRunner = (input: WaggleRunInput) => Effect.Effect<WaggleRunResult, Error>
@@ -188,7 +195,17 @@ export const AgentRequestedWaggleServiceLive = Layer.effect(
     return AgentRequestedWaggleService.of({
       runIfRequested: (input) =>
         runRequestedWaggleWith(input, (waggleInput) =>
-          executeWaggleRun(waggleInput).pipe(Effect.provide(dependencies)),
+          executeWaggleRun(waggleInput).pipe(
+            Effect.tap((result) =>
+              captureRunResultResources(
+                waggleInput.sessionId,
+                waggleInput.runId,
+                waggleInput.payload,
+                result,
+              ),
+            ),
+            Effect.provide(dependencies),
+          ),
         ),
     })
   }),

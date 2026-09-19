@@ -7,6 +7,7 @@ import {
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
 } from '../application/session-attachment-cleanup'
+import { captureRunResultResources } from '../application/session-resource-run-result'
 import { loadProjectConfig } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
@@ -27,6 +28,9 @@ import type { SessionOrchestrationUpdateRepository } from '../ports/session-orch
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionReportRepository } from '../ports/session-report-repository'
 import type { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { SessionResourceStore } from '../ports/session-resource-store'
 import { SettingsService } from '../services/settings-service'
 import { startStreamBuffer } from '../utils/stream-bridge'
 import { executeRegisteredRun } from './session-control-run-dispatch'
@@ -48,6 +52,9 @@ type RunExecutorDependencies =
   | SessionControlAttachmentService
   | SessionProjectionRepository
   | SessionRepository
+  | SessionResourceImageValidator
+  | SessionResourceRepository
+  | SessionResourceStore
   | SessionOrchestrationUpdateRepository
   | SessionReportRepository
   | SqlClient.SqlClient
@@ -177,6 +184,12 @@ function executeRunAfterAttachmentAdmission(input: SessionControlRunExecutionInp
           if (authorityDriftTimer) clearInterval(authorityDriftTimer)
         }),
       ),
+    )
+    yield* captureRunResultResources(
+      input.sessionId,
+      input.runId,
+      registered.payload,
+      registered.resourceResult,
     )
     return registered.mode === 'waggle'
       ? registered.result

@@ -15,6 +15,7 @@ import type { ExtensionProjectOverridesRepository } from '../ports/extension-pro
 import type { ExtensionStorageRepository } from '../ports/extension-storage-repository'
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
 import { AppLogger } from '../services/logger-service'
 import { SettingsService } from '../services/settings-service'
 import { invokeExtensionCapability } from './extension-capability-broker-service'
@@ -48,6 +49,7 @@ export type TrustedMainActivationBaseServices =
   | ExtensionStorageRepository
   | SessionProjectionRepository
   | SessionRepository
+  | SessionResourceRepository
   | SettingsService
 
 export type TrustedMainActivationServices =
