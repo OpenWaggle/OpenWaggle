@@ -28,6 +28,7 @@ interface LocalSessionConnectionSubscriptionsInput {
 
 export class LocalSessionConnectionSubscriptions {
   private readonly subscriptions = new Map<string, ActiveLocalSessionSubscription>()
+  private readonly provisionals = new Set<() => void>()
 
   constructor(private readonly input: LocalSessionConnectionSubscriptionsInput) {}
 
@@ -51,6 +52,14 @@ export class LocalSessionConnectionSubscriptions {
     const releaseAdmissionReader = this.input.admission.acquireReader(this.input.closed())
     if (!releaseAdmissionReader) return false
     let releaseBudget: (() => void) | undefined
+    let releaseLiveness: (() => void) | undefined
+    let provisionalSubscription: ActiveLocalSessionSubscription['subscription'] | undefined
+    const releaseProvisional = () => {
+      provisionalSubscription?.close()
+      provisionalSubscription = undefined
+      releaseBudget?.()
+      releaseBudget = undefined
+    }
     try {
       const caller = this.input.caller()
       if (!caller) return true
@@ -96,22 +105,28 @@ export class LocalSessionConnectionSubscriptions {
         })
         return true
       }
+      provisionalSubscription = result.subscription
+      this.provisionals.add(releaseProvisional)
       const activeRuns = await this.authorizedActiveRuns(caller, cursor, sessionIds)
       if (
+        this.input.closed() ||
         this.input.admission.isFenced() ||
         admissionEpoch !== this.input.admission.currentEpoch()
       ) {
-        result.subscription.close()
         return false
       }
       const subscriptionId = randomUUID()
+      releaseLiveness = this.input.dependencies.liveness.acquire('subscription')
       const active = {
         subscription: result.subscription,
-        releaseLiveness: this.input.dependencies.liveness.acquire('subscription'),
+        releaseLiveness,
         releaseBudget,
       } satisfies ActiveLocalSessionSubscription
-      releaseBudget = undefined
       this.subscriptions.set(subscriptionId, active)
+      releaseBudget = undefined
+      releaseLiveness = undefined
+      provisionalSubscription = undefined
+      this.provisionals.delete(releaseProvisional)
       await this.input.send({
         kind: 'subscribed',
         requestId,
@@ -122,6 +137,9 @@ export class LocalSessionConnectionSubscriptions {
       void this.pump(subscriptionId, active)
       return true
     } finally {
+      this.provisionals.delete(releaseProvisional)
+      releaseProvisional()
+      releaseLiveness?.()
       releaseBudget?.()
       releaseAdmissionReader()
     }
@@ -174,6 +192,8 @@ export class LocalSessionConnectionSubscriptions {
   }
 
   close() {
+    for (const release of this.provisionals) release()
+    this.provisionals.clear()
     for (const active of this.subscriptions.values()) {
       active.subscription.close()
       active.releaseLiveness()

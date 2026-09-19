@@ -107,4 +107,155 @@ describe('Local Session active-run subscriptions', () => {
     })
     expect(authorizationCall).toBe(2)
   })
+
+  it('closes a provisional watch when active-run authorization rejects', async () => {
+    const endpoint = path.join(temporaryRoot, 'failed-snapshot.sock')
+    const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown: vi.fn(),
+    })
+    const authorizeActiveRun = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Snapshot authorization unavailable'))
+      .mockResolvedValue(true)
+    handle = await listenLocalSessionServer(endpoint, {
+      hostInstanceId: 'host-current',
+      eventHub,
+      liveness,
+      maxSubscriptionsGlobal: 1,
+      authenticate: async () => ({ callerId: 'local-user' }),
+      snapshotActiveRuns: () => [
+        {
+          sessionId: SessionId('session-running'),
+          model: SupportedModelId('provider/model'),
+          activity: 'agent-run',
+          activityEvents: [],
+          mode: 'classic',
+          startedAt: 1,
+          messageId: 'message-running',
+          parts: [{ type: 'text', text: 'running' }],
+        },
+      ],
+      authorizeActiveRun,
+      dispatch: async () => ({ accepted: true }),
+    })
+
+    const subscribe = async (requestId: string) => {
+      client = await connectLocalSessionTestClient(endpoint)
+      const reader = new TestFrameReader(client)
+      client.write(
+        encodeLocalSessionFrame({
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+          clientKind: 'cli',
+          clientVersion: 'test',
+        }),
+      )
+      await expect(reader.next()).resolves.toMatchObject({ accepted: true })
+      client.write(encodeLocalSessionFrame({ kind: 'subscribe', requestId }))
+      return reader.next()
+    }
+
+    await expect(subscribe('rejected')).resolves.toMatchObject({
+      kind: 'error',
+      code: 'protocol_error',
+    })
+    await vi.waitFor(() => expect(eventHub.subscriberCount()).toBe(0))
+    client?.destroy()
+
+    await expect(subscribe('replacement')).resolves.toMatchObject({
+      kind: 'subscribed',
+      requestId: 'replacement',
+    })
+    expect(eventHub.subscriberCount()).toBe(1)
+  })
+
+  it('closes a provisional watch when its connection closes during authorization', async () => {
+    const endpoint = path.join(temporaryRoot, 'closed-snapshot.sock')
+    const eventHub = new SessionHostEventHub({ hostInstanceId: 'host-current' })
+    const liveness = new SessionHostLiveness({
+      idleGracePeriodMs: 60_000,
+      requestShutdown: vi.fn(),
+    })
+    let releaseAuthorization!: () => void
+    const authorizationGate = new Promise<void>((resolve) => {
+      releaseAuthorization = resolve
+    })
+    let authorizationStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      authorizationStarted = resolve
+    })
+    let authorizationCall = 0
+    handle = await listenLocalSessionServer(endpoint, {
+      hostInstanceId: 'host-current',
+      eventHub,
+      liveness,
+      maxSubscriptionsGlobal: 1,
+      authenticate: async () => ({ callerId: 'local-user' }),
+      snapshotActiveRuns: () => [
+        {
+          sessionId: SessionId('session-running'),
+          model: SupportedModelId('provider/model'),
+          activity: 'agent-run',
+          activityEvents: [],
+          mode: 'classic',
+          startedAt: 1,
+          messageId: 'message-running',
+          parts: [{ type: 'text', text: 'running' }],
+        },
+      ],
+      authorizeActiveRun: async () => {
+        authorizationCall += 1
+        if (authorizationCall === 1) {
+          authorizationStarted()
+          await authorizationGate
+        }
+        return true
+      },
+      dispatch: async () => ({ accepted: true }),
+    })
+    client = await connectLocalSessionTestClient(endpoint)
+    const reader = new TestFrameReader(client)
+    client.write(
+      encodeLocalSessionFrame({
+        protocol: 'openwaggle-local-session',
+        supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+        clientKind: 'cli',
+        clientVersion: 'test',
+      }),
+    )
+    await expect(reader.next()).resolves.toMatchObject({ accepted: true })
+    client.write(encodeLocalSessionFrame({ kind: 'subscribe', requestId: 'disconnecting' }))
+    await started
+    expect(eventHub.subscriberCount()).toBe(1)
+
+    const disconnected = client
+    const closed = new Promise<void>((resolve) => disconnected.once('close', resolve))
+    disconnected.destroy()
+    await closed
+    try {
+      await vi.waitFor(() => expect(eventHub.subscriberCount()).toBe(0))
+      client = await connectLocalSessionTestClient(endpoint)
+      const replacement = new TestFrameReader(client)
+      client.write(
+        encodeLocalSessionFrame({
+          protocol: 'openwaggle-local-session',
+          supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+          clientKind: 'cli',
+          clientVersion: 'test',
+        }),
+      )
+      await expect(replacement.next()).resolves.toMatchObject({ accepted: true })
+      client.write(encodeLocalSessionFrame({ kind: 'subscribe', requestId: 'replacement' }))
+      await expect(replacement.next()).resolves.toMatchObject({
+        kind: 'subscribed',
+        requestId: 'replacement',
+      })
+      expect(eventHub.subscriberCount()).toBe(1)
+    } finally {
+      releaseAuthorization()
+    }
+    await vi.waitFor(() => expect(eventHub.subscriberCount()).toBe(1))
+  })
 })
