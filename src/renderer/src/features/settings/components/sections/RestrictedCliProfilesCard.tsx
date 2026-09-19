@@ -16,7 +16,10 @@ export function RestrictedCliProfilesCard() {
       <Button
         aria-expanded={open}
         className="flex w-full items-start justify-between gap-4 rounded-md p-1 text-left hover:bg-bg-hover"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          profiles.invalidateList()
+          setOpen((current) => !current)
+        }}
         variant="unstyled"
       >
         <div className="flex min-w-0 items-start gap-2.5">
@@ -40,6 +43,7 @@ export function RestrictedCliProfilesCard() {
         <RestrictedCliProfileList
           profiles={profiles.profiles}
           loading={profiles.loading}
+          error={profiles.error}
           onCreate={() => profiles.setEditing('create')}
           onEdit={profiles.setEditing}
           onRotate={(profile) => void profiles.rotate(profile)}

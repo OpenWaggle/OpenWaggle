@@ -53,6 +53,7 @@ function ProfileRow(props: {
 export function RestrictedCliProfileList(props: {
   readonly profiles: readonly LocalSessionProfileSummary[]
   readonly loading: boolean
+  readonly error: string | null
   readonly onCreate: () => void
   readonly onEdit: (profile: LocalSessionProfileSummary) => void
   readonly onRotate: (profile: LocalSessionProfileSummary) => void
@@ -71,18 +72,19 @@ export function RestrictedCliProfileList(props: {
       {props.loading ? (
         <p className="px-4 py-4 text-xs text-text-muted">Loading profiles…</p>
       ) : null}
-      {!props.loading && props.profiles.length === 0 ? (
+      {!props.loading && !props.error && props.profiles.length === 0 ? (
         <p className="px-4 py-4 text-xs text-text-muted">No restricted profiles.</p>
       ) : null}
-      {props.profiles.map((profile) => (
-        <ProfileRow
-          key={profile.id}
-          profile={profile}
-          onEdit={() => props.onEdit(profile)}
-          onRotate={() => props.onRotate(profile)}
-          onRevoke={() => props.onRevoke(profile)}
-        />
-      ))}
+      {!props.loading &&
+        props.profiles.map((profile) => (
+          <ProfileRow
+            key={profile.id}
+            profile={profile}
+            onEdit={() => props.onEdit(profile)}
+            onRotate={() => props.onRotate(profile)}
+            onRevoke={() => props.onRevoke(profile)}
+          />
+        ))}
     </div>
   )
 }
