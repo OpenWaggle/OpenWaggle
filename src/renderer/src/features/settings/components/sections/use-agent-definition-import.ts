@@ -3,7 +3,7 @@ import type {
   AgentDefinitionScope,
 } from '@shared/types/agent-definition'
 import type { AgentDefinitionImportPlan } from '@shared/types/agent-definition-management'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
 export const IMPORT_SOURCES = [
@@ -43,21 +43,25 @@ export function useAgentDefinitionImport(input: {
   const [replaceExisting, setReplaceExisting] = useState(false)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const planGeneration = useRef(0)
 
   function invalidatePlan() {
+    planGeneration.current += 1
     setPlan(null)
     setReplaceExisting(false)
   }
 
   async function chooseSource() {
+    const requestGeneration = planGeneration.current
     const selected = await api.selectAgentDefinitionSource()
-    if (!selected) return
+    if (!selected || planGeneration.current !== requestGeneration) return
     setSourcePath(selected)
     invalidatePlan()
   }
 
   async function review() {
     if (!sourcePath.trim()) throw new Error('Choose an Agent definition source file.')
+    const requestGeneration = planGeneration.current
     const outcome = await api.manageAgentDefinitions({
       operation: 'import-plan',
       projectPath: input.projectPath,
@@ -66,6 +70,7 @@ export function useAgentDefinitionImport(input: {
       ...(sourceName.trim() ? { sourceName: sourceName.trim() } : {}),
       targetScope,
     })
+    if (planGeneration.current !== requestGeneration) return
     if (outcome.operation !== 'import-plan') throw new Error('Unexpected import response.')
     setPlan(outcome.plan)
     setReplaceExisting(false)
@@ -89,6 +94,7 @@ export function useAgentDefinitionImport(input: {
   }
 
   async function run(action: 'choose-source' | 'submit') {
+    const requestGeneration = planGeneration.current
     setWorking(true)
     setError(null)
     try {
@@ -102,7 +108,9 @@ export function useAgentDefinitionImport(input: {
       }
       await review()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      if (planGeneration.current === requestGeneration) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      }
     } finally {
       setWorking(false)
     }
