@@ -159,11 +159,13 @@ function emitAutoRetryStart(state: SessionListenerState, event: AutoRetryStartSe
 }
 
 function emitAutoRetryEnd(state: SessionListenerState, event: AutoRetryEndSessionEvent) {
+  const cancelled = event.finalError === 'Retry cancelled'
   emitEvent(state.input.onEvent, {
     type: 'auto_retry_end',
     success: event.success,
     attempt: event.attempt,
-    ...(event.finalError ? { finalError: event.finalError } : {}),
+    ...(cancelled ? { cancelled: true } : {}),
+    ...(!cancelled && event.finalError ? { finalError: event.finalError } : {}),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -177,6 +179,7 @@ function emitAgentEnd(state: SessionListenerState, event: AgentEndSessionEvent) 
     type: 'agent_end',
     runId: state.runId,
     reason,
+    ...(event.willRetry ? { willRetry: true } : {}),
     usage: getAgentEndUsage(event.messages),
     ...(error ? { error } : {}),
     timestamp: Date.now(),
