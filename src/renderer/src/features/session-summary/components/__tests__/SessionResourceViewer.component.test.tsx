@@ -82,6 +82,48 @@ describe('SessionResourceViewer', () => {
     expect(screen.queryByRole('dialog', { name: 'Image viewer: other-message.png' })).toBeNull()
   })
 
+  it('opens agent message images full-size and navigates only that agent gallery', async () => {
+    const agentFirst = {
+      ...image('agent-first', 'agent-first.png', 'agent-message'),
+      isSource: false,
+      isOutput: true,
+    }
+    const agentSecond = {
+      ...image('agent-second', 'agent-second.png', 'agent-message'),
+      isSource: false,
+      isOutput: true,
+    }
+    listSessionResources.mockResolvedValue([
+      image('user-image', 'user-image.png', 'user-message'),
+      agentFirst,
+      agentSecond,
+    ])
+    useUIStore
+      .getState()
+      .openResourceViewer('session-1', 'agent-first', ['agent-first', 'agent-second'])
+    renderViewer('session-1', new Set(['agent-message']), null, ['agent-message'])
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: agent-first.png' }),
+    ).toBeVisible()
+    expect(screen.getByText('1 of 2')).toBeVisible()
+    expect(await screen.findByRole('img', { name: 'agent-first.png' })).toHaveAttribute(
+      'src',
+      'openwaggle-session-resource://content/agent-first/view',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+    expect(
+      await screen.findByRole('dialog', { name: 'Image viewer: agent-second.png' }),
+    ).toBeVisible()
+    expect(await screen.findByRole('img', { name: 'agent-second.png' })).toHaveAttribute(
+      'src',
+      'openwaggle-session-resource://content/agent-second/view',
+    )
+    expect(screen.getByText('2 of 2')).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Image viewer: user-image.png' })).toBeNull()
+  })
+
   it('navigates chronologically within the same transcript-path group', async () => {
     listSessionResources.mockResolvedValue([
       { ...image('image-new', 'new.png'), createdAt: 2000, updatedAt: 2000 },

@@ -54,6 +54,20 @@ function remoteImage(id: string, nodeId: string): SessionResource {
   }
 }
 
+function agentImage(id: string, nodeId: string): SessionResource {
+  const resource = image(id, nodeId)
+  return {
+    ...resource,
+    isSource: false,
+    isOutput: true,
+    occurrences: resource.occurrences.map((occurrence) => ({
+      ...occurrence,
+      actor: 'agent' as const,
+      activity: 'created' as const,
+    })),
+  }
+}
+
 describe('SessionMessageImages', () => {
   beforeEach(() => {
     useUIStore.setState({ resourceViewer: null })
@@ -124,6 +138,35 @@ describe('SessionMessageImages', () => {
       sessionId: 'session-1',
       resourceId: 'second',
       galleryResourceIds: ['first', 'second', 'third'],
+    })
+  })
+
+  it('shows multiple agent images on their message and opens only that agent gallery', async () => {
+    listSessionResources.mockResolvedValue([
+      image('user-image', 'user-message'),
+      agentImage('agent-first', 'agent-message'),
+      agentImage('agent-second', 'agent-message'),
+      agentImage('other-agent', 'other-agent-message'),
+    ])
+    renderWithQueryClient(
+      <SessionMessageResourcesProvider
+        sessionId={SessionId('session-1')}
+        nodeIds={['user-message', 'agent-message', 'other-agent-message']}
+      >
+        <SessionMessageImages messageId="agent-message" />
+      </SessionMessageResourcesProvider>,
+    )
+
+    const buttons = await screen.findAllByRole('button', { name: /^Open image / })
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open image agent-first.png',
+      'Open image agent-second.png',
+    ])
+    fireEvent.click(buttons[1])
+    expect(useUIStore.getState().resourceViewer).toEqual({
+      sessionId: 'session-1',
+      resourceId: 'agent-second',
+      galleryResourceIds: ['agent-first', 'agent-second'],
     })
   })
 
