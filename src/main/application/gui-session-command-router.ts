@@ -2,6 +2,7 @@ import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
 import type { IpcInvokeArgs } from '@shared/types/ipc'
 import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import {
   executeLocalSessionCommand,
@@ -51,13 +52,24 @@ const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
   'skills:get-preview',
 ])
 
-function isReplaySafeHostUiInvocation(channel: HostBackedGuiChannel, args: readonly unknown[]) {
-  if (channel !== 'mcp:get-settings') return REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)
+function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {
+  if (args.length !== 1 || !isRecord(args[0]) || !isRecord(args[0].command)) return false
+  const operation = args[0].command.operation
+  return operation === 'list' || operation === 'import-plan' || operation === 'refresh-plan'
+}
+
+function isReplaySafeMcpSettingsInvocation(args: readonly unknown[]) {
   if (args.length === 0 || (args.length === 1 && args[0] === undefined)) return true
   if (args.length !== 1 || !args[0] || typeof args[0] !== 'object' || Array.isArray(args[0])) {
     return false
   }
   return !('reconcileRuntime' in args[0]) || args[0].reconcileRuntime === false
+}
+
+function isReplaySafeHostUiInvocation(channel: HostBackedGuiChannel, args: readonly unknown[]) {
+  if (channel === 'agent-definitions:manage') return isReplaySafeAgentDefinitionInvocation(args)
+  if (channel === 'mcp:get-settings') return isReplaySafeMcpSettingsInvocation(args)
+  return REPLAY_SAFE_HOST_UI_CHANNELS.has(channel)
 }
 
 type GuiSessionCommandRoute =

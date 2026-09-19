@@ -152,6 +152,33 @@ describe('GUI Host UI endpoint refresh', () => {
     ['mcp:list-event-subscriptions', [{ sessionId: 'session-1' }]],
     ['mcp:preview-imports', [{ projectPath: '/project', sources: ['codex'] }]],
     ['project-actions:discover-t3', ['/project']],
+    [
+      'agent-definitions:manage',
+      [{ command: { operation: 'list', projectPath: '/project' }, selectedSourcePaths: [] }],
+    ],
+    [
+      'agent-definitions:manage',
+      [
+        {
+          command: {
+            operation: 'import-plan',
+            projectPath: '/project',
+            sourcePath: '/source.md',
+            targetScope: 'project',
+          },
+          selectedSourcePaths: ['/source.md'],
+        },
+      ],
+    ],
+    [
+      'agent-definitions:manage',
+      [
+        {
+          command: { operation: 'refresh-plan', projectPath: '/project', name: 'reviewer' },
+          selectedSourcePaths: ['/source.md'],
+        },
+      ],
+    ],
   ] as const)('recovers replay-safe %s after Host loss', async (channel, args) => {
     const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
     mocks.executeHostUi.mockRejectedValueOnce(unavailable).mockResolvedValueOnce([])
@@ -174,6 +201,22 @@ describe('GUI Host UI endpoint refresh', () => {
     expect(mocks.ensureHost).not.toHaveBeenCalled()
     expect(mocks.executeHostUi).toHaveBeenCalledOnce()
   })
+
+  it.each(['write', 'duplicate', 'delete', 'import-apply', 'refresh-apply'] as const)(
+    'does not replay an Agent definition %s mutation after an ambiguous Host failure',
+    async (operation) => {
+      const unavailable = Object.assign(new Error('Host exited'), { code: 'ECONNRESET' })
+      mocks.executeHostUi.mockRejectedValueOnce(unavailable)
+
+      await expect(
+        invokeConfiguredHostUiRaw('agent-definitions:manage', [
+          { command: { operation, projectPath: '/project' }, selectedSourcePaths: [] },
+        ]),
+      ).rejects.toBe(unavailable)
+      expect(mocks.ensureHost).not.toHaveBeenCalled()
+      expect(mocks.executeHostUi).toHaveBeenCalledOnce()
+    },
+  )
 
   it('recovers a replay-safe read when endpoint refresh itself reports Host loss', async () => {
     const unavailable = Object.assign(new Error('Host endpoint disappeared'), { code: 'ENOENT' })
