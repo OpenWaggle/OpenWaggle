@@ -82,6 +82,7 @@ describe('useWorkspaceLifecycle', () => {
     lifecycleMocks.refreshSession.mockClear()
     lifecycleMocks.refreshSessionTree.mockClear()
     lifecycleMocks.invalidateQueries.mockClear()
+    const initialCountRevision = useSessionStatusStore.getState().hostTerminalCountRevision
 
     const handler = lifecycleMocks.getSessionHostEventHandler()
     if (!handler) throw new Error('Expected Session Host event subscription')
@@ -122,6 +123,9 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledOnce()
+    expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
+      initialCountRevision + 1,
+    )
   })
 
   it('refreshes transcripts only for the active Session and performs a guarded resync', async () => {
@@ -136,6 +140,7 @@ describe('useWorkspaceLifecycle', () => {
     const eventHandler = lifecycleMocks.getSessionHostEventHandler()
     const resyncHandler = lifecycleMocks.getSessionHostResyncHandler()
     if (!eventHandler || !resyncHandler) throw new Error('Expected Session Host subscriptions')
+    const initialCountRevision = useSessionStatusStore.getState().hostTerminalCountRevision
     eventHandler({
       cursor: { hostInstanceId: 'host-2', sequence: 1 },
       timestamp: 1,
@@ -149,12 +154,18 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
     expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
     expect(lifecycleMocks.loadSessionTrees).not.toHaveBeenCalled()
+    expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
+      initialCountRevision + 1,
+    )
 
     resyncHandler({ reason: 'slow-consumer' })
     await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
+    expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
+      initialCountRevision + 2,
+    )
   })
 
   it('invalidates mounted extension contributions after a Session Host resync', async () => {

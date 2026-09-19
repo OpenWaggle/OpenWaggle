@@ -14,9 +14,12 @@ export function useSidebarTerminalCounts(stateBySessionId: ReadonlyMap<string, S
   const countGeneration = useRef(0)
   const terminalStateKey = terminalStateRefreshKey(stateBySessionId)
   const terminalReceiptRevision = useSessionStatusStore((state) => state.terminalReceiptRevision)
+  const hostTerminalCountRevision = useSessionStatusStore(
+    (state) => state.hostTerminalCountRevision,
+  )
 
   useEffect(() => {
-    const refreshKey = `${terminalStateKey}\u0001${terminalReceiptRevision}`
+    const refreshKey = `${terminalStateKey}\u0001${terminalReceiptRevision}\u0001${hostTerminalCountRevision}`
     countGeneration.current += 1
     const requestGeneration = countGeneration.current
     void queryTerminalSidebarCounts(refreshKey)
@@ -31,7 +34,7 @@ export function useSidebarTerminalCounts(stateBySessionId: ReadonlyMap<string, S
           setTerminalCounts({})
         }
       })
-  }, [terminalStateKey, terminalReceiptRevision])
+  }, [terminalStateKey, terminalReceiptRevision, hostTerminalCountRevision])
 
   return { terminalCounts, setTerminalCounts }
 }

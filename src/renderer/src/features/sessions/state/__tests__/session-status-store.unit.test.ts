@@ -21,6 +21,7 @@ describe('session-status-store', () => {
       statusUpdatedAt: new Map(),
       lastVisitedAt: new Map(),
       terminalReceiptRevision: 0,
+      hostTerminalCountRevision: 0,
       phases: new Map(),
     })
   })
@@ -82,10 +83,24 @@ describe('session-status-store', () => {
         lastVisitedAt: now,
       })
     })
+
+    it('refreshes terminal counts if the status turns terminal before receipt persistence', async () => {
+      const persisted = Promise.withResolvers<void>()
+      apiMocks.updateSessionTreeUiState.mockReturnValueOnce(persisted.promise)
+
+      useSessionStatusStore.getState().markVisited(ID_A)
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', 1)
+      expect(useSessionStatusStore.getState().terminalReceiptRevision).toBe(0)
+
+      persisted.resolve()
+      await vi.waitFor(() =>
+        expect(useSessionStatusStore.getState().terminalReceiptRevision).toBe(1),
+      )
+    })
   })
 
   describe('markUnread', () => {
-    it('sets lastVisitedAt to completedAt - 1 when completedAt exists', () => {
+    it('sets lastVisitedAt to the unread sentinel when completedAt exists', async () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
       useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
@@ -100,9 +115,11 @@ describe('session-status-store', () => {
 
       expect(completedAt).toBe(1000)
       expect(lastVisited).toBe(0)
-      expect(apiMocks.updateSessionTreeUiState).toHaveBeenLastCalledWith(ID_A, {
-        lastVisitedAt: 0,
-      })
+      await vi.waitFor(() =>
+        expect(apiMocks.updateSessionTreeUiState).toHaveBeenLastCalledWith(ID_A, {
+          lastVisitedAt: 0,
+        }),
+      )
     })
 
     it('uses the durable unread sentinel when completedAt does not exist', () => {

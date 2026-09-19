@@ -28,6 +28,7 @@ describe('useSidebarTerminalCounts', () => {
       statusUpdatedAt: new Map(),
       lastVisitedAt: new Map(),
       terminalReceiptRevision: 0,
+      hostTerminalCountRevision: 0,
       phases: new Map(),
     })
   })
@@ -35,7 +36,7 @@ describe('useSidebarTerminalCounts', () => {
   it('falls back to local row counts when a refreshed Host count fails', async () => {
     queryCountsMock
       .mockResolvedValueOnce({
-        refreshKey: 'session-a:completed\u00010',
+        refreshKey: 'session-a:completed\u00010\u00010',
         counts: { completed: 8, error: 2 },
       })
       .mockRejectedValueOnce(new Error('Host unavailable'))
@@ -75,7 +76,7 @@ describe('useSidebarTerminalCounts', () => {
   it('does not clear newer counts when an older request fails late', async () => {
     const staleRequest = Promise.withResolvers<never>()
     queryCountsMock.mockReturnValueOnce(staleRequest.promise).mockResolvedValueOnce({
-      refreshKey: 'session-a:completed\u0000session-b:error\u00010',
+      refreshKey: 'session-a:completed\u0000session-b:error\u00010\u00010',
       counts: { completed: 4, error: 3 },
     })
 
@@ -101,20 +102,40 @@ describe('useSidebarTerminalCounts', () => {
     expect(result.current.terminalCounts).toEqual({ completed: 4, error: 3 })
   })
 
+  it('refreshes exact counts after a Host change even when local row state stays the same', async () => {
+    queryCountsMock
+      .mockResolvedValueOnce({
+        refreshKey: 'session-a:completed\u00010\u00010',
+        counts: { completed: 1, error: 0 },
+      })
+      .mockResolvedValueOnce({
+        refreshKey: 'session-a:completed\u00010\u00011',
+        counts: { completed: 2, error: 0 },
+      })
+    const states = new Map<string, SidebarRowState>([['session-a', 'completed']])
+    const { result } = renderHook(() => useSidebarTerminalCounts(states))
+    await waitFor(() => expect(result.current.terminalCounts.completed).toBe(1))
+
+    act(() => useSessionStatusStore.getState().noteHostTerminalCountChange())
+
+    await waitFor(() => expect(result.current.terminalCounts.completed).toBe(2))
+    expect(queryCountsMock).toHaveBeenNthCalledWith(2, 'session-a:completed\u00010\u00011')
+  })
+
   it('refreshes the exact count after a terminal read receipt reaches the Host', async () => {
     const persisted = Promise.withResolvers<void>()
     persistReceiptMock.mockReturnValueOnce(persisted.promise)
     queryCountsMock
       .mockResolvedValueOnce({
-        refreshKey: 'session-a:completed\u00010',
+        refreshKey: 'session-a:completed\u00010\u00010',
         counts: { completed: 1, error: 0 },
       })
       .mockResolvedValueOnce({
-        refreshKey: '\u00010',
+        refreshKey: '\u00010\u00010',
         counts: { completed: 1, error: 0 },
       })
       .mockResolvedValueOnce({
-        refreshKey: '\u00011',
+        refreshKey: '\u00011\u00010',
         counts: { completed: 0, error: 0 },
       })
     const sessionId = SessionId('session-a')
@@ -138,7 +159,7 @@ describe('useSidebarTerminalCounts', () => {
 
     await act(async () => persisted.resolve())
     await waitFor(() => expect(queryCountsMock).toHaveBeenCalledTimes(3))
-    expect(queryCountsMock).toHaveBeenNthCalledWith(3, '\u00011')
+    expect(queryCountsMock).toHaveBeenNthCalledWith(3, '\u00011\u00010')
     expect(result.current.terminalCounts).toEqual({ completed: 0, error: 0 })
   })
 
@@ -146,13 +167,13 @@ describe('useSidebarTerminalCounts', () => {
     const persisted = Promise.withResolvers<void>()
     persistReceiptMock.mockReturnValueOnce(persisted.promise)
     queryCountsMock
-      .mockResolvedValueOnce({ refreshKey: '\u00010', counts: { completed: 0, error: 0 } })
+      .mockResolvedValueOnce({ refreshKey: '\u00010\u00010', counts: { completed: 0, error: 0 } })
       .mockResolvedValueOnce({
-        refreshKey: 'session-a:completed\u00010',
+        refreshKey: 'session-a:completed\u00010\u00010',
         counts: { completed: 0, error: 0 },
       })
       .mockResolvedValueOnce({
-        refreshKey: 'session-a:completed\u00011',
+        refreshKey: 'session-a:completed\u00011\u00010',
         counts: { completed: 1, error: 0 },
       })
     const sessionId = SessionId('session-a')

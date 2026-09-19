@@ -26,10 +26,9 @@ interface PendingSessionHostRefresh {
   scheduled: boolean
 }
 
-function acceptsHostEvent(
-  cursor: { readonly hostInstanceId: string; readonly sequence: number },
-  previous: { readonly hostInstanceId: string; readonly sequence: number } | null,
-) {
+type HostCursor = { readonly hostInstanceId: string; readonly sequence: number }
+
+function acceptsHostEvent(cursor: HostCursor, previous: HostCursor | null) {
   return !previous ||
     cursor.hostInstanceId !== previous.hostInstanceId ||
     cursor.sequence > previous.sequence
@@ -78,10 +77,7 @@ export function useSessionHostRefresh(input: {
     updateSessionTitle,
   } = input
   const queryClient = useQueryClient()
-  const latestHostCursor = useRef<{
-    readonly hostInstanceId: string
-    readonly sequence: number
-  } | null>(null)
+  const latestHostCursor = useRef<HostCursor | null>(null)
   const pendingRefresh = useRef<PendingSessionHostRefresh>({
     sessionIds: new Set(),
     queueSessionIds: new Set(),
@@ -105,6 +101,7 @@ export function useSessionHostRefresh(input: {
         void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
       }
       if (refresh.catalog) {
+        useSessionStatusStore.getState().noteHostTerminalCountChange()
         void refreshCatalogSessions(refresh.catalogSessionIds)
       }
       if (refresh.refreshActiveSession && activeSessionId) {
@@ -156,6 +153,7 @@ export function useSessionHostRefresh(input: {
   }, [activeSessionId, refreshCatalogSessions, queryClient, refreshSession, refreshSessionTree])
   useEffect(() => {
     return api.onSessionHostResyncRequired(() => {
+      useSessionStatusStore.getState().noteHostTerminalCountChange()
       const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(
         0,
         SESSION_QUERY_ROOT_SEGMENTS,

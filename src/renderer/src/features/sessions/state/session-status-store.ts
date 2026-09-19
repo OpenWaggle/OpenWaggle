@@ -4,23 +4,7 @@ import type { AgentPhaseLabel } from '@shared/types/phase'
 import type { SessionSummary } from '@shared/types/session'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
 import { create, type StateCreator } from 'zustand'
-import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
-
-const logger = createRendererLogger('session-status-store')
-
-function persistLastVisitedAt(id: SessionId, lastVisitedAt: number, onPersisted: () => void) {
-  if (typeof api.updateSessionTreeUiState !== 'function') return
-  void api
-    .updateSessionTreeUiState(id, { lastVisitedAt })
-    .then(onPersisted)
-    .catch((error: unknown) => {
-      logger.error('Failed to persist Session read receipt', {
-        sessionId: String(id),
-        error: String(error),
-      })
-    })
-}
+import { createSessionReadReceiptWriter } from './session-read-receipt-writer'
 
 interface SessionStatusState {
   statuses: Map<SessionId, SessionStatus>
@@ -32,6 +16,8 @@ interface SessionStatusState {
   lastVisitedAt: Map<SessionId, number>
   /** Advances after a terminal read receipt reaches the Host. */
   terminalReceiptRevision: number
+  /** Advances when the Host signals that its terminal counts may have changed. */
+  hostTerminalCountRevision: number
   /**
    * What the agent is doing right now, per session.
    *
@@ -52,6 +38,7 @@ interface SessionStatusState {
   getPhase: (id: SessionId) => AgentPhaseLabel | null
   markVisited: (id: SessionId) => void
   markUnread: (id: SessionId) => void
+  noteHostTerminalCountChange: () => void
 }
 
 function updateStatusState(
@@ -215,88 +202,94 @@ function updatePhaseState(state: SessionStatusState, id: SessionId, phase: Agent
   return { ...state, phases }
 }
 
-function updateVisitedState(state: SessionStatusState, id: SessionId, visitedAt: number) {
+function updateVisitedState(
+  state: SessionStatusState,
+  id: SessionId,
+  visitedAt: number | undefined,
+) {
   const lastVisitedAt = new Map(state.lastVisitedAt)
-  lastVisitedAt.set(id, visitedAt)
+  if (visitedAt === undefined) lastVisitedAt.delete(id)
+  else lastVisitedAt.set(id, visitedAt)
   return { ...state, lastVisitedAt }
 }
 
-const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) => ({
-  statuses: new Map<SessionId, SessionStatus>(),
-  completedAt: new Map<SessionId, number>(),
-  statusUpdatedAt: new Map<SessionId, number>(),
-  lastVisitedAt: new Map<SessionId, number>(),
-  terminalReceiptRevision: 0,
-  phases: new Map<SessionId, AgentPhaseLabel>(),
+const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) => {
+  const markReadReceipt = createSessionReadReceiptWriter({
+    getValue: (id) => get().lastVisitedAt.get(id),
+    setValue: (id, value) => set((state) => updateVisitedState(state, id, value)),
+    isTerminal: (id) => TERMINAL_STATUSES.has(get().statuses.get(id) ?? 'idle'),
+    noteTerminalReceiptSettled: () =>
+      set((state) => ({ terminalReceiptRevision: state.terminalReceiptRevision + 1 })),
+  })
 
-  setStatus(id: SessionId, status: SessionStatus, sourceUpdatedAt: number) {
-    set((state) => updateStatusState(state, id, status, sourceUpdatedAt))
-  },
+  return {
+    statuses: new Map<SessionId, SessionStatus>(),
+    completedAt: new Map<SessionId, number>(),
+    statusUpdatedAt: new Map<SessionId, number>(),
+    lastVisitedAt: new Map<SessionId, number>(),
+    terminalReceiptRevision: 0,
+    hostTerminalCountRevision: 0,
+    phases: new Map<SessionId, AgentPhaseLabel>(),
 
-  markWaggleRunning(id: SessionId) {
-    set((state) => {
-      const sourceUpdatedAt = state.statusUpdatedAt.get(id) ?? 0
-      return updateStatusState(state, id, 'waggle-running', sourceUpdatedAt)
-    })
-  },
+    setStatus(id: SessionId, status: SessionStatus, sourceUpdatedAt: number) {
+      set((state) => updateStatusState(state, id, status, sourceUpdatedAt))
+    },
 
-  markRunCompleted(id: SessionId) {
-    set((state) => {
-      if (TERMINAL_STATUSES.has(state.statuses.get(id) ?? 'idle')) return state
-      // The completion broadcast has no durable outcome or timestamp. Keep the last
-      // source timestamp so a later Host catalog projection can correct failures and
-      // interruptions, while using wall time only for the unread indicator.
-      return updateStatusState(
-        state,
-        id,
-        'completed',
-        Date.now(),
-        state.statusUpdatedAt.get(id) ?? 0,
-      )
-    })
-  },
+    markWaggleRunning(id: SessionId) {
+      set((state) => {
+        const sourceUpdatedAt = state.statusUpdatedAt.get(id) ?? 0
+        return updateStatusState(state, id, 'waggle-running', sourceUpdatedAt)
+      })
+    },
 
-  hydratePersistedStatuses(sessions) {
-    set((state) => hydratePersistedState(state, sessions))
-  },
+    markRunCompleted(id: SessionId) {
+      set((state) => {
+        if (TERMINAL_STATUSES.has(state.statuses.get(id) ?? 'idle')) return state
+        // The completion broadcast has no durable outcome or timestamp. Keep the last
+        // source timestamp so a later Host catalog projection can correct failures and
+        // interruptions, while using wall time only for the unread indicator.
+        return updateStatusState(
+          state,
+          id,
+          'completed',
+          Date.now(),
+          state.statusUpdatedAt.get(id) ?? 0,
+        )
+      })
+    },
 
-  clearStatus(id: SessionId) {
-    set((state) => clearStatusState(state, id))
-  },
+    hydratePersistedStatuses(sessions) {
+      set((state) => hydratePersistedState(state, sessions))
+    },
 
-  getStatus(id: SessionId) {
-    return get().statuses.get(id) ?? 'idle'
-  },
+    clearStatus(id: SessionId) {
+      set((state) => clearStatusState(state, id))
+    },
 
-  setPhase(id: SessionId, phase: AgentPhaseLabel | null) {
-    set((state) => updatePhaseState(state, id, phase))
-  },
+    getStatus(id: SessionId) {
+      return get().statuses.get(id) ?? 'idle'
+    },
 
-  getPhase(id: SessionId) {
-    return get().phases.get(id) ?? null
-  },
+    setPhase(id: SessionId, phase: AgentPhaseLabel | null) {
+      set((state) => updatePhaseState(state, id, phase))
+    },
 
-  markVisited(id: SessionId) {
-    const visitedAt = Date.now()
-    set((state) => updateVisitedState(state, id, visitedAt))
-    const terminal = get().statuses.get(id)
-    persistLastVisitedAt(id, visitedAt, () => {
-      if (terminal === 'completed' || terminal === 'error') {
-        set((state) => ({ terminalReceiptRevision: state.terminalReceiptRevision + 1 }))
-      }
-    })
-  },
+    getPhase(id: SessionId) {
+      return get().phases.get(id) ?? null
+    },
 
-  markUnread(id: SessionId) {
-    const unreadAt = 0
-    set((state) => updateVisitedState(state, id, unreadAt))
-    const terminal = get().statuses.get(id)
-    persistLastVisitedAt(id, unreadAt, () => {
-      if (terminal === 'completed' || terminal === 'error') {
-        set((state) => ({ terminalReceiptRevision: state.terminalReceiptRevision + 1 }))
-      }
-    })
-  },
-})
+    markVisited(id: SessionId) {
+      markReadReceipt(id, Date.now())
+    },
+
+    markUnread(id: SessionId) {
+      markReadReceipt(id, 0)
+    },
+
+    noteHostTerminalCountChange() {
+      set((state) => ({ hostTerminalCountRevision: state.hostTerminalCountRevision + 1 }))
+    },
+  }
+}
 
 export const useSessionStatusStore = create<SessionStatusState>(createSessionStatusState)
