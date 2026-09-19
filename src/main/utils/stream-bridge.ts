@@ -74,7 +74,7 @@ export function emitTransportEvent(
 
   maybeEmitPhase({
     sessionId,
-    phase: updatePhaseFromTransportEvent(sessionId, event, Date.now()),
+    phase: updatePhaseFromTransportEvent(sessionId, event, event.timestamp),
   })
 
   broadcastToWindows('agent:event', { sessionId, event })

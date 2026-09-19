@@ -8,16 +8,30 @@ import { useSessionStore } from '@/features/sessions/state/session-store'
 import { useSessionStatusMonitor } from '../useSessionStatusMonitor'
 
 type RunCompletedHandler = (payload: IpcEventChannelMap['agent:run-completed']['payload']) => void
+type AgentEventHandler = (payload: IpcEventChannelMap['agent:event']['payload']) => void
+type AgentPhaseHandler = (payload: IpcEventChannelMap['agent:phase']['payload']) => void
 
 const monitorMocks = vi.hoisted(() => {
   let runCompletedHandler: RunCompletedHandler | null = null
+  let agentEventHandler: AgentEventHandler | null = null
+  let agentPhaseHandler: AgentPhaseHandler | null = null
   const subscribe = vi.fn(() => vi.fn())
   return {
     getRunCompletedHandler: () => runCompletedHandler,
+    getAgentEventHandler: () => agentEventHandler,
+    getAgentPhaseHandler: () => agentPhaseHandler,
     getSessionDetail: vi.fn(),
     listActiveRuns: vi.fn(),
     onRunCompleted: vi.fn((handler: RunCompletedHandler) => {
       runCompletedHandler = handler
+      return vi.fn()
+    }),
+    onAgentEvent: vi.fn((handler: AgentEventHandler) => {
+      agentEventHandler = handler
+      return vi.fn()
+    }),
+    onAgentPhase: vi.fn((handler: AgentPhaseHandler) => {
+      agentPhaseHandler = handler
       return vi.fn()
     }),
     querySessionControl: vi.fn(),
@@ -30,8 +44,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     getSessionDetail: monitorMocks.getSessionDetail,
     listActiveRuns: monitorMocks.listActiveRuns,
-    onAgentEvent: monitorMocks.subscribe,
-    onAgentPhase: monitorMocks.subscribe,
+    onAgentEvent: monitorMocks.onAgentEvent,
+    onAgentPhase: monitorMocks.onAgentPhase,
     onRunCompleted: monitorMocks.onRunCompleted,
     onWaggleTurnEvent: monitorMocks.subscribe,
     onWorktreeLaunch: monitorMocks.subscribe,
@@ -122,6 +136,63 @@ describe('useSessionStatusMonitor', () => {
     act(() => handler({ sessionId: SESSION_ID }))
     expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('completed')
 
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          {
+            id: SESSION_ID,
+            title: 'Session A',
+            projectPath: '/repo',
+            createdAt: 1,
+            updatedAt: 200,
+            latestRun: { status: 'failed', updatedAt: 200 },
+          },
+        ],
+      })
+    })
+
+    await waitFor(() =>
+      expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('error'),
+    )
+  })
+
+  it('orders delayed live signals by their source time, not renderer receipt time', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(300)
+    renderHook(() => useSessionStatusMonitor())
+
+    const phaseHandler = monitorMocks.getAgentPhaseHandler()
+    const eventHandler = monitorMocks.getAgentEventHandler()
+    const completedHandler = monitorMocks.getRunCompletedHandler()
+    if (!phaseHandler || !eventHandler || !completedHandler) {
+      throw new Error('Expected lifecycle subscriptions')
+    }
+
+    act(() => {
+      phaseHandler({ sessionId: SESSION_ID, phase: { label: 'Thinking', startedAt: 100 } })
+      eventHandler({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'message_update',
+          timestamp: 110,
+          messageId: 'message-a',
+          role: 'assistant',
+          assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'hello' },
+        },
+      })
+      eventHandler({
+        sessionId: SESSION_ID,
+        event: {
+          type: 'tool_execution_start',
+          timestamp: 120,
+          toolCallId: 'tool-a',
+          toolName: 'read',
+          args: {},
+        },
+      })
+    })
+    expect(useSessionStatusStore.getState().statusUpdatedAt.get(SESSION_ID)).toBe(120)
+
+    act(() => completedHandler({ sessionId: SESSION_ID }))
     act(() => {
       useSessionStore.setState({
         sessions: [

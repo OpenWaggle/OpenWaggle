@@ -10,6 +10,7 @@ vi.mock('../broadcast', () => ({
 }))
 
 import {
+  clearAgentPhase,
   clearStreamBuffer,
   emitTransportEvent,
   getStreamBuffer,
@@ -96,5 +97,23 @@ describe('stream-bridge', () => {
         parts: [{ type: 'text', text: 'Session two output' }],
       }),
     )
+  })
+
+  it('keeps the transport source time when a phase broadcast is delayed', () => {
+    const sessionId = SessionId('delayed-phase')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(300)
+
+    emitTransportEvent(sessionId, {
+      type: 'agent_start',
+      runId: 'run-delayed',
+      timestamp: 100,
+    })
+
+    expect(broadcastToWindowsMock).toHaveBeenCalledWith('agent:phase', {
+      sessionId,
+      phase: { label: 'Thinking', startedAt: 100 },
+    })
+    clearAgentPhase(sessionId)
+    now.mockRestore()
   })
 })

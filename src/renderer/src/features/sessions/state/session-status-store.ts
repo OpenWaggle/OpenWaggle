@@ -37,7 +37,8 @@ interface SessionStatusState {
    */
   phases: Map<SessionId, AgentPhaseLabel>
 
-  setStatus: (id: SessionId, status: SessionStatus, updatedAt?: number) => void
+  setStatus: (id: SessionId, status: SessionStatus, sourceUpdatedAt: number) => void
+  markWaggleRunning: (id: SessionId) => void
   markRunCompleted: (id: SessionId) => void
   hydratePersistedStatuses: (sessions: readonly SessionSummary[]) => void
   clearStatus: (id: SessionId) => void
@@ -222,8 +223,15 @@ const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) =>
   lastVisitedAt: new Map<SessionId, number>(),
   phases: new Map<SessionId, AgentPhaseLabel>(),
 
-  setStatus(id: SessionId, status: SessionStatus, updatedAt = Date.now()) {
-    set((state) => updateStatusState(state, id, status, updatedAt))
+  setStatus(id: SessionId, status: SessionStatus, sourceUpdatedAt: number) {
+    set((state) => updateStatusState(state, id, status, sourceUpdatedAt))
+  },
+
+  markWaggleRunning(id: SessionId) {
+    set((state) => {
+      const sourceUpdatedAt = state.statusUpdatedAt.get(id) ?? 0
+      return updateStatusState(state, id, 'waggle-running', sourceUpdatedAt)
+    })
   },
 
   markRunCompleted(id: SessionId) {

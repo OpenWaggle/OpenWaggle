@@ -65,4 +65,16 @@ describe('synthetic Run completion reconciliation', () => {
     expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('error')
     expect(useSessionStatusStore.getState().completedAt.get(SESSION_ID)).toBe(200)
   })
+
+  it('does not promote a timestamp-less Waggle signal above the durable Run clock', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(300)
+    useSessionStatusStore.getState().setStatus(SESSION_ID, 'working', 100)
+
+    useSessionStatusStore.getState().markWaggleRunning(SESSION_ID)
+    expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('waggle-running')
+    expect(useSessionStatusStore.getState().statusUpdatedAt.get(SESSION_ID)).toBe(100)
+
+    useSessionStatusStore.getState().hydratePersistedStatuses([summary('failed', 200)])
+    expect(useSessionStatusStore.getState().getStatus(SESSION_ID)).toBe('error')
+  })
 })

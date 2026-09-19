@@ -158,7 +158,7 @@ describe('useWorkspaceLifecycle', () => {
   })
 
   it('clears retained runtime status when the Host archives a Session', async () => {
-    useSessionStatusStore.getState().setStatus(SessionId('session-2'), 'completed')
+    useSessionStatusStore.getState().setStatus(SessionId('session-2'), 'completed', Date.now())
     renderHook(() => useWorkspaceLifecycle())
     await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
     const eventHandler = lifecycleMocks.getSessionHostEventHandler()

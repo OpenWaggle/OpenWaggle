@@ -17,7 +17,7 @@ const logger = createRendererLogger('session-status-monitor')
 
 async function hydrateLiveSessionStatuses(input: {
   readonly cancelled: () => boolean
-  readonly setStatus: (sessionId: SessionId, status: SessionStatus, updatedAt?: number) => void
+  readonly setStatus: (sessionId: SessionId, status: SessionStatus, updatedAt: number) => void
 }) {
   const runs = await api.listActiveRuns()
   if (input.cancelled()) return
@@ -67,6 +67,7 @@ async function hydrateLiveSessionStatuses(input: {
  */
 export function useSessionStatusMonitor(): void {
   const setStatus = useSessionStatusStore((s) => s.setStatus)
+  const markWaggleRunning = useSessionStatusStore((s) => s.markWaggleRunning)
   const markRunCompleted = useSessionStatusStore((s) => s.markRunCompleted)
   const setPhase = useSessionStatusStore((s) => s.setPhase)
   const markVisited = useSessionStatusStore((s) => s.markVisited)
@@ -83,7 +84,7 @@ export function useSessionStatusMonitor(): void {
     function setStatusWithVisitCheck(
       sessionId: SessionId,
       status: SessionStatus,
-      updatedAt?: number,
+      updatedAt: number,
     ) {
       setStatus(sessionId, status, updatedAt)
       // If the user is currently viewing this session and it's a terminal status, auto-mark visited
@@ -102,7 +103,7 @@ export function useSessionStatusMonitor(): void {
       if (!phase) return
       // Don't downgrade waggle-running to working
       if (activeWaggleSessions.has(sessionId)) return
-      setStatusWithVisitCheck(sessionId, 'working')
+      setStatusWithVisitCheck(sessionId, 'working', phase.startedAt)
     })
 
     const unsubCompleted = api.onRunCompleted(({ sessionId }) => {
@@ -115,7 +116,7 @@ export function useSessionStatusMonitor(): void {
     const unsubWorktreeLaunch = api.onWorktreeLaunch(({ sessionId, launch }) => {
       useBackgroundRunStore.getState().setWorktreeLaunch(sessionId, launch)
       if (launch?.status === 'running') {
-        setStatusWithVisitCheck(sessionId, 'connecting')
+        setStatusWithVisitCheck(sessionId, 'connecting', launch.updatedAt)
       }
     })
 
@@ -123,7 +124,9 @@ export function useSessionStatusMonitor(): void {
       matchBy(event, 'type')
         .with('collaboration-pending', 'turn-start', () => {
           activeWaggleSessions.add(sessionId)
-          setStatusWithVisitCheck(sessionId, 'waggle-running')
+          // Waggle turn events have no source timestamp. Do not let receipt time
+          // outrank the Host's durable Run settlement.
+          markWaggleRunning(sessionId)
         })
         // Terminal waggle events transition to 'completed' via onRunCompleted above.
         .otherwise(() => undefined)
@@ -162,19 +165,19 @@ export function useSessionStatusMonitor(): void {
           matchBy(value.assistantMessageEvent, 'type')
             .with('text_delta', 'toolcall_start', () => {
               if (!activeWaggleSessions.has(sessionId)) {
-                setStatusWithVisitCheck(sessionId, 'working')
+                setStatusWithVisitCheck(sessionId, 'working', value.timestamp)
               }
             })
             .otherwise(() => undefined)
         })
-        .with('tool_execution_start', () => {
+        .with('tool_execution_start', (value) => {
           if (!activeWaggleSessions.has(sessionId)) {
-            setStatusWithVisitCheck(sessionId, 'working')
+            setStatusWithVisitCheck(sessionId, 'working', value.timestamp)
           }
         })
         .otherwise((value) => {
           if (isTerminalTransportEvent(value)) {
-            setStatusWithVisitCheck(sessionId, 'completed')
+            setStatusWithVisitCheck(sessionId, 'completed', value.timestamp)
           }
         })
     })
@@ -194,5 +197,5 @@ export function useSessionStatusMonitor(): void {
       unsubWaggleTurn()
       unsubEvent()
     }
-  }, [setStatus, markRunCompleted, setPhase, markVisited])
+  }, [setStatus, markWaggleRunning, markRunCompleted, setPhase, markVisited])
 }
