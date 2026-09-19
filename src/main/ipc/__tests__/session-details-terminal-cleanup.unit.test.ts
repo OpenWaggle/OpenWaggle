@@ -1,7 +1,8 @@
 import { SessionId } from '@shared/types/brand'
-import { Layer } from 'effect'
+import { Cause, Layer, Runtime } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { probeSessionLineageMutation as withSessionLineageMutation } from '../../adapters/__tests__/session-lineage-mutation-probe'
 import { TerminalService } from '../../ports/terminal-service'
 import { ensureSessionRunStartAllowed, isSessionRemovalFenced } from '../active-agent-runs'
 import {
@@ -20,6 +21,8 @@ const lifecycleOrder: string[] = []
 const mutationScopes: unknown[] = []
 let terminalCleanupError: Error | null = null
 let terminalHistoryCleanupError: Error | null = null
+let terminalErrorsAreDefects = false
+let interruptTerminalHistoryCleanup = false
 let terminalStopBarrier: Promise<void> | null = null
 
 const RecordingTerminalServiceLayer = Layer.succeed(
@@ -59,8 +62,14 @@ const RecordingTerminalServiceLayer = Layer.succeed(
     closeAllForOwner: (ownerKey, deleteHistory) => {
       recordedCloseAllForOwner.push([ownerKey, deleteHistory])
       lifecycleOrder.push(deleteHistory ? 'terminal:delete-history' : 'terminal:stop')
+      if (deleteHistory && interruptTerminalHistoryCleanup) return Effect.interrupt
       const failure = deleteHistory ? terminalHistoryCleanupError : terminalCleanupError
-      const result = failure === null ? Effect.void : Effect.fail(failure)
+      const result =
+        failure === null
+          ? Effect.void
+          : terminalErrorsAreDefects
+            ? Effect.promise(() => Promise.reject(failure))
+            : Effect.fail(failure)
       return !deleteHistory && terminalStopBarrier !== null
         ? Effect.promise(() => terminalStopBarrier ?? Promise.resolve()).pipe(
             Effect.zipRight(result),
@@ -97,6 +106,8 @@ describe('session terminal cleanup', () => {
     mutationScopes.length = 0
     terminalCleanupError = null
     terminalHistoryCleanupError = null
+    terminalErrorsAreDefects = false
+    interruptTerminalHistoryCleanup = false
     terminalStopBarrier = null
     ;({ registerSessionDetailsHandlers } = await loadSessionDetailsHandlers())
   })
@@ -129,11 +140,14 @@ describe('session terminal cleanup', () => {
   })
 
   it.each([
-    ['delete', false, deleteSessionMock],
-    ['archive', false, archiveSessionMock],
+    ['delete', false, deleteSessionMock, false],
+    ['archive', false, archiveSessionMock, false],
+    ['delete', false, deleteSessionMock, true],
+    ['archive', false, archiveSessionMock, true],
   ] as const)(
     'keeps the session when terminal cleanup blocks %s',
-    async (mutation, deleteHistory, repositoryMutation) => {
+    async (mutation, deleteHistory, repositoryMutation, defect) => {
+      terminalErrorsAreDefects = defect
       terminalCleanupError = new Error('process tree still running')
       registerSessionDetailsHandlers()
       const handler = getInvokeHandler(`sessions:${mutation}`, [RecordingTerminalServiceLayer])
@@ -145,6 +159,9 @@ describe('session terminal cleanup', () => {
       expect(recordedCloseAllForOwner).toEqual([[`session-${mutation}`, deleteHistory]])
       expect(repositoryMutation).not.toHaveBeenCalled()
       expect(lifecycleOrder).toEqual(['terminal:stop'])
+      if (mutation === 'delete') {
+        expect(rollbackVisualizationSessionDeletionMock).toHaveBeenCalledWith('session-delete')
+      }
       expect(isSessionRemovalFenced(SessionId(`session-${mutation}`))).toBe(false)
     },
   )
@@ -157,6 +174,9 @@ describe('session terminal cleanup', () => {
 
     const deletion = handler?.({}, 'session-delete')
     await vi.waitFor(() => expect(waitForSessionRunsMock).toHaveBeenCalledOnce())
+    await expect(
+      withSessionLineageMutation([SessionId('session-delete')], async () => undefined),
+    ).rejects.toThrow('Hive changes are blocked')
     expect(recordedCloseAllForOwner).toEqual([])
     expect(deleteSessionMock).not.toHaveBeenCalled()
 
@@ -190,18 +210,21 @@ describe('session terminal cleanup', () => {
     ['delete', deleteSessionMock],
     ['archive', archiveSessionMock],
   ] as const)(
-    'leaves the session untouched when cancelled %s work does not settle',
+    'retains Session metadata when cancelled %s work does not settle',
     async (mutation, repositoryMutation) => {
       waitForSessionRunsMock.mockResolvedValue(false)
       registerSessionDetailsHandlers()
       const handler = getInvokeHandler(`sessions:${mutation}`, [RecordingTerminalServiceLayer])
 
-      await expect(handler?.({}, `session-${mutation}`)).rejects.toThrow('left unchanged')
+      await expect(handler?.({}, `session-${mutation}`)).rejects.toThrow('metadata was retained')
 
       expect(recordedCloseAllForOwner).toEqual([])
       expect(repositoryMutation).not.toHaveBeenCalled()
       expect(lifecycleOrder).toEqual([])
       expect(isSessionRemovalFenced(SessionId(`session-${mutation}`))).toBe(false)
+      await expect(
+        withSessionLineageMutation([SessionId(`session-${mutation}`)], async () => undefined),
+      ).resolves.toBeUndefined()
     },
   )
 
@@ -222,21 +245,37 @@ describe('session terminal cleanup', () => {
     expect(isSessionRemovalFenced(SessionId('session-delete'))).toBe(false)
   })
 
-  it('keeps the deleted projection coherent when post-delete history cleanup fails', async () => {
-    terminalHistoryCleanupError = new Error('history cleanup failed')
+  it('does not swallow an interruption during post-commit terminal cleanup', async () => {
+    interruptTerminalHistoryCleanup = true
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
-
-    await expect(handler?.({}, 'session-delete')).resolves.toBeUndefined()
-
-    expect(deleteSessionMock).toHaveBeenCalledWith('session-delete')
-    expect(deleteVisualizationSessionMock).toHaveBeenCalledWith('session-delete')
-    expect(rollbackVisualizationSessionDeletionMock).not.toHaveBeenCalled()
-    expect(recordedCloseAllForOwner).toEqual([
-      ['session-delete', false],
-      ['session-delete', true],
-    ])
-    expect(lifecycleOrder).toEqual(['terminal:stop', 'delete', 'terminal:delete-history'])
+    const error: unknown = await handler?.({}, 'session-delete').catch((cause: unknown) => cause)
+    expect(Runtime.isFiberFailure(error)).toBe(true)
+    if (!Runtime.isFiberFailure(error)) throw new Error('Expected a FiberFailure')
+    expect(Cause.isInterruptedOnly(error[Runtime.FiberFailureCauseId])).toBe(true)
+    expect(deleteSessionMock).toHaveBeenCalledOnce()
     expect(isSessionRemovalFenced(SessionId('session-delete'))).toBe(false)
   })
+
+  it.each([false, true])(
+    'keeps committed deletion coherent for terminal defects=%s',
+    async (defect) => {
+      terminalErrorsAreDefects = defect
+      terminalHistoryCleanupError = new Error('history cleanup failed')
+      registerSessionDetailsHandlers()
+      const handler = getInvokeHandler('sessions:delete', [RecordingTerminalServiceLayer])
+
+      await expect(handler?.({}, 'session-delete')).resolves.toBeUndefined()
+
+      expect(deleteSessionMock).toHaveBeenCalledWith('session-delete')
+      expect(deleteVisualizationSessionMock).toHaveBeenCalledWith('session-delete')
+      expect(rollbackVisualizationSessionDeletionMock).not.toHaveBeenCalled()
+      expect(recordedCloseAllForOwner).toEqual([
+        ['session-delete', false],
+        ['session-delete', true],
+      ])
+      expect(lifecycleOrder).toEqual(['terminal:stop', 'delete', 'terminal:delete-history'])
+      expect(isSessionRemovalFenced(SessionId('session-delete'))).toBe(false)
+    },
+  )
 })

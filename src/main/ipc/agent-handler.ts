@@ -22,6 +22,7 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
+import type { AcceptedAgentSteer } from '../application/active-session-runs'
 import {
   cancelAgentLoopInteractionsForRun,
   submitAgentLoopInteractionResponse,
@@ -46,12 +47,13 @@ import {
   activeCompactions,
   activeRuns,
   activeWaggleRuns,
-  cancelAllSessionRuns,
   cancelSessionRuns,
   ensureSessionRunStartAllowed,
   hasAnyActiveRun,
   listActiveCompactions,
 } from './active-agent-runs'
+import { registerAgentCancelHandler } from './agent-cancel-handler'
+import { captureRunResultResources } from './agent-run-resources'
 import { describeSendOutcome, handleRunResult } from './agent-run-result'
 import { registerAgentSteeringHandler } from './agent-steering-handler'
 import { runAgentRequestedWaggle } from './agent-waggle-handoff'
@@ -62,11 +64,6 @@ function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
   clearStreamBuffer(sessionId)
   cleanupSessionRun(sessionId)
-}
-
-function emitCancelledCompletion(sessionId: SessionId) {
-  clearSessionTransportState(sessionId)
-  emitRunCompleted(sessionId)
 }
 
 /**
@@ -96,17 +93,15 @@ function registerAgentRunHandlers() {
         const runId = randomUUID()
         const controlRef: { current: AgentKernelRunControl | null } = { current: null }
         const steerTailRef: { current: Promise<void> } = { current: Promise.resolve() }
+        const acceptedSteersRef: { current: AcceptedAgentSteer[] } = { current: [] }
         activeRuns.register(sessionId, abortController, {
           model,
           controlRef,
           steerTailRef,
+          acceptedSteersRef,
         })
 
         startStreamBuffer(sessionId, model, 'classic')
-
-        function onEventWithUsageCapture(event: AgentTransportEvent) {
-          emitTransportEvent(sessionId, event)
-        }
 
         // The report is the handler's own result: `Effect.ensuring` runs cleanup without discarding it.
         return yield* Effect.gen(function* () {
@@ -117,7 +112,7 @@ function registerAgentRunHandlers() {
             payload: validatedPayload,
             model,
             signal: abortController.signal,
-            onEvent: onEventWithUsageCapture,
+            onEvent: (event) => emitTransportEvent(sessionId, event),
             onControlAvailable: (control) => {
               if (activeRuns.isCurrent(sessionId, abortController)) {
                 controlRef.current = control
@@ -129,18 +124,33 @@ function registerAgentRunHandlers() {
             },
           })
 
+          yield* captureRunResultResources(
+            sessionId,
+            runId,
+            validatedPayload,
+            result,
+            acceptedSteersRef.current,
+          )
+          // A requested Waggle handoff starts a distinct run in this handler.
+          acceptedSteersRef.current = []
+
           const handoff =
             result.outcome === 'success' ? findWaggleHandoffRequest(result.newMessages) : null
           if (handoff && !abortController.signal.aborted) {
             yield* ensureSessionRunStartAllowed(sessionId)
             controlRef.current = null
-            activeWaggleRuns.register(sessionId, abortController, { controlRef, steerTailRef })
+            activeWaggleRuns.register(sessionId, abortController, {
+              controlRef,
+              steerTailRef,
+              acceptedSteersRef,
+            })
             yield* runAgentRequestedWaggle({
               sessionId,
               handoff,
               model,
               thinkingLevel: validatedPayload.thinkingLevel,
               abortController,
+              acceptedSteersRef,
               onControlAvailable: (control) => {
                 if (activeRuns.isCurrent(sessionId, abortController)) controlRef.current = control
               },
@@ -185,21 +195,6 @@ function registerAgentRunHandlers() {
           ),
         )
       }),
-  )
-
-  typedHandle('agent:cancel', (_event, sessionId?: SessionId) =>
-    Effect.sync(() => {
-      if (sessionId) {
-        if (cancelSessionRuns(sessionId)) {
-          emitCancelledCompletion(sessionId)
-        }
-      } else {
-        const cancelledSessionIds = cancelAllSessionRuns()
-        for (const id of cancelledSessionIds) {
-          emitCancelledCompletion(id)
-        }
-      }
-    }),
   )
 }
 
@@ -300,6 +295,7 @@ function registerAgentCompactionHandlers() {
 
 export function registerAgentHandlers(): void {
   registerAgentRunHandlers()
+  registerAgentCancelHandler()
   registerAgentInteractionHandlers()
   registerAgentStateHandlers()
   registerAgentCompactionHandlers()

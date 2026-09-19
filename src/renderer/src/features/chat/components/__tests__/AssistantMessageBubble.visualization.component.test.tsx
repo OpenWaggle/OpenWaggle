@@ -8,6 +8,10 @@ import type {
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/features/session-summary', () => ({
+  SessionMessageImages: () => null,
+}))
+
 vi.mock('../../hooks/useMessageCollapse', () => ({
   useMessageCollapse: () => ({
     canCollapseDetails: false,

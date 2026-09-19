@@ -23,26 +23,33 @@ export function workspaceFileRightSidebarRequest(path: string, line: number | nu
 }
 
 export type RightSidebarClaim =
-  | { readonly kind: 'route'; readonly requestKey: string }
+  | { readonly kind: 'route'; readonly requestKey: string; readonly scopeKey?: string | null }
   | { readonly kind: 'workspace'; readonly ownerKey: string }
   | null
 
 interface RightSidebarCoordinatorState {
   readonly activeClaim: RightSidebarClaim
-  claimRoute: (requestKey: string) => void
+  claimRoute: (requestKey: string, scopeKey?: string | null) => void
   claimWorkspace: (ownerKey: string) => void
-  releaseRoute: (requestKey?: string) => void
+  releaseRoute: (requestKey?: string, scopeKey?: string | null) => void
   releaseWorkspace: (ownerKey: string) => void
 }
 
 export const useRightSidebarCoordinator = create<RightSidebarCoordinatorState>((set, get) => ({
   activeClaim: null,
 
-  claimRoute(requestKey) {
+  claimRoute(requestKey, scopeKey) {
     if (requestKey.length === 0) return
     const activeClaim = get().activeClaim
-    if (activeClaim?.kind === 'route' && activeClaim.requestKey === requestKey) return
-    set({ activeClaim: { kind: 'route', requestKey } })
+    if (
+      activeClaim?.kind === 'route' &&
+      activeClaim.requestKey === requestKey &&
+      activeClaim.scopeKey === scopeKey
+    )
+      return
+    set({
+      activeClaim: { kind: 'route', requestKey, ...(scopeKey === undefined ? {} : { scopeKey }) },
+    })
   },
 
   claimWorkspace(ownerKey) {
@@ -52,10 +59,11 @@ export const useRightSidebarCoordinator = create<RightSidebarCoordinatorState>((
     set({ activeClaim: { kind: 'workspace', ownerKey } })
   },
 
-  releaseRoute(requestKey) {
+  releaseRoute(requestKey, scopeKey) {
     const activeClaim = get().activeClaim
     if (activeClaim?.kind !== 'route') return
     if (requestKey !== undefined && activeClaim.requestKey !== requestKey) return
+    if (scopeKey !== undefined && activeClaim.scopeKey !== scopeKey) return
     set({ activeClaim: null })
   },
 

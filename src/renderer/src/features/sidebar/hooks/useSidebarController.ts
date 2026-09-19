@@ -1,5 +1,6 @@
 import type { RepositoryPath, SessionId } from '@shared/types/brand'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useBranchSummaryStore } from '@/features/chat/state'
 import { resolvePinnedDropNeighbours } from '../lib/pinned-sessions'
@@ -14,6 +15,7 @@ function createDomainActions(
   clearTransientDraftContext: () => void,
   refreshGit: (path: RepositoryPath | null) => void,
   refreshAfterSessionMutation: (sessionId: SessionId) => Promise<void>,
+  queryClient: QueryClient,
 ) {
   const session = createSidebarSessionActions({
     activeSessionId: state.activeSessionId,
@@ -25,6 +27,7 @@ function createDomainActions(
     matchingActiveWorkspace: state.matchingActiveWorkspace,
     navigate: state.navigate,
     projectPath: state.project.projectPath,
+    queryClient,
     refreshSessionWorkspace: state.sessions.refreshSessionWorkspace,
     selectedModel: state.preferences.selectedModel,
     showToast: state.showToast,
@@ -58,6 +61,7 @@ function createDomainActions(
     loadSessionTrees: state.sessions.loadSessions,
     navigate: state.navigate,
     projectPath: state.project.projectPath,
+    queryClient,
     refreshGit,
     removeProjectReferences: state.preferences.removeProjectReferences,
     selectFolder: state.project.selectFolder,
@@ -128,6 +132,7 @@ function buildControllerOutput(
 
 export function useSidebarController() {
   const state = useSidebarState()
+  const queryClient = useQueryClient()
   const loadPins = usePinnedSessionsStore((s) => s.loadPins)
 
   useEffect(() => {
@@ -161,6 +166,7 @@ export function useSidebarController() {
     clearTransientDraftContext,
     refreshGit,
     refreshAfterSessionMutation,
+    queryClient,
   )
   return buildControllerOutput(state, actions, clearTransientDraftContext)
 }

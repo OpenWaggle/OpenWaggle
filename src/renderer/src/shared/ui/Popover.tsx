@@ -1,12 +1,21 @@
-import { cloneElement, isValidElement, useCallback, useEffect, useRef } from 'react'
+import { match } from '@diegogbrisa/ts-match'
+import {
+  cloneElement,
+  isValidElement,
+  type KeyboardEventHandler,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { useMenuKeyboard } from '@/shared/hooks/useMenuKeyboard'
 import { usePopover } from '@/shared/hooks/usePopover'
+import { type PopoverPlacement, useTopLayerPopover } from '@/shared/hooks/useTopLayerPopover'
 import { cn } from '@/shared/lib/cn'
 
-type Placement = 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
-
-const placementClasses: Record<Placement, string> = {
+const placementClasses: Record<PopoverPlacement, string> = {
   'top-start': 'bottom-full left-0 mb-1',
   'top-end': 'bottom-full right-0 mb-1',
   'bottom-start': 'top-full left-0 mt-1',
@@ -23,7 +32,9 @@ interface PopoverProps {
   /** Called when the popover wants to change its open state (controlled mode). */
   onOpenChange?: (open: boolean) => void
   /** Dropdown placement relative to the trigger. */
-  placement?: Placement
+  placement?: PopoverPlacement
+  /** Keep menus usable inside clipped or scrolling panels through the native top layer. */
+  escapeClipping?: boolean
   /** Additional classes for the dropdown panel. */
   className?: string
   /**
@@ -43,12 +54,62 @@ interface PopoverProps {
   ariaLabel?: string
 }
 
+function PopoverPanel({
+  input,
+  children,
+}: {
+  readonly input: {
+    readonly role: PopoverProps['role']
+    readonly menuRef: RefObject<HTMLDivElement | null>
+    readonly dialogRef: RefObject<HTMLDialogElement | null>
+    readonly plainRef: RefObject<HTMLDivElement | null>
+    readonly escapeClipping: boolean
+    readonly ariaLabel: string | undefined
+    readonly className: string
+    readonly onKeyDown: KeyboardEventHandler<HTMLDivElement>
+  }
+  readonly children: ReactNode
+}) {
+  const popover = input.escapeClipping ? 'manual' : undefined
+  // Literal roles keep the keyboard handler paired with the menu semantics it implements.
+  return match(input.role)
+    .with('menu', () => (
+      <div
+        ref={input.menuRef}
+        popover={popover}
+        role="menu"
+        onKeyDown={input.onKeyDown}
+        className={input.className}
+      >
+        {children}
+      </div>
+    ))
+    .with('dialog', () => (
+      <dialog
+        ref={input.dialogRef}
+        popover={popover}
+        open
+        aria-label={input.ariaLabel}
+        className={cn('m-0', input.className)}
+      >
+        {children}
+      </dialog>
+    ))
+    .with('listbox', undefined, (role) => (
+      <div ref={input.plainRef} popover={popover} role={role} className={input.className}>
+        {children}
+      </div>
+    ))
+    .exhaustive()
+}
+
 export function Popover({
   trigger,
   children,
   open: controlledOpen,
   onOpenChange,
   placement = 'bottom-start',
+  escapeClipping = false,
   className,
   role,
   ariaLabel,
@@ -70,6 +131,12 @@ export function Popover({
   const menuPanelRef = useRef<HTMLDivElement>(null)
   const dialogPanelRef = useRef<HTMLDialogElement>(null)
   const plainPanelRef = useRef<HTMLDivElement>(null)
+  useTopLayerPopover({
+    enabled: escapeClipping && isOpen,
+    containerRef,
+    panelRef: isMenu ? menuPanelRef : isDialog ? dialogPanelRef : plainPanelRef,
+    placement,
+  })
 
   function toggle() {
     if (isControlled) {
@@ -134,27 +201,22 @@ export function Popover({
     <div ref={containerRef} className="relative">
       {triggerContent}
 
-      {isOpen &&
-        // Split so the menu panel carries a literal role alongside its key handler: a handler on a
-        // panel whose role is only known at runtime reads as an interaction on a static element.
-        (isMenu ? (
-          <div ref={menuPanelRef} role="menu" onKeyDown={handlePanelKeyDown} className={panelClass}>
-            {children}
-          </div>
-        ) : isDialog ? (
-          <dialog
-            ref={dialogPanelRef}
-            open
-            aria-label={ariaLabel}
-            className={cn('m-0', panelClass)}
-          >
-            {children}
-          </dialog>
-        ) : (
-          <div ref={plainPanelRef} role={role} className={panelClass}>
-            {children}
-          </div>
-        ))}
+      {isOpen ? (
+        <PopoverPanel
+          input={{
+            role,
+            menuRef: menuPanelRef,
+            dialogRef: dialogPanelRef,
+            plainRef: plainPanelRef,
+            escapeClipping,
+            ariaLabel,
+            className: panelClass,
+            onKeyDown: handlePanelKeyDown,
+          }}
+        >
+          {children}
+        </PopoverPanel>
+      ) : null}
     </div>
   )
 }

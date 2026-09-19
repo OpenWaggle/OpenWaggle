@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { resolveRightSidebarPanel } from '../-right-sidebar-panel'
 
 describe('resolveRightSidebarPanel', () => {
+  it('keeps the active change-request inspector rendered while it is open', () => {
+    expect(
+      resolveRightSidebarPanel({
+        changeRequestOpen: true,
+        diffOpen: false,
+        extensionSidePanel: null,
+        lastPanel: 'diff',
+        sessionTreeOpen: false,
+      }),
+    ).toBe('change-request')
+  })
   it('keeps the active Session Tree panel rendered while it is open', () => {
     expect(
       resolveRightSidebarPanel({
@@ -22,6 +33,18 @@ describe('resolveRightSidebarPanel', () => {
         sessionTreeOpen: false,
       }),
     ).toBe('diff')
+  })
+
+  it('keeps session resources rendered while their route panel is open', () => {
+    expect(
+      resolveRightSidebarPanel({
+        diffOpen: false,
+        extensionSidePanel: null,
+        lastPanel: 'diff',
+        resourcesOpen: true,
+        sessionTreeOpen: false,
+      }),
+    ).toBe('resources')
   })
 
   it('keeps the active extension side panel rendered while it is open', () => {

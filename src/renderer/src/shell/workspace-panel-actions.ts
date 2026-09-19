@@ -5,6 +5,7 @@ import {
 } from '@/features/browser-preview'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
+import { useUIStore } from './ui-store'
 import { useWorkspacePanelStore } from './workspace-panel-store'
 
 function activeBrowserPreviewId(ownerKey: string) {
@@ -57,9 +58,16 @@ export function openWorkspacePreview(ownerKey: string, rawUrl: string): void {
 export function newWorkspaceBrowser(ownerKey: string) {
   if (ownerKey.length === 0) return false
   const profileId = usePreferencesStore.getState().settings.browserDefaultProfileId
-  const { evictedPreviewId } = useWorkspacePanelStore.getState().newBrowser(ownerKey, profileId)
-  disposeEvictedPreview(ownerKey, evictedPreviewId)
-  return true
+  try {
+    const { evictedPreviewId } = useWorkspacePanelStore.getState().newBrowser(ownerKey, profileId)
+    disposeEvictedPreview(ownerKey, evictedPreviewId)
+    return true
+  } catch (error) {
+    useUIStore
+      .getState()
+      .showToast(error instanceof Error ? error.message : 'Browser tab could not open.', 'error')
+    return false
+  }
 }
 
 export function showWorkspaceSideTerminal(ownerKey: string) {

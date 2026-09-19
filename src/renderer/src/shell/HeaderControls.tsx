@@ -1,6 +1,14 @@
 import type { GitStatusSummary } from '@shared/types/git'
 import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
-import { Hash, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
+import {
+  FileDiff,
+  GitCommitHorizontal,
+  Hash,
+  LayoutList,
+  ListTree,
+  PanelLeft,
+  SquareTerminal,
+} from 'lucide-react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { projectName } from '@/shared/lib/format'
@@ -35,6 +43,13 @@ interface SessionTreeButtonProps {
   readonly hasSessionTree: boolean
   readonly isChatRoute: boolean
   readonly open: boolean
+  readonly onToggle: () => void
+}
+
+interface SessionSummaryButtonProps {
+  readonly open: boolean
+  readonly panelId: string
+  readonly suppressed: boolean
   readonly onToggle: () => void
 }
 
@@ -86,14 +101,14 @@ export function HeaderLeft({
       </span>
       {activeBranchName ? (
         <span
-          className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary"
+          className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary @max-[1000px]/header:hidden"
           title={activeBranchName}
         >
           / {activeBranchName}
         </span>
       ) : null}
       <span
-        className="no-drag flex h-5 max-w-36 shrink-0 items-center truncate rounded border border-border bg-bg-tertiary px-2 text-xs text-text-secondary"
+        className="no-drag flex h-5 max-w-36 shrink-0 items-center truncate rounded border border-border bg-bg-tertiary px-2 text-xs text-text-secondary @max-[1000px]/header:hidden"
         title={currentProjectName}
       >
         <span className="truncate">{currentProjectName}</span>
@@ -142,15 +157,17 @@ export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonPr
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
-        'no-drag h-7 border-button-border px-2.5',
+        'no-drag h-7 border-button-border px-2.5 @max-[720px]/header:px-2',
         !projectPath && 'pointer-events-none opacity-30',
       )}
       disabled={!projectPath}
       title={terminalTitle(projectPath, open, shortcut)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
-      <span className="text-sm font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>
-      <span className="text-xs text-text-tertiary">&#x2228;</span>
+      <span className="text-sm font-medium text-text-primary @max-[720px]/header:hidden">
+        {open ? 'Hide' : 'Open'}
+      </span>
+      <span className="text-xs text-text-tertiary @max-[720px]/header:hidden">&#x2228;</span>
     </Button>
   )
 }
@@ -165,12 +182,19 @@ export function CommitButton({ isCommitting, projectPath, onOpen }: CommitButton
       radius="sm"
       aria-label="Open commit dialog"
       onClick={onOpen}
-      className={cn('no-drag h-7 px-2.5', disabled && 'pointer-events-none opacity-40')}
+      className={cn(
+        'no-drag h-7 px-2.5 @max-[720px]/header:px-2',
+        disabled && 'pointer-events-none opacity-40',
+      )}
       disabled={disabled}
       title={projectPath ? 'Open commit dialog' : 'No project selected'}
     >
-      <span className="text-sm font-semibold text-bg">Commit</span>
-      <span className="text-xs text-bg/50">&#x2228;</span>
+      <GitCommitHorizontal
+        aria-hidden="true"
+        className="hidden size-3.5 @max-[720px]/header:block"
+      />
+      <span className="text-sm font-semibold text-bg @max-[720px]/header:hidden">Commit</span>
+      <span className="text-xs text-bg/50 @max-[720px]/header:hidden">&#x2228;</span>
     </Button>
   )
 }
@@ -203,6 +227,33 @@ export function SessionTreeButton({
   )
 }
 
+export function SessionSummaryButton({
+  open,
+  panelId,
+  suppressed,
+  onToggle,
+}: SessionSummaryButtonProps) {
+  const label = open ? 'Hide Session Summary' : 'Open Session Summary'
+  const title = suppressed ? 'Session Summary is hidden while the side panel is open' : label
+  return (
+    <Button
+      variant={open ? 'subtle' : 'secondary'}
+      size="none"
+      radius="sm"
+      id={`${panelId}-toggle`}
+      aria-pressed={open}
+      aria-controls={panelId}
+      aria-label={label}
+      onClick={onToggle}
+      disabled={suppressed}
+      className="no-drag h-7 border-button-border px-2 disabled:opacity-40"
+      title={title}
+    >
+      <LayoutList className="size-3.5 text-text-secondary" />
+    </Button>
+  )
+}
+
 function diffStatusText(error: string | null, isLoading: boolean) {
   if (isLoading) {
     return 'Loading diff…'
@@ -230,19 +281,28 @@ export function DiffToggleButton({
       onClick={onToggle}
       disabled={disabled}
       className={cn(
-        'no-drag gap-1 hover:opacity-80',
+        'no-drag gap-1 hover:opacity-80 @max-[720px]/header:h-7 @max-[720px]/header:px-2',
         disabled && 'pointer-events-none opacity-30',
         open && 'opacity-100',
       )}
-      title="Toggle diff panel"
+      title={
+        status
+          ? `Toggle diff panel: +${status.additions} -${status.deletions}`
+          : diffStatusText(error, isLoading)
+      }
     >
+      <FileDiff aria-hidden="true" className="hidden size-3.5 @max-[720px]/header:block" />
       {status ? (
         <>
-          <span className="text-sm font-medium text-success">+{status.additions}</span>
-          <span className="text-sm font-medium text-error">-{status.deletions}</span>
+          <span className="text-sm font-medium text-success @max-[720px]/header:hidden">
+            +{status.additions}
+          </span>
+          <span className="text-sm font-medium text-error @max-[720px]/header:hidden">
+            -{status.deletions}
+          </span>
         </>
       ) : (
-        <span className="text-sm font-medium text-text-tertiary">
+        <span className="text-sm font-medium text-text-tertiary @max-[720px]/header:hidden">
           {diffStatusText(error, isLoading)}
         </span>
       )}

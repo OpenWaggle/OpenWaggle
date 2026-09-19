@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
+import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import type { Session, WebPreferences } from 'electron'
 
 const SECURITY_PREFERENCE_EXPECTATIONS = [
@@ -24,7 +25,8 @@ const SCRIPT_SRC_VALUES = [
   EXTENSION_RUNTIME_SCRIPT_SOURCE,
 ] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
-const IMG_SRC_VALUES = ["'self'", 'data:', 'blob:'] as const
+const SESSION_RESOURCE_IMAGE_SOURCE = `${SESSION_RESOURCE_PROTOCOL.SCHEME}:` as const
+const IMG_SRC_VALUES = ["'self'", 'data:', 'blob:', SESSION_RESOURCE_IMAGE_SOURCE] as const
 const EXTENSION_FRAME_SOURCE = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` as const
 const INLINE_VISUALIZATION_FRAME_SOURCE = `${INLINE_VISUALIZATION_PROTOCOL.SCHEME}:` as const
 const FRAME_SRC_VALUES = [

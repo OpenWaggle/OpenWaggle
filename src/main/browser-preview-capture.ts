@@ -1,4 +1,5 @@
 import type { NativeImage, Rectangle, WebContents } from 'electron'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 
 const CAPTURE_ATTEMPTS = 3
 const CAPTURE_ATTEMPT_TIMEOUT_MS = 1_000
@@ -40,6 +41,7 @@ function requireCurrent(
   request: CaptureRequest,
   assertCurrent?: () => void,
 ) {
+  assertBrowserPreviewContentsAvailable(contents)
   if (!request.active) throw new Error('Browser preview capture request has ended.')
   if (contents.isDestroyed()) throw new Error('Browser preview content is no longer available.')
   assertCurrent?.()

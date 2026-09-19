@@ -16,11 +16,13 @@ import { useBranchSummaryWorkflow } from '../useBranchSummaryWorkflow'
 
 const branchSummaryMocks = vi.hoisted(() => ({
   navigateSessionTree: vi.fn(),
+  discardPreparedAttachment: vi.fn(async () => {}),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     navigateSessionTree: branchSummaryMocks.navigateSessionTree,
+    discardPreparedAttachment: branchSummaryMocks.discardPreparedAttachment,
   },
 }))
 
@@ -141,6 +143,17 @@ describe('useBranchSummaryWorkflow', () => {
   it('summarizes a draft branch with trimmed custom instructions and restores the active composer draft', async () => {
     openPrompt()
     useBranchSummaryStore.getState().startCustomPrompt('draft branch prompt')
+    const image = {
+      id: 'summary-image',
+      kind: 'image' as const,
+      origin: 'session-resource' as const,
+      name: 'diagram.png',
+      path: '/tmp/summary-image.png',
+      mimeType: 'image/png',
+      sizeBytes: 4,
+      extractedText: '',
+    }
+    useComposerStore.getState().addAttachments([image])
     const params = workflowParams()
     const { result } = renderHook(() => useBranchSummaryWorkflow(params))
 
@@ -158,11 +171,53 @@ describe('useBranchSummaryWorkflow', () => {
     expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID)
     expect(useBranchSummaryStore.getState().prompt).toBeNull()
     expect(useComposerStore.getState().input).toBe('draft branch prompt')
+    expect(useComposerStore.getState().attachments).toEqual([image])
     expect(navigate).toHaveBeenCalledWith({
       to: '/sessions/$sessionId',
       params: { sessionId: 'session-1' },
       search: expect.any(Function),
     })
+  })
+
+  it('keeps both source and saved destination images after summarizing', async () => {
+    openPrompt()
+    useBranchSummaryStore.getState().startCustomPrompt('summarize this branch')
+    const sourceImage = {
+      id: 'source-image',
+      kind: 'image' as const,
+      origin: 'session-resource' as const,
+      name: 'source.png',
+      path: '/tmp/source-image.png',
+      mimeType: 'image/png',
+      sizeBytes: 4,
+      extractedText: '',
+    }
+    const savedImage = { ...sourceImage, id: 'saved-image', name: 'saved.png' }
+    const sourceContextKey = buildComposerDraftContextKey({
+      projectPath: '/repo',
+      sessionId: SESSION_ID,
+      draftSourceNodeId: SOURCE_NODE_ID,
+    })
+    const destinationContextKey = buildComposerDraftContextKey({
+      projectPath: '/repo',
+      sessionId: SESSION_ID,
+      activeBranchId: SUMMARY_BRANCH_ID,
+      activeNodeId: ACTIVE_NODE_ID,
+    })
+    useComposerStore.getState().switchScopedDraftContext(sourceContextKey)
+    useComposerStore.getState().addAttachments([sourceImage])
+    useComposerStore.getState().saveScopedDraft(destinationContextKey, {
+      input: 'Existing destination draft',
+      attachments: [savedImage],
+    })
+    branchSummaryMocks.discardPreparedAttachment.mockClear()
+    const { result } = renderHook(() => useBranchSummaryWorkflow(workflowParams()))
+
+    await act(() => result.current.materializeBranchSummary())
+
+    expect(useComposerStore.getState().attachments).toEqual([savedImage, sourceImage])
+    expect(useComposerStore.getState().getScopedDraft(sourceContextKey)).toBeNull()
+    expect(branchSummaryMocks.discardPreparedAttachment).not.toHaveBeenCalled()
   })
 
   it('restores the previous prompt mode when Pi cancels branch summarization', async () => {

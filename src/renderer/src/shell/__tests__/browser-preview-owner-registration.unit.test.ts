@@ -7,6 +7,7 @@ import {
 } from '@/features/browser-preview'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { beginWorkspaceOwnerHandoff } from '@/shared/lib/workspace-owner-handoff'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
 
 const api = vi.hoisted(() => {
@@ -40,6 +41,7 @@ import {
   cancelRequestedPreview,
   ensureBrowserPreviewOwnerRegistered,
   materializeRequestedPreview,
+  quiesceBrowserPreviewOwnerForHandoff,
   unregisterBrowserPreviewOwner,
 } from '../browser-preview-owner-runtime'
 
@@ -84,6 +86,49 @@ describe('browser preview owner registration', () => {
 
   afterEach(async () => {
     await unregisterBrowserPreviewOwner('session-1')
+  })
+
+  it('drains an admitted native open before handoff while rejecting new materializations', async () => {
+    await ensureBrowserPreviewOwnerRegistered('session-1')
+    const pending = Promise.withResolvers<BrowserPreviewState>()
+    api.openBrowserPreview.mockReturnValueOnce(pending.promise)
+    const request = {
+      requestId: 'handoff-before',
+      generation: 1,
+      ownerKey: 'session-1',
+      previewId: 'agent-preview',
+      profileId: 'default',
+      url: 'https://example.com/',
+      visible: false,
+      activate: false,
+    }
+    const admitted = materializeRequestedPreview(request)
+    const release = beginWorkspaceOwnerHandoff('session-1', 'session-created')
+    try {
+      let drained = false
+      const quiesce = quiesceBrowserPreviewOwnerForHandoff('session-1').then(() => {
+        drained = true
+      })
+      await materializeRequestedPreview({
+        ...request,
+        requestId: 'handoff-after',
+        previewId: 'blocked-preview',
+      })
+      expect(api.openBrowserPreview).toHaveBeenCalledTimes(1)
+      expect(drained).toBe(false)
+      pending.resolve(state)
+      await Promise.all([admitted, quiesce])
+      expect(drained).toBe(true)
+      expect(
+        useWorkspacePanelStore.getState().groups['session-1']?.browserTabs.map((tab) => tab.id),
+      ).toEqual(['agent-preview'])
+      expect(api.acknowledgeBrowserPreviewOpenRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ requestId: 'handoff-after', success: false }),
+      )
+    } finally {
+      pending.resolve(state)
+      release()
+    }
   })
 
   it('materializes the first background agent tab without opening the sidebar', async () => {

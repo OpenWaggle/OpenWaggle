@@ -5,9 +5,15 @@ export {
 export { persistSessionSnapshot } from './session-details/persist-snapshot'
 export { createSession } from './session-details/session-creation'
 export {
+  establishSessionLineage,
+  hasDirectSessionWorkers,
+  setSessionDelegationState,
+} from './session-details/session-lineage'
+export {
   archiveSession,
   clearSessionWorktree,
   deleteSession,
+  getSessionDeletionBlocker,
   listSessionWorktreeRefs,
   setSessionAuthorizationMode,
   setSessionWorktree,
@@ -18,6 +24,7 @@ export {
 } from './session-details/session-mutations'
 export {
   getSessionDetail,
+  getSessionHiveRelations,
   listArchivedSessions,
   listSessionDetails,
   listSessionSummaries,

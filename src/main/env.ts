@@ -156,16 +156,38 @@ export function getInteractiveTerminalEnv(
 }
 
 /**
- * Environment for `gh` CLI calls.
- * Strips GITHUB_TOKEN / GH_TOKEN so `gh` uses its keyring-stored OAuth
- * credentials from `gh auth login` — the standard setup for end users.
- * Inherited env tokens (e.g. from CI or dev tooling) can cause permission
- * mismatches with the target org's token policies.
+ * Environment for source-control CLI calls.
+ * Strips provider token variables so gh/glab use their keyring-stored credentials for the exact
+ * host selected by the validated Git remote. Inherited tokens from CI or developer tooling can
+ * silently select a different identity or be disclosed to an attacker-controlled custom host.
  */
-export function getGhCliEnv(): Record<string, string | undefined> {
-  const env = { ...process.env }
+export function getSourceControlCliEnv(): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    PATH: getNpmCompatiblePath(),
+  }
   delete env.GITHUB_TOKEN
   delete env.GH_TOKEN
+  delete env.GITHUB_ENTERPRISE_TOKEN
+  delete env.GH_ENTERPRISE_TOKEN
+  delete env.GITLAB_TOKEN
+  delete env.GITLAB_ACCESS_TOKEN
+  delete env.GITLAB_PRIVATE_TOKEN
+  delete env.OAUTH_TOKEN
+  delete env.CI_JOB_TOKEN
+  // Repository/host selection is supplied explicitly on every gh/glab invocation. Ambient
+  // overrides would otherwise be able to retarget a command despite the validated Git remote.
+  delete env.GH_REPO
+  delete env.GH_HOST
+  delete env.GITLAB_REPO
+  delete env.GITLAB_HOST
+  delete env.GITLAB_API_HOST
+  delete env.GITLAB_SSH_HOST
+  delete env.GITLAB_HEAD_REPO
+  delete env.GITLAB_URI
+  delete env.GITLAB_URL
+  delete env.GLAB_REPO
+  delete env.GLAB_HOST
   return env
 }
 

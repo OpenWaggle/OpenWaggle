@@ -30,9 +30,11 @@ import {
   methodIsDeclared,
 } from './extension-contribution-authorization-model'
 import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
+import { invocationHasMountedSessionBinding } from './extension-invocation-binding'
 
 export interface InvokeExtensionCapabilityDependencies {
   readonly now?: () => number
+  readonly invocationBinding?: string
 }
 
 type ScopeResolution =
@@ -45,10 +47,6 @@ function scopeOk(): ScopeResolution {
 
 function scopeFailure(message: string): ScopeResolution {
   return { _tag: 'failure', message }
-}
-
-function currentTimestamp(dependencies: InvokeExtensionCapabilityDependencies) {
-  return dependencies.now?.() ?? Date.now()
 }
 
 function resolveActiveProjectScope(scope: ExtensionInvokeScope) {
@@ -212,7 +210,7 @@ export function invokeExtensionCapability(
 ) {
   return Effect.gen(function* () {
     const input = normalizeInput(rawInput)
-    const timestamp = currentTimestamp(dependencies)
+    const timestamp = dependencies.now?.() ?? Date.now()
     const scopeProjectPath = getScopeProjectPath(input.scope)
     const lookupProjectPath = yield* resolveInvocationLookupProjectPath(input.scope)
     const scopeResolution = yield* resolveScopeContext(input.scope)
@@ -265,6 +263,15 @@ export function invokeExtensionCapability(
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_CONTRIBUTION,
         message: `Contribution "${input.contributionId}" was not found for extension "${input.extensionId}".`,
+        timestamp,
+      })
+    }
+
+    if (!invocationHasMountedSessionBinding(entry, input, dependencies.invocationBinding)) {
+      return yield* auditedFailure({
+        invocation: input,
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Session resource access requires a host-bound mounted Session contribution.',
         timestamp,
       })
     }

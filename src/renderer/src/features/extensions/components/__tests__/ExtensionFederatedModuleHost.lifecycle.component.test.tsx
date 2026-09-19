@@ -153,6 +153,33 @@ describe('ExtensionFederatedModuleHost lifecycle performance', () => {
     expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(1)
   })
 
+  it('remounts across cached Session authority changes', async () => {
+    const sessionA = {
+      ...equivalentEntry(),
+      sessionId: 'session-a',
+      invocationBinding: 'binding-a',
+    }
+    const sessionB = {
+      ...equivalentEntry(),
+      sessionId: 'session-b',
+      invocationBinding: 'binding-b',
+    }
+    const { rerender } = render(<ExtensionFederatedModuleHost entry={sessionA} />)
+    await waitFor(() => expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(1))
+
+    rerender(<ExtensionFederatedModuleHost entry={sessionB} />)
+    await waitFor(() => {
+      expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(1)
+      expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(2)
+    })
+
+    rerender(<ExtensionFederatedModuleHost entry={sessionA} />)
+    await waitFor(() => {
+      expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledTimes(2)
+      expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(3)
+    })
+  })
+
   it('remounts with a fresh theme context when the appearance changes', async () => {
     render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()

@@ -2,6 +2,7 @@ import type { ProjectAction, ProjectActionInput } from '@shared/types/project-ac
 import { ChevronDown, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
 import { useUIStore } from '@/shell/ui-store'
@@ -19,6 +20,22 @@ import { ProjectActionsMenu } from './ProjectActionsMenu'
 
 interface ProjectActionsControlProps {
   readonly projectPath: string | null
+}
+
+function ProjectActionLabel({
+  children,
+  primary = false,
+}: {
+  readonly children: string
+  readonly primary?: boolean
+}) {
+  return (
+    <span
+      className={cn('truncate text-xs @max-[720px]/header:hidden', primary && 'text-text-primary')}
+    >
+      {children}
+    </span>
+  )
 }
 
 export function ProjectActionsControl({ projectPath }: ProjectActionsControlProps) {
@@ -111,7 +128,7 @@ export function ProjectActionsControl({ projectPath }: ProjectActionsControlProp
             className="no-drag h-7 max-w-36 gap-1.5 rounded-r-none border-r-0 px-2"
           >
             <ProjectActionGlyph icon={primary.icon} />
-            <span className="truncate text-xs text-text-primary">{primary.name}</span>
+            <ProjectActionLabel primary>{primary.name}</ProjectActionLabel>
           </Button>
           {menu}
         </div>
@@ -122,11 +139,12 @@ export function ProjectActionsControl({ projectPath }: ProjectActionsControlProp
           variant="secondary"
           size="none"
           aria-label="Add project action"
+          title="Add project action"
           onClick={() => setEditorAction(null)}
           className="no-drag h-7 px-2"
         >
           <Plus className="size-3.5" />
-          <span className="text-xs">Action</span>
+          <ProjectActionLabel>Action</ProjectActionLabel>
         </Button>
       )}
 

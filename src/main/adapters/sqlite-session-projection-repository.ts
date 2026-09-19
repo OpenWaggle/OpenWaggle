@@ -8,6 +8,7 @@
  */
 
 import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { Effect, Layer } from 'effect'
 import { sessionTreeReferencesWorktreeVisualization } from '../application/worktree-visualization-retention'
 import { SessionProjectionRepositoryError } from '../errors'
@@ -15,13 +16,24 @@ import {
   SessionProjectionRepository,
   type SessionProjectionRepositoryShape,
 } from '../ports/session-projection-repository'
+import { acquireSessionDeletionFence } from '../store/session-details/session-deletion-fence'
+
+export function withDeletionFence<A, E, R>(id: SessionId, operation: Effect.Effect<A, E, R>) {
+  return Effect.acquireUseRelease(
+    repoOp('delete', () => acquireSessionDeletionFence(id)),
+    () => operation,
+    (release) => Effect.sync(release),
+  )
+}
 
 type RepoOperation =
   | 'get'
   | 'getOptional'
+  | 'getHiveRelations'
   | 'list'
   | 'listDetails'
   | 'create'
+  | 'getDeletionBlocker'
   | 'delete'
   | 'archive'
   | 'unarchive'
@@ -30,6 +42,8 @@ type RepoOperation =
   | 'setWorktreePlan'
   | 'resetWorktreeSetup'
   | 'setAuthorizationMode'
+  | 'establishLineage'
+  | 'setDelegationState'
   | 'listTurnCheckpoints'
   | 'getTurnDiff'
   | 'setTurnCheckpointAnchor'
@@ -45,6 +59,21 @@ function repoOp<A>(operation: RepoOperation, thunk: () => Promise<A>) {
   })
 }
 
+function requireSessionProjection(id: SessionId, read: () => Promise<SessionDetail | null>) {
+  return repoOp('get', read).pipe(
+    Effect.flatMap((session) =>
+      session
+        ? Effect.succeed(session)
+        : Effect.fail(
+            new SessionProjectionRepositoryError({
+              operation: 'get',
+              cause: `Session projection ${id} not found`,
+            }),
+          ),
+    ),
+  )
+}
+
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
   const [store, turnCheckpoints, worktreePrune, pinnedSessions] = await Promise.all([
     import('../store/session-details'),
@@ -58,8 +87,9 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   async function pruneWorktreeForSession(
     id: Parameters<typeof store.getSessionDetail>[0],
     reason: 'delete' | 'archive',
+    knownSession?: Awaited<ReturnType<typeof store.getSessionDetail>>,
   ) {
-    const session = await store.getSessionDetail(id)
+    const session = knownSession === undefined ? await store.getSessionDetail(id) : knownSession
     if (!session) return
     if (reason === 'archive' && session.worktreePath) {
       const tree = await import('../store/sessions/session-tree').then(({ getSessionTree }) =>
@@ -77,7 +107,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
         reason,
       },
       {
-        listWorktreeRefs: () => store.listSessionWorktreeRefs(),
+        listWorktreeRefs: async () => {
+          const refs = await store.listSessionWorktreeRefs()
+          return refs.some(({ sessionId }) => sessionId === String(id))
+            ? refs
+            : [{ sessionId: String(id), worktreePath: session.worktreePath ?? null }, ...refs]
+        },
         clearWorktree: (sessionId) => store.clearSessionWorktree(SessionId(sessionId)),
         deleteCheckpoints: async (sessionId) => {
           await deleteTurnCheckpointsForSession(SessionId(sessionId))
@@ -89,24 +124,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
   return Layer.succeed(
     SessionProjectionRepository,
     SessionProjectionRepository.of({
-      get: (id) =>
-        Effect.tryPromise({
-          try: () => store.getSessionDetail(id),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
-        }).pipe(
-          Effect.flatMap((session) =>
-            session
-              ? Effect.succeed(session)
-              : Effect.fail(
-                  new SessionProjectionRepositoryError({
-                    operation: 'get',
-                    cause: `Session projection ${id} not found`,
-                  }),
-                ),
-          ),
-        ),
+      withDeletionFence,
+      get: (id) => requireSessionProjection(id, () => store.getSessionDetail(id)),
 
       getOptional: (id) => repoOp('getOptional', () => store.getSessionDetail(id)),
+
+      getHiveRelations: (id) => repoOp('getHiveRelations', () => store.getSessionHiveRelations(id)),
 
       list: (limit) => repoOp('list', () => store.listSessionSummaries(limit)),
 
@@ -115,10 +138,16 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       create: (input) => repoOp('create', () => store.createSession(input)),
 
+      getDeletionBlocker: (id) =>
+        repoOp('getDeletionBlocker', () => store.getSessionDeletionBlocker(id)),
+
       delete: (id) =>
         repoOp('delete', async () => {
-          await pruneWorktreeForSession(id, 'delete')
-          return store.deleteSession(id)
+          const session = await store.getSessionDetail(id)
+          // Commit the lineage-guarded delete before pruning, so a concurrent Worker cannot leave
+          // a surviving Queen with a removed checkout after the atomic guard rejects the delete.
+          await store.deleteSession(id)
+          await pruneWorktreeForSession(id, 'delete', session)
         }),
 
       archive: (id) =>
@@ -154,6 +183,12 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       setAuthorizationMode: (id, mode) =>
         repoOp('setAuthorizationMode', () => store.setSessionAuthorizationMode(id, mode)),
+
+      establishLineage: (input) =>
+        repoOp('establishLineage', () => store.establishSessionLineage(input)),
+
+      setDelegationState: (id, state) =>
+        repoOp('setDelegationState', () => store.setSessionDelegationState(id, state)),
 
       listTurnCheckpoints: (id) =>
         repoOp('listTurnCheckpoints', () => turnCheckpoints.listTurnCheckpoints(id)),

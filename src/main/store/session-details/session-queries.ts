@@ -2,7 +2,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionDetail, SessionHiveRelations, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
@@ -32,6 +32,18 @@ function hydrateSessionDetailSummary(row: SessionSummaryRow) {
     archived: row.archived === 1 ? true : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(row.lineage_present === 1
+      ? {
+          lineage: {
+            role: row.lineage_role,
+            parentSessionId: row.parent_session_id ? SessionId(row.parent_session_id) : null,
+            directWorkerCount: row.direct_worker_count,
+            activeDirectWorkerCount: row.active_direct_worker_count,
+            agentDefinitionName: row.agent_definition_name,
+            delegationState: row.delegation_state,
+          },
+        }
+      : {}),
   }
 }
 
@@ -133,8 +145,34 @@ function summaryCountSql(
         FROM session_nodes sn
         WHERE sn.session_id = s.id
           AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
-      ) AS message_count
+      ) AS message_count,
+      CASE
+        WHEN sl.session_id IS NOT NULL OR EXISTS (
+          SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
+        ) THEN 1
+        ELSE 0
+      END AS lineage_present,
+      CASE
+        WHEN sl.parent_session_id IS NOT NULL THEN 'worker'
+        WHEN EXISTS (
+          SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
+        ) THEN 'queen'
+        ELSE 'independent'
+      END AS lineage_role,
+      sl.parent_session_id,
+      (
+        SELECT COUNT(*) FROM session_lineage child WHERE child.parent_session_id = s.id
+      ) AS direct_worker_count,
+      (
+        SELECT COUNT(*)
+        FROM session_lineage child
+        WHERE child.parent_session_id = s.id
+          AND child.delegation_state NOT IN ('accepted', 'cancelled')
+      ) AS active_direct_worker_count,
+      sl.agent_definition_name,
+      sl.delegation_state
     FROM sessions s
+    LEFT JOIN session_lineage sl ON sl.session_id = s.id
     WHERE s.archived = ${archived}
     ORDER BY s.updated_at DESC
     LIMIT ${limit ?? -1}
@@ -158,6 +196,77 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 1, null)
       return rows.map(hydrateSessionDetailSummary)
+    }),
+  )
+}
+
+/** Returns the bounded summaries used by one opened Session's Hive section. */
+export async function getSessionHiveRelations(id: SessionId): Promise<SessionHiveRelations> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<SessionSummaryRow>`
+        WITH hive_session_ids(id) AS (
+          VALUES (${id})
+          UNION
+          SELECT parent_session_id FROM session_lineage
+          WHERE session_id = ${id}
+            AND parent_session_id IS NOT NULL
+          UNION
+          SELECT session_id FROM session_lineage
+          WHERE parent_session_id = ${id}
+        )
+        SELECT
+          s.id,
+          s.title,
+          s.project_path,
+          s.archived,
+          s.created_at,
+          s.updated_at,
+          (
+            SELECT COUNT(*)
+            FROM session_nodes sn
+            WHERE sn.session_id = s.id
+              AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
+          ) AS message_count,
+          CASE
+            WHEN sl.session_id IS NOT NULL OR EXISTS (
+              SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
+            ) THEN 1
+            ELSE 0
+          END AS lineage_present,
+          CASE
+            WHEN sl.parent_session_id IS NOT NULL THEN 'worker'
+            WHEN EXISTS (
+              SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
+            ) THEN 'queen'
+            ELSE 'independent'
+          END AS lineage_role,
+          sl.parent_session_id,
+          (
+            SELECT COUNT(*) FROM session_lineage child WHERE child.parent_session_id = s.id
+          ) AS direct_worker_count,
+          (
+            SELECT COUNT(*)
+            FROM session_lineage child
+            WHERE child.parent_session_id = s.id
+              AND child.delegation_state NOT IN ('accepted', 'cancelled')
+          ) AS active_direct_worker_count,
+          sl.agent_definition_name,
+          sl.delegation_state
+        FROM sessions s
+        INNER JOIN hive_session_ids hive ON hive.id = s.id
+        LEFT JOIN session_lineage sl ON sl.session_id = s.id
+        ORDER BY s.updated_at DESC, s.id ASC
+      `
+      const summaries = rows.map(hydrateSessionDetailSummary)
+      const current = summaries.find((summary) => summary.id === id) ?? null
+      const parentId = current?.lineage?.parentSessionId ?? null
+      return {
+        current,
+        parent: parentId ? (summaries.find((summary) => summary.id === parentId) ?? null) : null,
+        workers: summaries.filter((summary) => summary.lineage?.parentSessionId === id),
+      }
     }),
   )
 }

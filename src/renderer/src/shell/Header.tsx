@@ -1,10 +1,16 @@
 import { match } from '@diegogbrisa/ts-match'
-import { useState } from 'react'
+import type { GitCommitSuccess } from '@shared/types/git'
+import { useLayoutEffect, useState } from 'react'
 import { useChat } from '@/features/chat/hooks'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { CommitDialog } from '@/features/git/components'
 import { useGit } from '@/features/git/hooks'
 import { ProjectActionsControl } from '@/features/project-actions'
+import {
+  isSessionSummaryPanelVisible,
+  type SessionSummaryPanelState,
+  useSessionSummaryUIStore,
+} from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { useTerminalCommands } from '@/features/terminal'
 import { useUIStore } from '@/shell/ui-store'
@@ -12,10 +18,39 @@ import {
   CommitButton,
   DiffToggleButton,
   HeaderLeft,
+  SessionSummaryButton,
   SessionTreeButton,
   TerminalButton,
 } from './HeaderControls'
 import { FeedbackButton } from './HeaderFeedbackButton'
+
+function directCommitToast(result: GitCommitSuccess): {
+  readonly message: string
+  readonly variant: 'error' | undefined
+} {
+  const outputFailure = result.commitOutput?.ok === false ? result.commitOutput : null
+  return {
+    message: outputFailure?.message ?? `Commit created: ${result.summary}`,
+    variant: outputFailure ? 'error' : undefined,
+  }
+}
+
+function useSessionSummaryToggleFocus(
+  activeSessionId: string | null,
+  panel: SessionSummaryPanelState | undefined,
+) {
+  const targetSessionId = useSessionSummaryUIStore((state) => state.toggleFocusTargetSessionId)
+  const clearToggleFocus = useSessionSummaryUIStore((state) => state.clearToggleFocus)
+  const panelAvailable = panel?.available
+  useLayoutEffect(() => {
+    if (!activeSessionId || targetSessionId !== activeSessionId || panelAvailable === undefined)
+      return
+    if (panelAvailable) {
+      document.getElementById(`session-summary-${activeSessionId}-toggle`)?.focus()
+    }
+    clearToggleFocus(activeSessionId)
+  }, [activeSessionId, clearToggleFocus, panelAvailable, targetSessionId])
+}
 
 export function Header() {
   const { activeSession } = useChat()
@@ -45,6 +80,12 @@ export function Header() {
   const { panelOpen: terminalOpen, toggleTerminal } = useTerminalCommands()
   const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
     useDiffRouteNavigation()
+  const activeSessionId = activeSession ? String(activeSession.id) : null
+  const sessionSummaryPanel = useSessionSummaryUIStore((state) =>
+    activeSessionId ? state.panels[activeSessionId] : undefined,
+  )
+  const toggleSessionSummary = useSessionSummaryUIStore((state) => state.togglePanel)
+  useSessionSummaryToggleFocus(activeSessionId, sessionSummaryPanel)
 
   function handleRefreshGit() {
     // Status follows the session's working tree; the branch list is repository-level.
@@ -54,8 +95,7 @@ export function Header() {
   }
 
   async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
-    // Commit into the tree the user is looking at. Committing the primary checkout
-    // while a worktree session is active would write to a tree they never reviewed.
+    // Commit into the session tree the user reviewed, never its hidden primary checkout.
     if (!workingPath) {
       return {
         ok: false as const,
@@ -64,31 +104,34 @@ export function Header() {
       }
     }
     return match
-      .promise(commitGit(workingPath, { message, amend, paths }))
+      .promise(commitGit(workingPath, { sessionId: activeSession?.id, message, amend, paths }))
       .with({ ok: true }, (result) => {
         bumpDiffRefreshKey()
-        showToast(`Commit created: ${result.summary}`)
+        const toast = directCommitToast(result)
+        showToast(toast.message, toast.variant)
         return result
       })
       .with({ ok: false }, (result) => result)
       .exhaustive()
   }
 
-  const activeBranchName = gitStatus?.branch ?? null
   const title = activeSessionTree?.session.title ?? activeSession?.title ?? 'New session'
 
   return (
     <>
-      <header className="drag-region flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5">
+      <header className="@container/header drag-region flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-bg px-5">
         <HeaderLeft
-          activeBranchName={activeBranchName}
+          activeBranchName={gitStatus?.branch ?? null}
           projectPath={projectPath}
           sidebarOpen={sidebarOpen}
           title={title}
           onToggleSidebar={toggleSidebar}
         />
 
-        <div data-qa="header-actions" className="flex shrink-0 items-center gap-2">
+        <div
+          data-qa="header-actions"
+          className="flex shrink-0 items-center gap-2 @max-[720px]/header:gap-1"
+        >
           <ProjectActionsControl projectPath={projectPath} />
           <TerminalButton open={terminalOpen} projectPath={projectPath} onToggle={toggleTerminal} />
           <CommitButton
@@ -97,6 +140,14 @@ export function Header() {
             onOpen={() => setCommitOpen(true)}
           />
           <FeedbackButton onOpen={openFeedbackModal} />
+          {activeSessionId && isChatRoute && sessionSummaryPanel?.available ? (
+            <SessionSummaryButton
+              open={isSessionSummaryPanelVisible(sessionSummaryPanel)}
+              panelId={`session-summary-${activeSessionId}`}
+              suppressed={sessionSummaryPanel.rightSidebarOpen}
+              onToggle={() => toggleSessionSummary(activeSessionId)}
+            />
+          ) : null}
           <div className="w-px h-5 bg-border" />
           <SessionTreeButton
             hasSessionTree={Boolean(activeSessionTree)}

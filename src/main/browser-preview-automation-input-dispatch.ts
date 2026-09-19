@@ -4,6 +4,7 @@ import {
 } from './browser-preview-automation-deadline'
 import { ensureBrowserPreviewAutomationDebugger } from './browser-preview-automation-debugger'
 import type { BrowserPreviewAutomationControlSession } from './browser-preview-automation-session'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 
 const INPUT_CLEANUP_TIMEOUT_MS = 2_000
 
@@ -13,10 +14,12 @@ export async function sendBrowserPreviewAutomationInputCleanup(
   params?: Readonly<Record<string, unknown>>,
 ): Promise<unknown> {
   if (session.disposed) return null
+  assertBrowserPreviewContentsAvailable(session.contents)
   const options: BrowserPreviewAutomationRunOptions = { timeoutMs: INPUT_CLEANUP_TIMEOUT_MS }
   const deadline = new BrowserPreviewAutomationDeadline(options)
   try {
     await deadline.race(ensureBrowserPreviewAutomationDebugger(session))
+    assertBrowserPreviewContentsAvailable(session.contents)
     const result: unknown = await deadline.race(session.debugger.sendCommand(method, params))
     return result
   } finally {

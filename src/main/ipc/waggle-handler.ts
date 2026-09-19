@@ -6,6 +6,7 @@ import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
+import type { AcceptedAgentSteer } from '../application/active-session-runs'
 import { cancelAgentLoopInteractionsForRun } from '../application/agent-loop-interaction-broker'
 import { executeWaggleRun } from '../application/waggle-run-service'
 import type { AgentKernelRunControl } from '../ports/agent-kernel-service'
@@ -26,28 +27,35 @@ import {
   cancelSessionRuns,
   ensureSessionRunStartAllowed,
 } from './active-agent-runs'
+import { captureRunResultResources } from './agent-run-resources'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
-interface WaggleValidationErrorResult {
+interface WaggleResourceResult {
+  readonly resourceMessages?: readonly Message[]
+  readonly resourceNodeIds?: Readonly<Record<string, string>>
+  readonly resourceBranchIds?: Readonly<Record<string, string | null>>
+}
+
+interface WaggleValidationErrorResult extends WaggleResourceResult {
   readonly outcome: 'validation-error'
   readonly message: string
   readonly code: string
 }
 
-interface WaggleNotFoundResult {
+interface WaggleNotFoundResult extends WaggleResourceResult {
   readonly outcome: 'not-found'
   readonly message: string
   readonly code: string
 }
 
-interface WaggleNoProjectResult {
+interface WaggleNoProjectResult extends WaggleResourceResult {
   readonly outcome: 'no-project'
   readonly message: string
   readonly code: string
 }
 
-interface WaggleAbortedResult {
+interface WaggleAbortedResult extends WaggleResourceResult {
   readonly outcome: 'aborted'
 }
 
@@ -58,14 +66,14 @@ interface WaggleAbortedResult {
  * as opposed to a refusal raised before it. A caller holding work submitted with the message needs the two apart:
  * one means "keep it, it never arrived", the other means "the agent has it, do not offer it again".
  */
-interface WaggleErrorResult {
+interface WaggleErrorResult extends WaggleResourceResult {
   readonly outcome: 'error'
   readonly message: string
   readonly code: string
   readonly transportEmitted?: boolean
 }
 
-interface WaggleSuccessResult {
+interface WaggleSuccessResult extends WaggleResourceResult {
   readonly outcome: 'success'
   readonly newMessages: readonly Message[]
   readonly lastError?: string
@@ -100,9 +108,10 @@ function registerSendWaggleMessageHandler() {
 function registerCancelWaggleHandler() {
   typedOn('agent:cancel-waggle', (_event, sessionId: SessionId) =>
     Effect.sync(() => {
-      if (activeWaggleRuns.cancel(sessionId)) {
+      const run = activeWaggleRuns.get(sessionId)
+      if (run) {
+        run.controller.abort()
         cancelAgentLoopInteractionsForRun({ sessionId, runId: waggleRunId(sessionId) })
-        finishWaggleRun(sessionId)
       }
     }),
   )
@@ -129,7 +138,12 @@ function handleSendWaggleMessage(
     const runId = waggleRunId(sessionId)
     const controlRef: { current: AgentKernelRunControl | null } = { current: null }
     const steerTailRef: { current: Promise<void> } = { current: Promise.resolve() }
-    activeWaggleRuns.register(sessionId, abortController, { controlRef, steerTailRef })
+    const acceptedSteersRef: { current: AcceptedAgentSteer[] } = { current: [] }
+    activeWaggleRuns.register(sessionId, abortController, {
+      controlRef,
+      steerTailRef,
+      acceptedSteersRef,
+    })
 
     return yield* Effect.ensuring(
       runRegisteredWaggleMessage(
@@ -140,6 +154,7 @@ function handleSendWaggleMessage(
         config,
         abortController,
         controlRef,
+        acceptedSteersRef,
       ),
       Effect.sync(() => {
         cancelAgentLoopInteractionsForRun({ sessionId, runId })
@@ -157,9 +172,10 @@ function runRegisteredWaggleMessage(
   config: WaggleConfig,
   abortController: AbortController,
   controlRef: { current: AgentKernelRunControl | null },
+  acceptedSteersRef: { current: AcceptedAgentSteer[] },
 ) {
   return Effect.gen(function* () {
-    const result = yield* executeWaggleRun({
+    const result: WaggleHandlerResult = yield* executeWaggleRun({
       sessionId,
       runId,
       payload,
@@ -179,6 +195,8 @@ function runRegisteredWaggleMessage(
       onTitleAssigned: (title) =>
         broadcastToWindows('sessions:title-updated', { sessionId, title }),
     })
+
+    yield* captureRunResultResources(sessionId, runId, payload, result, acceptedSteersRef.current)
 
     if (result.outcome === 'error') {
       emitWorktreeLaunchFailure(sessionId, result.message)

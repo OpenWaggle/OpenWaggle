@@ -1,4 +1,5 @@
 import { SessionId } from '@shared/types/brand'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/features/chat/hooks'
@@ -6,11 +7,16 @@ import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
 import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
+import {
+  useSessionHiveInvalidation,
+  useSessionResourceInvalidation,
+} from '@/features/session-summary'
 import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
 import { useSyntaxThemeCatalogStore } from '@/features/settings'
 import { usePreferencesStore } from '@/features/settings/state'
 import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
 import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
+import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 import {
@@ -66,6 +72,9 @@ function previewShortcutHandlers(
 }
 
 export function useWorkspaceLifecycle(): void {
+  const queryClient = useQueryClient()
+  useSessionResourceInvalidation()
+  useSessionHiveInvalidation()
   const { projectPath } = useProject()
   const {
     activeSessionId,
@@ -117,8 +126,21 @@ export function useWorkspaceLifecycle(): void {
   useEffect(() => {
     return api.onSessionTitleUpdated(({ sessionId, title }) => {
       updateSessionTitle(sessionId, title)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives })
     })
-  }, [updateSessionTitle])
+  }, [queryClient, updateSessionTitle])
+
+  useEffect(() => {
+    return api.onSessionListInvalidated(() => {
+      void loadChatSessions()
+      void loadSessionTrees()
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.archivedSessions,
+        exact: true,
+      })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives })
+    })
+  }, [loadChatSessions, loadSessionTrees, queryClient])
 
   useGitRefresh({
     workingPath,

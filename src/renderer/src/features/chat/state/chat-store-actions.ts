@@ -18,6 +18,12 @@ import {
   toSummary,
 } from './chat-store-helpers'
 import type { ChatActions, ChatState } from './chat-store-types'
+import {
+  draftMaterializationGeneration,
+  invalidateDraftMaterialization,
+  recordDraftMaterialization,
+} from './draft-session-materialization'
+import { useMessageQueueStore } from './message-queue-store'
 
 type ChatSet = (partial: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void
 type ChatGet = () => ChatState
@@ -66,9 +72,24 @@ async function loadSessions(set: ChatSet, get: ChatGet) {
 }
 
 async function createSession(projectPath: string, set: ChatSet, get: ChatGet) {
+  const initial = get()
+  const generation = draftMaterializationGeneration()
+  const createsCurrentDraft =
+    initial.activeSessionId === null &&
+    (initial.draftSession === null || initial.draftSession.projectPath === projectPath)
   try {
     const session = await api.createSession(projectPath)
+    const shouldActivate =
+      generation === draftMaterializationGeneration() &&
+      get().activeSessionId === initial.activeSessionId
+    if (createsCurrentDraft && shouldActivate) {
+      recordDraftMaterialization(projectPath, session.id, generation)
+    }
     get().upsertSession(session)
+    if (!shouldActivate) {
+      void useSessionStore.getState().loadSessions()
+      return session.id
+    }
     set({
       activeSessionId: session.id,
       activeSession: session,
@@ -87,6 +108,7 @@ async function createSession(projectPath: string, set: ChatSet, get: ChatGet) {
 }
 
 function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
+  if (id !== get().activeSessionId) invalidateDraftMaterialization()
   if (!id || get().missingSessionIds.has(id)) {
     set({ activeSessionId: null, activeSession: null, draftSession: null })
     return
@@ -193,6 +215,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
   try {
     await api.deleteSession(id)
+    useMessageQueueStore.getState().disposeQueue(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
     await deleteWorkspaceOwner(String(id))
@@ -245,6 +268,7 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     loadSessions: () => loadSessions(set, get),
     createSession: (projectPath) => createSession(projectPath, set, get),
     startDraftSession: (projectPath = null) => {
+      invalidateDraftMaterialization()
       const state = get()
       const previousProjectPath =
         state.draftSession?.projectPath ?? state.activeSession?.projectPath ?? null

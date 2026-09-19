@@ -3,7 +3,6 @@ import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
-import { cleanupSessionRun } from '../agent/session-cleanup'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
 import { grantPendingAuthorizationsForSession } from '../application/agent-loop-interaction-broker'
 import { dismissInterruptedAgentRun } from '../application/agent-run-service'
@@ -11,104 +10,12 @@ import {
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../application/agent-session-service'
-import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
-import { InlineVisualizationService } from '../ports/inline-visualization-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
-import { TerminalService } from '../ports/terminal-service'
 import { SettingsService } from '../services/settings-service'
-import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
-import {
-  acquireSessionRemovalFence,
-  cancelSessionRuns,
-  waitForSessionRuns,
-} from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
+import { archiveSessionWithFences, deleteSessionWithFences } from './session-removal'
 import { typedHandle } from './typed-ipc'
-
-const logger = createLogger('session-details-handler')
-const SESSION_REMOVAL_SETTLE_TIMEOUT_MS = 30_000
-
-function cleanupBeforeSessionRemoval(sessionId: SessionId) {
-  const cancelledActiveRun = cancelSessionRuns(sessionId)
-  clearAgentPhase(sessionId)
-  clearStreamBuffer(sessionId)
-  cleanupSessionRun(sessionId)
-  if (cancelledActiveRun) {
-    emitRunCompleted(sessionId)
-  }
-}
-
-function quiesceBeforeSessionRemoval(sessionId: SessionId) {
-  return Effect.sync(() => cleanupBeforeSessionRemoval(sessionId)).pipe(
-    Effect.zipRight(
-      Effect.tryPromise({
-        try: () => waitForSessionRuns(sessionId, SESSION_REMOVAL_SETTLE_TIMEOUT_MS),
-        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-      }),
-    ),
-    Effect.flatMap((settled) =>
-      settled
-        ? Effect.void
-        : Effect.fail(
-            new Error(
-              `Session work did not stop within ${String(SESSION_REMOVAL_SETTLE_TIMEOUT_MS)} ms. The session was left unchanged.`,
-            ),
-          ),
-    ),
-  )
-}
-
-function withSessionRemovalFence<A, E, R>(sessionId: SessionId, operation: Effect.Effect<A, E, R>) {
-  return Effect.gen(function* () {
-    const terminals = yield* TerminalService
-    return yield* terminals.runWithMutationFence(
-      { kind: 'owner', ownerKey: String(sessionId) },
-      Effect.acquireUseRelease(
-        Effect.try({
-          try: () => acquireSessionRemovalFence(sessionId),
-          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-        }),
-        () => operation,
-        (release) => Effect.sync(release),
-      ),
-    )
-  })
-}
-
-/** Deleted sessions take their terminals and scrollback with them (ADR 0030). */
-function cleanupTerminalsForDeletedSession(sessionId: SessionId, deleteHistory: boolean) {
-  return Effect.gen(function* () {
-    const terminals = yield* TerminalService
-    yield* terminals.closeAllForOwner(String(sessionId), deleteHistory)
-  }).pipe(
-    Effect.tapError((error) =>
-      Effect.sync(() => {
-        logger.warn('Terminal cleanup for session deletion failed', {
-          sessionId: String(sessionId),
-          error: String(error),
-        })
-      }),
-    ),
-  )
-}
-
-/** Archived sessions stop hidden processes but retain scrollback for restoration. */
-function cleanupTerminalsForArchivedSession(sessionId: SessionId) {
-  return Effect.gen(function* () {
-    const terminals = yield* TerminalService
-    yield* terminals.closeAllForOwner(String(sessionId), false)
-  }).pipe(
-    Effect.tapError((error) =>
-      Effect.sync(() => {
-        logger.warn('Terminal cleanup before session archive failed', {
-          sessionId: String(sessionId),
-          error: String(error),
-        })
-      }),
-    ),
-  )
-}
 
 /** `null` is valid and means "clear the override so this session inherits again". */
 function validateAuthorizationMode(mode: unknown) {
@@ -129,6 +36,13 @@ function registerSessionDetailsReadHandlers() {
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
       return yield* repo.getOptional(id)
+    }),
+  )
+
+  typedHandle('sessions:get-hive-relations', (_event, id: SessionId) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return yield* repo.getHiveRelations(id)
     }),
   )
 
@@ -220,57 +134,8 @@ function registerSessionCreationHandlers() {
 }
 
 function registerSessionMutationHandlers() {
-  typedHandle('sessions:delete', (_event, id: SessionId) =>
-    withSessionRemovalFence(
-      id,
-      quiesceBeforeSessionRemoval(id).pipe(
-        Effect.zipRight(cleanupTerminalsForDeletedSession(id, false)),
-        Effect.zipRight(
-          Effect.gen(function* () {
-            const visualizations = yield* InlineVisualizationService
-            const stagedDeletion = yield* visualizations.stageSessionDeletion(id)
-            const repo = yield* SessionProjectionRepository
-            yield* repo.delete(id).pipe(Effect.tapError(() => stagedDeletion.rollback))
-            yield* stagedDeletion.commit.pipe(
-              Effect.catchAll((error) => {
-                logger.warn('Deferred visualization tombstone cleanup after session deletion', {
-                  sessionId: String(id),
-                  error: String(error),
-                })
-                return Effect.void
-              }),
-            )
-            // The durable Session is gone, so delete the retained/cold terminal
-            // history in a second pass. A repository refusal never reaches here.
-            yield* cleanupTerminalsForDeletedSession(id, true).pipe(
-              Effect.catchAll((error) => {
-                logger.warn('Deferred terminal history cleanup after session deletion', {
-                  sessionId: String(id),
-                  error: String(error),
-                })
-                return Effect.void
-              }),
-            )
-          }),
-        ),
-      ),
-    ),
-  )
-
-  typedHandle('sessions:archive', (_event, id: SessionId) =>
-    withSessionRemovalFence(
-      id,
-      quiesceBeforeSessionRemoval(id).pipe(
-        Effect.zipRight(cleanupTerminalsForArchivedSession(id)),
-        Effect.zipRight(
-          Effect.gen(function* () {
-            const repo = yield* SessionProjectionRepository
-            yield* repo.archive(id)
-          }),
-        ),
-      ),
-    ),
-  )
+  typedHandle('sessions:delete', (_event, id: SessionId) => deleteSessionWithFences(id))
+  typedHandle('sessions:archive', (_event, id: SessionId) => archiveSessionWithFences(id))
 
   typedHandle('sessions:unarchive', (_event, id: SessionId) =>
     Effect.gen(function* () {

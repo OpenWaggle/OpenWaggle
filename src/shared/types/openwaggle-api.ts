@@ -15,13 +15,7 @@ import type {
   BackgroundRunSnapshot,
   WorktreeLaunchEventPayload,
 } from './background-run'
-import type {
-  RepositoryPath,
-  SessionBranchId,
-  SessionId,
-  SessionNodeId,
-  WorkingPath,
-} from './brand'
+import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
@@ -31,39 +25,18 @@ import type {
   FirstPartyDocsTopicSummary,
 } from './docs'
 import type {
-  ChangeRequestCheckoutResult,
-  ChangeRequestListResult,
-  GitBranchCheckoutPayload,
-  GitBranchCreatePayload,
-  GitBranchListResult,
-  GitBranchMutationResult,
-  GitCommitPayload,
-  GitCommitResult,
-  GitDiffResult,
-  GitRunStackedActionOptions,
-  GitRunStackedActionResult,
-  GitStatusSummary,
-  GitWorkingTreeMutationResult,
-  GitWorktreeCreatePayload,
-  GitWorktreeListResult,
-  GitWorktreeMutationResult,
-  GitWorktreeRemovePayload,
-  LocalVcsStatusResult,
-  RemoteVcsStatusResult,
-  SessionWorktreeCheck,
-} from './git'
-import type {
   InlineVisualizationDownloadInput,
   InlineVisualizationFrameRegisterInput,
   InlineVisualizationFrameRegisterResult,
   InlineVisualizationFrameUnregisterInput,
 } from './inline-visualization'
 import type { IpcEventPayload } from './ipc'
-import type { ChangeRequestAdoption } from './ipc-invoke-git'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authorization-grants'
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
+import type { OpenWaggleGitApi } from './openwaggle-api-git'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleBrowserPreviewApi } from './openwaggle-browser-preview-api'
@@ -77,6 +50,7 @@ import type {
   PinnedSessionMove,
   SessionCopyToNewResult,
   SessionDetail,
+  SessionHiveRelations,
   SessionNavigateTreeOptions,
   SessionSummary,
   SessionTree,
@@ -95,15 +69,19 @@ import type {
 import type { TurnCheckpointSummary, TurnDiff } from './turn-diff'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
+type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-updated'>) => void
+
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
     OpenWaggleBrowserPreviewApi,
     OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
+    OpenWaggleGitApi,
     OpenWaggleProjectConfigApi,
     OpenWaggleUpdaterApi,
     OpenWaggleExtensionApi,
     OpenWaggleMcpApi,
+    OpenWaggleSessionResourceApi,
     OpenWaggleWaggleApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
@@ -167,6 +145,7 @@ export interface OpenWaggleApi
   listSessions(limit?: number): Promise<SessionSummary[]>
   listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  getSessionHiveRelations(id: SessionId): Promise<SessionHiveRelations>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
@@ -210,63 +189,18 @@ export interface OpenWaggleApi
   archiveSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   restoreSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   updateSessionTreeUiState(sessionId: SessionId, patch: SessionTreeUiStatePatch): Promise<void>
-  onGitWorkingTreeChanged(
-    callback: (payload: IpcEventPayload<'git:working-tree-changed'>) => void,
-  ): () => void
-  onSessionTitleUpdated(
-    callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
+  onSessionTitleUpdated(callback: SessionTitleUpdatedHandler): () => void
+  onSessionListInvalidated(
+    callback: (payload: IpcEventPayload<'sessions:list-invalidated'>) => void,
   ): () => void
 
   // Window
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 
-  // Git
-  getGitStatus(workingPath: WorkingPath): Promise<GitStatusSummary>
-  commitGit(workingPath: WorkingPath, payload: GitCommitPayload): Promise<GitCommitResult>
-  getGitDiff(workingPath: WorkingPath): Promise<GitDiffResult>
-  getGitBranchDiff(workingPath: WorkingPath, baseRef: string): Promise<GitDiffResult>
-  stageAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
-  revertAllGitChanges(workingPath: WorkingPath): Promise<GitWorkingTreeMutationResult>
-  listGitBranches(repositoryPath: RepositoryPath): Promise<GitBranchListResult>
-  checkoutGitBranch(
-    workingPath: WorkingPath,
-    payload: GitBranchCheckoutPayload,
-  ): Promise<GitBranchMutationResult>
-  createGitBranch(
-    workingPath: WorkingPath,
-    payload: GitBranchCreatePayload,
-  ): Promise<GitBranchMutationResult>
-  checkSessionWorktree(worktreePath: string | null): Promise<SessionWorktreeCheck>
-  listGitWorktrees(repositoryPath: RepositoryPath): Promise<GitWorktreeListResult>
-  createGitWorktree(
-    repositoryPath: RepositoryPath,
-    payload: GitWorktreeCreatePayload,
-  ): Promise<GitWorktreeMutationResult>
-  removeGitWorktree(
-    repositoryPath: RepositoryPath,
-    payload: GitWorktreeRemovePayload,
-  ): Promise<GitWorktreeMutationResult>
-  getLocalVcsStatus(workingPath: WorkingPath): Promise<LocalVcsStatusResult>
-  getRemoteVcsStatus(workingPath: WorkingPath): Promise<RemoteVcsStatusResult>
-  runStackedGitAction(
-    workingPath: WorkingPath,
-    options: GitRunStackedActionOptions,
-  ): Promise<GitRunStackedActionResult>
-  listChangeRequests(repositoryPath: RepositoryPath): Promise<ChangeRequestListResult>
-  /**
-   * Adopt a change request. `checkout` switches the repository's checkout; `fetch` only makes the
-   * ref available, which is what a worktree-mode session needs - switching the user's own
-   * checkout as a side effect targets a tree the session does not run in.
-   */
-  checkoutChangeRequest(
-    repositoryPath: RepositoryPath,
-    reference: string,
-    adoption: ChangeRequestAdoption,
-  ): Promise<ChangeRequestCheckoutResult>
-
   // Attachments
   prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
   prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment>
+  discardPreparedAttachment(attachment: PreparedAttachment): Promise<void>
   onPrepareAttachmentFromTextProgress(
     callback: (payload: IpcEventPayload<'attachments:prepare-from-text-progress'>) => void,
   ): () => void
@@ -274,7 +208,6 @@ export interface OpenWaggleApi
   // Voice
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
 
-  // Standards and Skills
   getStandardsStatus(
     projectPath: string,
   ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
@@ -283,17 +216,15 @@ export interface OpenWaggleApi
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
 
-  // Dialog
   showConfirm(message: string, detail?: string): Promise<boolean>
 
-  // Shell / App
   copyToClipboard(text: string): void
   readFromClipboard(): Promise<string>
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
   openPath(path: string): Promise<void>
+  revealPath(path: string): Promise<void>
 
-  // Auth
   startOAuth(provider: OAuthProvider): Promise<void>
   submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
   cancelOAuth(provider: OAuthProvider): Promise<void>

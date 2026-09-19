@@ -44,11 +44,12 @@ const messagePartSchema = Schema.Union(
     attachment: Schema.Struct({
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text')),
+      origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text', 'session-resource')),
       name: Schema.String,
       path: Schema.String,
       mimeType: Schema.String,
       sizeBytes: Schema.Number,
+      contentSha256: Schema.optional(Schema.String),
       extractedText: Schema.String,
     }),
   }),
