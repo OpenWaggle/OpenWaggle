@@ -1,10 +1,9 @@
-import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
+import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import {
@@ -13,12 +12,27 @@ import {
   unmarkSessionResourceAttachmentsSubmitted,
 } from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
+import {
+  attachmentLimitMessage,
+  attachmentLimitReason,
+  type ComposerDraftSnapshot,
+  callAsPromise,
+  canSend,
+  captureCurrentComposerDraft,
+  clearInactiveComposerDraft,
+  getSubmitBlock,
+  isCurrentComposerDraft,
+  queuedSubmissionKey,
+} from './composer-submission-support'
+import { useComposerModel } from './useComposerModel'
 
-const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
+const pendingQueuedSubmissions = new Map<string, Promise<boolean>>()
 
 interface UseComposerSubmissionInput {
   readonly onSend: (payload: AgentSendPayload) => Promise<void> | void | false
-  readonly onEnqueue: (payload: AgentSendPayload) => Promise<void> | void | false
+  readonly onEnqueue: (
+    payload: AgentSendPayload,
+  ) => Promise<boolean | undefined> | boolean | undefined
   readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
   readonly isLoading: boolean
   readonly disabled?: boolean
@@ -37,13 +51,10 @@ export type SendFailureDisposition =
   | { readonly kind: 'restore'; readonly contextKey?: string | null }
   | { readonly kind: 'discard' | 'retain' }
 
-interface SubmitBlockInput {
-  readonly payload: AgentSendPayload
-  readonly disabled?: boolean
-  readonly requiresText: boolean
-  readonly projectPath: string | null
-  readonly selectedModel: string
-}
+type DispatchResult =
+  | { readonly type: 'blocked' }
+  | { readonly type: 'sent'; readonly completion?: Promise<void> }
+  | { readonly type: 'queued'; readonly completion: Promise<boolean | undefined> }
 
 function mergeDraftText(submitted: string, current: string) {
   if (!submitted || submitted === current) return current
@@ -59,25 +70,6 @@ function mergeDraftAttachments(
       [...submitted, ...current].map((attachment) => [attachment.id, attachment]),
     ).values(),
   ]
-}
-
-function attachmentLimitReason(
-  attachments: readonly PreparedAttachment[],
-): 'count' | 'size' | null {
-  if (attachments.length > ATTACHMENT.MAX_COUNT) return 'count'
-  if (
-    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
-    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  ) {
-    return 'size'
-  }
-  return null
-}
-
-function attachmentLimitMessage(reason: 'count' | 'size') {
-  return reason === 'count'
-    ? 'Your draft has too many attachments to send. Remove some before retrying.'
-    : 'Your draft exceeds the 20 MB attachment limit. Remove some before retrying.'
 }
 
 function restoreFailedSendDraft(
@@ -97,7 +89,7 @@ function restoreFailedSendDraft(
     if (editor) setEditorDraft(editor, input, preset)
     return attachmentLimitReason(attachments)
   }
-  if (!contextKey) return false
+  if (!contextKey) return null
   const current = state.getScopedDraft(contextKey)
   const attachments = mergeDraftAttachments(payload.attachments, current?.attachments ?? [])
   state.saveScopedDraft(contextKey, {
@@ -128,68 +120,107 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
+  const selectedModel = useComposerModel().model
+  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
 
-  function clearComposerInput() {
+  function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
+    if (snapshot && !isCurrentComposerDraft(snapshot)) {
+      clearInactiveComposerDraft(snapshot)
+      return
+    }
     reset()
-    if (editorRef.current) {
-      clearEditor(editorRef.current)
+    const activeEditor = useComposerStore.getState().lexicalEditor ?? editorRef.current
+    if (activeEditor) {
+      clearEditor(activeEditor)
     }
   }
 
   function dispatchPayload(payload: AgentSendPayload) {
     const block = getSubmitBlock({ payload, disabled, requiresText, projectPath, selectedModel })
-    if (!block) {
-      const draftContextKey = useComposerStore.getState().activeDraftContextKey
-      const wagglePreset = useComposerStore.getState().selectedWagglePreset
-      if (clearOnSubmit) markSessionResourceAttachmentsSubmitted(payload.attachments)
-      try {
-        const result = isLoading && allowEnqueue ? onEnqueue(payload) : onSend(payload)
-        if (result === false) {
-          if (clearOnSubmit) unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
-          return false
-        }
-        consumeSendResult(
-          result?.catch((cause: unknown) => {
-            if (clearOnSubmit) {
-              const disposition = onSendFailure?.(cause) ?? { kind: 'retain' }
-              if (disposition.kind === 'restore') {
-                const limitReason = restoreFailedSendDraft(
-                  payload,
-                  disposition.contextKey === undefined ? draftContextKey : disposition.contextKey,
-                  wagglePreset,
-                  editorRef.current,
-                )
-                if (limitReason) onToast?.(attachmentLimitMessage(limitReason))
-              }
-              if (disposition.kind === 'discard') {
-                discardSessionResourceAttachments(payload.attachments)
-              }
-            }
-            throw cause
-          }),
-        )
-      } catch (cause) {
-        if (clearOnSubmit) unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
-        throw cause
-      }
-      return true
+    if (block) {
+      if (block.type === 'toast') onToast?.(block.message)
+      return { type: 'blocked' } satisfies DispatchResult
     }
-    if (block.type === 'toast') onToast?.(block.message)
-    return false
+    if (isLoading && allowEnqueue) {
+      if (isGuiOnlyComposerCommand(payload.text)) {
+        onToast?.(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
+        return { type: 'blocked' } satisfies DispatchResult
+      }
+      const completion = callAsPromise(() => onEnqueue(payload))
+      consumeSendResult(completion)
+      return { type: 'queued', completion } satisfies DispatchResult
+    }
+    const result = onSend(payload)
+    if (result === false) return { type: 'blocked' } satisfies DispatchResult
+    return {
+      type: 'sent',
+      ...(result instanceof Promise ? { completion: result } : {}),
+    } satisfies DispatchResult
   }
 
   function submitPayload(payload: AgentSendPayload) {
-    const sent = dispatchPayload(payload)
-    if (!sent) return false
+    const draftSnapshot = captureCurrentComposerDraft()
+    const pendingKey = queuedSubmissionKey(draftSnapshot, payload)
+    const pending = pendingQueuedSubmissions.get(pendingKey)
+    if (pending) return pending
+    const dispatch = dispatchPayload(payload)
+    if (dispatch.type === 'blocked') return false
+    if (dispatch.type === 'sent') {
+      markSessionResourceAttachmentsSubmitted(payload.attachments)
+      finishSuccessfulSubmission(payload)
+      if (dispatch.completion) {
+        const completion = dispatch.completion.catch((cause: unknown) => {
+          const disposition = onSendFailure?.(cause) ?? { kind: 'retain' as const }
+          if (disposition.kind === 'restore') {
+            unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
+            const limitReason = restoreFailedSendDraft(
+              payload,
+              disposition.contextKey === undefined
+                ? draftSnapshot.activeDraftContextKey
+                : disposition.contextKey,
+              selectedWagglePreset,
+              useComposerStore.getState().lexicalEditor ?? editorRef.current,
+            )
+            if (limitReason) onToast?.(attachmentLimitMessage(limitReason))
+          }
+          if (disposition.kind === 'discard') {
+            unmarkSessionResourceAttachmentsSubmitted(payload.attachments)
+            discardSessionResourceAttachments(payload.attachments)
+          }
+          throw cause
+        })
+        consumeSendResult(completion)
+      }
+      return true
+    }
+    const result = dispatch.completion.then(
+      (accepted) => {
+        if (accepted === false) return false
+        markSessionResourceAttachmentsSubmitted(payload.attachments)
+        finishSuccessfulSubmission(payload, draftSnapshot)
+        return true
+      },
+      () => false,
+    )
+    pendingQueuedSubmissions.set(pendingKey, result)
+    void result.then(() => {
+      if (pendingQueuedSubmissions.get(pendingKey) === result) {
+        pendingQueuedSubmissions.delete(pendingKey)
+      }
+    })
+    return result
+  }
+
+  function finishSuccessfulSubmission(
+    payload: AgentSendPayload,
+    draftSnapshot?: ComposerDraftSnapshot,
+  ) {
     if (recordHistory && payload.text) pushHistory(payload.text)
-    if (clearOnSubmit) clearComposerInput()
-    return true
+    if (clearOnSubmit) clearComposerInput(draftSnapshot)
   }
 
   function handleSubmit(text?: string) {
-    submitPayload({
+    return submitPayload({
       text: (text ?? input).trim(),
       thinkingLevel: effectiveThinkingLevel,
       attachments,
@@ -260,57 +291,4 @@ export function useComposerSubmission({
     sendComposed,
     submitCurrentDraft,
   }
-}
-
-function getSubmitBlock({
-  payload,
-  disabled,
-  requiresText,
-  projectPath,
-  selectedModel,
-}: SubmitBlockInput) {
-  if (requiresText && !payload.text) return SILENT_SUBMIT_BLOCK
-  if (disabled || (!payload.text && payload.attachments.length === 0)) return SILENT_SUBMIT_BLOCK
-  const attachmentLimit = attachmentLimitReason(payload.attachments)
-  if (attachmentLimit) return toastSubmitBlock(attachmentLimitMessage(attachmentLimit))
-  if (!projectPath) return toastSubmitBlock('Select a project before sending.')
-  if (!selectedModel.trim()) return toastSubmitBlock('Select a model in Settings before sending.')
-  return null
-}
-
-function toastSubmitBlock(message: string) {
-  return { type: 'toast' as const, message }
-}
-
-interface CanSendInput {
-  readonly input: string
-  readonly attachments: readonly PreparedAttachment[]
-  readonly disabled?: boolean
-  readonly hasPreparingTextAttachment: boolean
-  readonly projectPath: string | null
-  readonly selectedModel: string
-  readonly requiresText: boolean
-}
-
-function canSend({
-  input,
-  attachments,
-  disabled,
-  hasPreparingTextAttachment,
-  projectPath,
-  selectedModel,
-  requiresText,
-}: CanSendInput) {
-  const hasSubmitContent = requiresText
-    ? input.trim().length > 0
-    : input.trim().length > 0 || attachments.length > 0
-
-  return (
-    hasSubmitContent &&
-    !disabled &&
-    !hasPreparingTextAttachment &&
-    !attachmentLimitReason(attachments) &&
-    Boolean(projectPath) &&
-    selectedModel.trim().length > 0
-  )
 }

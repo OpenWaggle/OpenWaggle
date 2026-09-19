@@ -5,7 +5,7 @@ order: 2
 section: "Using OpenWaggle"
 ---
 
-The Session Summary keeps the opened session's working context and durable resources close to the transcript. It appears in the top-right after the first message has been sent. Before then, the composer setup row owns the project, environment, and run-target choices.
+The Session Summary keeps the opened session's working context and durable resources close to the transcript. It appears in the top-right after the first message has been sent, or immediately for a Queen or Worker Session so Hive navigation is available before the Worker's first message. Before an ordinary Session's first message, the composer setup row owns the project, environment, and run-target choices.
 
 The Summary is always a floating overlay. It never narrows the transcript or moves the composer. OpenWaggle hides it automatically when the chat area is too narrow or a right sidebar is open. Use the **Session Summary** layout-list button in the header to hide it or explicitly reopen it over the chat at any window size.
 
@@ -89,7 +89,7 @@ Hive opens automatically when a Worker needs attention, while work is active, or
 
 With the Session Host catalog available, large Hives load direct Workers in pages. **Load more workers** fetches the next page; the header counts still describe the whole direct Hive. A failed page can be retried without losing the Workers already shown. Host state changes refresh the Hive, and Host resynchronization starts again at the first page.
 
-The Hive section displays orchestration state supplied by the installed backend. Its presence does not enable an unfinished orchestration backend or add spawning and delegation commands to the Summary.
+The Hive section reads the Session Host's live lineage and delegation state. Agents use the native Sessions tool to spawn and coordinate Workers; the Summary provides human-readable status and navigation without duplicating those commands.
 
 ## Browsing Sources and Outputs
 
@@ -156,7 +156,7 @@ Extension authors can publish session Sources and Outputs or add Summary section
 
 ## If a Summary action is missing
 
-- Send the session's first message before looking for the Summary. OpenWaggle does not show an empty shell for a draft session.
+- Send an ordinary session's first message before looking for the Summary. Queen and Worker Sessions can open it earlier for Hive navigation; an unsent ordinary draft does not show an empty shell.
 - Close the right sidebar or use the header's **Session Summary** button to reopen the overlay. At narrow widths, an explicit reopen floats over the transcript instead of resizing it.
 - A pull-request or merge-request action appears only when OpenWaggle can identify a supported GitHub or GitLab remote. The composer reports missing or unauthenticated `gh` or `glab` access for that remote's exact host.
 - Create or check out a branch if the repository is on a detached `HEAD`. A new feature branch also needs at least one commit, or local changes selected for **Commit and push local changes**, before a request can be created.

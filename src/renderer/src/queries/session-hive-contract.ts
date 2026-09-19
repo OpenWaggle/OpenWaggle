@@ -22,6 +22,7 @@ export interface HiveLineage {
   readonly activeDirectWorkerCount: number
   readonly agentDefinitionName?: string | null
   readonly delegationState?: HiveDelegationState | null
+  readonly historical?: boolean
 }
 
 export interface HiveSession {

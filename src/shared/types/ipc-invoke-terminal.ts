@@ -57,7 +57,7 @@ export interface IpcTerminalInvokeChannelMap {
     return: TerminalWriteResult
   }
   'terminal:send-input-now': {
-    args: [ownerKey: TerminalOwnerKey, terminalId: TerminalId]
+    args: [ownerKey: TerminalOwnerKey, terminalId: TerminalId, incarnation?: string]
     return: TerminalInputReleaseResult
   }
   'terminal:migrate-owner': {

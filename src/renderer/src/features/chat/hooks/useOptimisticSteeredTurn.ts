@@ -1,4 +1,4 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
@@ -8,12 +8,16 @@ import {
   selectOptimisticSteerPreviews,
   useOptimisticSteerStore,
 } from '@/features/chat/state'
+import { useSteerReceiptReconciliation } from './useSteerReceiptReconciliation'
 
 export type SteerDeliveryState = NonNullable<UIMessageMetadata['steerDelivery']>
 
 export interface OptimisticSteerPreviewController {
   readonly clear: () => void
   readonly setDurableContent: (content: string) => void
+  readonly setReceipt: (
+    receipt: Extract<AgentSteerDeliveryReceipt, { delivery: 'queued' }> | null,
+  ) => void
   readonly setDeliveryState: (state: SteerDeliveryState) => void
 }
 
@@ -40,6 +44,7 @@ export function useOptimisticSteeredTurn(
   const optimisticSteeredUserTurns = useOptimisticSteerStore(
     selectOptimisticSteerPreviews(sessionId),
   )
+  useSteerReceiptReconciliation(sessionId, hydratedMessages, optimisticSteeredUserTurns)
 
   // Clear optimistic turns as their real steered user messages arrive during
   // the active turn. Native steering does not wait for the session to become idle.
@@ -84,6 +89,7 @@ export function useOptimisticSteeredTurn(
         return {
           clear: () => undefined,
           setDurableContent: () => undefined,
+          setReceipt: () => undefined,
           setDeliveryState: () => undefined,
         }
       }
@@ -92,6 +98,9 @@ export function useOptimisticSteeredTurn(
         content,
         durableContent: buildAgentPromptText(payload),
         baselineLength: messagesRef.current.length,
+        baselineUserMessageIds: new Set(
+          messagesRef.current.flatMap((message) => (message.role === 'user' ? [message.id] : [])),
+        ),
         message: createOptimisticUserMessage(content, optimisticTurnId, deliveryState),
       })
       return {
@@ -102,6 +111,12 @@ export function useOptimisticSteeredTurn(
           useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
             ...turn,
             durableContent,
+          }))
+        },
+        setReceipt: (receipt) => {
+          useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
+            ...turn,
+            receipt,
           }))
         },
         setDeliveryState: (state: SteerDeliveryState) => {
@@ -162,12 +177,14 @@ function indexSteerCandidateMessages(messages: UIMessage[]) {
 
 function firstAvailableMessageIndex(
   candidates: readonly number[],
-  baselineLength: number,
+  messages: readonly UIMessage[],
+  baselineUserMessageIds: ReadonlySet<string>,
   consumedMessageIndexes: ReadonlySet<number>,
 ) {
   return candidates.find(
     (candidateIndex) =>
-      candidateIndex >= baselineLength && !consumedMessageIndexes.has(candidateIndex),
+      !baselineUserMessageIds.has(messages[candidateIndex]?.id ?? '') &&
+      !consumedMessageIndexes.has(candidateIndex),
   )
 }
 
@@ -182,7 +199,13 @@ function matchSteeredUserTurns(
 
   for (const turn of optimisticSteeredUserTurns) {
     if (!turn.durableMessageId) continue
-    const durableIndex = messageIndexById.get(turn.durableMessageId) ?? -1
+    const durableIndex =
+      turn.durableMessageCreatedOrder === undefined
+        ? (messageIndexById.get(turn.durableMessageId) ?? -1)
+        : messages.findIndex(
+            (message) =>
+              message.metadata?.sessionNodeCreatedOrder === turn.durableMessageCreatedOrder,
+          )
     if (durableIndex >= 0) consumedMessageIndexes.add(durableIndex)
     matches.set(turn.id, {
       index: durableIndex >= 0 ? durableIndex : null,
@@ -192,9 +215,11 @@ function matchSteeredUserTurns(
 
   for (const turn of optimisticSteeredUserTurns) {
     if (turn.durableMessageId) continue
+    if (turn.receipt !== undefined) continue
     const matchingIndex = firstAvailableMessageIndex(
       userMessageIndexesByContent.get(turn.durableContent) ?? [],
-      turn.baselineLength,
+      messages,
+      turn.baselineUserMessageIds,
       consumedMessageIndexes,
     )
     if (matchingIndex === undefined) continue

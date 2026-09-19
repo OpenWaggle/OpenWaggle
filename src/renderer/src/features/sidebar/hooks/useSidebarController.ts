@@ -65,7 +65,6 @@ function createDomainActions(
     refreshGit,
     removeProjectReferences: state.preferences.removeProjectReferences,
     selectFolder: state.project.selectFolder,
-    sessions: state.sessions.sessions,
     setProjectDisplayName: state.preferences.setProjectDisplayName,
     setProjectPath: state.project.setProjectPath,
     showToast: state.showToast,

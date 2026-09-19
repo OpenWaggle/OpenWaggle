@@ -7,6 +7,7 @@ import type {
   SessionActiveRunRow,
   SessionBranchRow,
   SessionBranchStateRow,
+  SessionNodeRow,
   SessionRow,
 } from './types'
 
@@ -81,6 +82,18 @@ function selectExistingVisualizationMetadata(
   `
 }
 
+function selectExistingNodes(
+  sql: SqlClient.SqlClient,
+  sessionId: PersistSessionSnapshotInput['sessionId'],
+) {
+  return sql<SessionNodeRow>`
+    SELECT id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms,
+      content_json, metadata_json, branch_hint_id, path_depth, created_order
+    FROM session_nodes
+    WHERE session_id = ${sessionId}
+  `
+}
+
 export function loadSnapshotPersistenceState(
   sql: SqlClient.SqlClient,
   input: PersistSessionSnapshotInput,
@@ -91,6 +104,7 @@ export function loadSnapshotPersistenceState(
     const existingBranches = yield* selectExistingBranches(sql, input.sessionId)
     const existingBranchStates = yield* selectExistingBranchStates(sql, existingBranches)
     const existingActiveRuns = yield* selectExistingActiveRuns(sql, input.sessionId)
+    const existingNodes = yield* selectExistingNodes(sql, input.sessionId)
     const existingVisualizationMetadata = yield* selectExistingVisualizationMetadata(
       sql,
       input.sessionId,
@@ -99,6 +113,7 @@ export function loadSnapshotPersistenceState(
       existingActiveRuns,
       existingBranches,
       existingBranchStates,
+      existingNodes,
       existingVisualizationMetadata,
     }
   })

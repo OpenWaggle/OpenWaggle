@@ -1,6 +1,7 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import type { LexicalEditor } from 'lexical'
-import { type RefObject, useEffect } from 'react'
+import { type RefObject, useLayoutEffect } from 'react'
+import { setEditorDraft } from '@/features/composer/lib/lexical-utils'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 
 interface EditorRefPluginProps {
@@ -15,9 +16,11 @@ interface EditorRefPluginProps {
 export function EditorRefPlugin({ editorRef }: EditorRefPluginProps): null {
   const [editor] = useLexicalComposerContext()
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     editorRef.current = editor
-    useComposerStore.getState().setLexicalEditor(editor)
+    const store = useComposerStore.getState()
+    store.setLexicalEditor(editor)
+    setEditorDraft(editor, store.input, store.selectedWagglePreset)
     return () => {
       editorRef.current = null
       useComposerStore.getState().setLexicalEditor(null)

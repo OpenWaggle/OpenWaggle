@@ -13,6 +13,7 @@ describe('MCP App transcript launch projection', () => {
               descriptor: {
                 serverInstanceId: 'server-1',
                 serverLabel: 'maps',
+                serverConfigHash: 'config-1',
                 toolHandle: 'mcp_handle',
                 toolName: 'show_map',
                 toolTitle: 'Show map',

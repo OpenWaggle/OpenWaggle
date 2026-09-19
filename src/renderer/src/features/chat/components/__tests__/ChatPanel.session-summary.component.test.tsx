@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionStore } from '@/features/sessions/state'
 import { useUIStore } from '@/shell/ui-store'
 import { createSections, makeMessage } from './ChatPanel.test-utils'
 import {
@@ -34,6 +35,29 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(screen.queryByRole('complementary', { name: 'Session Summary' })).toBeNull()
     expect(advanceSessionResourceBackfill).not.toHaveBeenCalled()
     expect(listSessionResources).not.toHaveBeenCalled()
+  })
+
+  it('puts an empty Worker Hive in the Session Hub, not above the composer', () => {
+    useSessionStore.setState({
+      sessions: [
+        {
+          id: SessionId('session-1'),
+          title: 'Worker session',
+          projectPath: '/test/project',
+          createdAt: 1,
+          updatedAt: 1,
+          lineage: {
+            role: 'worker',
+            parentSessionId: SessionId('queen'),
+            directWorkerCount: 0,
+            activeDirectWorkerCount: 0,
+          },
+        },
+      ],
+    })
+    renderPanel({}, { isFirstMessage: true, session: SESSION })
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Hive Sessions' })).toBeNull()
   })
 
   it('keeps the transcript width independent from the floating Session Summary', () => {

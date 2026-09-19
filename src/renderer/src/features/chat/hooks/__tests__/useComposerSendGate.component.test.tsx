@@ -89,7 +89,7 @@ describe('useComposerSendGate', () => {
         onToast,
       }),
     )
-    await result.current.guardedSend(PAYLOAD)
+    expect(result.current.guardedSend(PAYLOAD)).toBe(false)
 
     expect(onSend).not.toHaveBeenCalled()
     expect(onToast).toHaveBeenCalledWith('No base branch is resolvable.')

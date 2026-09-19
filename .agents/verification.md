@@ -15,6 +15,7 @@ pnpm verify
 CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate; there is no Electron E2E and no merge queue:
 
 - **Per-PR / per-push gate:** Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them.
+- **Session Performance workflow (manual/dispatch):** `pnpm benchmark:session-release` validates the packaged embedding model's warm query latency and multilingual recall, the exact 100,000-Session vector index, and the 100,000-Session/10,000,000-message reference corpus. `pnpm benchmark:session-performance` remains the faster local 1,000,000-message development check.
 - **Nightly canary (non-gating):** `.github/workflows/nightly.yml` builds and runs `packaged-app:smoke` on macOS/Linux/Windows, and runs the syntax performance benchmark on macOS. It never blocks a merge.
 
 Pushes to `main` run the same checks as a PR (the path-scoped `changes` job is skipped on push, which the gate tolerates).

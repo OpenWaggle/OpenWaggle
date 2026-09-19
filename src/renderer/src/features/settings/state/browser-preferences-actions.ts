@@ -6,6 +6,10 @@ type BrowserAndScalarActions = Pick<
   PreferencesActions,
   | 'setDefaultAuthorizationMode'
   | 'setDefaultSessionEnvironmentMode'
+  | 'setMultiAgentEnabled'
+  | 'setSessionHostParentConcurrencyLimit'
+  | 'setSessionHostRunCeiling'
+  | 'setSessionHostIdleGracePeriodMs'
   | 'setDiffSyntaxTheme'
   | 'setDiffView'
   | 'setDiffWrapLines'
@@ -54,6 +58,12 @@ export function createBrowserAndScalarPreferencesActions(
     setDefaultAuthorizationMode: (value) => persistSetting('defaultAuthorizationMode', value, set),
     setDefaultSessionEnvironmentMode: (value) =>
       persistSetting('defaultSessionEnvironmentMode', value, set),
+    setMultiAgentEnabled: (value) => persistSetting('multiAgentEnabled', value, set),
+    setSessionHostParentConcurrencyLimit: (value) =>
+      persistSetting('sessionHostParentConcurrencyLimit', value, set),
+    setSessionHostRunCeiling: (value) => persistSetting('sessionHostRunCeiling', value, set),
+    setSessionHostIdleGracePeriodMs: (value) =>
+      persistSetting('sessionHostIdleGracePeriodMs', value, set),
     setDiffSyntaxTheme: (value) => persistSetting('diffSyntaxTheme', value, set),
     setDiffView: (value) => persistSetting('diffView', value, set),
     setDiffWrapLines: (value) => persistSetting('diffWrapLines', value, set),

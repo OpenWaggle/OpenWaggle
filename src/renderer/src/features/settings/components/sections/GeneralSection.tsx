@@ -10,6 +10,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { AgentAccessSection } from './AgentAccessSection'
+import { AgentDefinitionsCard } from './AgentDefinitionsCard'
 
 const logger = createRendererLogger('settings')
 
@@ -220,6 +221,7 @@ export function GeneralSection() {
   return (
     <div className="space-y-6">
       <AgentAccessSection />
+      <AgentDefinitionsCard />
       <BrowserLinkTargetSettings />
 
       <CompactionThresholdSetting />

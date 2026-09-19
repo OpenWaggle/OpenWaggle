@@ -13,6 +13,13 @@ export type ToolCallId = string & Brand.Brand<'ToolCallId'>
 export type WagglePresetId = string & Brand.Brand<'WagglePresetId'>
 export type SupportedModelId = string & Brand.Brand<'SupportedModelId'>
 export type AgentMessageId = string & Brand.Brand<'AgentMessageId'>
+export type RunId = string & Brand.Brand<'RunId'>
+export type FollowUpId = string & Brand.Brand<'FollowUpId'>
+export type ReportId = string & Brand.Brand<'ReportId'>
+export type ReportCorrelationId = string & Brand.Brand<'ReportCorrelationId'>
+export type WorkspaceId = string & Brand.Brand<'WorkspaceId'>
+export type DelegationId = string & Brand.Brand<'DelegationId'>
+export type DerivedGrantId = string & Brand.Brand<'DerivedGrantId'>
 
 /**
  * A filesystem path that identifies a working tree — where a session's git status,
@@ -43,5 +50,12 @@ export const ToolCallId = Brand.nominal<ToolCallId>()
 export const WagglePresetId = Brand.nominal<WagglePresetId>()
 export const SupportedModelId = Brand.nominal<SupportedModelId>()
 export const AgentMessageId = Brand.nominal<AgentMessageId>()
+export const RunId = Brand.nominal<RunId>()
+export const FollowUpId = Brand.nominal<FollowUpId>()
+export const ReportId = Brand.nominal<ReportId>()
+export const ReportCorrelationId = Brand.nominal<ReportCorrelationId>()
+export const WorkspaceId = Brand.nominal<WorkspaceId>()
+export const DelegationId = Brand.nominal<DelegationId>()
+export const DerivedGrantId = Brand.nominal<DerivedGrantId>()
 export const WorkingPath = Brand.nominal<WorkingPath>()
 export const RepositoryPath = Brand.nominal<RepositoryPath>()

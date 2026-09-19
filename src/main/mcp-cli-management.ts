@@ -1,10 +1,6 @@
 import { homedir } from 'node:os'
-import type { McpSecretSummary, McpSettingsView } from '@shared/types/mcp'
-import { Effect, Layer, ManagedRuntime } from 'effect'
-import { EncryptedMcpSecretVaultServiceLive } from './adapters/mcp/encrypted-mcp-secret-vault-service'
-import { FilesystemMcpConfigServiceLive } from './adapters/mcp/filesystem-mcp-config-service'
-import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
-import { authorizeMcpServer, logoutMcpOAuth } from './adapters/mcp/oauth-provider'
+import type { McpSettingsView } from '@shared/types/mcp'
+import { Effect } from 'effect'
 import {
   createRegistryDraft,
   getMcpRegistryServer,
@@ -12,8 +8,6 @@ import {
   searchMcpRegistry,
 } from './adapters/mcp/registry-client'
 import { runMcpRuntimeDoctor } from './adapters/mcp/runtime/runtime-doctor'
-import type { createFilesystemMcpConfigService } from './adapters/mcp/service-factory'
-import { openExternal } from './desktop-ui'
 import {
   addDefinition,
   definitionFor,
@@ -27,77 +21,18 @@ import {
   target,
 } from './mcp-cli-arguments'
 import {
-  partitionServerLogoutSecretReferences,
-  secretReferences,
-} from './mcp-cli-secret-references'
-import { McpConfigService } from './ports/mcp-config-service'
-import { McpSecretVaultService } from './ports/mcp-secret-vault-service'
-
-type ConfigService = ReturnType<typeof createFilesystemMcpConfigService>
-
-/** Vault surface used by the CLI, mirroring the encrypted-vault adapter shape. */
-interface CliVault {
-  list(): Promise<readonly McpSecretSummary[]>
-  resolve(name: string): Promise<string>
-  set(name: string, value: string): Promise<readonly McpSecretSummary[]>
-  remove(name: string): Promise<readonly McpSecretSummary[]>
+  type McpCliVault as CliVault,
+  type McpCliConfigService as ConfigService,
+  createMcpCliManagementRuntime,
+  type McpCliManagementRuntime,
+} from './mcp-cli-management-runtime'
+import { secretReferences } from './mcp-cli-secret-references'
+export interface McpCliManagementDependencies {
+  readonly createRuntime: (args: ParsedArguments) => Promise<McpCliManagementRuntime>
 }
 
-/**
- * The CLI management commands run through the SAME MCP config/vault Live layers
- * as the desktop app and hosted servers — composed here into a lightweight
- * runtime (no database) rather than reconstructing parallel service instances.
- */
-const McpManagementLayer = Layer.mergeAll(
-  FilesystemMcpConfigServiceLive,
-  EncryptedMcpSecretVaultServiceLive,
-).pipe(Layer.provide(McpTurnStateServiceLive))
-
-function configServiceAdapter(runtime: ManagedRuntime.ManagedRuntime<McpConfigService, never>) {
-  return {
-    getServerDefinition: (input) =>
-      runtime.runPromise(
-        McpConfigService.pipe(Effect.flatMap((s) => s.getServerDefinition(input))),
-      ),
-    getView: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.getView(input)))),
-    setScopeState: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.setScopeState(input)))),
-    setServerEnabled: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.setServerEnabled(input)))),
-    setProjectServerEnabled: (input) =>
-      runtime.runPromise(
-        McpConfigService.pipe(Effect.flatMap((s) => s.setProjectServerEnabled(input))),
-      ),
-    setServerTrust: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.setServerTrust(input)))),
-    writeSourceConfig: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.writeSourceConfig(input)))),
-    removeServer: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.removeServer(input)))),
-    addServer: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.addServer(input)))),
-    previewImports: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.previewImports(input)))),
-    applyImports: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.applyImports(input)))),
-    createTurnSnapshot: (input) =>
-      runtime.runPromise(McpConfigService.pipe(Effect.flatMap((s) => s.createTurnSnapshot(input)))),
-  } satisfies ConfigService
-}
-
-function vaultAdapter(
-  runtime: ManagedRuntime.ManagedRuntime<McpSecretVaultService, never>,
-): CliVault {
-  return {
-    list: () => runtime.runPromise(McpSecretVaultService.pipe(Effect.flatMap((v) => v.list()))),
-    resolve: (name) =>
-      runtime.runPromise(McpSecretVaultService.pipe(Effect.flatMap((v) => v.resolve(name)))),
-    set: (name, value) =>
-      runtime.runPromise(McpSecretVaultService.pipe(Effect.flatMap((v) => v.set({ name, value })))),
-    remove: (name) =>
-      runtime.runPromise(McpSecretVaultService.pipe(Effect.flatMap((v) => v.remove({ name })))),
-  }
+const defaultMcpCliManagementDependencies: McpCliManagementDependencies = {
+  createRuntime: createMcpCliManagementRuntime,
 }
 
 async function runRegistryCommand(
@@ -169,34 +104,22 @@ async function runDoctorCommand(service: ConfigService, context: { projectPath: 
   return { ...doctor, notices: view.notices, integration: view.integration }
 }
 
-async function removeSecretReferences(
-  vault: CliVault,
-  references: readonly string[],
-  index = 0,
-): Promise<void> {
-  const name = references[index]
-  if (!name) return
-  await vault.remove(name)
-  return removeSecretReferences(vault, references, index + 1)
-}
-
 async function runCredentialCommand(input: {
   readonly command: string
   readonly args: ParsedArguments
   readonly view: McpSettingsView
   readonly server: McpSettingsView['servers'][number]
   readonly vault: CliVault
+  readonly authorizeServer: McpCliManagementRuntime['authorizeServer']
+  readonly logoutServer: McpCliManagementRuntime['logoutServer']
 }) {
   const { vault } = input
   const definition = definitionFor(input.view, input.server)
-  const references = secretReferences(definition)
   if (input.command === 'auth') {
     if (definition.auth?.type === 'oauth' && !hasFlag(input.args, 'secret-stdin')) {
-      return authorizeMcpServer({
+      return input.authorizeServer({
+        projectPath: input.view.projectPath,
         instanceId: input.server.instanceId,
-        definition,
-        vault,
-        openExternal,
       })
     }
     if (!hasFlag(input.args, 'secret-stdin')) {
@@ -204,6 +127,7 @@ async function runCredentialCommand(input: {
         'This server has no OAuth flow. Use --secret-stdin and pipe a configured credential value on stdin.',
       )
     }
+    const references = secretReferences(definition)
     const selected =
       option(input.args, 'secret') ?? (references.length === 1 ? references[0] : undefined)
     if (!selected)
@@ -214,22 +138,10 @@ async function runCredentialCommand(input: {
   }
   if (input.command !== 'logout')
     throw new Error(`Unknown MCP command ${JSON.stringify(input.command)}.`)
-  if (definition.auth?.type === 'oauth') {
-    await logoutMcpOAuth({ instanceId: input.server.instanceId, vault })
-  }
-  const partition = partitionServerLogoutSecretReferences({
-    references,
-    sources: input.view.sources,
-    target: input.server,
+  return input.logoutServer({
+    projectPath: input.view.projectPath,
+    instanceId: input.server.instanceId,
   })
-  await removeSecretReferences(vault, partition.removable)
-  return {
-    removedSecrets: partition.removable,
-    retainedSharedSecrets: partition.retained,
-    retainedUnverifiedSecrets: partition.retainedUnverified,
-    unreadableSources: partition.unreadableSources,
-    oauthRemoved: definition.auth?.type === 'oauth',
-  }
 }
 
 async function runNamedServerCommand(
@@ -238,6 +150,7 @@ async function runNamedServerCommand(
   service: ConfigService,
   context: { projectPath: string },
   vault: CliVault,
+  runtime: Pick<McpCliManagementRuntime, 'authorizeServer' | 'logoutServer'>,
 ) {
   const view = await service.getView(context)
   const server = findServer(view, args.positionals[0])
@@ -260,15 +173,19 @@ async function runNamedServerCommand(
   }
   if (command === 'remove')
     return service.removeServer({ ...context, instanceId: server.instanceId })
-  return runCredentialCommand({ command, args, view, server, vault })
+  return runCredentialCommand({ command, args, view, server, vault, ...runtime })
 }
 
-export async function runMcpManagementCommand(command: string, args: ParsedArguments) {
-  const runtime = ManagedRuntime.make(McpManagementLayer)
+export async function runMcpManagementCommand(
+  command: string,
+  args: ParsedArguments,
+  dependencyOverrides: Partial<McpCliManagementDependencies> = {},
+) {
+  const dependencies = { ...defaultMcpCliManagementDependencies, ...dependencyOverrides }
+  const context = { projectPath: projectPath(args) }
+  const runtime = await dependencies.createRuntime(args)
   try {
-    const service = configServiceAdapter(runtime)
-    const vault = vaultAdapter(runtime)
-    const context = { projectPath: projectPath(args) }
+    const { service, vault } = runtime
     const handlers: Readonly<Record<string, () => Promise<unknown>>> = {
       list: () => service.getView(context),
       add: () => {
@@ -289,7 +206,7 @@ export async function runMcpManagementCommand(command: string, args: ParsedArgum
     const handler = handlers[command]
     return handler
       ? await handler()
-      : await runNamedServerCommand(command, args, service, context, vault)
+      : await runNamedServerCommand(command, args, service, context, vault, runtime)
   } finally {
     await runtime.dispose()
   }

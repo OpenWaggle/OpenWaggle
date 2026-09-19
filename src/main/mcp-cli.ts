@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { app } from 'electron'
+import { writeCliStdout } from './cli-stdout'
 import {
   formatMcpCliOutput,
   hasFlag,
@@ -8,6 +9,7 @@ import {
   parseMcpCliArguments,
   readSecretFromStdin,
   requireServeScope,
+  serveAuthorizationCeiling,
   validateMcpCliOptions,
 } from './mcp-cli-arguments'
 import { runMcpManagementCommand } from './mcp-cli-management'
@@ -16,6 +18,7 @@ import {
   type OpenWaggleMcpServeGrant,
   serveOpenWaggleMcpServer,
 } from './openwaggle-mcp-server'
+import { canonicalizeExistingProjectPath } from './openwaggle-mcp-workspace-policy'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2, NOT_FOUND: 3, POLICY: 4 } as const
 
@@ -32,14 +35,22 @@ Usage:
   openwaggle mcp registry search|get|add <query-or-name> [--package npm|pypi|nuget|oci|mcpb]
   openwaggle mcp doctor
   openwaggle mcp serve --stdio [--profile <name>] [--grant <capability>]...
+                       [--authorization-ceiling ask-for-approval|yolo]
                        [--workspace <path>]... [--session <id>]...
+                       [--export-root <path>]...
+                       [--attachment-root <path>]...
                        [--origin-session <id>]
   openwaggle mcp serve --http <port> --token-stdin [--profile <name>]
+                       [--authorization-ceiling ask-for-approval|yolo]
                        [--grant <capability>]... [--workspace <path>]...
+                       [--export-root <path>]...
+                       [--attachment-root <path>]...
                        [--session <id>]... [--origin-session <id>]
 
 Server scope: at least one --workspace <path> or --session <id> is required.
-Common options: --project <path>, --scope global|project, --json`
+Common options: --project <path>, --scope global|project, --json
+Unexpected positional and -- passthrough input fail before configuration changes; only mcp add
+accepts passthrough after -- as the configured server command and arguments.`
 }
 
 function parseServeGrants(values: readonly string[] | undefined) {
@@ -92,18 +103,27 @@ async function runServeCommand(arguments_: ParsedArguments) {
     ...(httpPort === undefined ? {} : { httpPort }),
     ...(http ? { bearerToken: await readSecretFromStdin() } : {}),
     grants: parseServeGrants(arguments_.options.get('grant')),
-    workspaceRoots: scope.workspaces.map((entry) => path.resolve(entry)),
+    workspaceRoots: scope.workspaces.map((entry) =>
+      canonicalizeExistingProjectPath(path.resolve(entry)),
+    ),
+    exportRoots: (arguments_.options.get('export-root') ?? []).map((entry) =>
+      canonicalizeExistingProjectPath(path.resolve(entry)),
+    ),
+    attachmentRoots: (arguments_.options.get('attachment-root') ?? []).map((entry) =>
+      canonicalizeExistingProjectPath(path.resolve(entry)),
+    ),
     sessionIds: new Set(scope.sessions),
     ...(originSessionId ? { originSessionId } : {}),
     profile,
-    taskStorePath: path.join(app.getPath('userData'), 'mcp-server-tasks.json'),
+    authorizationCeiling: serveAuthorizationCeiling(arguments_),
+    userDataRoot: app.getPath('userData'),
     version: app.getVersion(),
     stderr: process.stderr,
   })
 }
 
 function writeOutput(value: unknown, json: boolean) {
-  process.stdout.write(`${formatMcpCliOutput(value, json)}\n`)
+  return writeCliStdout(`${formatMcpCliOutput(value, json)}\n`)
 }
 
 function writeError(error: unknown, json: boolean) {
@@ -121,6 +141,9 @@ function exitCodeForError(message: string) {
     'Unsupported MCP scope',
     'Unsupported MCP transport',
     'Unsupported MCP compatibility',
+    'Unsupported MCP command',
+    'MCP ',
+    'Missing value',
   ]
   if (usagePrefixes.some((prefix) => message.startsWith(prefix))) return EXIT.USAGE
   if (message.includes('requires a server name')) return EXIT.USAGE
@@ -141,14 +164,14 @@ export async function runMcpCli(args: readonly string[]) {
   try {
     validateMcpCliOptions(command ?? 'help', commandArguments)
     if (!command || command === 'help') {
-      writeOutput(usage(), false)
+      await writeOutput(usage(), false)
       return EXIT.SUCCESS
     }
     const result =
       command === 'serve'
         ? await runServeCommand(commandArguments)
         : await runMcpManagementCommand(command, commandArguments)
-    if (command !== 'serve') writeOutput(result, json)
+    if (command !== 'serve') await writeOutput(result, json)
     return EXIT.SUCCESS
   } catch (error) {
     writeError(error, command === 'serve' ? false : json)

@@ -6,7 +6,7 @@ import { createLogger } from './logger'
 
 const logger = createLogger('app-quit-cleanup')
 
-/** Keep the app alive after failed terminal cleanup so ownership can be retried. */
+/** Keep the app alive until native cleanup and its ownership receipt can be confirmed. */
 export function registerAppQuitCleanup(input: {
   readonly disposeAutoUpdater: () => void
   readonly persistActiveRuns: () => Promise<void>
@@ -45,10 +45,10 @@ export function registerAppQuitCleanup(input: {
           try {
             showErrorBox(
               'OpenWaggle could not quit safely',
-              'One or more terminal processes are still running. OpenWaggle stayed open so it can retry without orphaning them.',
+              'Desktop cleanup or its confirmation did not finish. OpenWaggle stayed open so you can retry safely.',
             )
           } catch (dialogError) {
-            logger.error('Could not show the terminal shutdown error', describeError(dialogError))
+            logger.error('Could not show the desktop shutdown error', describeError(dialogError))
           }
         })
     }

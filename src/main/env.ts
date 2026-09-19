@@ -25,13 +25,24 @@ const optionalUrlSchema = Schema.optional(
 )
 
 const envSchema = Schema.Struct({
+  PATH: Schema.optional(Schema.String),
+  APPIMAGE: Schema.optional(Schema.String),
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_AUTOMATION: Schema.optional(Schema.Literal('1')),
+  OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_AUTOMATION_LEASE_TOKEN: Schema.optional(Schema.String),
   OPENWAGGLE_AUTOMATION_PROJECT_PATH: Schema.optional(Schema.String),
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
   OPENWAGGLE_DISABLE_SINGLE_INSTANCE: Schema.optional(Schema.String),
   OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
+  OPENWAGGLE_CLI_OUTPUT_FD: Schema.optional(Schema.String),
+  OPENWAGGLE_PROFILE: Schema.optional(Schema.String),
+  OPENWAGGLE_PROFILE_CREDENTIAL_FILE: Schema.optional(Schema.String),
+  OPENWAGGLE_AGENT_RUN: Schema.optional(Schema.Literal('1')),
+  SystemRoot: Schema.optional(Schema.String),
+  TEMP: Schema.optional(Schema.String),
+  TMP: Schema.optional(Schema.String),
+  USERPROFILE: Schema.optional(Schema.String),
 })
 
 export type Env = SchemaType<typeof envSchema>
@@ -83,6 +94,37 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
     USER: process.env.USER,
     TMPDIR: process.env.TMPDIR,
   }
+}
+
+/** Minimum environment required by the built-in Windows PowerShell security helper. */
+export function getWindowsSecurityChildEnv(): Record<string, string | undefined> {
+  return {
+    PATH: getNpmCompatiblePath(),
+    SystemRoot: process.env.SystemRoot,
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+    USERPROFILE: process.env.USERPROFILE,
+  }
+}
+
+/**
+ * Detached Session Hosts are the user's durable Pi runtime and therefore need
+ * provider/custom-provider credentials plus shell agent state. Strip only
+ * client-scoped OpenWaggle credentials and Electron execution switches that
+ * must never become daemon authority.
+ */
+export function getSessionHostChildEnv(): Record<string, string | undefined> {
+  const childEnvironment: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: getNpmCompatiblePath(),
+  }
+  delete childEnvironment.ELECTRON_RUN_AS_NODE
+  delete childEnvironment.OPENWAGGLE_CLI_OUTPUT_FD
+  delete childEnvironment.OPENWAGGLE_PROFILE
+  delete childEnvironment.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
+  delete childEnvironment.OPENWAGGLE_AGENT_RUN
+  delete childEnvironment.OPENWAGGLE_AUTOMATION_LEASE_TOKEN
+  return childEnvironment
 }
 
 /**

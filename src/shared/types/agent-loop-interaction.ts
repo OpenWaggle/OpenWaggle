@@ -150,6 +150,7 @@ export type AgentLoopInteractionErrorCode =
   | 'interaction-mismatch'
   | 'invalid-response-payload'
   | 'custom-renderer-unavailable'
+  | 'interaction-timeout'
 
 export type AgentLoopInteractionSubmitResult =
   | {

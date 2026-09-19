@@ -1,16 +1,11 @@
-import {
-  closeBrowserPreviewRecord,
-  hasRequestedBrowserPreviewClose,
-} from './browser-preview-explicit-close'
+import { closeBrowserPreviewRecord } from './browser-preview-explicit-close'
+import { closeBrowserPreviewContents } from './browser-preview-native-close'
 import {
   installBrowserPreviewQuarantinePolicy,
   quarantineBrowserPreviewContents,
 } from './browser-preview-quarantine'
 import type { BrowserPreviewRecord } from './browser-preview-records'
 import { BrowserPreviewRetirementCleanup } from './browser-preview-retirement-cleanup'
-import { createLogger } from './logger'
-
-const logger = createLogger('browser-preview-lifecycle')
 
 function attemptCleanup(action: () => void) {
   try {
@@ -58,19 +53,26 @@ export class BrowserPreviewLifecycle {
   }
 
   dispose(record: BrowserPreviewRecord): void {
-    if (hasRequestedBrowserPreviewClose(record)) {
-      void this.close(record).catch((error: unknown) => {
-        logger.warn('Native preview close failed during owner cleanup', {
-          previewId: record.previewId,
-          error,
-        })
-      })
-      return
-    }
-    if (!this.release(record)) return
-    this.hideAndDetach(record)
+    this.detach(record)
     attemptCleanup(() => {
       if (!record.view.webContents.isDestroyed()) record.view.webContents.close()
+    })
+  }
+
+  disposeAndWait(record: BrowserPreviewRecord): Promise<void> {
+    this.detach(record)
+    return closeBrowserPreviewContents(record.view.webContents)
+  }
+
+  private detach(record: BrowserPreviewRecord): void {
+    if (!this.release(record)) return
+    attemptCleanup(() => {
+      if (!record.owner.window.isDestroyed()) record.view.setVisible(false)
+    })
+    attemptCleanup(() => {
+      if (!record.owner.window.isDestroyed()) {
+        record.owner.window.contentView.removeChildView(record.view)
+      }
     })
   }
 

@@ -49,6 +49,43 @@ describe('loadProjectConfig', () => {
     expect(config.pi).toEqual({ compaction: { enabled: false } })
   })
 
+  it('parses project Session Host overrides from settings JSON', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({
+        sessionHost: {
+          multiAgentEnabled: false,
+          parentConcurrencyLimit: 12,
+        },
+      }),
+      'utf-8',
+    )
+
+    const config = await loadProjectConfig(tmpDir)
+    expect(config.sessionHost).toEqual({
+      multiAgentEnabled: false,
+      parentConcurrencyLimit: 12,
+    })
+  })
+
+  it('rejects invalid project Session Host limits without applying a partial policy', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({
+        sessionHost: {
+          multiAgentEnabled: true,
+          parentConcurrencyLimit: 0,
+        },
+      }),
+      'utf-8',
+    )
+
+    await expect(updateProjectConfig(tmpDir, (current) => current)).rejects.toThrow(
+      /positive safe integer/i,
+    )
+    expect(await loadProjectConfig(tmpDir)).toEqual({})
+  })
+
   it('returns empty config when file is missing', async () => {
     const config = await loadProjectConfig(join(tmpDir, 'nonexistent'))
     expect(config).toEqual({})

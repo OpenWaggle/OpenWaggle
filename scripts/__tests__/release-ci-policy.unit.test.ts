@@ -161,7 +161,7 @@ describe('release CI policy', () => {
     ],
   ])('rejects %s jobs outside the stable job set', (_kind, workflow) => {
     expect(validateReleaseCiPolicy(workflow)).toContain(
-      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
+      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Session Performance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
     )
   })
 

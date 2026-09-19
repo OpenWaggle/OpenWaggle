@@ -7,6 +7,7 @@ import { McpRuntimeService } from '../../ports/mcp-runtime-service'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { McpTurnStateService } from '../../ports/mcp-turn-state-service'
 import { createOpenWaggleRuntimeAuthProvider } from './oauth-provider'
+import { mcpOAuthVaultAuthority } from './oauth-vault-authority'
 import { FileMcpRemoteTaskStore } from './runtime/remote-task-store'
 import { makeMcpRuntimeService } from './runtime/runtime-service-factory'
 import { createFirstPartyMcpConnectionFactory } from './runtime/sdk-client-connection'
@@ -35,7 +36,7 @@ export const FirstPartyMcpRuntimeServiceLive = Layer.scoped(
             createOpenWaggleRuntimeAuthProvider({
               instanceId: server.instanceId,
               definition: server.definition,
-              vault: oauthVault,
+              vault: mcpOAuthVaultAuthority.runtimeVault(server.instanceId, oauthVault),
             }),
         }),
       }),

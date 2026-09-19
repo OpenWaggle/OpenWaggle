@@ -281,6 +281,7 @@ export async function createPiProjectModelRuntime(input: {
   readonly modelReference: string
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
   readonly extensionFactories?: readonly ExtensionFactory[]
@@ -293,6 +294,7 @@ export async function createPiProjectModelRuntime(input: {
       ? { compactionThresholdPercent: input.compactionThresholdPercent }
       : {}),
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
     ...(input.enabledOpenWaggleExtensionPackagePaths
       ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
       : {}),

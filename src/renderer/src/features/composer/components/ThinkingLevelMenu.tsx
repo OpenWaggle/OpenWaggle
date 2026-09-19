@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
 import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
+import { useComposerModel } from '../hooks/useComposerModel'
 import {
   getThinkingButtonLabel,
   getThinkingButtonTitle,
@@ -19,8 +20,9 @@ export function ThinkingLevelMenu() {
   const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
-  const thinking = useSelectedModelThinkingLevel()
-  const hasSelectedModel = settings.selectedModel.trim().length > 0
+  const composerModel = useComposerModel().model
+  const thinking = useSelectedModelThinkingLevel(composerModel)
+  const hasSelectedModel = composerModel.trim().length > 0
   const canOpenThinkingMenu =
     thinking.capabilitiesKnown && thinking.availableThinkingLevels.length > 0
   const selectedModelOnlySupportsOff =

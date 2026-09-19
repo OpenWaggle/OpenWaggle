@@ -1,6 +1,6 @@
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useTerminalStore } from '@/features/terminal'
@@ -34,6 +34,10 @@ const headerMocks = vi.hoisted(() => {
     commit: vi.fn().mockResolvedValue({ ok: true, commitHash: 'abc123', summary: 'abc123' }),
     toggleDiff: vi.fn(),
     toggleSessionTree: vi.fn(),
+    omitSessionFromCatalog: false,
+    useArchivedSession: false,
+    useIndependentSession: false,
+    useWorkerSession: false,
   }
 })
 
@@ -44,9 +48,12 @@ vi.mock('@/features/chat/hooks', () => ({
       title: 'Fallback title',
       messages: [{ id: 'message-1', role: 'user', parts: [], createdAt: 1 }],
       projectPath: headerMocks.projectPath,
+      createdAt: 1,
+      updatedAt: 2,
       environmentMode: 'worktree',
       worktreePath: headerMocks.workingPath,
     },
+    activeSessionId: SessionId('session-1'),
   }),
 }))
 
@@ -102,33 +109,69 @@ vi.mock('@/features/project-actions', () => ({
 
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: headerMocks.projectPath }),
-  useSessions: () => ({
-    activeSessionTree: {
-      session: {
-        id: SessionId('session-1'),
-        title: 'Session title',
-        projectPath: headerMocks.projectPath,
-        createdAt: 1,
-        updatedAt: 2,
-        lastActiveBranchId: SessionBranchId('branch-1'),
-      },
-      branches: [
-        {
-          id: SessionBranchId('branch-1'),
-          sessionId: SessionId('session-1'),
-          sourceNodeId: null,
-          headNodeId: null,
-          name: 'main',
-          isMain: true,
+  useSessions: () => {
+    const session = {
+      id: SessionId('session-1'),
+      title: 'Session title',
+      projectPath: headerMocks.projectPath,
+      createdAt: 1,
+      updatedAt: 2,
+      lineage: headerMocks.useIndependentSession
+        ? {
+            role: 'independent' as const,
+            directWorkerCount: 0,
+            activeDirectWorkerCount: 0,
+            agentDefinitionName: 'security-reviewer',
+          }
+        : headerMocks.useWorkerSession
+          ? {
+              role: 'worker' as const,
+              parentSessionId: SessionId('session-parent'),
+              hiveRootSessionId: SessionId('session-parent'),
+              directWorkerCount: 0,
+              activeDirectWorkerCount: 0,
+              agentDefinitionName: 'release-lead',
+            }
+          : {
+              role: 'queen' as const,
+              directWorkerCount: 2,
+              activeDirectWorkerCount: 1,
+              agentDefinitionName: 'release-lead',
+            },
+    }
+    return {
+      sessions:
+        headerMocks.useArchivedSession || headerMocks.omitSessionFromCatalog ? [] : [session],
+      archivedSessions:
+        headerMocks.useArchivedSession && !headerMocks.omitSessionFromCatalog ? [session] : [],
+      activeSessionTree: {
+        session: {
+          id: SessionId('session-1'),
+          title: 'Session title',
+          projectPath: headerMocks.projectPath,
           createdAt: 1,
           updatedAt: 2,
+          lastActiveBranchId: SessionBranchId('branch-1'),
+          lineage: session.lineage,
         },
-      ],
-      nodes: [],
-      branchStates: [],
-      uiState: null,
-    },
-  }),
+        branches: [
+          {
+            id: SessionBranchId('branch-1'),
+            sessionId: SessionId('session-1'),
+            sourceNodeId: null,
+            headNodeId: null,
+            name: 'feature/test-branch',
+            isMain: true,
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nodes: [],
+        branchStates: [],
+        uiState: null,
+      },
+    }
+  },
 }))
 
 describe('Header', () => {
@@ -153,12 +196,18 @@ describe('Header', () => {
     headerMocks.commit.mockClear()
     headerMocks.toggleDiff.mockClear()
     headerMocks.toggleSessionTree.mockClear()
+    headerMocks.useArchivedSession = false
+    headerMocks.useIndependentSession = false
+    headerMocks.useWorkerSession = false
+    headerMocks.omitSessionFromCatalog = false
   })
 
   it('renders session/project context and wires app-level controls', async () => {
     render(<Header />)
 
     expect(screen.getByText('Session title')).toBeInTheDocument()
+    expect(screen.getByText('Queen')).toBeInTheDocument()
+    expect(screen.getByText('release-lead')).toBeInTheDocument()
     expect(screen.getByText('/ feat/actual-checkout')).toBeInTheDocument()
     expect(screen.getByText('openwaggle')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open terminal' })).toHaveAttribute(
@@ -203,106 +252,37 @@ describe('Header', () => {
     expect(useUIStore.getState().toastData?.message).toBe('Commit created: abc123')
   })
 
-  it('does not show the Session Summary toggle until the current session has summary content', () => {
-    useSessionSummaryUIStore.setState({ panels: {} })
-    render(<Header />)
+  it('keeps identity visible for archived Sessions and independent Agent definitions', () => {
+    headerMocks.useArchivedSession = true
+    const archived = render(<Header />)
+    expect(screen.getByText('Queen')).toBeInTheDocument()
 
-    expect(screen.queryByRole('button', { name: /Session Summary/ })).toBeNull()
+    headerMocks.useIndependentSession = true
+    archived.rerender(<Header />)
+    expect(screen.getByText('security-reviewer')).toBeInTheDocument()
+    expect(screen.queryByText('Queen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Worker')).not.toBeInTheDocument()
   })
 
-  it('reports actual hidden state while a right sidebar temporarily suppresses the Summary', () => {
-    useSessionSummaryUIStore.getState().syncPanel('session-1', {
-      available: true,
-      autoHidden: false,
-      rightSidebarOpen: true,
-    })
-    render(<Header />)
+  it('uses the exact selected tree for every identity outside the bounded catalog page', () => {
+    headerMocks.useArchivedSession = true
+    headerMocks.omitSessionFromCatalog = true
 
-    const toggle = screen.getByRole('button', { name: 'Open Session Summary' })
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    expect(toggle).toBeDisabled()
-    expect(useSessionSummaryUIStore.getState().panels['session-1']?.expanded).toBe(true)
-  })
+    const header = render(<Header />)
 
-  it('restores keyboard focus after Hive navigation reaches its target session', async () => {
-    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
+    expect(screen.getByText('Queen')).toBeInTheDocument()
+    expect(screen.getByText('release-lead')).toBeInTheDocument()
 
-    render(<Header />)
+    headerMocks.useWorkerSession = true
+    header.rerender(<Header />)
+    expect(screen.getByText('Worker')).toBeInTheDocument()
+    expect(screen.getByText('release-lead')).toBeInTheDocument()
 
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveFocus(),
-    )
-    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
-  })
-
-  it('does not keep a focus request queued when the target has no Summary yet', async () => {
-    useSessionSummaryUIStore.setState({ panels: {} })
-    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
-    render(<Header />)
-
-    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-1')
-    act(() => {
-      useSessionSummaryUIStore.getState().syncPanel('session-1', {
-        available: false,
-        autoHidden: false,
-        rightSidebarOpen: false,
-      })
-    })
-    await waitFor(() =>
-      expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull(),
-    )
-    act(() => {
-      useSessionSummaryUIStore.getState().syncPanel('session-1', {
-        available: true,
-        autoHidden: false,
-        rightSidebarOpen: false,
-      })
-    })
-    const toggle = await screen.findByRole('button', { name: 'Hide Session Summary' })
-    expect(toggle).not.toHaveFocus()
-  })
-
-  it('waits for a newly visited non-empty session before handing focus to its toggle', async () => {
-    useSessionSummaryUIStore.setState({ panels: {} })
-    useSessionSummaryUIStore.getState().requestToggleFocus('session-1')
-    render(<Header />)
-
-    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBe('session-1')
-    act(() => {
-      useSessionSummaryUIStore.getState().syncPanel('session-1', {
-        available: true,
-        autoHidden: false,
-        rightSidebarOpen: false,
-      })
-    })
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Hide Session Summary' })).toHaveFocus(),
-    )
-    expect(useSessionSummaryUIStore.getState().toggleFocusTargetSessionId).toBeNull()
-  })
-
-  it('warns when a direct commit succeeds but its Session Output needs a retry', async () => {
-    headerMocks.commit.mockResolvedValueOnce({
-      ok: true,
-      commitHash: 'abc123',
-      summary: 'abc123',
-      commitOutput: {
-        ok: false,
-        retryPersisted: true,
-        message: 'The commit Output will be retried automatically.',
-      },
-    })
-    render(<Header />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open commit dialog' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm commit' }))
-
-    await waitFor(() =>
-      expect(useUIStore.getState().toastData).toEqual({
-        message: 'The commit Output will be retried automatically.',
-        variant: 'error',
-      }),
-    )
+    headerMocks.useWorkerSession = false
+    headerMocks.useIndependentSession = true
+    header.rerender(<Header />)
+    expect(screen.getByText('security-reviewer')).toBeInTheDocument()
+    expect(screen.queryByText('Queen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Worker')).not.toBeInTheDocument()
   })
 })

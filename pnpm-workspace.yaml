@@ -121,6 +121,7 @@ minimumReleaseAgeExclude:
 overrides:
   "@hono/node-server": 2.0.11
   "@earendil-works/pi-coding-agent>undici": 8.10.0
+  "@huggingface/transformers>onnxruntime-node": 1.23.2
   adm-zip: 0.6.0
   electron-vite>vite: 8.1.5
   hono: 4.12.34

@@ -30,7 +30,7 @@ export type TerminalMutationScope =
  */
 export interface TerminalServiceShape {
   /** Bounded global child-process metadata for every main-process terminal record. */
-  readonly getActivitySnapshot: () => EffectType<TerminalActivitySnapshot, never>
+  readonly getActivitySnapshot: () => EffectType<TerminalActivitySnapshot, TerminalServiceError>
   /** Idempotently open (or re-attach to) one terminal and return its snapshot. */
   readonly open: (
     input: TerminalOpenInput,
@@ -42,19 +42,20 @@ export interface TerminalServiceShape {
     data: string,
     identity?: TerminalInputIdentity,
     intent?: TerminalInputIntent,
-  ) => EffectType<TerminalWriteResult, never>
+  ) => EffectType<TerminalWriteResult, TerminalServiceError>
   /** Explicitly release queued input for a shell without supported integration. */
   readonly sendInputNow: (
     ownerKey: TerminalOwnerKey,
     terminalId: TerminalId,
-  ) => EffectType<TerminalInputReleaseResult, never>
+    incarnation?: string,
+  ) => EffectType<TerminalInputReleaseResult, TerminalServiceError>
   /** Acknowledge one renderer output write; stale generations are ignored. */
   readonly acknowledgeOutput: (
     ownerKey: TerminalOwnerKey,
     terminalId: TerminalId,
     outputGeneration: number,
     endOffset: number,
-  ) => EffectType<void, never>
+  ) => EffectType<void, TerminalServiceError>
   /** Atomically rekey a draft terminal group to its born Session owner. */
   readonly migrateOwner: (
     fromOwnerKey: TerminalOwnerKey,
@@ -66,7 +67,7 @@ export interface TerminalServiceShape {
     terminalId: TerminalId,
     cols: number,
     rows: number,
-  ) => EffectType<void, never>
+  ) => EffectType<void, TerminalServiceError>
   /** Clear the live terminal's screen and its persisted scrollback. */
   readonly clear: (
     ownerKey: TerminalOwnerKey,
@@ -80,7 +81,7 @@ export interface TerminalServiceShape {
   readonly assessClose: (
     ownerKey: TerminalOwnerKey,
     terminalId: TerminalId,
-  ) => EffectType<TerminalCloseAssessment, never>
+  ) => EffectType<TerminalCloseAssessment, TerminalServiceError>
   /** Kill one terminal, optionally deleting its persisted scrollback. */
   readonly close: (
     ownerKey: TerminalOwnerKey,
@@ -104,19 +105,22 @@ export interface TerminalServiceShape {
   readonly runWithMutationFence: <A, E, R>(
     scope: TerminalMutationScope,
     operation: EffectType<A, E, R>,
-  ) => EffectType<A, E, R>
+  ) => EffectType<A, E | TerminalServiceError, R>
   /** Register the calling surface (window) as watching one terminal's events. */
-  readonly attachSurface: (terminalKey: TerminalKey, surfaceId: number) => EffectType<void, never>
+  readonly attachSurface: (
+    terminalKey: TerminalKey,
+    surfaceId: number,
+  ) => EffectType<void, TerminalServiceError>
   /** Drop one surface's attachment to exactly one terminal (pane unmount). */
   readonly detachTerminal: (
     ownerKey: TerminalOwnerKey,
     terminalId: TerminalId,
     surfaceId: number,
-  ) => EffectType<void, never>
+  ) => EffectType<void, TerminalServiceError>
   /** Drop every event attachment held by one surface (window closed/reloaded). */
-  readonly detachSurface: (surfaceId: number) => EffectType<void, never>
+  readonly detachSurface: (surfaceId: number) => EffectType<void, TerminalServiceError>
   /** Kill every terminal; used on app shutdown. */
-  readonly closeAll: () => EffectType<void, never>
+  readonly closeAll: () => EffectType<void, TerminalServiceError>
 }
 
 export class TerminalService extends Context.Tag('@openwaggle/TerminalService')<

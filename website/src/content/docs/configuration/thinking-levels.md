@@ -13,6 +13,7 @@ Thinking levels are Pi-native reasoning-depth values:
 - `medium`
 - `high`
 - `xhigh`
+- `max`
 
 The composer selector writes the selected level to settings and sends it to Pi when creating the run. Pi applies the level for thinking-capable models.
 

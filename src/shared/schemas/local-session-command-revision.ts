@@ -1,0 +1,34 @@
+import {
+  HOST_BACKED_MCP_GUI_CHANNELS,
+  HOST_UI_REVISION_7_NEW_CHANNELS,
+  HOST_UI_REVISION_9_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_10_REQUIRED_CHANNELS,
+  HOST_UI_REVISION_11_REQUIRED_CHANNELS,
+  type HostBackedGuiChannel,
+} from '@shared/types/host-ui-protocol'
+import {
+  LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION,
+  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_LEGACY_HOST_UI_REVISION,
+  LOCAL_SESSION_MCP_AUTH_REVISION,
+  LOCAL_SESSION_MCP_HOST_UI_REVISION,
+  LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION,
+} from '@shared/types/local-session-protocol'
+
+export function requiredHostUiRevision(channel: HostBackedGuiChannel) {
+  if (HOST_UI_REVISION_11_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_DESKTOP_SERVICE_REVISION
+  }
+  if (HOST_UI_REVISION_10_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_AUTHORIZATION_GRANTS_REVISION
+  }
+  if (HOST_UI_REVISION_9_REQUIRED_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_WORKSPACE_AUTHORIZATION_REVISION
+  }
+  if (HOST_UI_REVISION_7_NEW_CHANNELS.some((candidate) => candidate === channel)) {
+    return LOCAL_SESSION_MCP_AUTH_REVISION
+  }
+  return HOST_BACKED_MCP_GUI_CHANNELS.some((candidate) => candidate === channel)
+    ? LOCAL_SESSION_MCP_HOST_UI_REVISION
+    : LOCAL_SESSION_LEGACY_HOST_UI_REVISION
+}

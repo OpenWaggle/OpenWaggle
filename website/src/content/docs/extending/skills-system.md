@@ -21,7 +21,7 @@ OpenWaggle injects project resource roots into Pi in this order:
 
 For same-name project skills, `.openwaggle/skills/` wins, then `.pi/skills/`, then `.agents/skills/`. The Skills panel scans `.openwaggle/skills/` and `.agents/skills/`, shows metadata, previews instructions, and persists per-project enable/disable toggles for the OpenWaggle catalog.
 
-Catalog toggles are applied to `.openwaggle/skills/` and root `.agents/skills/` before Pi builds runtime context. `.pi/skills/`, ancestor `.agents/skills/`, and global/user Pi resources remain governed by Pi discovery.
+Catalog toggles are applied to `.openwaggle/skills/` and root `.agents/skills/` before Pi builds runtime context. An explicit stored toggle also filters a same-named Pi global/user skill for that project, which lets automated profiles suppress an incompatible global workflow without changing other projects. `.pi/skills/` and ancestor `.agents/skills/` remain governed by Pi-native project discovery.
 
 ## Skills Panel
 

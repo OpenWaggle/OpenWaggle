@@ -25,6 +25,20 @@ function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
 function createSessionReadMethods(deps: SessionRepositoryStores) {
   return {
     list: (limit) => repositoryOperation('listSessions', () => deps.store.listSessions(limit)),
+    listCatalogPage: (archived, limit, cursor) =>
+      repositoryOperation('listSessionCatalogPage', () =>
+        deps.store.listSessionCatalogPage(archived, limit, cursor),
+      ),
+    listByIds: (sessionIds) =>
+      repositoryOperation('listSessionsByIds', () => deps.store.listSessionsByIds(sessionIds)),
+    listHiveCatalogPage: (sessionId, limit, cursor) =>
+      repositoryOperation('listHiveSessionCatalogPage', () =>
+        deps.store.listHiveSessionCatalogPage(sessionId, limit, cursor),
+      ),
+    listArchivedBranchCatalogPage: (limit, cursor) =>
+      repositoryOperation('listArchivedSessionBranchCatalogPage', () =>
+        deps.store.listArchivedSessionBranchCatalogPage(limit, cursor),
+      ),
     listArchivedBranches: (limit) =>
       repositoryOperation('listArchivedSessionBranches', () =>
         deps.store.listArchivedSessionBranches(limit),
@@ -50,6 +64,10 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
   } satisfies Pick<
     SessionRepositoryShape,
     | 'list'
+    | 'listCatalogPage'
+    | 'listByIds'
+    | 'listHiveCatalogPage'
+    | 'listArchivedBranchCatalogPage'
     | 'listArchivedBranches'
     | 'getTree'
     | 'listResourceProjectionPage'

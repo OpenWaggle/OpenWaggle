@@ -11,11 +11,16 @@ export function hiveStateNeedsAttention(state: HiveDelegationState | null | unde
 function groupHiveWorkers(workers: Iterable<HiveSession>) {
   const activeWorkers: HiveSession[] = []
   const doneWorkers: HiveSession[] = []
+  const historicalWorkers: HiveSession[] = []
   const archivedWorkers: HiveSession[] = []
   let attention = false
   for (const worker of workers) {
     if (worker.archived) {
       archivedWorkers.push(worker)
+      continue
+    }
+    if (worker.lineage?.historical) {
+      historicalWorkers.push(worker)
       continue
     }
     if (
@@ -28,7 +33,7 @@ function groupHiveWorkers(workers: Iterable<HiveSession>) {
     activeWorkers.push(worker)
     attention ||= hiveStateNeedsAttention(worker.lineage?.delegationState)
   }
-  return { activeWorkers, doneWorkers, archivedWorkers, attention }
+  return { activeWorkers, doneWorkers, historicalWorkers, archivedWorkers, attention }
 }
 
 export function hiveSummaryModel(pages: readonly HiveRelationsPage[] | undefined) {

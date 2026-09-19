@@ -17,7 +17,7 @@
   ; Install a stable command shim beside the application. The shim delegates to
   ; the exact installed executable so `openwaggle mcp ...` uses the same build.
   FileOpen $0 "$INSTDIR\openwaggle.cmd" w
-  FileWrite $0 '@"%~dp0OpenWaggle.exe" %*$\r$\n'
+  FileWrite $0 '@"%~dp0OpenWaggle.exe" -- %*$\r$\n'
   FileClose $0
 
   ; Add the per-user install directory once and notify existing shells that the

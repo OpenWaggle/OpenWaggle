@@ -9,6 +9,7 @@ import type { UpsertSessionResourceInput } from '../../ports/session-resource-re
 import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import { subscribeToSessionResourceInvalidations } from '../session-resource-invalidation'
 import { recordSessionChangeRequest, recordSessionCommit } from '../session-resource-recording'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 function recordingLayer(
   recorded: UpsertSessionResourceInput[],
@@ -53,6 +54,7 @@ function recordingLayer(
     Layer.succeed(
       SessionRepository,
       SessionRepository.of({
+        ...emptySessionCatalogMethods,
         list: () => Effect.succeed([]),
         listArchivedBranches: () => Effect.succeed([]),
         getTree: () => Effect.succeed(null),

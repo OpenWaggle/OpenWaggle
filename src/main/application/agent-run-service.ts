@@ -70,7 +70,7 @@ export function executeAgentRun(input: AgentRunInput) {
     const sessionProjectionRepo = yield* SessionProjectionRepository
     activeRunIdentity = identity
 
-    const hydratedPayload = yield* hydrateAgentRunPayload(input.payload)
+    const hydratedPayload = yield* hydrateAgentRunPayload(input.payload, input.hydratedAttachments)
     const agentResult = yield* runAgentKernel(
       {
         ...input,

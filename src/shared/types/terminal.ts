@@ -46,6 +46,8 @@ export interface TerminalOpenInput {
 export interface TerminalInputIdentity {
   readonly generation: string
   readonly sequence: number
+  /** Native record identity from attach; prevents late writes reaching a recreated terminal. */
+  readonly incarnation?: string
 }
 
 /** Semantic intent carried with an ordered input item when it needs main-process arbitration. */
@@ -73,6 +75,8 @@ export interface TerminalReadinessSnapshot {
 }
 
 export interface TerminalAttachResult {
+  /** Stable while the native record survives, including shell Restart; new after deletion. */
+  readonly inputIncarnation?: string
   /**
    * Persisted scrollback replay for the terminal, already sanitized so replay
    * never re-triggers terminal query sequences. Empty for a brand-new terminal.
@@ -120,7 +124,12 @@ export type TerminalRuntimeEvent =
   | { readonly type: 'exited'; readonly exitCode: number }
   | { readonly type: 'closed' }
   | { readonly type: 'cleared'; readonly outputGeneration: number }
-  | { readonly type: 'readiness'; readonly readiness: TerminalReadinessSnapshot }
+  | {
+      readonly type: 'readiness'
+      readonly readiness: TerminalReadinessSnapshot
+      /** Correlates readiness that races attach with the native record that emitted it. */
+      readonly inputIncarnation?: string
+    }
   | { readonly type: 'activity'; readonly processName: string | null }
   | { readonly type: 'ports'; readonly ports: readonly number[] }
   | { readonly type: 'port-previews'; readonly previews: readonly TerminalPortPreview[] }

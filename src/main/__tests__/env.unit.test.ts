@@ -8,7 +8,8 @@ import {
   getInteractiveTerminalEnv,
   getNpmCompatiblePath,
   getSafeChildEnv,
-  getSourceControlCliEnv,
+  getSessionHostChildEnv,
+  getWindowsSecurityChildEnv,
 } from '../env'
 
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
@@ -58,55 +59,36 @@ describe('main process environment helpers', () => {
     expect(entries).toContain('/usr/local/bin')
   })
 
-  it('makes user-installed gh and glab discoverable from a minimal GUI PATH', () => {
-    vi.stubEnv('PATH', MINIMAL_PATH)
-    vi.stubEnv('GH_TOKEN', 'must-not-leak')
-    vi.stubEnv('GITHUB_TOKEN', 'must-not-leak')
-    vi.stubEnv('GH_ENTERPRISE_TOKEN', 'must-not-leak')
-    vi.stubEnv('GITHUB_ENTERPRISE_TOKEN', 'must-not-leak')
-    vi.stubEnv('GITLAB_TOKEN', 'must-not-leak')
-    vi.stubEnv('GITLAB_ACCESS_TOKEN', 'must-not-leak')
-    vi.stubEnv('GITLAB_PRIVATE_TOKEN', 'must-not-leak')
-    vi.stubEnv('OAUTH_TOKEN', 'must-not-leak')
-    vi.stubEnv('CI_JOB_TOKEN', 'must-not-leak')
-    vi.stubEnv('GH_REPO', 'attacker/wrong-repository')
-    vi.stubEnv('GH_HOST', 'github.attacker.test')
-    vi.stubEnv('GITLAB_REPO', 'attacker/wrong-repository')
-    vi.stubEnv('GITLAB_HOST', 'gitlab.attacker.test')
-    vi.stubEnv('GITLAB_API_HOST', 'api.gitlab.attacker.test')
-    vi.stubEnv('GITLAB_SSH_HOST', 'ssh.gitlab.attacker.test')
-    vi.stubEnv('GITLAB_HEAD_REPO', 'attacker/wrong-fork')
-    vi.stubEnv('GITLAB_URI', 'https://gitlab.attacker.test')
-    vi.stubEnv('GITLAB_URL', 'https://gitlab.attacker.test')
-    vi.stubEnv('GLAB_REPO', 'attacker/another-repository')
-    vi.stubEnv('GLAB_HOST', 'gitlab.another-attacker.test')
+  it('passes only Windows runtime paths to the pipe security helper', () => {
+    vi.stubEnv('SystemRoot', 'C:\\Windows')
+    vi.stubEnv('TEMP', 'C:\\Users\\person\\Temp')
+    vi.stubEnv('USERPROFILE', 'C:\\Users\\person')
+    vi.stubEnv('OPENAI_API_KEY', 'provider-secret')
 
-    const cliEnv = getSourceControlCliEnv()
-    const entries = pathEntries(cliEnv.PATH)
+    expect(getWindowsSecurityChildEnv()).toMatchObject({
+      SystemRoot: 'C:\\Windows',
+      TEMP: 'C:\\Users\\person\\Temp',
+      USERPROFILE: 'C:\\Users\\person',
+    })
+    expect(getWindowsSecurityChildEnv()).not.toHaveProperty('OPENAI_API_KEY')
+  })
 
-    expect(entries).toContain(join(homedir(), '.local', 'bin'))
-    expect(entries).toContain('/usr/local/bin')
-    if (process.platform === 'darwin') expect(entries).toContain('/opt/homebrew/bin')
-    expect(cliEnv.GH_TOKEN).toBeUndefined()
-    expect(cliEnv.GITHUB_TOKEN).toBeUndefined()
-    expect(cliEnv.GH_ENTERPRISE_TOKEN).toBeUndefined()
-    expect(cliEnv.GITHUB_ENTERPRISE_TOKEN).toBeUndefined()
-    expect(cliEnv.GITLAB_TOKEN).toBeUndefined()
-    expect(cliEnv.GITLAB_ACCESS_TOKEN).toBeUndefined()
-    expect(cliEnv.GITLAB_PRIVATE_TOKEN).toBeUndefined()
-    expect(cliEnv.OAUTH_TOKEN).toBeUndefined()
-    expect(cliEnv.CI_JOB_TOKEN).toBeUndefined()
-    expect(cliEnv.GH_REPO).toBeUndefined()
-    expect(cliEnv.GH_HOST).toBeUndefined()
-    expect(cliEnv.GITLAB_REPO).toBeUndefined()
-    expect(cliEnv.GITLAB_HOST).toBeUndefined()
-    expect(cliEnv.GITLAB_API_HOST).toBeUndefined()
-    expect(cliEnv.GITLAB_SSH_HOST).toBeUndefined()
-    expect(cliEnv.GITLAB_HEAD_REPO).toBeUndefined()
-    expect(cliEnv.GITLAB_URI).toBeUndefined()
-    expect(cliEnv.GITLAB_URL).toBeUndefined()
-    expect(cliEnv.GLAB_REPO).toBeUndefined()
-    expect(cliEnv.GLAB_HOST).toBeUndefined()
+  it('preserves provider and shell-agent state for a detached Host without client authority', () => {
+    vi.stubEnv('OPENAI_API_KEY', 'provider-secret')
+    vi.stubEnv('CUSTOM_PROVIDER_TOKEN', 'custom-secret')
+    vi.stubEnv('SSH_AUTH_SOCK', '/tmp/ssh-agent.sock')
+    vi.stubEnv('OPENWAGGLE_PROFILE_CREDENTIAL_FILE', '/tmp/profile-credential')
+    vi.stubEnv('OPENWAGGLE_CLI_OUTPUT_FD', '3')
+    vi.stubEnv('ELECTRON_RUN_AS_NODE', '1')
+
+    expect(getSessionHostChildEnv()).toMatchObject({
+      OPENAI_API_KEY: 'provider-secret',
+      CUSTOM_PROVIDER_TOKEN: 'custom-secret',
+      SSH_AUTH_SOCK: '/tmp/ssh-agent.sock',
+    })
+    expect(getSessionHostChildEnv()).not.toHaveProperty('OPENWAGGLE_PROFILE_CREDENTIAL_FILE')
+    expect(getSessionHostChildEnv()).not.toHaveProperty('OPENWAGGLE_CLI_OUTPUT_FD')
+    expect(getSessionHostChildEnv()).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
   })
 
   it('passes only required desktop-session variables to browser credential helpers', () => {

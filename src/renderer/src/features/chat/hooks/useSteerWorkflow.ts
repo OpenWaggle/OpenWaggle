@@ -1,31 +1,21 @@
-import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import { useState } from 'react'
-import { useMessageQueueStore } from '@/features/chat/state'
-import {
-  parseCompactCommand,
-  parseExtensionSlashCommand,
-  parseSessionCopyCommand,
-} from '@/features/composer/commands'
+import type { SessionControlSteeringReceipt } from '@shared/types/session-control'
+import { selectPendingSteerFollowUps, useOptimisticSteerStore } from '@/features/chat/state'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportQueuedSteerFailure } from '../lib/queue-failure-feedback'
-import type {
-  OptimisticSteerPreviewController,
-  SteerDeliveryState,
-} from './useOptimisticSteeredTurn'
+import type { AgentChatReturn } from './useAgentChat.types'
+import type { OptimisticSteerPreviewController } from './useOptimisticSteeredTurn'
+import type { SessionFollowUpQueueItem } from './useSessionFollowUpQueue'
 
 const logger = createRendererLogger('chat-panel')
 
 interface SteerWorkflowDeps {
   readonly activeSessionId: SessionId | null
-  readonly extensionContributions: ExtensionContributionRegistryView | null
+  readonly followUps: readonly SessionFollowUpQueueItem[]
   readonly isCompacting: boolean
-  readonly steer: (payload: AgentSendPayload) => Promise<AgentSteerDeliveryResult>
-  readonly previewSteeredUserTurn: (
-    payload: AgentSendPayload,
-    deliveryState: SteerDeliveryState,
-  ) => OptimisticSteerPreviewController
+  readonly previewSteeredUserTurn: AgentChatReturn['previewSteeredUserTurn']
+  readonly promoteFollowUp: (followUpId: string) => Promise<SessionControlSteeringReceipt>
   readonly withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
   readonly showToast: (message: string) => void
 }
@@ -36,56 +26,48 @@ interface SteerWorkflowReturn {
 }
 
 export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
-  const [inFlightSteerCount, setInFlightSteerCount] = useState(0)
-  const {
-    activeSessionId,
-    extensionContributions,
-    isCompacting,
-    steer,
-    previewSteeredUserTurn,
-    withDeferredSnapshotRefresh,
-    showToast,
-  } = deps
+  const { activeSessionId, promoteFollowUp, withDeferredSnapshotRefresh, showToast } = deps
+  const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(activeSessionId))
 
   async function handleSteer(messageId: string) {
     if (!activeSessionId) return
-    const queued = useMessageQueueStore
-      .getState()
-      .queues.get(activeSessionId)
-      ?.find((item) => item.id === messageId)
-    if (
-      queued &&
-      (parseCompactCommand(queued.payload.text) ||
-        parseSessionCopyCommand(queued.payload.text) ||
-        parseExtensionSlashCommand(queued.payload.text, extensionContributions))
-    ) {
-      showToast(
-        'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
-      )
+    const item = deps.followUps.find((candidate) => candidate.id === messageId)
+    if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId))
       return
-    }
-    const taken = useMessageQueueStore.getState().take(activeSessionId, messageId)
-    if (!taken) return
-    const { item } = taken
-    const deliveryState = isCompacting ? 'waiting-for-compaction' : 'sending'
-    const preview = previewSteeredUserTurn(item.payload, deliveryState)
-    setInFlightSteerCount((count) => count + 1)
+    let preview: OptimisticSteerPreviewController | undefined
     try {
-      const delivery = await withDeferredSnapshotRefresh(() => steer(item.payload))
-      if (delivery.delivery === 'handled') {
-        preview.clear()
-        return
-      }
-      preview.setDurableContent(delivery.durableText)
-      preview.setDeliveryState('sending')
+      // This is display-only: the Host still resolves the original immutable attachments and
+      // intent by Follow-up ID. Never reconstruct a delivery payload from the queue preview.
+      const attachmentSummary =
+        item.attachmentCount > 0 ? `[${item.attachmentCount} attachments]` : ''
+      preview = deps.previewSteeredUserTurn(
+        {
+          text: [item.text, attachmentSummary].filter(Boolean).join('\n\n'),
+          thinkingLevel: item.thinkingLevel ?? 'off',
+          attachments: [],
+        },
+        deps.isCompacting ? 'waiting-for-compaction' : 'sending',
+      )
+      preview.setReceipt(null)
+      const receipt = await withDeferredSnapshotRefresh(() => promoteFollowUp(messageId))
+      const acceptedPreview = preview
+      matchBy(receipt, 'delivery')
+        .with('handled', () => acceptedPreview.clear())
+        .with('queued', (queued) => {
+          acceptedPreview.setReceipt(queued)
+          acceptedPreview.setDeliveryState('sending')
+        })
+        .with('unavailable', () => acceptedPreview.setDeliveryState('sending'))
+        .exhaustive()
     } catch (error) {
-      preview.clear()
-      useMessageQueueStore.getState().restore(activeSessionId, taken)
-      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, item.id, error)
+      preview?.clear()
+      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
     } finally {
-      setInFlightSteerCount((count) => Math.max(0, count - 1))
+      // The Host has removed an accepted Follow-up, or retained a refused one. A queued receipt
+      // keeps its preview until the actual user node arrives, which can follow a long tool call.
+      useOptimisticSteerStore.getState().finishPromotion(activeSessionId, messageId)
     }
   }
 
-  return { isSteering: inFlightSteerCount > 0, handleSteer }
+  return { isSteering: pendingPromotions.length > 0, handleSteer }
 }

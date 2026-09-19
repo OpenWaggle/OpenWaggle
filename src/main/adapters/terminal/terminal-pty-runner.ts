@@ -1,6 +1,7 @@
 import { TERMINAL } from '@shared/constants/resource-limits'
 import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
+import { assertDesktopNativeAdmission } from '../../desktop-native-admission'
 import { getInteractiveTerminalEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { observeTerminalProcessLifecycle } from './terminal-process-exit-observation'
@@ -195,6 +196,7 @@ export function makePtyRunner(options: PtyRunnerOptions): PtyRunner {
       let spawned: IPty | null = null
       let closeDescriptor: (() => void) | null = null
       try {
+        assertDesktopNativeAdmission()
         spawned = pty.spawn(candidate.command, [...launch.args], {
           name: 'xterm-256color',
           cols: Math.max(MIN_SPAWN_COLS, Math.min(TERMINAL.MAX_COLS, request.cols)),

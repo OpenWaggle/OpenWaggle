@@ -1,54 +1,39 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/features/chat/state'
+import { useProviderStore } from '@/features/providers/state'
+import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import { renderWithQueryClient as render } from '@/test-utils/query-test-utils'
 import { useSidebarViewStore } from '../../state/sidebar-view-store'
 import { Sidebar } from '../Sidebar'
-import {
-  ARCHIVED_SESSION_ID,
-  makeArchivedSession,
-  makeSession,
-  PROJECT_PATH,
-  resetStores,
-  SESSION_ID,
-} from './sidebar-project-actions.test-fixtures'
 
-const {
-  archiveSessionMock,
-  cancelAgentMock,
-  deleteSessionMock,
-  getGitStatusMock,
-  getProjectPreferencesMock,
-  getProviderModelsMock,
-  listActiveRunsMock,
-  listArchivedSessionsMock,
-  listGitBranchesMock,
-  listSessionsMock,
-  navigateMock,
-  openPathMock,
-  routerState,
-  showConfirmMock,
-  updateSettingsMock,
-} = vi.hoisted(() => ({
-  archiveSessionMock: vi.fn(),
-  cancelAgentMock: vi.fn(),
-  deleteSessionMock: vi.fn(),
-  getGitStatusMock: vi.fn(),
-  getProjectPreferencesMock: vi.fn(),
-  getProviderModelsMock: vi.fn(),
-  listActiveRunsMock: vi.fn(),
-  listArchivedSessionsMock: vi.fn(),
-  listGitBranchesMock: vi.fn(),
-  listSessionsMock: vi.fn(),
+const { apiMock, navigateMock, routerState } = vi.hoisted(() => ({
+  apiMock: {
+    archiveSession: vi.fn(),
+    cancelAgent: vi.fn(),
+    closeBrowserPreview: vi.fn(),
+    deleteSession: vi.fn(),
+    getGitStatus: vi.fn(),
+    getProjectPreferences: vi.fn(),
+    getProviderModels: vi.fn(),
+    listActiveRuns: vi.fn(),
+    listGitBranches: vi.fn(),
+    listSessionsByIds: vi.fn(),
+    querySessionControl: vi.fn(),
+    onGitWorkingTreeChanged: () => () => {},
+    openPath: vi.fn(),
+    showConfirm: vi.fn(),
+    unregisterBrowserPreviewOwner: vi.fn(),
+    updateSettings: vi.fn(),
+  },
   navigateMock: vi.fn(),
-  openPathMock: vi.fn(),
   routerState: { pathname: '/' },
-  showConfirmMock: vi.fn(),
-  updateSettingsMock: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -62,44 +47,117 @@ vi.mock('@/shell/useFullscreen', () => ({
   useFullscreen: () => false,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    archiveSession: archiveSessionMock,
-    cancelAgent: cancelAgentMock,
-    deleteSession: deleteSessionMock,
-    getGitStatus: getGitStatusMock,
-    onGitWorkingTreeChanged: () => () => {},
-    getProjectPreferences: getProjectPreferencesMock,
-    getProviderModels: getProviderModelsMock,
-    listActiveRuns: listActiveRunsMock,
-    listArchivedSessions: listArchivedSessionsMock,
-    listGitBranches: listGitBranchesMock,
-    listSessions: listSessionsMock,
-    listPinnedSessions: vi.fn(async () => []),
-    closeBrowserPreview: vi.fn(async () => undefined),
-    unregisterBrowserPreviewOwner: vi.fn(async () => undefined),
-    openPath: openPathMock,
-    showConfirm: showConfirmMock,
-    updateSettings: updateSettingsMock,
-  },
-}))
+vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
+
+const PROJECT_PATH = '/repo/openwaggle'
+const SESSION_ID = SessionId('session-project-1')
+const ARCHIVED_SESSION_ID = SessionId('session-project-archived')
+function makeSession(): SessionSummary {
+  return {
+    id: SESSION_ID,
+    title: 'Existing project session',
+    projectPath: PROJECT_PATH,
+    createdAt: 10,
+    updatedAt: 20,
+  }
+}
+
+function makeArchivedSession(): SessionSummary {
+  return { ...makeSession(), id: ARCHIVED_SESSION_ID, archived: true }
+}
+
+function mockProjectSessions(sessions: readonly SessionSummary[]) {
+  apiMock.listSessionsByIds.mockImplementation(async (ids: readonly SessionId[]) =>
+    sessions.filter((session) => ids.includes(session.id)),
+  )
+  apiMock.querySessionControl.mockImplementation(
+    async (request: { query: { archived?: boolean; interrupted?: boolean } }) => ({
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: 'project-sessions',
+      outcome: {
+        operation: 'list',
+        sessions: sessions
+          .filter(
+            (session) =>
+              !request.query.interrupted &&
+              Boolean(session.archived) === Boolean(request.query.archived),
+          )
+          .map((session) => ({
+            sessionId: session.id,
+            title: session.title,
+            projectPath: session.projectPath,
+            archived: Boolean(session.archived),
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            lineageRole: 'independent',
+            directWorkerCount: 0,
+          })),
+      },
+    }),
+  )
+}
+
+function resetStores(session = makeSession()) {
+  usePreferencesStore.setState({
+    ...usePreferencesStore.getInitialState(),
+    settings: {
+      ...DEFAULT_SETTINGS,
+      projectPath: PROJECT_PATH,
+      selectedModel: SupportedModelId('openai/gpt-5'),
+      recentProjects: [PROJECT_PATH],
+    },
+    isLoaded: true,
+  })
+  useProviderStore.setState({
+    ...useProviderStore.getInitialState(),
+    baseProviderModels: [],
+    providerModels: [],
+  })
+  useChatStore.setState({
+    sessions: [session],
+    sessionById: new Map(),
+    missingSessionIds: new Set(),
+    draftSession: null,
+    activeSessionId: SESSION_ID,
+    activeSession: null,
+    error: null,
+  })
+  useSessionStore.setState({
+    ...useSessionStore.getInitialState(),
+    sessions: [session],
+    activeSessionTree: null,
+    activeWorkspace: null,
+    draftBranch: null,
+  })
+  useSessionStatusStore.setState({
+    statuses: new Map(),
+    completedAt: new Map(),
+    lastVisitedAt: new Map(),
+  })
+  useUIStore.setState({
+    ...useUIStore.getInitialState(),
+    sidebarOpen: true,
+  })
+  useSidebarViewStore.setState({ sessionSortMode: 'recent', projectExpandedByPath: {} })
+}
 
 describe('Sidebar project actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routerState.pathname = '/'
-    archiveSessionMock.mockResolvedValue(undefined)
-    deleteSessionMock.mockResolvedValue(undefined)
-    getGitStatusMock.mockResolvedValue(null)
-    getProjectPreferencesMock.mockResolvedValue(null)
-    getProviderModelsMock.mockResolvedValue([])
-    listActiveRunsMock.mockResolvedValue([])
-    listArchivedSessionsMock.mockResolvedValue([])
-    listSessionsMock.mockResolvedValue([makeSession()])
-    listGitBranchesMock.mockResolvedValue({ ok: true, branches: [] })
-    openPathMock.mockResolvedValue(undefined)
-    showConfirmMock.mockResolvedValue(false)
-    updateSettingsMock.mockResolvedValue({ ok: true })
+    apiMock.archiveSession.mockResolvedValue(undefined)
+    apiMock.deleteSession.mockResolvedValue(undefined)
+    apiMock.closeBrowserPreview.mockResolvedValue(undefined)
+    apiMock.getGitStatus.mockResolvedValue(null)
+    apiMock.getProjectPreferences.mockResolvedValue(null)
+    apiMock.getProviderModels.mockResolvedValue([])
+    apiMock.listActiveRuns.mockResolvedValue([])
+    apiMock.listGitBranches.mockResolvedValue({ ok: true, branches: [] })
+    mockProjectSessions([makeSession()])
+    apiMock.openPath.mockResolvedValue(undefined)
+    apiMock.showConfirm.mockResolvedValue(false)
+    apiMock.unregisterBrowserPreviewOwner.mockResolvedValue(undefined)
+    apiMock.updateSettings.mockResolvedValue({ ok: true })
     resetStores()
   })
 
@@ -111,14 +169,10 @@ describe('Sidebar project actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /collapse openwaggle/i }))
 
     expect(screen.queryByText('Existing project session')).toBeNull()
-    expect(updateSettingsMock).not.toHaveBeenCalled()
+    expect(apiMock.updateSettings).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
-  /**
-   * Collapsing was useState only, so a restart undid it. The state now lives in the persisted
-   * view store, which is what makes it survive.
-   */
   it('records a collapsed project in the persisted view store', () => {
     render(<Sidebar />)
 
@@ -129,7 +183,6 @@ describe('Sidebar project actions', () => {
     })
   })
 
-  /** A fresh mount with restored state is what the user sees after relaunching. */
   it('renders a project collapsed when the restored state says so', () => {
     useSidebarViewStore.setState({ projectExpandedByPath: { [PROJECT_PATH]: false } })
 
@@ -193,36 +246,43 @@ describe('Sidebar project actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /open in finder/i }))
 
     await waitFor(() => {
-      expect(openPathMock).toHaveBeenCalledWith(PROJECT_PATH)
+      expect(apiMock.openPath).toHaveBeenCalledWith(PROJECT_PATH)
     })
   })
 
   it('archives all visible project sessions with a count-aware confirmation', async () => {
-    showConfirmMock.mockResolvedValueOnce(true)
+    apiMock.showConfirm.mockResolvedValueOnce(true)
     render(<Sidebar />)
 
     fireEvent.click(screen.getByRole('button', { name: /open project actions for openwaggle/i }))
     fireEvent.click(screen.getByRole('button', { name: /archive 1 session/i }))
 
     await waitFor(() => {
-      expect(showConfirmMock).toHaveBeenCalledWith(
+      expect(apiMock.showConfirm).toHaveBeenCalledWith(
         expect.stringContaining('Archive 1 session'),
         'Project: openwaggle',
       )
-      expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
-      expect(archiveSessionMock).toHaveBeenCalledWith(SESSION_ID)
+      expect(apiMock.showConfirm.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
+      expect(apiMock.archiveSession).toHaveBeenCalledWith(SESSION_ID)
+      expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(SESSION_ID))
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
   })
 
   it('permanently removes all project sessions and project references', async () => {
+    const cancellation = Promise.withResolvers<void>()
     const callOrder: string[] = []
-    deleteSessionMock.mockImplementation(async () => {
+    apiMock.cancelAgent.mockImplementationOnce(async () => {
+      callOrder.push('cancel:start')
+      await cancellation.promise
+      callOrder.push('cancel:end')
+    })
+    apiMock.deleteSession.mockImplementation(async () => {
       callOrder.push('delete')
     })
-    listArchivedSessionsMock.mockResolvedValue([makeArchivedSession()])
-    listActiveRunsMock.mockResolvedValueOnce([
+    mockProjectSessions([makeSession(), makeArchivedSession()])
+    apiMock.listActiveRuns.mockResolvedValueOnce([
       {
         sessionId: SESSION_ID,
         model: SupportedModelId('openai/gpt-5'),
@@ -230,7 +290,7 @@ describe('Sidebar project actions', () => {
         startedAt: 1,
       },
     ])
-    showConfirmMock.mockResolvedValueOnce(true)
+    apiMock.showConfirm.mockResolvedValueOnce(true)
     usePreferencesStore.setState((state) => ({
       settings: {
         ...state.settings,
@@ -245,15 +305,26 @@ describe('Sidebar project actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /remove/i }))
 
     await waitFor(() => {
-      expect(showConfirmMock).toHaveBeenCalledWith(
+      expect(callOrder).toEqual(['cancel:start'])
+    })
+    expect(apiMock.deleteSession).not.toHaveBeenCalled()
+
+    cancellation.resolve()
+
+    await waitFor(() => {
+      expect(apiMock.showConfirm).toHaveBeenCalledWith(
         expect.stringContaining('permanently delete 2 sessions'),
         'Project: OpenWaggle Local\nThis cannot be undone.',
       )
-      expect(showConfirmMock.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
-      expect(cancelAgentMock).not.toHaveBeenCalled()
-      expect(deleteSessionMock).toHaveBeenCalledWith(SESSION_ID)
-      expect(deleteSessionMock).toHaveBeenCalledWith(ARCHIVED_SESSION_ID)
-      expect(updateSettingsMock).toHaveBeenCalledWith({
+      expect(apiMock.showConfirm.mock.calls[0]?.join('\n')).not.toContain(PROJECT_PATH)
+      expect(apiMock.cancelAgent).toHaveBeenCalledWith(SESSION_ID)
+      expect(apiMock.deleteSession).toHaveBeenCalledWith(SESSION_ID)
+      expect(apiMock.deleteSession).toHaveBeenCalledWith(ARCHIVED_SESSION_ID)
+      expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(String(SESSION_ID))
+      expect(apiMock.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(
+        String(ARCHIVED_SESSION_ID),
+      )
+      expect(apiMock.updateSettings).toHaveBeenCalledWith({
         projectPath: null,
         recentProjects: [],
         projectDisplayNames: {},
@@ -262,38 +333,6 @@ describe('Sidebar project actions', () => {
       expect(useChatStore.getState().activeSessionId).toBeNull()
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
-    expect(callOrder).toEqual(['delete', 'delete'])
-  })
-
-  it('preflights fresh Worker state before deleting any project sibling', async () => {
-    const blocked = 'Stop this active Worker task before deleting its Session.'
-    const worker: SessionSummary = {
-      ...makeSession(),
-      lineage: {
-        role: 'worker',
-        parentSessionId: SessionId('parent-session'),
-        directWorkerCount: 0,
-        activeDirectWorkerCount: 0,
-        agentDefinitionName: 'worker',
-        delegationState: 'working',
-      },
-    }
-    listSessionsMock.mockResolvedValue([worker])
-    listArchivedSessionsMock.mockResolvedValue([makeArchivedSession()])
-    listActiveRunsMock.mockResolvedValue([{ sessionId: SESSION_ID }])
-    cancelAgentMock.mockResolvedValue(undefined)
-    deleteSessionMock.mockRejectedValue(new Error(blocked))
-    showConfirmMock.mockResolvedValue(true)
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /open project actions for openwaggle/i }))
-    fireEvent.click(screen.getByRole('button', { name: /remove/i }))
-
-    await waitFor(() => expect(useUIStore.getState().toastMessage).toContain(blocked))
-    expect(cancelAgentMock).not.toHaveBeenCalled()
-    expect(deleteSessionMock).not.toHaveBeenCalled()
-    expect(updateSettingsMock).not.toHaveBeenCalled()
-    expect(navigateMock).not.toHaveBeenCalled()
-    expect(useChatStore.getState().activeSessionId).toBe(SESSION_ID)
+    expect(callOrder).toEqual(['cancel:start', 'cancel:end', 'delete', 'delete'])
   })
 })

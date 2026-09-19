@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
 import { useSidebarController } from '../hooks/useSidebarController'
@@ -14,6 +15,8 @@ import { SidebarPinnedSection } from './SidebarPinnedSection'
 import { SidebarProjectList } from './SidebarProjectList'
 import { SidebarSearchBox } from './SidebarSearchBox'
 import { SidebarStatusChips } from './SidebarStatusIndicators'
+
+const SESSION_LOAD_MORE_THRESHOLD_PX = 240
 
 export function Sidebar() {
   const controller = useSidebarController()
@@ -73,7 +76,17 @@ export function Sidebar() {
            * project list scrolling, so nine Pinned rows pushed the projects out of reach in
            * a windowed sidebar: the list below could not be scrolled to.
            */}
-          <div data-qa="sidebar-scroll" className="no-drag sidebar-scroll flex-1 pb-3">
+          <div
+            data-qa="sidebar-scroll"
+            className="no-drag sidebar-scroll flex-1 pb-3"
+            onScroll={(event) => {
+              const element = event.currentTarget
+              const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+              if (remaining < SESSION_LOAD_MORE_THRESHOLD_PX) {
+                void controller.loadMoreVisibleSessions()
+              }
+            }}
+          >
             <SidebarPinnedSection
               rows={controller.pinnedRows}
               activeSessionId={
@@ -111,10 +124,28 @@ export function Sidebar() {
               sessionActions={actions.session}
               branchActions={actions.branch}
             />
+            {controller.hasMoreVisibleSessions ? (
+              <SidebarLoadMoreButton loadMore={controller.loadMoreVisibleSessions} />
+            ) : null}
           </div>
         </div>
         <SidebarSettingsButton onOpenSettings={controller.handleOpenSettings} />
       </nav>
+    </div>
+  )
+}
+
+function SidebarLoadMoreButton({ loadMore }: { readonly loadMore: () => void }) {
+  return (
+    <div className="px-2 pt-1">
+      <Button
+        type="button"
+        variant="unstyled"
+        onClick={() => void loadMore()}
+        className="min-h-8 w-full rounded-md px-2 text-left text-xs font-medium text-accent hover:bg-bg-hover"
+      >
+        Load more sessions
+      </Button>
     </div>
   )
 }

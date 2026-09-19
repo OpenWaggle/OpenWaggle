@@ -8,6 +8,8 @@ export interface SessionSummaryHubInput {
   readonly activeBranchId?: string | null
   readonly activePathNodeIds?: readonly string[]
   readonly messageCount: number
+  /** A newly spawned Worker can need Hive navigation before its first message. */
+  readonly hiveAvailable?: boolean
   readonly autoHidden: boolean
   readonly rightSidebarOpen: boolean
   readonly onOpenDiff: () => void

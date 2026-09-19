@@ -1,3 +1,4 @@
+import { SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE } from '@shared/constants/session-lifecycle'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 
@@ -10,6 +11,7 @@ export async function deleteProjectSessionsChildrenFirst(
     sessions.some(
       (session) =>
         session.lineage?.role === 'worker' &&
+        session.lineage.historical !== true &&
         (session.lineage.delegationState === 'working' ||
           session.lineage.delegationState === 'waiting'),
     )
@@ -36,9 +38,10 @@ export async function deleteProjectSessionsChildrenFirst(
 
   while (pending.size > 0) {
     const parentIds = new Set(
-      [...pending.values()].flatMap((session) =>
-        session.lineage?.parentSessionId ? [String(session.lineage.parentSessionId)] : [],
-      ),
+      [...pending.values()].flatMap((session) => [
+        ...(session.lineage?.parentSessionId ? [String(session.lineage.parentSessionId)] : []),
+        ...(session.derivation ? [String(session.derivation.sourceSessionId)] : []),
+      ]),
     )
     const leaves = [...pending.values()].filter((session) => !parentIds.has(String(session.id)))
     if (leaves.length === 0) {
@@ -52,5 +55,3 @@ export async function deleteProjectSessionsChildrenFirst(
   }
   for (const id of deletionOrder) await deleteSession(id)
 }
-
-import { SESSION_DELETE_BLOCKED_ACTIVE_WORKER_MESSAGE } from '@shared/constants/session-lifecycle'

@@ -3,13 +3,8 @@ import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FirstSendFailed } from '../../lib/message-delivery'
 
-const {
-  flushDraftAuthorizationModeMock,
-  flushDraftWorktreePlanMock,
-  snapshotDraftWorktreePlanMock,
-} = vi.hoisted(() => ({
+const { flushDraftAuthorizationModeMock, snapshotDraftWorktreePlanMock } = vi.hoisted(() => ({
   flushDraftAuthorizationModeMock: vi.fn(async () => {}),
-  flushDraftWorktreePlanMock: vi.fn(async () => {}),
   snapshotDraftWorktreePlanMock: vi.fn(() => ({
     projectPath: '/repo',
     plan: { envMode: 'worktree' as const, baseRef: 'main' },
@@ -21,7 +16,6 @@ vi.mock('@/features/chat/state/draft-authorization-mode-store', () => ({
 }))
 
 vi.mock('@/features/git', () => ({
-  flushDraftWorktreePlanToSession: flushDraftWorktreePlanMock,
   snapshotDraftWorktreePlan: snapshotDraftWorktreePlanMock,
 }))
 
@@ -32,16 +26,17 @@ const PAYLOAD: AgentSendPayload = { text: 'review body', thinkingLevel: 'off', a
 describe("a session's first send", () => {
   beforeEach(() => {
     flushDraftAuthorizationModeMock.mockReset().mockResolvedValue(undefined)
-    flushDraftWorktreePlanMock.mockReset().mockResolvedValue(undefined)
+    snapshotDraftWorktreePlanMock.mockClear()
   })
 
   it('persists an explicit draft authorization override before dispatching the turn', async () => {
+    const createSession = vi.fn(async () => SessionId('session-a'))
     const sendMessageToSession = vi.fn(async () => {})
     const handlers = createSendHandlers({
       activeSessionId: null,
       projectPath: '/repo',
       thinkingLevel: 'off',
-      createSession: vi.fn(async () => SessionId('session-a')),
+      createSession,
       sendMessage: vi.fn(async () => {}),
       sendMessageToSession,
       startWaggleCollaboration: vi.fn(),
@@ -50,15 +45,13 @@ describe("a session's first send", () => {
 
     await handlers.handleSend(PAYLOAD)
 
+    expect(createSession).toHaveBeenCalledWith('/repo', {
+      environmentMode: 'worktree',
+      baseRef: 'main',
+      startFromOrigin: false,
+    })
     expect(snapshotDraftWorktreePlanMock.mock.invocationCallOrder[0]).toBeLessThan(
-      flushDraftWorktreePlanMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    )
-    expect(flushDraftWorktreePlanMock).toHaveBeenCalledWith(
-      {
-        projectPath: '/repo',
-        plan: { envMode: 'worktree', baseRef: 'main' },
-      },
-      SessionId('session-a'),
+      createSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     )
     expect(flushDraftAuthorizationModeMock).toHaveBeenCalledWith('/repo', SessionId('session-a'))
     expect(flushDraftAuthorizationModeMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -88,29 +81,25 @@ describe("a session's first send", () => {
     await expect(handlers.handleSend(PAYLOAD)).rejects.toThrow(/worktree no longer exists/)
   })
 
-  it.each(['worktree', 'authorization'] as const)(
-    'attributes a %s setup failure to the newly created session',
-    async (step) => {
-      const failure = new Error(`${step} setup failed`)
-      if (step === 'worktree') flushDraftWorktreePlanMock.mockRejectedValueOnce(failure)
-      else flushDraftAuthorizationModeMock.mockRejectedValueOnce(failure)
-      const sendMessageToSession = vi.fn(async () => {})
-      const handlers = createSendHandlers({
-        activeSessionId: null,
-        projectPath: '/repo',
-        thinkingLevel: 'off',
-        createSession: vi.fn(async () => SessionId('created-session')),
-        sendMessage: vi.fn(async () => {}),
-        sendMessageToSession,
-        startWaggleCollaboration: vi.fn(),
-        sendWaggleMessage: vi.fn(async () => {}),
-      })
+  it('attributes an authorization setup failure to the newly created session', async () => {
+    const failure = new Error('authorization setup failed')
+    flushDraftAuthorizationModeMock.mockRejectedValueOnce(failure)
+    const sendMessageToSession = vi.fn(async () => {})
+    const handlers = createSendHandlers({
+      activeSessionId: null,
+      projectPath: '/repo',
+      thinkingLevel: 'off',
+      createSession: vi.fn(async () => SessionId('created-session')),
+      sendMessage: vi.fn(async () => {}),
+      sendMessageToSession,
+      startWaggleCollaboration: vi.fn(),
+      sendWaggleMessage: vi.fn(async () => {}),
+    })
 
-      await expect(handlers.handleSend(PAYLOAD)).rejects.toMatchObject({
-        createdSessionId: 'created-session',
-        cause: failure,
-      } satisfies Partial<FirstSendFailed>)
-      expect(sendMessageToSession).not.toHaveBeenCalled()
-    },
-  )
+    await expect(handlers.handleSend(PAYLOAD)).rejects.toMatchObject({
+      createdSessionId: 'created-session',
+      cause: failure,
+    } satisfies Partial<FirstSendFailed>)
+    expect(sendMessageToSession).not.toHaveBeenCalled()
+  })
 })

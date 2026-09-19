@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { MessagePart } from '@shared/types/agent'
-import type { UIMessage } from '@shared/types/chat-ui'
+import type { MessageMetadata, MessagePart } from '@shared/types/agent'
+import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { formatAttachmentPreview } from './chat-attachment-preview'
 
@@ -43,31 +43,36 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
     .exhaustive()
 }
 
+function messageMetadataToUI(metadata: MessageMetadata | undefined): UIMessageMetadata | undefined {
+  if (!metadata) return undefined
+  if (
+    metadata.sessionNodeCreatedOrder === undefined &&
+    !metadata.branchSummary &&
+    !metadata.compactionSummary &&
+    !metadata.waggleInvocation &&
+    !metadata.visualizationSessionId
+  )
+    return undefined
+  return {
+    ...(metadata.sessionNodeCreatedOrder !== undefined
+      ? { sessionNodeCreatedOrder: metadata.sessionNodeCreatedOrder }
+      : {}),
+    ...(metadata.visualizationSessionId
+      ? { visualizationSessionId: metadata.visualizationSessionId }
+      : {}),
+    ...(metadata.branchSummary ? { branchSummary: metadata.branchSummary } : {}),
+    ...(metadata.compactionSummary ? { compactionSummary: metadata.compactionSummary } : {}),
+    ...(metadata.waggleInvocation ? { waggleInvocation: metadata.waggleInvocation } : {}),
+  }
+}
+
 export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
   return session.messages.map((msg) => ({
     id: String(msg.id),
     role: msg.role,
     parts: msg.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(msg.createdAt),
-    ...(msg.metadata?.branchSummary ||
-    msg.metadata?.compactionSummary ||
-    msg.metadata?.waggleInvocation ||
-    msg.metadata?.visualizationSessionId
-      ? {
-          metadata: {
-            ...(msg.metadata.visualizationSessionId
-              ? { visualizationSessionId: msg.metadata.visualizationSessionId }
-              : {}),
-            ...(msg.metadata.branchSummary ? { branchSummary: msg.metadata.branchSummary } : {}),
-            ...(msg.metadata.compactionSummary
-              ? { compactionSummary: msg.metadata.compactionSummary }
-              : {}),
-            ...(msg.metadata.waggleInvocation
-              ? { waggleInvocation: msg.metadata.waggleInvocation }
-              : {}),
-          },
-        }
-      : {}),
+    metadata: messageMetadataToUI(msg.metadata),
   }))
 }
 

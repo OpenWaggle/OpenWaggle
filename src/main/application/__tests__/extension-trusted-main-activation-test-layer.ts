@@ -12,6 +12,7 @@ import { EmptySessionResourceRepositoryTestLayer } from './empty-session-resourc
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -44,11 +45,9 @@ function makeSessionLayers() {
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.succeed(makeSessionDetail(PROJECT_PATH)),
       getOptional: () => Effect.succeed(null),
-      getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
-      getDeletionBlocker: () => Effect.succeed(null),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,
@@ -62,6 +61,7 @@ function makeSessionLayers() {
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),
     Layer.succeed(SessionRepository, {
+      ...emptySessionCatalogMethods,
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),

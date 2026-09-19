@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveVisibleSessionStatus } from '../sidebar-row-state'
+import { mergeExactTerminalCounts, resolveVisibleSessionStatus } from '../sidebar-row-state'
 
 /**
  * One rule for "has the user already seen this finish".
@@ -85,5 +85,26 @@ describe('resolveVisibleSessionStatus', () => {
         lastVisitedAt: SEEN_AT,
       }),
     ).toBe('idle')
+  })
+})
+
+describe('mergeExactTerminalCounts', () => {
+  it('replaces page-local terminal counts while preserving live state counts', () => {
+    expect(
+      mergeExactTerminalCounts(
+        [
+          { state: 'awaiting-input', count: 2 },
+          { state: 'error', count: 1 },
+          { state: 'working', count: 4 },
+          { state: 'completed', count: 3 },
+        ],
+        { error: 250, completed: 175 },
+      ),
+    ).toEqual([
+      { state: 'awaiting-input', count: 2 },
+      { state: 'error', count: 250 },
+      { state: 'working', count: 4 },
+      { state: 'completed', count: 175 },
+    ])
   })
 })

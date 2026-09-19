@@ -9,6 +9,7 @@ import {
   useSessionResourceBackfill,
   useSessionResourceOwnerActivation,
 } from '@/features/session-summary'
+import { useSessionStore } from '@/features/sessions/state'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { useSessionFloatingPreviewStatus } from '@/shell'
 import { useChatPanelSections } from '../hooks/use-chat-panel-controller'
@@ -120,6 +121,16 @@ export function ChatPanelContent({
   const activeSessionId = sections.transcript.activeSessionId
     ? String(sections.transcript.activeSessionId)
     : null
+  const hiveAvailable = useSessionStore((state) => {
+    if (!activeSessionId) return false
+    const current = [
+      state.activeSessionTree?.session,
+      ...state.hiveSessions,
+      ...state.sessions,
+      ...state.archivedSessions,
+    ].find((candidate) => candidate?.id === activeSessionId)
+    return current?.lineage?.role === 'queen' || current?.lineage?.role === 'worker'
+  })
   useSessionResourceOwnerActivation(sections.transcript.activeSessionId)
   const messageCount = Math.max(
     sections.transcript.messages.length,
@@ -154,6 +165,7 @@ export function ChatPanelContent({
               activeBranchId: sections.transcript.activeBranchId ?? null,
               activePathNodeIds,
               messageCount: summaryMessageCount,
+              hiveAvailable,
               autoHidden: summaryNeedsTransientOverlay(
                 summarySpace.hasSpace,
                 floatingPreviewVisible,

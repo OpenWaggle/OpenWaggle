@@ -56,6 +56,10 @@ import {
   sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
+import {
+  resolveNextSessionHostSettings,
+  resolveStoredSessionHostSettings,
+} from './session-host-settings-snapshot'
 
 export function createDefaultSettingsSnapshot() {
   return {
@@ -123,6 +127,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   const diffWrapLines = resolveDiffWrapLines(
     getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
   )
+  const hostSettings = resolveStoredSessionHostSettings(storedSettings)
   const compactionThresholdPercent = resolveCompactionThresholdPercent(
     getStoredValue(storedSettings, SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT),
   )
@@ -149,6 +154,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       syntaxThemeSelections,
       diffView,
       diffWrapLines,
+      ...hostSettings,
       compactionThresholdPercent,
       appearancePreferences,
       ...browserSettings,
@@ -216,6 +222,23 @@ function resolveNextShortcutRules(current: Settings, partial: Partial<Settings>)
 }
 
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
+  const coreSettings = resolveNextCoreSettings(current, partial)
+  const hostSettings = resolveNextSessionHostSettings(current, partial)
+  return {
+    ...current,
+    ...coreSettings,
+    ...hostSettings,
+    compactionThresholdPercent:
+      partial.compactionThresholdPercent !== undefined
+        ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
+        : current.compactionThresholdPercent,
+    ...resolveNextDiffSettings(current, partial),
+    ...resolveNextAppearanceSettings(current, partial),
+    ...resolveNextBrowserSettings(current, partial),
+  } satisfies Settings
+}
+
+function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) {
   const enabledModels = resolveUpdatedSetting(
     partial.enabledModels,
     current.enabledModels,
@@ -268,16 +291,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     current.defaultAuthorizationMode,
     resolveDefaultAuthorizationMode,
   )
-  const diffSettings = resolveNextDiffSettings(current, partial)
-  const compactionThresholdPercent =
-    partial.compactionThresholdPercent !== undefined
-      ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
-      : current.compactionThresholdPercent
-  const appearanceSettings = resolveNextAppearanceSettings(current, partial)
-  const browserSettings = resolveNextBrowserSettings(current, partial)
-
   return {
-    ...current,
     selectedModel,
     favoriteModels,
     enabledModels,
@@ -290,9 +304,5 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     shortcutBindings,
     defaultSessionEnvironmentMode,
     defaultAuthorizationMode,
-    ...diffSettings,
-    compactionThresholdPercent,
-    ...appearanceSettings,
-    ...browserSettings,
-  } satisfies Settings
+  }
 }

@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml'
 
 const EMPTY_COUNT = 0
-const CI_WORKFLOW_AST_CONTRACT = 'ccf9951fa3980bbadd3e8c5eda57d63aab0f1106653bce9473d2c0557be173b8'
+const CI_WORKFLOW_AST_CONTRACT = '38b28b1ee100b421a3d65f0e73a394530c2f90fc2aba22b8e76c2524a761c787'
+const SESSION_PERFORMANCE_WORKFLOW_AST_CONTRACT = 'c43312177f55c0372f2394cb0d524d6afaac181648e90c470938a4724bbc5f6a'
 
 export interface WorkflowActionUse {
   readonly ref?: string
@@ -133,5 +134,14 @@ export function matchesReleaseCiWorkflowAstContract(workflowText: string) {
     parsed.errors.length === 0 &&
     !workflowUsesYamlReferences(parsed.root) &&
     workflowAstContractHash(parsed.root) === CI_WORKFLOW_AST_CONTRACT
+  )
+}
+
+export function matchesSessionPerformanceWorkflowAstContract(workflowText: string) {
+  const parsed = parsePackageReleaseWorkflow(workflowText)
+  return (
+    parsed.errors.length === 0 &&
+    !workflowUsesYamlReferences(parsed.root) &&
+    workflowAstContractHash(parsed.root) === SESSION_PERFORMANCE_WORKFLOW_AST_CONTRACT
   )
 }
