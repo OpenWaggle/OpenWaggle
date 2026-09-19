@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSessionStatusStore } from '@/features/sessions/state'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
 import { queryTerminalSidebarCounts } from './remote-sidebar-session-query'
 import { terminalStateRefreshKey } from './remote-sidebar-terminal-status'
@@ -12,16 +13,15 @@ export function useSidebarTerminalCounts(stateBySessionId: ReadonlyMap<string, S
   const [terminalCounts, setTerminalCounts] = useState<ExactTerminalCounts>({})
   const countGeneration = useRef(0)
   const terminalStateKey = terminalStateRefreshKey(stateBySessionId)
+  const terminalReceiptRevision = useSessionStatusStore((state) => state.terminalReceiptRevision)
 
   useEffect(() => {
+    const refreshKey = `${terminalStateKey}\u0001${terminalReceiptRevision}`
     countGeneration.current += 1
     const requestGeneration = countGeneration.current
-    void queryTerminalSidebarCounts(terminalStateKey)
+    void queryTerminalSidebarCounts(refreshKey)
       .then((result) => {
-        if (
-          countGeneration.current === requestGeneration &&
-          result.refreshKey === terminalStateKey
-        ) {
+        if (countGeneration.current === requestGeneration && result.refreshKey === refreshKey) {
           setTerminalCounts(result.counts)
         }
       })
@@ -31,7 +31,7 @@ export function useSidebarTerminalCounts(stateBySessionId: ReadonlyMap<string, S
           setTerminalCounts({})
         }
       })
-  }, [terminalStateKey])
+  }, [terminalStateKey, terminalReceiptRevision])
 
   return { terminalCounts, setTerminalCounts }
 }

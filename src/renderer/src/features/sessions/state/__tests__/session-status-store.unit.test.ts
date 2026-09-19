@@ -20,6 +20,7 @@ describe('session-status-store', () => {
       completedAt: new Map(),
       statusUpdatedAt: new Map(),
       lastVisitedAt: new Map(),
+      terminalReceiptRevision: 0,
       phases: new Map(),
     })
   })

@@ -9,14 +9,17 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('session-status-store')
 
-function persistLastVisitedAt(id: SessionId, lastVisitedAt: number) {
+function persistLastVisitedAt(id: SessionId, lastVisitedAt: number, onPersisted: () => void) {
   if (typeof api.updateSessionTreeUiState !== 'function') return
-  void api.updateSessionTreeUiState(id, { lastVisitedAt }).catch((error: unknown) => {
-    logger.error('Failed to persist Session read receipt', {
-      sessionId: String(id),
-      error: String(error),
+  void api
+    .updateSessionTreeUiState(id, { lastVisitedAt })
+    .then(onPersisted)
+    .catch((error: unknown) => {
+      logger.error('Failed to persist Session read receipt', {
+        sessionId: String(id),
+        error: String(error),
+      })
     })
-  })
 }
 
 interface SessionStatusState {
@@ -27,6 +30,8 @@ interface SessionStatusState {
   statusUpdatedAt: Map<SessionId, number>
   /** When the user last visited (navigated to) a session */
   lastVisitedAt: Map<SessionId, number>
+  /** Advances after a terminal read receipt reaches the Host. */
+  terminalReceiptRevision: number
   /**
    * What the agent is doing right now, per session.
    *
@@ -221,6 +226,7 @@ const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) =>
   completedAt: new Map<SessionId, number>(),
   statusUpdatedAt: new Map<SessionId, number>(),
   lastVisitedAt: new Map<SessionId, number>(),
+  terminalReceiptRevision: 0,
   phases: new Map<SessionId, AgentPhaseLabel>(),
 
   setStatus(id: SessionId, status: SessionStatus, sourceUpdatedAt: number) {
@@ -273,13 +279,23 @@ const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) =>
   markVisited(id: SessionId) {
     const visitedAt = Date.now()
     set((state) => updateVisitedState(state, id, visitedAt))
-    persistLastVisitedAt(id, visitedAt)
+    const terminal = get().statuses.get(id)
+    persistLastVisitedAt(id, visitedAt, () => {
+      if (terminal === 'completed' || terminal === 'error') {
+        set((state) => ({ terminalReceiptRevision: state.terminalReceiptRevision + 1 }))
+      }
+    })
   },
 
   markUnread(id: SessionId) {
     const unreadAt = 0
     set((state) => updateVisitedState(state, id, unreadAt))
-    persistLastVisitedAt(id, unreadAt)
+    const terminal = get().statuses.get(id)
+    persistLastVisitedAt(id, unreadAt, () => {
+      if (terminal === 'completed' || terminal === 'error') {
+        set((state) => ({ terminalReceiptRevision: state.terminalReceiptRevision + 1 }))
+      }
+    })
   },
 })
 
