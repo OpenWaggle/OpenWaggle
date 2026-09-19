@@ -194,9 +194,17 @@ describe('classifyErrorMessage', () => {
     ['getaddrinfo ENOTFOUND api.example.com', 'provider-unavailable'],
     ['connect ETIMEDOUT', 'provider-unavailable'],
     ['TypeError: fetch failed', 'provider-unavailable'],
+    ['terminated', 'provider-unavailable'],
   ])('classifies "%s" as %s', (message, expectedCode) => {
     const info = classifyErrorMessage(message)
     expect(info.code).toBe(expectedCode)
+  })
+
+  it('gives an actionable message for a closed provider stream', () => {
+    const info = classifyErrorMessage('terminated')
+
+    expect(info.userMessage).toBe('Provider connection failed')
+    expect(info.suggestion).toContain('HTTP idle timeout')
   })
 
   // ─── Unknown fallback ──────────────────────────────────────────

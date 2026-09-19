@@ -45,6 +45,8 @@ the ancestry needed to recognize already-released upstream package syncs.
 
 ## Pi Runtime Memory
 
+- Pi 0.84.4 emits `agent_end` with `willRetry: true` for a transient assistant error, then `auto_retry_start`. If the retry delay is stopped, Pi emits `auto_retry_end` with `finalError: "Retry cancelled"`; this is cancellation, not a provider failure. Preserve `willRetry` and cancellation separately in transport events, and give the run's aborted state priority over any error retained in Pi history. Pi's default HTTP idle timeout is five minutes; Undici may report a stalled or closed streaming connection as `terminated`, which Pi considers retryable. Classify that as a provider connection failure while retaining the raw detail.
+
 Load `.agents/skills/pi-integration/SKILL.md` for details.
 
 - Pi JSONL sessions are runtime state; SQLite session projection is the product read model for renderer navigation, branching, persistence, active runs, and UI state.

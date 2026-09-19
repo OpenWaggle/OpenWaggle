@@ -55,6 +55,13 @@ export function buildAgentRunOutcome({
   resourceBranchIds = {},
 }: BuildAgentRunOutcomeInput): AgentRunResult {
   const resources = { resourceMessages, resourceNodeIds, resourceBranchIds }
+  if (signal.aborted || agentResult.aborted) {
+    return {
+      outcome: 'aborted',
+      ...(resourceMessages.length > 0 ? resources : {}),
+      ...(assignedTitle ? { assignedTitle } : {}),
+    }
+  }
   if (agentResult.terminalError) {
     return terminalErrorOutcome(agentResult.terminalError, {
       sessionId,
@@ -64,7 +71,7 @@ export function buildAgentRunOutcome({
       resources,
     })
   }
-  if (signal.aborted || agentResult.aborted || agentResult.newMessages.length === 0) {
+  if (agentResult.newMessages.length === 0) {
     return {
       outcome: 'aborted',
       ...(resourceMessages.length > 0 ? resources : {}),

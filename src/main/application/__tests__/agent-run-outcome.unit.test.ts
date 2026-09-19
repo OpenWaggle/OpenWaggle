@@ -75,6 +75,23 @@ describe('buildAgentRunOutcome', () => {
     })
   })
 
+  it('keeps a stopped retry aborted when Pi retains its earlier terminal error', () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    expect(
+      buildAgentRunOutcome({
+        ...context,
+        signal: controller.signal,
+        agentResult: {
+          aborted: true,
+          terminalError: 'terminated',
+          newMessages: [assistantMessage()],
+        },
+      }),
+    ).toMatchObject({ outcome: 'aborted' })
+  })
+
   it('treats an empty projection as an aborted outcome without resource work', () => {
     expect(
       buildAgentRunOutcome({
