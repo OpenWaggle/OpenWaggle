@@ -15,6 +15,7 @@ import {
   createOpenWaggleGlobalPiSettingsManager,
   createOpenWagglePiSettingsManager,
 } from './openwaggle-pi-settings-storage'
+import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
 import {
   createOpenWaggleGlobalPiResourceLoaderOptions,
   createOpenWagglePiResourceLoaderOptions,
@@ -163,6 +164,12 @@ export async function createPiRuntimeServices(
 ): Promise<AgentSessionServices> {
   const agentDir = getPiAgentDir()
   const visualizeSkillPaths = await resolvePiVisualizeSkillPaths(agentDir)
+  // Enforce the bundled-Bedrock override at the ModelRuntime construction
+  // chokepoint, not only at runtime module load, so a future main entrypoint
+  // that builds a runtime without importing runtime.ts cannot silently
+  // reintroduce the packaged-only "Cannot find module bedrock-converse-stream"
+  // failure. Idempotent, so this is free.
+  registerPiBundledBedrockProvider()
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
     ...(options.compactionThresholdPercent !== undefined
       ? { compactionThresholdPercent: options.compactionThresholdPercent }
@@ -191,6 +198,7 @@ export async function createPiRuntimeServices(
 
 async function createPiGlobalProviderCatalogServices() {
   const agentDir = getPiAgentDir()
+  registerPiBundledBedrockProvider()
   const settingsManager = createOpenWaggleGlobalPiSettingsManager({
     excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
     runtimeExcludedNpmPackageNames: OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES,

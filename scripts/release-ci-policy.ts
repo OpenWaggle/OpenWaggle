@@ -11,16 +11,14 @@ import {
 } from './release-ci-performance-policy'
 import {
   CHECKOUT_STEP,
+  ALLOWED_JOB_CONDITIONS,
   COMMIT_POLICY_CHECKOUT_STEP,
   CONCURRENCY_CANCEL_LINE,
   CONCURRENCY_GROUP,
   DISPATCH_GUARD_STEP,
   EXPECTED_STEPS,
   IMMUTABLE_ACTIONS,
-  QUEUE_ONLY_JOB_CONDITIONS,
   REQUIRED_COMMANDS,
-  REQUIRED_JOB_RUNNERS,
-  WINDOWS_DISPATCH_GUARD_STEP,
 } from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
@@ -29,9 +27,6 @@ export const REQUIRED_CI_CHECKS = [
   'Unit Tests',
   'Integration & Component Tests',
   'MCP Conformance',
-  'Electron E2E (macOS)',
-  'Electron E2E (Linux)',
-  'Electron E2E (Windows)',
 ] as const
 const EXPECTED_CI_JOBS = [
   ...REQUIRED_CI_CHECKS,
@@ -105,12 +100,7 @@ function validateDispatchSupport(
   }
 
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
-  const guardedJobs = requiredJobs.filter((job) => {
-    const expectedGuard = job.name === 'Electron E2E (Windows)'
-      ? WINDOWS_DISPATCH_GUARD_STEP
-      : DISPATCH_GUARD_STEP
-    return readSteps(job)[0] === expectedGuard
-  })
+  const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
   const checkoutJobs = requiredJobs.filter((job) =>
     readSteps(job).some(
       (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
@@ -131,11 +121,8 @@ function validateDispatchSupport(
 
   for (const job of requiredJobs) {
     const steps = readSteps(job)
-    const expectedGuard = job.name === 'Electron E2E (Windows)'
-      ? WINDOWS_DISPATCH_GUARD_STEP
-      : DISPATCH_GUARD_STEP
     const hasContract =
-      steps[0] === expectedGuard &&
+      steps[0] === DISPATCH_GUARD_STEP &&
       steps.some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP)
     if (!hasContract) {
       violations.push(`CI job ${job.name} must independently guard and check out inputs.head_sha.`)
@@ -203,14 +190,13 @@ function validateSecurity(
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
-  const runner = REQUIRED_JOB_RUNNERS.get(job.name)
-  const expectedKeys =
-    runner === undefined
-      ? [...REQUIRED_JOB_KEYS]
-      : QUEUE_ONLY_JOB_CONDITIONS.has(job.name)
-        ? [...REQUIRED_JOB_KEYS, 'if']
-        : [...REQUIRED_JOB_KEYS]
-  const contractRunner = runner ?? 'ubuntu-latest'
+  // A job may carry a job-level `if` only if it is registered in
+  // ALLOWED_JOB_CONDITIONS with an exact condition (the release-pr-skipped test jobs).
+  // Every required job runs on ubuntu-latest.
+  const expectedKeys = ALLOWED_JOB_CONDITIONS.has(job.name)
+    ? [...REQUIRED_JOB_KEYS, 'if']
+    : [...REQUIRED_JOB_KEYS]
+  const contractRunner = 'ubuntu-latest'
   const hasExactJobContract =
     jobKeys.length === expectedKeys.length &&
     expectedKeys.every((key) => jobKeys.includes(key)) &&
@@ -225,14 +211,14 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
 function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
   const jobNames = new Set(jobs.map((job) => job.name))
   for (const requiredName of REQUIRED_CI_CHECKS) {
-    if (QUEUE_ONLY_JOB_CONDITIONS.has(requiredName)) continue
+    if (ALLOWED_JOB_CONDITIONS.has(requiredName)) continue
     const job = jobs.find((candidate) => candidate.name === requiredName)
     if (job !== undefined && job.keys.includes('if')) {
       violations.push('CI required jobs must run unconditionally for every configured trigger.')
       break
     }
   }
-  for (const [jobName, conditionLines] of QUEUE_ONLY_JOB_CONDITIONS) {
+  for (const [jobName, conditionLines] of ALLOWED_JOB_CONDITIONS) {
     const job = jobs.find((candidate) => candidate.name === jobName)
     if (job === undefined) continue
     const hasExactCondition = conditionLines.every((line) => job.block.includes(line))

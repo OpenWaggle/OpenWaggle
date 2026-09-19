@@ -1,5 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+// Must be first: renames dev builds before any module reads app userData.
+import './apply-build-identity'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { startAccessCliIfRequested } from './access-cli-entry'
@@ -66,7 +68,7 @@ if (app.isPackaged) {
 }
 
 const appIconPath = is.dev
-  ? join(__dirname, '../../build/icon.png')
+  ? join(__dirname, '../../build/icon-dev.png')
   : join(process.resourcesPath, 'icon.png')
 const logger = createLogger('main/index')
 const startupStartedAt = performance.now()

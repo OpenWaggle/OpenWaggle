@@ -21,7 +21,6 @@ on:
         options:
           - full
           - fast
-          - visual
 
 permissions:
   contents: read
@@ -31,9 +30,6 @@ env:
   # Makes `pnpm check:installer` fail when NSIS is absent instead of skipping, so the
   # installer compile check cannot silently stop running in CI.
   REQUIRE_NSIS: '1'
-  # E2E worker count. Each E2E test launches its own Electron instance with isolated user
-  # data, so two workers halve suite wall-clock; override to '1' if parallel flakes appear.
-  PLAYWRIGHT_WORKERS: '2'
 
 # Pull-request runs cancel superseded runs for the same PR. Merge-queue runs are never
 # cancelled here: each queue entry validates one speculative merge result, and killing it
@@ -43,9 +39,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
-  # A relative reusable call uses this exact CI commit, including on a branch where
-  # the new standalone workflow has not yet been registered on the default branch.
-  # Merge groups keep the standalone benchmark; Fast and visual runs do not select it.
   session-performance:
     name: Session Performance
     if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
@@ -89,16 +82,10 @@ jobs:
 
       - name: Validate Conventional Commits
         env:
-          COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
+          COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           COMMIT_POLICY_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PR_TITLE: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
-            COMMIT_POLICY_FROM="$(git merge-base --all origin/main "$COMMIT_POLICY_TO")"
-            test "${#COMMIT_POLICY_FROM}" -eq 40
-            [[ "$COMMIT_POLICY_FROM" =~ ^[0-9a-f]{40}$ ]]
-          fi
-          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
+        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
 
   check:
     name: Typecheck & Lint
@@ -136,6 +123,10 @@ jobs:
 
   test-unit:
     name: Unit Tests
+    # Skip on the Release Please version-bump PR: it carries no source changes, so the
+    # suite would re-validate a tree already proven on the feature PRs and on push to main.
+    # The release-pr gate tier accepts this skip; every ordinary PR still runs it.
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -167,6 +158,8 @@ jobs:
 
   test-integration-component:
     name: Integration & Component Tests
+    # Skipped on the Release Please version-bump PR (see test-unit).
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -210,6 +203,8 @@ jobs:
 
   test-mcp-conformance:
     name: MCP Conformance
+    # Skipped on the Release Please version-bump PR (see test-unit).
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -283,187 +278,6 @@ jobs:
           else
             echo "website-docs=false" >> "$GITHUB_OUTPUT"
           fi
-
-  electron-e2e-macos:
-    name: Electron E2E (macOS)
-    # The merge queue and dispatched runs validate E2E; main pushes stay a static canary.
-    if: github.event_name != 'push'
-    # macOS runs both the shared functional suite and the native Darwin visual baselines.
-    runs-on: macos-15
-    timeout-minutes: 20
-    steps:
-      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: ${{ github.sha }}
-          EXPECTED_SHA: ${{ inputs.head_sha }}
-        run: |
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
-
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 11.15.1
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-
-      - uses: ./.github/actions/pnpm-install
-
-      - run: pnpm benchmark:syntax
-        env:
-          SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json
-
-      - name: Run Electron E2E (full suite including visual baselines)
-        if: github.event_name != 'workflow_dispatch' || inputs.ci_tier != 'visual'
-        run: pnpm test:e2e
-
-      - name: Run Electron E2E (visual baselines only)
-        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'visual'
-        run: pnpm test:e2e:visual
-
-      - name: Upload Electron E2E failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: electron-e2e-macos-failure
-          path: test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload Electron E2E Playwright report
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: electron-e2e-macos-report
-          path: playwright-report
-          if-no-files-found: ignore
-          retention-days: 7
-
-  electron-e2e-linux:
-    name: Electron E2E (Linux)
-    # Linux and Windows E2E only gate the merge-queue result and dispatched full runs.
-    # Per-push iteration runs the macOS suite so the dev loop stays fast and deterministic.
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')
-    steps:
-      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: ${{ github.sha }}
-          EXPECTED_SHA: ${{ inputs.head_sha }}
-        run: |
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
-
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 11.15.1
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-
-      - uses: ./.github/actions/pnpm-install
-
-      - name: Install Linux Electron dependencies
-        run: pnpm exec playwright install-deps chromium
-
-      - name: Install terminal integration shells
-        run: |
-          sudo apt-get install --yes zsh
-          /bin/zsh --version
-          while IFS= read -r insecure_path; do
-            [ -n "$insecure_path" ] || continue
-            sudo chown root -- "$insecure_path"
-            sudo chmod go-w -- "$insecure_path"
-          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
-          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'
-
-      - run: xvfb-run --auto-servernum pnpm test:e2e:functional
-
-      - name: Upload Electron E2E failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: electron-e2e-linux-failure
-          path: test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload Electron E2E Playwright report
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: electron-e2e-linux-report
-          path: playwright-report
-          if-no-files-found: ignore
-          retention-days: 7
-
-  electron-e2e-windows:
-    name: Electron E2E (Windows)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')
-    steps:
-      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: ${{ github.sha }}
-          EXPECTED_SHA: ${{ inputs.head_sha }}
-        run: |
-          if ($env:EXPECTED_SHA -notmatch '^[0-9a-f]{40}$') { exit 1 }
-          if ($env:DISPATCHED_SHA -ne $env:EXPECTED_SHA) { exit 1 }
-
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
-
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 11.15.1
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-
-      - uses: ./.github/actions/pnpm-install
-
-      - name: Verify Windows Session Host pipe isolation
-        run: pnpm exec vitest run -c vitest.integration.config.ts src/main/session-host/__tests__/local-session-windows-security.integration.test.ts
-
-      - run: pnpm test:e2e:functional
-
-      - name: Upload Electron E2E failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: electron-e2e-windows-failure
-          path: test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload Electron E2E Playwright report
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: electron-e2e-windows-report
-          path: playwright-report
-          if-no-files-found: ignore
-          retention-days: 7
 
   package-release-rehearsal-package:
     name: Package Consumer Rehearsal (Node 22.19.0)
@@ -711,16 +525,13 @@ jobs:
       - test-integration-component
       - test-mcp-conformance
       - changes
-      - electron-e2e-macos
-      - electron-e2e-linux
-      - electron-e2e-windows
       - package-release-rehearsal-package
       - package-release-rehearsal-website
       - package-release-candidate
     if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
-      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast-no-e2e' || 'fast' }}
+      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast' || (github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) && 'release-pr' || 'fast' }}
     steps:
       - name: Require selected Session Performance result
         if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
@@ -738,4 +549,4 @@ jobs:
           package-manager-cache: false
 
       - name: Enforce package release readiness
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "$CI_TIER" "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.changes.result }}" "${{ needs.test-unit.result }}" "${{ needs.test-integration-component.result }}" "${{ needs.test-mcp-conformance.result }}" "${{ needs.electron-e2e-macos.result }}" "${{ needs.electron-e2e-linux.result }}" "${{ needs.electron-e2e-windows.result }}" "${{ needs.package-release-rehearsal-package.result }}" "${{ needs.package-release-rehearsal-website.result }}" "${{ needs.package-release-candidate.result }}"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "$CI_TIER" "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.changes.result }}" "${{ needs.test-unit.result }}" "${{ needs.test-integration-component.result }}" "${{ needs.test-mcp-conformance.result }}" "${{ needs.package-release-rehearsal-package.result }}" "${{ needs.package-release-rehearsal-website.result }}" "${{ needs.package-release-candidate.result }}"

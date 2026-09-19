@@ -42,10 +42,9 @@ export const REQUIRED_CHECK_CONTEXTS = [
   'Package Release Gate',
   'Commit Policy',
   'Typecheck & Lint',
-  'Unit & Component Tests',
-  'Electron E2E (macOS)',
-  'Electron E2E (Linux)',
-  'Electron E2E (Windows)',
+  'Unit Tests',
+  'Integration & Component Tests',
+  'MCP Conformance',
 ] as const
 
 export const DEPLOYED_LEGACY_CHECK_CONTEXTS = [

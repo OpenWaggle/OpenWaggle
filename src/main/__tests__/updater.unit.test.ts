@@ -1,3 +1,4 @@
+import type { BuildChannel } from '@shared/types/build-identity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // vi.hoisted() callbacks are hoisted above all imports, so they cannot reference
@@ -5,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.mock factory (which also runs before module-scope code but after Node is ready).
 const {
   mockIsDev,
+  mockBuildChannel,
   mockBroadcastToWindows,
   mockCheckForUpdatesFn,
   mockQuitAndInstall,
@@ -13,9 +15,11 @@ const {
   const autoUpdaterRef: {
     current: import('node:events').EventEmitter | null
   } = { current: null }
+  const mockBuildChannel: { value: BuildChannel } = { value: 'alpha' }
 
   return {
     mockIsDev: { value: false },
+    mockBuildChannel,
     mockBroadcastToWindows: vi.fn(),
     mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
     mockQuitAndInstall: vi.fn(),
@@ -26,6 +30,12 @@ const {
 vi.mock('@electron-toolkit/utils', () => ({
   get is() {
     return { dev: mockIsDev.value }
+  },
+}))
+
+vi.mock('@shared/build-identity-runtime', () => ({
+  get BUILD_CHANNEL() {
+    return mockBuildChannel.value
   },
 }))
 
@@ -81,6 +91,7 @@ describe('updater service', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mockIsDev.value = false
+    mockBuildChannel.value = 'alpha'
     mockBroadcastToWindows.mockReset()
     mockCheckForUpdatesFn.mockReset()
     mockQuitAndInstall.mockReset()
@@ -113,6 +124,13 @@ describe('updater service', () => {
       mockIsDev.value = false
       checkForUpdates()
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+    })
+
+    it('is a no-op for dev channel builds even outside dev mode', () => {
+      mockIsDev.value = false
+      mockBuildChannel.value = 'dev'
+      checkForUpdates()
+      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
     })
   })
 
@@ -149,6 +167,23 @@ describe('updater service', () => {
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
       vi.advanceTimersByTime(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+    })
+
+    it('does not register listeners for dev channel builds', () => {
+      mockIsDev.value = false
+      mockBuildChannel.value = 'dev'
+      initAutoUpdater()
+      vi.advanceTimersByTime(10_000)
+      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
+      expect(emitter().listenerCount('checking-for-update')).toBe(0)
+    })
+
+    it('uses the published latest feed and allows prereleases', () => {
+      mockIsDev.value = false
+      mockBuildChannel.value = 'alpha'
+      initAutoUpdater()
+      expect(Reflect.get(emitter(), 'channel')).toBe('latest')
+      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(true)
     })
   })
 

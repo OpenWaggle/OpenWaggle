@@ -23,6 +23,7 @@ import { FirstPartyMcpRuntimeServiceLive } from './adapters/mcp/first-party-mcp-
 import { McpTurnStateServiceLive } from './adapters/mcp/mcp-turn-state-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiAgentSteeringServiceLive } from './adapters/pi/pi-agent-steering-adapter'
+import { registerPiBundledOAuthFlows } from './adapters/pi/pi-bundled-oauth'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
@@ -205,6 +206,9 @@ const SessionControlServicesLive = Layer.mergeAll(
   FilesystemSessionExportArtifactWriterLive,
   SessionExportResourceResolverWithDatabaseLive,
 )
+
+registerPiBundledOAuthFlows()
+
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,

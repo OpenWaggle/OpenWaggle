@@ -361,9 +361,6 @@ importers:
       oxlint-tsgolint:
         specifier: 7.0.2001
         version: 7.0.2001
-      playwright:
-        specifier: 1.61.1
-        version: 1.61.1
       react:
         specifier: 19.2.8
         version: 19.2.8

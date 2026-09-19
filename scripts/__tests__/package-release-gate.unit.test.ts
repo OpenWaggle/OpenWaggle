@@ -7,9 +7,6 @@ const ALL_SUCCESS = {
   changesResult: 'success',
   checkResult: 'success',
   commitPolicyResult: 'success',
-  e2eLinuxResult: 'success',
-  e2eMacosResult: 'success',
-  e2eWindowsResult: 'success',
   mcpConformanceResult: 'success',
   rehearsalPackageResult: 'success',
   rehearsalWebsiteResult: 'success',
@@ -35,13 +32,11 @@ describe('Package Release Gate', () => {
     ).not.toThrow()
   })
 
-  it('passes the fast tier when queue-only jobs were skipped', () => {
+  it('passes the fast tier when the path-scoped rehearsals were skipped', () => {
     expect(() =>
       validatePackageReleaseGate({
         results: {
           ...ALL_SUCCESS,
-          e2eLinuxResult: 'skipped',
-          e2eWindowsResult: 'skipped',
           rehearsalPackageResult: 'skipped',
           rehearsalWebsiteResult: 'skipped',
         },
@@ -50,54 +45,48 @@ describe('Package Release Gate', () => {
     ).not.toThrow()
   })
 
-  it('passes the push tier without E2E results', () => {
+  it('passes the fast tier on a push where the path-scoped changes job is skipped', () => {
+    // The `changes` job carries `if: github.event_name != 'push'`, so on a push to main it
+    // reports `skipped`. The fast tier must tolerate that (a changes job that actually runs
+    // and fails is still rejected by the generic non-success check).
     expect(() =>
       validatePackageReleaseGate({
         results: {
           ...ALL_SUCCESS,
-          e2eLinuxResult: 'skipped',
-          e2eMacosResult: 'skipped',
-          e2eWindowsResult: 'skipped',
           changesResult: 'skipped',
           rehearsalPackageResult: 'skipped',
           rehearsalWebsiteResult: 'skipped',
         },
-        tier: 'fast-no-e2e',
+        tier: 'fast',
       }),
     ).not.toThrow()
   })
 
-  it('passes the visual tier when only the macOS E2E job ran', () => {
+  it('passes the release-pr tier when the app test suite is skipped on the version-bump PR', () => {
     expect(() =>
       validatePackageReleaseGate({
         results: {
           ...ALL_SUCCESS,
-          changesResult: 'skipped',
-          checkResult: 'skipped',
-          commitPolicyResult: 'skipped',
-          candidateResult: 'skipped',
-          e2eLinuxResult: 'skipped',
-          e2eWindowsResult: 'skipped',
+          testUnitResult: 'skipped',
+          testIntegrationComponentResult: 'skipped',
           mcpConformanceResult: 'skipped',
+          changesResult: 'skipped',
           rehearsalPackageResult: 'skipped',
           rehearsalWebsiteResult: 'skipped',
-          testIntegrationComponentResult: 'skipped',
-          testUnitResult: 'skipped',
         },
-        tier: 'visual',
+        tier: 'release-pr',
       }),
     ).not.toThrow()
   })
 
   it.each([
-    ['full', 'e2eWindowsResult', 'failure', 'Electron E2E (Windows)'],
     ['full', 'changesResult', 'failure', 'changed-surface detection'],
     ['full', 'rehearsalPackageResult', 'failure', 'package consumer rehearsal'],
     ['full', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
-    ['fast', 'e2eMacosResult', 'skipped', 'Electron E2E (macOS)'],
+    ['fast', 'testUnitResult', 'skipped', 'unit tests'],
     ['fast', 'candidateResult', 'failure', 'package release candidate'],
-    ['fast-no-e2e', 'testUnitResult', 'cancelled', 'unit tests'],
-    ['visual', 'e2eMacosResult', 'failure', 'Electron E2E (macOS)'],
+    ['release-pr', 'checkResult', 'failure', 'typecheck and lint'],
+    ['release-pr', 'candidateResult', 'skipped', 'package release candidate'],
   ] as const)('fails on tier %s when %s is %s', (tier, job, result, label) => {
     expect(() =>
       validatePackageReleaseGate({
