@@ -69,7 +69,30 @@ export function useSelectedSessionModel(): {
           clearDesiredSessionModel(sessionKey, pickGeneration)
           // Converge inside the queue, so a newer pick cannot start from a cache this failed
           // write is about to overwrite.
-          await useChatStore.getState().refreshSession(sessionId)
+          try {
+            const fresh = await api.getSessionDetail(sessionId)
+            if (fresh) {
+              useChatStore.getState().upsertSession(fresh)
+              refreshSessionStoreForSession(sessionId, useChatStore.getState().activeSessionId)
+            } else {
+              await useChatStore.getState().refreshSession(sessionId)
+            }
+          } catch (reloadError) {
+            // The write and the reload both failed (same outage): restore the pre-pick detail and
+            // summary so nothing keeps a model that was never persisted.
+            logger.warn('Reloading after a failed model pick failed; restoring pre-pick state', {
+              model: String(model),
+              error: String(reloadError),
+            })
+            if (session) useChatStore.getState().upsertSession(session)
+            useSessionStore.setState((s) => ({
+              sessions: s.sessions.map((summary) =>
+                String(summary.id) === sessionKey
+                  ? { ...summary, selectedModel: session?.selectedModel }
+                  : summary,
+              ),
+            }))
+          }
           return
         }
         // Late detail/summary refreshes are reconciled by the guard, not here. Sync the
