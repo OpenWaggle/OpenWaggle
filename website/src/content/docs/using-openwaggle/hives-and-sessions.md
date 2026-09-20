@@ -21,6 +21,8 @@ Start in a normal Session and ask the agent to split a concrete job:
 
 The current Session becomes the Queen. OpenWaggle creates each Worker as a durable Session, adds it to the normal sidebar, and keeps its Run active when you navigate elsewhere. Workers report results to their parent agent. The Queen reviews those reports and returns one combined answer in the original Session.
 
+You can keep working in the Queen Session while Workers run. The Hive section in Session Summary shows which direct Workers are active and which have finished; it is a navigation and status view, not a separate approval queue. If a Worker needs a correction, tell the Queen what to change. The parent agent can request a revision of that Worker's submission. You can also open any Worker Session and talk to it directly.
+
 Click a Worker in the sidebar or the Session Summary's Hive section to inspect its full transcript. In a Worker Session, the same section links back to its immediate parent. Collapsing the section hides these shortcuts without hiding or stopping any Session. The Summary is available even before a newly spawned Worker has sent its first message.
 
 Sessions spawned by the older MCP task feature keep their Queen–Worker links after the one-time Session Host upgrade. The sidebar and Summary show these historical relationships, including their last recorded state and Agent definition. They are navigation and history only: OpenWaggle does not invent a new parent Run, delegation grant, or control permission for those older tasks. New Workers use the live Session Host delegation model.
@@ -74,6 +76,14 @@ Settings > Agents > Hive controls whether hosted agents may launch or spawn Sess
 Each spawn creates one durable Delegation Contract. The Worker submits a revision with evidence; the parent agent normally reviews it, asks for revision, or accepts it. The GUI shows state and navigation but does not make the human approve every submission. A normally completed Worker that did not submit explicitly receives a host-captured submission so its result is not lost.
 
 Use [Agent Definitions](/docs/extending/agent-definitions) for optional reusable roles. No definition is required: the parent agent may decide the Worker approach for each assignment.
+
+## How hosted agents coordinate
+
+An agent running inside OpenWaggle uses its native `sessions` tool. It can list or search available Agent definitions, then spawn a Worker with a specific objective, an optional definition, and an explicit Workspace choice. Without a definition, the Worker is a normal agent. A spawned Worker starts with its own context: the parent must include the task and any necessary references rather than assuming the Worker can see the parent's transcript.
+
+After spawning, the parent can use `wait` for a bounded observation, read the Worker's Session or Delegation history, and review its submitted revision. The native tool's `wait` is not a permanent subscription; external CLI/MCP clients can use `watch` for a continuing event stream. The parent may ask for revision or accept the submission. An agent can use `report` to pass context to its parent, the Queen, or another Worker without starting a Run in the recipient. A user can ask a Worker to report a finding upstream; no separate reporting UI is required.
+
+Keep a later instruction as a **Follow-up** when it should start after the current Run. Use **Steer** only when it belongs in that exact active Run. Navigating between Sessions does not interrupt either Run. See the [Sessions CLI](/docs/developer-workflow/sessions-cli) for the corresponding external-agent commands.
 
 ## External control and live UI updates
 

@@ -34,6 +34,29 @@ Primary references:
 - `docs/specs/pi-migration-remaining-work.md`
 - `MEMORY.md`
 
+### Session Host And Hives
+
+The local Session Host is the shared authority for durable Sessions, Runs, queues, lineage,
+delegations, and events. The GUI, CLI, MCP adapter, and the in-process `sessions` tool use that
+authority; do not implement a second orchestration store or route hosted agents through the CLI.
+A Hive is a family of Sessions: its root is the Queen, and descendants are Workers. These names
+describe lineage, not fixed agent roles or automatic control grants. Each Worker has its own
+transcript and Workspace binding; spawning does not copy the parent's conversation. A Worker may
+spawn further Workers when permitted.
+
+For hosted-agent coordination, discover optional Agent definitions on demand, spawn Workers with
+clear objectives and deliberate Workspace placement, then inspect their Runs and Delegation
+submissions. Parents can request revisions or accept a specific submission; agents can send
+explicit reports upstream, to the Queen, or to another Worker. The native `wait` action observes
+a condition once; external CLI/MCP clients can use `watch` for an ongoing event subscription.
+`follow_up` schedules a separate next Run, while `steer` appends to one exact active Run. No Agent
+definition is required for a normal Worker.
+
+The canonical behavior and examples are in the user-facing
+[Hive guide](../../website/src/content/docs/using-openwaggle/hives-and-sessions.md),
+[Sessions CLI guide](../../website/src/content/docs/developer-workflow/sessions-cli.md), and
+[Agent Definitions guide](../../website/src/content/docs/extending/agent-definitions.md).
+
 ### Renderer And Product Shell
 
 The renderer is React 19 with React Compiler, TanStack Router/Query, Zustand, and Tailwind v4. It consumes typed IPC DTOs and `AgentTransportEvent` streams; it must not consume Pi SDK objects.
@@ -91,6 +114,9 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 - **Pi**: Runtime kernel and source of truth for agent execution, native tools, sessions, providers, models, auth, and compaction.
 - **OpenWaggle projection**: SQLite read model and UI state over Pi sessions, nodes, branches, and product metadata.
 - **Session Tree**: Product navigation over projected Pi session nodes and branches.
+- **Session Host**: Local authority shared by the GUI, CLI, MCP adapter, and native Sessions tool for Session and Run control.
+- **Hive**: A Queen Session and its descendant Worker Sessions, each with a durable transcript and Run lifecycle.
+- **Delegation Contract**: Durable spawned-work assignment whose Worker submission the parent can review, revise, or accept.
 - **Branch-scoped config**: Composer and mode configuration attached to a branch, inherited by child branches unless overridden.
 - **Waggle**: Multi-agent collaboration mode running through Pi-native extension/runtime behavior.
 - **Inherited Waggle model**: A Waggle agent model choice that follows the current standard-mode selected model unless the agent is explicitly pinned to a provider/model.

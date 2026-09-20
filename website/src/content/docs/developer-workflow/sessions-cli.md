@@ -7,6 +7,8 @@ section: "Developer Workflow"
 
 The `openwaggle` CLI is a client of the same local Session Host as the desktop app. It does not open the Session database directly. Commands can start the Host on demand, accepted Runs continue when the GUI closes, and Host events keep an open GUI synchronized with CLI activity.
 
+An agent hosted by OpenWaggle should use its native `sessions` tool. The CLI is for people in a terminal and agents running in other tools. Both paths create the same durable Sessions; a CLI-spawned Worker appears in the desktop sidebar and Session Summary.
+
 On Windows, starting a detached Host uses the built-in Windows PowerShell helper to prevent it from retaining the launching client's pipes. This lets a CLI command finish while the Host continues running. If the helper cannot run, startup fails with an error instead of falling back to a launch that can leave the CLI hanging.
 
 The installed app includes the CLI. On macOS and Linux, packaged app startup installs or refreshes its managed command at `~/.local/bin/openwaggle`; make sure `~/.local/bin` is on your shell's `PATH`. OpenWaggle never overwrites an unrelated file at that path, so resolve a path conflict explicitly if the command is unavailable. The Windows installer manages the command. From a source checkout, use `pnpm cli:dev -- <command>`.
@@ -71,6 +73,22 @@ Use `message` when adaptive start-or-queue behavior is wanted. Use `follow-up` w
 Profiles that use `replace` need both `sessions:message` and `sessions:interrupt`. A `sessions:start` grant does not substitute for message authority during Run replacement.
 
 Successful `steer` and `promote` responses include a delivery `receipt`. `delivery: "queued"` means Pi accepted the input for the active Run, not that it has reached the transcript yet. Its `durableTextSha256` is the lowercase SHA-256 of the exact projected first text block encoded as UTF-8, after Pi input transformations. Image-placeholder text parts are not included. `minimumCreatedOrder` is the earliest eligible native Session node order, captured after compaction and before queueing, so an older identical prompt cannot acknowledge the steer. This is not an index into the visible, compacted transcript. `delivery: "handled"` means an extension consumed the command without queueing a user message. Replayed successes saved by an older Host report `delivery: "unavailable"` when no receipt was recorded; they are never executed again to reconstruct it. These commands require Local Session protocol revision 8. Use `watch` or `read` to observe subsequent delivery.
+
+### Coordinate a Worker from another tool
+
+Find the parent Session and its active Run first, then spawn against that Run. The exact Run id prevents an external agent from attaching a Worker to a parent that has already moved on. Choose `share-parent` for the same checkout or `new-worktree` when edits need isolation.
+
+```sh
+openwaggle sessions search "Sessions release" --all
+openwaggle sessions status <parent-id>
+openwaggle sessions spawn <parent-id> --expected-run <run-id> \
+  --text "Review the release checks and submit findings" --workspace new-worktree
+openwaggle sessions wait <worker-id> --condition idle --timeout-ms 60000
+openwaggle sessions read <worker-id> --full --jsonl
+openwaggle delegations list --parent <parent-id>
+```
+
+Read the returned Worker and Delegation ids from the spawn response; do not infer them from a title. A wait is one bounded observation, not a subscription. If it times out, the Worker may still be running: wait again or use `sessions watch <worker-id>` for live events. Review the Delegation submission before asking for revision or accepting it. To pass information between Sessions without starting another Run, use `sessions report <source-session-id> --upstream --text "..."` or target a Session explicitly with `--target <id>`.
 
 ## Queue, requests, and coordination
 
