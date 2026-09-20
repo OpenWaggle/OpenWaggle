@@ -8,6 +8,8 @@ import {
   MessageDeliveredRunFailed,
   MessageNotDelivered,
 } from '@/features/chat/lib/message-delivery'
+import { isModelActionable } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createOptimisticUserMessage } from '../lib/useAgentChat.utils'
 import { createPendingRunWaiter, updateMessagesForSession } from './useAgentChat.message-cache'
@@ -156,7 +158,9 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     if (!sessionId) {
       return
     }
-    if (!params.model) {
+    // Transcript retries and diff follow-ups bypass the composer gate, so the dispatch itself
+    // refuses models the picker can no longer offer.
+    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, params.model)) {
       params.setError(new Error('Select a model before sending.'))
       return
     }

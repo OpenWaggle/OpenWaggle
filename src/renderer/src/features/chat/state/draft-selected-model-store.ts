@@ -84,9 +84,12 @@ export function applyDraftSelectedModelToSession(
 export function undoDraftSelectedModelPromotion(sessionId: SessionId, generation: number): void {
   const sessionKey = String(sessionId)
   clearDesiredSessionModel(sessionKey, generation)
-  const created = useChatStore.getState().activeSession
-  if (created && String(created.id) === sessionKey) {
-    useChatStore.getState().upsertSession({ ...created, selectedModel: undefined })
+  // The user may have navigated away while setup was pending: roll the cached row back by id,
+  // so a later setActiveSession cannot reuse the unpersisted pick. upsertSession also updates
+  // activeSession when the ids match.
+  const cached = useChatStore.getState().sessionById.get(sessionId)
+  if (cached) {
+    useChatStore.getState().upsertSession({ ...cached, selectedModel: undefined })
   }
   useSessionStore.setState((state) => ({
     sessions: state.sessions.map((summary) =>
