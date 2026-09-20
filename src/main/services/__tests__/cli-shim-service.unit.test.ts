@@ -6,7 +6,11 @@ import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSafeChildEnv } from '../../env'
 import { managedCliShimContent } from '../cli-shim-content'
-import { createCliShimService, resolveCliShimExecutablePath } from '../cli-shim-service'
+import {
+  createCliShimService,
+  ensureCliShimInstalled,
+  resolveCliShimExecutablePath,
+} from '../cli-shim-service'
 
 const POSIX_TEST_PLATFORM: NodeJS.Platform = process.platform === 'darwin' ? 'darwin' : 'linux'
 const itPosix = process.platform === 'win32' ? it.skip : it
@@ -56,6 +60,22 @@ describe('CLI shim service', () => {
       ok: true,
       status: { state: 'not-installed' },
     })
+  })
+
+  itPosix('makes the CLI available automatically and preserves an unrelated command', async () => {
+    const cli = service()
+    await expect(ensureCliShimInstalled(cli)).resolves.toMatchObject({
+      ok: true,
+      status: { state: 'installed' },
+    })
+
+    const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+    await writeFile(commandPath, '#!/bin/sh\necho unrelated\n')
+    await expect(ensureCliShimInstalled(cli)).resolves.toMatchObject({
+      ok: false,
+      status: { state: 'conflict' },
+    })
+    await expect(readFile(commandPath, 'utf8')).resolves.toBe('#!/bin/sh\necho unrelated\n')
   })
 
   itPosix('isolates Linux Electron stdout without filtering application bytes', async () => {

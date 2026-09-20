@@ -1,6 +1,6 @@
 ---
 title: "App Settings"
-description: "Configure providers, Agent access, Hives, MCP, worktrees, archived items, and storage."
+description: "Configure providers, Hive controls, agent definitions, permissions, MCP, and worktrees."
 order: 1
 section: "Configuration"
 ---
@@ -18,7 +18,9 @@ filter that hides sessions should not outlive the reason you applied it.
 | Section | Description |
 |---------|-------------|
 | **General** | General application settings and automatic context-compaction threshold. |
-| **Agent Access** | Agent authorization, model-created Workers, concurrent Run limits, restricted CLI profiles, and CLI installation. |
+| **Agents** | Hive controls and project-aware, read-only Markdown agent definitions with enable/disable switches. |
+| **Skills** | Browse skills for a selected project. |
+| **Permissions** | Default and selected-project access modes, plus saved approvals. |
 | **Appearance** | Diff view (unified or split), wrap long lines, and the diff syntax theme, with a live preview. |
 | **Waggle Mode** | Multi-agent Waggle configuration and presets. |
 | **Extensions** | Manage OpenWaggle and Pi extensions. |
@@ -29,24 +31,31 @@ filter that hides sessions should not outlive the reason you applied it.
 
 Every section listed above is active; Settings has no placeholder or disabled areas.
 
-## Agent Access
+## Agents and Permissions
 
-Settings > General > Agent access controls the authorization defaults applied to new Runs and the external
-surfaces that can operate on Sessions. **Agent-created Workers** enables the native launch and spawn
-operations for OpenWaggle-hosted agents. **Workers per parent** defaults to `4` active direct Worker
-Runs and is user-configurable. **Active agent runs** defaults to `16` across every independent
-Session and Hive; saved Sessions, queue entries, searches, waits, and exports do not consume slots.
-**Host idle grace** controls how long the detached local Session Host remains available after its
-last client and active operation. When a project is open, the same card also offers per-project
-Worker enablement and parent-limit overrides with an explicit **Use global** reset.
+Settings > Agents puts the Hive controls first. **Agent-created Workers** enables native launch and
+spawn for hosted agents. **Workers per parent** defaults to `4` active direct Worker Runs;
+**Active agent runs** defaults to `16` across every independent Session and Hive. Both numbers can
+be raised without a fixed product cap, but higher values may strain your machine or model provider.
+When either capacity is reached, a new Run receives a retryable rejection rather than entering a
+hidden queue. Saved Sessions, Follow-ups, searches, waits, and exports do not consume Run slots.
 
-Restricted CLI profiles provide named, revocable capability and target subsets for external agents.
-They are optional: the local desktop user uses the machine's local-user identity. The OpenWaggle CLI
-card installs or updates the managed `~/.local/bin/openwaggle` shim on macOS and Linux, reports PATH
-problems, and never replaces an unrelated file. Windows installation is managed by the installer.
+Below the controls, choose a project to inspect its agent Markdown definitions, read a file, or
+enable/disable a definition for new Sessions. There are no bundled roles and no definition editor:
+create or change the Markdown file in the project's agent directory. See
+[Agent Definitions](/docs/extending/agent-definitions) for the schema and discovery locations.
+Settings > Skills has its own project picker and browser.
 
-Agent definitions are authored by editing Markdown files, not in Settings. The sidebar **Agents** page provides a read-only preview and a per-project enable/disable switch. See
-[Agent Definitions](/docs/extending/agent-definitions) for the file format and discovery locations.
+Settings > Permissions controls the default access mode and the selected project's override.
+Its project picker names the exact project being inspected without changing the active Session.
+**Use default** removes an override. The same page lists saved approvals for that project and lets
+you revoke them; revocation prevents future use but does not undo previous work.
+
+The CLI is part of the installed app, not a second product to enable in Settings. Packaged macOS
+and Linux launches install or refresh the managed `~/.local/bin/openwaggle` command automatically;
+the Windows installer provides the command. OpenWaggle never replaces an unrelated file at that
+path. If the path is occupied, resolve the conflict explicitly. Ensure `~/.local/bin` is on your
+shell's `PATH`. From source, use `pnpm cli:dev -- <command>`.
 
 Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
 

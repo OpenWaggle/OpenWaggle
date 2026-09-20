@@ -29,6 +29,12 @@ vi.mock('@/features/agent-definitions/components', () => ({
 vi.mock('@/features/skills/components', () => ({
   SkillsPanel: () => <div>Skills browser</div>,
 }))
+vi.mock('../sections/MultiAgentAccessCard', () => ({
+  MultiAgentAccessCard: () => <div>Hive controls</div>,
+}))
+vi.mock('../sections/PermissionsSection', () => ({
+  PermissionsSection: () => <div>Permissions controls</div>,
+}))
 
 vi.mock('../sections/GeneralSection', () => ({ GeneralSection: () => <div>General settings</div> }))
 vi.mock('../sections/WaggleSection', () => ({ WaggleSection: () => <div>Waggle settings</div> }))
@@ -111,6 +117,15 @@ describe('settings shell components', () => {
     view.unmount()
     render(<SettingsPage activeTab="agents" />)
     expect(screen.getByText('Agents browser')).toBeInTheDocument()
+    expect(screen.getByText('Hive controls')).toBeInTheDocument()
+    expect(screen.queryByText('Permissions controls')).not.toBeInTheDocument()
+  })
+
+  it('keeps permissions separate from agent orchestration', () => {
+    render(<SettingsPage activeTab="permissions" />)
+    expect(screen.getByText('Permissions controls')).toBeInTheDocument()
+    expect(screen.queryByText('Hive controls')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Permissions' })).toBeInTheDocument()
   })
 
   it('renders AppSettingsView through the panel boundary', () => {

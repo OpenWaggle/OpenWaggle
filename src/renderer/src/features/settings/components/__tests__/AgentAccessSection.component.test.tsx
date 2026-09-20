@@ -34,6 +34,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 import { usePreferencesStore } from '@/features/settings/state'
 import { AgentAccessSection } from '../sections/AgentAccessSection'
+import { PermissionsSection } from '../sections/PermissionsSection'
 
 const PROJECT = '/tmp/project'
 
@@ -97,27 +98,22 @@ describe('AgentAccessSection', () => {
     })
   })
 
-  it('lets the user configure model delegation and both concurrency ceilings', async () => {
-    render(<AgentAccessSection />)
+  it('lets the user inspect permissions for a named project without CLI or Hive controls', async () => {
+    const initial = usePreferencesStore.getState().settings
+    usePreferencesStore.setState({
+      settings: { ...initial, recentProjects: [PROJECT, '/tmp/another-project'] },
+    })
+    render(<PermissionsSection />)
 
-    const delegation = screen.getByRole('switch', { name: 'Allow agents to create Workers' })
-    expect(delegation).toBeChecked()
-    fireEvent.click(delegation)
-
-    const workers = screen.getByRole('spinbutton', { name: 'Workers per parent' })
-    fireEvent.change(workers, { target: { value: '12' } })
-    fireEvent.blur(workers)
-
-    const hostRuns = screen.getByRole('spinbutton', { name: 'Active agent runs' })
-    fireEvent.change(hostRuns, { target: { value: '32' } })
-    fireEvent.blur(hostRuns)
+    expect(screen.getByRole('button', { name: 'Project: project' })).toBeInTheDocument()
+    expect(screen.queryByText('OpenWaggle CLI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Multi-agent sessions')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'another-project (/tmp/another-project)' }))
 
     await waitFor(() => {
-      expect(updateSettingsMock).toHaveBeenCalledWith({ multiAgentEnabled: false })
-      expect(updateSettingsMock).toHaveBeenCalledWith({
-        sessionHostParentConcurrencyLimit: 12,
-      })
-      expect(updateSettingsMock).toHaveBeenCalledWith({ sessionHostRunCeiling: 32 })
+      expect(getProjectPreferencesMock).toHaveBeenCalledWith('/tmp/another-project')
+      expect(listAuthorizationGrantsMock).toHaveBeenCalledWith('/tmp/another-project')
     })
   })
 

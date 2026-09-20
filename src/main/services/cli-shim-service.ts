@@ -254,3 +254,12 @@ export function createAppCliShimService() {
     environmentPath: env.PATH,
   })
 }
+
+/** Keep the bundled CLI current without replacing an unrelated command at the user path. */
+export async function ensureCliShimInstalled(
+  service = createAppCliShimService(),
+): Promise<CliShimMutationResult> {
+  const current = await service.status()
+  if (current.management === 'installer') return { ok: true, status: current }
+  return service.install()
+}

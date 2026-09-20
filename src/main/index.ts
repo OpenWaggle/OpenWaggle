@@ -30,6 +30,7 @@ import {
   configureInlineVisualizationProcessIsolation,
   registerRendererScheme,
 } from './renderer-protocol'
+import { ensureCliShimInstalled } from './services/cli-shim-service'
 import { configureAppStoragePaths } from './session-data'
 import {
   type GuiSessionHostLifecycle,
@@ -218,6 +219,15 @@ async function bootstrapServicesAndWindow() {
 
   createMainWindowWithVisualizationGuard()
   startupMark('main-window-created')
+
+  if (app.isPackaged && !isAutomationMode()) {
+    void ensureCliShimInstalled()
+      .then((result) => {
+        if (!result.ok)
+          logger.warn('Could not make the bundled CLI available', { detail: result.error })
+      })
+      .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
+  }
 
   if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
 }

@@ -11,6 +11,7 @@ import {
   Pickaxe,
   Play,
   Settings2,
+  ShieldCheck,
   Sparkles,
   Waypoints,
 } from 'lucide-react'
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'extensions', label: 'Extensions', icon: PackageOpen },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'agents', label: 'Agents', icon: Pickaxe },
+  { id: 'permissions', label: 'Permissions', icon: ShieldCheck },
   { id: 'mcp', label: 'MCP', icon: Network },
   { id: 'worktrees', label: 'Worktrees', icon: GitBranch },
   { id: 'archived', label: 'Archived items', icon: Archive },

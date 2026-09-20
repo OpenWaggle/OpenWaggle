@@ -1,7 +1,6 @@
 import { match } from '@diegogbrisa/ts-match'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import { AgentDefinitionsPanel } from '@/features/agent-definitions/components'
 import { useChat } from '@/features/chat/hooks'
 import { ProjectActionsSettings } from '@/features/project-actions'
 import { SkillsPanel } from '@/features/skills/components'
@@ -10,6 +9,7 @@ import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
+import { AgentsSettingsSection } from './sections/AgentsSettingsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { ArchivedSection } from './sections/ArchivedSection'
 import { BrowserProfilesSection } from './sections/BrowserProfilesSection'
@@ -17,6 +17,7 @@ import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
+import { PermissionsSection } from './sections/PermissionsSection'
 import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
 import { WorktreesSection } from './sections/WorktreesSection'
@@ -102,7 +103,8 @@ function SettingsTabContent({
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
     .with('skills', () => <SkillsPanel />)
-    .with('agents', () => <AgentDefinitionsPanel />)
+    .with('agents', () => <AgentsSettingsSection />)
+    .with('permissions', () => <PermissionsSection />)
     .with('mcp', () => <McpSection sessionId={activeSessionId} />)
     .with('worktrees', () => <WorktreesSection />)
     .with('connections', () => <ConnectionsSection />)
