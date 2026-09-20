@@ -26,6 +26,11 @@ export function clearDesiredSessionModel(sessionId: string, generation: number):
   if (current?.generation === generation) desiredBySession.delete(sessionId)
 }
 
+/** Whether any pick guard is live for the session (a post-materialization pick, for instance). */
+export function hasDesiredSessionModel(sessionId: string): boolean {
+  return desiredBySession.has(sessionId)
+}
+
 interface SessionModelCarrier {
   readonly id: unknown
   readonly selectedModel?: SupportedModelId

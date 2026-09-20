@@ -40,8 +40,10 @@ async function loadSessions(set: ChatSet, get: ChatGet) {
     const sessions: SessionSummary[] = []
 
     for (const session of all) {
-      sessionById.set(session.id, session)
-      const summary = toSummary(session)
+      // A pick whose write is still in flight wins over a detail a reload read before it landed.
+      const reconciled = reconcileSessionModelPick(session)
+      sessionById.set(reconciled.id, reconciled)
+      const summary = toSummary(reconciled)
       if (summary.title !== 'New session' || (summary.messageCount ?? 0) > 0) {
         sessions.push(summary)
       }

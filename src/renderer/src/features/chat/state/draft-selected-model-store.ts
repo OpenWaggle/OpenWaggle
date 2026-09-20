@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import {
   clearDesiredSessionModel,
+  hasDesiredSessionModel,
   markDesiredSessionModel,
   runExclusiveSessionModelWrite,
 } from '@/shared/lib/session-model-pick'
@@ -66,6 +67,13 @@ export async function flushDraftSelectedModelToSession(
   // queued behind or ahead of this flush; the shared per-session queue orders them, and the
   // guard keeps the newest pick through any refresh that read the row earlier.
   await runExclusiveSessionModelWrite(sessionKey, async () => {
+    // A pick made on the live session while the first send was awaiting setup supersedes this
+    // snapshot: queue order alone cannot tell intent (this flush was enqueued earlier), so an
+    // existing guard means the user already chose for this session. Keep it, drop the draft.
+    if (hasDesiredSessionModel(sessionKey)) {
+      useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
+      return
+    }
     const pickGeneration = markDesiredSessionModel(sessionKey, override.model)
     try {
       await api.setSessionSelectedModel(sessionId, override.model)
