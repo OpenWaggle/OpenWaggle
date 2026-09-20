@@ -6,6 +6,8 @@ import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { isModelActionable } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
@@ -82,7 +84,9 @@ function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
     return
   }
 
-  if (!deps.selectedModel) {
+  if (
+    !isModelActionable(usePreferencesStore.getState().settings.enabledModels, deps.selectedModel)
+  ) {
     deps.showToast('Select a model before cloning.')
     return
   }

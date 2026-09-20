@@ -9,6 +9,8 @@ import type {
 import type { useNavigate } from '@tanstack/react-router'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
+import { isModelActionable } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { errorMessage } from './sidebar-action-utils'
 
@@ -72,6 +74,14 @@ function switchSessionBranch(
   branch: SessionBranch,
 ) {
   const targetSessionId = SessionId(sessionId)
+  // Validate the target session's resolved model before any navigation state changes, so a
+  // disabled or pruned pick cannot strand the route on a failed branch transition.
+  const targetSession = deps.sessions.find((item) => String(item.id) === sessionId)
+  const targetModel = targetSession?.selectedModel ?? deps.defaultModel
+  if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, targetModel)) {
+    deps.showToast('Select a model before switching branches.')
+    return
+  }
   const { headNodeId, targetBranchId } = navigateToSessionBranch(deps, sessionId, branch)
 
   useBranchSummaryStore.getState().clearPrompt()
@@ -85,14 +95,8 @@ function switchSessionBranch(
   // Switching branches must not retarget the run to whatever model the last-touched session used:
   // resolve the target session's own pick, falling back to the global default (deps.defaultModel,
   // not deps.selectedModel — that is the active session's resolved model, not this target's).
-  const targetSession = deps.sessions.find((item) => String(item.id) === sessionId)
   void api
-    .navigateSessionTree(
-      targetSessionId,
-      targetSession?.selectedModel ?? deps.defaultModel,
-      targetNodeId,
-      { summarize: false },
-    )
+    .navigateSessionTree(targetSessionId, targetModel, targetNodeId, { summarize: false })
     .catch((error: unknown) => {
       deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
     })

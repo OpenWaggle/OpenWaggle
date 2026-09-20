@@ -57,6 +57,15 @@ export function isSelectableModel(
   )
 }
 
+/** Catalog check against the live provider store; callers supply the current enabled models. */
+export function isModelActionable(
+  enabledModels: readonly SupportedModelId[],
+  model: SupportedModelId | undefined,
+): model is SupportedModelId {
+  const state = useProviderStore.getState()
+  return isSelectableModel(state.providerModels, { enabledModels }, model, state.catalogHydrated)
+}
+
 /**
  * Remove enabledModels entries that reference models no longer in the provider
  * catalog (stale version suffixes, removed models, or providerless IDs).
