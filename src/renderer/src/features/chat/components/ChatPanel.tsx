@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   SessionMessageResourcesProvider,
@@ -108,6 +109,13 @@ function summaryNeedsTransientOverlay(hasSpace: boolean, floatingPreviewVisible:
   return !hasSpace || floatingPreviewVisible
 }
 
+function matchesHiveSession(candidate: SessionSummary | null | undefined, sessionId: string) {
+  return (
+    candidate?.id === sessionId &&
+    (candidate.lineage?.role === 'queen' || candidate.lineage?.role === 'worker')
+  )
+}
+
 export function ChatPanelContent({
   sections,
   onOpenSessionTree,
@@ -123,13 +131,12 @@ export function ChatPanelContent({
     : null
   const hiveAvailable = useSessionStore((state) => {
     if (!activeSessionId) return false
-    const current = [
+    return [
       state.activeSessionTree?.session,
       ...state.hiveSessions,
       ...state.sessions,
       ...state.archivedSessions,
-    ].find((candidate) => candidate?.id === activeSessionId)
-    return current?.lineage?.role === 'queen' || current?.lineage?.role === 'worker'
+    ].some((candidate) => matchesHiveSession(candidate, activeSessionId))
   })
   useSessionResourceOwnerActivation(sections.transcript.activeSessionId)
   const messageCount = Math.max(

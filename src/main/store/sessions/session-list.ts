@@ -105,7 +105,7 @@ export function loadSessionLineageRows(sql: SqlClient.SqlClient, sessionIds: rea
       (SELECT COUNT(*)
         FROM delegation_contracts
         WHERE delegation_contracts.parent_session_id = sessions.id
-          AND delegation_contracts.state NOT IN (${'accepted'}, ${'cancelled'}))
+          AND delegation_contracts.state NOT IN (${'ready_for_review'}, ${'accepted'}, ${'cancelled'}))
         AS active_direct_worker_count,
       session_execution_profiles.profile_json
       , legacy_lineage.agent_definition_name AS legacy_agent_definition_name

@@ -178,6 +178,15 @@ describe('session summary columns survive the live SQL path', () => {
           )
         `
         yield* sql`
+          INSERT INTO delegation_contracts (
+            id, parent_session_id, child_session_id, state,
+            current_specification_revision, created_at, updated_at
+          ) VALUES (
+            ${'worker-tree-delegation'}, ${queen.id}, ${worker.id},
+            ${'ready_for_review'}, ${1}, ${1}, ${1}
+          )
+        `
+        yield* sql`
           INSERT INTO session_execution_profiles (
             session_id, profile_json, authority_origin_caller_id,
             authorization_ceiling, created_at, updated_at
@@ -199,6 +208,7 @@ describe('session summary columns survive the live SQL path', () => {
     expect(queenTree?.session.lineage).toMatchObject({
       role: 'queen',
       directWorkerCount: 1,
+      activeDirectWorkerCount: 0,
     })
     expect(workerTree?.session.lineage).toMatchObject({
       role: 'worker',

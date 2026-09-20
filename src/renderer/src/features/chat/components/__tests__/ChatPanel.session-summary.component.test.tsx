@@ -60,6 +60,36 @@ describe('ChatPanel session summary and setup dock', () => {
     expect(screen.queryByRole('region', { name: 'Hive Sessions' })).toBeNull()
   })
 
+  it('keeps an empty Worker Hub visible while an older session tree lacks lineage', () => {
+    const worker = {
+      id: SessionId('session-1'),
+      title: 'Worker session',
+      projectPath: '/test/project',
+      createdAt: 1,
+      updatedAt: 1,
+      lineage: {
+        role: 'worker' as const,
+        parentSessionId: SessionId('queen'),
+        directWorkerCount: 0,
+        activeDirectWorkerCount: 0,
+      },
+    }
+    useSessionStore.setState({
+      activeSessionTree: {
+        session: { ...worker, lineage: undefined },
+        nodes: [],
+        branches: [],
+        branchStates: [],
+        uiState: null,
+      },
+      sessions: [worker],
+    })
+
+    renderPanel({}, { isFirstMessage: true, session: SESSION })
+
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+  })
+
   it('keeps the transcript width independent from the floating Session Summary', () => {
     const message = makeMessage({
       id: 'u1',

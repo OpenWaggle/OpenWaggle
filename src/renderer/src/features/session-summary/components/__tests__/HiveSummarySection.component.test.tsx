@@ -39,7 +39,9 @@ function queen(activeDirectWorkerCount: number): SessionSummary {
   }
 }
 
-function worker(state: 'working' | 'accepted' | 'needs_attention'): SessionSummary {
+function worker(
+  state: 'working' | 'ready_for_review' | 'accepted' | 'needs_attention',
+): SessionSummary {
   return {
     id: SessionId('worker'),
     title: 'Worker session',
@@ -100,6 +102,45 @@ describe('HiveSummarySection', () => {
       'aria-expanded',
       'true',
     )
+  })
+
+  it('shows a completed submission in Review rather than Active', async () => {
+    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0), [worker('ready_for_review')]))
+    renderHive('queen')
+
+    expect(await screen.findByText('0 active · 1 total')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Review Hive sessions')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Active Hive sessions')).toBeNull()
+    expect(screen.getByText('Ready for review')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse Hive' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('moves a Worker from Active through Review to Done as delegation settles', async () => {
+    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(1), [worker('working')]))
+    const view = renderHive('queen')
+    expect(await screen.findByLabelText('Active Hive sessions')).toBeInTheDocument()
+
+    act(() => {
+      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
+        pages: [hiveRelations(queen(0), [worker('ready_for_review')])],
+        pageParams: [undefined],
+      })
+    })
+    expect(await screen.findByLabelText('Review Hive sessions')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Active Hive sessions')).toBeNull()
+    expect(screen.getByText('0 active · 1 total')).toBeInTheDocument()
+
+    act(() => {
+      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
+        pages: [hiveRelations(queen(0), [worker('accepted')])],
+        pageParams: [undefined],
+      })
+    })
+    expect(await screen.findByLabelText('Done Hive sessions')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Review Hive sessions')).toBeNull()
   })
 
   it('does not show Hive information for an unrelated opened session', async () => {
