@@ -6,6 +6,7 @@ import type { OpenWaggleMcpTaskStore, ServerTaskRecord } from './openwaggle-mcp-
 
 const TASK_LEASE_DURATION_MS = 30_000
 const TASK_HEARTBEAT_INTERVAL_MS = 10_000
+const TASK_WAIT_POLL_INTERVAL_MS = 100
 
 interface OwnedTaskLease {
   readonly controller: AbortController
@@ -136,6 +137,32 @@ export function isActiveTaskStatus(status: ServerTaskRecord['status']) {
 
 export function hasLiveLease(task: ServerTaskRecord, now: number) {
   return Boolean(task.lease && task.lease.expiresAt > now)
+}
+
+export function waitForOpenWaggleSessionTasks(input: {
+  readonly now: () => number
+  readonly profile: string
+  readonly reconcile: () => Promise<readonly ServerTaskRecord[]>
+  readonly sessionId: string
+  readonly timeoutMs: number
+}) {
+  return Effect.gen(function* () {
+    const deadline = input.now() + input.timeoutMs
+    while (true) {
+      const tasks = yield* Effect.promise(input.reconcile)
+      const active = tasks.some(
+        (task) =>
+          task.callerProfile === input.profile &&
+          task.sessionId === input.sessionId &&
+          isActiveTaskStatus(task.status) &&
+          hasLiveLease(task, input.now()),
+      )
+      if (!active) return true
+      const remaining = deadline - input.now()
+      if (remaining <= 0) return false
+      yield* Effect.sleep(`${Math.min(TASK_WAIT_POLL_INTERVAL_MS, remaining)} millis`)
+    }
+  })
 }
 
 export function recoverStaleTask(task: ServerTaskRecord, now: number): ServerTaskRecord {

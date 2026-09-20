@@ -20,6 +20,9 @@ function createMissingApiMethod(prop: string) {
 
 function createApiProxy(base?: OpenWaggleApi) {
   const handler: ProxyHandler<OpenWaggleApi> = {
+    has(_target, prop) {
+      return base !== undefined && Reflect.has(base, prop)
+    },
     get(_target, prop) {
       if (base) {
         const value = Reflect.get(base, prop)

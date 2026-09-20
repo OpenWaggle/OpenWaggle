@@ -1,4 +1,5 @@
 import { RepositoryPath } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import type { ChatDiffSectionState } from '../model'
 
@@ -11,13 +12,14 @@ import type { ChatDiffSectionState } from '../model'
  * is showing (ADR 0018).
  */
 export function buildDiffSection(input: {
-  readonly activeSession: Parameters<typeof resolveSessionWorkingDir>[0]
+  readonly activeSession: SessionDetail | null
   /** The opened checkout. The working tree is derived from it and the session. */
   readonly projectPath: string | null
   readonly sessionId: ChatDiffSectionState['sessionId']
   readonly onSendMessage: ChatDiffSectionState['onSendMessage']
 }): ChatDiffSectionState {
   return {
+    session: input.activeSession,
     workingPath: resolveSessionWorkingDir(input.activeSession, input.projectPath),
     repositoryPath: input.projectPath === null ? null : RepositoryPath(input.projectPath),
     sessionId: input.sessionId,

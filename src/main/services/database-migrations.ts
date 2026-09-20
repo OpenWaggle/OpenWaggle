@@ -1,3 +1,4 @@
+import type { AppMigration } from './database-migration-types'
 import {
   CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
   CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
@@ -10,20 +11,12 @@ import {
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
 import { SESSION_SELECTED_MODEL_MIGRATION } from './session-selected-model-migration'
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
+import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
 
-export interface AppMigration {
-  readonly id: number
-  readonly name: string
-  readonly statements: readonly string[]
-  /**
-   * Skip when this column already exists. SQLite has no `ADD COLUMN IF NOT EXISTS`, and the ledger
-   * only prevents re-running a migration under the same id, so a database that carries the column
-   * under a different ledger id would fail to boot on `duplicate column name`.
-   */
-  readonly skipIfColumn?: { readonly table: string; readonly column: string }
-}
+export type { AppMigration } from './database-migration-types'
 
 export const APP_MIGRATIONS: readonly AppMigration[] = [
   {
@@ -297,4 +290,10 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   SESSION_SELECTED_MODEL_MIGRATION,
   SESSION_WORKTREE_SETUP_MIGRATION,
   SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION,
+  {
+    id: 28,
+    name: 'session-hive-lineage',
+    statements: CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
+  },
+  ...SESSION_RESOURCE_MIGRATIONS,
 ]

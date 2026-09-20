@@ -270,4 +270,53 @@ describe('useAgentChat foreground lifecycle', () => {
       timeline: [{ phase: 'completed' }],
     })
   })
+
+  it('does not show a terminal error when the user stops during a retry delay', async () => {
+    const { result } = renderHook(() =>
+      useAgentChat(
+        SessionId('session-1'),
+        createSession(),
+        SupportedModelId('spark/GLM-5.3-Flash-EXL3'),
+        'medium',
+      ),
+    )
+
+    await act(async () => {
+      emitAgentEvent({
+        sessionId: SessionId('session-1'),
+        event: {
+          type: 'agent_end',
+          runId: 'run-1',
+          reason: 'error',
+          error: { message: 'terminated' },
+          willRetry: true,
+          timestamp: 0,
+        },
+      })
+      emitAgentEvent({
+        sessionId: SessionId('session-1'),
+        event: {
+          type: 'auto_retry_start',
+          attempt: 1,
+          maxAttempts: 3,
+          delayMs: 1_000,
+          errorMessage: 'terminated',
+          timestamp: 1,
+        },
+      })
+      emitAgentEvent({
+        sessionId: SessionId('session-1'),
+        event: {
+          type: 'auto_retry_end',
+          success: false,
+          attempt: 1,
+          cancelled: true,
+          timestamp: 2,
+        },
+      })
+    })
+
+    expect(result.current.error).toBeUndefined()
+    expect(result.current.status).toBe('ready')
+  })
 })

@@ -8,6 +8,7 @@ import {
   versionPackageDocumentation,
 } from './package-documentation-model'
 import type {
+  PackageDocumentationDefinition,
   VersionedPackageDocumentationDefinition,
 } from './package-documentation-model'
 import {
@@ -120,6 +121,7 @@ function apiSnapshotPath(projectRoot: string, slug: string) {
 async function generatedFilesForPackage(
   projectRoot: string,
   definition: VersionedPackageDocumentationDefinition,
+  includeApiReference: boolean,
 ) {
   const guidePath = canonicalGuidePath(
     projectRoot,
@@ -127,9 +129,8 @@ async function generatedFilesForPackage(
     definition.currentVersion,
   )
   const manifestPath = path.join(packageRoot(projectRoot, definition.slug), 'package.json')
-  const [guide, snapshot, rawManifest] = await Promise.all([
+  const [guide, rawManifest] = await Promise.all([
     readFile(guidePath, 'utf8'),
-    readFile(apiSnapshotPath(projectRoot, definition.slug), 'utf8'),
     readFile(manifestPath, 'utf8'),
   ])
   const manifest = packageManifest(JSON.parse(rawManifest))
@@ -138,7 +139,7 @@ async function generatedFilesForPackage(
   }
   const guideBody = parseFrontmatter(guide).body
   const docsUrl = packageDocumentationUrl(definition.slug, definition.currentVersion)
-  return [
+  const generatedFiles: GeneratedFile[] = [
     {
       contents: renderPackageReadme({
         canonicalBody: guideBody,
@@ -148,7 +149,10 @@ async function generatedFilesForPackage(
       }),
       path: path.join(packageRoot(projectRoot, definition.slug), 'README.md'),
     },
-    {
+  ]
+  if (includeApiReference) {
+    const snapshot = await readFile(apiSnapshotPath(projectRoot, definition.slug), 'utf8')
+    generatedFiles.push({
       contents: renderApiReference({
         apiDescription: definition.apiDescription,
         exports: manifest.exports,
@@ -157,8 +161,9 @@ async function generatedFilesForPackage(
         version: definition.currentVersion,
       }),
       path: apiReferencePath(projectRoot, definition.slug, definition.currentVersion),
-    },
-  ] satisfies readonly GeneratedFile[]
+    })
+  }
+  return generatedFiles
 }
 
 async function readIfPresent(filePath: string) {
@@ -177,11 +182,12 @@ function relativePath(projectRoot: string, filePath: string) {
 export async function checkPackageDocumentation(
   projectRoot: string,
   update: boolean,
+  definitions: readonly PackageDocumentationDefinition[] = packageDocumentationDefinitions,
 ): Promise<PackageDocumentationResult> {
   const changedFiles: string[] = []
   const violations: string[] = []
 
-  for (const baseDefinition of packageDocumentationDefinitions) {
+  for (const baseDefinition of definitions) {
     const definitionRoot = packageRoot(projectRoot, baseDefinition.slug)
     const manifestPath = path.join(definitionRoot, 'package.json')
     const rawManifest: unknown = JSON.parse(await readFile(manifestPath, 'utf8'))
@@ -249,11 +255,14 @@ export async function checkPackageDocumentation(
       }
     }
 
-    // A pending major/minor guide means Release Please, not this feature branch, owns the
-    // version bump and regenerated README/API page. Keep the published current line immutable.
-    if (deferGeneratedDocumentation) continue
-
-    for (const generatedFile of await generatedFilesForPackage(projectRoot, definition)) {
+    // A pending major/minor guide means Release Please owns the version bump and regenerated API
+    // page. The README still belongs to the published line and must remain byte-for-byte derived
+    // from that historical guide while unreleased declarations evolve.
+    for (const generatedFile of await generatedFilesForPackage(
+      projectRoot,
+      definition,
+      !deferGeneratedDocumentation,
+    )) {
       const expected = normalizeMarkdown(generatedFile.contents)
       const actual = await readIfPresent(generatedFile.path)
       if (actual === expected) continue

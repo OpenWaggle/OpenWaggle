@@ -50,6 +50,7 @@ for (const [network, prefix] of [
   ['198.51.100.0', 24],
   ['203.0.113.0', 24],
   ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
 ] as const) {
   blockedIpv4Addresses.addSubnet(network, prefix, 'ipv4')
 }
@@ -126,6 +127,7 @@ export async function validateMcpNetworkTarget(input: {
   readonly url: URL
   readonly allowedHosts: ReadonlySet<string>
   readonly allowInsecurePrivateNetwork: boolean
+  readonly allowLoopback?: boolean
   readonly websocket?: boolean
   readonly resolveHostname?: HostnameResolver
 }) {
@@ -143,7 +145,9 @@ export async function validateMcpNetworkTarget(input: {
   })
   if (addresses.length === 0)
     throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
-  const permitsPrivate = input.allowInsecurePrivateNetwork || isLoopbackHostname(input.url.hostname)
+  const permitsPrivate =
+    input.allowInsecurePrivateNetwork ||
+    (input.allowLoopback !== false && isLoopbackHostname(input.url.hostname))
   if (!permitsPrivate && addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error(
       `MCP hostname resolves to a private or reserved address: ${input.url.hostname}.`,
@@ -230,7 +234,10 @@ function redirectCredentials(originChanged: boolean, init: RequestInit): Request
 export function createSecureMcpFetch(input: {
   readonly baseUrl: URL
   readonly allowedDomains?: readonly string[]
+  /** Allow redirect hosts discovered at runtime; every hop still passes protocol and SSRF validation. */
+  readonly allowPublicRedirects?: boolean
   readonly allowInsecurePrivateNetwork?: boolean
+  readonly allowLoopback?: boolean
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
 }): SecureMcpFetch {
@@ -257,6 +264,7 @@ export function createSecureMcpFetch(input: {
           url,
           allowedHosts,
           allowInsecurePrivateNetwork: input.allowInsecurePrivateNetwork === true,
+          ...(input.allowLoopback !== undefined ? { allowLoopback: input.allowLoopback } : {}),
           ...(input.resolveHostname ? { resolveHostname: input.resolveHostname } : {}),
         })
         const response = await (input.fetchFn ?? pinnedFetch)(url, init, target)
@@ -265,6 +273,9 @@ export function createSecureMcpFetch(input: {
         const location = response.headers.get('location')
         if (!location) throw new Error('MCP HTTP redirect did not include a Location header.')
         const nextUrl = new URL(location, url)
+        if (input.allowPublicRedirects === true && nextUrl.hostname !== url.hostname) {
+          allowedHosts.add(nextUrl.hostname.toLowerCase())
+        }
         init = {
           ...redirectCredentials(
             nextUrl.origin !== url.origin,

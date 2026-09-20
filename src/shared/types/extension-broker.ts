@@ -23,6 +23,11 @@ import type {
   extensionRuntimeRegisterContributionResultSchema,
   extensionRuntimeUnregisterContributionPayloadSchema,
   extensionRuntimeUnregisterContributionResultSchema,
+  extensionSessionResourcePublishPayloadSchema,
+  extensionSessionResourcePublishResultSchema,
+  extensionSessionResourcesListPayloadSchema,
+  extensionSessionResourcesListResultSchema,
+  extensionSessionResourceViewSchema,
   extensionSessionViewSchema,
   extensionSettingsGetPayloadSchema,
   extensionSettingsGetResultSchema,
@@ -93,6 +98,19 @@ export type ExtensionRuntimeUnregisterContributionResult = SchemaType<
 export type ExtensionModelPrefs = SchemaType<typeof extensionModelPrefsSchema>
 export type ExtensionProjectView = SchemaType<typeof extensionProjectViewSchema>
 export type ExtensionSessionView = SchemaType<typeof extensionSessionViewSchema>
+export type ExtensionSessionResourcePublishPayload = SchemaType<
+  typeof extensionSessionResourcePublishPayloadSchema
+>
+export type ExtensionSessionResourcesListPayload = SchemaType<
+  typeof extensionSessionResourcesListPayloadSchema
+>
+export type ExtensionSessionResourceView = SchemaType<typeof extensionSessionResourceViewSchema>
+export type ExtensionSessionResourcesListResult = SchemaType<
+  typeof extensionSessionResourcesListResultSchema
+>
+export type ExtensionSessionResourcePublishResult = SchemaType<
+  typeof extensionSessionResourcePublishResultSchema
+>
 export type ExtensionBranchView = SchemaType<typeof extensionBranchViewSchema>
 export type ExtensionStateSelector = SchemaType<typeof extensionStateSelectorSchema>
 export type ExtensionStateReadPayload = SchemaType<typeof extensionStateReadPayloadSchema>

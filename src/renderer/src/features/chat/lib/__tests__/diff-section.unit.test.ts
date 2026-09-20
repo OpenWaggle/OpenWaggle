@@ -1,4 +1,6 @@
 import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { buildDiffSection } from '../diff-section'
 
@@ -7,11 +9,18 @@ const PROJECT_PATH = '/repo/openwaggle'
 const WORKTREE_PATH = '/wt/openwaggle/session-1'
 
 function build(
-  activeSession: Parameters<typeof buildDiffSection>[0]['activeSession'],
+  activeSession: Partial<SessionDetail> | null,
   projectPath: string | null = PROJECT_PATH,
 ) {
   return buildDiffSection({
-    activeSession,
+    activeSession: activeSession
+      ? fromPartial<SessionDetail>({
+          id: SESSION_ID,
+          title: 'Session',
+          messages: [],
+          ...activeSession,
+        })
+      : null,
     projectPath,
     sessionId: SESSION_ID,
     onSendMessage: vi.fn(),

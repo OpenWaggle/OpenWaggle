@@ -22,6 +22,9 @@ export interface ChatTranscriptSectionState {
   readonly worktreePath: string | null
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
+  readonly activeBranchId?: SessionBranchId | null
+  /** Exact persisted workspace path rendered for this branch or deep-linked node. */
+  readonly activePathNodeIds?: readonly string[]
   readonly chatRows: ChatRow[]
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
@@ -80,6 +83,7 @@ export interface ChatComposerSectionState {
 }
 
 export interface ChatDiffSectionState {
+  readonly session: SessionDetail | null
   /** The working tree this panel reads and mutates (a Session worktree in worktree mode). */
   readonly workingPath: WorkingPath | null
   /** The repository the session belongs to, for telling a worktree apart from the checkout. */

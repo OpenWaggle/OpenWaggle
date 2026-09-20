@@ -10,9 +10,12 @@ import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
+  EstablishSessionLineageInput,
   PinnedSession,
   PinnedSessionMove,
+  SessionDelegationState,
   SessionDetail,
+  SessionHiveRelations,
   SessionSummary,
   SessionWorktreePlan,
 } from '@shared/types/session'
@@ -25,6 +28,9 @@ export interface SessionProjectionRepositoryShape {
   readonly getOptional: (
     id: SessionId,
   ) => Effect.Effect<SessionDetail | null, SessionProjectionRepositoryError>
+  readonly getHiveRelations: (
+    id: SessionId,
+  ) => Effect.Effect<SessionHiveRelations, SessionProjectionRepositoryError>
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
@@ -39,6 +45,15 @@ export interface SessionProjectionRepositoryShape {
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
+  /** Preflight before runtime teardown. Delete still revalidates eligibility transactionally. */
+  readonly getDeletionBlocker: (
+    id: SessionId,
+  ) => Effect.Effect<string | null, SessionProjectionRepositoryError>
+  /** Fence Hive writes while deletion eligibility is checked and existing work is stopped. */
+  readonly withDeletionFence: <A, E, R>(
+    id: SessionId,
+    operation: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E | SessionProjectionRepositoryError, R>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
@@ -68,6 +83,13 @@ export interface SessionProjectionRepositoryShape {
   readonly setSelectedModel: (
     id: SessionId,
     model: SupportedModelId,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly establishLineage: (
+    input: EstablishSessionLineageInput,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly setDelegationState: (
+    id: SessionId,
+    state: SessionDelegationState,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,

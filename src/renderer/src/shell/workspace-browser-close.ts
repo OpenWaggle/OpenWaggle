@@ -1,6 +1,24 @@
 import { api } from '@/shared/lib/ipc'
 import type { BrowserPreviewTabState } from './workspace-panel-store'
 
+/** Keep failed native tabs available for retry instead of discarding their renderer identity. */
+export async function closeBrowserTabs(tabs: readonly BrowserPreviewTabState[]) {
+  const errors: unknown[] = []
+  if (!(await confirmBrowserTabsClose(tabs))) return { closedIds: [], errors }
+  const closed = await Promise.all(
+    tabs.map(async (tab) => {
+      try {
+        if (tab.kind === 'preview') await api.closeBrowserPreview(tab.id)
+        return tab.id
+      } catch (error) {
+        errors.push(error)
+        return null
+      }
+    }),
+  )
+  return { closedIds: closed.filter((id) => id !== null), errors }
+}
+
 export async function confirmBrowserTabsClose(tabs: readonly BrowserPreviewTabState[]) {
   if (!tabs.some((tab) => tab.controller.kind === 'agent')) return true
   if (tabs.length === 1) {

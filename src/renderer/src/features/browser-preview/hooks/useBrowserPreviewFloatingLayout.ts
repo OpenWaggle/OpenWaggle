@@ -58,7 +58,9 @@ export function useBrowserPreviewFloatingLayout(options: BrowserPreviewFloatingL
       )
       if (!viewport) return
       const visible =
-        options.visible && document.visibilityState === 'visible' && !pageHasOccludingDialog()
+        options.visible &&
+        document.visibilityState === 'visible' &&
+        !pageHasOccludingDialog(options.ownerKey)
       void api
         .setBrowserPreviewBounds(
           options.previewId,

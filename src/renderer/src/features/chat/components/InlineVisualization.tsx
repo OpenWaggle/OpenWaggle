@@ -5,7 +5,7 @@ import type {
 } from '@shared/types/inline-visualization'
 import type { JsonValue } from '@shared/types/json'
 import { Maximize2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import {
@@ -217,7 +217,9 @@ export function InlineVisualization({
     return () => clearInlineVisualizationState(stateInstanceId)
   }, [stateInstanceId, stateScope])
 
-  useEffect(() => {
+  // An unavailable frame must stop contributing context in the same commit as
+  // its error UI, before a user action can read the failed visualization state.
+  useLayoutEffect(() => {
     if (registrationError) clearInlineVisualizationState(stateInstanceId)
   }, [registrationError, stateInstanceId])
 

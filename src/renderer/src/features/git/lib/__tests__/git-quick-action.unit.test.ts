@@ -76,6 +76,9 @@ describe('resolveQuickAction', () => {
     expect(resolveQuickAction(status({ changeRequest: pr('open') }), false)).toMatchObject({
       kind: 'open_pr',
     })
+    expect(resolveQuickAction(status({ changeRequest: pr('draft') }), false)).toMatchObject({
+      kind: 'open_pr',
+    })
   })
 
   it('requires a ref before actions', () => {

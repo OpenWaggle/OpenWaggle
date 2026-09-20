@@ -1,3 +1,5 @@
+import type { SessionDelegationState, SessionHiveRole } from '@shared/types/session'
+
 export interface SessionSummaryRow {
   readonly id: string
   readonly title: string
@@ -11,6 +13,13 @@ export interface SessionSummaryRow {
   readonly environment_mode: string | null
   readonly worktree_path: string | null
   readonly selected_model: string | null
+  readonly lineage_present: number
+  readonly lineage_role: SessionHiveRole
+  readonly parent_session_id: string | null
+  readonly direct_worker_count: number
+  readonly active_direct_worker_count: number
+  readonly agent_definition_name: string | null
+  readonly delegation_state: SessionDelegationState | null
 }
 
 export interface SessionBranchRow {
@@ -76,4 +85,11 @@ export const SESSION_SUMMARY_COLUMN_NAMES: readonly string[] = [
   'environment_mode',
   'worktree_path',
   'selected_model',
+  'lineage_present',
+  'lineage_role',
+  'parent_session_id',
+  'direct_worker_count',
+  'active_direct_worker_count',
+  'agent_definition_name',
+  'delegation_state',
 ]

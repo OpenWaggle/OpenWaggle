@@ -38,6 +38,14 @@ export function coordinateSessionTreePanel(open: boolean) {
   coordinateRoutePanel(open, SESSION_TREE_RIGHT_SIDEBAR_REQUEST)
 }
 
+export function coordinateResourcesPanel(open: boolean) {
+  coordinateRoutePanel(open, 'resources')
+}
+
+export function coordinateChangeRequestPanel(open: boolean) {
+  coordinateRoutePanel(open, 'change-request')
+}
+
 export function coordinateExtensionPanel(open: boolean, target: ExtensionPanelIdentity) {
   coordinateRoutePanel(
     open,
@@ -64,6 +72,8 @@ export function routePanelRequestKey(
   return match(panel)
     .with('diff', () => DIFF_RIGHT_SIDEBAR_REQUEST)
     .with('session-tree', () => SESSION_TREE_RIGHT_SIDEBAR_REQUEST)
+    .with('resources', () => 'resources')
+    .with('change-request', () => 'change-request')
     .with('file', () =>
       workspaceFile
         ? workspaceFileRightSidebarRequest(workspaceFile.path, workspaceFile.line)
@@ -86,11 +96,27 @@ export function useRoutePanelClaim(requestKey: string | null, scopeKey: string |
   useEffect(() => {
     if (requestKey === null) return
     if (scopeKey !== null && scopeKey.length === 0) return
-    useRightSidebarCoordinator.getState().claimRoute(requestKey)
-    return () => useRightSidebarCoordinator.getState().releaseRoute(requestKey)
+    useRightSidebarCoordinator.getState().claimRoute(requestKey, scopeKey)
+    return () => useRightSidebarCoordinator.getState().releaseRoute(requestKey, scopeKey)
   }, [requestKey, scopeKey])
 
+  // Commands can reclaim an already-requested route panel from a workspace
+  // panel. Bind that transient claim to this route without stealing other claims.
+  useEffect(() => {
+    if (
+      requestKey !== null &&
+      activeClaim?.kind === 'route' &&
+      activeClaim.requestKey === requestKey &&
+      activeClaim.scopeKey === undefined
+    ) {
+      useRightSidebarCoordinator.getState().claimRoute(requestKey, scopeKey)
+    }
+  }, [activeClaim, requestKey, scopeKey])
+
   return (
-    requestKey !== null && activeClaim?.kind === 'route' && activeClaim.requestKey === requestKey
+    requestKey !== null &&
+    activeClaim?.kind === 'route' &&
+    activeClaim.requestKey === requestKey &&
+    activeClaim.scopeKey === scopeKey
   )
 }

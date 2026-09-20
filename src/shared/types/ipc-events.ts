@@ -18,10 +18,14 @@ import type { AgentPhaseEventPayload } from './phase'
 import type { AgentTransportEvent } from './stream'
 import type { TerminalActivitySnapshot, TerminalEventPayload } from './terminal'
 import type { UpdateStatus } from './updater'
+import type { GitActionProgressEvent } from './vcs'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 import type { WorkspaceFilesChangedEvent } from './workspace-files'
 
 export interface IpcSendChannelMap {
+  'sessions:resources:activate-owner': {
+    args: [sessionId: SessionId | null]
+  }
   'agent:cancel-waggle': {
     args: [sessionId: SessionId]
   }
@@ -75,6 +79,9 @@ export interface IpcEventChannelMap {
   'agent:run-completed': {
     payload: { sessionId: SessionId }
   }
+  'sessions:resources-invalidated': {
+    payload: { sessionId: SessionId }
+  }
   'agent:worktree-launch': {
     payload: WorktreeLaunchEventPayload
   }
@@ -106,6 +113,9 @@ export interface IpcEventChannelMap {
   'sessions:title-updated': {
     payload: { sessionId: SessionId; title: string }
   }
+  'sessions:list-invalidated': {
+    payload: { sessionIds: readonly SessionId[] }
+  }
   /**
    * A working tree's git state changed because OpenWaggle mutated it.
    *
@@ -117,6 +127,13 @@ export interface IpcEventChannelMap {
    */
   'git:working-tree-changed': {
     payload: { workingPath: string }
+  }
+  'git:stacked-action:progress': {
+    payload: {
+      operationId: string
+      workingPath: string
+      progress: GitActionProgressEvent
+    }
   }
   'workspace-files:changed': {
     payload: WorkspaceFilesChangedEvent

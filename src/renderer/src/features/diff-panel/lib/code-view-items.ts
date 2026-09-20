@@ -91,20 +91,34 @@ export function parseCodeViewItems(files: readonly GitFileDiff[]) {
   return items
 }
 
-export function decorateCodeViewItems(
-  parsedItems: readonly ParsedReviewCodeViewItem[],
-  annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
-) {
-  return parsedItems.map(({ filePath, patchHash, fileDiff }): ReviewCodeViewItem => {
-    const annotations = annotationsByPath.get(filePath) ?? []
-    return {
-      id: codeViewItemId(filePath),
-      type: 'diff',
-      fileDiff,
-      annotations: [...annotations],
-      version: versionFor(patchHash, annotations),
+/** Keep Pierre's append-only prefix identity stable as progressive parsing publishes more files. */
+export function createCodeViewItemDecorator() {
+  const cache = new WeakMap<
+    ParsedReviewCodeViewItem,
+    {
+      readonly annotations: readonly ReviewAnnotation[] | undefined
+      readonly item: ReviewCodeViewItem
     }
-  })
+  >()
+  return (
+    parsedItems: readonly ParsedReviewCodeViewItem[],
+    annotationsByPath: ReadonlyMap<string, readonly ReviewAnnotation[]>,
+  ) =>
+    parsedItems.map((parsed): ReviewCodeViewItem => {
+      const annotations = annotationsByPath.get(parsed.filePath)
+      const previous = cache.get(parsed)
+      if (previous && previous.annotations === annotations) return previous.item
+      const currentAnnotations = annotations ?? []
+      const item: ReviewCodeViewItem = {
+        id: codeViewItemId(parsed.filePath),
+        type: 'diff',
+        fileDiff: parsed.fileDiff,
+        annotations: [...currentAnnotations],
+        version: versionFor(parsed.patchHash, currentAnnotations),
+      }
+      cache.set(parsed, { annotations, item })
+      return item
+    })
 }
 
 function versionFor(patchHash: string, annotations: readonly ReviewAnnotation[]) {

@@ -178,6 +178,8 @@ Loopback HTTP requires a bearer token of at least 32 bytes, validates Host and O
 
 The `openwaggle_sessions` tool supports discovery, status, paginated reading, creation, worktree planning/materialization, fork/clone, message/steer, wait/interrupt, handoff, rename, pin/unpin, and archive/unarchive. Worktree creation requires both `sessions:create` and `sessions:organize`. It leaves the source session unchanged and returns a new derived session rooted at a deterministic Git worktree; the response includes both session IDs, the path, branch, base ref, and delegation depth. Later messages and tasks sent to the derived session execute in that worktree. OpenWaggle revalidates its source-session grant and Git provenance on every access, and refuses changed plans, replaced paths, branches, or repositories instead of silently falling back to the source checkout.
 
+`interrupt` waits for desktop and hosted runs to finish cancellation, including partial-output capture. It defaults to five seconds and accepts `timeoutMs` up to 30 seconds. A response with `completed: false` and `timedOut: true` means cancellation is still finishing; use `wait` before assuming the session is idle. `steer` also waits for finalization and does not start its replacement objective if that wait times out.
+
 ## When something fails
 
 OpenWaggle reports the affected server, impact, cause, responsible side, next action, and whether work may still be running remotely. Use Refresh after correcting config, `openwaggle mcp doctor` for static checks, and the Event Inbox or durable Task card for state that needs inspection. Trust is invalidated when the executable, endpoint, package fingerprint, requested capabilities, security profile, or effective config changes.

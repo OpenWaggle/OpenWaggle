@@ -29,15 +29,20 @@ export function browserPreviewBounds(
   }
 }
 
-export function pageHasOccludingDialog() {
+export function pageHasOccludingDialog(ownerKey?: string) {
   return (
     document.querySelector(
       'dialog[open]:not([inert]), [role="dialog"]:not([inert]):not([aria-hidden="true"])',
-    ) !== null
+    ) !== null ||
+    (ownerKey !== undefined &&
+      [...document.querySelectorAll<HTMLElement>('[data-native-preview-occluder]')].some(
+        (element) => element.dataset.nativePreviewOccluder === ownerKey,
+      ))
   )
 }
 
 interface BoundsObserverOptions {
+  readonly ownerKey?: string
   readonly previewId: string
   readonly viewport: HTMLElement
   readonly hasError: () => boolean
@@ -57,7 +62,7 @@ export function observeBrowserPreviewBounds(options: BoundsObserverOptions) {
       if (
         document.visibilityState !== 'visible' ||
         options.hasError() ||
-        pageHasOccludingDialog()
+        pageHasOccludingDialog(options.ownerKey)
       ) {
         void hide()
         return
@@ -74,7 +79,7 @@ export function observeBrowserPreviewBounds(options: BoundsObserverOptions) {
   const mutationObserver = new MutationObserver(synchronize)
   resizeObserver.observe(options.viewport)
   mutationObserver.observe(document.body, {
-    attributeFilter: ['aria-hidden', 'inert', 'open', 'role'],
+    attributeFilter: ['aria-hidden', 'inert', 'open', 'role', 'data-native-preview-occluder'],
     attributes: true,
     childList: true,
     subtree: true,

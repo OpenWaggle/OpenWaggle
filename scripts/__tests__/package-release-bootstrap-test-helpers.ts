@@ -75,10 +75,9 @@ export function compatibleRuleset(
     { context: 'Package Release Gate' },
     { context: 'Commit Policy' },
     { context: 'Typecheck & Lint' },
-    { context: 'Unit & Component Tests' },
-    { context: 'Electron E2E (macOS)' },
-    { context: 'Electron E2E (Linux)' },
-    { context: 'Electron E2E (Windows)' },
+    { context: 'Unit Tests' },
+    { context: 'Integration & Component Tests' },
+    { context: 'MCP Conformance' },
   ],
 ): CompatibleRulesetFixture {
   return {

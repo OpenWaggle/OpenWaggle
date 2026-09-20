@@ -19,6 +19,7 @@ function attemptRegistryCleanup(action: () => void) {
 
 export class BrowserPreviewRecordRegistry {
   private readonly owners = new Map<number, BrowserPreviewOwnerRecord>()
+  private readonly retiringOwners = new Set<BrowserPreviewOwnerRecord>()
   private readonly recordsByOwnerKey = new Map<string, Map<string, BrowserPreviewRecord>>()
   private readonly currentByOwnerKey = new Map<string, BrowserPreviewRecord>()
   private readonly pendingByOwnerKey = new Map<
@@ -32,17 +33,21 @@ export class BrowserPreviewRecordRegistry {
   constructor(private readonly options: BrowserPreviewRecordRegistryOptions) {}
 
   findOwned(ownerKey: string, previewId?: string): BrowserPreviewRecord | undefined {
-    const previews = this.recordsByOwnerKey.get(ownerKey)
-    if (!previews) return undefined
-    if (previewId !== undefined) return previews.get(previewId)
+    if (previewId !== undefined) {
+      const record = this.recordsByOwnerKey.get(ownerKey)?.get(previewId)
+      return record && this.isLive(record) ? record : undefined
+    }
     if (this.pendingByOwnerKey.has(ownerKey)) return undefined
     const current = this.currentByOwnerKey.get(ownerKey)
     if (current && this.isLive(current)) return current
-    return previews.size === 1 ? previews.values().next().value : undefined
+    const previews = this.listOwned(ownerKey)
+    return previews.length === 1 ? previews[0] : undefined
   }
 
   listOwned(ownerKey: string): readonly BrowserPreviewRecord[] {
-    return [...(this.recordsByOwnerKey.get(ownerKey)?.values() ?? [])]
+    return [...(this.recordsByOwnerKey.get(ownerKey)?.values() ?? [])].filter((record) =>
+      this.isLive(record),
+    )
   }
 
   countOwned(ownerKey: string): number {
@@ -58,6 +63,8 @@ export class BrowserPreviewRecordRegistry {
     const existing = this.owners.get(sender.id)
     if (existing) {
       if (existing.sender !== sender) throw new Error('Browser preview owner identity changed.')
+      if (this.retiringOwners.has(existing))
+        throw new Error('Browser preview owner cleanup is pending.')
       return existing
     }
     if (sender.isDestroyed()) throw new Error('Browser preview owner has been destroyed.')
@@ -99,6 +106,7 @@ export class BrowserPreviewRecordRegistry {
   requireOwner(sender: WebContents): BrowserPreviewOwnerRecord {
     const owner = this.owners.get(sender.id)
     if (!owner || owner.sender !== sender) throw new Error('Browser preview owner was not found.')
+    if (this.retiringOwners.has(owner)) throw new Error('Browser preview owner cleanup is pending.')
     return owner
   }
 
@@ -110,7 +118,20 @@ export class BrowserPreviewRecordRegistry {
 
   findForRenderer(sender: WebContents, previewId: string): BrowserPreviewRecord | undefined {
     const owner = this.owners.get(sender.id)
-    return owner?.sender === sender ? owner.previews.get(previewId) : undefined
+    const record = owner?.sender === sender ? owner.previews.get(previewId) : undefined
+    return record && this.isLive(record) ? record : undefined
+  }
+
+  findForDisposal(sender: WebContents, previewId: string): BrowserPreviewRecord | undefined {
+    const owner = this.owners.get(sender.id)
+    const owned = owner?.sender === sender ? owner.previews.get(previewId) : undefined
+    if (owned) return owned
+    for (const owner of this.owners.values()) {
+      if (owner.previews.has(previewId)) {
+        throw new Error('Browser preview is not owned by this renderer.')
+      }
+    }
+    return undefined
   }
 
   add(record: BrowserPreviewRecord): void {
@@ -174,6 +195,11 @@ export class BrowserPreviewRecordRegistry {
 
   remove(record: BrowserPreviewRecord): void {
     record.owner.previews.delete(record.previewId)
+    if (record.owner.previews.size === 0 && this.retiringOwners.delete(record.owner)) {
+      if (this.owners.get(record.owner.sender.id) === record.owner) {
+        this.owners.delete(record.owner.sender.id)
+      }
+    }
     const previews = this.recordsByOwnerKey.get(record.ownerKey)
     if (!previews || previews.get(record.previewId) !== record) return
     previews.delete(record.previewId)
@@ -190,12 +216,17 @@ export class BrowserPreviewRecordRegistry {
   }
 
   isLive(record: BrowserPreviewRecord): boolean {
-    return !record.disposed && record.owner.previews.get(record.previewId) === record
+    return (
+      !record.disposed &&
+      !this.retiringOwners.has(record.owner) &&
+      record.owner.previews.get(record.previewId) === record
+    )
   }
 
   disposeOwner(owner: BrowserPreviewOwnerRecord): void {
     if (this.owners.get(owner.sender.id) !== owner) return
-    this.owners.delete(owner.sender.id)
+    if (this.retiringOwners.has(owner)) return
+    this.retiringOwners.add(owner)
     for (const [ownerKey, pending] of this.pendingByOwnerKey) {
       if (pending.sender === owner.sender) this.pendingByOwnerKey.delete(ownerKey)
     }
@@ -204,6 +235,10 @@ export class BrowserPreviewRecordRegistry {
     }
     for (const record of [...owner.previews.values()]) {
       attemptRegistryCleanup(() => this.options.disposeRecord(record))
+    }
+    if (owner.previews.size === 0) {
+      this.retiringOwners.delete(owner)
+      if (this.owners.get(owner.sender.id) === owner) this.owners.delete(owner.sender.id)
     }
   }
 }

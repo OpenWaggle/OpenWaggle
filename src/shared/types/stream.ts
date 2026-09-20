@@ -117,6 +117,7 @@ export interface AgentTransportAgentEndEvent extends TransportEventBase {
   readonly type: 'agent_end'
   readonly runId: string
   readonly reason: 'stop' | 'length' | 'toolUse' | 'error' | 'aborted' | null
+  readonly willRetry?: boolean
   readonly usage?: {
     readonly promptTokens: number
     readonly completionTokens: number
@@ -219,6 +220,7 @@ export interface AgentTransportAutoRetryEndEvent extends TransportEventBase {
   readonly success: boolean
   readonly attempt: number
   readonly finalError?: string
+  readonly cancelled?: boolean
 }
 
 export interface AgentTransportCustomEvent extends TransportEventBase {

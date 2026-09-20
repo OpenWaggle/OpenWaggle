@@ -82,7 +82,23 @@ describe('browser preview IPC handlers', () => {
     manager.goForward.mockReturnValue(STATE)
     manager.reload.mockReturnValue(STATE)
     manager.stop.mockReturnValue(STATE)
+    manager.close.mockResolvedValue(undefined)
     registerBrowserPreviewHandlers()
+  })
+
+  it('awaits native close and preserves the original rejection message', async () => {
+    const native = Promise.withResolvers<void>()
+    manager.close.mockReturnValueOnce(native.promise)
+    const request = registeredHandler('browser-preview:close')({ sender: { id: 17 } }, 'preview-1')
+    let settled = false
+    const result = Promise.resolve(request).finally(() => {
+      settled = true
+    })
+    const rejection = expect(result).rejects.toThrow('Exact native close failure')
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    native.reject(new Error('Exact native close failure'))
+    await rejection
   })
 
   it('registers the complete browser preview command set', () => {

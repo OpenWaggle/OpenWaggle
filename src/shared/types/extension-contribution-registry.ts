@@ -42,6 +42,35 @@ export interface ExtensionContributionMatchView {
   readonly interactionKinds?: readonly string[]
 }
 
+export interface ExtensionSessionSummaryActionView {
+  readonly family: 'commands' | 'sidePanels' | 'dialogs'
+  readonly contributionId: string
+}
+
+export interface ExtensionSessionSummaryRowView {
+  readonly id: string
+  readonly label: string
+  readonly value?: string
+  readonly badge?: string
+  readonly count?: number
+  readonly resourceId?: string
+  readonly action?: ExtensionSessionSummaryActionView
+}
+
+export interface ExtensionSessionSummaryView {
+  readonly placement: 'context' | 'coordination' | 'details'
+  readonly disclosure?: {
+    readonly defaultExpanded?: boolean
+    readonly collapsible?: boolean
+    readonly autoCollapseAfterMs?: number
+  }
+  readonly state?:
+    | { readonly status: 'ready' }
+    | { readonly status: 'loading' | 'live'; readonly message?: string }
+    | { readonly status: 'failure'; readonly message: string }
+  readonly rows: readonly ExtensionSessionSummaryRowView[]
+}
+
 export interface ExtensionContributionRegistryEntry {
   readonly extensionId: string
   readonly extensionName: string
@@ -50,6 +79,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly packagePath: string
   readonly manifestPath: string
   readonly contentHash: string
+  /** Opaque host-issued authority binding. Never expose this value to extension frame code. */
+  readonly invocationBinding?: string
   readonly projectPaths: readonly string[]
   readonly sessionId?: string
   readonly appliesToAllRequestedProjects: boolean
@@ -68,6 +99,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
+  readonly sessionSummary?: ExtensionSessionSummaryView
   readonly eligibility: ExtensionContributionEligibilityView
   readonly diagnostics: readonly ExtensionDiagnosticView[]
 }

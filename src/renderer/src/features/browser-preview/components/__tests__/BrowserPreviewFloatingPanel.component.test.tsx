@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { BrowserPreviewMaterializedTab } from '../../browser-preview-model'
+import { pageHasOccludingDialog } from '../../lib/browser-preview-native-bounds'
 import { useBrowserPreviewFloatingStore } from '../../state/browser-preview-floating-store'
 import { BrowserPreviewFloatingPanel } from '../BrowserPreviewFloatingPanel'
 
@@ -96,6 +97,30 @@ describe('BrowserPreviewFloatingPanel', () => {
     expect(screen.getByLabelText('Open preview in right panel')).toBeInTheDocument()
     expect(screen.getByLabelText('Resize floating preview')).toBeInTheDocument()
     expect(document.querySelectorAll('[data-floating-resize-handle]')).toHaveLength(8)
+  })
+
+  it('suspends DOM and native observers together, then restores without closing its tab', async () => {
+    const callbacks = {
+      onCloseBrowser: vi.fn(),
+      onError: vi.fn(),
+      onOpenInPanel: vi.fn(),
+      onUpdate: vi.fn(),
+    }
+    const view = render(<BrowserPreviewFloatingPanel tab={TAB} suspended {...callbacks} />)
+    const panel = screen.getByLabelText('Floating browser preview')
+    expect(panel).toHaveStyle({ visibility: 'hidden' })
+    expect(panel).toHaveAttribute('inert')
+    expect(pageHasOccludingDialog(TAB.ownerKey)).toBe(true)
+    expect(pageHasOccludingDialog('other-session')).toBe(false)
+    await waitFor(() => expect(api.setBrowserPreviewBounds).toHaveBeenLastCalledWith(TAB.id, null))
+
+    view.rerender(<BrowserPreviewFloatingPanel tab={TAB} suspended={false} {...callbacks} />)
+    expect(panel).not.toHaveAttribute('inert')
+    expect(pageHasOccludingDialog(TAB.ownerKey)).toBe(false)
+    expect(callbacks.onCloseBrowser).not.toHaveBeenCalled()
+    expect(useBrowserPreviewFloatingStore.getState().byOwnerKey[TAB.ownerKey]?.previewId).toBe(
+      TAB.id,
+    )
   })
 
   it('supports arrow-key resizing without changing the source viewport', () => {

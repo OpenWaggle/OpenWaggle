@@ -17,7 +17,11 @@ export interface TextPart {
 }
 
 export type AttachmentKind = 'text' | 'image' | 'pdf'
-export type AttachmentOrigin = 'user-file' | 'auto-paste-text' | 'browser-preview'
+export type AttachmentOrigin =
+  | 'user-file'
+  | 'auto-paste-text'
+  | 'browser-preview'
+  | 'session-resource'
 
 export interface BrowserPreviewAttachmentMetadata {
   readonly pageUrl: string
@@ -44,6 +48,7 @@ export interface AttachmentRecord {
   readonly path: string
   readonly mimeType: string
   readonly sizeBytes: number
+  readonly contentSha256?: string
   readonly extractedText: string
   readonly browserPreview?: BrowserPreviewAttachmentMetadata
 }

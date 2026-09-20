@@ -140,6 +140,22 @@ export function extensionInvokeInputFromFrame(
     return invalidInvokeFailure(decoded.issues)
   }
 
+  const scope = decoded.data.scope
+  if (
+    (scope.kind === 'session' || scope.kind === 'branch') &&
+    (entry.sessionId === undefined ||
+      scope.sessionId !== entry.sessionId ||
+      !entry.projectPaths.includes(scope.projectPath))
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Extension session scope does not match the mounted surface.',
+      },
+    }
+  }
+
   return {
     ...decoded.data,
     extensionId: entry.extensionId,

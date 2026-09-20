@@ -1,12 +1,16 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import * as SqlClient from '@effect/sql/SqlClient'
-import { SqliteClient } from '@effect/sql-sqlite-node'
+import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SQLITE_PREPARE_CACHE_SIZE } from '../database-constants'
 import { APP_MIGRATIONS } from '../database-migrations'
+import {
+  applyMigrations,
+  insertSession,
+  sessionColumns,
+  withMigrationDatabase,
+} from './database-migrations.test-harness'
 
 /**
  * Applies the real migration list to a real database file.
@@ -18,84 +22,13 @@ import { APP_MIGRATIONS } from '../database-migrations'
  */
 const AUTHORIZATION_MIGRATION_ID = 25
 const BEFORE_AUTHORIZATION_ID = AUTHORIZATION_MIGRATION_ID - 1
-const WORKTREE_SETUP_MIGRATION_ID = 26
-const WORKTREE_SETUP_RECEIPT_MIGRATION_ID = 27
-
-interface ColumnInfo {
-  readonly name: string
-  readonly notnull: number
-}
 
 let tmpRoot = ''
 
 function withDatabase<A>(
   run: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown, SqlClient.SqlClient>,
 ) {
-  const layer = SqliteClient.layer({
-    filename: path.join(tmpRoot, 'migrations.sqlite'),
-    prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
-  })
-
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      return yield* run(sql)
-    }).pipe(Effect.provide(layer), Effect.orDie),
-  )
-}
-
-function applyMigrations(sql: SqlClient.SqlClient, upToId: number) {
-  return Effect.gen(function* () {
-    yield* sql.unsafe(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL
-      )
-    `)
-
-    for (const migration of APP_MIGRATIONS) {
-      if (migration.id > upToId) continue
-
-      const existing = yield* sql<{ id: number }>`
-        SELECT id FROM _migrations WHERE id = ${migration.id} LIMIT 1
-      `
-      if (existing.length > 0) continue
-
-      const skip = migration.skipIfColumn
-      if (skip) {
-        const columns = yield* sql<{ name: string }>`
-          SELECT name FROM pragma_table_info(${skip.table})
-        `
-        if (columns.some((column) => column.name === skip.column)) {
-          yield* sql`
-            INSERT INTO _migrations (id, name, applied_at)
-            VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-          `
-          continue
-        }
-      }
-
-      for (const statement of migration.statements) {
-        yield* sql.unsafe(statement)
-      }
-      yield* sql`
-        INSERT INTO _migrations (id, name, applied_at)
-        VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-      `
-    }
-  })
-}
-
-function sessionColumns(sql: SqlClient.SqlClient) {
-  return sql<ColumnInfo>`PRAGMA table_info(sessions)`
-}
-
-function insertSession(sql: SqlClient.SqlClient, id: string) {
-  return sql`
-    INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at)
-    VALUES (${id}, ${`pi-${id}`}, ${'Older session'}, ${1}, ${1})
-  `
+  return withMigrationDatabase(tmpRoot, run)
 }
 
 describe('session authorization-mode migration', () => {
@@ -217,90 +150,108 @@ describe('session authorization-mode migration', () => {
     expect(tables.map((table) => table.name)).toContain('pinned_sessions')
     expect(APP_MIGRATIONS.find((migration) => migration.id === 24)?.name).toBe('pinned-sessions')
   })
-})
 
-describe('Session worktree Setup dispatch migration', () => {
-  beforeEach(async () => {
-    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-setup-migrations-'))
-  })
-
-  afterEach(async () => {
-    await fs.rm(tmpRoot, { recursive: true, force: true })
-  })
-
-  it('adds the pending-dispatch table without scheduling Setup for older sessions', async () => {
+  it('adds the session resource catalog at migration 29 and keeps it session-owned', async () => {
     const result = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, AUTHORIZATION_MIGRATION_ID)
-        yield* insertSession(sql, 'older-session')
-        yield* applyMigrations(sql, WORKTREE_SETUP_MIGRATION_ID)
-
-        const tables = yield* sql<{ readonly name: string }>`
-          SELECT name FROM sqlite_master WHERE type = 'table'
-        `
-        const pending = yield* sql<{ readonly session_id: string }>`
-          SELECT session_id FROM session_worktree_setup
-        `
-        return { tables, pending }
-      }),
-    )
-
-    expect(result.tables.map((table) => table.name)).toContain('session_worktree_setup')
-    expect(result.pending).toEqual([])
-  })
-
-  it('upgrades a pending dispatch to the crash-safe state model without consuming it', async () => {
-    const dispatch = await withDatabase((sql) =>
-      Effect.gen(function* () {
-        yield* applyMigrations(sql, WORKTREE_SETUP_MIGRATION_ID)
-        yield* insertSession(sql, 'session-with-pending-setup')
+        yield* applyMigrations(sql, 29)
+        yield* insertSession(sql, 'resource-session')
         yield* sql`
-          INSERT INTO session_worktree_setup (
-            session_id, worktree_path, generation, created_at, updated_at
-          )
-          VALUES (
-            ${'session-with-pending-setup'}, ${'/worktree'}, ${'generation-1'}, ${1}, ${1}
+          INSERT INTO session_resources (
+            id, session_id, canonical_key, kind, title, available, created_at, updated_at
+          ) VALUES (
+            'resource-1', 'resource-session', 'sha256:image', 'image', 'image.png', 1, 1, 1
           )
         `
+        yield* sql`
+          INSERT INTO session_resource_occurrences (
+            id, resource_id, actor, activity, created_at
+          ) VALUES ('occurrence-1', 'resource-1', 'user', 'provided', 1)
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'resource-session'`
+        const resources = yield* sql<{ readonly id: string }>`SELECT id FROM session_resources`
+        const occurrences = yield* sql<{ readonly id: string }>`
+          SELECT id FROM session_resource_occurrences
+        `
+        return { resources, occurrences }
+      }),
+    )
 
-        yield* applyMigrations(sql, WORKTREE_SETUP_RECEIPT_MIGRATION_ID)
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 29)?.name).toBe(
+      'session-resource-catalog',
+    )
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 28)?.name).toBe(
+      'session-hive-lineage',
+    )
+    expect(result).toEqual({ resources: [], occurrences: [] })
+  })
 
-        return yield* sql<{
-          readonly dispatch_state: string
-          readonly claim_token: string | null
-          readonly accepted_at: number | null
-        }>`
-          SELECT dispatch_state, claim_token, accepted_at
-          FROM session_worktree_setup
-          WHERE session_id = ${'session-with-pending-setup'}
+  it('adds session-owned resource backfill progress at migration 30', async () => {
+    const state = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 30)
+        yield* insertSession(sql, 'backfill-session')
+        yield* sql`
+          INSERT INTO session_resource_backfill_state (session_id, through_created_order)
+          VALUES ('backfill-session', 42)
+        `
+        yield* sql`DELETE FROM sessions WHERE id = 'backfill-session'`
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_backfill_state
         `
       }),
     )
 
-    expect(dispatch).toEqual([{ dispatch_state: 'pending', claim_token: null, accepted_at: null }])
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 30)?.name).toBe(
+      'session-resource-backfill-state',
+    )
+    expect(state).toEqual([])
   })
 
-  it('deletes a durable Setup dispatch receipt with its Session', async () => {
+  it('adds durable managed-resource cleanup work at migration 31', async () => {
+    const queued = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, 30)
+        yield* sql`DROP TABLE session_resource_cleanup_queue`
+        yield* applyMigrations(sql, 31)
+        yield* sql`
+          INSERT INTO session_resource_cleanup_queue (session_id, queued_at)
+          VALUES ('deleted-session', 1)
+        `
+        return yield* sql<{ readonly session_id: string }>`
+          SELECT session_id FROM session_resource_cleanup_queue
+        `
+      }),
+    )
+
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 31)?.name).toBe(
+      'session-resource-cleanup-queue',
+    )
+    expect(queued).toEqual([{ session_id: 'deleted-session' }])
+  })
+
+  it('adds session-owned durable Output retry work at migration 32', async () => {
     const pending = await withDatabase((sql) =>
       Effect.gen(function* () {
-        yield* applyMigrations(sql, WORKTREE_SETUP_RECEIPT_MIGRATION_ID)
-        yield* sql`PRAGMA foreign_keys = ON`
-        yield* insertSession(sql, 'session-with-setup')
+        yield* applyMigrations(sql, 32)
+        yield* insertSession(sql, 'output-session')
         yield* sql`
-          INSERT INTO session_worktree_setup (
-            session_id, worktree_path, generation, created_at, updated_at
-          )
-          VALUES (
-            ${'session-with-setup'}, ${'/worktree'}, ${'generation-1'}, ${1}, ${1}
+          INSERT INTO session_output_retries (
+            id, session_id, kind, commit_hash, summary, created_at
+          ) VALUES (
+            'pending-commit', 'output-session', 'commit', 'abc123', 'Complete hub', 1
           )
         `
-        yield* sql`DELETE FROM sessions WHERE id = ${'session-with-setup'}`
-        return yield* sql<{ readonly session_id: string }>`
-          SELECT session_id FROM session_worktree_setup
+        yield* sql`DELETE FROM sessions WHERE id = 'output-session'`
+        return yield* sql<{ readonly id: string }>`
+          SELECT id FROM session_output_retries
         `
       }),
     )
 
+    expect(APP_MIGRATIONS.find((migration) => migration.id === 32)?.name).toBe(
+      'session-output-retry-queue',
+    )
     expect(pending).toEqual([])
   })
 })

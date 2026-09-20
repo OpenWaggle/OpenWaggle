@@ -15,8 +15,10 @@ import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
+import { SessionMessageImages, useSessionMessageImageResources } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
+import { NonFetchingMarkdownImage } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
 import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-components'
 import { Button } from '@/shared/ui/Button'
@@ -64,6 +66,7 @@ function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
 const userMarkdownComponents: Components = createSyntaxMarkdownComponents({
   p: UserMarkdownParagraph,
   li: UserMarkdownListItem,
+  img: NonFetchingMarkdownImage,
 })
 
 function isAttachmentText(content: string) {
@@ -120,6 +123,32 @@ function AttachmentChip({ name }: { readonly name: string }) {
   )
 }
 
+function visibleAttachmentParts(
+  textParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[],
+  capturedImages: readonly { readonly title: string; readonly attachmentIndex: number | null }[],
+) {
+  const attachmentParts = textParts.filter((part) => isAttachmentText(part.content))
+  const capturedImageSlots = new Set(
+    capturedImages.flatMap(({ attachmentIndex }) =>
+      typeof attachmentIndex === 'number' ? [attachmentIndex] : [],
+    ),
+  )
+  const capturedImageCountByName = new Map<string, number>()
+  for (const image of capturedImages) {
+    if (typeof image.attachmentIndex === 'number') continue
+    capturedImageCountByName.set(image.title, (capturedImageCountByName.get(image.title) ?? 0) + 1)
+  }
+
+  return attachmentParts.filter((part, index) => {
+    if (capturedImageSlots.has(index)) return false
+    const name = parseAttachmentName(part.content)
+    const capturedCount = capturedImageCountByName.get(name) ?? 0
+    if (capturedCount === 0) return true
+    capturedImageCountByName.set(name, capturedCount - 1)
+    return false
+  })
+}
+
 function WaggleInvocationChip({ message }: { readonly message: UIMessage }) {
   const invocation = message.metadata?.waggleInvocation
   if (!invocation) return null
@@ -173,12 +202,17 @@ export function UserMessageBubble({
   onForkFromMessage,
 }: UserMessageBubbleProps) {
   const { copied, copy } = useCopyToClipboard()
+  const messageNodeId = message.metadata?.sessionNodeId ?? message.id
+  const capturedImages = useSessionMessageImageResources(messageNodeId)
 
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
   )
   const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
-  const attachmentParts = textParts.filter((p) => isAttachmentText(p.content))
+  const attachmentNames = textParts
+    .filter((part) => isAttachmentText(part.content))
+    .map((part) => parseAttachmentName(part.content))
+  const attachmentParts = visibleAttachmentParts(textParts, capturedImages)
   const isSteerPreview = message.metadata?.steerDelivery !== undefined
   const isWaitingForCompaction = message.metadata?.steerDelivery === 'waiting-for-compaction'
 
@@ -194,8 +228,9 @@ export function UserMessageBubble({
           'border border-border-light bg-bg-hover px-3.5 py-2.5',
         )}
       >
+        <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
         {attachmentParts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
+          <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
             {attachmentParts.map((p, i) => (
               <AttachmentChip
                 key={`${message.id}-attachment-${String(i)}`}

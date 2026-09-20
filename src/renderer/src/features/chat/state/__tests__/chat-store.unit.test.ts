@@ -9,6 +9,7 @@ import {
   useTerminalStore,
 } from '@/features/terminal'
 import { useChatStore } from '../chat-store'
+import { useMessageQueueStore } from '../message-queue-store'
 
 // ── Mocks ────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 // ── Helpers ──────────────────────────────────────────────────
 
 function resetStore() {
+  useMessageQueueStore.setState({ queues: new Map(), disposedSessions: new Set() })
   useChatStore.setState({
     sessions: [],
     sessionById: new Map<SessionId, SessionDetail>(),
@@ -140,6 +142,21 @@ describe('useChatStore unit', () => {
   })
 
   describe('deleteSession', () => {
+    it('disposes only the deleted Session queue after deletion succeeds', async () => {
+      const id = SessionId('queued-session')
+      const otherId = SessionId('other-session')
+      const payload = { text: 'queued', thinkingLevel: 'off' as const, attachments: [] }
+      useMessageQueueStore.getState().enqueue(id, payload)
+      useMessageQueueStore.getState().enqueue(otherId, payload)
+      mockApi.deleteSession.mockResolvedValueOnce(undefined)
+
+      await useChatStore.getState().deleteSession(id)
+
+      expect(useMessageQueueStore.getState().queues.has(id)).toBe(false)
+      expect(useMessageQueueStore.getState().disposedSessions.has(id)).toBe(true)
+      expect(useMessageQueueStore.getState().queues.get(otherId)).toHaveLength(1)
+    })
+
     it('clears active state and prevents deleted sessions from being reselected', async () => {
       const id = SessionId('delete-session-id')
       const session = makeSessionDetail(id)
@@ -180,6 +197,7 @@ describe('useChatStore unit', () => {
       expect(useChatStore.getState().activeSessionId).toBe(id)
       expect(useChatStore.getState().activeSession).toBe(session)
       expect(useChatStore.getState().missingSessionIds.has(id)).toBe(false)
+      expect(useMessageQueueStore.getState().disposedSessions.has(id)).toBe(false)
       expect(clearInputOwner).not.toHaveBeenCalled()
       clearInputOwner.mockRestore()
     })

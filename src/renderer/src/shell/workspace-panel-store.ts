@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { useBrowserPreviewFloatingStore } from '@/features/browser-preview'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
+import { collectOwnerReconciliationErrors } from './workspace-owner-reconciliation'
 import {
   closeBrowsers,
   materializeBrowser,
@@ -104,12 +105,17 @@ function migrateGroup(
     ...source,
     browserTabs: source.browserTabs.map((tab) => ({ ...tab, ownerKey: toOwnerKey })),
   }
-  set({ groups })
-  useBrowserPreviewFloatingStore.getState().migrateOwner(fromOwnerKey, toOwnerKey)
-  const activeClaim = useRightSidebarCoordinator.getState().activeClaim
-  if (activeClaim?.kind === 'workspace' && activeClaim.ownerKey === fromOwnerKey) {
-    useRightSidebarCoordinator.getState().claimWorkspace(toOwnerKey)
-  }
+  const errors = collectOwnerReconciliationErrors([
+    () => set({ groups }),
+    () => useBrowserPreviewFloatingStore.getState().migrateOwner(fromOwnerKey, toOwnerKey),
+    () => {
+      const activeClaim = useRightSidebarCoordinator.getState().activeClaim
+      if (activeClaim?.kind === 'workspace' && activeClaim.ownerKey === fromOwnerKey) {
+        useRightSidebarCoordinator.getState().claimWorkspace(toOwnerKey)
+      }
+    },
+  ])
+  if (errors.length > 0) throw errors[0]
 }
 
 function removeGroup(set: WorkspacePanelSet, get: WorkspacePanelGet, ownerKey: string) {

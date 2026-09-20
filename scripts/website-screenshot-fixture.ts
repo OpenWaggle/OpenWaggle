@@ -1,4 +1,4 @@
-import { seedSingleSession } from '../e2e/support/session-fixtures'
+import { seedSingleSession } from './support/session-fixtures'
 
 export const PROJECT_NAME = 'OpenWaggle'
 export const THREAD_TITLE = 'review this waggle fix before merge'

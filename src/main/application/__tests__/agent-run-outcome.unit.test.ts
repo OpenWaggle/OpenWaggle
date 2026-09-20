@@ -47,23 +47,52 @@ describe('buildAgentRunOutcome', () => {
     expect(result).toEqual({
       outcome: 'success',
       newMessages: messages,
+      resourceMessages: messages,
+      resourceNodeIds: { 'message-1': 'message-1' },
+      resourceBranchIds: {},
       assignedTitle: 'New title',
     })
   })
 
-  it('treats aborted signals and empty projections as aborted outcomes', () => {
+  it('keeps persisted resource projection on an aborted outcome', () => {
     const controller = new AbortController()
     controller.abort()
+    const messages = [assistantMessage()]
 
     expect(
       buildAgentRunOutcome({
         ...context,
         assignedTitle: 'Kept title',
         signal: controller.signal,
-        agentResult: { newMessages: [assistantMessage()] },
+        agentResult: { newMessages: messages },
       }),
-    ).toEqual({ outcome: 'aborted', assignedTitle: 'Kept title' })
+    ).toEqual({
+      outcome: 'aborted',
+      resourceMessages: messages,
+      resourceNodeIds: { 'message-1': 'message-1' },
+      resourceBranchIds: {},
+      assignedTitle: 'Kept title',
+    })
+  })
 
+  it('keeps a stopped retry aborted when Pi retains its earlier terminal error', () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    expect(
+      buildAgentRunOutcome({
+        ...context,
+        signal: controller.signal,
+        agentResult: {
+          aborted: true,
+          terminalError: 'terminated',
+          newMessages: [assistantMessage()],
+        },
+      }),
+    ).toMatchObject({ outcome: 'aborted' })
+  })
+
+  it('treats an empty projection as an aborted outcome without resource work', () => {
     expect(
       buildAgentRunOutcome({
         ...context,
@@ -73,14 +102,15 @@ describe('buildAgentRunOutcome', () => {
     ).toEqual({ outcome: 'aborted' })
   })
 
-  it('maps terminal transport errors to error outcomes', () => {
+  it('maps terminal transport errors while retaining persisted resource projection', () => {
+    const messages = [assistantMessage()]
     const result = buildAgentRunOutcome({
       ...context,
       assignedTitle: 'Failure title',
       signal: new AbortController().signal,
       agentResult: {
         terminalError: 'Model is not authenticated',
-        newMessages: [assistantMessage()],
+        newMessages: messages,
       },
     })
 
@@ -89,6 +119,9 @@ describe('buildAgentRunOutcome', () => {
         outcome: 'error',
         assignedTitle: 'Failure title',
         transportEmitted: true,
+        resourceMessages: messages,
+        resourceNodeIds: { 'message-1': 'message-1' },
+        resourceBranchIds: {},
       }),
     )
   })

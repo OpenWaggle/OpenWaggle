@@ -61,11 +61,18 @@ export function WorkspacePanelContent(props: WorkspacePanelContentProps) {
               onClose={() => props.onCloseBrowser(activeBrowser.id)}
               onError={(message) => showToast(message, 'error')}
               onFloat={() => useWorkspacePanelStore.getState().hidePanel(props.owner.ownerKey)}
-              onMaterialize={(url, profileId) =>
-                useWorkspacePanelStore
-                  .getState()
-                  .materializeBrowser(props.owner.ownerKey, activeBrowser.id, url, profileId)
-              }
+              onMaterialize={(url, profileId) => {
+                try {
+                  useWorkspacePanelStore
+                    .getState()
+                    .materializeBrowser(props.owner.ownerKey, activeBrowser.id, url, profileId)
+                } catch (error) {
+                  showToast(
+                    error instanceof Error ? error.message : 'Browser tab could not open.',
+                    'error',
+                  )
+                }
+              }}
               onUpdate={(patch) => updateBrowser(props.owner.ownerKey, activeBrowser.id, patch)}
             />
           </Suspense>

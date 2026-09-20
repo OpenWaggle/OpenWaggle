@@ -15,6 +15,7 @@ import {
   BROWSER_PREVIEW_ELEMENT_PICKER_SCRIPT,
   BROWSER_PREVIEW_ELEMENT_PICKER_WORLD_ID,
 } from './browser-preview-element-picker-script'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
 
 interface ActivePick {
   readonly token: string
@@ -86,8 +87,10 @@ export class BrowserPreviewElementPicker {
     contents: WebContents,
     captureScale = 1,
   ): Promise<BrowserPreviewAnnotation | null> {
+    assertBrowserPreviewContentsAvailable(contents)
     if (contents.isDestroyed()) throw new Error('Browser preview content is no longer available.')
     if (this.active.has(pickKey)) await this.cancel(pickKey)
+    assertBrowserPreviewContentsAvailable(contents)
     const token = randomUUID()
     let signalCancellation: () => void = () => undefined
     const cancelled = new Promise<null>((resolve) => {

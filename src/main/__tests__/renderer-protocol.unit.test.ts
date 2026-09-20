@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { INLINE_VISUALIZATION_PROTOCOL } from '@shared/constants/inline-visualization'
+import { SESSION_RESOURCE_PROTOCOL } from '@shared/constants/session-resource-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const HTTP_OK_STATUS = 200
@@ -149,6 +150,15 @@ describe('renderer protocol', () => {
       },
       {
         scheme: INLINE_VISUALIZATION_PROTOCOL.SCHEME,
+        privileges: {
+          standard: true,
+          secure: true,
+          supportFetchAPI: true,
+          corsEnabled: false,
+        },
+      },
+      {
+        scheme: SESSION_RESOURCE_PROTOCOL.SCHEME,
         privileges: {
           standard: true,
           secure: true,

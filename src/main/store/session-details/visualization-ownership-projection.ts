@@ -1,6 +1,5 @@
+import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
-
-export const VISUALIZE_REFERENCE_START = 'visualize'
 
 function readVisualizationOwner(metadataJson: string) {
   try {
@@ -36,7 +35,7 @@ export function preserveVisualizationOwnership(
   return nodes.map((node) => {
     if (
       node.kind !== 'assistant_message' ||
-      !node.contentJson.includes(VISUALIZE_REFERENCE_START)
+      !containsInlineVisualizationReference(node.contentJson)
     ) {
       return node
     }

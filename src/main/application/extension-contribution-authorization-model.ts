@@ -9,6 +9,7 @@ import type { DiscoveredExtensionPackage, ExtensionDiagnostic } from '../extensi
 import {
   getManifestFamilyContributions,
   isEntryContribution,
+  isSessionSummaryContribution,
   type ManifestContribution,
 } from './extension-contribution-family-model'
 import {
@@ -62,6 +63,7 @@ function uniqueMethods(binding: ContributionBrokerBinding) {
 function contributionCapabilityBinding(
   contribution: ManifestContribution,
 ): ContributionCapabilityBinding {
+  if (isSessionSummaryContribution(contribution)) return { _tag: 'unbound', methods: [] }
   const methods = uniqueMethods(contribution)
   return contribution.capability === undefined
     ? { _tag: 'unbound', methods }

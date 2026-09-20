@@ -102,7 +102,6 @@ Mechanical enforcement:
 ## Testing
 
 - Unit, integration, and component tests live in nearby `__tests__/` folders.
-- E2E tests live under `e2e/`.
 - Tests should verify behavior through public interfaces.
 - Use typed builders, `satisfies`, and Shoehorn test helpers instead of casts.
 - Mock setup must avoid hoisting races; dynamically import subject modules after `vi.mock(...)` setup when needed.
