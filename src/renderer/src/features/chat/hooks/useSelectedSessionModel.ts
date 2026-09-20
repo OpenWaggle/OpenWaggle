@@ -109,14 +109,27 @@ export function useSelectedSessionModel(): {
               await useChatStore.getState().refreshSession(sessionId)
             }
           } catch (reloadError) {
-            // The write and the reload both failed (same outage): restore the pre-pick detail and
-            // summary so nothing keeps a model that was never persisted. Both pass through the
-            // desired-pick guard, so a newer pick's optimistic value survives this rollback.
+            // The write and the reload both failed (same outage): restore the pre-pick model so
+            // nothing keeps a value that was never persisted. Only the model field is written —
+            // the cached detail may hold newer run state than the retained snapshot. Both paths
+            // pass through the desired-pick guard, so a newer pick's optimistic value survives.
             logger.warn('Reloading after a failed model pick failed; restoring pre-pick state', {
               model: String(model),
               error: String(reloadError),
             })
-            if (session) useChatStore.getState().upsertSession(session)
+            const chat = useChatStore.getState()
+            const currentDetail = chat.sessionById.get(sessionId)
+            if (currentDetail) {
+              chat.upsertSession(
+                reconcileSessionModelPick({
+                  ...currentDetail,
+                  selectedModel: session?.selectedModel ?? preSummaryModel,
+                }),
+              )
+            }
+            if (!currentDetail && session) {
+              chat.upsertSession(session)
+            }
             useSessionStore.setState((s) => ({
               sessions: s.sessions.map((summary) =>
                 String(summary.id) === sessionKey

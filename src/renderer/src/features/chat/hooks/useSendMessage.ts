@@ -11,6 +11,7 @@ import {
   applyDraftSelectedModelToSession,
   flushDraftSelectedModelToSession,
   snapshotDraftSelectedModel,
+  undoDraftSelectedModelPromotion,
 } from '@/features/chat/state/draft-selected-model-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
@@ -67,11 +68,13 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       const sessionId = await createSession(projectPath)
       // Promote before the awaited setup: the hook resolves the active session now, so the
       // global default would be dispatched by a parallel submit during the setup window.
-      applyDraftSelectedModelToSession(sessionId, draftModel)
+      const promotionGeneration = applyDraftSelectedModelToSession(sessionId, draftModel)
+      let modelPersisted = false
       try {
         await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
         await flushDraftSelectedModelToSession(projectPath, sessionId, draftModel)
+        modelPersisted = true
         /*
          * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
          * the send had succeeded: a review submitted as a session's first message was cleared and never
@@ -79,6 +82,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
          */
         await sendMessageToSession(sessionId, payload, null)
       } catch (error) {
+        if (!modelPersisted && promotionGeneration !== undefined) {
+          undoDraftSelectedModelPromotion(sessionId, promotionGeneration)
+        }
         throw firstSendFailure(error, sessionId)
       }
       return
@@ -99,11 +105,13 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       // Same snapshot-before-create as the classic path above.
       const draftModel = snapshotDraftSelectedModel(projectPath)
       const sessionId = await createSession(projectPath)
-      applyDraftSelectedModelToSession(sessionId, draftModel)
+      const promotionGeneration = applyDraftSelectedModelToSession(sessionId, draftModel)
+      let modelPersisted = false
       try {
         await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
         await flushDraftSelectedModelToSession(projectPath, sessionId, draftModel)
+        modelPersisted = true
         startWaggleCollaboration(sessionId, config)
         /*
          * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
@@ -113,6 +121,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
          */
         await sendMessageToSession(sessionId, payload, config)
       } catch (error) {
+        if (!modelPersisted && promotionGeneration !== undefined) {
+          undoDraftSelectedModelPromotion(sessionId, promotionGeneration)
+        }
         throw firstSendFailure(error, sessionId)
       }
       return

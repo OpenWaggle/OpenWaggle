@@ -8,6 +8,7 @@ import {
   commitDesiredSessionModel,
   markDesiredSessionModel,
   peekDesiredSessionModel,
+  reconcileSessionModelPick,
   runExclusiveSessionModelWrite,
 } from '@/shared/lib/session-model-pick'
 import { useChatStore } from './chat-store'
@@ -60,10 +61,10 @@ export const useDraftSelectedModelStore = create<DraftSelectedModelState>()((set
 export function applyDraftSelectedModelToSession(
   sessionId: SessionId,
   override: DraftModelOverride | undefined,
-): void {
-  if (override === undefined) return
+): number | undefined {
+  if (override === undefined) return undefined
   const sessionKey = String(sessionId)
-  markDesiredSessionModel(sessionKey, override.model)
+  const generation = markDesiredSessionModel(sessionKey, override.model)
   const created = useChatStore.getState().activeSession
   if (created && String(created.id) === sessionKey) {
     useChatStore.getState().upsertSession({ ...created, selectedModel: override.model })
@@ -71,6 +72,27 @@ export function applyDraftSelectedModelToSession(
   useSessionStore.setState((state) => ({
     sessions: state.sessions.map((summary) =>
       String(summary.id) === sessionKey ? { ...summary, selectedModel: override.model } : summary,
+    ),
+  }))
+  return generation
+}
+
+/**
+ * Undoes a promotion whose send failed before the pick was persisted, so the caches never keep
+ * a model the database does not have. A newer pick's guard survives the rollback.
+ */
+export function undoDraftSelectedModelPromotion(sessionId: SessionId, generation: number): void {
+  const sessionKey = String(sessionId)
+  clearDesiredSessionModel(sessionKey, generation)
+  const created = useChatStore.getState().activeSession
+  if (created && String(created.id) === sessionKey) {
+    useChatStore.getState().upsertSession({ ...created, selectedModel: undefined })
+  }
+  useSessionStore.setState((state) => ({
+    sessions: state.sessions.map((summary) =>
+      String(summary.id) === sessionKey
+        ? reconcileSessionModelPick({ ...summary, selectedModel: undefined })
+        : summary,
     ),
   }))
 }
