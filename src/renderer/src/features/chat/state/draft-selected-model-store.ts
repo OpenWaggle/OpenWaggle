@@ -34,7 +34,15 @@ export async function flushDraftSelectedModelToSession(
   const override = useDraftSelectedModelStore.getState().byProjectPath[projectPath]
   if (override === undefined) return
 
-  await api.setSessionSelectedModel(sessionId, override)
+  try {
+    await api.setSessionSelectedModel(sessionId, override)
+  } catch (error) {
+    // The row stays inheriting, so drop the pick rather than diverge: the composer, a retried
+    // dispatch, and a reload would otherwise disagree about this session's model. The failure
+    // propagates, aborting the first send with the draft preserved for the user to retry.
+    useDraftSelectedModelStore.getState().clearOverride(projectPath, override)
+    throw error
+  }
   // createSession already replaced the draft with an active SessionDetail that carries no pick.
   // Mirror the persisted model into it before clearing the override, otherwise the picker, Waggle
   // status, and the usage snapshot fall back to the global default until the run refresh lands.

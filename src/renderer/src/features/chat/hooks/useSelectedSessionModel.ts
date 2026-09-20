@@ -2,6 +2,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import { useChatStore } from '@/features/chat/state'
 import { refreshSessionStoreForSession } from '@/features/chat/state/chat-store-helpers'
 import { useDraftSelectedModelStore } from '@/features/chat/state/draft-selected-model-store'
+import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -37,8 +38,16 @@ export function useSelectedSessionModel(): {
       if (session) state.upsertSession({ ...session, selectedModel: model })
       try {
         await api.setSessionSelectedModel(state.activeSessionId, model)
-        // Sync the summaries projection (and the tree when this is the open session), so branch
-        // navigation and any other summary reader resolve the pick instead of a stale row.
+        // Patch the summary synchronously: the refresh below is fire-and-forget, and a branch
+        // selection in the same tick must not reconstruct the run from the stale row.
+        useSessionStore.setState((s) => ({
+          sessions: s.sessions.map((summary) =>
+            String(summary.id) === String(state.activeSessionId)
+              ? { ...summary, selectedModel: model }
+              : summary,
+          ),
+        }))
+        // Then sync the summaries projection (and the tree when this is the open session).
         refreshSessionStoreForSession(
           state.activeSessionId,
           useChatStore.getState().activeSessionId,
