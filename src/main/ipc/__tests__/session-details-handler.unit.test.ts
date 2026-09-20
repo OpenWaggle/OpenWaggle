@@ -346,4 +346,14 @@ describe('registerSessionDetailsHandlers', () => {
     )
     expect(setAuthorizationModeMock).not.toHaveBeenCalled()
   })
+
+  it('requires canonical provider/model session model picks', async () => {
+    registerSessionDetailsHandlers()
+    const handler = getInvokeHandler('sessions:set-selected-model')
+
+    await expect(handler?.({}, SessionId('session-1'), 'not-a-ref')).rejects.toThrow(
+      'Session model must be a provider/model reference.',
+    )
+    await expect(handler?.({}, SessionId('session-1'), ' provider/model ')).resolves.toBeUndefined()
+  })
 })

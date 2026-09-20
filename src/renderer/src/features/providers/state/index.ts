@@ -1,2 +1,2 @@
 export { useAuthStore } from './auth-store'
-export { useProviderStore } from './provider-store'
+export { isSelectableModel, useProviderStore } from './provider-store'

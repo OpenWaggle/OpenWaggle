@@ -1,6 +1,7 @@
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import { SupportedModelId } from '@shared/types/brand'
+import { parseModelRef } from '@shared/types/llm'
 import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
@@ -24,8 +25,12 @@ function validateAuthorizationMode(mode: unknown) {
 }
 
 function validateSelectedModel(model: unknown) {
-  if (typeof model === 'string' && model.trim().length > 0) {
-    return Effect.succeed(SupportedModelId(model))
+  if (typeof model === 'string') {
+    const trimmed = model.trim()
+    // Same canonical `provider/model` boundary as stored project preferences; trims whitespace
+    // and rejects non-references so the session never keeps a value the picker cannot resolve.
+    if (trimmed && parseModelRef(trimmed)) return Effect.succeed(SupportedModelId(trimmed))
+    return Effect.fail(new Error('Session model must be a provider/model reference.'))
   }
   return Effect.fail(new Error('Session model is invalid.'))
 }

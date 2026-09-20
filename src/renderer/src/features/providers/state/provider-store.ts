@@ -38,6 +38,24 @@ function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
 }
 
 /**
+ * Whether the picker can actually select this model: enabled in settings and currently
+ * available in the Pi catalog. An empty catalog means the store has not hydrated yet, so the
+ * model is left as-is rather than gated during startup.
+ */
+export function isSelectableModel(
+  providerModels: readonly ProviderInfo[],
+  settings: Pick<Settings, 'enabledModels'>,
+  model: SupportedModelId | undefined,
+): boolean {
+  if (!model) return false
+  if (providerModels.length === 0) return true
+  if (!settings.enabledModels.includes(model)) return false
+  return providerModels.some((group) =>
+    group.models.some((candidate) => candidate.id === model && candidate.available),
+  )
+}
+
+/**
  * Remove enabledModels entries that reference models no longer in the provider
  * catalog (stale version suffixes, removed models, or providerless IDs).
  */

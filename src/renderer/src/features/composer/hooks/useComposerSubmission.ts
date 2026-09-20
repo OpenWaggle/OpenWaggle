@@ -1,10 +1,11 @@
-import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
+import { isSelectableModel, useProviderStore } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import {
@@ -13,8 +14,12 @@ import {
   unmarkSessionResourceAttachmentsSubmitted,
 } from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
-
-const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
+import {
+  attachmentLimitMessage,
+  attachmentLimitReason,
+  canSend,
+  getSubmitBlock,
+} from './submit-block'
 
 interface UseComposerSubmissionInput {
   readonly onSend: (payload: AgentSendPayload) => Promise<void> | void | false
@@ -37,14 +42,6 @@ export type SendFailureDisposition =
   | { readonly kind: 'restore'; readonly contextKey?: string | null }
   | { readonly kind: 'discard' | 'retain' }
 
-interface SubmitBlockInput {
-  readonly payload: AgentSendPayload
-  readonly disabled?: boolean
-  readonly requiresText: boolean
-  readonly projectPath: string | null
-  readonly selectedModel: string
-}
-
 function mergeDraftText(submitted: string, current: string) {
   if (!submitted || submitted === current) return current
   return current ? `${submitted}\n\n${current}` : submitted
@@ -59,25 +56,6 @@ function mergeDraftAttachments(
       [...submitted, ...current].map((attachment) => [attachment.id, attachment]),
     ).values(),
   ]
-}
-
-function attachmentLimitReason(
-  attachments: readonly PreparedAttachment[],
-): 'count' | 'size' | null {
-  if (attachments.length > ATTACHMENT.MAX_COUNT) return 'count'
-  if (
-    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
-    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  ) {
-    return 'size'
-  }
-  return null
-}
-
-function attachmentLimitMessage(reason: 'count' | 'size') {
-  return reason === 'count'
-    ? 'Your draft has too many attachments to send. Remove some before retrying.'
-    : 'Your draft exceeds the 20 MB attachment limit. Remove some before retrying.'
 }
 
 function restoreFailedSendDraft(
@@ -128,7 +106,16 @@ export function useComposerSubmission({
   const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const selectedModel = useSelectedSessionModel().selectedModel
+  const resolvedModel = useSelectedSessionModel().selectedModel
+  // A stored pick can outlive its model (disabled in Connections, pruned from the catalog). The
+  // picker then shows "Select model"; make the send gate agree instead of dispatching a
+  // predictably failing run. An empty catalog means the store has not hydrated yet, so the
+  // gate stays open during startup.
+  const providerModels = useProviderStore((s) => s.providerModels)
+  const enabledModels = usePreferencesStore((s) => s.settings.enabledModels)
+  const selectedModel = isSelectableModel(providerModels, { enabledModels }, resolvedModel)
+    ? resolvedModel
+    : ''
   const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
 
   function clearComposerInput() {
@@ -260,57 +247,4 @@ export function useComposerSubmission({
     sendComposed,
     submitCurrentDraft,
   }
-}
-
-function getSubmitBlock({
-  payload,
-  disabled,
-  requiresText,
-  projectPath,
-  selectedModel,
-}: SubmitBlockInput) {
-  if (requiresText && !payload.text) return SILENT_SUBMIT_BLOCK
-  if (disabled || (!payload.text && payload.attachments.length === 0)) return SILENT_SUBMIT_BLOCK
-  const attachmentLimit = attachmentLimitReason(payload.attachments)
-  if (attachmentLimit) return toastSubmitBlock(attachmentLimitMessage(attachmentLimit))
-  if (!projectPath) return toastSubmitBlock('Select a project before sending.')
-  if (!selectedModel.trim()) return toastSubmitBlock('Select a model in Settings before sending.')
-  return null
-}
-
-function toastSubmitBlock(message: string) {
-  return { type: 'toast' as const, message }
-}
-
-interface CanSendInput {
-  readonly input: string
-  readonly attachments: readonly PreparedAttachment[]
-  readonly disabled?: boolean
-  readonly hasPreparingTextAttachment: boolean
-  readonly projectPath: string | null
-  readonly selectedModel: string
-  readonly requiresText: boolean
-}
-
-function canSend({
-  input,
-  attachments,
-  disabled,
-  hasPreparingTextAttachment,
-  projectPath,
-  selectedModel,
-  requiresText,
-}: CanSendInput) {
-  const hasSubmitContent = requiresText
-    ? input.trim().length > 0
-    : input.trim().length > 0 || attachments.length > 0
-
-  return (
-    hasSubmitContent &&
-    !disabled &&
-    !hasPreparingTextAttachment &&
-    !attachmentLimitReason(attachments) &&
-    Boolean(projectPath) &&
-    selectedModel.trim().length > 0
-  )
 }
