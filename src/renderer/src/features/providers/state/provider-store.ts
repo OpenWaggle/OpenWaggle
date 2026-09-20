@@ -47,7 +47,7 @@ export function isSelectableModel(
   settings: Pick<Settings, 'enabledModels'>,
   model: SupportedModelId | undefined,
   catalogHydrated: boolean,
-): boolean {
+): model is SupportedModelId {
   if (!model) return false
   if (!catalogHydrated) return true
   if (providerModels.length === 0) return false
