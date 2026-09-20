@@ -9,6 +9,9 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('session-model')
 
+/** The most recent session pick; only it may reconcile the chat store when its write settles. */
+let latestPick: { readonly sessionId: string; readonly model: SupportedModelId } | null = null
+
 /**
  * The model of the session the composer is acting on — stored per session in the database, never
  * globally. Resolution order: the session's own pick, then an explicit pre-first-send draft pick,
@@ -37,40 +40,46 @@ export function useSelectedSessionModel(): {
     const state = useChatStore.getState()
     if (state.activeSessionId) {
       const session = state.activeSession
+      const pick = { sessionId: state.activeSessionId, model }
+      latestPick = pick
       // Optimistic: the picker closes before the IPC write lands and the send gate reads this
       // store, so an awaited write would let an immediate submit dispatch the previous model.
       if (session) state.upsertSession({ ...session, selectedModel: model })
       try {
         await api.setSessionSelectedModel(state.activeSessionId, model)
-        // Patch the summary synchronously: the refresh below is fire-and-forget, and a branch
-        // selection in the same tick must not reconstruct the run from the stale row.
-        useSessionStore.setState((s) => ({
-          sessions: s.sessions.map((summary) =>
-            String(summary.id) === String(state.activeSessionId)
-              ? { ...summary, selectedModel: model }
-              : summary,
-          ),
-        }))
-        // Then sync the summaries projection (and the tree when this is the open session).
-        refreshSessionStoreForSession(
-          state.activeSessionId,
-          useChatStore.getState().activeSessionId,
-        )
       } catch (error) {
-        // Roll back the cached entry by id: the user may already have switched to another session,
-        // and a rollback keyed to the active session would leave the failed pick in place here.
-        if (session) {
-          const cached = useChatStore.getState().sessionById.get(session.id)
-          if (cached && cached.selectedModel === model) {
-            useChatStore
-              .getState()
-              .upsertSession({ ...cached, selectedModel: session.selectedModel })
-          }
+        // Only the newest pick reconciles with the database: overlapping failed writes must not
+        // roll each other back onto optimistic values that were never persisted. A reload
+        // converges on the persisted row whatever order the writes settled in.
+        if (latestPick === pick) {
+          void useChatStore.getState().refreshSession(state.activeSessionId)
         }
-        logger.warn('Session model selection failed; rolled back', {
+        logger.warn('Session model selection failed; reloading persisted state', {
           model: String(model),
           error: String(error),
         })
+        return
+      }
+      // A newer pick owns the UI state and the reconciliation now.
+      if (latestPick !== pick) return
+      // Patch the summary synchronously: the refresh below is fire-and-forget, and a branch
+      // selection in the same tick must not reconstruct the run from the stale row.
+      useSessionStore.setState((s) => ({
+        sessions: s.sessions.map((summary) =>
+          String(summary.id) === String(state.activeSessionId)
+            ? { ...summary, selectedModel: model }
+            : summary,
+        ),
+      }))
+      // Then sync the summaries projection (and the tree when this is the open session).
+      refreshSessionStoreForSession(state.activeSessionId, useChatStore.getState().activeSessionId)
+      // An in-flight session-detail refresh can restore the pre-pick value after the optimistic
+      // upsert, and the next send reads this store — reapply the persisted model to the cache.
+      if (session) {
+        const cached = useChatStore.getState().sessionById.get(session.id)
+        if (cached && cached.selectedModel !== model) {
+          useChatStore.getState().upsertSession({ ...cached, selectedModel: model })
+        }
       }
       return
     }
