@@ -8,6 +8,7 @@ import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import {
   clearDesiredSessionModel,
+  commitDesiredSessionModel,
   markDesiredSessionModel,
   reconcileSessionModelPick,
   runExclusiveSessionModelWrite,
@@ -25,8 +26,18 @@ export function useSelectedSessionModel(): {
   readonly setSelectedModel: (model: SupportedModelId) => Promise<void>
 } {
   const activeSession = useChatStore((s) => s.activeSession)
+  const activeSessionId = useChatStore((s) => s.activeSessionId)
   const draftProjectPath = useChatStore((s) => s.draftSession?.projectPath ?? null)
   const fallbackModel = usePreferencesStore((s) => s.settings.selectedModel)
+
+  // While an opened session's detail is still loading (id set, detail null), the summaries carry
+  // its stored pick; without this the composer would briefly resolve the global default and an
+  // immediate send would run the session on the wrong model.
+  const summaryModel = useSessionStore((s) =>
+    activeSessionId && activeSession === null
+      ? s.sessions.find((summary) => String(summary.id) === String(activeSessionId))?.selectedModel
+      : undefined,
+  )
 
   // Draft picks apply only while no session is active: the draft is the composer's target until
   // the first send creates the session, whose own row (or the global default) takes over. A pick
@@ -39,7 +50,9 @@ export function useSelectedSessionModel(): {
 
   const selectedModel = activeSession
     ? (activeSession.selectedModel ?? fallbackModel)
-    : (draftModel ?? fallbackModel)
+    : activeSessionId
+      ? (summaryModel ?? fallbackModel)
+      : (draftModel ?? fallbackModel)
 
   const setSelectedModel = async (model: SupportedModelId) => {
     const state = useChatStore.getState()
@@ -60,6 +73,7 @@ export function useSelectedSessionModel(): {
       await runExclusiveSessionModelWrite(sessionKey, async () => {
         try {
           await api.setSessionSelectedModel(sessionId, model)
+          commitDesiredSessionModel(sessionKey, model, pickGeneration)
         } catch (error) {
           logger.warn('Session model selection failed; reloading persisted state', {
             model: String(model),

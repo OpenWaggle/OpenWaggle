@@ -111,7 +111,12 @@ async function resolveTargetExecutionProfile(sessionId?: string): Promise<TaskEx
       const sessions = yield* SessionProjectionRepository
       const session = yield* sessions.getOptional(SessionId(sessionId))
       if (!session) return yield* Effect.fail(new Error(`Session ${sessionId} was not found.`))
-      const targetModel = session.messages.findLast((message) => Boolean(message.model))?.model
+      // The session's own pick outranks the transcript history and the global default: the
+      // picker no longer updates the global setting, so a session that switched models would
+      // otherwise run its tasks on the model it was created with.
+      const targetModel =
+        session.selectedModel ??
+        session.messages.findLast((message) => Boolean(message.model))?.model
       const model = targetModel ?? settings.selectedModel
       if (!model) {
         return yield* Effect.fail(

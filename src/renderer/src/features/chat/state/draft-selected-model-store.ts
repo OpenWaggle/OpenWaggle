@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import {
   clearDesiredSessionModel,
+  commitDesiredSessionModel,
   hasDesiredSessionModel,
   markDesiredSessionModel,
   runExclusiveSessionModelWrite,
@@ -77,6 +78,7 @@ export async function flushDraftSelectedModelToSession(
     const pickGeneration = markDesiredSessionModel(sessionKey, override.model)
     try {
       await api.setSessionSelectedModel(sessionId, override.model)
+      commitDesiredSessionModel(sessionKey, override.model, pickGeneration)
     } catch (error) {
       // The row stays inheriting, so drop the pick rather than diverge: the composer, a retried
       // dispatch, and a reload would otherwise disagree about this session's model. The failure

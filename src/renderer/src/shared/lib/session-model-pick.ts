@@ -14,16 +14,36 @@ interface DesiredSessionModelPick {
 const desiredBySession = new Map<string, DesiredSessionModelPick>()
 let nextGeneration = 0
 
+/** The last pick whose write actually landed, so a failed newer pick can restore it as the guard. */
+const committedBySession = new Map<string, DesiredSessionModelPick>()
+
 export function markDesiredSessionModel(sessionId: string, model: SupportedModelId): number {
   const generation = ++nextGeneration
   desiredBySession.set(sessionId, { generation, model })
   return generation
 }
 
-/** Clears the guard only when no newer pick has replaced it. */
+/** Records the pick as committed after its write lands, for later failure rollbacks. */
+export function commitDesiredSessionModel(
+  sessionId: string,
+  model: SupportedModelId,
+  generation: number,
+): void {
+  committedBySession.set(sessionId, { generation, model })
+}
+
+/**
+ * Clears the guard only when no newer pick has replaced it. A failed pick restores the last
+ * committed model instead of leaving no guard, so a stale refresh that read the row before the
+ * committed write cannot clobber it.
+ */
 export function clearDesiredSessionModel(sessionId: string, generation: number): void {
   const current = desiredBySession.get(sessionId)
-  if (current?.generation === generation) desiredBySession.delete(sessionId)
+  if (current?.generation === generation) {
+    const committed = committedBySession.get(sessionId)
+    if (committed) desiredBySession.set(sessionId, committed)
+    else desiredBySession.delete(sessionId)
+  }
 }
 
 /** Whether any pick guard is live for the session (a post-materialization pick, for instance). */
