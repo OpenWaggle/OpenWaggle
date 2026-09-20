@@ -1,5 +1,6 @@
 import type { SupportedModelId } from '@shared/types/llm'
 import { useChatStore } from '@/features/chat/state'
+import { refreshSessionStoreForSession } from '@/features/chat/state/chat-store-helpers'
 import { useDraftSelectedModelStore } from '@/features/chat/state/draft-selected-model-store'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
@@ -36,13 +37,22 @@ export function useSelectedSessionModel(): {
       if (session) state.upsertSession({ ...session, selectedModel: model })
       try {
         await api.setSessionSelectedModel(state.activeSessionId, model)
+        // Sync the summaries projection (and the tree when this is the open session), so branch
+        // navigation and any other summary reader resolve the pick instead of a stale row.
+        refreshSessionStoreForSession(
+          state.activeSessionId,
+          useChatStore.getState().activeSessionId,
+        )
       } catch (error) {
-        // Roll back only if the user has not already picked something else meanwhile.
-        const current = useChatStore.getState().activeSession
-        if (session && current && current.id === session.id && current.selectedModel === model) {
-          useChatStore
-            .getState()
-            .upsertSession({ ...current, selectedModel: session.selectedModel })
+        // Roll back the cached entry by id: the user may already have switched to another session,
+        // and a rollback keyed to the active session would leave the failed pick in place here.
+        if (session) {
+          const cached = useChatStore.getState().sessionById.get(session.id)
+          if (cached && cached.selectedModel === model) {
+            useChatStore
+              .getState()
+              .upsertSession({ ...cached, selectedModel: session.selectedModel })
+          }
         }
         logger.warn('Session model selection failed; rolled back', {
           model: String(model),
