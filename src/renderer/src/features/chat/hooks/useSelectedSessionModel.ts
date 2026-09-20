@@ -22,7 +22,7 @@ const logger = createRendererLogger('session-model')
  * then the global default (which is only a default for sessions that never picked).
  */
 export function useSelectedSessionModel(): {
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly setSelectedModel: (model: SupportedModelId) => Promise<void>
 } {
   const activeSession = useChatStore((s) => s.activeSession)
@@ -31,11 +31,12 @@ export function useSelectedSessionModel(): {
   const fallbackModel = usePreferencesStore((s) => s.settings.selectedModel)
 
   // While an opened session's detail is still loading (id set, detail null), the summaries carry
-  // its stored pick; without this the composer would briefly resolve the global default and an
-  // immediate send would run the session on the wrong model.
-  const summaryModel = useSessionStore((s) =>
+  // its stored pick. Without a summary row either — a cold deep link before any load resolves —
+  // the session's model is unknown, so resolving to none makes model-dependent actions wait
+  // instead of dispatching the global default onto a session that may have picked otherwise.
+  const loadingSummary = useSessionStore((s) =>
     activeSessionId && activeSession === null
-      ? s.sessions.find((summary) => String(summary.id) === String(activeSessionId))?.selectedModel
+      ? s.sessions.find((summary) => String(summary.id) === String(activeSessionId))
       : undefined,
   )
 
@@ -48,10 +49,12 @@ export function useSelectedSessionModel(): {
       : undefined,
   )
 
-  const selectedModel = activeSession
+  const selectedModel: SupportedModelId | undefined = activeSession
     ? (activeSession.selectedModel ?? fallbackModel)
     : activeSessionId
-      ? (summaryModel ?? fallbackModel)
+      ? loadingSummary
+        ? (loadingSummary.selectedModel ?? fallbackModel)
+        : undefined
       : (draftModel ?? fallbackModel)
 
   const setSelectedModel = async (model: SupportedModelId) => {
@@ -60,6 +63,11 @@ export function useSelectedSessionModel(): {
       const sessionId = state.activeSessionId
       const session = state.activeSession
       const sessionKey = String(sessionId)
+      // The summary can hold the persisted pick while the detail is still loading; keep it for
+      // the failure rollback, which otherwise erases a pick it never saw.
+      const preSummaryModel = useSessionStore
+        .getState()
+        .sessions.find((summary) => String(summary.id) === sessionKey)?.selectedModel
       const pickGeneration = markDesiredSessionModel(sessionKey, model)
       // Optimistic: the picker closes before the IPC write lands and the send gate reads the
       // chat store, so an awaited write would let an immediate submit dispatch the previous
@@ -112,7 +120,10 @@ export function useSelectedSessionModel(): {
             useSessionStore.setState((s) => ({
               sessions: s.sessions.map((summary) =>
                 String(summary.id) === sessionKey
-                  ? reconcileSessionModelPick({ ...summary, selectedModel: session?.selectedModel })
+                  ? reconcileSessionModelPick({
+                      ...summary,
+                      selectedModel: session?.selectedModel ?? preSummaryModel,
+                    })
                   : summary,
               ),
             }))

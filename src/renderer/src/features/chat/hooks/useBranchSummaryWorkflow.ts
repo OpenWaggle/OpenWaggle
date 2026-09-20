@@ -20,7 +20,7 @@ type Navigate = ReturnType<typeof useNavigate>
 interface BranchSummaryWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly navigate: Navigate
   readonly loadSessions: () => Promise<void>
@@ -175,6 +175,9 @@ async function navigateWithBranchSummary(
   prompt: BranchSummaryPromptState,
   customInstructions: string | undefined,
 ) {
+  if (!params.model) {
+    return { cancelled: true }
+  }
   const trimmedInstructions = customInstructions?.trim()
   return api.navigateSessionTree(prompt.sessionId, params.model, prompt.sourceNodeId, {
     summarize: true,
@@ -242,6 +245,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
     ) {
       if (!params.activeSessionId) return true
       if (draftBranch?.sessionId !== params.activeSessionId) return true
+      if (!params.model) return true
 
       const navigation = await api.navigateSessionTree(
         params.activeSessionId,

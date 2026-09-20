@@ -15,7 +15,7 @@ interface SessionCopyWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
   readonly draftBranchSourceNodeId: SessionNodeId | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly navigate: Navigate
   readonly setActiveSession: (sessionId: SessionId | null) => void
@@ -63,6 +63,10 @@ async function activateCopiedSession(
 
 async function forkMessageToNewSessionAction(params: SessionCopyWorkflowParams, messageId: string) {
   if (!params.activeSessionId) return
+  if (!params.model) {
+    params.showToast('Select a model before forking.')
+    return
+  }
 
   try {
     const result = await api.forkSessionToNew(
@@ -94,6 +98,10 @@ async function cloneCurrentSessionToNewSessionAction(params: SessionCopyWorkflow
   const targetNodeId = params.draftBranchSourceNodeId ?? params.activeWorkspace?.activeNodeId
   if (!targetNodeId) {
     params.showToast('No session history to clone.')
+    return
+  }
+  if (!params.model) {
+    params.showToast('Select a model before cloning.')
     return
   }
 

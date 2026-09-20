@@ -4,11 +4,11 @@ const logger = createRendererLogger('chat-panel')
 
 export async function sendStarterPrompt(input: {
   readonly content: string
-  readonly model: string
+  readonly model: string | undefined
   readonly handleSendText: (content: string) => Promise<void>
   readonly showToast: (message: string) => void
 }) {
-  if (!input.model.trim()) {
+  if (!input.model?.trim()) {
     input.showToast('Select a model before sending.')
     return
   }

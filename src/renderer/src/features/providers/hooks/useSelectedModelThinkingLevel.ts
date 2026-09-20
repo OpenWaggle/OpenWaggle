@@ -9,7 +9,7 @@ interface SelectedModelThinkingLevelInput {
   readonly providerModels: readonly {
     readonly models: readonly ModelDisplayInfo[]
   }[]
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly requestedThinkingLevel: ThinkingLevel
 }
 
@@ -23,9 +23,9 @@ interface SelectedModelThinkingLevel {
 
 function findSelectedModel(
   providerModels: SelectedModelThinkingLevelInput['providerModels'],
-  selectedModel: SupportedModelId,
+  selectedModel: SupportedModelId | undefined,
 ) {
-  const selectedModelId = selectedModel.trim()
+  const selectedModelId = selectedModel?.trim() ?? ''
   if (!selectedModelId) {
     return null
   }

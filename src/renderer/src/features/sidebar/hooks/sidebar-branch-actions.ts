@@ -25,7 +25,7 @@ interface SidebarBranchActionDeps {
     sessionId: SessionId | null,
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   /** The global settings default — the fallback for a target session that never picked. */
   readonly defaultModel: SupportedModelId
   readonly sessions: readonly SessionSummary[]

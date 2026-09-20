@@ -14,7 +14,7 @@ import { api } from '@/shared/lib/ipc'
 
 interface SessionTreeNodeSelectionInput {
   readonly activeWorkspace: SessionWorkspace | null
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly showToast: (message: string) => void
   readonly tree: SessionTree | null
 }
@@ -50,6 +50,10 @@ export function useSessionTreeNodeSelection(input: SessionTreeNodeSelectionInput
   ) {
     const tree = input.tree
     if (!tree) {
+      return
+    }
+    if (!input.selectedModel) {
+      input.showToast('Select a model before switching branches.')
       return
     }
 

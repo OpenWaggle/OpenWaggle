@@ -112,10 +112,13 @@ export function useComposerSubmission({
   // predictably failing run. An empty catalog means the store has not hydrated yet, so the
   // gate stays open during startup.
   const providerModels = useProviderStore((s) => s.providerModels)
+  const catalogHydrated = useProviderStore((s) => s.catalogHydrated)
   const enabledModels = usePreferencesStore((s) => s.settings.enabledModels)
-  const selectedModel = isSelectableModel(providerModels, { enabledModels }, resolvedModel)
-    ? resolvedModel
-    : ''
+  const selectedModel =
+    resolvedModel &&
+    isSelectableModel(providerModels, { enabledModels }, resolvedModel, catalogHydrated)
+      ? resolvedModel
+      : ''
   const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
 
   function clearComposerInput() {

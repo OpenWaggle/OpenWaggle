@@ -41,7 +41,7 @@ interface AgentRunControlRefs {
 interface AgentRunControlParams {
   readonly sessionId: SessionId | null
   readonly isFirstMessage: boolean
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly refs: AgentRunControlRefs
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
@@ -50,7 +50,7 @@ interface AgentRunControlParams {
     recovery: {
       readonly payload: AgentSendPayload
       readonly waggleConfig: WaggleConfig | null
-      readonly model: SupportedModelId
+      readonly model: SupportedModelId | undefined
     } | null,
   ) => void
   readonly setBackgroundStreaming: SetBackgroundStreaming
@@ -154,6 +154,10 @@ export function createAgentRunControls(params: AgentRunControlParams) {
 
   async function dispatchAgentSend(payload: AgentSendPayload, waggleConfig: WaggleConfig | null) {
     if (!sessionId) {
+      return
+    }
+    if (!params.model) {
+      params.setError(new Error('Select a model before sending.'))
       return
     }
 

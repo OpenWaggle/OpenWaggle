@@ -18,7 +18,7 @@ export function useChatRows(inputs: {
   lastUserMessage: string | null
   dismissedError: string | null
   sessionId: SessionId | null
-  model: SupportedModelId
+  model: SupportedModelId | undefined
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: ReturnType<typeof useStreamingPhase>
   interruptedRun?: SessionInterruptedRun

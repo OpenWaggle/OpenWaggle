@@ -129,7 +129,7 @@ function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed
 
 interface UseSendMessageOptions {
   readonly activeSessionId: SessionId | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
   readonly createSession: (projectPath: string) => Promise<SessionId>
@@ -146,6 +146,11 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     payload: AgentSendPayload,
     config: WaggleConfig | null,
   ) {
+    // The composer send gate blocks empty models with a toast; this is a backstop for
+    // callers that bypass it.
+    if (!model) {
+      throw new Error('Select a model before sending.')
+    }
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
     useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])

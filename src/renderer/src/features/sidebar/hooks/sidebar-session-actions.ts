@@ -21,7 +21,7 @@ interface SidebarSessionActionDeps {
   readonly navigate: Navigate
   readonly projectPath: string | null
   readonly queryClient: QueryClient
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly showToast: (message: string) => void
   readonly startDraftSession: (projectPath: string | null) => void
   readonly clearTransientDraftContext: () => void
@@ -79,6 +79,11 @@ function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
   }
   if (!targetNodeId) {
     deps.showToast('No session history to clone.')
+    return
+  }
+
+  if (!deps.selectedModel) {
+    deps.showToast('Select a model before cloning.')
     return
   }
 

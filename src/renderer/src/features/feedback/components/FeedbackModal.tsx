@@ -12,7 +12,7 @@ export function FeedbackModal() {
   const errorContext = useUIStore((s) => s.feedbackErrorContext)
 
   const lastUserMessage: string | null = null
-  const activeModel = useSelectedSessionModel().selectedModel
+  const activeModel: string | null = useSelectedSessionModel().selectedModel ?? null
   const activeProvider: string | null = null
 
   const fb = useFeedback(errorContext, lastUserMessage, activeModel, activeProvider)

@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import { generateDisplayName } from '@shared/types/llm'
 import { isInheritedWaggleModelBinding, type WaggleAgentSlot } from '@shared/types/waggle'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
@@ -20,9 +21,12 @@ function turnCountLabel(turnCount: number) {
   return `${String(turnCount)} ${turnCount === SINGLE_TURN_COUNT ? 'turn' : 'turns'}`
 }
 
-function displayModelForAgent(agent: WaggleAgentSlot, inheritedModel: string) {
+function displayModelForAgent(
+  agent: WaggleAgentSlot,
+  inheritedModel: SupportedModelId | undefined,
+) {
   if (!isInheritedWaggleModelBinding(agent.model)) return generateDisplayName(agent.model)
-  return inheritedModel.trim() ? generateDisplayName(inheritedModel) : 'Select model'
+  return inheritedModel?.trim() ? generateDisplayName(inheritedModel) : 'Select model'
 }
 
 export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {

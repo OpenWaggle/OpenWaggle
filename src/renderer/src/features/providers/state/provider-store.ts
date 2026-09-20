@@ -39,16 +39,18 @@ function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
 
 /**
  * Whether the picker can actually select this model: enabled in settings and currently
- * available in the Pi catalog. An empty catalog means the store has not hydrated yet, so the
- * model is left as-is rather than gated during startup.
+ * available in the Pi catalog. Before the catalog has hydrated, the model is left as-is rather
+ * than gated during startup.
  */
 export function isSelectableModel(
   providerModels: readonly ProviderInfo[],
   settings: Pick<Settings, 'enabledModels'>,
   model: SupportedModelId | undefined,
+  catalogHydrated: boolean,
 ): boolean {
   if (!model) return false
-  if (providerModels.length === 0) return true
+  if (!catalogHydrated) return true
+  if (providerModels.length === 0) return false
   if (!settings.enabledModels.includes(model)) return false
   return providerModels.some((group) =>
     group.models.some((candidate) => candidate.id === model && candidate.available),
@@ -118,6 +120,8 @@ function normalizeProviderGroups(providerModels: readonly ProviderInfo[]) {
 interface ProviderState {
   baseProviderModels: ProviderInfo[]
   providerModels: ProviderInfo[]
+  /** True once loadProviderModels settled, even with zero providers — separates "empty" from "not loaded yet". */
+  catalogHydrated: boolean
   isLoading: boolean
   testingProviders: Partial<Record<Provider, boolean>>
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
@@ -132,6 +136,7 @@ interface ProviderState {
 export const useProviderStore = create<ProviderState>((set) => ({
   baseProviderModels: [],
   providerModels: [],
+  catalogHydrated: false,
   isLoading: false,
   testingProviders: {},
   testResults: {},
@@ -144,7 +149,12 @@ export const useProviderStore = create<ProviderState>((set) => ({
       const baseProviderModels = normalizeProviderGroups(
         await api.getProviderModels(currentSettings.projectPath),
       )
-      set({ baseProviderModels, providerModels: baseProviderModels, loadError: null })
+      set({
+        baseProviderModels,
+        providerModels: baseProviderModels,
+        loadError: null,
+        catalogHydrated: true,
+      })
       if (baseProviderModels.length === 0) {
         return null
       }
@@ -169,7 +179,7 @@ export const useProviderStore = create<ProviderState>((set) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Failed to load provider models', { message })
-      set({ loadError: message })
+      set({ loadError: message, catalogHydrated: true })
       return null
     } finally {
       set({ isLoading: false })

@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useChat, useSelectedSessionModel } from '@/features/chat/hooks'
+import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -34,6 +35,8 @@ export function useGlobalCommandActions() {
   const toggleSessionSummaryPanel = useSessionSummaryUIStore((state) => state.togglePanel)
   const settings = usePreferencesStore((state) => state.settings)
   const sessionModel = useSelectedSessionModel().selectedModel
+  const providerModels = useProviderStore((s) => s.providerModels)
+  const catalogHydrated = useProviderStore((s) => s.catalogHydrated)
   const sessionId = activeSessionId ? String(activeSessionId) : null
 
   function finish(action: () => void) {
@@ -112,6 +115,13 @@ export function useGlobalCommandActions() {
   async function compactSession() {
     if (!activeSessionId) {
       showToast('Open a session first.', 'error')
+      return
+    }
+    if (
+      !sessionModel ||
+      !isSelectableModel(providerModels, settings, sessionModel, catalogHydrated)
+    ) {
+      showToast('Select a model before compacting.', 'error')
       return
     }
     try {
