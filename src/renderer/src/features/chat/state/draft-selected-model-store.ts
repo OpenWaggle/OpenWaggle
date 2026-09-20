@@ -131,11 +131,10 @@ export async function flushDraftSelectedModelToSession(
       await api.setSessionSelectedModel(sessionId, override.model)
       commitDesiredSessionModel(sessionKey, override.model, pickGeneration)
     } catch (error) {
-      // The row stays inheriting, so drop the pick rather than diverge: the composer, a retried
-      // dispatch, and a reload would otherwise disagree about this session's model. The failure
-      // propagates, aborting the first send with the draft preserved for the user to retry.
+      // The row stays inheriting; the failure propagates and aborts the first send. The draft
+      // override is deliberately kept so a retry re-applies the model the user actually picked —
+      // clearing it here silently downgraded the retry to the global default.
       clearDesiredSessionModel(sessionKey, pickGeneration)
-      useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
       throw error
     }
     // createSession already replaced the draft with an active SessionDetail that carries no pick.
