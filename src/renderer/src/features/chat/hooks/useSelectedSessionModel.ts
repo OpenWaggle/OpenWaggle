@@ -1,5 +1,4 @@
 import type { SupportedModelId } from '@shared/types/llm'
-import { useCallback } from 'react'
 import { useChatStore } from '@/features/chat/state'
 import { useDraftSelectedModelStore } from '@/features/chat/state/draft-selected-model-store'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -28,7 +27,7 @@ export function useSelectedSessionModel(): {
 
   const selectedModel = activeSession?.selectedModel ?? draftModel ?? fallbackModel
 
-  const setSelectedModel = useCallback(async (model: SupportedModelId) => {
+  const setSelectedModel = async (model: SupportedModelId) => {
     const state = useChatStore.getState()
     if (state.activeSessionId) {
       const session = state.activeSession
@@ -60,7 +59,7 @@ export function useSelectedSessionModel(): {
     logger.warn('Ignored model selection outside any session or draft', {
       model: String(model),
     })
-  }, [])
+  }
 
   return { selectedModel, setSelectedModel }
 }
