@@ -11,6 +11,8 @@ const logger = createRendererLogger('session-model')
 
 /** One settled pick at a time per session, so overlapping writes reconcile in dispatch order. */
 const pickQueues = new Map<string, Promise<void>>()
+/** The newest pick per session, set synchronously so an older task's reconciliation stands down. */
+const desiredModelBySession = new Map<string, SupportedModelId>()
 
 async function runExclusive(sessionKey: string, task: () => Promise<void>): Promise<void> {
   const previous = pickQueues.get(sessionKey) ?? Promise.resolve()
@@ -51,10 +53,12 @@ export function useSelectedSessionModel(): {
     if (state.activeSessionId) {
       const sessionId = state.activeSessionId
       const session = state.activeSession
+      const sessionKey = String(sessionId)
+      desiredModelBySession.set(sessionKey, model)
       // Optimistic: the picker closes before the IPC write lands and the send gate reads this
       // store, so an awaited write would let an immediate submit dispatch the previous model.
       if (session) state.upsertSession({ ...session, selectedModel: model })
-      await runExclusive(String(sessionId), async () => {
+      await runExclusive(sessionKey, async () => {
         try {
           await api.setSessionSelectedModel(sessionId, model)
         } catch (error) {
@@ -67,6 +71,8 @@ export function useSelectedSessionModel(): {
           await useChatStore.getState().refreshSession(sessionId)
           return
         }
+        // A newer pick owns the cache and the summaries; its own settlement reconciles both.
+        if (desiredModelBySession.get(sessionKey) !== model) return
         // Patch the summary synchronously: the refresh below is fire-and-forget, and a branch
         // selection in the same tick must not reconstruct the run from the stale row.
         useSessionStore.setState((s) => ({
