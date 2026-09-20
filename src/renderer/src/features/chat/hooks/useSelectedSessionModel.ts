@@ -11,8 +11,12 @@ const logger = createRendererLogger('session-model')
 
 /** One settled pick at a time per session, so overlapping writes reconcile in dispatch order. */
 const pickQueues = new Map<string, Promise<void>>()
-/** The newest pick per session, set synchronously so an older task's reconciliation stands down. */
-const desiredModelBySession = new Map<string, SupportedModelId>()
+/**
+ * The newest pick generation per session, stamped synchronously so an older task's reconciliation
+ * stands down — comparing model values cannot distinguish a re-pick of the same model.
+ */
+const desiredPickGenerationBySession = new Map<string, number>()
+let nextPickGeneration = 0
 
 async function runExclusive(sessionKey: string, task: () => Promise<void>): Promise<void> {
   const previous = pickQueues.get(sessionKey) ?? Promise.resolve()
@@ -56,7 +60,8 @@ export function useSelectedSessionModel(): {
       const sessionId = state.activeSessionId
       const session = state.activeSession
       const sessionKey = String(sessionId)
-      desiredModelBySession.set(sessionKey, model)
+      const pickGeneration = ++nextPickGeneration
+      desiredPickGenerationBySession.set(sessionKey, pickGeneration)
       // Optimistic: the picker closes before the IPC write lands and the send gate reads this
       // store, so an awaited write would let an immediate submit dispatch the previous model.
       if (session) state.upsertSession({ ...session, selectedModel: model })
@@ -70,7 +75,7 @@ export function useSelectedSessionModel(): {
           })
           // A newer pick owns the cache; its own settlement reconciles. Reloading here would
           // discard its optimistic value before its queued write lands.
-          if (desiredModelBySession.get(sessionKey) === model) {
+          if (desiredPickGenerationBySession.get(sessionKey) === pickGeneration) {
             // Converge on the persisted row inside the queue, so a newer pick cannot start from a
             // cache this failed write is about to overwrite.
             await useChatStore.getState().refreshSession(sessionId)
@@ -78,7 +83,7 @@ export function useSelectedSessionModel(): {
           return
         }
         // A newer pick owns the cache and the summaries; its own settlement reconciles both.
-        if (desiredModelBySession.get(sessionKey) !== model) return
+        if (desiredPickGenerationBySession.get(sessionKey) !== pickGeneration) return
         // Patch the summary synchronously: the refresh below is fire-and-forget, and a branch
         // selection in the same tick must not reconstruct the run from the stale row.
         useSessionStore.setState((s) => ({
