@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { decodeUnknownOrThrow, parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import {
@@ -53,6 +53,9 @@ async function readValidatedProjectSettings(
 ) {
   try {
     const raw = await readFile(filePath, 'utf-8')
+    if (options.strict && raw.trim().length === 0) {
+      throw new Error('Empty project settings file cannot be used for permission-sensitive reads.')
+    }
     const parsedJson = parseSettingsJson(raw)
     const validated = safeDecodeUnknown(projectSettingsFileSchema, parsedJson)
     if (!validated.success) {
@@ -66,6 +69,19 @@ async function readValidatedProjectSettings(
     return validated.data
   } catch (error) {
     if (isEnoent(error)) {
+      if (options.strict) {
+        try {
+          await lstat(filePath)
+          throw new Error('Project settings file exists but cannot be read.', { cause: error })
+        } catch (fileError) {
+          if (!isEnoent(fileError)) throw fileError
+        }
+        const directory = await lstat(dirname(filePath)).catch((directoryError: unknown) => {
+          if (isEnoent(directoryError)) return null
+          throw directoryError
+        })
+        if (directory?.isSymbolicLink()) await stat(dirname(filePath))
+      }
       return null
     }
     if (options.strict) {
@@ -86,6 +102,15 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
     logLabel: '.openwaggle/settings.json',
   })
 
+  return parseProjectConfig(settings)
+}
+
+/** Permission-sensitive callers must distinguish absence from an unreadable or invalid file. */
+export async function loadProjectConfigStrict(projectPath: string): Promise<ProjectConfig> {
+  const settings = await readValidatedProjectSettings(getProjectSettingsPath(projectPath), {
+    strict: true,
+    logLabel: '.openwaggle/settings.json',
+  })
   return parseProjectConfig(settings)
 }
 
@@ -173,12 +198,7 @@ export async function getProjectPreferences(
 export async function getProjectPreferencesStrict(
   projectPath: string,
 ): Promise<ProjectPreferences | undefined> {
-  const settings = await readValidatedProjectSettings(getProjectSettingsPath(projectPath), {
-    logLabel: '.openwaggle/settings.json',
-    strict: true,
-  })
-
-  return parseProjectConfig(settings).preferences
+  return (await loadProjectConfigStrict(projectPath)).preferences
 }
 
 /**
@@ -212,7 +232,7 @@ export async function setProjectPreferences(
 export async function listProjectAuthorizationGrants(
   projectPath: string,
 ): Promise<readonly ScopedAuthorizationGrant[]> {
-  const config = await loadProjectConfig(projectPath)
+  const config = await loadProjectConfigStrict(projectPath)
   return config.authorizationGrants ?? []
 }
 

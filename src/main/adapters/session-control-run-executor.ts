@@ -8,7 +8,7 @@ import {
   withSessionAttachmentTransition,
 } from '../application/session-attachment-cleanup'
 import { captureRunResultResources } from '../application/session-resource-run-result'
-import { loadProjectConfig } from '../config/project-config'
+import { loadProjectConfigStrict } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import type { AgentKernelService } from '../ports/agent-kernel-service'
 import type { AgentRequestedWaggleService } from '../ports/agent-requested-waggle-service'
@@ -88,7 +88,7 @@ function modelMultiAgentEnabled(settings: Settings, execution: ResolvedSessionRu
   const projectPath = execution.projectPath
   if (!projectPath) return Effect.succeed(settings.multiAgentEnabled)
   return Effect.tryPromise({
-    try: () => loadProjectConfig(projectPath),
+    try: () => loadProjectConfigStrict(projectPath),
     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
   }).pipe(
     Effect.map((config) =>

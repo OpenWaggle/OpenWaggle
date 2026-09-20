@@ -56,48 +56,51 @@ function SavedProjectOverrides({
       <summary className="cursor-pointer px-4 py-3 font-medium text-text-primary">
         Saved project overrides ({projects.length})
       </summary>
-      <p className="px-4 pb-2 text-text-tertiary">
-        Older project preferences take precedence over the global Hive controls above. Clear each
-        saved value to use the global one again.
-      </p>
-      {projects.map((projectPath) => (
-        <div key={projectPath} className="border-t border-border px-4 py-3">
-          <p className="mb-2 break-all font-mono text-text-primary">{projectPath}</p>
-          {Object.hasOwn(settings.multiAgentEnabledByProject, projectPath) ? (
-            <div className="flex items-center justify-between gap-3 py-1">
-              <span className="text-text-tertiary">
-                Worker creation: {settings.multiAgentEnabledByProject[projectPath] ? 'On' : 'Off'}
-              </span>
-              <Button
-                aria-label={`Use global Worker permission for ${projectPath}`}
-                disabled={saving}
-                size="xs"
-                variant="secondary"
-                onClick={() => onClearMultiAgent(projectPath)}
-              >
-                Use global
-              </Button>
-            </div>
-          ) : null}
-          {Object.hasOwn(settings.sessionHostParentConcurrencyLimitsByProject, projectPath) ? (
-            <div className="flex items-center justify-between gap-3 py-1">
-              <span className="text-text-tertiary">
-                Workers per parent:{' '}
-                {settings.sessionHostParentConcurrencyLimitsByProject[projectPath]}
-              </span>
-              <Button
-                aria-label={`Use global Worker limit for ${projectPath}`}
-                disabled={saving}
-                size="xs"
-                variant="secondary"
-                onClick={() => onClearParentLimit(projectPath)}
-              >
-                Use global
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      ))}
+      <div className="max-h-48 overflow-y-auto">
+        <p className="px-4 pb-2 text-text-tertiary">
+          These saved preferences override the global Hive controls, but project configuration files
+          take precedence over both. Clearing a saved value does not remove a project-file override.
+        </p>
+        {projects.map((projectPath) => (
+          <div key={projectPath} className="border-t border-border px-4 py-3">
+            <p className="mb-2 break-all font-mono text-text-primary">{projectPath}</p>
+            {Object.hasOwn(settings.multiAgentEnabledByProject, projectPath) ? (
+              <div className="flex items-center justify-between gap-3 py-1">
+                <span className="text-text-tertiary">
+                  Saved Worker creation:{' '}
+                  {settings.multiAgentEnabledByProject[projectPath] ? 'On' : 'Off'}
+                </span>
+                <Button
+                  aria-label={`Clear saved Worker permission for ${projectPath}`}
+                  disabled={saving}
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => onClearMultiAgent(projectPath)}
+                >
+                  Clear saved value
+                </Button>
+              </div>
+            ) : null}
+            {Object.hasOwn(settings.sessionHostParentConcurrencyLimitsByProject, projectPath) ? (
+              <div className="flex items-center justify-between gap-3 py-1">
+                <span className="text-text-tertiary">
+                  Saved Workers per parent:{' '}
+                  {settings.sessionHostParentConcurrencyLimitsByProject[projectPath]}
+                </span>
+                <Button
+                  aria-label={`Clear saved Worker limit for ${projectPath}`}
+                  disabled={saving}
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => onClearParentLimit(projectPath)}
+                >
+                  Clear saved value
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </details>
   )
 }

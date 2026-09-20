@@ -1,11 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   ensureProjectSettingsFile,
   getProjectSettingsPath,
+  listProjectAuthorizationGrants,
   loadProjectConfig,
+  loadProjectConfigStrict,
   setProjectPreferences,
   updateProjectConfig,
 } from '../project-config'
@@ -101,6 +103,47 @@ describe('loadProjectConfig', () => {
     writeFileSync(getSettingsPath(tmpDir), '{{invalid json}}', 'utf-8')
     const config = await loadProjectConfig(tmpDir)
     expect(config).toEqual({})
+  })
+
+  it('fails closed for permission-sensitive reads of an invalid project file', async () => {
+    writeFileSync(
+      getSettingsPath(tmpDir),
+      JSON.stringify({
+        sessionHost: { multiAgentEnabled: false },
+        preferences: { authorizationMode: 'not-a-mode' },
+      }),
+      'utf-8',
+    )
+
+    expect(await loadProjectConfig(tmpDir)).toEqual({})
+    await expect(loadProjectConfigStrict(tmpDir)).rejects.toThrow(
+      /invalid project settings schema/i,
+    )
+    await expect(listProjectAuthorizationGrants(tmpDir)).rejects.toThrow(
+      /invalid project settings schema/i,
+    )
+  })
+
+  it('treats a missing file as inheritance but rejects an unreadable settings path', async () => {
+    await expect(loadProjectConfigStrict(join(tmpDir, 'missing'))).resolves.toEqual({})
+    mkdirSync(getSettingsPath(tmpDir))
+    await expect(loadProjectConfigStrict(tmpDir)).rejects.toThrow()
+  })
+
+  it('rejects an empty settings file for permission-sensitive reads', async () => {
+    writeFileSync(getSettingsPath(tmpDir), '', 'utf-8')
+    await expect(loadProjectConfigStrict(tmpDir)).rejects.toThrow(/empty project settings file/i)
+  })
+
+  it('rejects a broken settings symlink instead of treating it as an absent file', async () => {
+    symlinkSync(join(tmpDir, 'missing-settings.json'), getSettingsPath(tmpDir))
+    await expect(loadProjectConfigStrict(tmpDir)).rejects.toThrow()
+  })
+
+  it('rejects a broken project config directory symlink', async () => {
+    rmSync(join(tmpDir, '.openwaggle'), { recursive: true })
+    symlinkSync(join(tmpDir, 'missing-config'), join(tmpDir, '.openwaggle'))
+    await expect(loadProjectConfigStrict(tmpDir)).rejects.toThrow()
   })
 
   it('returns empty config when known project sections are absent', async () => {

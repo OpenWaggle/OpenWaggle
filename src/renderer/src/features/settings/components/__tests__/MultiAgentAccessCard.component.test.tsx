@@ -49,15 +49,24 @@ describe('MultiAgentAccessCard', () => {
     render(<MultiAgentAccessCard />)
 
     expect(screen.getByText('Saved project overrides (1)')).toBeInTheDocument()
+    expect(
+      screen
+        .getByText('Saved project overrides (1)')
+        .closest('details')
+        ?.querySelector('.overflow-y-auto'),
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByText('Saved project overrides (1)'))
+    expect(
+      screen.getByText(/project configuration files take precedence over both/),
+    ).toBeInTheDocument()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Use global Worker permission for /tmp/project' }),
+      screen.getByRole('button', { name: 'Clear saved Worker permission for /tmp/project' }),
     )
     await waitFor(() =>
       expect(updateSettingsMock).toHaveBeenCalledWith({ multiAgentEnabledByProject: {} }),
     )
     fireEvent.click(
-      screen.getByRole('button', { name: 'Use global Worker limit for /tmp/project' }),
+      screen.getByRole('button', { name: 'Clear saved Worker limit for /tmp/project' }),
     )
     await waitFor(() =>
       expect(updateSettingsMock).toHaveBeenCalledWith({

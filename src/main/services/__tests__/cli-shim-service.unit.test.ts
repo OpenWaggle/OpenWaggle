@@ -88,6 +88,19 @@ describe('CLI shim service', () => {
     await expect(readFile(commandPath, 'utf8')).resolves.toBe('#!/bin/sh\necho unrelated\n')
   })
 
+  it('reads the current hydrated process PATH for later status checks', async () => {
+    let currentPath = '/usr/bin'
+    const cli = createCliShimService({
+      platform: POSIX_TEST_PLATFORM,
+      homeDirectory,
+      executablePath: '/tmp/OpenWaggle',
+      environmentPath: () => currentPath,
+    })
+    expect((await cli.status()).onPath).toBe(false)
+    currentPath = path.join(homeDirectory, '.local', 'bin')
+    expect((await cli.status()).onPath).toBe(true)
+  })
+
   itPosix(
     'does not claim an unrelated command that merely mentions the managed marker',
     async () => {

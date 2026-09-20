@@ -1,5 +1,8 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { typedHandleMock, showOpenDialogMock, fromWebContentsMock } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
@@ -35,10 +38,29 @@ function getRegisteredHandler(name: string) {
 }
 
 describe('registerProjectHandlers', () => {
+  let projectPath: string | undefined
+
   beforeEach(() => {
     typedHandleMock.mockReset()
     showOpenDialogMock.mockReset()
     fromWebContentsMock.mockReset()
+  })
+
+  afterEach(async () => {
+    if (projectPath) await fs.rm(projectPath, { recursive: true, force: true })
+    projectPath = undefined
+  })
+
+  it('surfaces an invalid project file for permission-sensitive settings reads', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-project-ipc-'))
+    await fs.mkdir(path.join(projectPath, '.openwaggle'))
+    await fs.writeFile(path.join(projectPath, '.openwaggle', 'settings.json'), '{ invalid json')
+    registerProjectHandlers()
+
+    const preferences = getRegisteredHandler('project-config:get-preferences')
+    const grants = getRegisteredHandler('authorization-grants:list')
+    await expect(preferences?.({}, projectPath)).rejects.toThrow()
+    await expect(grants?.({}, projectPath)).rejects.toThrow()
   })
 
   it('attaches the folder dialog to the requesting window when available', async () => {

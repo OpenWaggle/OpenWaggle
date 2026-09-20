@@ -134,7 +134,7 @@ export interface IpcCoreInvokeChannelMap
   }
   'cli-shim:get-status': {
     args: []
-    return: CliShimStatus
+    return: CliShimStatus | null
   }
   'cli-shim:install': {
     args: []

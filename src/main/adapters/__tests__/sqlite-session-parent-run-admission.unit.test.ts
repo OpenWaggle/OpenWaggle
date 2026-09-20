@@ -6,6 +6,7 @@ import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { submitSessionMessage } from '../../application/session-control-service'
+import { directWorkerRunAdmission } from '../sqlite-session-parent-run-admission'
 import { makeSessionControlTestLayer } from './sqlite-session-control-test-layer'
 
 describe('SQLite direct Worker Run admission', () => {
@@ -17,6 +18,30 @@ describe('SQLite direct Worker Run admission', () => {
 
   afterEach(async () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it('rejects an invalid project policy instead of admitting a Worker with global defaults', async () => {
+    const projectPath = path.join(temporaryRoot, 'project')
+    await fs.mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
+    await fs.writeFile(path.join(projectPath, '.openwaggle', 'settings.json'), '{ invalid json')
+    const layer = makeSessionControlTestLayer(path.join(temporaryRoot, 'invalid-policy.sqlite'))
+
+    await expect(
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`UPDATE sessions SET project_path = ${projectPath} WHERE id = ${'session-target'}`
+          yield* sql`INSERT INTO sessions (id, project_path) VALUES (${'queen'}, ${projectPath})`
+          yield* sql`
+            INSERT INTO session_spawn_lineage (
+              child_session_id, parent_session_id, parent_run_id,
+              hive_root_session_id, depth, created_at
+            ) VALUES (${'session-target'}, ${'queen'}, ${'run-queen'}, ${'queen'}, ${1}, ${1})
+          `
+          return yield* directWorkerRunAdmission(sql, 'session-target')
+        }).pipe(Effect.provide(layer)),
+      ),
+    ).rejects.toThrow()
   })
 
   it('enforces the parent limit when an existing idle Worker starts again', async () => {

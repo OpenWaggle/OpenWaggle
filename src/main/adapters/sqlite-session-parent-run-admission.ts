@@ -2,7 +2,7 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
-import { loadProjectConfig } from '../config/project-config'
+import { loadProjectConfigStrict } from '../config/project-config'
 
 interface LineageRow {
   readonly parent_session_id: string
@@ -40,7 +40,7 @@ export function directWorkerRunAdmission(sql: SqlClient.SqlClient, sessionId: st
     const lineage = lineageRows[0]
     if (!lineage) return { admitted: true } as const
     const projectConfig = yield* Effect.tryPromise({
-      try: () => loadProjectConfig(lineage.project_path),
+      try: () => loadProjectConfigStrict(lineage.project_path),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     })
 

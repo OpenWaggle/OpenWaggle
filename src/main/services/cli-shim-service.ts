@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { CliShimMutationResult, CliShimStatus } from '@shared/types/cli-shim'
 import { app } from 'electron'
-import { env } from '../env'
+import { env, getCurrentProcessPath } from '../env'
 import { runManagedShimMutation } from './cli-shim-bound-mutation'
 import {
   LEGACY_MANAGED_CLI_SHIM_MARKER,
@@ -17,7 +17,7 @@ export interface CliShimServiceInput {
   readonly homeDirectory: string
   readonly executablePath: string
   readonly appPath?: string
-  readonly environmentPath?: string
+  readonly environmentPath?: string | (() => string | undefined)
   /** Running legacy quick-install AppImage that occupies the managed command path. */
   readonly legacyLinuxAppImagePath?: string
   /** Test-only interleaving point after update admission and before replacement. */
@@ -59,7 +59,9 @@ function isMissing(error: unknown) {
 
 function commandDirectoryIsOnPath(input: CliShimServiceInput, commandPath: string) {
   const commandDirectory = path.resolve(path.dirname(commandPath))
-  return (input.environmentPath ?? '')
+  const environmentPath =
+    typeof input.environmentPath === 'function' ? input.environmentPath() : input.environmentPath
+  return (environmentPath ?? '')
     .split(path.delimiter)
     .filter(Boolean)
     .some((entry) => path.resolve(entry) === commandDirectory)
@@ -290,13 +292,16 @@ export function createAppCliShimService() {
     executablePath: appImagePath,
     ...(legacyLinuxAppImage ? { legacyLinuxAppImagePath: command } : {}),
     ...(app.isPackaged ? {} : { appPath: app.getAppPath() }),
-    environmentPath: env.PATH,
+    environmentPath: getCurrentProcessPath,
   })
 }
 
 /** Keep the bundled CLI current without replacing an unrelated command at the user path. */
 export async function ensureCliShimInstalled(
-  service = createAppCliShimService(),
+  service: Pick<
+    ReturnType<typeof createCliShimService>,
+    'status' | 'install'
+  > = createAppCliShimService(),
 ): Promise<CliShimMutationResult> {
   const current = await service.status()
   if (current.management === 'installer') return { ok: true, status: current }

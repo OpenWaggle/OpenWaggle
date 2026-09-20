@@ -30,7 +30,7 @@ import {
   configureInlineVisualizationProcessIsolation,
   registerRendererScheme,
 } from './renderer-protocol'
-import { ensureCliShimInstalled } from './services/cli-shim-service'
+import { beginAppCliShimSetup, waitForCliSetupBeforeExit } from './services/cli-shim-startup'
 import { configureAppStoragePaths } from './session-data'
 import {
   type GuiSessionHostLifecycle,
@@ -43,6 +43,7 @@ const FAILURE_EXIT_CODE = 1
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const STARTUP_TIMING_PRECISION = 1
 const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
+const CLI_FATAL_SETUP_WAIT_MS = 5_000
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
   'openwaggle-automation-single-instance-lock-denied-marker'
 const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
@@ -242,7 +243,7 @@ function registerAppLifecycle() {
       // CLI recovery must remain available even if the Session Host or window cannot start.
       const cliSetup =
         app.isPackaged && !isAutomationMode()
-          ? ensureCliShimInstalled()
+          ? beginAppCliShimSetup()
               .then((result) => {
                 if (!result.ok)
                   logger.warn('Could not make the bundled CLI available', { detail: result.error })
@@ -253,7 +254,9 @@ function registerAppLifecycle() {
       void bootstrapServicesAndWindow().catch(async (error: unknown) => {
         logger.error('Bootstrap failed; quitting for safety', describeError(error))
         // Do not terminate the process while CLI recovery is still being installed.
-        await cliSetup
+        if (!(await waitForCliSetupBeforeExit(cliSetup, CLI_FATAL_SETUP_WAIT_MS))) {
+          logger.warn('CLI setup did not finish before fatal startup cleanup')
+        }
         try {
           await cleanupDesktopServicesOnce?.()
         } catch (cleanupError) {

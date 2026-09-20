@@ -6,15 +6,15 @@ import { createRendererLogger } from '@/shared/lib/logger'
 const logger = createRendererLogger('settings')
 
 function statusDetail(status: CliShimStatus | null) {
+  if (status?.state === 'installed' && !status.onPath) {
+    return 'This command directory is not on the OpenWaggle process PATH. Your terminal may differ; run command -v openwaggle there to check.'
+  }
   if (status?.detail) return status.detail
   if (status?.state === 'not-installed') {
     return 'The command is not installed. Restart OpenWaggle to retry automatic setup, or reinstall the app.'
   }
   if (status?.state === 'outdated') {
     return 'The command needs an update. Restart OpenWaggle to retry automatic setup.'
-  }
-  if (status?.state === 'installed' && !status.onPath) {
-    return 'The command is installed, but its directory is not on your shell PATH.'
   }
   return 'The command is unavailable on this system.'
 }

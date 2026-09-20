@@ -6,7 +6,7 @@ import {
   revokeProjectAuthorizationOperation,
 } from '../application/project-authorization-grant-operation'
 import { setProjectPreferencesOperation } from '../application/project-preferences-operation'
-import { getProjectPreferences } from '../config/project-config'
+import { getProjectPreferencesStrict } from '../config/project-config'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
@@ -39,7 +39,7 @@ export function registerProjectHandlers(): void {
       if (!validatedProjectPath) {
         return null
       }
-      const prefs = yield* Effect.promise(() => getProjectPreferences(validatedProjectPath))
+      const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(validatedProjectPath))
       return prefs ?? null
     }),
   )

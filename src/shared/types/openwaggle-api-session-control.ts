@@ -15,7 +15,7 @@ import type {
 import type { SessionQueryRequest, SessionQueryResponse } from './session-query'
 
 export interface OpenWaggleSessionControlApi {
-  getCliShimStatus(): Promise<CliShimStatus>
+  getCliShimStatus(): Promise<CliShimStatus | null>
   installCliShim(): Promise<CliShimMutationResult>
   removeCliShim(): Promise<CliShimMutationResult>
   selectAgentDefinitionSource(): Promise<string | null>

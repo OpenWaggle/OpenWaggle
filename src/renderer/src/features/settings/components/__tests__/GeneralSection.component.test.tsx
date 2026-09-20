@@ -119,16 +119,39 @@ describe('GeneralSection', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('/tmp/openwaggle')
   })
 
+  it('hides the passive packaged-CLI notice in a source build', async () => {
+    getCliShimStatusMock.mockResolvedValue(null)
+    render(<GeneralSection />)
+
+    await waitFor(() => expect(getCliShimStatusMock).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a stalled automatic setup instead of leaving the notice blank', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'unavailable',
+      commandPath: null,
+      onPath: false,
+      detail: 'CLI setup is still running. Reopen Settings to check again.',
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('CLI setup is still running')
+  })
+
   it('explains when the CLI is installed but cannot be found on PATH', async () => {
     getCliShimStatusMock.mockResolvedValue({
       management: 'user-shim',
       state: 'installed',
       commandPath: '/tmp/openwaggle',
       onPath: false,
+      detail: 'Existing OpenWaggle app link. Re-run the app installer if the app moves.',
     })
     render(<GeneralSection />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('not on your shell PATH')
+    expect(await screen.findByRole('alert')).toHaveTextContent('OpenWaggle process PATH')
+    expect(screen.getByRole('alert')).toHaveTextContent('Your terminal may differ')
   })
 
   it('offers the global automatic compaction threshold as a compact number stepper', () => {

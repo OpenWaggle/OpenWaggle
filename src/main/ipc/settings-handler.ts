@@ -8,6 +8,7 @@ import {
 } from '../application/settings-operations'
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
 import { createAppCliShimService } from '../services/cli-shim-service'
+import { getAppCliShimStatus } from '../services/cli-shim-startup'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
 
@@ -56,9 +57,7 @@ function registerTreePreferenceHandlers() {
 }
 
 function registerSettingsUtilityHandlers() {
-  typedHandle('cli-shim:get-status', () =>
-    Effect.tryPromise(() => createAppCliShimService().status()),
-  )
+  typedHandle('cli-shim:get-status', () => Effect.tryPromise(() => getAppCliShimStatus()))
   typedHandle('cli-shim:install', () =>
     Effect.tryPromise(() => createAppCliShimService().install()),
   )

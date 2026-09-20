@@ -4,7 +4,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { agentDefinitionTogglesForProject } from '../agents/agent-definition-toggle-settings'
-import { loadProjectConfig } from '../config/project-config'
+import { loadProjectConfigStrict } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import { SessionLifecyclePreparationError } from '../errors'
 import { AgentKernelService } from '../ports/agent-kernel-service'
@@ -160,7 +160,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             const projectPath = yield* projectPathForLifecycleCommand(sql, input.request.command)
             const settings = yield* settingsService.get()
             const projectConfig = yield* Effect.tryPromise({
-              try: () => loadProjectConfig(projectPath),
+              try: () => loadProjectConfigStrict(projectPath),
               catch: (cause) =>
                 new SessionLifecyclePreparationError({
                   operation: 'load-project-session-host-policy',

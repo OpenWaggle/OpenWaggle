@@ -41,7 +41,8 @@ When either capacity is reached, a new Run receives a retryable rejection rather
 hidden queue. Saved Sessions, Follow-ups, searches, waits, and exports do not consume Run slots.
 Project configuration files can supersede these defaults. If an older version saved project-specific
 Hive overrides, a collapsed **Saved project overrides** list appears below the controls so you can
-inspect each project and clear those values back to the global defaults.
+inspect and clear those saved values. A project configuration file still takes precedence; clearing
+a saved preference uses the global value only when no project-file override exists.
 
 Below the controls, choose a project to inspect its agent Markdown definitions, read a file, or
 enable/disable a definition for new Sessions. There are no bundled roles and no definition editor:

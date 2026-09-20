@@ -51,6 +51,11 @@ export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
+/** Unlike the startup snapshot above, PATH can change after desktop-shell hydration. */
+export function getCurrentProcessPath(): string | undefined {
+  return process.env.PATH
+}
+
 const TERMINAL_PROGRAM_NAME = 'OpenWaggle'
 const TERMINAL_TYPE = 'xterm-256color'
 const TERMINAL_COLOR_TYPE = 'truecolor'
