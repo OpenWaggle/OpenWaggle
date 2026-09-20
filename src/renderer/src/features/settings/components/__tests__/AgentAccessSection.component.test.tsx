@@ -84,7 +84,7 @@ describe('AgentAccessSection', () => {
     getProjectPreferencesMock.mockResolvedValue({ authorizationMode: 'ask-for-approval' })
     render(<AgentAccessSection />)
 
-    const select = screen.getByRole('combobox', { name: 'Current project access mode' })
+    const select = screen.getByRole('combobox', { name: 'Selected project access mode' })
     await waitFor(() => {
       expect(select).toHaveValue('ask-for-approval')
     })
@@ -123,9 +123,38 @@ describe('AgentAccessSection', () => {
     await waitFor(() => {
       expect(screen.getByText('This project uses the default above.')).toBeInTheDocument()
     })
-    expect(screen.getByRole('combobox', { name: 'Current project access mode' })).toHaveValue(
+    expect(screen.getByRole('combobox', { name: 'Selected project access mode' })).toHaveValue(
       'inherit',
     )
+  })
+
+  it('does not claim a project inherits the default when its access mode cannot be read', async () => {
+    getProjectPreferencesMock.mockRejectedValue(new Error('host unavailable'))
+    render(<AgentAccessSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load this project’s access mode',
+    )
+    expect(screen.getByRole('combobox', { name: 'Selected project access mode' })).toBeDisabled()
+    expect(screen.queryByText('This project uses the default above.')).not.toBeInTheDocument()
+  })
+
+  it('does not claim no saved approvals when their read fails, and can retry', async () => {
+    listAuthorizationGrantsMock
+      .mockRejectedValueOnce(new Error('host unavailable'))
+      .mockResolvedValueOnce([listIssuesGrant])
+    render(<AgentAccessSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load saved approvals')
+    expect(
+      screen.queryByText(
+        'This project has no saved approvals. Approvals you keep will appear here.',
+      ),
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading approvals' }))
+
+    expect(await screen.findByText('github-issues')).toBeInTheDocument()
+    expect(listAuthorizationGrantsMock).toHaveBeenCalledTimes(2)
   })
 
   it('lists a saved approval with its requester, capability and resource', async () => {

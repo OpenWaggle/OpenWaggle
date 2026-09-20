@@ -37,7 +37,8 @@ install_executable_atomically() {
 }
 
 # BEGIN TESTABLE CLI TARGET GUARD
-CLI_SHIM_MARKER='# Managed by OpenWaggle. Configure from Settings > Agent access.'
+CLI_SHIM_MARKER='# Managed by OpenWaggle. Bundled CLI command.'
+LEGACY_CLI_SHIM_MARKER='# Managed by OpenWaggle. Configure from Settings > Agent access.'
 
 has_linux_appimage_magic() {
   local target="$1"
@@ -50,7 +51,12 @@ has_linux_appimage_magic() {
 }
 
 has_managed_cli_shim_marker() {
-  LC_ALL=C dd if="$1" bs=512 count=1 2>/dev/null | grep -Fqx -- "${CLI_SHIM_MARKER}"
+  local header
+  header="$(LC_ALL=C dd if="$1" bs=512 count=1 2>/dev/null | sed -n '1,2p')" || return 1
+  case "${header}" in
+    $'#!/bin/sh\n'"${CLI_SHIM_MARKER}" | $'#!/bin/sh\n'"${LEGACY_CLI_SHIM_MARKER}") return 0 ;;
+  esac
+  return 1
 }
 
 cli_target_is_replaceable() {

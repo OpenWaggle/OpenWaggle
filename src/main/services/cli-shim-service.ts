@@ -6,7 +6,11 @@ import type { CliShimMutationResult, CliShimStatus } from '@shared/types/cli-shi
 import { app } from 'electron'
 import { env } from '../env'
 import { runManagedShimMutation } from './cli-shim-bound-mutation'
-import { MANAGED_CLI_SHIM_MARKER, managedCliShimContent } from './cli-shim-content'
+import {
+  LEGACY_MANAGED_CLI_SHIM_MARKER,
+  MANAGED_CLI_SHIM_MARKER,
+  managedCliShimContent,
+} from './cli-shim-content'
 
 export interface CliShimServiceInput {
   readonly platform: NodeJS.Platform
@@ -86,6 +90,39 @@ async function readCommand(command: string) {
   }
 }
 
+function isManagedShim(content: string) {
+  return (
+    content.startsWith(`#!/bin/sh\n${MANAGED_CLI_SHIM_MARKER}\n`) ||
+    content.startsWith(`#!/bin/sh\n${LEGACY_MANAGED_CLI_SHIM_MARKER}\n`)
+  )
+}
+
+async function legacyMacCliLinkStatus(
+  input: CliShimServiceInput,
+  target: string,
+  onPath: boolean,
+): Promise<CliShimStatus | null> {
+  if (input.platform !== 'darwin') return null
+  try {
+    const link = await fs.lstat(target)
+    if (!link.isSymbolicLink()) return null
+    const destination = await fs.readlink(target)
+    if (path.resolve(path.dirname(target), destination) !== path.resolve(input.executablePath))
+      return null
+    if (!(await fs.stat(target)).isFile()) return null
+    return {
+      management: 'installer',
+      state: 'installed',
+      commandPath: target,
+      onPath,
+      detail: 'Existing OpenWaggle app link. Re-run the app installer if the app moves.',
+    }
+  } catch (error) {
+    if (isMissing(error)) return null
+    throw error
+  }
+}
+
 function unsupportedStatus(input: CliShimServiceInput): CliShimStatus | null {
   if (input.platform === 'win32') {
     return {
@@ -125,11 +162,13 @@ export function createCliShimService(input: CliShimServiceInput) {
     if (unsupported) return unsupported
     const onPath = commandDirectoryIsOnPath(input, target)
     if (usesLegacyLinuxRuntime(input, target)) return legacyLinuxRuntimeStatus(target, onPath)
+    const legacyMacLink = await legacyMacCliLinkStatus(input, target, onPath)
+    if (legacyMacLink) return legacyMacLink
     const current = await readCommand(target)
     if (current.kind === 'missing') {
       return { management: 'user-shim', state: 'not-installed', commandPath: target, onPath }
     }
-    if (current.kind === 'conflict' || !current.content.includes(MANAGED_CLI_SHIM_MARKER)) {
+    if (current.kind === 'conflict' || !isManagedShim(current.content)) {
       return {
         management: 'user-shim',
         state: 'conflict',
@@ -171,7 +210,7 @@ export function createCliShimService(input: CliShimServiceInput) {
         await runManagedShimMutation({ service: input, target, expectedContent, mode: 'create' })
       } else {
         const current = await readCommand(target)
-        if (current.kind !== 'file' || !current.content.includes(MANAGED_CLI_SHIM_MARKER)) {
+        if (current.kind !== 'file' || !isManagedShim(current.content)) {
           throw new Error('The CLI path changed before update; OpenWaggle did not replace it.')
         }
         await runManagedShimMutation({
@@ -207,7 +246,7 @@ export function createCliShimService(input: CliShimServiceInput) {
       }
     }
     const current = await readCommand(target)
-    if (current.kind !== 'file' || !current.content.includes(MANAGED_CLI_SHIM_MARKER)) {
+    if (current.kind !== 'file' || !isManagedShim(current.content)) {
       return {
         ok: false,
         error: 'The CLI path changed before removal; OpenWaggle did not delete it.',

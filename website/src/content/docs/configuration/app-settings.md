@@ -39,6 +39,9 @@ spawn for hosted agents. **Workers per parent** defaults to `4` active direct Wo
 be raised without a fixed product cap, but higher values may strain your machine or model provider.
 When either capacity is reached, a new Run receives a retryable rejection rather than entering a
 hidden queue. Saved Sessions, Follow-ups, searches, waits, and exports do not consume Run slots.
+Project configuration files can supersede these defaults. If an older version saved project-specific
+Hive overrides, a collapsed **Saved project overrides** list appears below the controls so you can
+inspect each project and clear those values back to the global defaults.
 
 Below the controls, choose a project to inspect its agent Markdown definitions, read a file, or
 enable/disable a definition for new Sessions. There are no bundled roles and no definition editor:
@@ -55,7 +58,10 @@ The CLI is part of the installed app, not a second product to enable in Settings
 and Linux launches install or refresh the managed `~/.local/bin/openwaggle` command automatically;
 the Windows installer provides the command. OpenWaggle never replaces an unrelated file at that
 path. If the path is occupied, resolve the conflict explicitly. Ensure `~/.local/bin` is on your
-shell's `PATH`. From source, use `pnpm cli:dev -- <command>`.
+shell's `PATH`. Settings > General shows a read-only warning if the command is missing, outdated,
+conflicts with another file, or is not on `PATH`; it has no CLI installation controls. An exact
+legacy macOS link to the app remains usable, but re-run the installer if you move the app. From
+source, use `pnpm cli:dev -- <command>`.
 
 Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
 

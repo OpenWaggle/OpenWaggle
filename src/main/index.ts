@@ -220,15 +220,6 @@ async function bootstrapServicesAndWindow() {
   createMainWindowWithVisualizationGuard()
   startupMark('main-window-created')
 
-  if (app.isPackaged && !isAutomationMode()) {
-    void ensureCliShimInstalled()
-      .then((result) => {
-        if (!result.ok)
-          logger.warn('Could not make the bundled CLI available', { detail: result.error })
-      })
-      .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
-  }
-
   if (!isAutomationMode()) void initializeAutoUpdaterAfterWindow()
 }
 
@@ -248,8 +239,21 @@ function registerAppLifecycle() {
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))
 
+      // CLI recovery must remain available even if the Session Host or window cannot start.
+      const cliSetup =
+        app.isPackaged && !isAutomationMode()
+          ? ensureCliShimInstalled()
+              .then((result) => {
+                if (!result.ok)
+                  logger.warn('Could not make the bundled CLI available', { detail: result.error })
+              })
+              .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
+          : Promise.resolve()
+
       void bootstrapServicesAndWindow().catch(async (error: unknown) => {
         logger.error('Bootstrap failed; quitting for safety', describeError(error))
+        // Do not terminate the process while CLI recovery is still being installed.
+        await cliSetup
         try {
           await cleanupDesktopServicesOnce?.()
         } catch (cleanupError) {

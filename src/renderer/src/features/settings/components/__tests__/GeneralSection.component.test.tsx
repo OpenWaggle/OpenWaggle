@@ -11,6 +11,7 @@ const {
   checkForUpdatesMock,
   installUpdateMock,
   updateSettingsMock,
+  getCliShimStatusMock,
 } = vi.hoisted(() => ({
   getAppVersionMock: vi.fn(),
   getUpdateStatusMock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   checkForUpdatesMock: vi.fn(),
   installUpdateMock: vi.fn(),
   updateSettingsMock: vi.fn(),
+  getCliShimStatusMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -28,6 +30,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     checkForUpdates: checkForUpdatesMock,
     installUpdate: installUpdateMock,
     updateSettings: updateSettingsMock,
+    getCliShimStatus: getCliShimStatusMock,
   },
 }))
 
@@ -56,6 +59,13 @@ describe('GeneralSection', () => {
     checkForUpdatesMock.mockReset()
     installUpdateMock.mockReset()
     updateSettingsMock.mockReset()
+    getCliShimStatusMock.mockReset()
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: true,
+    })
     setCompactionThresholdPercentMock.mockReset()
     setCompactionThresholdPercentMock.mockResolvedValue(undefined)
     usePreferencesStore.setState({
@@ -78,6 +88,47 @@ describe('GeneralSection', () => {
     await waitFor(() => {
       expect(screen.getByText(/OpenWaggle v0\.2\.0/)).toBeInTheDocument()
     })
+  })
+
+  it('explains a CLI path conflict without offering separate install controls', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'conflict',
+      commandPath: '/tmp/openwaggle',
+      onPath: true,
+      detail: 'Another file already uses this path. OpenWaggle will not replace it.',
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('/tmp/openwaggle')
+    expect(screen.getByRole('alert')).toHaveTextContent('will not replace it')
+    expect(screen.queryByRole('button', { name: 'Install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  })
+
+  it('explains when the bundled CLI did not become available', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'not-installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: false,
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('command is not installed')
+    expect(screen.getByRole('alert')).toHaveTextContent('/tmp/openwaggle')
+  })
+
+  it('explains when the CLI is installed but cannot be found on PATH', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: false,
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('not on your shell PATH')
   })
 
   it('offers the global automatic compaction threshold as a compact number stepper', () => {

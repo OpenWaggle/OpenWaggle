@@ -11,7 +11,7 @@ import { MultiAgentAccessCard } from '../sections/MultiAgentAccessCard'
 describe('MultiAgentAccessCard', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    updateSettingsMock.mockResolvedValue(undefined)
+    updateSettingsMock.mockResolvedValue({ ok: true })
     const initial = usePreferencesStore.getInitialState()
     usePreferencesStore.setState({
       ...initial,
@@ -35,5 +35,34 @@ describe('MultiAgentAccessCard', () => {
     await waitFor(() => {
       expect(updateSettingsMock).toHaveBeenCalledWith({ sessionHostRunCeiling: 100 })
     })
+  })
+
+  it('exposes a recovery path for saved project overrides that supersede global controls', async () => {
+    const settings = usePreferencesStore.getState().settings
+    usePreferencesStore.setState({
+      settings: {
+        ...settings,
+        multiAgentEnabledByProject: { '/tmp/project': false },
+        sessionHostParentConcurrencyLimitsByProject: { '/tmp/project': 2 },
+      },
+    })
+    render(<MultiAgentAccessCard />)
+
+    expect(screen.getByText('Saved project overrides (1)')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Saved project overrides (1)'))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use global Worker permission for /tmp/project' }),
+    )
+    await waitFor(() =>
+      expect(updateSettingsMock).toHaveBeenCalledWith({ multiAgentEnabledByProject: {} }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use global Worker limit for /tmp/project' }),
+    )
+    await waitFor(() =>
+      expect(updateSettingsMock).toHaveBeenCalledWith({
+        sessionHostParentConcurrencyLimitsByProject: {},
+      }),
+    )
   })
 })

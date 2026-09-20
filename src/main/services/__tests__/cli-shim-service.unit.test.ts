@@ -1,5 +1,15 @@
 import { execFile, spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readlink,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -76,6 +86,70 @@ describe('CLI shim service', () => {
       status: { state: 'conflict' },
     })
     await expect(readFile(commandPath, 'utf8')).resolves.toBe('#!/bin/sh\necho unrelated\n')
+  })
+
+  itPosix(
+    'does not claim an unrelated command that merely mentions the managed marker',
+    async () => {
+      const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+      await mkdir(path.dirname(commandPath), { recursive: true })
+      const content = '#!/bin/sh\necho unrelated\n# Managed by OpenWaggle. Bundled CLI command.\n'
+      await writeFile(commandPath, content)
+
+      await expect(ensureCliShimInstalled(service())).resolves.toMatchObject({
+        ok: false,
+        status: { state: 'conflict' },
+      })
+      await expect(readFile(commandPath, 'utf8')).resolves.toBe(content)
+    },
+  )
+
+  itPosix(
+    'refreshes the old managed marker without classifying it as an unrelated command',
+    async () => {
+      const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+      await mkdir(path.dirname(commandPath), { recursive: true })
+      await writeFile(
+        commandPath,
+        '#!/bin/sh\n# Managed by OpenWaggle. Configure from Settings > Agent access.\nexec old-app "$@"\n',
+      )
+
+      await expect(ensureCliShimInstalled(service())).resolves.toMatchObject({
+        ok: true,
+        status: { state: 'installed' },
+      })
+      await expect(readFile(commandPath, 'utf8')).resolves.toContain(
+        '# Managed by OpenWaggle. Bundled CLI command.',
+      )
+    },
+  )
+
+  it('accepts an exact legacy macOS app symlink without replacing it', async () => {
+    const executablePath = path.join(
+      homeDirectory,
+      'OpenWaggle.app',
+      'Contents',
+      'MacOS',
+      'OpenWaggle',
+    )
+    const commandPath = path.join(homeDirectory, '.local', 'bin', 'openwaggle')
+    await mkdir(path.dirname(executablePath), { recursive: true })
+    await mkdir(path.dirname(commandPath), { recursive: true })
+    await writeFile(executablePath, '#!/bin/sh\n', { mode: 0o755 })
+    await symlink(executablePath, commandPath)
+    const cli = createCliShimService({
+      platform: 'darwin',
+      homeDirectory,
+      executablePath,
+      environmentPath: path.dirname(commandPath),
+    })
+
+    await expect(ensureCliShimInstalled(cli)).resolves.toMatchObject({
+      ok: true,
+      status: { management: 'installer', state: 'installed', commandPath },
+    })
+    expect((await lstat(commandPath)).isSymbolicLink()).toBe(true)
+    await expect(readlink(commandPath)).resolves.toBe(executablePath)
   })
 
   itPosix('isolates Linux Electron stdout without filtering application bytes', async () => {

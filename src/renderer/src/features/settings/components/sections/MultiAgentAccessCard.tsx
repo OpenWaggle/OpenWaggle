@@ -1,6 +1,8 @@
+import type { Settings } from '@shared/types/settings'
 import { useState } from 'react'
 import { usePreferencesStore } from '@/features/settings/state'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { Button } from '@/shared/ui/Button'
 import { NumberStepper } from '@/shared/ui/NumberStepper'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 
@@ -30,11 +32,85 @@ function SettingRow({
   )
 }
 
+function SavedProjectOverrides({
+  settings,
+  saving,
+  onClearMultiAgent,
+  onClearParentLimit,
+}: {
+  readonly settings: Settings
+  readonly saving: boolean
+  readonly onClearMultiAgent: (projectPath: string) => void
+  readonly onClearParentLimit: (projectPath: string) => void
+}) {
+  const projects = [
+    ...new Set([
+      ...Object.keys(settings.multiAgentEnabledByProject),
+      ...Object.keys(settings.sessionHostParentConcurrencyLimitsByProject),
+    ]),
+  ].sort()
+  if (projects.length === 0) return null
+
+  return (
+    <details className="rounded-lg border border-border bg-bg text-xs">
+      <summary className="cursor-pointer px-4 py-3 font-medium text-text-primary">
+        Saved project overrides ({projects.length})
+      </summary>
+      <p className="px-4 pb-2 text-text-tertiary">
+        Older project preferences take precedence over the global Hive controls above. Clear each
+        saved value to use the global one again.
+      </p>
+      {projects.map((projectPath) => (
+        <div key={projectPath} className="border-t border-border px-4 py-3">
+          <p className="mb-2 break-all font-mono text-text-primary">{projectPath}</p>
+          {Object.hasOwn(settings.multiAgentEnabledByProject, projectPath) ? (
+            <div className="flex items-center justify-between gap-3 py-1">
+              <span className="text-text-tertiary">
+                Worker creation: {settings.multiAgentEnabledByProject[projectPath] ? 'On' : 'Off'}
+              </span>
+              <Button
+                aria-label={`Use global Worker permission for ${projectPath}`}
+                disabled={saving}
+                size="xs"
+                variant="secondary"
+                onClick={() => onClearMultiAgent(projectPath)}
+              >
+                Use global
+              </Button>
+            </div>
+          ) : null}
+          {Object.hasOwn(settings.sessionHostParentConcurrencyLimitsByProject, projectPath) ? (
+            <div className="flex items-center justify-between gap-3 py-1">
+              <span className="text-text-tertiary">
+                Workers per parent:{' '}
+                {settings.sessionHostParentConcurrencyLimitsByProject[projectPath]}
+              </span>
+              <Button
+                aria-label={`Use global Worker limit for ${projectPath}`}
+                disabled={saving}
+                size="xs"
+                variant="secondary"
+                onClick={() => onClearParentLimit(projectPath)}
+              >
+                Use global
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </details>
+  )
+}
+
 export function MultiAgentAccessCard() {
   const settings = usePreferencesStore((state) => state.settings)
   const setMultiAgentEnabled = usePreferencesStore((state) => state.setMultiAgentEnabled)
   const setParentLimit = usePreferencesStore((state) => state.setSessionHostParentConcurrencyLimit)
   const setHostCeiling = usePreferencesStore((state) => state.setSessionHostRunCeiling)
+  const setProjectMultiAgent = usePreferencesStore((state) => state.setProjectMultiAgentEnabled)
+  const setProjectParentLimit = usePreferencesStore(
+    (state) => state.setProjectParentConcurrencyLimit,
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,8 +177,19 @@ export function MultiAgentAccessCard() {
       </div>
       <p className="text-xs text-text-tertiary">
         New runs are rejected with a retryable error at either limit; they are not queued. Higher
-        values may strain your machine or model provider.
+        values may strain your machine or model provider. Project configuration files can override
+        these app-wide defaults.
       </p>
+      <SavedProjectOverrides
+        settings={settings}
+        saving={saving}
+        onClearMultiAgent={(projectPath) =>
+          void persist(() => setProjectMultiAgent(projectPath, null))
+        }
+        onClearParentLimit={(projectPath) =>
+          void persist(() => setProjectParentLimit(projectPath, null))
+        }
+      />
       {error ? (
         <p className="text-xs text-error-text" role="alert">
           {error}

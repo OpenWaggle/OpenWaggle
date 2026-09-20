@@ -1,6 +1,7 @@
 import type { CliShimServiceInput } from './cli-shim-service'
 
-export const MANAGED_CLI_SHIM_MARKER =
+export const MANAGED_CLI_SHIM_MARKER = '# Managed by OpenWaggle. Bundled CLI command.'
+export const LEGACY_MANAGED_CLI_SHIM_MARKER =
   '# Managed by OpenWaggle. Configure from Settings > Agent access.'
 
 function shellQuote(value: string) {

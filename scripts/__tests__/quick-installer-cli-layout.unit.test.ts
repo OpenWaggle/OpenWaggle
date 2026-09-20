@@ -62,7 +62,7 @@ describe('quick installer CLI layout', () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
 
     expect(source).not.toContain('ln -sf "${APP_EXECUTABLE}" "${INSTALL_DIR}/openwaggle"')
-    expect(source.match(/Managed by OpenWaggle/g)).toHaveLength(1)
+    expect(source.match(/Managed by OpenWaggle/g)).toHaveLength(2)
     expect(source.match(/printf '%s\\n' "\$\{CLI_SHIM_MARKER\}"/g)).toHaveLength(2)
     expect(source).toContain('bs=512 count=1')
     expect(source).toContain("printf 'exec '\\''%s'\\'' \"$@\"\\n' \"${ESCAPED_APP_EXECUTABLE}\"")
@@ -113,6 +113,24 @@ describe('quick installer CLI layout', () => {
       }
     },
   )
+
+  it('preserves an unrelated command that mentions the managed marker later', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-installer-marker-'))
+    const target = path.join(root, 'openwaggle')
+    const replacement = path.join(root, 'replacement')
+    const unrelated = '#!/bin/sh\necho unrelated\n# Managed by OpenWaggle. Bundled CLI command.\n'
+    try {
+      await fs.writeFile(target, unrelated)
+      await fs.writeFile(replacement, 'managed replacement')
+      await expect(
+        installShim({ source, replacement, target, platform: 'mac', legacyReference: '' }),
+      ).rejects.toMatchObject({ code: 1 })
+      await expect(fs.readFile(target, 'utf8')).resolves.toBe(unrelated)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
 
   it('revalidates the displaced target and restores a file swapped in after admission', async () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
