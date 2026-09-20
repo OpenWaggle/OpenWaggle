@@ -57,9 +57,7 @@ import type {
 } from './session'
 import type { Settings } from './settings'
 
-// ─── IPC Channel Map ─────────────────────────────────────────
-// Single source of truth for every IPC channel.
-// Each entry defines: [channel name, args tuple, return type]
+// ─── IPC Channel Map: single source of truth; [channel, args tuple, return type] ───
 
 export interface IpcCoreInvokeChannelMap extends SessionResourceIpcInvokeChannels {
   'agent:send-message': {
@@ -86,10 +84,7 @@ export interface IpcCoreInvokeChannelMap extends SessionResourceIpcInvokeChannel
     args: [sessionId: SessionId, model: SupportedModelId, customInstructions?: string]
     return: ContextCompactionResult
   }
-  'settings:get': {
-    args: []
-    return: Settings
-  }
+  'settings:get': { args: []; return: Settings }
   'settings:update': {
     args: [settings: Partial<Settings>]
     return: { ok: true } | { ok: false; error: string }

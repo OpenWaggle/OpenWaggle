@@ -190,6 +190,8 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       // A fork inherits both: this branch's environment mode, and main's authorization mode.
       ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
       authorizationMode: session.authorizationMode,
+      // The copy keeps the source session's explicit model pick, or inherits when the source did.
+      ...(session.selectedModel ? { selectedModel: session.selectedModel } : {}),
     })
 
     yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), {

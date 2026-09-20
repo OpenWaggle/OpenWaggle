@@ -24,7 +24,7 @@ const forkSessionMock = vi.fn()
 const createProjectionMock = vi.fn()
 const getProjectionMock = vi.fn()
 
-const session = sessionServiceSession
+let session = sessionServiceSession
 const forkedSession = sessionServiceForkedSession
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
@@ -273,5 +273,38 @@ describe('agent session copy commands', () => {
         position: 'at',
       }),
     )
+  })
+
+  it('keeps the source session explicit model pick on the copy', async () => {
+    session = {
+      ...sessionServiceSession,
+      selectedModel: SupportedModelId('anthropic/claude-opus-4-5'),
+    }
+    try {
+      forkSessionMock.mockResolvedValue({
+        cancelled: false,
+        piSessionId: 'pi-session-forked',
+        piSessionFile: '/tmp/pi-session-forked.jsonl',
+        sessionSnapshot: { activeNodeId: 'current-node', nodes: [] },
+      })
+
+      await Effect.runPromise(
+        cloneAgentSessionToNewSession({
+          sessionId: SessionId('session-1'),
+          model: SupportedModelId('openai/gpt-5.4'),
+          targetNodeId: SessionNodeId('current-node'),
+        }).pipe(Effect.provide(TestLayer)),
+      )
+
+      // Without this, the copy reached the renderer with no pick and silently switched to the
+      // global default for its next run.
+      expect(createProjectionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          selectedModel: SupportedModelId('anthropic/claude-opus-4-5'),
+        }),
+      )
+    } finally {
+      session = sessionServiceSession
+    }
   })
 })

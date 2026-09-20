@@ -22,7 +22,6 @@ function row(overrides: Partial<SessionSummaryRow> = {}): SessionSummaryRow {
     active_direct_worker_count: 0,
     agent_definition_name: null,
     delegation_state: null,
->>>>>>> origin/main
     ...overrides,
   }
 }

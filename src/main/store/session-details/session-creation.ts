@@ -36,6 +36,7 @@ function buildNewSessionDetail(
     ...(input.authorizationMode === undefined
       ? {}
       : { authorizationMode: input.authorizationMode }),
+    ...(input.selectedModel === undefined ? {} : { selectedModel: input.selectedModel }),
   }
 }
 
@@ -51,13 +52,13 @@ function insertSessionRow(input: {
     INSERT INTO sessions (
       id, pi_session_id, pi_session_file, project_path, title, archived, waggle_config_json,
       created_at, updated_at, last_active_node_id, last_active_branch_id, environment_mode,
-      authorization_mode_override
+      authorization_mode_override, selected_model
     )
     VALUES (
       ${input.sessionId}, ${input.input.piSessionId}, ${input.input.piSessionFile ?? null},
       ${input.input.projectPath}, ${input.session.title}, ${0}, ${null}, ${input.now}, ${input.now},
       ${null}, ${input.branchId}, ${input.input.environmentMode ?? 'local'},
-      ${input.input.authorizationMode ?? null}
+      ${input.input.authorizationMode ?? null}, ${input.input.selectedModel ?? null}
     )
   `
 }

@@ -1,6 +1,7 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
+import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDelegationState, SessionHiveRole, SessionNode } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 
@@ -107,6 +108,8 @@ export interface CreateSessionInput {
   readonly environmentMode?: SessionEnvironmentMode
   /** Authorization mode the session is born with (defaults to YOLO when omitted). */
   readonly authorizationMode?: AgentAuthorizationMode
+  /** Explicit per-session model pick born with the session (a copy keeps its source's pick). */
+  readonly selectedModel?: SupportedModelId
 }
 
 export interface DerivedSessionBranch {

@@ -44,6 +44,8 @@ export interface SessionProjectionRepositoryShape {
     readonly piSessionFile?: string
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
+    /** The copied session keeps its source's explicit pick instead of falling back to the default. */
+    readonly selectedModel?: SupportedModelId
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
   /** Preflight before runtime teardown. Delete still revalidates eligibility transactionally. */
   readonly getDeletionBlocker: (

@@ -159,6 +159,7 @@ export function makeBrokerLayer(input: {
       updateTitle: () => Effect.void,
       setWorktreePlan: () => Effect.void,
       setAuthorizationMode: () => Effect.void,
+      setSelectedModel: () => Effect.void,
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
       setTurnCheckpointAnchor: () => Effect.void,

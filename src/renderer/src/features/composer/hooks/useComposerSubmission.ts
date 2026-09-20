@@ -5,7 +5,6 @@ import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
 import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
 import { consumeSendResult } from '../lib/send-result'
 import {

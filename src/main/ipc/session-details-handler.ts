@@ -1,6 +1,6 @@
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
-import { SupportedModelId } from '@shared/types/llm'
+import { SupportedModelId } from '@shared/types/brand'
 import type { PinnedSessionMove, SessionWorktreePlan } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'

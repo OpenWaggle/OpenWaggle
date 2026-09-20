@@ -26,6 +26,8 @@ interface SidebarBranchActionDeps {
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
   readonly selectedModel: SupportedModelId
+  /** The global settings default — the fallback for a target session that never picked. */
+  readonly defaultModel: SupportedModelId
   readonly sessions: readonly SessionSummary[]
   readonly showToast: (message: string) => void
 }
@@ -81,12 +83,13 @@ function switchSessionBranch(
 
   const targetNodeId = SessionNodeId(headNodeId)
   // Switching branches must not retarget the run to whatever model the last-touched session used:
-  // resolve the target session's own pick, falling back to the global default.
+  // resolve the target session's own pick, falling back to the global default (deps.defaultModel,
+  // not deps.selectedModel — that is the active session's resolved model, not this target's).
   const targetSession = deps.sessions.find((item) => String(item.id) === sessionId)
   void api
     .navigateSessionTree(
       targetSessionId,
-      targetSession?.selectedModel ?? deps.selectedModel,
+      targetSession?.selectedModel ?? deps.defaultModel,
       targetNodeId,
       { summarize: false },
     )

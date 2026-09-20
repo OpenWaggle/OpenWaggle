@@ -14,6 +14,22 @@ import {
 } from './message-hydration'
 import type { SessionNodeRow, SessionRow, SessionSummaryRow } from './types'
 
+/** Main's Session Summary lineage fields, hydrating only when the query marks them present. */
+function lineageFields(row: SessionSummaryRow) {
+  return row.lineage_present === 1
+    ? {
+        lineage: {
+          role: row.lineage_role,
+          parentSessionId: row.parent_session_id ? SessionId(row.parent_session_id) : null,
+          directWorkerCount: row.direct_worker_count,
+          activeDirectWorkerCount: row.active_direct_worker_count,
+          agentDefinitionName: row.agent_definition_name,
+          delegationState: row.delegation_state,
+        },
+      }
+    : {}
+}
+
 /**
  * The detail-side summary shape, which carries `messageCount` and deliberately omits the
  * session-list fields (environment mode, worktree path, last-active ids).
@@ -33,18 +49,7 @@ function hydrateSessionDetailSummary(row: SessionSummaryRow) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.selected_model ? { selectedModel: SupportedModelId(row.selected_model) } : {}),
-    ...(row.lineage_present === 1
-      ? {
-          lineage: {
-            role: row.lineage_role,
-            parentSessionId: row.parent_session_id ? SessionId(row.parent_session_id) : null,
-            directWorkerCount: row.direct_worker_count,
-            activeDirectWorkerCount: row.active_direct_worker_count,
-            agentDefinitionName: row.agent_definition_name,
-            delegationState: row.delegation_state,
-          },
-        }
-      : {}),
+    ...lineageFields(row),
   }
 }
 
@@ -131,6 +136,50 @@ function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
   `
 }
 
+/** Shared summary projection: message count plus the Hive lineage fields (main's Session Summary). */
+function summaryColumns(sql: SqlClient.SqlClient) {
+  return sql<never>`
+    s.id,
+    s.title,
+    s.project_path,
+    s.archived,
+    s.created_at,
+    s.updated_at,
+    s.selected_model,
+    (
+      SELECT COUNT(*)
+      FROM session_nodes sn
+      WHERE sn.session_id = s.id
+        AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
+    ) AS message_count,
+    CASE
+      WHEN sl.session_id IS NOT NULL OR EXISTS (
+        SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
+      ) THEN 1
+      ELSE 0
+    END AS lineage_present,
+    CASE
+      WHEN sl.parent_session_id IS NOT NULL THEN 'worker'
+      WHEN EXISTS (
+        SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
+      ) THEN 'queen'
+      ELSE 'independent'
+    END AS lineage_role,
+    sl.parent_session_id,
+    (
+      SELECT COUNT(*) FROM session_lineage child WHERE child.parent_session_id = s.id
+    ) AS direct_worker_count,
+    (
+      SELECT COUNT(*)
+      FROM session_lineage child
+      WHERE child.parent_session_id = s.id
+        AND child.delegation_state NOT IN ('accepted', 'cancelled')
+    ) AS active_direct_worker_count,
+    sl.agent_definition_name,
+    sl.delegation_state
+  `
+}
+
 function summaryCountSql(
   sql: SqlClient.SqlClient,
   archived: number,
@@ -139,44 +188,7 @@ function summaryCountSql(
 ) {
   return sql<SessionSummaryRow>`
     SELECT
-      s.id,
-      s.title,
-      s.project_path,
-      s.archived,
-      s.created_at,
-      s.updated_at,
-      s.selected_model,
-      (
-        SELECT COUNT(*)
-        FROM session_nodes sn
-        WHERE sn.session_id = s.id
-          AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
-      ) AS message_count,
-      CASE
-        WHEN sl.session_id IS NOT NULL OR EXISTS (
-          SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
-        ) THEN 1
-        ELSE 0
-      END AS lineage_present,
-      CASE
-        WHEN sl.parent_session_id IS NOT NULL THEN 'worker'
-        WHEN EXISTS (
-          SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
-        ) THEN 'queen'
-        ELSE 'independent'
-      END AS lineage_role,
-      sl.parent_session_id,
-      (
-        SELECT COUNT(*) FROM session_lineage child WHERE child.parent_session_id = s.id
-      ) AS direct_worker_count,
-      (
-        SELECT COUNT(*)
-        FROM session_lineage child
-        WHERE child.parent_session_id = s.id
-          AND child.delegation_state NOT IN ('accepted', 'cancelled')
-      ) AS active_direct_worker_count,
-      sl.agent_definition_name,
-      sl.delegation_state
+      ${summaryColumns(sql)}
     FROM sessions s
     LEFT JOIN session_lineage sl ON sl.session_id = s.id
     WHERE s.archived = ${archived}
@@ -223,43 +235,7 @@ export async function getSessionHiveRelations(id: SessionId): Promise<SessionHiv
           WHERE parent_session_id = ${id}
         )
         SELECT
-          s.id,
-          s.title,
-          s.project_path,
-          s.archived,
-          s.created_at,
-          s.updated_at,
-          (
-            SELECT COUNT(*)
-            FROM session_nodes sn
-            WHERE sn.session_id = s.id
-              AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
-          ) AS message_count,
-          CASE
-            WHEN sl.session_id IS NOT NULL OR EXISTS (
-              SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
-            ) THEN 1
-            ELSE 0
-          END AS lineage_present,
-          CASE
-            WHEN sl.parent_session_id IS NOT NULL THEN 'worker'
-            WHEN EXISTS (
-              SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
-            ) THEN 'queen'
-            ELSE 'independent'
-          END AS lineage_role,
-          sl.parent_session_id,
-          (
-            SELECT COUNT(*) FROM session_lineage child WHERE child.parent_session_id = s.id
-          ) AS direct_worker_count,
-          (
-            SELECT COUNT(*)
-            FROM session_lineage child
-            WHERE child.parent_session_id = s.id
-              AND child.delegation_state NOT IN ('accepted', 'cancelled')
-          ) AS active_direct_worker_count,
-          sl.agent_definition_name,
-          sl.delegation_state
+          ${summaryColumns(sql)}
         FROM sessions s
         INNER JOIN hive_session_ids hive ON hive.id = s.id
         LEFT JOIN session_lineage sl ON sl.session_id = s.id

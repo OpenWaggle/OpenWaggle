@@ -31,11 +31,25 @@ export function useSelectedSessionModel(): {
   const setSelectedModel = useCallback(async (model: SupportedModelId) => {
     const state = useChatStore.getState()
     if (state.activeSessionId) {
-      // The store is updated only after the write lands, so a failed pick snaps the picker back
-      // instead of showing a model the next run will not use.
-      await api.setSessionSelectedModel(state.activeSessionId, model)
       const session = state.activeSession
+      // Optimistic: the picker closes before the IPC write lands and the send gate reads this
+      // store, so an awaited write would let an immediate submit dispatch the previous model.
       if (session) state.upsertSession({ ...session, selectedModel: model })
+      try {
+        await api.setSessionSelectedModel(state.activeSessionId, model)
+      } catch (error) {
+        // Roll back only if the user has not already picked something else meanwhile.
+        const current = useChatStore.getState().activeSession
+        if (session && current && current.id === session.id && current.selectedModel === model) {
+          useChatStore
+            .getState()
+            .upsertSession({ ...current, selectedModel: session.selectedModel })
+        }
+        logger.warn('Session model selection failed; rolled back', {
+          model: String(model),
+          error: String(error),
+        })
+      }
       return
     }
     const draftProject = state.draftSession?.projectPath

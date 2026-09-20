@@ -47,6 +47,7 @@ function createDomainActions(
     refreshAfterSessionMutation,
     refreshSessionWorkspace: state.sessions.refreshSessionWorkspace,
     selectedModel: state.preferences.selectedModel,
+    defaultModel: state.preferences.defaultModel,
     sessions: state.sessions.sessions,
     showToast: state.showToast,
   })

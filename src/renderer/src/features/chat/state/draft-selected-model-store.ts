@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
+import { useChatStore } from './chat-store'
 
 interface DraftSelectedModelState {
   readonly byProjectPath: Record<string, SupportedModelId | undefined>
@@ -34,5 +35,13 @@ export async function flushDraftSelectedModelToSession(
   if (override === undefined) return
 
   await api.setSessionSelectedModel(sessionId, override)
+  // createSession already replaced the draft with an active SessionDetail that carries no pick.
+  // Mirror the persisted model into it before clearing the override, otherwise the picker, Waggle
+  // status, and the usage snapshot fall back to the global default until the run refresh lands.
+  const chat = useChatStore.getState()
+  const created = chat.activeSession
+  if (created && String(created.id) === String(sessionId)) {
+    chat.upsertSession({ ...created, selectedModel: override })
+  }
   useDraftSelectedModelStore.getState().clearOverride(projectPath, override)
 }

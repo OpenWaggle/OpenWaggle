@@ -10,9 +10,9 @@ import {
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
   SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS,
 } from './database-schema'
-import { SESSION_SELECTED_MODEL_MIGRATION } from './session-selected-model-migration'
 import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from './database-session-lineage-schema'
 import { SESSION_RESOURCE_MIGRATIONS } from './database-session-resource-migrations'
+import { SESSION_SELECTED_MODEL_MIGRATION } from './session-selected-model-migration'
 import { SESSION_WORKTREE_SETUP_MIGRATION } from './session-worktree-setup-migration'
 import { SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION } from './session-worktree-setup-receipt-migration'
 
@@ -287,7 +287,6 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     skipIfColumn: { table: 'sessions', column: 'authorization_mode_override' },
     statements: [...SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS],
   },
-  SESSION_SELECTED_MODEL_MIGRATION,
   SESSION_WORKTREE_SETUP_MIGRATION,
   SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION,
   {
@@ -296,4 +295,5 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     statements: CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS,
   },
   ...SESSION_RESOURCE_MIGRATIONS,
+  SESSION_SELECTED_MODEL_MIGRATION,
 ]
