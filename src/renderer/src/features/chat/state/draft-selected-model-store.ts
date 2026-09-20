@@ -4,11 +4,22 @@ import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import { useChatStore } from './chat-store'
 
-interface DraftSelectedModelState {
-  readonly byProjectPath: Record<string, SupportedModelId | undefined>
-  readonly setOverride: (projectPath: string, model: SupportedModelId) => void
-  readonly clearOverride: (projectPath: string, expected?: SupportedModelId) => void
+interface DraftModelOverride {
+  readonly model: SupportedModelId
+  /**
+   * Identifies one act of picking. A same-valued re-pick in a newer draft must not be cleared by
+   * an older send's cleanup, so clearing compares generations, not model values.
+   */
+  readonly generation: number
 }
+
+interface DraftSelectedModelState {
+  readonly byProjectPath: Record<string, DraftModelOverride | undefined>
+  readonly setOverride: (projectPath: string, model: SupportedModelId) => void
+  readonly clearOverride: (projectPath: string, generation: number) => void
+}
+
+let nextGeneration = 0
 
 /**
  * Holds only explicit pre-session model picks. An absent entry means the draft still shows the
@@ -17,17 +28,23 @@ interface DraftSelectedModelState {
 export const useDraftSelectedModelStore = create<DraftSelectedModelState>()((set) => ({
   byProjectPath: {},
   setOverride: (projectPath, model) =>
-    set((state) => ({ byProjectPath: { ...state.byProjectPath, [projectPath]: model } })),
-  clearOverride: (projectPath, expected) =>
+    set((state) => ({
+      byProjectPath: {
+        ...state.byProjectPath,
+        [projectPath]: { model, generation: ++nextGeneration },
+      },
+    })),
+  clearOverride: (projectPath, generation) =>
     set((state) => {
-      if (expected !== undefined && state.byProjectPath[projectPath] !== expected) return state
+      const current = state.byProjectPath[projectPath]
+      if (!current || current.generation !== generation) return state
       const { [projectPath]: _removed, ...rest } = state.byProjectPath
       return { byProjectPath: rest }
     }),
 }))
 
 /** Read the explicit pre-first-send pick without touching it, so it survives the send's awaits. */
-export function snapshotDraftSelectedModel(projectPath: string): SupportedModelId | undefined {
+export function snapshotDraftSelectedModel(projectPath: string): DraftModelOverride | undefined {
   return useDraftSelectedModelStore.getState().byProjectPath[projectPath]
 }
 
@@ -35,17 +52,17 @@ export function snapshotDraftSelectedModel(projectPath: string): SupportedModelI
 export async function flushDraftSelectedModelToSession(
   projectPath: string,
   sessionId: SessionId,
-  override: SupportedModelId | undefined,
+  override: DraftModelOverride | undefined,
 ): Promise<void> {
   if (override === undefined) return
 
   try {
-    await api.setSessionSelectedModel(sessionId, override)
+    await api.setSessionSelectedModel(sessionId, override.model)
   } catch (error) {
     // The row stays inheriting, so drop the pick rather than diverge: the composer, a retried
     // dispatch, and a reload would otherwise disagree about this session's model. The failure
     // propagates, aborting the first send with the draft preserved for the user to retry.
-    useDraftSelectedModelStore.getState().clearOverride(projectPath, override)
+    useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
     throw error
   }
   // createSession already replaced the draft with an active SessionDetail that carries no pick.
@@ -54,7 +71,7 @@ export async function flushDraftSelectedModelToSession(
   const chat = useChatStore.getState()
   const created = chat.activeSession
   if (created && String(created.id) === String(sessionId)) {
-    chat.upsertSession({ ...created, selectedModel: override })
+    chat.upsertSession({ ...created, selectedModel: override.model })
   }
-  useDraftSelectedModelStore.getState().clearOverride(projectPath, override)
+  useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
 }

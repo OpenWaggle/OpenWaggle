@@ -41,7 +41,9 @@ export function useSelectedSessionModel(): {
   // the first send creates the session, whose own row (or the global default) takes over. A pick
   // made in an abandoned draft must not leak into an existing session that never picked.
   const draftModel = useDraftSelectedModelStore((s) =>
-    activeSession === null && draftProjectPath ? s.byProjectPath[draftProjectPath] : undefined,
+    activeSession === null && draftProjectPath
+      ? s.byProjectPath[draftProjectPath]?.model
+      : undefined,
   )
 
   const selectedModel = activeSession
@@ -66,9 +68,13 @@ export function useSelectedSessionModel(): {
             model: String(model),
             error: String(error),
           })
-          // Converge on the persisted row inside the queue, so a newer pick cannot start from a
-          // cache this failed write is about to overwrite.
-          await useChatStore.getState().refreshSession(sessionId)
+          // A newer pick owns the cache; its own settlement reconciles. Reloading here would
+          // discard its optimistic value before its queued write lands.
+          if (desiredModelBySession.get(sessionKey) === model) {
+            // Converge on the persisted row inside the queue, so a newer pick cannot start from a
+            // cache this failed write is about to overwrite.
+            await useChatStore.getState().refreshSession(sessionId)
+          }
           return
         }
         // A newer pick owns the cache and the summaries; its own settlement reconciles both.
