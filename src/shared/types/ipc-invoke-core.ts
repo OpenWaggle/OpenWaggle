@@ -1,4 +1,5 @@
 import type { AgentSendPayload, AgentSendReport } from './agent'
+import type { AgentDefinitionDisplayItem } from './agent-definition'
 import type {
   AgentDefinitionManagementCommand,
   AgentDefinitionManagementOutcome,
@@ -74,6 +75,18 @@ export interface IpcCoreInvokeChannelMap
   'agent-definitions:manage': {
     args: [command: AgentDefinitionManagementCommand]
     return: AgentDefinitionManagementOutcome
+  }
+  'agent-definitions:list-display': {
+    args: [projectPath: string]
+    return: readonly AgentDefinitionDisplayItem[]
+  }
+  'agent-definitions:get-preview': {
+    args: [projectPath: string, name: string]
+    return: { markdown: string }
+  }
+  'agent-definitions:set-enabled': {
+    args: [projectPath: string, name: string, enabled: boolean]
+    return: undefined
   }
   'access-profiles:manage': {
     args: [command: LocalSessionProfileUiCommand]

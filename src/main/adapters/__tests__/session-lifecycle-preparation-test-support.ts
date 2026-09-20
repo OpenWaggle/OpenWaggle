@@ -1,7 +1,7 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { SupportedModelId } from '@shared/types/brand'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -19,6 +19,7 @@ export function makeLifecyclePreparationLayer(
   filename: string,
   createdProjects: string[],
   projectPath = '/project',
+  settingsOverrides: Partial<Settings> = {},
 ) {
   const sqlite = SqliteClient.layer({ filename, prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE })
   const schema = Layer.effectDiscard(
@@ -121,6 +122,7 @@ export function makeLifecyclePreparationLayer(
       get: () =>
         Effect.succeed({
           ...DEFAULT_SETTINGS,
+          ...settingsOverrides,
           selectedModel: SupportedModelId('provider/model'),
           sessionHostParentConcurrencyLimitsByProject: { [projectPath]: 9 },
         }),

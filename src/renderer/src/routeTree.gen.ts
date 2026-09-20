@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ChatRouteImport } from './routes/_chat'
+import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
@@ -19,6 +20,11 @@ import { Route as ExtensionsExtensionIdSplatRouteImport } from './routes/extensi
 
 const ChatRoute = ChatRouteImport.update({
   id: '/_chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -55,6 +61,7 @@ const ExtensionsExtensionIdSplatRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
+  '/agents': typeof AgentsRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/extensions/$extensionId/$': typeof ExtensionsExtensionIdSplatRoute
 }
 export interface FileRoutesByTo {
+  '/agents': typeof AgentsRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
@@ -72,6 +80,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
+  '/agents': typeof AgentsRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
@@ -83,6 +92,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agents'
     | '/settings'
     | '/skills'
     | '/sessions/$sessionId'
@@ -90,6 +100,7 @@ export interface FileRouteTypes {
     | '/extensions/$extensionId/$'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/agents'
     | '/settings'
     | '/skills'
     | '/sessions/$sessionId'
@@ -99,6 +110,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_chat'
+    | '/agents'
     | '/settings'
     | '/skills'
     | '/sessions/$sessionId'
@@ -109,6 +121,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
+  AgentsRoute: typeof AgentsRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -193,6 +213,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
+  AgentsRoute: AgentsRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
   SessionsSessionIdRoute: SessionsSessionIdRoute,

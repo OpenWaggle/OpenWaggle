@@ -1,5 +1,6 @@
 import type { Settings } from '@shared/types/settings'
 import {
+  SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
   SETTINGS_KEY_BROWSER_DEFAULT_APPEARANCE,
@@ -163,6 +164,12 @@ function appendGeneralSettingsWrites(
     partial.skillTogglesByProject !== undefined,
     SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
     next.skillTogglesByProject,
+  )
+  appendChangedSetting(
+    writes,
+    partial.agentDefinitionTogglesByProject !== undefined,
+    SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
+    next.agentDefinitionTogglesByProject,
   )
   appendChangedSetting(
     writes,

@@ -9,6 +9,7 @@ interface AgentRunKernelPreflight {
   readonly session: SessionDetail
   readonly compactionThresholdPercent: number
   readonly skillToggles?: Record<string, boolean>
+  readonly agentDefinitionToggles?: Record<string, boolean>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
 
@@ -83,6 +84,9 @@ function runDeliveryContextOptions(input: AgentRunInput) {
 function preflightOptions(preflight: AgentRunKernelPreflight) {
   return {
     ...(preflight.skillToggles ? { skillToggles: preflight.skillToggles } : {}),
+    ...(preflight.agentDefinitionToggles
+      ? { agentDefinitionToggles: preflight.agentDefinitionToggles }
+      : {}),
     ...(preflight.enabledOpenWaggleExtensionPackagePaths
       ? {
           enabledOpenWaggleExtensionPackagePaths: preflight.enabledOpenWaggleExtensionPackagePaths,

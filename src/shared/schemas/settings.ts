@@ -65,6 +65,14 @@ export const settingsUpdateSchema = Schema.Struct({
       }),
     ),
   ),
+  agentDefinitionTogglesByProject: Schema.optional(
+    Schema.mutable(
+      Schema.Record({
+        key: Schema.String,
+        value: Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Boolean })),
+      }),
+    ),
+  ),
   projectDisplayNames: Schema.optional(
     Schema.mutable(
       Schema.Record({

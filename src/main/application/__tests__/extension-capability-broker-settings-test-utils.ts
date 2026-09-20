@@ -23,6 +23,10 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.skillTogglesByProject,
       partial.skillTogglesByProject,
     ),
+    agentDefinitionTogglesByProject: nextSetting(
+      current.agentDefinitionTogglesByProject,
+      partial.agentDefinitionTogglesByProject,
+    ),
     projectDisplayNames: nextSetting(current.projectDisplayNames, partial.projectDisplayNames),
     defaultAuthorizationMode: nextSetting(
       current.defaultAuthorizationMode,
@@ -115,6 +119,7 @@ function cloneSettings(settings: Settings): Settings {
     recentProjects: [...settings.recentProjects],
     browserProfiles: settings.browserProfiles.map((profile) => ({ ...profile })),
     skillTogglesByProject: { ...settings.skillTogglesByProject },
+    agentDefinitionTogglesByProject: { ...settings.agentDefinitionTogglesByProject },
     projectDisplayNames: { ...settings.projectDisplayNames },
     shortcutRules: settings.shortcutRules.map((rule) => ({
       ...rule,

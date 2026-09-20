@@ -1,6 +1,7 @@
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../../agent/error-classifier'
+import { agentDefinitionTogglesForProject } from '../../agents/agent-definition-toggle-settings'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SettingsService } from '../../services/settings-service'
@@ -14,6 +15,7 @@ interface AgentRunPreflightSuccess {
   readonly compactionThresholdPercent: number
   readonly assignedTitle?: string
   readonly skillToggles?: Record<string, boolean>
+  readonly agentDefinitionToggles?: Record<string, boolean>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
 
@@ -45,6 +47,15 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     const enabledOpenWaggleExtensionPackagePaths = session.projectPath
       ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
       : undefined
+    const agentProjectPath = session.projectPath
+    const agentDefinitionToggles = agentProjectPath
+      ? yield* Effect.promise(() =>
+          agentDefinitionTogglesForProject(
+            settings.agentDefinitionTogglesByProject,
+            agentProjectPath,
+          ),
+        )
+      : undefined
 
     return {
       ok: true,
@@ -55,6 +66,7 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
       ...(session.projectPath && settings.skillTogglesByProject[session.projectPath]
         ? { skillToggles: settings.skillTogglesByProject[session.projectPath] }
         : {}),
+      ...(agentDefinitionToggles ? { agentDefinitionToggles } : {}),
     } satisfies AgentRunPreflightSuccess
   })
 }

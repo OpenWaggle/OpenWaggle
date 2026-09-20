@@ -2,6 +2,9 @@ import type { IpcInvokeChannel } from './ipc'
 
 export const HOST_UI_CONTRACT_VERSION = 1 as const
 export const HOST_UI_REVISION_11_REQUIRED_CHANNELS = [
+  'agent-definitions:list-display',
+  'agent-definitions:get-preview',
+  'agent-definitions:set-enabled',
   'project-actions:list',
   'project-actions:add',
   'project-actions:update',

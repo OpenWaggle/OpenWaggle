@@ -57,6 +57,15 @@ const frontmatterSchema = z
   })
   .strict()
 
+const piFrontmatterSchema = z
+  .object({
+    name: z.string().refine(isAgentDefinitionName, 'Invalid or non-portable Agent definition name'),
+    description: z.string().trim().min(1).max(MAX_DESCRIPTION_CHARACTERS),
+    model: z.string().trim().min(1).max(MAX_MODEL_ID_CHARACTERS).optional(),
+    tools: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .strict()
+
 const resolvedSnapshotSchema = frontmatterSchema.extend({
   instructions: z.string().trim().min(1).max(MAX_INSTRUCTION_BYTES),
   scope: z.enum(['project', 'portable-project', 'user']),
@@ -134,8 +143,30 @@ export function parseAgentDefinition(markdown: string): AgentDefinitionDocument 
     )
   }
   assertJsonCompatibleYaml(document.contents)
-  const parsed = frontmatterSchema.parse(document.toJS({ maxAliasCount: 0 }))
-  return { ...parsed, instructions }
+  const raw: unknown = document.toJS({ maxAliasCount: 0 })
+  if (raw && typeof raw === 'object' && 'schemaVersion' in raw) {
+    const parsed = frontmatterSchema.parse(raw)
+    return { ...parsed, instructions }
+  }
+
+  const pi = piFrontmatterSchema.parse(raw)
+  const rawTools = Array.isArray(pi.tools)
+    ? pi.tools
+    : typeof pi.tools === 'string'
+      ? pi.tools.split(',')
+      : []
+  const tools = rawTools
+    .filter((tool): tool is string => typeof tool === 'string')
+    .map((tool) => tool.trim())
+    .filter(Boolean)
+  return {
+    schemaVersion: 1,
+    name: pi.name,
+    description: pi.description,
+    ...(pi.model ? { model: pi.model } : {}),
+    ...(tools.length > 0 ? { tools } : {}),
+    instructions,
+  }
 }
 
 export function extractAgentDefinitionDeclaredName(markdown: string): string | undefined {

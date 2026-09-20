@@ -5,9 +5,9 @@ import type { LocalSessionCallerIdentity } from '@shared/types/local-session-pro
 import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
 import * as Effect from 'effect/Effect'
 import {
-  decodeAgentDefinitionInput,
-  manageHostUiAgentDefinitions,
-} from './host-ui-agent-definition-operation'
+  dispatchHostUiAgentDefinitionOperation,
+  isHostUiAgentDefinitionChannel,
+} from './host-ui-agent-definition-dispatcher'
 import { getHostUiAgentContextUsage, listHostUiActiveActivities } from './host-ui-agent-operation'
 import { discoverHostUiDocs } from './host-ui-docs-operation'
 import {
@@ -62,7 +62,6 @@ import { authorizeHostUiWorkspaceProject } from './workspace-project-authorizati
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
-const REMOTE_GUI_SENDER_ID = 0
 const PROJECT_ACTIONS_PROTOCOL_REVISION = 11
 
 function oneInput<A, E, R>(
@@ -183,6 +182,9 @@ function dispatchHostUiChannel(
   if (isSkillsChannel(channel)) {
     return dispatchHostUiSkillsOperation(channel, args)
   }
+  if (isHostUiAgentDefinitionChannel(channel)) {
+    return dispatchHostUiAgentDefinitionOperation(channel, args)
+  }
   if (isHostUiProjectActionChannel(channel)) {
     if (
       negotiatedRevision !== undefined &&
@@ -239,18 +241,6 @@ function dispatchHostUiChannel(
       Effect.gen(function* () {
         yield* requireHostUiArgCount(args, 0, 1)
         return yield* discoverHostUiDocs(args[0])
-      }),
-    )
-    .with('agent-definitions:manage', () =>
-      Effect.gen(function* () {
-        yield* requireHostUiArgCount(args, 1)
-        const input = decodeAgentDefinitionInput(args[0])
-        if (!input) return yield* invalidHostUiInput('Agent definition source approval is invalid.')
-        return yield* manageHostUiAgentDefinitions({
-          senderId: REMOTE_GUI_SENDER_ID,
-          command: input.command,
-          ...(input.selectedSourcePaths ? { selectedSourcePaths: input.selectedSourcePaths } : {}),
-        })
       }),
     )
     .with('git:worktrees:create', () =>

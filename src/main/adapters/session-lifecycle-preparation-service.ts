@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { agentDefinitionTogglesForProject } from '../agents/agent-definition-toggle-settings'
 import { loadProjectConfig } from '../config/project-config'
 import { resolveSessionHostProjectPolicy } from '../domain/session-control/session-host-policy'
 import { SessionLifecyclePreparationError } from '../errors'
@@ -131,6 +132,13 @@ function forkAttemptFields(
   }
 }
 
+function lifecycleAgentToggles(
+  byProject: Parameters<typeof agentDefinitionTogglesForProject>[0],
+  projectPath: string,
+) {
+  return Effect.promise(() => agentDefinitionTogglesForProject(byProject, projectPath))
+}
+
 export const SessionLifecyclePreparationServiceLive = Layer.effect(
   SessionLifecyclePreparationService,
   Effect.gen(function* () {
@@ -169,6 +177,7 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
               projectPath,
               input.request.command,
               input.callerId,
+              yield* lifecycleAgentToggles(settings.agentDefinitionTogglesByProject, projectPath),
             )
             const plan = yield* prepareLifecycleWorkspacePlan(sql, input, projectPath, definition)
             const command = input.request.command

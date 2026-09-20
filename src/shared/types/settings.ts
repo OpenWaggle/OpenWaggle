@@ -72,6 +72,10 @@ export interface Settings {
   readonly thinkingLevel: ThinkingLevel
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
+  /** Named Agent definitions are enabled by default; false disables that name for one project. */
+  readonly agentDefinitionTogglesByProject: Readonly<
+    Record<string, Readonly<Record<string, boolean>>>
+  >
   readonly projectDisplayNames: Readonly<Record<string, string>>
   /** Canonical ordered built-in command rules. Later active rules win. */
   readonly shortcutRules: ShortcutRules
@@ -133,6 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
   thinkingLevel: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},
+  agentDefinitionTogglesByProject: {},
   projectDisplayNames: {},
   shortcutRules: DEFAULT_SHORTCUT_RULES,
   shortcutBindings: shortcutBindingsFromRules(DEFAULT_SHORTCUT_RULES),

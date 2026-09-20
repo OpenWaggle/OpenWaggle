@@ -280,6 +280,27 @@ export function updateSkillToggleDurably(
   )
 }
 
+export function updateAgentDefinitionToggleDurably(
+  projectPath: string,
+  agentName: string,
+  enabled: boolean,
+): Promise<void> {
+  assertSettingsReady()
+  return enqueueSettingsWrite(
+    () =>
+      persistSettingsPatch({
+        agentDefinitionTogglesByProject: {
+          ...settingsCache.agentDefinitionTogglesByProject,
+          [projectPath]: {
+            ...(settingsCache.agentDefinitionTogglesByProject[projectPath] ?? {}),
+            [agentName]: enabled,
+          },
+        },
+      }),
+    'Agent definition toggle',
+  )
+}
+
 /**
  * Persists one settings patch in queue order before publishing it to readers.
  * Reserved for workflows whose rollback depends on knowing the new identity is

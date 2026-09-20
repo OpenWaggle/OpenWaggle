@@ -9,6 +9,8 @@ Agent definitions are optional Markdown files that specialize a newly created Se
 
 An Agent definition is not a Queen or Worker type. Queen and Worker describe durable Hive lineage; an Agent definition describes an optional role. A Queen or Worker can use any definition, or none.
 
+Create or edit the Markdown file directly in your project. OpenWaggle does not have a form editor for Agent definitions. The **Agents** page beside Skills lets you read the file and enable or disable a definition for new Sessions. A Queen or Worker can discover enabled definitions and select one when creating a Session.
+
 ## Locations and precedence
 
 OpenWaggle discovers definitions by stable frontmatter `name` in this order:
@@ -20,6 +22,25 @@ OpenWaggle discovers definitions by stable frontmatter `name` in this order:
 The first matching name wins. An invalid higher-precedence file does not silently fall through to a lower-precedence definition.
 
 ## Format
+
+OpenWaggle accepts either its versioned v1 frontmatter or the smaller Pi-style format. Both use a Markdown body for instructions. Use v1 when you need OpenWaggle-specific policy fields; use the Pi-style format for a portable name, description, optional model, and tools list.
+
+### Pi-style format
+
+```markdown
+---
+name: code-reviewer
+description: Reviews code for concrete defects
+model: openai/gpt-5.6
+tools: read, grep
+---
+
+Review the change and report actionable findings with file references.
+```
+
+`tools` can also be a YAML list, such as `[read, grep]`. In the Pi-style format, an omitted or empty `tools` value inherits the normal tool set. This differs from OpenWaggle v1, where `tools: []` explicitly allows no tools. Pi-style files do not use `schemaVersion` and do not accept OpenWaggle-specific fields. The same bounded Markdown file and portable-name rules apply.
+
+### OpenWaggle v1 format
 
 ```markdown
 ---
@@ -45,7 +66,7 @@ The non-empty Markdown body is the Agent instruction text. The complete frontmat
 | Field | Required | Meaning |
 |---|---:|---|
 | `$schema` | No | Editor schema URL; it does not select behavior. |
-| `schemaVersion` | Yes | Exact document contract. Version `1` is currently supported. |
+| `schemaVersion` | Yes for v1 | Exact OpenWaggle document contract. Version `1` is currently supported; omit it for Pi-style files. |
 | `name` | Yes | Stable lowercase identity using letters, numbers, `.`, `_`, or `-`. |
 | `description` | Yes | Bounded catalog summary used by humans and agent discovery. |
 | `model` | No | Preferred existing `provider/model`; it cannot authorize a provider. |
@@ -59,6 +80,10 @@ The non-empty Markdown body is the Agent instruction text. The complete frontmat
 | `import` | Managed | Provenance written by an import adapter; do not hand-author it. |
 
 Unknown fields, YAML aliases, merge keys, custom tags, duplicate keys, empty instructions, and oversized documents are rejected. Frontmatter is limited to JSON-compatible YAML and is never evaluated as code or interpolated from the environment.
+
+## Browsing and disabling agents
+
+Open **Agents** from the sidebar to see the effective definitions for the selected project. Select a row to preview its full Markdown file, including frontmatter. The switch disables that name for future named launches and spawns in this project. It does not delete the file, modify the Markdown, or change a Session that already snapshotted the definition. A Worker without a named definition remains available. If the same name exists at multiple discovery locations, the highest-precedence file is displayed and the switch applies to that name, not to one individual file.
 
 ## Inheritance and authority
 
@@ -82,7 +107,7 @@ selected project's live runtime catalogs. MCP servers may be referenced by confi
 instance ID. Validation returns a non-zero exit code and structured, actionable diagnostics when a
 reference is unknown, duplicated, or cannot be checked because a project catalog failed to load.
 `create`, `update`, import, and refresh use the same validation before writing, so an invalid role is
-not installed through the CLI or settings UI.
+not installed through the CLI.
 
 Pass `--json` when another tool consumes the command. Successful commands emit a
 `{"schemaVersion":1,"result":...}` envelope on stdout and exit with code 0. `validate` and `explain`
@@ -104,8 +129,7 @@ and baseline digest allow `agents refresh` to detect source and destination chan
 silently overwriting local edits. Scopes are `project`, `portable-project`, and `user`.
 When the same name exists in more than one scope, use `agents refresh <name> --scope <scope>`
 to refresh a specific definition. Without `--scope`, the CLI refreshes the normal highest-precedence definition.
-In Settings, Refresh asks you to select the original source file again. This authorizes the current
-OpenWaggle window to read that file, including after an app restart or a CLI import. The Host checks
-the selected sources against the definition's stored import provenance before refreshing.
+To change a definition yourself, edit its Markdown file. A new Session uses the revised file; a
+Session already using a snapshot keeps its existing definition.
 
 Agents can discover names and descriptions on demand through the native `sessions` tool using `agent_definitions_list` or `agent_definitions_search`. Instruction bodies are not injected into every Run.

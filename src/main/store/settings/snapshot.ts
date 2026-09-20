@@ -10,6 +10,7 @@ import {
   resolveStoredBrowserSettings,
 } from './browser-settings-snapshot'
 import {
+  SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
   SETTINGS_KEY_APPEARANCE_PREFERENCES,
   SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
   SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
@@ -60,6 +61,7 @@ import {
   resolveNextSessionHostSettings,
   resolveStoredSessionHostSettings,
 } from './session-host-settings-snapshot'
+import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
 
 export function createDefaultSettingsSnapshot() {
   return {
@@ -83,6 +85,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   )
   const skillTogglesByProject = resolveSkillTogglesByProject(
     getStoredValue(storedSettings, SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT),
+  )
+  const agentDefinitionTogglesByProject = resolveSkillTogglesByProject(
+    getStoredValue(storedSettings, SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT),
   )
   const enabledModels = resolveEnabledModels(
     getStoredValue(storedSettings, SETTINGS_KEY_ENABLED_MODELS),
@@ -145,6 +150,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       thinkingLevel,
       recentProjects,
       skillTogglesByProject,
+      agentDefinitionTogglesByProject,
       projectDisplayNames,
       shortcutRules,
       shortcutBindings,
@@ -209,18 +215,6 @@ function resolveValidatedSetting<Value>(
   return isValid(candidate) ? candidate : current
 }
 
-function resolveNextShortcutRules(current: Settings, partial: Partial<Settings>) {
-  if (partial.shortcutRules !== undefined) {
-    return shortcutRulesWithDefaults(
-      sanitizeShortcutRules(partial.shortcutRules) ?? current.shortcutRules,
-    )
-  }
-  if (partial.shortcutBindings === undefined) return current.shortcutRules
-  return shortcutRulesWithDefaults(
-    shortcutRulesFromBindings(sanitizeShortcutBindings(partial.shortcutBindings)),
-  )
-}
-
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
   const coreSettings = resolveNextCoreSettings(current, partial)
   const hostSettings = resolveNextSessionHostSettings(current, partial)
@@ -274,6 +268,11 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     current.skillTogglesByProject,
     sanitizeSkillTogglesByProject,
   )
+  const agentDefinitionTogglesByProject = resolveUpdatedSetting(
+    partial.agentDefinitionTogglesByProject,
+    current.agentDefinitionTogglesByProject,
+    sanitizeSkillTogglesByProject,
+  )
   const projectDisplayNames = resolveUpdatedSetting(
     partial.projectDisplayNames,
     current.projectDisplayNames,
@@ -299,6 +298,7 @@ function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) 
     thinkingLevel,
     recentProjects,
     skillTogglesByProject,
+    agentDefinitionTogglesByProject,
     projectDisplayNames,
     shortcutRules,
     shortcutBindings,

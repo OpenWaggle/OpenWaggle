@@ -45,8 +45,8 @@ They are optional: the local desktop user uses the machine's local-user identity
 card installs or updates the managed `~/.local/bin/openwaggle` shim on macOS and Linux, reports PATH
 problems, and never replaces an unrelated file. Windows installation is managed by the installer.
 
-Agent definitions are authored under General because they are optional reusable Run roles, not
-authorization identities or Hive roles. See [Agent Definitions](/docs/extending/agent-definitions).
+Agent definitions are authored by editing Markdown files, not in Settings. The sidebar **Agents** page provides a read-only preview and a per-project enable/disable switch. See
+[Agent Definitions](/docs/extending/agent-definitions) for the file format and discovery locations.
 
 Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
 

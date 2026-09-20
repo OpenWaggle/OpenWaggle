@@ -1,3 +1,4 @@
+import type { AgentDefinitionDisplayItem } from './agent-definition'
 import type {
   AgentDefinitionManagementCommand,
   AgentDefinitionManagementOutcome,
@@ -21,6 +22,9 @@ export interface OpenWaggleSessionControlApi {
   manageAgentDefinitions(
     command: AgentDefinitionManagementCommand,
   ): Promise<AgentDefinitionManagementOutcome>
+  listAgentDefinitionDisplay(projectPath: string): Promise<readonly AgentDefinitionDisplayItem[]>
+  getAgentDefinitionPreview(projectPath: string, name: string): Promise<{ markdown: string }>
+  setAgentDefinitionEnabled(projectPath: string, name: string, enabled: boolean): Promise<void>
   manageAccessProfiles(
     command: LocalSessionProfileUiCommand,
   ): Promise<LocalSessionProfileManagementResponse>

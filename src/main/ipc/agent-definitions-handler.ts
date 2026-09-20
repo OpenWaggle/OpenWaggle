@@ -1,5 +1,10 @@
 import * as Effect from 'effect/Effect'
 import type { OpenDialogOptions } from 'electron'
+import {
+  getAgentDefinitionPreviewOperation,
+  listAgentDefinitionDisplayOperation,
+  setAgentDefinitionEnabledOperation,
+} from '../application/agent-definition-display-operations'
 import { manageHostUiAgentDefinitions } from '../application/host-ui-agent-definition-operation'
 import { browserWindowFromWebContents, showOpenDialog } from '../desktop-ui'
 import {
@@ -10,6 +15,15 @@ import {
 import { hostHandle, typedHandle } from './typed-ipc'
 
 export function registerAgentDefinitionsHandlers() {
+  hostHandle('agent-definitions:list-display', (_event, projectPath) =>
+    listAgentDefinitionDisplayOperation(projectPath),
+  )
+  hostHandle('agent-definitions:get-preview', (_event, projectPath, name) =>
+    getAgentDefinitionPreviewOperation(projectPath, name),
+  )
+  hostHandle('agent-definitions:set-enabled', (_event, projectPath, name, enabled) =>
+    setAgentDefinitionEnabledOperation(projectPath, name, enabled),
+  )
   typedHandle('agent-definitions:select-source', (event) =>
     Effect.gen(function* () {
       const owner = browserWindowFromWebContents(event.sender)

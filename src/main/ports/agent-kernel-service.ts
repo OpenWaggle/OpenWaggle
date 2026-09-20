@@ -65,6 +65,7 @@ export interface AgentKernelRunInput {
   readonly modelMultiAgentEnabled?: boolean
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly agentDefinitionToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void

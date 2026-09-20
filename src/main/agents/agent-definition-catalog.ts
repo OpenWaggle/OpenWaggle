@@ -138,3 +138,31 @@ export async function searchAgentDefinitions(input: {
     `${item.name}\n${item.description}`.toLocaleLowerCase().includes(query),
   )
 }
+
+/** Re-read the selected catalog entry through the bounded, symlink-safe reader. */
+export async function previewAgentDefinition(input: {
+  readonly projectPath: string
+  readonly name: string
+  readonly userHome?: string
+}): Promise<string> {
+  const item = (await listAgentDefinitions(input)).find(
+    (candidate) => candidate.name === input.name,
+  )
+  if (!item) throw new Error(`Agent definition ${JSON.stringify(input.name)} was not found.`)
+  const root = roots(input.projectPath, input.userHome ?? os.homedir()).find(
+    (candidate) => candidate.scope === item.scope,
+  )
+  if (!root) throw new Error('Agent definition scope is unavailable.')
+  const source = (await readBoundAgentDefinitionSources(root)).find(
+    (candidate) => path.join(root.directory, candidate.name) === item.sourcePath,
+  )
+  if (!source)
+    throw new Error('Agent definition changed while loading its preview. Refresh the list.')
+  if (
+    item.contentDigest &&
+    createHash('sha256').update(source.markdown).digest('hex') !== item.contentDigest
+  ) {
+    throw new Error('Agent definition changed while loading its preview. Refresh the list.')
+  }
+  return source.markdown
+}

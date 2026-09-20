@@ -32,7 +32,6 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 vi.mock('../sections/AgentAccessSection', () => ({ AgentAccessSection: () => null }))
-vi.mock('../sections/AgentDefinitionsCard', () => ({ AgentDefinitionsCard: () => null }))
 
 import { usePreferencesStore } from '../../state/preferences-store'
 import { GeneralSection } from '../sections/GeneralSection'
@@ -130,6 +129,7 @@ describe('GeneralSection', () => {
   it('renders the "About & Updates" section heading', () => {
     render(<GeneralSection />)
     expect(screen.getByText('About & Updates')).toBeInTheDocument()
+    expect(screen.queryByText('Agent definitions')).not.toBeInTheDocument()
   })
 
   it('persists the in-app browser destination from the accessible link setting', async () => {

@@ -116,4 +116,51 @@ describe('Session lifecycle preparation recovery', () => {
 
     expect(remaining).toEqual([{ count: 0 }])
   })
+
+  it('rejects a disabled named definition before creating a Pi session', async () => {
+    const projectPath = path.join(temporaryRoot, 'disabled-project')
+    const directory = path.join(projectPath, '.agents', 'agents')
+    await fs.mkdir(directory, { recursive: true })
+    await fs.writeFile(
+      path.join(directory, 'reviewer.md'),
+      '---\nname: reviewer\ndescription: Reviews changes\n---\n\nReview the code.\n',
+    )
+    const createdProjects: string[] = []
+    const layer = makeLifecyclePreparationLayer(
+      path.join(temporaryRoot, 'disabled.sqlite'),
+      createdProjects,
+      projectPath,
+      { agentDefinitionTogglesByProject: { [projectPath]: { reviewer: false } } },
+    )
+
+    const failure = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SessionLifecyclePreparationService
+        return yield* service
+          .prepare({
+            callerId: 'local-user',
+            identities: {
+              sessionId: SessionId('session-disabled'),
+              workspaceId: WorkspaceId('workspace-disabled'),
+            },
+            request: {
+              contractVersion: 2,
+              requestId: 'request-disabled',
+              idempotencyKey: 'disabled-once',
+              command: {
+                operation: 'launch',
+                projectPath,
+                objective: 'Review code.',
+                attachmentIds: [],
+                specialization: { agentDefinitionName: 'reviewer' },
+              },
+            },
+          })
+          .pipe(Effect.flip)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(String(failure.cause)).toContain('disabled')
+    expect(createdProjects).toEqual([])
+  })
 })

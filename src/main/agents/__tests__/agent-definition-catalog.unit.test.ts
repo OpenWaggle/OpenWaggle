@@ -2,7 +2,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { listAgentDefinitions, resolveAgentDefinition } from '../agent-definition-catalog'
+import {
+  listAgentDefinitions,
+  previewAgentDefinition,
+  resolveAgentDefinition,
+} from '../agent-definition-catalog'
 import { parseAgentDefinition } from '../agent-definition-parser'
 
 const validDefinition = `---
@@ -56,6 +60,39 @@ describe('Agent definition documents', () => {
     ).toMatchObject({ reasoning: 'max' })
   })
 
+  it('accepts Pi-style frontmatter without changing versioned document semantics', () => {
+    const piDefinition = `---
+name: scout
+description: Finds relevant code
+tools: read, grep, find, ls
+model: openai/gpt-5.6
+---
+
+Find the files needed for the task.
+`
+    expect(parseAgentDefinition(piDefinition)).toMatchObject({
+      schemaVersion: 1,
+      name: 'scout',
+      description: 'Finds relevant code',
+      tools: ['read', 'grep', 'find', 'ls'],
+      model: 'openai/gpt-5.6',
+      instructions: 'Find the files needed for the task.',
+    })
+    expect(
+      parseAgentDefinition(piDefinition.replace('tools: read, grep, find, ls', 'tools: []')),
+    ).not.toHaveProperty('tools')
+    expect(
+      parseAgentDefinition(
+        piDefinition.replace('tools: read, grep, find, ls', 'tools: [read, grep]'),
+      ),
+    ).toMatchObject({ tools: ['read', 'grep'] })
+    expect(() =>
+      parseAgentDefinition(
+        validDefinition.replace('tools: [read_file, search]', 'tools: read, grep'),
+      ),
+    ).toThrow()
+  })
+
   it('uses project, portable-project, then user precedence without falling through errors', async () => {
     const projectDirectory = path.join(project, '.openwaggle', 'agents')
     const portableDirectory = path.join(project, '.agents', 'agents')
@@ -107,6 +144,9 @@ describe('Agent definition documents', () => {
       scope: 'project',
       contentDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
     })
+    await expect(
+      previewAgentDefinition({ projectPath: project, userHome: home, name: 'security-reviewer' }),
+    ).resolves.toBe(validDefinition)
   })
 
   it('rejects a project catalog directory that is a symlink outside the project', async () => {

@@ -50,6 +50,8 @@ const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
   'docs:discover',
   'skills:list',
   'skills:get-preview',
+  'agent-definitions:list-display',
+  'agent-definitions:get-preview',
 ])
 
 function isReplaySafeAgentDefinitionInvocation(args: readonly unknown[]) {

@@ -49,6 +49,10 @@ export interface AgentDefinitionCatalogItem {
   readonly loadError?: string
 }
 
+export interface AgentDefinitionDisplayItem extends Omit<AgentDefinitionCatalogItem, 'definition'> {
+  readonly enabled: boolean
+}
+
 export interface ResolvedAgentDefinitionSnapshot extends AgentDefinitionDocument {
   readonly scope: AgentDefinitionScope
   readonly sourcePath: string

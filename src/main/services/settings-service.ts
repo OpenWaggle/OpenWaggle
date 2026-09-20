@@ -11,6 +11,11 @@ export interface SettingsServiceShape {
     skillId: string,
     enabled: boolean,
   ) => Effect.Effect<void, Error>
+  readonly setAgentDefinitionEnabled?: (
+    projectPath: string,
+    agentName: string,
+    enabled: boolean,
+  ) => Effect.Effect<void, Error>
   readonly initialize: () => Effect.Effect<void, SettingsStoreReadError>
   readonly flushForTests: () => Effect.Effect<void, Error>
 }
@@ -40,6 +45,7 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
       getSettings,
       updateSettingsDurably,
       updateSkillToggleDurably,
+      updateAgentDefinitionToggleDurably,
       initializeSettingsStore,
       refreshSettingsStore,
       hydrateSettingsStoreFromHost,
@@ -73,6 +79,14 @@ export class SettingsService extends Context.Tag('@openwaggle/SettingsService')<
           try: async () => {
             await readSettings()
             await updateSkillToggleDurably(projectPath, skillId, enabled)
+          },
+          catch: toError,
+        }),
+      setAgentDefinitionEnabled: (projectPath, agentName, enabled) =>
+        Effect.tryPromise({
+          try: async () => {
+            await readSettings()
+            await updateAgentDefinitionToggleDurably(projectPath, agentName, enabled)
           },
           catch: toError,
         }),

@@ -46,5 +46,10 @@ These instructions must only enter a Run after explicit selection.
         },
       ],
     })
+    await expect(
+      queryAgentDefinitionsForTool({ action: 'agent_definitions_list', limit: 10 }, projectPath, {
+        reviewer: false,
+      }),
+    ).resolves.toEqual({ definitions: [] })
   })
 })

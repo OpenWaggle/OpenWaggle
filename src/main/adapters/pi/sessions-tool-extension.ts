@@ -15,6 +15,7 @@ interface SessionsToolExtensionInput {
   readonly runId: string
   readonly workingDirectory: string
   readonly projectPath?: string
+  readonly agentDefinitionToggles?: Readonly<Record<string, boolean>>
   readonly sessionCapabilities?: readonly SessionCapability[]
   readonly modelMultiAgentEnabled?: boolean
 }
@@ -29,6 +30,7 @@ export async function queryAgentDefinitionsForTool(
     { action: 'agent_definitions_list' | 'agent_definitions_search' }
   >,
   projectPath: string,
+  enabledByName: Readonly<Record<string, boolean>> = {},
 ) {
   const definitions =
     input.action === 'agent_definitions_search'
@@ -36,6 +38,7 @@ export async function queryAgentDefinitionsForTool(
       : await listAgentDefinitions({ projectPath })
   return {
     definitions: definitions
+      .filter((item) => enabledByName[item.name] !== false)
       .slice(0, input.limit ?? DEFAULT_AGENT_DEFINITION_RESULTS)
       .map((item) => ({
         name: item.name,
@@ -207,7 +210,11 @@ async function executeSessionsTool(
 ) {
   if (signal?.aborted) throw new Error('aborted')
   if (isAgentDefinitionAction(params)) {
-    return queryAgentDefinitionsForTool(params, input.projectPath ?? input.workingDirectory)
+    return queryAgentDefinitionsForTool(
+      params,
+      input.projectPath ?? input.workingDirectory,
+      input.agentDefinitionToggles,
+    )
   }
   const initialPayload = buildSessionsToolPayload(params, input)
   await authorizeAttachments(initialPayload, ctx, signal)

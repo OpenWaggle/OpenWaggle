@@ -6,6 +6,7 @@ import {
   Edit3,
   FolderPlus,
   LayoutList,
+  Pickaxe,
   Settings,
   Sparkles,
 } from 'lucide-react'
@@ -64,10 +65,12 @@ export function SidebarPrimaryActions({
   activeView,
   onNewSession,
   onOpenSkills,
+  onOpenAgents,
 }: {
   readonly activeView: SidebarView
   readonly onNewSession: () => void
   readonly onOpenSkills: () => void
+  readonly onOpenAgents: () => void
 }) {
   return (
     <div className="flex shrink-0 flex-col gap-px px-1.5 pt-0.5 pb-1.5">
@@ -99,13 +102,28 @@ export function SidebarPrimaryActions({
         aria-label="Skills"
         onClick={onOpenSkills}
         className={cn(
-          'no-drag flex h-7.5 w-full gap-2 px-2 font-normal text-sm text-text-secondary',
+          'no-drag flex h-7.5 w-full justify-start gap-2 px-2 font-normal text-sm text-text-secondary',
           activeView === 'skills' && 'text-text-primary',
         )}
         title="Open skills"
       >
         <Sparkles className="size-3.5 shrink-0 text-text-tertiary" />
         <span>Skills</span>
+      </Button>
+      <Button
+        variant={activeView === 'agents' ? 'subtle' : 'row'}
+        size="none"
+        radius="md"
+        aria-label="Agents"
+        onClick={onOpenAgents}
+        className={cn(
+          'no-drag flex h-7.5 w-full justify-start gap-2 px-2 font-normal text-sm text-text-secondary',
+          activeView === 'agents' && 'text-text-primary',
+        )}
+        title="Open agents"
+      >
+        <Pickaxe className="size-3.5 shrink-0 text-text-tertiary" />
+        <span>Agents</span>
       </Button>
     </div>
   )

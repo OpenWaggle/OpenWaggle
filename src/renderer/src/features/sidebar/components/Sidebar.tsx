@@ -64,6 +64,7 @@ export function Sidebar() {
             activeView={controller.activeView}
             onNewSession={controller.handleNewSession}
             onOpenSkills={controller.handleOpenSkills}
+            onOpenAgents={controller.handleOpenAgents}
           />
           <SidebarSearchBox value={controller.searchQuery} onChange={controller.setSearchQuery} />
           <SidebarStatusChips

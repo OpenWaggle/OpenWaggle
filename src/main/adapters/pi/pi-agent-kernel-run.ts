@@ -121,6 +121,9 @@ function createRunSessionsExtension(
     runId: input.runId,
     workingDirectory,
     projectPath,
+    ...(input.agentDefinitionToggles
+      ? { agentDefinitionToggles: input.agentDefinitionToggles }
+      : {}),
     ...(input.sessionCapabilities ? { sessionCapabilities: input.sessionCapabilities } : {}),
     ...(input.modelMultiAgentEnabled !== undefined
       ? { modelMultiAgentEnabled: input.modelMultiAgentEnabled }

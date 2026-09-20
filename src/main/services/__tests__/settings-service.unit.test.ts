@@ -8,6 +8,7 @@ const {
   getSettingsMock,
   updateSettingsDurablyMock,
   updateSkillToggleDurablyMock,
+  updateAgentDefinitionToggleDurablyMock,
   initializeSettingsStoreMock,
   refreshSettingsStoreMock,
   flushSettingsStoreMock,
@@ -18,6 +19,7 @@ const {
   getSettingsMock: vi.fn(),
   updateSettingsDurablyMock: vi.fn(),
   updateSkillToggleDurablyMock: vi.fn(),
+  updateAgentDefinitionToggleDurablyMock: vi.fn(),
   initializeSettingsStoreMock: vi.fn(),
   refreshSettingsStoreMock: vi.fn(),
   flushSettingsStoreMock: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,
   updateSettingsDurably: updateSettingsDurablyMock,
   updateSkillToggleDurably: updateSkillToggleDurablyMock,
+  updateAgentDefinitionToggleDurably: updateAgentDefinitionToggleDurablyMock,
   initializeSettingsStore: initializeSettingsStoreMock,
   refreshSettingsStore: refreshSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
@@ -51,6 +54,7 @@ describe('SettingsService.Live', () => {
     getSettingsMock.mockReset()
     updateSettingsDurablyMock.mockReset()
     updateSkillToggleDurablyMock.mockReset()
+    updateAgentDefinitionToggleDurablyMock.mockReset()
     initializeSettingsStoreMock.mockReset()
     refreshSettingsStoreMock.mockReset()
     flushSettingsStoreMock.mockReset()
@@ -61,6 +65,7 @@ describe('SettingsService.Live', () => {
     hydrateSettingsStoreFromHostMock.mockReset()
     updateSettingsDurablyMock.mockResolvedValue(undefined)
     updateSkillToggleDurablyMock.mockResolvedValue(undefined)
+    updateAgentDefinitionToggleDurablyMock.mockResolvedValue(undefined)
     refreshSettingsStoreMock.mockResolvedValue(undefined)
     initializeSettingsStoreMock.mockResolvedValue(undefined)
     flushSettingsStoreMock.mockResolvedValue(undefined)
@@ -170,6 +175,24 @@ describe('SettingsService.Live', () => {
       }).pipe(Effect.provide(SettingsService.Live)),
     )
     expect(updateSkillToggleDurablyMock).toHaveBeenCalledWith('/tmp/project', 'review', false)
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates Agent definition updates to the atomic durable toggle operation', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.setAgentDefinitionEnabled === undefined) {
+          throw new Error('Missing atomic Agent definition updates')
+        }
+        yield* service.setAgentDefinitionEnabled('/tmp/project', 'reviewer', false)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(updateAgentDefinitionToggleDurablyMock).toHaveBeenCalledWith(
+      '/tmp/project',
+      'reviewer',
+      false,
+    )
     expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
   })
 

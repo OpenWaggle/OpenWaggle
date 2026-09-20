@@ -109,11 +109,22 @@ function definitionForCommand(
   projectPath: string,
   command: SessionLifecycleCommand,
   parent: ParentExecutionSelection | undefined,
+  enabledByName: Readonly<Record<string, boolean>>,
 ) {
   const requestedName =
     command.operation === 'fork' ? undefined : command.specialization?.agentDefinitionName
   if (!requestedName) {
     return Effect.succeed(command.operation === 'fork' ? parent?.resolvedAgentSnapshot : undefined)
+  }
+  if (enabledByName[requestedName] === false) {
+    return Effect.fail(
+      preparationError(
+        'resolve-agent-definition',
+        new Error(
+          `Agent definition ${JSON.stringify(requestedName)} is disabled for this project.`,
+        ),
+      ),
+    )
   }
   return Effect.tryPromise({
     try: () => resolveAgentDefinition({ projectPath, name: requestedName }),
@@ -126,10 +137,11 @@ export function resolveLifecycleExecutionContext(
   projectPath: string,
   command: SessionLifecycleCommand,
   callerId: string,
+  enabledByName: Readonly<Record<string, boolean>> = {},
 ) {
   return Effect.gen(function* () {
     const parent = yield* loadParentExecution(sql, command, callerId)
-    const definition = yield* definitionForCommand(projectPath, command, parent)
+    const definition = yield* definitionForCommand(projectPath, command, parent, enabledByName)
     return { parent, definition } satisfies LifecycleExecutionContext
   })
 }

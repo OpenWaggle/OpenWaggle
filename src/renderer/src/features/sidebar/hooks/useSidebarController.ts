@@ -101,6 +101,9 @@ function buildControllerOutput(
     handleOpenSkills() {
       void state.navigate({ to: '/skills' })
     },
+    handleOpenAgents() {
+      void state.navigate({ to: '/agents' })
+    },
     handleRemoveProject: actions.project.remove,
     handleRenameBranch: actions.branch.rename,
     handleRenameProject: actions.project.rename,
