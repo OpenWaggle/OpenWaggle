@@ -30,6 +30,8 @@ export interface GitExecResult {
   readonly timedOut?: boolean
   /** The owning operation was cancelled and the Git child was terminated. */
   readonly aborted?: boolean
+  /** The child never returned a normal numeric Git exit status (for example ENOENT/EAGAIN/signal). */
+  readonly executionFailed?: boolean
 }
 
 /** Node's error code when a child is killed for exceeding `maxBuffer`. */
@@ -48,6 +50,45 @@ export interface RunGitOptions {
    */
   readonly timeoutMs?: number
   readonly signal?: AbortSignal
+  /** Exact bytes written to Git's standard input, used for NUL-delimited path lists. */
+  readonly input?: string
+}
+
+function execFileWithInput(
+  args: string[],
+  options: {
+    readonly cwd: string
+    readonly maxBuffer: number
+    readonly timeout?: number
+    readonly signal?: AbortSignal
+    readonly env?: NodeJS.ProcessEnv
+  },
+  input: string,
+) {
+  return new Promise<{ readonly stdout: string; readonly stderr: string }>((resolve, reject) => {
+    const child = execFile('git', args, options, (error, stdout, stderr) => {
+      if (error) {
+        /*
+         * Real child-process errors normally repeat stdout/stderr in the callback arguments, but
+         * execution failures and test doubles may expose the useful diagnostics only on the Error.
+         * Do not replace those diagnostics with empty callback strings: commit error mapping needs
+         * the original Git message (for example "nothing to commit") to remain structured.
+         */
+        const decodedError = safeDecodeUnknown(jsonObjectSchema, error)
+        const errorOutput = decodedError.success ? decodedError.data : {}
+        reject(
+          Object.assign(error, {
+            stdout: stdout || (typeof errorOutput.stdout === 'string' ? errorOutput.stdout : ''),
+            stderr: stderr || (typeof errorOutput.stderr === 'string' ? errorOutput.stderr : ''),
+          }),
+        )
+        return
+      }
+      resolve({ stdout, stderr })
+    })
+    child?.stdin?.on('error', reject)
+    child?.stdin?.end(input)
+  })
 }
 
 function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
@@ -80,6 +121,7 @@ function normalizeGitError(error: unknown): GitExecResult {
     ...(value.code === MAX_BUFFER_ERROR_CODE ? { maxBufferExceeded: true } : {}),
     ...(wasKilledForTimeout(value) ? { timedOut: true } : {}),
     ...(value.name === 'AbortError' || value.code === 'ABORT_ERR' ? { aborted: true } : {}),
+    ...(typeof value.code !== 'number' ? { executionFailed: true } : {}),
   }
 }
 
@@ -101,13 +143,17 @@ export async function runGit(
 ): Promise<GitExecResult> {
   const maxBuffer = options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER
   try {
-    const output = await execFileAsync('git', args, {
+    const execOptions = {
       cwd: projectPath,
       maxBuffer,
       ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
       ...(options.signal ? { signal: options.signal } : {}),
       ...(options.env ? { env: getEnvWithOverrides(options.env) } : {}),
-    })
+    }
+    const output =
+      options.input === undefined
+        ? await execFileAsync('git', args, execOptions)
+        : await execFileWithInput(args, execOptions, options.input)
     return normalizeGitSuccess(output)
   } catch (error) {
     return normalizeGitError(error)

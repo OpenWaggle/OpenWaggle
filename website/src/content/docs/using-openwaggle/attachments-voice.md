@@ -32,6 +32,8 @@ Up to **5 files** can be attached per message. Attachment chips appear above the
 
 Attachments are persisted in the session as metadata and extracted text. Image/PDF binary data is hydrated by the main process only when needed for a run.
 
+Images shared by you or the agent appear in their chat messages and join the session-owned image gallery. Multiple images in one message appear in a two-column grid. Click a chat image to zoom, pan, and move between that message's images. Open an image from the [Session Summary and Resource Browser](/docs/using-openwaggle/session-summary) to browse the whole session's images. The viewer also lets you download a managed copy or open a resolvable local original.
+
 ### Attachment Support by Model
 
 OpenWaggle follows Pi model metadata. If a selected model supports image input, image attachments are sent as image content. Otherwise, the extracted text summary is still included. PDFs are currently text-extracted before sending rather than passed as native PDF payloads.

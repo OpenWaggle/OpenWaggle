@@ -26,6 +26,7 @@ import { BrowserPreviewViewport } from './BrowserPreviewViewport'
 const FALLBACK_SOURCE_SIZE = { width: 1_280, height: 800 } as const
 
 interface BrowserPreviewFloatingPanelProps {
+  readonly suspended?: boolean
   readonly tab: BrowserPreviewMaterializedTab
   readonly onCloseBrowser: () => void
   readonly onError: (message: string) => void
@@ -35,6 +36,17 @@ interface BrowserPreviewFloatingPanelProps {
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
+}
+
+function reloadFloatingPreview(
+  previewId: string,
+  onState: (state: BrowserPreviewState) => void,
+  onError: (message: string) => void,
+) {
+  void api
+    .reloadBrowserPreview(previewId)
+    .then(onState)
+    .catch((error: unknown) => onError(errorMessage(error, 'Preview could not reload.')))
 }
 
 interface FloatingHeaderProps {
@@ -112,6 +124,7 @@ function FloatingHeader({
 
 /** Compact chat overlay that relocates the Session's existing native preview. */
 export function BrowserPreviewFloatingPanel({
+  suspended = false,
   onCloseBrowser,
   onError,
   onOpenInPanel,
@@ -176,7 +189,7 @@ export function BrowserPreviewFloatingPanel({
     previewId: tab.id,
     position: floating?.previewId === tab.id ? floating.position : null,
     size: floating?.previewId === tab.id ? floating.size : null,
-    visible: tab.error === null,
+    visible: tab.error === null && !suspended,
     nativeReady,
     sourceViewport,
     sourceSize: {
@@ -185,12 +198,7 @@ export function BrowserPreviewFloatingPanel({
     },
   })
 
-  const retry = () => {
-    void api
-      .reloadBrowserPreview(tab.id)
-      .then(applyNativeState)
-      .catch((error: unknown) => onError(errorMessage(error, 'Preview could not reload.')))
-  }
+  const retry = () => reloadFloatingPreview(tab.id, applyNativeState, onError)
   const toggleNativePictureInPicture = () => {
     const operation = controlState.pictureInPicture
       ? api.closeBrowserPreviewPictureInPicture(tab.id)
@@ -211,9 +219,12 @@ export function BrowserPreviewFloatingPanel({
     <section
       ref={layout.rootRef}
       aria-label="Floating browser preview"
+      aria-hidden={suspended}
+      inert={suspended}
+      data-native-preview-occluder={suspended ? tab.ownerKey : undefined}
       className="group pointer-events-auto absolute z-40 flex min-h-0 select-none flex-col rounded-lg border border-border/80 bg-bg p-1 shadow-2xl"
       data-browser-preview-floating={tab.id}
-      style={layout.style}
+      style={{ ...layout.style, visibility: suspended ? 'hidden' : undefined }}
     >
       <FloatingHeader
         controller={tab.controller}

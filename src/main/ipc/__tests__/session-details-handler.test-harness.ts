@@ -1,5 +1,6 @@
 import { type Mock, vi } from 'vitest'
 import type * as SessionDetailsHandler from '../session-details-handler'
+import * as SessionResourceTest from './session-details-handler-resource-test-layer'
 
 const mocks = vi.hoisted(
   (): Record<string, Mock> => ({
@@ -13,6 +14,9 @@ const mocks = vi.hoisted(
     persistSnapshotMock: vi.fn(),
     listSessionDetailsMock: vi.fn(),
     getSessionDetailMock: vi.fn(),
+    getHiveRelationsMock: vi.fn(),
+    getDeletionBlockerMock: vi.fn(async () => null),
+    stageVisualizationSessionDeletionMock: vi.fn(),
     createSessionMock: vi.fn(),
     deleteSessionMock: vi.fn(),
     archiveSessionMock: vi.fn(),
@@ -41,6 +45,9 @@ export const {
   forkRuntimeSessionMock,
   listSessionDetailsMock,
   getSessionDetailMock,
+  getHiveRelationsMock,
+  getDeletionBlockerMock,
+  stageVisualizationSessionDeletionMock,
   createSessionMock,
   deleteSessionMock,
   archiveSessionMock,
@@ -82,7 +89,12 @@ vi.mock('../../utils/stream-bridge', () => ({
   emitRunCompleted: emitRunCompletedMock,
 }))
 
+export const completeSessionResourceCleanupMock =
+  SessionResourceTest.completeSessionResourceCleanupMock
+export const removeSessionResourcesMock = SessionResourceTest.removeSessionResourcesMock
+
 export function resetSessionDetailsHandlerMocks() {
+  SessionResourceTest.resetSessionResourceTestMocks()
   for (const mock of Object.values(mocks)) mock.mockReset()
   createRuntimeSessionMock.mockResolvedValue({
     piSessionId: 'pi-session-created',
@@ -94,6 +106,7 @@ export function resetSessionDetailsHandlerMocks() {
   movePinnedSessionMock.mockResolvedValue(undefined)
   cancelSessionRunsMock.mockReturnValue(false)
   waitForSessionRunsMock.mockResolvedValue(true)
+  getDeletionBlockerMock.mockResolvedValue(null)
 }
 
 export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {

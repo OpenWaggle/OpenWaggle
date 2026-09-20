@@ -45,6 +45,34 @@ describe('StreamingText', () => {
     )
   })
 
+  it('mounts a delimiter-free own-line reference emitted from the visible skill template', () => {
+    const path = '/Users/diego/.codex/visualizations/thread-1/settle.html'
+
+    render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={['Before.', '', `visualize{"path":"${path}"}`, '', 'After.'].join('\n')}
+      />,
+    )
+
+    expect(screen.getByText('Before.')).toBeInTheDocument()
+    expect(screen.getByText('After.')).toBeInTheDocument()
+    expect(screen.queryByText(/visualize/)).toBeNull()
+    expect(screen.getByRole('region')).toHaveAttribute('data-visualization-path', path)
+  })
+
+  it('keeps a delimiter-free reference inside prose as literal text', () => {
+    render(
+      <StreamingText
+        visualizationSessionId={SessionId('thread-1')}
+        text={'See visualize{"path":"/tmp/map.html"} inline.'}
+      />,
+    )
+
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByText(/visualize/)).toBeInTheDocument()
+  })
+
   it('withholds an incomplete visualize reference until streaming completes it', () => {
     const path = '/Users/diego/.codex/visualizations/thread-1/stream-map.html'
     const { rerender } = render(
@@ -141,6 +169,18 @@ describe('StreamingText', () => {
 
     expect(container.querySelector('img')).toBeNull()
     expect(container.querySelector('script')).toBeNull()
+  })
+
+  it.each([
+    'https://images.example/session.png',
+    'http://127.0.0.1/private.png',
+    'http://169.254.169.254/latest/meta-data.png',
+  ])('never mounts a network-backed Markdown image for %s', (url) => {
+    const { container } = render(<StreamingText text={`![Architecture](${url})`} />)
+
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector(`[src="${url}"]`)).toBeNull()
+    expect(screen.getByText('[Image: Architecture]')).toBeInTheDocument()
   })
 
   it('preserves language metadata and a safe fallback for fenced code blocks', () => {

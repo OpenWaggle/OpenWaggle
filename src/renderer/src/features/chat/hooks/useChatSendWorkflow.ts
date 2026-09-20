@@ -13,9 +13,11 @@ import {
   parseExtensionSlashCommand,
   parseSessionCopyCommand,
 } from '@/features/composer/commands'
-import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
+import { discardSessionResourceAttachments } from '@/features/composer/state'
+import { invokeBoundExtension } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { MessageNotDelivered } from '../lib/message-delivery'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import type { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 
@@ -96,7 +98,7 @@ async function invokeExtensionSlashCommand(
   }
 
   try {
-    const result = await api.invokeExtension({
+    const result = await invokeBoundExtension(entry, {
       extensionId: entry.extensionId,
       contributionId: entry.contributionId,
       capability: entry.capability,
@@ -114,8 +116,6 @@ async function invokeExtensionSlashCommand(
       params.showToast(result.error.message)
       return
     }
-
-    await refreshPreferencesAfterExtensionInvoke(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('Extension slash command failed', {
@@ -174,11 +174,16 @@ async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: Ag
 export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
   return {
     async sendWithWaggle(payload: AgentSendPayload) {
-      if (await handleSendCommand(params, payload.text)) return
+      const composerRetainsDraft = useBranchSummaryStore.getState().prompt?.mode === 'custom'
+      if (await handleSendCommand(params, payload.text)) {
+        if (!composerRetainsDraft) discardSessionResourceAttachments(payload.attachments)
+        return
+      }
       const draftBranchReady = await params.branchSummary.materializeDraftBranchForSend(
         params.draftBranch,
       )
-      if (!draftBranchReady) return
+      if (!draftBranchReady)
+        throw new MessageNotDelivered('refused', 'Branch source is unavailable.')
 
       params.setUserDidSend(true)
       params.phase.reset()

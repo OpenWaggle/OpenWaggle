@@ -5,6 +5,7 @@ import { buildBaseRefChoices } from '../base-ref-choices'
 function branch(name: string, isRemote = false): GitBranchInfo {
   return {
     name,
+    localName: isRemote ? name.slice(name.indexOf('/') + 1) : name,
     fullName: isRemote ? `refs/remotes/${name}` : `refs/heads/${name}`,
     isCurrent: false,
     isRemote,

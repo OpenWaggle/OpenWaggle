@@ -8,7 +8,10 @@ import {
 } from './package-release-validator-shared'
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
-const REHEARSAL_BRANCH_GUARD_COUNT = 2
+// Occurrences of the exact `== 'release-please--branches--main'` guard in ci.yml: two
+// rehearsal triggers, the gate's release-pr CI_TIER selector, and the three release-pr skip
+// conditions on the test jobs (each identity-scoped with `github.head_ref == '...'`).
+const REHEARSAL_BRANCH_GUARD_COUNT = 6
 
 export function validateCiWorkflow(ciWorkflowText: string, violations: string[]) {
   validateYaml(CI_WORKFLOW_PATH, ciWorkflowText, violations)
@@ -99,9 +102,6 @@ export function validateCiWorkflow(ciWorkflowText: string, violations: string[])
     ['- test-unit', `${CI_WORKFLOW_PATH} Package Release Gate must depend on unit tests.`],
     ['- test-integration-component', `${CI_WORKFLOW_PATH} Package Release Gate must depend on integration and component tests.`],
     ['- test-mcp-conformance', `${CI_WORKFLOW_PATH} Package Release Gate must depend on MCP conformance.`],
-    ['- electron-e2e-macos', `${CI_WORKFLOW_PATH} Package Release Gate must depend on macOS Electron E2E.`],
-    ['- electron-e2e-linux', `${CI_WORKFLOW_PATH} Package Release Gate must depend on Linux Electron E2E.`],
-    ['- electron-e2e-windows', `${CI_WORKFLOW_PATH} Package Release Gate must depend on Windows Electron E2E.`],
     ['- package-release-rehearsal-package', `${CI_WORKFLOW_PATH} Package Release Gate must depend on the package consumer rehearsal.`],
     ['- package-release-rehearsal-website', `${CI_WORKFLOW_PATH} Package Release Gate must depend on the website and docs rehearsal.`],
     ['- package-release-candidate', `${CI_WORKFLOW_PATH} Package Release Gate must include the candidate result.`],

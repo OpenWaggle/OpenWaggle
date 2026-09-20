@@ -8,7 +8,7 @@ export interface ChatRowRenderContext {
     readonly registry: ExtensionContributionRegistryView | null
     readonly projectPaths: readonly string[]
   }
-  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0033). */
+  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
   readonly actions: {
     readonly onBranchFromMessage?: (messageId: string) => void

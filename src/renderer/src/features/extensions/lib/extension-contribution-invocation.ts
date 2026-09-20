@@ -43,7 +43,10 @@ export function invokeBoundExtension(
     return Promise.resolve(outOfScopeInvokeFailure(projectPath))
   }
 
-  return api.invokeExtension(input).then(async (result) => {
+  const invocation = entry.invocationBinding
+    ? api.invokeExtension(input, entry.invocationBinding)
+    : api.invokeExtension(input)
+  return invocation.then(async (result) => {
     await refreshPreferencesAfterExtensionInvoke(result)
     return result
   })

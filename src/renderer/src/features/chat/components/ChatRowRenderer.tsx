@@ -102,7 +102,7 @@ function WaggleTurnRow({
   readonly row: WaggleTurnChatRow
   readonly context: ChatRowRenderContext
 }) {
-  // ADR 0033: every settled turn with a Turn diff renders a changed-files card,
+  // ADR 0034: every settled turn with a Turn diff renders a changed-files card,
   // including waggle agent turns (checkpoint anchors the run's terminal node).
   const terminalMessageId = row.folded
     ? row.messages.find((messageRow) => messageRow.turnPresentation === 'folded')?.message.id

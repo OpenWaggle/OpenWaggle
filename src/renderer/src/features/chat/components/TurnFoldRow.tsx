@@ -43,7 +43,7 @@ function CoreFoldRow({
 }
 
 /**
- * The quiet row standing in for one settled turn's work (ADR 0033).
+ * The quiet row standing in for one settled turn's work (ADR 0034).
  * Clicking re-expands the turn's full activity above the terminal message.
  * Routes through the extension status surface: extensions may replace the
  * settled/interrupted fold presentation with their own.

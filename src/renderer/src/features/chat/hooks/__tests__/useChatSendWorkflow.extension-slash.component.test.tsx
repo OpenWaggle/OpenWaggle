@@ -1,23 +1,26 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MessageNotDelivered } from '../../lib/message-delivery'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
 
-const { invokeExtensionMock } = vi.hoisted(() => ({
+const { invokeExtensionMock, discardPreparedAttachment } = vi.hoisted(() => ({
   invokeExtensionMock: vi.fn(),
+  discardPreparedAttachment: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
     invokeExtension: invokeExtensionMock,
+    discardPreparedAttachment,
   },
 }))
 
@@ -60,6 +63,7 @@ function extensionSlashEntry(
     },
     diagnostics: [],
     contentHash: 'content-hash-1',
+    invocationBinding: 'host-issued-binding',
     ...overrides,
   }
 }
@@ -117,6 +121,7 @@ function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}): SendWo
 describe('useChatSendWorkflow extension slash commands', () => {
   beforeEach(() => {
     invokeExtensionMock.mockReset()
+    discardPreparedAttachment.mockClear()
     useBranchSummaryStore.getState().clearPrompt()
   })
 
@@ -146,18 +151,21 @@ describe('useChatSendWorkflow extension slash commands', () => {
 
     await act(() => result.current.sendWithWaggle(payload('/sample.run use current diff')))
 
-    expect(invokeExtensionMock).toHaveBeenCalledWith({
-      extensionId: 'sample-extension',
-      contributionId: 'sample.run',
-      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
-      scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId: SESSION_ID },
-      payload: {
-        command: '/sample.run',
-        args: 'use current diff',
-        rawText: '/sample.run use current diff',
+    expect(invokeExtensionMock).toHaveBeenCalledWith(
+      {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.run',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+        scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId: SESSION_ID },
+        payload: {
+          command: '/sample.run',
+          args: 'use current diff',
+          rawText: '/sample.run use current diff',
+        },
       },
-    })
+      'host-issued-binding',
+    )
     expect(params.handleSend).not.toHaveBeenCalled()
     expect(params.branchSummary.materializeDraftBranchForSend).not.toHaveBeenCalled()
   })
@@ -187,5 +195,53 @@ describe('useChatSendWorkflow extension slash commands', () => {
 
     expect(params.showToast).toHaveBeenCalledWith('Capability is not supported.')
     expect(params.handleSend).not.toHaveBeenCalled()
+  })
+
+  it('releases images consumed by a command but keeps custom-summary draft images', async () => {
+    const image = {
+      id: 'image-copy',
+      kind: 'image' as const,
+      origin: 'session-resource' as const,
+      name: 'diagram.png',
+      path: '/tmp/resource-diagram.png',
+      mimeType: 'image/png',
+      sizeBytes: 4,
+      extractedText: '',
+    }
+    const params = sendWorkflowParams()
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await act(() => result.current.sendWithWaggle({ ...payload('/fork'), attachments: [image] }))
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(image)
+
+    useBranchSummaryStore.getState().openPrompt({
+      sessionId: SESSION_ID,
+      sourceNodeId: SessionNodeId('source-node'),
+      restoreSelection: { branchId: null, nodeId: null },
+      previousComposerText: '',
+      draftComposerText: '',
+    })
+    useBranchSummaryStore.getState().startCustomPrompt('Summarize briefly')
+    await act(() =>
+      result.current.sendWithWaggle({ ...payload('Summarize briefly'), attachments: [image] }),
+    )
+    expect(params.branchSummary.materializeBranchSummary).toHaveBeenCalledWith('Summarize briefly')
+    expect(discardPreparedAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses branch preflight without consuming the image or starting a run', async () => {
+    const params = sendWorkflowParams({
+      branchSummary: {
+        ...sendWorkflowParams().branchSummary,
+        materializeDraftBranchForSend: vi.fn().mockResolvedValue(false),
+      },
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await expect(
+      act(() => result.current.sendWithWaggle(payload('Keep this draft'))),
+    ).rejects.toBeInstanceOf(MessageNotDelivered)
+    expect(params.handleSend).not.toHaveBeenCalled()
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
   })
 })

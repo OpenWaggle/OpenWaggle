@@ -80,7 +80,7 @@ function CollapsedPreview({
 }
 
 /**
- * Changed files card under a settled turn's terminal message (ADR 0033).
+ * Changed files card under a settled turn's terminal message (ADR 0034).
  * Mirrors the T3 Code card: quiet header, compact scope preview when collapsed,
  * one row per file when expanded; rows open the Turn diff view focused on the file.
  */

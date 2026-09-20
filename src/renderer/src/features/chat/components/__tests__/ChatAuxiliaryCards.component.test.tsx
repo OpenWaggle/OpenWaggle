@@ -38,6 +38,7 @@ describe('chat auxiliary cards', () => {
     render(
       <ChatDiffPane
         section={{
+          session: null,
           workingPath: WorkingPath('/repo'),
           repositoryPath: RepositoryPath('/repo'),
           sessionId: null,
@@ -68,6 +69,7 @@ describe('chat auxiliary cards', () => {
     render(
       <ChatDiffPane
         section={{
+          session: null,
           workingPath: WorkingPath('/wt/openwaggle/session-1'),
           repositoryPath: RepositoryPath('/repo/openwaggle'),
           sessionId: null,
@@ -87,6 +89,7 @@ describe('chat auxiliary cards', () => {
     render(
       <ChatDiffPane
         section={{
+          session: null,
           workingPath: WorkingPath('/repo/openwaggle'),
           repositoryPath: RepositoryPath('/repo/openwaggle'),
           sessionId: null,

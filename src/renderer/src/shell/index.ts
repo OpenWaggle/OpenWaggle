@@ -7,4 +7,5 @@ export {
   type SettingsTab,
   useUIStore,
 } from './ui-store'
+export { useSessionFloatingPreviewStatus } from './useSessionFloatingPreviewStatus'
 export { WorkspaceShell } from './WorkspaceShell'

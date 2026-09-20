@@ -129,7 +129,10 @@ function registerBrowserPreviewNavigationHandlers() {
   typedHandle('browser-preview:close', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const decodedPreviewId = yield* decode(browserPreviewIdSchema, previewId)
-      yield* Effect.sync(() => browserPreviewManager.close(event.sender, decodedPreviewId))
+      yield* Effect.tryPromise({
+        try: () => browserPreviewManager.close(event.sender, decodedPreviewId),
+        catch: (error) => error,
+      })
     }),
   )
 

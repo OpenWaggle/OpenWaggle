@@ -13,7 +13,7 @@ export const TURN_CHECKPOINT_ANCHOR_NODE_MIGRATION = {
 } as const
 
 export const TURN_CHECKPOINT_STARTED_AT_MIGRATION = {
-  id: 28,
+  id: 49,
   name: 'turn-checkpoint-started-at',
   skipIfColumn: { table: 'turn_checkpoints', column: 'started_at' },
   statements: [`ALTER TABLE turn_checkpoints ADD COLUMN started_at INTEGER`],

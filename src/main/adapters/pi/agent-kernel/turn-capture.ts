@@ -27,7 +27,7 @@ export async function captureTurnCheckpoint(input: {
   readonly session: SessionDetail
   readonly projectPath: string
   readonly runId: string
-  /** Epoch ms when the run started; persisted for fold duration labels (ADR 0033). */
+  /** Epoch ms when the run started; persisted for fold duration labels (ADR 0034). */
   readonly startedAt: number
 }): Promise<void> {
   try {
@@ -46,7 +46,7 @@ export async function captureTurnCheckpoint(input: {
     }
 
     // Recorded even for empty diffs: the row carries started_at so fold durations
-    // stay durable for turns that changed no files (ADR 0033). Empty-diff rows
+    // stay durable for turns that changed no files (ADR 0034). Empty-diff rows
     // render no changed-files card.
     await recordTurnCheckpoint({
       sessionId,

@@ -2,7 +2,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
@@ -43,6 +43,19 @@ function resolveLastUserMessage(messages: UIMessage[]) {
   const content = textParts.join('\n')
 
   return content || null
+}
+
+function displayedWorkspaceSelection(
+  workspace: SessionWorkspace | null,
+  sessionId: SessionId | null,
+) {
+  if (!workspace || workspace.tree.session.id !== sessionId) {
+    return { branchId: null, pathNodeIds: [] }
+  }
+  return {
+    branchId: workspace.activeBranchId,
+    pathNodeIds: workspace.transcriptPath.map(({ node }) => String(node.id)),
+  }
 }
 
 export interface TranscriptSectionParams {
@@ -141,6 +154,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
   const expandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(activeSessionId))
   const toggleTurnFold = useTurnFoldStore((state) => state.toggleTurnFold)
+  const displayedSelection = displayedWorkspaceSelection(activeWorkspace, activeSessionId)
 
   const lastUserMessage = resolveLastUserMessage(transcriptMessages)
   const interruptedRun =
@@ -190,6 +204,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     worktreePath: activeSession?.worktreePath ?? null,
     recentProjects,
     activeSessionId,
+    activeBranchId: displayedSelection.branchId,
+    activePathNodeIds: displayedSelection.pathNodeIds,
     chatRows,
     extensionRegistry,
     extensionProjectPaths,

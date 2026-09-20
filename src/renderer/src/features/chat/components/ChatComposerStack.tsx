@@ -6,11 +6,9 @@ import type {
 import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useMessageQueueStore } from '@/features/chat/state'
-import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import {
   BranchSummaryPrompt,
   CompactionStatusStrip,
-  Composer,
   QueuedMessages,
 } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
@@ -26,8 +24,7 @@ import { AgentCustomInteractionComposerFallback } from './AgentCustomInteraction
 import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
 import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
 import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
-import { ComposerSessionSetupDock } from './ComposerSessionSetupDock'
-import { SessionAuthorizationModeMenu } from './SessionAuthorizationModeMenu'
+import { SessionComposerArea } from './SessionComposerArea'
 import { SessionForkSelector } from './SessionForkSelector'
 
 interface ChatComposerStackProps {
@@ -140,14 +137,13 @@ export function enqueueIfAllowed(input: {
 }) {
   if (input.sendBlockedReason !== null) {
     input.onToast(input.sendBlockedReason)
-    return
+    return false
   }
-  if (input.activeSessionId) {
-    input.enqueue(
-      input.activeSessionId,
-      withInlineVisualizationContext(input.activeSessionId, input.payload),
-    )
-  }
+  if (!input.activeSessionId) return false
+  input.enqueue(
+    input.activeSessionId,
+    withInlineVisualizationContext(input.activeSessionId, input.payload),
+  )
 }
 
 export function ChatComposerStack({
@@ -160,7 +156,6 @@ export function ChatComposerStack({
 }: ChatComposerStackProps) {
   const {
     activeSessionId,
-    isLoading,
     compactionStatus,
     onSendWithWaggle,
     onSteer,
@@ -180,14 +175,6 @@ export function ChatComposerStack({
     onToast,
   })
   const enqueue = useMessageQueueStore((s) => s.enqueue)
-  const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
-  const composerDisabledForBranchSummary =
-    branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
-  const composerPlaceholder = !composerDraftReady
-    ? 'Loading session draft…'
-    : branchSummaryMode === 'custom'
-      ? 'Custom instructions for the branch summary'
-      : undefined
   return (
     <>
       <ComposerOverlays section={section} onOpenSessionTree={onOpenSessionTree} />
@@ -237,34 +224,15 @@ export function ChatComposerStack({
             registry={extensionRegistry}
           />
         </div>
-        <div>
-          <ComposerSessionSetupDock section={section} strip={strip} />
-          <Composer
-            accessControl={
-              <SessionAuthorizationModeMenu
-                projectPath={section.projectPath ?? null}
-                session={section.session}
-                onSetAuthorizationMode={section.onSetAuthorizationMode}
-              />
-            }
-            onSend={guardedSend}
-            onEnqueue={(payload) =>
-              enqueueIfAllowed({ payload, activeSessionId, sendBlockedReason, enqueue, onToast })
-            }
-            onCancel={onCancel}
-            isLoading={isLoading}
-            mode={{
-              disabled: !composerDraftReady || composerDisabledForBranchSummary,
-              placeholder: composerPlaceholder,
-              requiresText: branchSummaryMode === 'custom',
-              clearOnSubmit: branchSummaryMode !== 'custom',
-              recordHistory: branchSummaryMode !== 'custom',
-              allowEnqueue: branchSummaryMode !== 'custom',
-              sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
-            }}
-            onToast={onToast}
-          />
-        </div>
+        <SessionComposerArea
+          section={section}
+          strip={strip}
+          composerDraftReady={composerDraftReady}
+          guardedSend={guardedSend}
+          onEnqueue={(payload) =>
+            enqueueIfAllowed({ payload, activeSessionId, sendBlockedReason, enqueue, onToast })
+          }
+        />
       </div>
     </>
   )

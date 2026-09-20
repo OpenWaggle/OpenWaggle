@@ -6,6 +6,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { GitBranch, GitCompare } from 'lucide-react'
 import React from 'react'
+import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
 import { getLastRenderableTextPartIndex } from '../lib/message-bubble-utils'
@@ -177,7 +178,7 @@ export function AssistantMessageBubble({
   const turnFolded = presentation?.turnFolded === true
   const onBranchFromMessage = actions?.onBranchFromMessage
   const onViewTurnDiff = actions?.onViewTurnDiff
-  // ADR 0033: the turn fold owns collapsing. While active or in an expanded
+  // ADR 0034: the turn fold owns collapsing. While active or in an expanded
   // turn every part renders; a folded terminal message renders only its final text.
   const renderAllParts = !turnFolded || !!isStreaming || !!isRunActive
   const lastRenderableTextPartIndex = getLastRenderableTextPartIndex(message.parts)
@@ -206,6 +207,8 @@ export function AssistantMessageBubble({
             />
           </div>
         ) : null}
+
+        <SessionMessageImages messageId={message.metadata?.sessionNodeId ?? message.id} />
 
         {message.parts.map((part, i) => {
           const content =

@@ -1,7 +1,7 @@
 import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { RepositoryPath, SessionId, WagglePresetId, WorkingPath } from './brand'
+import type { SessionId, WagglePresetId } from './brand'
 import type { FileSuggestion } from './composer'
 import type {
   DiagnosticsInfo,
@@ -9,26 +9,7 @@ import type {
   FeedbackSubmitResult,
   GhCliStatus,
 } from './feedback'
-import type {
-  GitBranchCheckoutPayload,
-  GitBranchCreatePayload,
-  GitBranchListResult,
-  GitBranchMutationResult,
-  GitCommitPayload,
-  GitCommitResult,
-  GitDiffResult,
-  GitRunStackedActionOptions,
-  GitRunStackedActionResult,
-  GitStatusSummary,
-  GitWorkingTreeMutationResult,
-  GitWorktreeCreatePayload,
-  GitWorktreeListResult,
-  GitWorktreeMutationResult,
-  GitWorktreeRemovePayload,
-  LocalVcsStatusResult,
-  RemoteVcsStatusResult,
-  SessionWorktreeCheck,
-} from './git'
+import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
 import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
 import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
 import type { SupportedModelId } from './llm'
@@ -49,71 +30,8 @@ import type { WaggleConfig, WagglePreset } from './waggle'
 
 export interface IpcIntegrationInvokeChannelMap
   extends IpcWorkspaceFileInvokeChannelMap,
+    IpcGitInvokeChannelMap,
     IpcTerminalInvokeChannelMap {
-  'git:status': {
-    args: [workingPath: WorkingPath]
-    return: GitStatusSummary
-  }
-  'git:commit': {
-    args: [workingPath: WorkingPath, payload: GitCommitPayload]
-    return: GitCommitResult
-  }
-  'git:diff': {
-    args: [workingPath: WorkingPath]
-    return: GitDiffResult
-  }
-  'git:branch-diff': {
-    args: [workingPath: WorkingPath, baseRef: string]
-    return: GitDiffResult
-  }
-  'git:working-tree:stage-all': {
-    args: [workingPath: WorkingPath]
-    return: GitWorkingTreeMutationResult
-  }
-  'git:working-tree:revert-all': {
-    args: [workingPath: WorkingPath]
-    return: GitWorkingTreeMutationResult
-  }
-  'git:branches:list': {
-    args: [repositoryPath: RepositoryPath]
-    return: GitBranchListResult
-  }
-  'git:branches:checkout': {
-    args: [workingPath: WorkingPath, payload: GitBranchCheckoutPayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:create': {
-    args: [workingPath: WorkingPath, payload: GitBranchCreatePayload]
-    return: GitBranchMutationResult
-  }
-  'git:worktrees:list': {
-    args: [repositoryPath: RepositoryPath]
-    return: GitWorktreeListResult
-  }
-  'git:worktrees:create': {
-    args: [repositoryPath: RepositoryPath, payload: GitWorktreeCreatePayload]
-    return: GitWorktreeMutationResult
-  }
-  'git:worktrees:remove': {
-    args: [repositoryPath: RepositoryPath, payload: GitWorktreeRemovePayload]
-    return: GitWorktreeMutationResult
-  }
-  'git:worktrees:check': {
-    args: [worktreePath: string | null]
-    return: SessionWorktreeCheck
-  }
-  'git:vcs-status:local': {
-    args: [workingPath: WorkingPath]
-    return: LocalVcsStatusResult
-  }
-  'git:vcs-status:remote': {
-    args: [workingPath: WorkingPath]
-    return: RemoteVcsStatusResult
-  }
-  'git:stacked-action:run': {
-    args: [workingPath: WorkingPath, options: GitRunStackedActionOptions]
-    return: GitRunStackedActionResult
-  }
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
     return: PreparedAttachment[]
@@ -121,6 +39,10 @@ export interface IpcIntegrationInvokeChannelMap
   'attachments:prepare-from-text': {
     args: [text: string, operationId: string]
     return: PreparedAttachment
+  }
+  'attachments:discard': {
+    args: [attachment: PreparedAttachment]
+    return: undefined
   }
   'agent:get-phase': {
     args: [sessionId: SessionId]
@@ -248,6 +170,10 @@ export interface IpcIntegrationInvokeChannelMap
     return: undefined
   }
   'shell:open-path': {
+    args: [path: string]
+    return: undefined
+  }
+  'shell:reveal-path': {
     args: [path: string]
     return: undefined
   }

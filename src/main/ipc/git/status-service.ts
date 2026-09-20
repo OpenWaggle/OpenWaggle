@@ -5,11 +5,13 @@ import { isGitRepository, runGit } from './shared'
 import { DIFF_GIT_MAX_BUFFER, GIT_PARSE_INT_RADIX, GIT_RAW_PATHS } from './status-constants'
 import {
   buildChangedFiles,
+  type LineStats,
   mergeDiffsByPath,
   parseNumstat,
   parsePorcelain,
   parseUnifiedDiff,
 } from './status-parse'
+import { resolveUntrackedStatus } from './status-untracked-stats'
 
 const NOT_A_REPOSITORY_MESSAGE = 'Selected folder is not a Git repository.'
 const STATUS_READ_FAILED_MESSAGE = 'Could not read the working tree.'
@@ -21,6 +23,8 @@ interface GitStatusCommandResults {
   readonly branchResult: Awaited<ReturnType<typeof runGit>>
   readonly porcelainResult: Awaited<ReturnType<typeof runGit>>
   readonly numstatHeadResult: Awaited<ReturnType<typeof runGit>>
+  readonly stagedNumstatResult: Awaited<ReturnType<typeof runGit>>
+  readonly unstagedNumstatResult: Awaited<ReturnType<typeof runGit>>
   readonly upstreamResult: Awaited<ReturnType<typeof runGit>>
 }
 
@@ -40,8 +44,19 @@ export async function getGitStatus(projectPath: string) {
   }
   const branch = await resolveBranchName(projectPath, results.branchResult)
   const aheadBehind = parseAheadBehind(results.upstreamResult)
-  const numstat = await resolveNumstat(projectPath, results.numstatHeadResult)
-  const changedFiles = buildChangedFiles(parsePorcelain(results.porcelainResult.stdout), numstat)
+  const rawPorcelain = parsePorcelain(results.porcelainResult.stdout)
+  const untracked = await resolveUntrackedStatus(projectPath, rawPorcelain)
+  const porcelain = untracked.porcelain
+  const stagedNumstat = successfulNumstat(results.stagedNumstatResult)
+  const unstagedNumstat = new Map(successfulNumstat(results.unstagedNumstatResult))
+  for (const [path, stats] of untracked.numstat) unstagedNumstat.set(path, stats)
+  const numstat = resolveNumstat(
+    results.numstatHeadResult,
+    stagedNumstat,
+    unstagedNumstat,
+    untracked.numstat,
+  )
+  const changedFiles = buildChangedFiles(porcelain, numstat)
 
   return {
     branch,
@@ -49,6 +64,8 @@ export async function getGitStatus(projectPath: string) {
     deletions: sumChangedFiles(changedFiles, 'deletions'),
     filesChanged: changedFiles.length,
     changedFiles,
+    stagedChanges: summarizeChangeKind(porcelain, stagedNumstat, 'staged'),
+    unstagedChanges: summarizeChangeKind(porcelain, unstagedNumstat, 'unstaged'),
     clean: changedFiles.length === 0,
     ahead: aheadBehind.ahead,
     behind: aheadBehind.behind,
@@ -149,13 +166,29 @@ async function assertGitRepository(projectPath: string) {
 }
 
 async function loadGitStatusCommandResults(projectPath: string): Promise<GitStatusCommandResults> {
-  const [branchResult, porcelainResult, numstatHeadResult, upstreamResult] = await Promise.all([
+  const [
+    branchResult,
+    porcelainResult,
+    numstatHeadResult,
+    stagedNumstatResult,
+    unstagedNumstatResult,
+    upstreamResult,
+  ] = await Promise.all([
     runGit(projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1']),
-    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat', 'HEAD']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1', '-z']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat', '-z', 'HEAD']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat', '-z']),
+    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat', '-z']),
     runGit(projectPath, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']),
   ])
-  return { branchResult, porcelainResult, numstatHeadResult, upstreamResult }
+  return {
+    branchResult,
+    porcelainResult,
+    numstatHeadResult,
+    stagedNumstatResult,
+    unstagedNumstatResult,
+    upstreamResult,
+  }
 }
 
 async function resolveBranchName(
@@ -179,17 +212,49 @@ function parseAheadBehind(upstreamResult: Awaited<ReturnType<typeof runGit>>) {
   }
 }
 
-async function resolveNumstat(
-  projectPath: string,
-  numstatHeadResult: Awaited<ReturnType<typeof runGit>>,
-) {
-  if (numstatHeadResult.code === 0) return parseNumstat(numstatHeadResult.stdout)
+function successfulNumstat(
+  result: Awaited<ReturnType<typeof runGit>>,
+): ReturnType<typeof parseNumstat> {
+  return result.code === 0 ? parseNumstat(result.stdout) : new Map<string, LineStats>()
+}
 
-  const [worktreeResult, cachedResult] = await Promise.all([
-    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--numstat']),
-    runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--cached', '--numstat']),
-  ])
-  return parseNumstat(`${worktreeResult.stdout}\n${cachedResult.stdout}`)
+function resolveNumstat(
+  numstatHeadResult: Awaited<ReturnType<typeof runGit>>,
+  staged: ReadonlyMap<string, LineStats>,
+  unstaged: ReadonlyMap<string, LineStats>,
+  untracked: ReadonlyMap<string, LineStats>,
+) {
+  if (numstatHeadResult.code === 0) {
+    const combined = parseNumstat(numstatHeadResult.stdout)
+    for (const [path, stats] of untracked) combined.set(path, stats)
+    return combined
+  }
+  const merged = new Map(staged)
+  for (const [path, stats] of unstaged) {
+    const current = merged.get(path)
+    merged.set(path, {
+      additions: (current?.additions ?? 0) + stats.additions,
+      deletions: (current?.deletions ?? 0) + stats.deletions,
+    })
+  }
+  return merged
+}
+
+function summarizeChangeKind(
+  porcelain: readonly ReturnType<typeof parsePorcelain>[number][],
+  numstat: ReadonlyMap<string, LineStats>,
+  kind: 'staged' | 'unstaged',
+) {
+  const paths = new Set(porcelain.filter((entry) => entry[kind]).map((entry) => entry.path))
+  for (const path of numstat.keys()) paths.add(path)
+  let additions = 0
+  let deletions = 0
+  for (const path of paths) {
+    const stats = numstat.get(path)
+    additions += stats?.additions ?? 0
+    deletions += stats?.deletions ?? 0
+  }
+  return { filesChanged: paths.size, additions, deletions }
 }
 
 function sumChangedFiles(

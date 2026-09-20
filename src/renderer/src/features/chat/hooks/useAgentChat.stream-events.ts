@@ -39,7 +39,7 @@ function handleAutoRetryEndEvent(
   context.setCompactionStatus(
     retryStatus?.type === 'retrying' ? retryStatus.previousCompactionStatus : retryStatus,
   )
-  const hasRetryError = !event.success && event.finalError !== undefined
+  const hasRetryError = !event.success && !event.cancelled && event.finalError !== undefined
   if (hasRetryError) {
     const nextError = new Error(event.finalError)
     context.setError(nextError)
@@ -53,7 +53,7 @@ function handleAgentEndEvent(
   event: Extract<AgentEventPayload['event'], { readonly type: 'agent_end' }>,
   context: AgentStreamEventContext,
 ) {
-  if (event.reason !== 'error' || !event.error) {
+  if (event.reason !== 'error' || event.willRetry || !event.error) {
     return
   }
 

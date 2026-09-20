@@ -71,7 +71,7 @@ export async function writeBuildMeta(outDirectory = OUT_DIRECTORY): Promise<void
 const CLI_USAGE_MESSAGE =
   'Usage: tsx scripts/record-build-meta.ts [--verify]\n\n' +
   '  (default)  Record the current HEAD into out/build-meta.json after a build.\n' +
-  '  --verify   Fail when out/ was not built from the current HEAD; run `pnpm test:e2e` to rebuild.'
+  '  --verify   Fail when out/ was not built from the current HEAD; run `pnpm build` to rebuild.'
 
 const VERIFY_FLAG_ARGUMENT_INDEX = 2
 const VERIFY_FLAG = '--verify'
@@ -89,7 +89,7 @@ async function main() {
     const [meta, headCommit] = [await readBuildMeta(), await resolveHeadCommit()]
     if (meta === null) {
       console.error(
-        'out/ has no build metadata, so quick E2E would test an app of unknown provenance. Run `pnpm test:e2e` to rebuild first.',
+        'out/ has no build metadata, so a packaged run would test an app of unknown provenance. Run `pnpm build` to rebuild first.',
       )
       process.exitCode = 1
       return
@@ -98,7 +98,7 @@ async function main() {
       const builtAt = meta.commit === null ? 'an unknown commit' : meta.commit.slice(0, SHORT_SHA_LENGTH)
       const headAt = headCommit === null ? 'an unknown commit' : headCommit.slice(0, SHORT_SHA_LENGTH)
       console.error(
-        `out/ was built at ${builtAt} but HEAD is ${headAt}. Quick E2E would test a stale build; run \`pnpm test:e2e\` to rebuild first.`,
+        `out/ was built at ${builtAt} but HEAD is ${headAt}. A packaged run would test a stale build; run \`pnpm build\` to rebuild first.`,
       )
       process.exitCode = 1
       return

@@ -289,7 +289,7 @@ describe('applyTurnFolds', () => {
     expect(result).toEqual(rows)
   })
 
-  it('counts thinking parts as foldable work per ADR 0033', () => {
+  it('counts thinking parts as foldable work per ADR 0034', () => {
     const rows: ChatRow[] = [
       messageRow(userMessage('u1')),
       messageRow(

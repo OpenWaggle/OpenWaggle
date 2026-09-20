@@ -47,7 +47,7 @@ export interface MessageChatRow {
   turnPresentation?: 'folded'
 }
 
-/** The quiet row standing in for one settled turn's work (ADR 0033). */
+/** The quiet row standing in for one settled turn's work (ADR 0034). */
 export interface TurnFoldChatRow {
   type: 'turn-fold'
   /** Stable within a session: derived from the turn's first row id. */
@@ -65,7 +65,7 @@ export interface WaggleTurnChatRow {
   turnDividerProps: TurnDividerProps
   agentColor: WaggleAgentColor
   messages: MessageChatRow[]
-  /** ADR 0033: the whole agent turn collapsed behind `foldRow`. */
+  /** ADR 0034: the whole agent turn collapsed behind `foldRow`. */
   folded?: boolean
   /** Rendered inside the section, between the turn pill and the terminal message. */
   foldRow?: TurnFoldChatRow

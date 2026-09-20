@@ -17,6 +17,8 @@
     "src/custom-message.js",
     "src/interaction.js",
     "src/status.js",
+    "src/resources.js",
+    "src/session-summary-dialog.js",
     "pi/extensions/github-issues-tool.js"
   ],
   "builtArtifacts": [
@@ -29,6 +31,8 @@
     "modules/custom-message.js",
     "modules/interaction.js",
     "modules/status.js",
+    "modules/resources.js",
+    "modules/session-summary-dialog.js",
     "pi/extensions/github-issues-tool.js"
   ],
   "install": {
@@ -42,6 +46,11 @@
       "id": "openwaggle.storage",
       "methods": ["get", "set", "list"],
       "scopes": ["project"]
+    },
+    {
+      "id": "openwaggle.resources",
+      "methods": ["list-resources", "publish-resource"],
+      "scopes": ["session"]
     }
   ],
   "contributions": {
@@ -65,6 +74,26 @@
         "entry": "modules/side-panel.js",
         "capability": "openwaggle.storage",
         "methods": ["get", "set", "list"]
+      },
+      {
+        "id": "github.resources",
+        "title": "GitHub Session Resources",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/resources.js",
+        "capability": "openwaggle.resources",
+        "methods": ["list-resources", "publish-resource"]
+      }
+    ],
+    "dialogs": [
+      {
+        "id": "github.session-context",
+        "title": "GitHub Session Context",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/session-summary-dialog.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
       }
     ],
     "transcriptRenderers": [
@@ -129,6 +158,41 @@
         "entry": "modules/status.js",
         "capability": "openwaggle.storage",
         "methods": ["get", "list"]
+      }
+    ],
+    "sessionSummarySections": [
+      {
+        "id": "github.session-summary",
+        "title": "GitHub Issues",
+        "placement": "details",
+        "disclosure": {
+          "defaultExpanded": true,
+          "collapsible": true
+        },
+        "state": {
+          "status": "live",
+          "message": "Extension data is available"
+        },
+        "rows": [
+          {
+            "id": "github.open-overview",
+            "label": "Open issues overview",
+            "badge": "Extension",
+            "action": {
+              "family": "sidePanels",
+              "contributionId": "github.overview"
+            }
+          },
+          {
+            "id": "github.inspect-session",
+            "label": "Inspect session context",
+            "badge": "Dialog",
+            "action": {
+              "family": "dialogs",
+              "contributionId": "github.session-context"
+            }
+          }
+        ]
       }
     ]
   }

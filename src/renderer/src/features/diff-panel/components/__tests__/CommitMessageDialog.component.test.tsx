@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { CommitMessageDialog } from '../CommitMessageDialog'
+import { CommitMessageDialog } from '@/features/git'
 
 describe('CommitMessageDialog', () => {
   it('renders nothing when closed', () => {

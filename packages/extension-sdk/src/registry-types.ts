@@ -41,4 +41,28 @@ export interface ExtensionContributionRegistryEntry {
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
+  readonly sessionSummary?: {
+    readonly placement: 'context' | 'coordination' | 'details'
+    readonly disclosure?: {
+      readonly defaultExpanded?: boolean
+      readonly collapsible?: boolean
+      readonly autoCollapseAfterMs?: number
+    }
+    readonly state?:
+      | { readonly status: 'ready' }
+      | { readonly status: 'loading' | 'live'; readonly message?: string }
+      | { readonly status: 'failure'; readonly message: string }
+    readonly rows: readonly {
+      readonly id: string
+      readonly label: string
+      readonly value?: string
+      readonly badge?: string
+      readonly count?: number
+      readonly resourceId?: string
+      readonly action?: {
+        readonly family: 'commands' | 'sidePanels' | 'dialogs'
+        readonly contributionId: string
+      }
+    }[]
+  }
 }

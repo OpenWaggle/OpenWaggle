@@ -36,6 +36,7 @@ import type {
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from './extensions'
+import type { SessionResourceIpcInvokeChannels } from './ipc-invoke-session-resources'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type {
   ProjectPreferencesPayload,
@@ -44,6 +45,7 @@ import type {
 import type {
   SessionCopyToNewResult,
   SessionDetail,
+  SessionHiveRelations,
   SessionNavigateTreeOptions,
   SessionSummary,
   SessionTree,
@@ -59,7 +61,7 @@ import type { Settings } from './settings'
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
 
-export interface IpcCoreInvokeChannelMap {
+export interface IpcCoreInvokeChannelMap extends SessionResourceIpcInvokeChannels {
   'agent:send-message': {
     args: [sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId]
     return: AgentSendReport
@@ -137,7 +139,7 @@ export interface IpcCoreInvokeChannelMap {
     return: ExtensionManagerView
   }
   'extensions:invoke': {
-    args: [input: ExtensionInvokeInput]
+    args: [input: ExtensionInvokeInput, invocationBinding?: string]
     return: ExtensionInvokeResult
   }
   'extensions:register-frame': {
@@ -199,6 +201,10 @@ export interface IpcCoreInvokeChannelMap {
   'sessions:get-detail': {
     args: [id: SessionId]
     return: SessionDetail | null
+  }
+  'sessions:get-hive-relations': {
+    args: [id: SessionId]
+    return: SessionHiveRelations
   }
   'sessions:create': {
     args: [projectPath: string]

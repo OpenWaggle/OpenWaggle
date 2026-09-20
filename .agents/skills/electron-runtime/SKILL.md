@@ -58,7 +58,7 @@ For runtime issues, verify the failing runtime path directly:
 ```bash
 pnpm prepare:native:electron
 pnpm build
-pnpm test:e2e:headless:quick
+pnpm dev:debug   # then verify via .agents/skills/electron-qa/SKILL.md
 ```
 
 For UI-visible behavior, use `.agents/skills/electron-qa/SKILL.md`.

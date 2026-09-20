@@ -37,6 +37,7 @@ export interface ComposerState {
   setAttachmentError: (error: string | null) => void
   activeDraftContextKey: string | null
   scopedDrafts: Readonly<Record<string, ComposerScopedDraft>>
+  editedPendingDrafts: Readonly<Record<string, true>>
   setActiveDraftContextKey: (contextKey: string | null) => void
   switchScopedDraftContext: (
     contextKey: string,
@@ -76,6 +77,7 @@ export interface InitialComposerState {
   selectedWagglePreset: WagglePreset | null
   activeDraftContextKey: string | null
   scopedDrafts: Readonly<Record<string, ComposerScopedDraft>>
+  editedPendingDrafts: Readonly<Record<string, true>>
   thinkingMenuOpen: boolean
   executionMenuOpen: boolean
   branchMenuOpen: boolean

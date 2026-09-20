@@ -1,4 +1,10 @@
-import type { GitChangedFile, SourceControlProviderInfo, VcsWorkingTree } from '@shared/types/git'
+import type {
+  GitChangedFile,
+  SourceControlProviderInfo,
+  SourceControlRepositoryIdentity,
+  VcsWorkingTree,
+} from '@shared/types/git'
+import { repositoryWebUrl } from './repository-web-url'
 import { GIT_PARSE_INT_RADIX } from './status-constants'
 
 /**
@@ -12,7 +18,9 @@ export function detectSourceControlProvider(
   const trimmed = remoteUrl?.trim()
   if (!trimmed) return null
 
-  const host = extractRemoteHost(trimmed)
+  const webUrl = repositoryWebUrl(trimmed)
+  if (!webUrl) return null
+  const host = new URL(webUrl).hostname
   if (!host) return null
 
   const lowerHost = host.toLowerCase()
@@ -25,16 +33,45 @@ export function detectSourceControlProvider(
   return null
 }
 
-function extractRemoteHost(remoteUrl: string): string | null {
-  // scp-like: git@host:owner/repo.git
-  const scpMatch = /^[^@/]+@([^:/]+):/.exec(remoteUrl)
-  if (scpMatch?.[1]) return scpMatch[1]
+export interface RemoteRepositoryIdentity extends SourceControlRepositoryIdentity {
+  /** Normalized host authority, including a non-default URL port. */
+  readonly authority: string
+}
 
-  // url form: scheme://[user@]host[:port]/...
-  const urlMatch = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?([^:/]+)/i.exec(remoteUrl)
-  if (urlMatch?.[1]) return urlMatch[1]
+function sourceControlRepositoryHost(remoteUrl: string): string | null {
+  const webUrl = repositoryWebUrl(remoteUrl)
+  if (!webUrl) return null
+  try {
+    return new URL(webUrl).host.toLowerCase() || null
+  } catch {
+    return null
+  }
+}
 
-  return null
+/** Structured identity of the repository addressed by an HTTPS/SSH Git remote. */
+export function parseRemoteRepositoryIdentity(remoteUrl: string): RemoteRepositoryIdentity | null {
+  const trimmed = remoteUrl.trim().replace(/\/+$/u, '')
+  const scpMatch = /^[^@/]+@[^:/]+:(?<path>.+)$/u.exec(trimmed)
+  const urlMatch = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?[^/]+\/(?<path>.+)$/iu.exec(trimmed)
+  const repositoryPath = (scpMatch?.groups?.path ?? urlMatch?.groups?.path)?.replace(/\.git$/u, '')
+  const segments = repositoryPath?.split('/').filter(Boolean) ?? []
+  const repository = segments.at(-1)
+  const owner = segments.slice(0, -1).join('/')
+  const provider = detectSourceControlProvider(remoteUrl)
+  const authority = remoteRepositoryAuthority(trimmed)
+  const host = sourceControlRepositoryHost(trimmed)
+  if (!provider || !authority || !host || !owner || !repository) return null
+  return { provider: provider.id, host, authority, owner, repository }
+}
+
+function remoteRepositoryAuthority(remoteUrl: string): string | null {
+  const scpMatch = /^[^@/]+@(?<authority>[^:/]+):/u.exec(remoteUrl)
+  if (scpMatch?.groups?.authority) return scpMatch.groups.authority.toLowerCase()
+  try {
+    return new URL(remoteUrl).host.toLowerCase() || null
+  } catch {
+    return null
+  }
 }
 
 /**

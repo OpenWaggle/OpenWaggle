@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 interface TurnFoldState {
-  /** In-memory (ADR 0033): fold expansion resets when the app restarts. */
+  /** In-memory (ADR 0034): fold expansion resets when the app restarts. */
   readonly expandedTurnKeysBySessionId: Map<string, ReadonlySet<string>>
   readonly toggleTurnFold: (sessionId: string | null, turnKey: string) => void
 }

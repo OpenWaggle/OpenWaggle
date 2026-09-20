@@ -55,6 +55,9 @@ export async function admitOpenWaggleTask(options: OpenWaggleTaskAdmissionOption
     createdAt: now,
     updatedAt: now,
     lease: { ownerId: leases.ownerId, expiresAt: leaseExpiresAt },
+    ...(options.options.originSessionId && !input.sessionId
+      ? { parentSessionId: options.options.originSessionId }
+      : {}),
     ...(input.sessionId ? { sessionId: input.sessionId } : {}),
   }
   await store.update((tasks) => {

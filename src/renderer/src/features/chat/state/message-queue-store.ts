@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import { create } from 'zustand'
+import { discardSessionResourceAttachments } from '@/features/composer/state'
 
 export interface QueuedMessage {
   readonly id: string
@@ -18,6 +19,7 @@ export interface TakenQueuedMessage {
 
 interface MessageQueueState {
   queues: Map<SessionId, QueuedMessage[]>
+  disposedSessions: ReadonlySet<SessionId>
   enqueue: (sessionId: SessionId, payload: AgentSendPayload) => void
   dequeue: (sessionId: SessionId) => QueuedMessage | null
   take: (sessionId: SessionId, messageId: string) => TakenQueuedMessage | null
@@ -25,6 +27,7 @@ interface MessageQueueState {
   dismiss: (sessionId: SessionId, messageId: string) => void
   promoteToFront: (sessionId: SessionId, messageId: string) => void
   clearQueue: (sessionId: SessionId) => void
+  disposeQueue: (sessionId: SessionId) => void
 }
 
 const EMPTY_QUEUE: readonly QueuedMessage[] = []
@@ -45,8 +48,12 @@ export function selectQueue(sessionId: SessionId | null) {
 
 export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
   queues: new Map(),
-
+  disposedSessions: new Set(),
   enqueue(sessionId, payload) {
+    if (get().disposedSessions.has(sessionId)) {
+      discardSessionResourceAttachments(payload.attachments)
+      return
+    }
     const item: QueuedMessage = {
       id: crypto.randomUUID(),
       payload,
@@ -100,6 +107,10 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
   },
 
   restore(sessionId, taken) {
+    if (get().disposedSessions.has(sessionId)) {
+      discardSessionResourceAttachments(taken.item.payload.attachments)
+      return
+    }
     set((state) => {
       const next = new Map(state.queues)
       const queue = next.get(sessionId) ?? []
@@ -113,6 +124,8 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
   },
 
   dismiss(sessionId, messageId) {
+    const queue = get().queues.get(sessionId)
+    const dismissed = queue?.find(({ id }) => id === messageId)
     set((state) => {
       const queue = state.queues.get(sessionId)
       if (!queue) return state
@@ -125,6 +138,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       }
       return { queues: next }
     })
+    if (dismissed) discardSessionResourceAttachments(dismissed.payload.attachments)
   },
 
   promoteToFront(sessionId, messageId) {
@@ -145,10 +159,17 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
   },
 
   clearQueue(sessionId) {
+    const cleared = get().queues.get(sessionId) ?? []
     set((state) => {
       const next = new Map(state.queues)
       next.delete(sessionId)
       return { queues: next }
     })
+    for (const item of cleared) discardSessionResourceAttachments(item.payload.attachments)
+  },
+
+  disposeQueue(sessionId) {
+    get().clearQueue(sessionId)
+    set((state) => ({ disposedSessions: new Set([...state.disposedSessions, sessionId]) }))
   },
 }))

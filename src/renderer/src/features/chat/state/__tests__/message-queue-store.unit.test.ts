@@ -1,7 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { selectQueue, useMessageQueueStore } from '../message-queue-store'
+
+const discardSessionResourceAttachments = vi.hoisted(() => vi.fn())
+
+vi.mock('@/features/composer/state', () => ({ discardSessionResourceAttachments }))
 
 const CONV_A = SessionId('session-a')
 const CONV_B = SessionId('session-b')
@@ -13,7 +17,8 @@ function makePayload(text: string) {
 
 describe('message-queue-store', () => {
   beforeEach(() => {
-    useMessageQueueStore.setState({ queues: new Map() })
+    useMessageQueueStore.setState({ queues: new Map(), disposedSessions: new Set() })
+    discardSessionResourceAttachments.mockClear()
   })
 
   describe('enqueue', () => {
@@ -190,6 +195,49 @@ describe('message-queue-store', () => {
       useMessageQueueStore.getState().enqueue(CONV_B, makePayload('b'))
       useMessageQueueStore.getState().clearQueue(CONV_A)
       expect(useMessageQueueStore.getState().queues.get(CONV_B)).toHaveLength(1)
+    })
+  })
+
+  describe('resource ownership', () => {
+    const attachment = {
+      id: 'resource-image',
+      kind: 'image' as const,
+      origin: 'session-resource' as const,
+      name: 'image.png',
+      path: '/tmp/resource-image.png',
+      mimeType: 'image/png',
+      sizeBytes: 3,
+      extractedText: '',
+    }
+    const payload = { ...makePayload('image'), attachments: [attachment] }
+
+    it('releases attachments only when a queued item is dismissed or cleared', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, payload)
+      const queued = useMessageQueueStore.getState().queues.get(CONV_A)?.[0]
+      if (!queued) throw new Error('Expected queued image')
+
+      expect(discardSessionResourceAttachments).not.toHaveBeenCalled()
+      useMessageQueueStore.getState().dismiss(CONV_A, queued.id)
+      expect(discardSessionResourceAttachments).toHaveBeenCalledExactlyOnceWith([attachment])
+
+      useMessageQueueStore.getState().enqueue(CONV_A, payload)
+      useMessageQueueStore.getState().clearQueue(CONV_A)
+      expect(discardSessionResourceAttachments).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not restore or re-enqueue an in-flight item after its Session is disposed', () => {
+      useMessageQueueStore.getState().enqueue(CONV_A, payload)
+      const queued = useMessageQueueStore.getState().queues.get(CONV_A)?.[0]
+      if (!queued) throw new Error('Expected queued image')
+      const taken = useMessageQueueStore.getState().take(CONV_A, queued.id)
+      if (!taken) throw new Error('Expected taken image')
+
+      useMessageQueueStore.getState().disposeQueue(CONV_A)
+      useMessageQueueStore.getState().restore(CONV_A, taken)
+      useMessageQueueStore.getState().enqueue(CONV_A, payload)
+
+      expect(useMessageQueueStore.getState().queues.has(CONV_A)).toBe(false)
+      expect(discardSessionResourceAttachments).toHaveBeenCalledTimes(2)
     })
   })
 

@@ -4,7 +4,7 @@ import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
-import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
+import type { RepositoryPath, SessionBranchId, SessionId, WorkingPath } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SessionDetail } from '@shared/types/session'
@@ -23,6 +23,9 @@ export interface ChatTranscriptSectionState {
   readonly worktreePath: string | null
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
+  readonly activeBranchId?: SessionBranchId | null
+  /** Exact persisted workspace path rendered for this branch or deep-linked node. */
+  readonly activePathNodeIds?: readonly string[]
   readonly chatRows: ChatRow[]
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
@@ -43,7 +46,7 @@ export interface ChatTranscriptSectionState {
   onForkFromMessage: (messageId: string) => void
   onViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
-  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0033). */
+  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */
   readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
   onToggleTurnFold: (turnKey: string) => void
 }
@@ -83,6 +86,7 @@ export interface ChatComposerSectionState {
 }
 
 export interface ChatDiffSectionState {
+  readonly session: SessionDetail | null
   /** The working tree this panel reads and mutates (a Session worktree in worktree mode). */
   readonly workingPath: WorkingPath | null
   /** The repository the session belongs to, for telling a worktree apart from the checkout. */

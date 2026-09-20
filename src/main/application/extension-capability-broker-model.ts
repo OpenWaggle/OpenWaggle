@@ -45,12 +45,19 @@ export function entryMatchesPackage(
   }
 
   if (entry.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return true
+    return (
+      entry.contentHash === extensionPackage.contentHash &&
+      entry.packagePath === extensionPackage.packagePath &&
+      entry.manifestPath === extensionPackage.manifestPath
+    )
   }
 
   return (
     extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
-    entry.scope.projectPath === extensionPackage.scope.projectPath
+    entry.scope.projectPath === extensionPackage.scope.projectPath &&
+    entry.contentHash === extensionPackage.contentHash &&
+    entry.packagePath === extensionPackage.packagePath &&
+    entry.manifestPath === extensionPackage.manifestPath
   )
 }
 

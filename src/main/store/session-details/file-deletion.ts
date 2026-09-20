@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { rename, rm } from 'node:fs/promises'
+import type { SessionId } from '@shared/types/brand'
 import { createLogger } from '../../logger'
 import { STAGED_SESSION_DELETE_SUFFIX } from './constants'
 import { describeError, hasNodeErrorCode } from './errors'
@@ -9,6 +10,21 @@ const logger = createLogger('session-details')
 
 function noopAsync(): Promise<void> {
   return Promise.resolve()
+}
+
+/** Commit has succeeded. Nothing here may restore files or report a rejected deletion. */
+export async function cleanupCommittedSessionFile(
+  sessionId: SessionId,
+  stagedFile: StagedSessionFileDeletion,
+): Promise<void> {
+  try {
+    await stagedFile.cleanup()
+  } catch (error) {
+    logger.warn('Failed staged Pi session file cleanup after session deletion', {
+      sessionId,
+      error: describeError(error),
+    })
+  }
 }
 
 export async function stageSessionFileDeletion(

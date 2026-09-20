@@ -137,6 +137,7 @@ export function SessionListItem({
       title={rowDescription}
       data-qa="sidebar-session-row"
       {...rowProps}
+      data-session-id={sessionId}
       style={rowStyle}
       className={cn(
         'group relative flex min-h-11 w-full items-start gap-2 py-1.5',

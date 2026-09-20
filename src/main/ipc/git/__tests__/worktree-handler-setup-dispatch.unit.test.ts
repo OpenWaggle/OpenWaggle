@@ -54,6 +54,8 @@ const SessionProjectionLayer = Layer.succeed(
   SessionProjectionRepository.of({
     get: () => Effect.dieMessage('not used'),
     getOptional: () => Effect.succeed(null),
+    getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
+    getDeletionBlocker: () => Effect.succeed(null),
     list: () => Effect.succeed([]),
     listDetails: () => Effect.succeed([]),
     create: () => Effect.dieMessage('not used'),

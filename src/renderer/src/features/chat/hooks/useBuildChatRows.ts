@@ -224,7 +224,7 @@ interface BuildChatRowsParams {
   expandedTurnKeys?: ReadonlySet<string>
 }
 
-/** ADR 0033 fold inputs derived from the run's settled/active state. */
+/** ADR 0034 fold inputs derived from the run's settled/active state. */
 function toTurnFoldInput(params: BuildChatRowsParams): TurnFoldInput {
   return {
     isLoading: params.isLoading,

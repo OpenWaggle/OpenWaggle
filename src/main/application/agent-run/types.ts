@@ -4,6 +4,7 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { AgentKernelRunControl } from '../../ports/agent-kernel-service'
+import type { PersistedRunResourceNodes } from '../session-resource-node-mapping'
 
 export interface AgentRunInput {
   readonly sessionId: SessionId
@@ -19,13 +20,17 @@ export interface AgentRunInput {
 
 interface AgentRunResultBase {
   readonly assignedTitle?: string
+  readonly resourceMessages?: PersistedRunResourceNodes['resourceMessages']
+  readonly resourceNodeIds?: PersistedRunResourceNodes['resourceNodeIds']
+  readonly resourceBranchIds?: PersistedRunResourceNodes['resourceBranchIds']
 }
 
 export type AgentRunResult =
-  | (AgentRunResultBase & {
-      readonly outcome: 'success'
-      readonly newMessages: readonly Message[]
-    })
+  | (AgentRunResultBase &
+      PersistedRunResourceNodes & {
+        readonly outcome: 'success'
+        readonly newMessages: readonly Message[]
+      })
   | (AgentRunResultBase & { readonly outcome: 'aborted' })
   | (AgentRunResultBase & {
       readonly outcome: 'invalid-model'

@@ -34,7 +34,14 @@ export function registerAgentSteeringHandler() {
           }
           const control = activeRun.metadata.controlRef.current
           if (!control) throw new Error('The active agent run is not ready for steering.')
-          return control.steer(hydratedPayload)
+          const delivery = await control.steer(hydratedPayload)
+          if (delivery.delivery === 'queued') {
+            activeRun.metadata.acceptedSteersRef?.current.push({
+              payload: validatedPayload,
+              durableText: delivery.durableText,
+            })
+          }
+          return delivery
         })
       activeRun.metadata.steerTailRef.current = queuedSteer.then(
         () => undefined,

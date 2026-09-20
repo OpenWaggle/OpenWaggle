@@ -206,7 +206,7 @@ function buildFoldPlan(
 }
 
 /**
- * Turn settle-fold (ADR 0033): a settled turn's work collapses behind one
+ * Turn settle-fold (ADR 0034): a settled turn's work collapses behind one
  * quiet row, keeping only the terminal assistant message (its final text part).
  * Turns without work, carve-out rows, and the active run are left untouched.
  * Waggle agent turns fold as colored units inside their own section.

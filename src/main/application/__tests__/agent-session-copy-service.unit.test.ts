@@ -34,6 +34,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       return id === forkedSession.id ? forkedSession : session
     }),
   getOptional: () => Effect.succeed(session),
+  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: (input) =>
@@ -41,6 +42,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       createProjectionMock(input)
       return forkedSession
     }),
+  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -66,6 +68,9 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
       branchStates: [],
       uiState: null,
     }),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -146,6 +151,39 @@ describe('agent session copy commands', () => {
     expect(JSON.parse(copied.nodes[0]?.metadataJson ?? '{}')).toEqual({
       provider: 'openai',
       visualizationSessionId: 'original-session',
+    })
+  })
+
+  it('attributes delimiter-free visualization references when copying', () => {
+    const sourcePath = '/app-data/visualizations/original-session/map.html'
+    const snapshot = {
+      activeNodeId: 'assistant-map',
+      nodes: [
+        {
+          id: 'assistant-map',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'assistant_message' as const,
+          role: 'assistant' as const,
+          timestampMs: 1,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: `visualize{"path":"${sourcePath}"}` }],
+          }),
+          metadataJson: JSON.stringify({ provider: 'openai' }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+      ],
+    }
+
+    const copied = attributeCopiedVisualizationSources(snapshot, {
+      id: session.id,
+      nodes: [],
+    })
+
+    expect(JSON.parse(copied.nodes[0]?.metadataJson ?? '{}')).toEqual({
+      provider: 'openai',
+      visualizationSessionId: session.id,
     })
   })
 

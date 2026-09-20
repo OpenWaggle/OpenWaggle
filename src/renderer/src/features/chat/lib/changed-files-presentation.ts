@@ -1,6 +1,6 @@
 import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 
-/** ADR 0033 changed-files card thresholds, mirroring the T3 Code reference. */
+/** ADR 0034 changed-files card thresholds, mirroring the T3 Code reference. */
 export const CHANGED_FILES_AUTO_EXPAND_FILE_LIMIT = 5
 export const CHANGED_FILES_AUTO_EXPAND_LINE_LIMIT = 200
 export const CHANGED_FILES_PREVIEW_FILE_LIMIT = 3

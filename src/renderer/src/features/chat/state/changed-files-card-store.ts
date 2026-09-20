@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 
 interface ChangedFilesCardState {
-  /** Persisted per session+turn (ADR 0033); absent = apply the auto-expand rule. */
+  /** Persisted per session+turn (ADR 0034); absent = apply the auto-expand rule. */
   readonly expandedByCardKey: Record<string, boolean>
   readonly setExpanded: (cardKey: string, expanded: boolean) => void
 }

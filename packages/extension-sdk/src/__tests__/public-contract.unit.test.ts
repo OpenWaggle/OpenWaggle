@@ -2,6 +2,7 @@ import * as Schema from 'effect/Schema'
 import { describe, expect, it } from 'vitest'
 import { openWaggleAgentLoopSurfaceInputSchema } from '../agent-loop'
 import { extensionInvokeInputSchema } from '../broker'
+import { OPENWAGGLE_EXTENSION_BROKER } from '../constants'
 import { extensionDocsDiscoverPayloadSchema } from '../docs'
 import {
   defineExtensionManifest,
@@ -37,6 +38,27 @@ const validManifest = {
         methods: ['get', 'set'],
       },
     ],
+    sessionSummarySections: [
+      {
+        id: 'schema-smoke.session-summary',
+        title: 'Schema smoke session summary',
+        placement: 'details',
+        disclosure: {
+          defaultExpanded: true,
+          collapsible: true,
+          autoCollapseAfterMs: 30_000,
+        },
+        state: { status: 'live', message: 'Watching the current Session' },
+        rows: [
+          {
+            id: 'status',
+            label: 'Status',
+            value: 'Ready',
+            action: { family: 'commands', contributionId: 'schema-smoke.command' },
+          },
+        ],
+      },
+    ],
   },
 } as const
 
@@ -63,7 +85,42 @@ describe('extension SDK public schemas', () => {
     ).toMatchObject({ success: false })
   })
 
+  it('rejects Session Summary rows with both resource and action targets', () => {
+    const contribution = {
+      ...validManifest.contributions.sessionSummarySections[0],
+      rows: [
+        {
+          id: 'ambiguous-target',
+          label: 'Ambiguous target',
+          resourceId: 'preview',
+          action: { family: 'commands', contributionId: 'schema-smoke.command' },
+        },
+      ],
+    } as const
+    const validation = validateExtensionManifest({
+      ...validManifest,
+      contributions: {
+        ...validManifest.contributions,
+        sessionSummarySections: [contribution],
+      },
+    })
+
+    expect(validation).toMatchObject({ success: false })
+    if (!validation.success) {
+      expect(validation.issues.join('\n')).toContain(
+        'Session Summary rows cannot declare both resourceId and action.',
+      )
+    }
+    expect(() =>
+      Schema.decodeUnknownSync(extensionContributionRegistrationSchema)({
+        family: 'sessionSummarySections',
+        contribution,
+      }),
+    ).toThrow(/Session Summary rows cannot declare both resourceId and action/)
+  })
+
   it('exports direct schemas for broker, docs, runtime, and agent-loop boundaries', () => {
+    expect(OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.RESOURCES).toBe('openwaggle.resources')
     expect(() =>
       Schema.decodeUnknownSync(extensionInvokeInputSchema)({
         extensionId: 'schema-smoke',
@@ -76,8 +133,8 @@ describe('extension SDK public schemas', () => {
     expect(() => Schema.decodeUnknownSync(extensionDocsDiscoverPayloadSchema)({})).not.toThrow()
     expect(() =>
       Schema.decodeUnknownSync(extensionContributionRegistrationSchema)({
-        family: 'settingsSections',
-        contribution: validManifest.contributions.settingsSections[0],
+        family: 'sessionSummarySections',
+        contribution: validManifest.contributions.sessionSummarySections[0],
       }),
     ).not.toThrow()
     expect(() =>

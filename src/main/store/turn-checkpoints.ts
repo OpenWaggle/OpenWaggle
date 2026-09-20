@@ -29,7 +29,7 @@ export interface RecordTurnCheckpointInput {
   readonly diff: string
   /** Snapshot commit (git stash create) of the worktree at this turn, if any. */
   readonly snapshotRef?: string | null
-  /** Epoch ms when the turn's run started; enables fold duration labels (ADR 0033). */
+  /** Epoch ms when the turn's run started; enables fold duration labels (ADR 0034). */
   readonly startedAt?: number | null
 }
 

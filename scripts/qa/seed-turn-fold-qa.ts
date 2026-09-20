@@ -1,11 +1,11 @@
 /**
- * One-off QA seed for ADR 0033 turn settle-fold (run with the app closed).
+ * One-off QA seed for ADR 0034 turn settle-fold (run with the app closed).
  * Seeds one session with two settled turns plus turn_checkpoints rows so the
  * fold rows, duration labels, and changed-files card render from real data.
  *
  *   pnpm exec tsx scripts/qa/seed-turn-fold-qa.ts
  */
-import { seedSessions } from '../../e2e/support/session-fixtures'
+import { seedSessions } from '../support/session-fixtures'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
