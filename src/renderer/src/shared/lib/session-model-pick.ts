@@ -46,9 +46,9 @@ export function clearDesiredSessionModel(sessionId: string, generation: number):
   }
 }
 
-/** Whether any pick guard is live for the session (a post-materialization pick, for instance). */
-export function hasDesiredSessionModel(sessionId: string): boolean {
-  return desiredBySession.has(sessionId)
+/** The model of the live pick guard for the session, if any. */
+export function peekDesiredSessionModel(sessionId: string): SupportedModelId | undefined {
+  return desiredBySession.get(sessionId)?.model
 }
 
 interface SessionModelCarrier {

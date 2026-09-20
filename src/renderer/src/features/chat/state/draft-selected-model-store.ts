@@ -1,12 +1,13 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { create } from 'zustand'
+import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 import {
   clearDesiredSessionModel,
   commitDesiredSessionModel,
-  hasDesiredSessionModel,
   markDesiredSessionModel,
+  peekDesiredSessionModel,
   runExclusiveSessionModelWrite,
 } from '@/shared/lib/session-model-pick'
 import { useChatStore } from './chat-store'
@@ -50,6 +51,30 @@ export const useDraftSelectedModelStore = create<DraftSelectedModelState>()((set
     }),
 }))
 
+/**
+ * Promotes an explicit draft pick onto the freshly created session immediately, before the
+ * awaited worktree/authorization setup: the resolution hook reads the active session (not the
+ * draft) once the session id exists, so an unpromoted pick would resolve the global default and
+ * a parallel submit could dispatch it. Persistence still goes through the queued flush.
+ */
+export function applyDraftSelectedModelToSession(
+  sessionId: SessionId,
+  override: DraftModelOverride | undefined,
+): void {
+  if (override === undefined) return
+  const sessionKey = String(sessionId)
+  markDesiredSessionModel(sessionKey, override.model)
+  const created = useChatStore.getState().activeSession
+  if (created && String(created.id) === sessionKey) {
+    useChatStore.getState().upsertSession({ ...created, selectedModel: override.model })
+  }
+  useSessionStore.setState((state) => ({
+    sessions: state.sessions.map((summary) =>
+      String(summary.id) === sessionKey ? { ...summary, selectedModel: override.model } : summary,
+    ),
+  }))
+}
+
 /** Read the explicit pre-first-send pick without touching it, so it survives the send's awaits. */
 export function snapshotDraftSelectedModel(projectPath: string): DraftModelOverride | undefined {
   return useDraftSelectedModelStore.getState().byProjectPath[projectPath]
@@ -69,9 +94,10 @@ export async function flushDraftSelectedModelToSession(
   // guard keeps the newest pick through any refresh that read the row earlier.
   await runExclusiveSessionModelWrite(sessionKey, async () => {
     // A pick made on the live session while the first send was awaiting setup supersedes this
-    // snapshot: queue order alone cannot tell intent (this flush was enqueued earlier), so an
-    // existing guard means the user already chose for this session. Keep it, drop the draft.
-    if (hasDesiredSessionModel(sessionKey)) {
+    // snapshot when it chose a different model — queue order alone cannot tell intent, since this
+    // flush was enqueued earlier. The promotion's pre-mark holds our own value and still persists.
+    const desired = peekDesiredSessionModel(sessionKey)
+    if (desired !== undefined && desired !== override.model) {
       useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
       return
     }

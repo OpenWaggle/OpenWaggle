@@ -8,6 +8,7 @@ import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.ut
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
 import {
+  applyDraftSelectedModelToSession,
   flushDraftSelectedModelToSession,
   snapshotDraftSelectedModel,
 } from '@/features/chat/state/draft-selected-model-store'
@@ -64,6 +65,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       // while the creation is pending, and that pick belongs to the new draft, not this send.
       const draftModel = snapshotDraftSelectedModel(projectPath)
       const sessionId = await createSession(projectPath)
+      // Promote before the awaited setup: the hook resolves the active session now, so the
+      // global default would be dispatched by a parallel submit during the setup window.
+      applyDraftSelectedModelToSession(sessionId, draftModel)
       try {
         await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
@@ -95,6 +99,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       // Same snapshot-before-create as the classic path above.
       const draftModel = snapshotDraftSelectedModel(projectPath)
       const sessionId = await createSession(projectPath)
+      applyDraftSelectedModelToSession(sessionId, draftModel)
       try {
         await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
