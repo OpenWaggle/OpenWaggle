@@ -1,33 +1,51 @@
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { RefreshCw, Sparkles } from 'lucide-react'
-import { useProject } from '@/features/sessions/hooks'
+import { useResourceProject } from '@/features/settings'
 import { useSkills } from '@/features/skills/hooks/useSkills'
 import { cn } from '@/shared/lib/cn'
 import { formatDisplayPath } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
+import { ProjectPicker } from '@/shared/ui/ProjectPicker'
 import { Spinner } from '@/shared/ui/Spinner'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
 import { SkillPreviewPane } from './SkillPreviewPane'
 import { StatusBadge } from './SkillStatusBadge'
-import { EmptySkillsState, NoProjectState } from './SkillsPanelStates'
+import { EmptySkillsState } from './SkillsPanelStates'
 
 type StandardsStatus = ReturnType<typeof useSkills>['standardsStatus']
 
-function SkillsPanelHeader({ onRefresh }: { readonly onRefresh: () => void }) {
+function SkillsPanelHeader({
+  onRefresh,
+  project,
+}: {
+  readonly onRefresh: () => void
+  readonly project: ReturnType<typeof useResourceProject>
+}) {
   return (
     <div className="flex items-center justify-between border-b border-border px-5 py-3">
       <div>
         <h2 className="text-sm font-semibold text-text-primary">Skills</h2>
         <p className="text-xs text-text-tertiary">Discover and manage project skills.</p>
       </div>
-      <Button
-        variant="secondary"
-        size="sm"
-        leftIcon={<RefreshCw className="size-3.5" />}
-        onClick={onRefresh}
-      >
-        Refresh
-      </Button>
+      <div className="flex min-w-0 items-center gap-2">
+        <ProjectPicker
+          resourceName="Skills"
+          projects={project.projects}
+          selectedProject={project.projectPath}
+          displayNames={project.displayNames}
+          onSelect={project.setSelectedProject}
+          onOpenFolder={() => void project.openFolder()}
+        />
+        <Button
+          disabled={!project.projectPath}
+          variant="secondary"
+          size="sm"
+          leftIcon={<RefreshCw className="size-3.5" />}
+          onClick={onRefresh}
+        >
+          Refresh
+        </Button>
+      </div>
     </div>
   )
 }
@@ -177,7 +195,13 @@ function SkillsSidebar({
   )
 }
 
-function SkillsPanelContent({ projectPath }: { readonly projectPath: string }) {
+function SkillsPanelContent({
+  projectPath,
+  project,
+}: {
+  readonly projectPath: string
+  readonly project: ReturnType<typeof useResourceProject>
+}) {
   const {
     standardsStatus,
     catalog,
@@ -194,7 +218,15 @@ function SkillsPanelContent({ projectPath }: { readonly projectPath: string }) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg">
-      <SkillsPanelHeader onRefresh={() => void refresh()} />
+      <SkillsPanelHeader project={project} onRefresh={() => void refresh()} />
+      {project.folderError && (
+        <p
+          role="alert"
+          className="border-b border-error/30 bg-error/10 px-5 py-2 text-xs text-error"
+        >
+          {project.folderError}
+        </p>
+      )}
       <div className="flex min-h-0 flex-1">
         <SkillsSidebar
           projectPath={projectPath}
@@ -217,11 +249,27 @@ function SkillsPanelContent({ projectPath }: { readonly projectPath: string }) {
 }
 
 export function SkillsPanel() {
-  const { projectPath } = useProject()
+  const project = useResourceProject()
+  const { projectPath } = project
 
   if (!projectPath) {
-    return <NoProjectState />
+    return (
+      <div className="flex h-full min-w-0 flex-col bg-bg">
+        <SkillsPanelHeader project={project} onRefresh={() => {}} />
+        {project.folderError && (
+          <p
+            role="alert"
+            className="border-b border-error/30 bg-error/10 px-5 py-2 text-xs text-error"
+          >
+            {project.folderError}
+          </p>
+        )}
+        <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+          Open a project folder to browse its skills.
+        </div>
+      </div>
+    )
   }
 
-  return <SkillsPanelContent projectPath={projectPath} />
+  return <SkillsPanelContent projectPath={projectPath} project={project} />
 }

@@ -1,6 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { AgentsRouteSurface } from './-agents-route-surface'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/agents')({
-  component: AgentsRouteSurface,
+  beforeLoad: () => {
+    throw redirect({ to: '/settings/$tab', params: { tab: 'agents' }, replace: true })
+  },
 })

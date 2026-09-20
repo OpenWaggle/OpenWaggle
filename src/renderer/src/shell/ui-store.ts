@@ -50,6 +50,8 @@ export const SETTINGS_TABS = [
   'appearance',
   'waggle',
   'extensions',
+  'skills',
+  'agents',
   'mcp',
   'worktrees',
   'archived',
@@ -61,7 +63,7 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number]
 interface UIState {
   sidebarOpen: boolean
   terminalOpen: boolean
-  activeView: 'chat' | 'skills' | 'settings'
+  activeView: 'chat' | 'settings'
   activeSettingsTab: SettingsTab
   diffRefreshKey: number
   toastMessage: string | null
@@ -85,7 +87,7 @@ interface UIState {
 
   toggleSidebar: () => void
   toggleTerminal: () => void
-  setActiveView: (view: 'chat' | 'skills' | 'settings') => void
+  setActiveView: (view: 'chat' | 'settings') => void
   setActiveSettingsTab: (tab: SettingsTab) => void
   bumpDiffRefreshKey: () => void
   closeTerminal: () => void

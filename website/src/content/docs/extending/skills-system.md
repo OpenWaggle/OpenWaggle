@@ -25,7 +25,7 @@ Catalog toggles are applied to `.openwaggle/skills/` and root `.agents/skills/` 
 
 ## Skills Panel
 
-Open the Skills panel from the sidebar. It shows:
+Open **Settings → Skills**. Use the project picker in its header to browse recent projects or projects with Sessions, or open another project folder. Browsing does not change the active project in the composer. The panel shows:
 
 - Root `AGENTS.md` status.
 - Cataloged skills.

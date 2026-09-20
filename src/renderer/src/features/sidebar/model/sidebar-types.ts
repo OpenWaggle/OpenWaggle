@@ -2,7 +2,7 @@ import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionTree } from '@shared/types/session'
 import type { SidebarProjectGroup } from '../lib/sidebar-project-groups'
 
-export type SidebarView = 'chat' | 'skills' | 'agents' | 'settings'
+export type SidebarView = 'chat' | 'settings'
 
 export interface SidebarDraftBranch {
   readonly sessionId: SessionId

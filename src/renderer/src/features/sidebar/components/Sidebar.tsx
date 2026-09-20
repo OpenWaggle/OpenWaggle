@@ -60,12 +60,7 @@ export function Sidebar() {
       >
         <div className="flex flex-1 flex-col overflow-hidden">
           <SidebarBrandArea isFullscreen={controller.isFullscreen} />
-          <SidebarPrimaryActions
-            activeView={controller.activeView}
-            onNewSession={controller.handleNewSession}
-            onOpenSkills={controller.handleOpenSkills}
-            onOpenAgents={controller.handleOpenAgents}
-          />
+          <SidebarPrimaryActions onNewSession={controller.handleNewSession} />
           <SidebarSearchBox value={controller.searchQuery} onChange={controller.setSearchQuery} />
           <SidebarStatusChips
             counts={controller.chipCounts}

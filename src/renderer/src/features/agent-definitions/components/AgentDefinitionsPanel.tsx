@@ -1,11 +1,12 @@
 import type { AgentDefinitionDisplayItem } from '@shared/types/agent-definition'
 import { RefreshCw } from 'lucide-react'
-import { useProject } from '@/features/sessions/hooks'
+import { useResourceProject } from '@/features/settings'
 import { cn } from '@/shared/lib/cn'
 import { formatDisplayPath } from '@/shared/lib/display-path'
 import { Button } from '@/shared/ui/Button'
 import { MarkdownDocument } from '@/shared/ui/MarkdownDocument'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { ProjectPicker } from '@/shared/ui/ProjectPicker'
 import { Spinner } from '@/shared/ui/Spinner'
 import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
@@ -124,15 +125,10 @@ function AgentPreview({
 }
 
 export function AgentDefinitionsPanel() {
-  const { projectPath } = useProject()
+  const { projectPath, projects, displayNames, setSelectedProject, openFolder, folderError } =
+    useResourceProject()
   const agents = useAgentDefinitions(projectPath)
-  if (!projectPath) {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center bg-bg text-sm text-text-tertiary">
-        Select a project folder to browse its agents.
-      </div>
-    )
-  }
+
   const selected = agents.items.find((item) => item.name === agents.selectedName) ?? null
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-bg">
@@ -141,15 +137,34 @@ export function AgentDefinitionsPanel() {
           <h2 className="text-sm font-semibold text-text-primary">Agents</h2>
           <p className="text-xs text-text-tertiary">Markdown definitions for Worker Sessions.</p>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={<RefreshCw className="size-3.5" />}
-          onClick={() => void agents.refresh()}
-        >
-          Refresh
-        </Button>
+        <div className="flex min-w-0 items-center gap-2">
+          <ProjectPicker
+            resourceName="Agents"
+            projects={projects}
+            selectedProject={projectPath}
+            displayNames={displayNames}
+            onSelect={setSelectedProject}
+            onOpenFolder={() => void openFolder()}
+          />
+          <Button
+            disabled={!projectPath}
+            variant="secondary"
+            size="sm"
+            leftIcon={<RefreshCw className="size-3.5" />}
+            onClick={() => void agents.refresh()}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
+      {folderError && (
+        <p
+          role="alert"
+          className="border-b border-error/30 bg-error/10 px-5 py-2 text-xs text-error"
+        >
+          {folderError}
+        </p>
+      )}
       {agents.error && (
         <p
           role="alert"
@@ -158,38 +173,44 @@ export function AgentDefinitionsPanel() {
           {agents.error instanceof Error ? agents.error.message : 'Could not load agents.'}
         </p>
       )}
-      <div className="flex min-h-0 flex-1">
-        <div className="flex w-75 shrink-0 min-h-0 flex-col border-r border-border">
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {agents.isLoading ? (
-              <div className="flex justify-center py-6 text-text-tertiary">
-                <Spinner />
-              </div>
-            ) : agents.items.length === 0 ? (
-              <div className="rounded-lg border border-border bg-bg-secondary p-3 text-xs text-text-tertiary">
-                No agents found. Add a Markdown file to <code>.agents/agents/</code> to define one;
-                workers need no definition by default.
-              </div>
-            ) : (
-              agents.items.map((item) => (
-                <AgentRow
-                  key={item.name}
-                  item={item}
-                  selected={agents.selectedName === item.name}
-                  onSelect={() => agents.selectAgent(item.name)}
-                  onToggle={(enabled) => agents.toggleAgent(item.name, enabled)}
-                />
-              ))
-            )}
-          </div>
+      {!projectPath ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-text-tertiary">
+          Open a project folder to browse its agents.
         </div>
-        <AgentPreview
-          item={selected}
-          projectPath={projectPath}
-          markdown={agents.previewMarkdown}
-          isLoading={agents.isPreviewLoading}
-        />
-      </div>
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-75 shrink-0 min-h-0 flex-col border-r border-border">
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+              {agents.isLoading ? (
+                <div className="flex justify-center py-6 text-text-tertiary">
+                  <Spinner />
+                </div>
+              ) : agents.items.length === 0 ? (
+                <div className="rounded-lg border border-border bg-bg-secondary p-3 text-xs text-text-tertiary">
+                  No agents found. Add a Markdown file to <code>.agents/agents/</code> to define
+                  one; workers need no definition by default.
+                </div>
+              ) : (
+                agents.items.map((item) => (
+                  <AgentRow
+                    key={item.name}
+                    item={item}
+                    selected={agents.selectedName === item.name}
+                    onSelect={() => agents.selectAgent(item.name)}
+                    onToggle={(enabled) => agents.toggleAgent(item.name, enabled)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+          <AgentPreview
+            item={selected}
+            projectPath={projectPath}
+            markdown={agents.previewMarkdown}
+            isLoading={agents.isPreviewLoading}
+          />
+        </div>
+      )}
     </div>
   )
 }

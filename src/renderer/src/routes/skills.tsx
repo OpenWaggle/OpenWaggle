@@ -1,6 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { SkillsRouteSurface } from './-skills-route-surface'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/skills')({
-  component: SkillsRouteSurface,
+  beforeLoad: () => {
+    throw redirect({ to: '/settings/$tab', params: { tab: 'skills' }, replace: true })
+  },
 })

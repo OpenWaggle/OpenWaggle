@@ -9,7 +9,7 @@ Agent definitions are optional Markdown files that specialize a newly created Se
 
 An Agent definition is not a Queen or Worker type. Queen and Worker describe durable Hive lineage; an Agent definition describes an optional role. A Queen or Worker can use any definition, or none.
 
-Create or edit the Markdown file directly in your project. OpenWaggle does not have a form editor for Agent definitions. The **Agents** page beside Skills lets you read the file and enable or disable a definition for new Sessions. A Queen or Worker can discover enabled definitions and select one when creating a Session.
+Create or edit the Markdown file directly in your project. OpenWaggle does not have a form editor for Agent definitions. **Settings → Agents** lets you read the file and enable or disable a definition for new Sessions. A Queen or Worker can discover enabled definitions and select one when creating a Session.
 
 ## Locations and precedence
 
@@ -83,7 +83,7 @@ Unknown fields, YAML aliases, merge keys, custom tags, duplicate keys, empty ins
 
 ## Browsing and disabling agents
 
-Open **Agents** from the sidebar to see the effective definitions for the selected project. Select a row to preview its full Markdown file, including frontmatter. The switch disables that name for future named launches and spawns in this project. It does not delete the file, modify the Markdown, or change a Session that already snapshotted the definition. A Worker without a named definition remains available. If the same name exists at multiple discovery locations, the highest-precedence file is displayed and the switch applies to that name, not to one individual file.
+Open **Settings → Agents** to see the effective definitions for a project. Use the project picker in the Agents header to browse recent projects or projects with Sessions; you can also open another folder there. Browsing Agents does not switch the active project in the composer. Select a row to preview its full Markdown file, including frontmatter. The switch disables that name for future named launches and spawns in the project shown in the picker. It does not delete the file, modify the Markdown, or change a Session that already snapshotted the definition. A Worker without a named definition remains available. If the same name exists at multiple discovery locations, the highest-precedence file is displayed and the switch applies to that name, not to one individual file.
 
 ## Inheritance and authority
 

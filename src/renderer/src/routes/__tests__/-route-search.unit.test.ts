@@ -126,6 +126,8 @@ describe('parseChatRouteSearch', () => {
 describe('settings route guard', () => {
   it('accepts the extensions settings route tab', () => {
     expect(isSettingsTab('extensions')).toBe(true)
+    expect(isSettingsTab('skills')).toBe(true)
+    expect(isSettingsTab('agents')).toBe(true)
   })
 
   it('rejects unknown settings route tabs', () => {

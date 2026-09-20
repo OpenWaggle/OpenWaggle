@@ -6,9 +6,7 @@ import {
   Edit3,
   FolderPlus,
   LayoutList,
-  Pickaxe,
   Settings,
-  Sparkles,
 } from 'lucide-react'
 import openwaggleLockup from '@/assets/openwaggle-lockup.png'
 import { cn } from '@/shared/lib/cn'
@@ -16,7 +14,6 @@ import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import type { SidebarSessionSortMode } from '../lib/sidebar-project-groups'
-import type { SidebarView } from '../model/sidebar-types'
 
 const SORT_OPTIONS: { value: SidebarSessionSortMode; label: string; icon: typeof Clock }[] = [
   { value: 'recent', label: 'Recent', icon: Clock },
@@ -56,22 +53,8 @@ export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: bool
   )
 }
 
-/**
- * Primary actions, ported to the prototype's metrics: 30px rows, 8px inset, 13px text and an
- * 8px gap, inside a 6px gutter with 1px between rows. The app had 34px and 32px rows at 14px
- * with a 12px inset, so the two lists sat at different rhythms.
- */
-export function SidebarPrimaryActions({
-  activeView,
-  onNewSession,
-  onOpenSkills,
-  onOpenAgents,
-}: {
-  readonly activeView: SidebarView
-  readonly onNewSession: () => void
-  readonly onOpenSkills: () => void
-  readonly onOpenAgents: () => void
-}) {
+/** Keep the new-session action aligned with the sidebar's compact row rhythm. */
+export function SidebarPrimaryActions({ onNewSession }: { readonly onNewSession: () => void }) {
   return (
     <div className="flex shrink-0 flex-col gap-px px-1.5 pt-0.5 pb-1.5">
       <Button
@@ -93,37 +76,6 @@ export function SidebarPrimaryActions({
         >
           ⌘N
         </span>
-      </Button>
-
-      <Button
-        variant={activeView === 'skills' ? 'subtle' : 'row'}
-        size="none"
-        radius="md"
-        aria-label="Skills"
-        onClick={onOpenSkills}
-        className={cn(
-          'no-drag flex h-7.5 w-full justify-start gap-2 px-2 font-normal text-sm text-text-secondary',
-          activeView === 'skills' && 'text-text-primary',
-        )}
-        title="Open skills"
-      >
-        <Sparkles className="size-3.5 shrink-0 text-text-tertiary" />
-        <span>Skills</span>
-      </Button>
-      <Button
-        variant={activeView === 'agents' ? 'subtle' : 'row'}
-        size="none"
-        radius="md"
-        aria-label="Agents"
-        onClick={onOpenAgents}
-        className={cn(
-          'no-drag flex h-7.5 w-full justify-start gap-2 px-2 font-normal text-sm text-text-secondary',
-          activeView === 'agents' && 'text-text-primary',
-        )}
-        title="Open agents"
-      >
-        <Pickaxe className="size-3.5 shrink-0 text-text-tertiary" />
-        <span>Agents</span>
       </Button>
     </div>
   )
