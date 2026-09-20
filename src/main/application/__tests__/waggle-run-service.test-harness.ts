@@ -13,6 +13,7 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export const runMock: Mock = vi.fn()
 export const persistSnapshotMock: Mock = vi.fn()
@@ -66,11 +67,9 @@ const assistantMessage: Message = {
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(session),
   getOptional: () => Effect.succeed(session),
-  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
-  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -101,6 +100,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: (requestedSessionId) =>

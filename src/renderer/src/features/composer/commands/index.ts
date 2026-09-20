@@ -14,4 +14,8 @@ export {
   isInvokableExtensionSlashCommandEntry,
   parseExtensionSlashCommand,
 } from './extension-slash-command'
+export {
+  GUI_COMMAND_REQUIRES_IDLE_MESSAGE,
+  isGuiOnlyComposerCommand,
+} from './gui-only-command'
 export { parseSessionCopyCommand } from './session-copy-command'

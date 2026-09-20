@@ -5,13 +5,13 @@ import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
-import { ensureTempAttachmentsDirectory } from './attachment-temp-files'
 import {
   DOCX_MIME_TYPE,
   extractAttachmentText,
   ODT_MIME_TYPE,
   RTF_MIME_TYPE,
-} from './attachment-text-extraction'
+} from '../utils/attachment-text-extraction'
+import { ensureTempAttachmentsDirectory } from './attachment-temp-files'
 
 const PRIVATE_ATTACHMENT_FILE_MODE = 0o600
 

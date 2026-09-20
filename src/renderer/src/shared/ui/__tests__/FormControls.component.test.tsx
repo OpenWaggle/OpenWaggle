@@ -100,6 +100,24 @@ describe('shared form controls', () => {
     expect(updatedInput).toHaveFocus()
   })
 
+  it('accepts an unbounded safe integer without announcing a false maximum', () => {
+    const onValueChange = vi.fn()
+    render(
+      <NumberStepper
+        label="Active agent runs"
+        value={16}
+        minimum={1}
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Active agent runs' })
+    expect(input).not.toHaveAttribute('aria-valuemax')
+    fireEvent.change(input, { target: { value: '100' } })
+    fireEvent.blur(input)
+    expect(onValueChange).toHaveBeenCalledWith(100)
+  })
+
   it('cancels an edited value with Escape without committing it', () => {
     const onValueChange = vi.fn()
     render(

@@ -1,0 +1,280 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { installSessionToolGateway } from '../../../session-host/session-tool-gateway'
+import { createSessionsToolExtension } from '../sessions-tool-extension'
+
+describe('Pi-native Sessions tool registration', () => {
+  let releaseGateway: (() => void) | undefined
+  const temporaryRoots: string[] = []
+
+  afterEach(async () => {
+    releaseGateway?.()
+    releaseGateway = undefined
+    await Promise.all(
+      temporaryRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+    )
+  })
+
+  it('registers one compact native tool and calls the in-process gateway', async () => {
+    const gateway = vi.fn(async () => ({
+      contract: 'session-query-v2' as const,
+      response: {
+        contractVersion: 2 as const,
+        requestId: 'query',
+        outcome: { operation: 'list' as const, sessions: [] },
+      },
+    }))
+    releaseGateway = installSessionToolGateway(gateway)
+    let tool: ToolDefinition | undefined
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(
+      fromPartial<ExtensionAPI>({
+        registerTool: (registered: ToolDefinition) => {
+          tool = registered
+        },
+      }),
+    )
+
+    expect(tool).toMatchObject({ name: 'sessions', executionMode: 'sequential' })
+    expect(tool?.description).toContain('Queen Session')
+    const controller = new AbortController()
+    const result = await tool?.execute(
+      'tool-call',
+      { action: 'list', limit: 10 },
+      controller.signal,
+      () => undefined,
+      fromPartial({}),
+    )
+
+    expect(result?.content).toEqual([expect.objectContaining({ type: 'text' })])
+    expect(gateway).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceSessionId: 'session-queen',
+        sourceRunId: 'run-current',
+        workingDirectory: '/project',
+        signal: controller.signal,
+        payload: expect.objectContaining({ contract: 'session-query-v2' }),
+      }),
+    )
+  })
+
+  it('executes a Worker spawn through the same in-process Session gateway', async () => {
+    const gateway = vi.fn(async () => ({
+      contract: 'session-lifecycle-v2' as const,
+      response: {
+        contractVersion: 2 as const,
+        requestId: 'spawn-request',
+        idempotencyKey: 'spawn-key',
+        replayed: false,
+        outcome: {
+          operation: 'spawn' as const,
+          effect: 'spawned-worker' as const,
+          sessionId: 'session-worker',
+          runId: 'run-worker',
+          workspaceId: 'workspace-worker',
+          parentSessionId: 'session-queen',
+          parentRunId: 'run-queen',
+          hiveRootSessionId: 'session-queen',
+          depth: 1,
+          delegationId: 'delegation-worker',
+          derivedGrantId: 'grant-worker',
+        },
+      },
+    }))
+    releaseGateway = installSessionToolGateway(gateway)
+    let tool: ToolDefinition | undefined
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-queen',
+      workingDirectory: '/project',
+      projectPath: '/project',
+    })(
+      fromPartial<ExtensionAPI>({
+        registerTool: (registered: ToolDefinition) => {
+          tool = registered
+        },
+      }),
+    )
+
+    const result = await tool?.execute(
+      'spawn-call',
+      {
+        action: 'spawn',
+        objective: 'Verify the Session Host boundary.',
+        workspace: 'share-parent',
+        deliverables: ['Review findings'],
+        acceptanceCriteria: ['No P1 findings'],
+      },
+      new AbortController().signal,
+      () => undefined,
+      fromPartial({}),
+    )
+
+    expect(result).toMatchObject({
+      details: {
+        response: {
+          outcome: {
+            operation: 'spawn',
+            sessionId: 'session-worker',
+            runId: 'run-worker',
+          },
+        },
+      },
+    })
+    expect(gateway).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceSessionId: 'session-queen',
+        sourceRunId: 'run-queen',
+        payload: expect.objectContaining({
+          contract: 'session-lifecycle-v2',
+          request: expect.objectContaining({
+            command: expect.objectContaining({
+              operation: 'spawn',
+              parentSessionId: 'session-queen',
+              expectedParentRunId: 'run-queen',
+              workspace: { mode: 'share-parent' },
+            }),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it('authorizes Pi-native attachments before forwarding their paths to the Session gateway', async () => {
+    const gateway = vi.fn(async () => ({
+      contract: 'session-lifecycle-v2' as const,
+      response: {
+        contractVersion: 2 as const,
+        requestId: 'launch-request',
+        idempotencyKey: 'launch-key',
+        replayed: false,
+        outcome: {
+          operation: 'launch' as const,
+          effect: 'launched-root' as const,
+          sessionId: 'session-root',
+          runId: 'run-root',
+          workspaceId: 'workspace-root',
+        },
+      },
+    }))
+    releaseGateway = installSessionToolGateway(gateway)
+    let tool: ToolDefinition | undefined
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-queen',
+      workingDirectory: '/project',
+      projectPath: '/project',
+    })(
+      fromPartial<ExtensionAPI>({
+        registerTool: (registered: ToolDefinition) => {
+          tool = registered
+        },
+      }),
+    )
+    const confirm = vi.fn(async () => true)
+
+    await tool?.execute(
+      'launch-call',
+      {
+        action: 'launch',
+        objective: 'Inspect the supplied design.',
+        attachmentPaths: ['/project/design.png'],
+      },
+      new AbortController().signal,
+      () => undefined,
+      fromPartial({ hasUI: true, ui: { confirm } }),
+    )
+
+    expect(confirm).toHaveBeenCalledWith(
+      'Allow Session attachment read?',
+      expect.stringContaining('/project/design.png'),
+      expect.any(Object),
+    )
+    expect(gateway).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          contract: 'session-lifecycle-v2',
+          transport: { attachmentPaths: ['/project/design.png'] },
+          request: expect.objectContaining({
+            command: expect.objectContaining({ operation: 'launch', attachmentIds: [] }),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it('discovers Agent definitions from the canonical project instead of the Worker worktree', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agent-root-'))
+    temporaryRoots.push(root)
+    const projectPath = path.join(root, 'project')
+    const workingDirectory = path.join(root, 'worktree')
+    await Promise.all(
+      [projectPath, workingDirectory].map(async (basePath) => {
+        await fs.mkdir(path.join(basePath, '.openwaggle', 'agents'), { recursive: true })
+      }),
+    )
+    await fs.writeFile(
+      path.join(projectPath, '.openwaggle', 'agents', 'canonical.md'),
+      `---
+schemaVersion: 1
+name: canonical
+description: Canonical project role
+---
+
+Use this role for canonical project review work.
+`,
+      'utf8',
+    )
+    await fs.writeFile(
+      path.join(workingDirectory, '.openwaggle', 'agents', 'worktree-only.md'),
+      `---
+schemaVersion: 1
+name: worktree-only
+description: Worktree-only role
+---
+
+This role must not appear in canonical project discovery.
+`,
+      'utf8',
+    )
+    let tool: ToolDefinition | undefined
+    createSessionsToolExtension({
+      sessionId: 'session-worker',
+      runId: 'run-worker',
+      workingDirectory,
+      projectPath,
+    })(
+      fromPartial<ExtensionAPI>({
+        registerTool: (registered: ToolDefinition) => {
+          tool = registered
+        },
+      }),
+    )
+
+    const result = await tool?.execute(
+      'definitions-call',
+      { action: 'agent_definitions_list' },
+      new AbortController().signal,
+      () => undefined,
+      fromPartial({}),
+    )
+
+    expect(result?.details).toEqual({
+      definitions: [
+        {
+          name: 'canonical',
+          description: 'Canonical project role',
+          scope: 'project',
+          valid: true,
+        },
+      ],
+    })
+  })
+})

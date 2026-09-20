@@ -89,6 +89,7 @@ vi.mock('@/features/terminal/components', () => ({
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
+    getDesktopNativeAdmissionIssue: vi.fn(async () => null),
     closeBrowserPreview: vi.fn(async () => undefined),
     getTerminalActivitySnapshot: shellMocks.getTerminalActivitySnapshot,
     onBrowserPreviewState: shellMocks.onBrowserPreviewState,

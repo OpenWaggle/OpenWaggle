@@ -1,16 +1,18 @@
 import { fromAny } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  attachmentsLoggerMock,
   jszipLoadAsyncMock,
-  loadAttachmentHandlers,
   mammothExtractMock,
   ocrRecognizeMock,
+  unpdfExtractTextMock,
+} from './attachment-extraction-mocks.test-support'
+import {
+  attachmentsLoggerMock,
+  loadAttachmentHandlers,
   registeredHandler,
   registerFile,
   resetAttachmentHandlerMocks,
   showMessageBoxMock,
-  unpdfExtractTextMock,
 } from './attachments-handler.test-harness'
 
 interface ExtractedAttachmentPreview {

@@ -102,6 +102,7 @@ export function appDescriptor(tool: CatalogTool): McpAppDescriptor | null {
   return {
     serverInstanceId: tool.server.instanceId,
     serverLabel: tool.server.name,
+    serverConfigHash: tool.server.configHash,
     toolHandle: tool.handle,
     toolName: tool.tool.name,
     toolTitle: tool.tool.title ?? tool.tool.name,

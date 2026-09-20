@@ -59,7 +59,7 @@ describe('Conventional Commit merge attribution', () => {
      */
     const { baseline, cwd } = await createRepository()
     try {
-      await writeAndCommit(
+      const releasedBaseCommit = await writeAndCommit(
         cwd,
         'packages/extension-sdk/package.json',
         '{"version":"0.2.0"}\n',
@@ -84,6 +84,15 @@ describe('Conventional Commit merge attribution', () => {
       })
 
       expect(result.violations).toEqual([])
+      const candidateBase = await git(cwd, ['merge-base', advancedBaseRef, updateMerge])
+      const dispatched = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: candidateBase,
+        to: updateMerge,
+      })
+      expect(dispatched.effectiveFrom).toBe(candidateBase)
+      expect(dispatched.commits.map((commit) => commit.hash)).not.toContain(releasedBaseCommit)
     } finally {
       await fs.rm(cwd, { force: true, recursive: true })
     }

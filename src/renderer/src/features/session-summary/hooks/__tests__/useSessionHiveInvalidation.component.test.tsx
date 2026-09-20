@@ -90,3 +90,33 @@ it('discards loaded continuation pages and starts at page one after Host resync'
   expect(listHiveSessionCatalogPage).toHaveBeenLastCalledWith(queen.id, 50, undefined)
   expect(screen.queryByText(worker.title)).not.toBeInTheDocument()
 })
+
+it('keeps the visible Hive mounted while a Host resync refetches its first page', async () => {
+  let finishRefresh: (page: {
+    context: readonly [typeof queen]
+    workers: readonly [typeof worker]
+  }) => void = vi.fn()
+  const pendingRefresh = new Promise<{
+    context: readonly [typeof queen]
+    workers: readonly [typeof worker]
+  }>((resolve) => {
+    finishRefresh = resolve
+  })
+  listHiveSessionCatalogPage
+    .mockResolvedValueOnce({ context: [queen], workers: [worker] })
+    .mockReturnValueOnce(pendingRefresh)
+  renderWithQueryClient(<Harness />)
+  expect(await screen.findByText(worker.title)).toBeInTheDocument()
+
+  await act(async () => {
+    onSessionHostResyncRequired.mock.calls[0]?.[0]()
+    await Promise.resolve()
+  })
+
+  expect(screen.getByRole('region', { name: 'Hive' })).toBeInTheDocument()
+  expect(screen.getByText(worker.title)).toBeInTheDocument()
+  await act(async () => {
+    finishRefresh({ context: [queen], workers: [worker] })
+    await pendingRefresh
+  })
+})

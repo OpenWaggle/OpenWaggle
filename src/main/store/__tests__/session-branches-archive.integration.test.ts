@@ -1,7 +1,9 @@
 import lifecycleFs from 'node:fs/promises'
 import lifecycleOs from 'node:os'
 import lifecyclePath from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
 import { SessionBranchId, SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { createSession, persistSessionSnapshot } from '../session-details'
@@ -11,6 +13,7 @@ import {
   listArchivedSessionBranches,
   listSessions,
 } from '../sessions'
+import { runStoreEffect } from '../store-runtime'
 
 const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
@@ -125,6 +128,40 @@ describe('session branch archive projection', () => {
       nodes,
     })
 
+    await runStoreEffect(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql.unsafe(`
+          CREATE TRIGGER reject_archive_hint_rewrite
+          BEFORE UPDATE OF branch_hint_id ON session_nodes
+          BEGIN
+            SELECT RAISE(ABORT, 'simulated hint rewrite failure');
+          END
+        `),
+      ),
+    )
+    await expect(archiveSessionBranch(sessionId, branchId)).rejects.toThrow()
+    await runStoreEffect(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql.unsafe('DROP TRIGGER reject_archive_hint_rewrite'),
+      ),
+    )
+    const rolledBackRows = await runStoreEffect(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) =>
+          sql<{
+            readonly archived_at: number | null
+            readonly last_active_branch_id: string | null
+          }>`
+          SELECT session_branches.archived_at, sessions.last_active_branch_id
+          FROM session_branches
+          JOIN sessions ON sessions.id = session_branches.session_id
+          WHERE session_branches.id = ${branchId}
+        `,
+      ),
+    )
+    expect(rolledBackRows).toEqual([{ archived_at: null, last_active_branch_id: String(branchId) }])
+
     await archiveSessionBranch(sessionId, branchId)
 
     const archivedTree = await getSessionTree(sessionId)
@@ -136,6 +173,12 @@ describe('session branch archive projection', () => {
       expect(archivedBranch?.archived).toBe(true)
       expect(String(archivedTree?.session.lastActiveBranchId)).toBe(`${sessionId}:main`)
       expect(sessionSummary?.branches?.map((branch) => branch.name)).toEqual(['main'])
+      expect(archivedTree?.nodes.map((node) => [String(node.id), node.branchId ?? null])).toEqual([
+        ['root-user', SessionBranchId(`${sessionId}:main`)],
+        ['main-assistant', SessionBranchId(`${sessionId}:main`)],
+        ['branch-user', null],
+        ['branch-assistant', null],
+      ])
     }
 
     const archivedBranchSummaries = await listArchivedSessionBranches()

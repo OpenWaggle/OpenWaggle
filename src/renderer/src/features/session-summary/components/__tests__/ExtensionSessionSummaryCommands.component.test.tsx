@@ -2,7 +2,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionSessionSummaryRowView,
-} from '@shared/types/extensions'
+} from '@shared/types/extension-contribution-registry'
 import type { SessionResource } from '@shared/types/session-resource'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

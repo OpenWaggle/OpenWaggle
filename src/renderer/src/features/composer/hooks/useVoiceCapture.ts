@@ -11,6 +11,7 @@ import {
   trimSilence,
   WHISPER_TARGET_SAMPLE_RATE,
 } from '../lib/voice-utils'
+import { useComposerInputGuard } from './useComposerInputGuard'
 
 type VoiceSubmitAction = 'insert' | 'send'
 const VOICE_DURATION_PAD_LENGTH = 2
@@ -19,8 +20,9 @@ export type VoiceRecorderMode = 'idle' | 'recording' | 'transcribing'
 export type VoiceVisualizerControls = ReturnType<typeof useVoiceVisualizer>
 
 interface UseVoiceCaptureOptions {
+  readonly disabled?: boolean
   insertText: (text: string) => void
-  sendComposed: (text: string) => boolean
+  sendComposed: (text: string) => boolean | Promise<boolean>
 }
 
 export interface VoiceCaptureController {
@@ -43,6 +45,7 @@ function formatVoiceError(error: unknown) {
 }
 
 export function useVoiceCapture({
+  disabled = false,
   insertText,
   sendComposed,
 }: UseVoiceCaptureOptions): VoiceCaptureController {
@@ -52,6 +55,8 @@ export function useVoiceCapture({
 
   const pendingSubmitActionRef = useRef<VoiceSubmitAction>('insert')
   const handledBlobRef = useRef<Blob | null>(null)
+  const recordingDraftRef = useRef<(() => boolean) | null>(null)
+  const captureInputGuard = useComposerInputGuard(disabled)
 
   const visualizerControls = useVoiceVisualizer({
     shouldHandleBeforeUnload: false,
@@ -94,11 +99,17 @@ export function useVoiceCapture({
   }
 
   const handleRecordedBlob = useEffectEvent(async (blob: Blob, action: VoiceSubmitAction) => {
+    const isCurrentDraft = recordingDraftRef.current
+    if (!isCurrentDraft?.()) {
+      visualizerControls.clearCanvas()
+      return
+    }
     setIsTranscribing(true)
     setError(null)
 
     try {
       const decoded = await decodeAudioBlob(blob)
+      if (!isCurrentDraft()) return
       const whisperSamples = downsampleAudio(
         decoded.samples,
         decoded.sampleRate,
@@ -115,6 +126,7 @@ export function useVoiceCapture({
         sampleRate: WHISPER_TARGET_SAMPLE_RATE,
         model: VOICE_MODEL_BASE,
       })
+      if (!isCurrentDraft()) return
       const transcript = result.text.trim()
       if (!transcript) {
         setError('No speech detected. Try again or continue typing.')
@@ -124,15 +136,15 @@ export function useVoiceCapture({
       if (action === 'send') {
         const store = useComposerStore.getState()
         const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
-        const submitted = sendComposed(composedText)
-        if (!submitted) {
+        const submitted = await sendComposed(composedText)
+        if (!submitted && isCurrentDraft()) {
           insertTranscriptAtCursor(transcript)
         }
       } else {
         insertTranscriptAtCursor(transcript)
       }
     } catch (transcriptionError) {
-      setError(formatVoiceError(transcriptionError))
+      if (isCurrentDraft()) setError(formatVoiceError(transcriptionError))
     } finally {
       visualizerControls.clearCanvas()
       handledBlobRef.current = null
@@ -148,6 +160,10 @@ export function useVoiceCapture({
   }, [visualizerControls.recordedBlob])
 
   function startCapture() {
+    if (disabled) return
+    const isCurrentDraft = captureInputGuard()
+    if (!isCurrentDraft()) return
+    recordingDraftRef.current = isCurrentDraft
     pendingSubmitActionRef.current = 'insert'
     handledBlobRef.current = null
     setError(null)
@@ -184,7 +200,7 @@ export function useVoiceCapture({
   }
 
   return {
-    canStart: mode === 'idle',
+    canStart: !disabled && mode === 'idle',
     clearError,
     elapsedSeconds,
     error,

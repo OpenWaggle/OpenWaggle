@@ -1,10 +1,14 @@
-import type { AgentSendPayload, Message } from '@shared/types/agent'
+import { type AgentSendPayload, getMessageText, type Message } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionResourceActivity, SessionResourceActor } from '@shared/types/session-resource'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import * as Effect from 'effect/Effect'
 import { SessionRepository } from '../ports/session-repository'
-import type { AcceptedAgentSteer } from './active-session-runs'
+export interface AcceptedAgentSteer {
+  readonly payload: AgentSendPayload
+  readonly durableText: string
+}
+
 import { captureGeneratedImage } from './session-resource-capture-image'
 import {
   type GeneratedImageCaptureBudget,
@@ -265,6 +269,20 @@ export function captureSuccessfulRunResources(input: SuccessfulRunResourceInput)
           if (!message) continue
           yield* captureUserResources(
             { ...input, payload: steer.payload, messages: [message] },
+            message.createdAt,
+            links,
+          )
+        }
+        // Session Host steering may outlive the IPC handler that accepted it. The
+        // persisted user turn is still authoritative for its text and attachment
+        // parts, even when the original steering payload is no longer in memory.
+        for (const message of remainingUserMessages) {
+          yield* captureUserResources(
+            {
+              ...input,
+              payload: { ...input.payload, text: getMessageText(message), attachments: [] },
+              messages: [message],
+            },
             message.createdAt,
             links,
           )

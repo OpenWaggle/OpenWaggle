@@ -23,6 +23,16 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it('requires a dispatched candidate merge base rather than the moving main tip', () => {
+    const weakened = compliantWorkflow.replace(
+      'COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"',
+      'COMMIT_POLICY_FROM=refs/remotes/origin/main',
+    )
+    expect(validateReleaseCiPolicy(weakened)).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
   it('rejects removal of the real zsh dependency from the Linux test job', () => {
     const installCommand = '          sudo apt-get install --yes zsh\n'
     const positions = [...compliantWorkflow.matchAll(/ {10}sudo apt-get install --yes zsh\n/gu)]
@@ -161,7 +171,7 @@ describe('release CI policy', () => {
     ],
   ])('rejects %s jobs outside the stable job set', (_kind, workflow) => {
     expect(validateReleaseCiPolicy(workflow)).toContain(
-      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
+      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Session Performance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
     )
   })
 

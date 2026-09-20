@@ -10,18 +10,8 @@ import type { SessionProjectionRepositoryShape } from '../session-projection-rep
 
 export const PINNED_SESSION_REPOSITORY_STUB: Pick<
   SessionProjectionRepositoryShape,
-  | 'withDeletionFence'
-  | 'resetWorktreeSetup'
-  | 'establishLineage'
-  | 'listPinnedSessions'
-  | 'movePinnedSession'
-  | 'pinSession'
-  | 'setDelegationState'
-  | 'unpinSession'
+  'resetWorktreeSetup' | 'listPinnedSessions' | 'movePinnedSession' | 'pinSession' | 'unpinSession'
 > = {
-  withDeletionFence: (_id, operation) => operation,
-  establishLineage: () => Effect.void,
-  setDelegationState: () => Effect.void,
   listPinnedSessions: () => Effect.succeed([]),
   pinSession: () => Effect.void,
   unpinSession: () => Effect.void,

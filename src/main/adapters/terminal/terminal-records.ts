@@ -133,6 +133,8 @@ export interface TerminalProjectActionState {
  * process while live, plus the scrollback and launch context that survive it.
  */
 export interface TerminalRecord {
+  /** Immutable native record identity; shell restarts preserve it, record recreation does not. */
+  readonly inputIncarnation: string
   key: TerminalKey
   ownerKey: string
   readonly terminalId: TerminalId

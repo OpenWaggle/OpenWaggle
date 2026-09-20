@@ -13,7 +13,7 @@ interface SessionNavItem {
 interface SessionNavDeps {
   readonly sessions: readonly SessionNavItem[]
   readonly projectPath: string | null
-  readonly setActiveView: (view: 'chat' | 'skills') => void
+  readonly setActiveView: (view: 'chat') => void
   readonly setProjectPath: (path: string | null) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
   readonly startDraftSession: (projectPath?: string | null) => void

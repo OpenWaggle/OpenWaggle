@@ -8,8 +8,11 @@ import {
   Network,
   PackageOpen,
   Palette,
+  Pickaxe,
   Play,
   Settings2,
+  ShieldCheck,
+  Sparkles,
   Waypoints,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
@@ -30,6 +33,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints },
   { id: 'extensions', label: 'Extensions', icon: PackageOpen },
+  { id: 'skills', label: 'Skills', icon: Sparkles },
+  { id: 'agents', label: 'Agents', icon: Pickaxe },
+  { id: 'permissions', label: 'Permissions', icon: ShieldCheck },
   { id: 'mcp', label: 'MCP', icon: Network },
   { id: 'worktrees', label: 'Worktrees', icon: GitBranch },
   { id: 'archived', label: 'Archived items', icon: Archive },

@@ -58,7 +58,7 @@ describe('Pi run orchestration', () => {
     runMocks.createSessionListener.mockReturnValue(() => undefined)
     runMocks.getPiModelAvailableThinkingLevels.mockReturnValue(['off', 'medium', 'high'])
   })
-  it('runs a classic Pi prompt with project runtime, listener subscription, and disposal', async () => {
+  it('runs a classic Pi prompt with project runtime, event subscriptions, and disposal', async () => {
     const fakePi = createFakePi()
     const session = createFakeSession(fakePi.getAgentEndHandler)
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => ({
@@ -75,12 +75,16 @@ describe('Pi run orchestration', () => {
       signal: new AbortController().signal,
       onEvent: vi.fn(),
     })
-    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
-      projectPath: '/repo',
-      modelReference: PRIMARY_MODEL,
-      compactionThresholdPercent: 80,
-    })
-    expect(session.subscribe).toHaveBeenCalledOnce()
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: '/repo',
+        modelReference: PRIMARY_MODEL,
+        compactionThresholdPercent: 80,
+        extensionFactories: expect.any(Array),
+      }),
+    )
+    // One listener projects Pi events; the other tracks durable Follow-up delivery.
+    expect(session.subscribe).toHaveBeenCalledTimes(2)
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
     expect(session.agent.waitForIdle).toHaveBeenCalled()
     expect(session.agent.hasQueuedMessages).toHaveBeenCalled()

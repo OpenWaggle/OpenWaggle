@@ -39,6 +39,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
+  session-performance:
+    name: Session Performance
+    if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+    uses: ./.github/workflows/session-performance.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+    permissions:
+      contents: read
+
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
@@ -75,8 +84,17 @@ jobs:
         env:
           COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           COMMIT_POLICY_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          COMMIT_POLICY_EVENT: ${{ github.event_name }}
           PR_TITLE: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
+        run: |
+          if [ "$COMMIT_POLICY_EVENT" = workflow_dispatch ]; then
+            git fetch --no-tags origin main:refs/remotes/origin/main
+            COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"
+            test -n "$COMMIT_POLICY_FROM"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" "$COMMIT_POLICY_TO"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" refs/remotes/origin/main
+          fi
+          pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
 
   check:
     name: Typecheck & Lint
@@ -509,6 +527,7 @@ jobs:
     name: Package Release Gate
     timeout-minutes: 10
     needs:
+      - session-performance
       - commit-policy
       - check
       - test-unit
@@ -523,6 +542,12 @@ jobs:
     env:
       CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast' || (github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) && 'release-pr' || 'fast' }}
     steps:
+      - name: Require selected Session Performance result
+        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+        env:
+          SESSION_PERFORMANCE_RESULT: ${{ needs.session-performance.result }}
+        run: test "$SESSION_PERFORMANCE_RESULT" = success
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}

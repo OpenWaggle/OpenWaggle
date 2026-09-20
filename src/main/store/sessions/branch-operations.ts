@@ -40,31 +40,61 @@ export async function archiveSessionBranch(sessionId: SessionId, branchId: Sessi
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* selectMutableBranch(sql, sessionId, branchId)
-      const now = Date.now()
-      yield* sql`
-        UPDATE session_branches
-        SET archived_at = ${now},
-            updated_at = ${now}
-        WHERE session_id = ${sessionId}
-          AND id = ${branchId}
-          AND is_main = 0
-          AND archived_at IS NULL
-      `
-      yield* sql`
-        UPDATE sessions
-        SET last_active_branch_id = ${mainBranchId(sessionId)},
-            last_active_node_id = (
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          yield* selectMutableBranch(sql, sessionId, branchId)
+          const now = Date.now()
+          yield* sql`
+            UPDATE session_branches
+            SET archived_at = ${now},
+                updated_at = ${now}
+            WHERE session_id = ${sessionId}
+              AND id = ${branchId}
+              AND is_main = 0
+              AND archived_at IS NULL
+          `
+          yield* sql`
+            UPDATE sessions
+            SET last_active_branch_id = ${mainBranchId(sessionId)},
+                last_active_node_id = (
+                  SELECT head_node_id
+                  FROM session_branches
+                  WHERE session_id = ${sessionId}
+                    AND id = ${mainBranchId(sessionId)}
+                  LIMIT 1
+                ),
+                updated_at = ${now}
+            WHERE id = ${sessionId}
+              AND last_active_branch_id = ${branchId}
+          `
+          const activeMainBranchId = mainBranchId(sessionId)
+          yield* sql`
+            WITH RECURSIVE active_path(id) AS (
               SELECT head_node_id
               FROM session_branches
               WHERE session_id = ${sessionId}
-                AND id = ${mainBranchId(sessionId)}
-              LIMIT 1
-            ),
-            updated_at = ${now}
-        WHERE id = ${sessionId}
-          AND last_active_branch_id = ${branchId}
-      `
+                AND id = ${activeMainBranchId}
+              UNION ALL
+              SELECT nodes.parent_id
+              FROM session_nodes AS nodes
+              JOIN active_path ON active_path.id = nodes.id
+              WHERE nodes.parent_id IS NOT NULL
+            )
+            UPDATE session_nodes
+            SET branch_hint_id = CASE
+              WHEN id IN (SELECT id FROM active_path) THEN ${activeMainBranchId}
+              ELSE NULL
+            END
+            WHERE session_id = ${sessionId}
+              AND EXISTS (
+                SELECT 1
+                FROM sessions
+                WHERE id = ${sessionId}
+                  AND last_active_branch_id = ${activeMainBranchId}
+              )
+          `
+        }),
+      )
     }),
   )
 }

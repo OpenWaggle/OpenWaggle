@@ -67,6 +67,30 @@ async function readGlobalDefault() {
   }
 }
 
+function authorizationBoundaryRequiresApproval(input: {
+  readonly boundary: {
+    readonly execution_ceiling: AgentAuthorizationMode
+    readonly grant_ceiling: AgentAuthorizationMode | null
+    readonly profile_ceiling: AgentAuthorizationMode | null
+    readonly profile_revoked_at: number | null
+    readonly grant_revoked_at: number | null
+  }
+  readonly callerBoundary: {
+    readonly revoked: boolean
+    readonly authorizationCeiling: AgentAuthorizationMode
+  } | null
+}) {
+  return (
+    input.boundary.profile_revoked_at !== null ||
+    input.boundary.grant_revoked_at !== null ||
+    input.callerBoundary?.revoked === true ||
+    input.boundary.execution_ceiling === 'ask-for-approval' ||
+    input.boundary.grant_ceiling === 'ask-for-approval' ||
+    input.boundary.profile_ceiling === 'ask-for-approval' ||
+    input.callerBoundary?.authorizationCeiling === 'ask-for-approval'
+  )
+}
+
 /**
  * Resolves the mode a session runs under, reading every level at the moment of the call.
  *
@@ -76,10 +100,20 @@ async function readGlobalDefault() {
  */
 export async function resolveEffectiveAuthorizationMode(
   sessionId: SessionId,
+  runOverride?: AgentAuthorizationMode,
+  authorityCallerId?: string,
 ): Promise<AgentAuthorizationMode> {
   try {
-    const { getSessionDetail } = await import('../store/session-details')
-    const session = await getSessionDetail(sessionId)
+    const {
+      getSessionAuthorizationBoundary,
+      getSessionCallerAuthorizationBoundary,
+      getSessionDetail,
+    } = await import('../store/session-details')
+    const [session, boundary, callerBoundary] = await Promise.all([
+      getSessionDetail(sessionId),
+      getSessionAuthorizationBoundary(sessionId),
+      authorityCallerId ? getSessionCallerAuthorizationBoundary(authorityCallerId) : null,
+    ])
     if (!session) {
       logger.warn('No session row while resolving the authorization mode; failing closed', {
         sessionId,
@@ -92,11 +126,17 @@ export async function resolveEffectiveAuthorizationMode(
       readGlobalDefault(),
     ])
 
-    return pickAuthorizationMode({
-      sessionOverride: session.authorizationMode,
-      projectDefault,
-      globalDefault,
-    })
+    const preferredMode =
+      runOverride ??
+      pickAuthorizationMode({
+        sessionOverride: session.authorizationMode,
+        projectDefault,
+        globalDefault,
+      })
+    if (!boundary) return FAIL_CLOSED_AUTHORIZATION_MODE
+    return authorizationBoundaryRequiresApproval({ boundary, callerBoundary })
+      ? FAIL_CLOSED_AUTHORIZATION_MODE
+      : preferredMode
   } catch (cause) {
     logger.warn('Failed to resolve the authorization mode; failing closed', {
       sessionId,

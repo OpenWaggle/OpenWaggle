@@ -10,6 +10,7 @@ export interface BranchSummaryRestoreSelection {
 
 export interface BranchSummaryPromptState {
   readonly sessionId: SessionId
+  readonly projectPath: string | null
   readonly sourceNodeId: SessionNodeId
   readonly restoreSelection: BranchSummaryRestoreSelection
   readonly previousComposerText: string
@@ -19,6 +20,7 @@ export interface BranchSummaryPromptState {
 
 interface OpenBranchSummaryPromptInput {
   readonly sessionId: SessionId
+  readonly projectPath: string | null
   readonly sourceNodeId: SessionNodeId
   readonly restoreSelection: BranchSummaryRestoreSelection
   readonly previousComposerText: string

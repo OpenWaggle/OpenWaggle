@@ -65,6 +65,53 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
   })
 
+  it.each([
+    {
+      name: 'Hive enabled',
+      update: () => usePreferencesStore.getState().setMultiAgentEnabled(false),
+    },
+    {
+      name: 'parent concurrency',
+      update: () => usePreferencesStore.getState().setSessionHostParentConcurrencyLimit(9),
+    },
+    {
+      name: 'run ceiling',
+      update: () => usePreferencesStore.getState().setSessionHostRunCeiling(30),
+    },
+    {
+      name: 'idle grace',
+      update: () => usePreferencesStore.getState().setSessionHostIdleGracePeriodMs(1000),
+    },
+    {
+      name: 'project Hive enabled',
+      update: () => usePreferencesStore.getState().setProjectMultiAgentEnabled('/repo', false),
+    },
+    {
+      name: 'project concurrency',
+      update: () => usePreferencesStore.getState().setProjectParentConcurrencyLimit('/repo', 9),
+    },
+  ])('keeps $name unchanged when the Host rejects persistence', async ({ update }) => {
+    const before = usePreferencesStore.getState().settings
+    apiMock.updateSettings.mockResolvedValueOnce({ ok: false, error: 'Host rejected settings' })
+
+    await expect(update()).rejects.toThrow('Host rejected settings')
+    expect(usePreferencesStore.getState().settings).toEqual(before)
+  })
+
+  it('keeps browser changes made while a project Hive preference is being persisted', async () => {
+    const projectWrite = deferred<{ ok: true }>()
+    apiMock.updateSettings.mockReturnValueOnce(projectWrite.promise)
+    const pending = usePreferencesStore.getState().setProjectMultiAgentEnabled('/repo', false)
+    await usePreferencesStore.getState().setBrowserDefaultZoomFactor(1.5)
+    projectWrite.resolve({ ok: true })
+    await pending
+
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      browserDefaultZoomFactor: 1.5,
+      multiAgentEnabledByProject: { '/repo': false },
+    })
+  })
+
   it('persists browser defaults through independent typed settings patches', async () => {
     await usePreferencesStore.getState().setBrowserDefaultViewport({
       mode: 'fixed',
@@ -237,6 +284,52 @@ describe('preferences-store integration', () => {
       ...DEFAULT_SETTINGS.syntaxThemeSelections,
       dark: 'bundled:nord',
       light: 'bundled:github-light',
+    })
+  })
+
+  it('preserves concurrent scalar settings when IPC responses resolve out of order', async () => {
+    const delayedMultiAgent = Promise.withResolvers<{ ok: true }>()
+    apiMock.updateSettings.mockImplementation((partial) =>
+      'multiAgentEnabled' in partial ? delayedMultiAgent.promise : Promise.resolve({ ok: true }),
+    )
+
+    const multiAgentUpdate = usePreferencesStore.getState().setMultiAgentEnabled(false)
+    const ceilingUpdate = usePreferencesStore.getState().setSessionHostRunCeiling(32)
+    await ceilingUpdate
+    delayedMultiAgent.resolve({ ok: true })
+    await multiAgentUpdate
+
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      multiAgentEnabled: false,
+      sessionHostRunCeiling: 32,
+    })
+  })
+
+  it('persists Host idle grace and reversible project Worker overrides', async () => {
+    await usePreferencesStore.getState().setSessionHostIdleGracePeriodMs(0)
+    await usePreferencesStore.getState().setProjectMultiAgentEnabled('/tmp/repo', false)
+    await usePreferencesStore.getState().setProjectParentConcurrencyLimit('/tmp/repo', 9)
+
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(1, {
+      sessionHostIdleGracePeriodMs: 0,
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
+      multiAgentEnabledByProject: { '/tmp/repo': false },
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(3, {
+      sessionHostParentConcurrencyLimitsByProject: { '/tmp/repo': 9 },
+    })
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      sessionHostIdleGracePeriodMs: 0,
+      multiAgentEnabledByProject: { '/tmp/repo': false },
+      sessionHostParentConcurrencyLimitsByProject: { '/tmp/repo': 9 },
+    })
+
+    await usePreferencesStore.getState().setProjectMultiAgentEnabled('/tmp/repo', null)
+    await usePreferencesStore.getState().setProjectParentConcurrencyLimit('/tmp/repo', null)
+    expect(usePreferencesStore.getState().settings).toMatchObject({
+      multiAgentEnabledByProject: {},
+      sessionHostParentConcurrencyLimitsByProject: {},
     })
   })
 })

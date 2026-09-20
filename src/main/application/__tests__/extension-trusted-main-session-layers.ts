@@ -5,18 +5,17 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import { SessionResourceRepository } from '../../ports/session-resource-repository'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export function makeTrustedMainSessionLayers(projectPath: string) {
   return Layer.mergeAll(
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.succeed(makeSessionDetail(projectPath)),
       getOptional: () => Effect.succeed(null),
-      getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath: createdProjectPath }) =>
         Effect.succeed(makeSessionDetail(createdProjectPath)),
-      getDeletionBlocker: () => Effect.succeed(null),
       delete: () => Effect.void,
       archive: () => Effect.void,
       unarchive: () => Effect.void,
@@ -30,6 +29,7 @@ export function makeTrustedMainSessionLayers(projectPath: string) {
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),
     Layer.succeed(SessionRepository, {
+      ...emptySessionCatalogMethods,
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),

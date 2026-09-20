@@ -2,6 +2,11 @@ import { TERMINAL } from '@shared/constants/resource-limits'
 import { terminalKeyOf } from '@shared/types/terminal'
 import { api } from '@/shared/lib/ipc'
 import {
+  markTerminalInputOpen,
+  markTerminalInputOpening,
+  markTerminalInputReady,
+} from './terminal-input-attachment'
+import {
   createTerminalInputState,
   deleteTerminalInputStateIfUnused,
   disposeTerminalInputState,
@@ -22,9 +27,6 @@ import {
   enqueueTerminalInput,
   enqueueTerminalInputAsync,
   enqueueTerminalProjectAction,
-  markTerminalInputOpen,
-  markTerminalInputOpening,
-  markTerminalInputReady,
   retryTerminalInput,
 } from './terminal-input-runtime'
 import { drainTerminalInput } from './terminal-input-transport'
@@ -62,6 +64,9 @@ function createClient(
   state.clients += 1
   return {
     generation: state.generation,
+    get inputIncarnation() {
+      return state.inputIncarnation
+    },
     enqueue(data) {
       if (inactive()) {
         return {
@@ -93,10 +98,12 @@ function createClient(
       return enqueueTerminalProjectAction(context, state, data, executionId)
     },
     markOpening() {
-      if (!inactive()) markTerminalInputOpening(context, state)
+      return inactive() ? () => undefined : markTerminalInputOpening(context, state)
     },
-    markOpen(readiness, pendingInputBytes = 0) {
-      if (!inactive()) markTerminalInputOpen(context, state, readiness, pendingInputBytes)
+    markOpen(readiness, pendingInputBytes = 0, inputIncarnation) {
+      if (!inactive()) {
+        markTerminalInputOpen(context, state, readiness, pendingInputBytes, inputIncarnation)
+      }
     },
     markUnavailable() {
       if (inactive()) return
@@ -106,8 +113,8 @@ function createClient(
     markClosed() {
       if (!inactive()) disposeTerminalInputState(context, state)
     },
-    markReady(readiness) {
-      if (!inactive()) markTerminalInputReady(context, state, readiness)
+    markReady(readiness, inputIncarnation) {
+      if (!inactive()) markTerminalInputReady(context, state, readiness, inputIncarnation)
     },
     applyReleaseResult(result) {
       if (!inactive()) applyTerminalInputRelease(context, state, result)

@@ -4,7 +4,7 @@ import type {
   ExtensionContributionRegistryView,
   ExtensionSessionSummaryRowView,
   ExtensionSessionSummaryView,
-} from '@shared/types/extensions'
+} from '@shared/types/extension-contribution-registry'
 import { AlertCircle, LoaderCircle, Radio } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { SessionSummaryRow, SessionSummarySection } from './SessionSummaryPrimitives'

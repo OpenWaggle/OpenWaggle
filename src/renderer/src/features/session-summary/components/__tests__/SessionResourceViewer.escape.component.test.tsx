@@ -24,6 +24,7 @@ describe('SessionResourceViewer Escape ordering', () => {
     act(() => {
       useBranchSummaryStore.getState().openPrompt({
         sessionId: SessionId('session-1'),
+        projectPath: null,
         sourceNodeId: SessionNodeId('source-node'),
         restoreSelection: { branchId: null, nodeId: null },
         previousComposerText: 'Previous draft',

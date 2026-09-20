@@ -11,6 +11,7 @@ import {
 } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { AuthorizationGrantsCard } from './AuthorizationGrantsCard'
 
@@ -21,27 +22,36 @@ const INHERIT_VALUE = 'inherit'
 
 function useProjectAuthorizationDefault(projectPath: string | null) {
   const [mode, setMode] = useState<AgentAuthorizationMode | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(projectPath))
+  const [error, setError] = useState(false)
+  const [retryRevision, setRetryRevision] = useState(0)
 
   useEffect(() => {
     if (!projectPath || typeof api.getProjectPreferences !== 'function') {
       setMode(null)
       setLoading(false)
+      setError(false)
       return
     }
 
     let cancelled = false
     setLoading(true)
+    setError(false)
     api
       .getProjectPreferences(projectPath)
       .then((preferences) => {
         if (cancelled) return
         setMode(preferences?.authorizationMode ?? null)
+        setError(false)
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        logger.warn('Failed to load project authorization preferences', { error: String(err) })
+        logger.warn('Failed to load project authorization preferences', {
+          error: String(err),
+          attempt: retryRevision + 1,
+        })
         setMode(null)
+        setError(true)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -50,9 +60,15 @@ function useProjectAuthorizationDefault(projectPath: string | null) {
     return () => {
       cancelled = true
     }
-  }, [projectPath])
+  }, [projectPath, retryRevision])
 
-  return { loading, mode, setMode }
+  return {
+    loading,
+    mode,
+    setMode,
+    error,
+    retry: () => setRetryRevision((revision) => revision + 1),
+  }
 }
 
 function ModeOptions() {
@@ -67,10 +83,67 @@ function ModeOptions() {
   )
 }
 
-export function AgentAccessSection() {
+function ProjectAuthorizationControls({
+  projectPath,
+  authorization,
+  saving,
+  onChange,
+}: {
+  readonly projectPath: string | null
+  readonly authorization: ReturnType<typeof useProjectAuthorizationDefault>
+  readonly saving: boolean
+  readonly onChange: (mode: AgentAuthorizationMode | null) => void
+}) {
+  const description = !projectPath
+    ? 'Choose a project to give it its own access mode.'
+    : authorization.error
+      ? 'Could not load this project’s access mode.'
+      : authorization.loading
+        ? 'Loading this project’s access mode…'
+        : authorization.mode
+          ? 'This project overrides the default above.'
+          : 'This project uses the default above.'
+
+  return (
+    <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-medium text-text-primary">Selected project</span>
+        <span className="text-xs text-text-tertiary">{description}</span>
+      </div>
+      <Select
+        aria-label="Selected project access mode"
+        disabled={!projectPath || authorization.loading || authorization.error || saving}
+        onChange={(event) => {
+          const raw = event.currentTarget.value
+          if (raw === INHERIT_VALUE) {
+            onChange(null)
+            return
+          }
+          if (isAgentAuthorizationMode(raw)) onChange(raw)
+        }}
+        value={
+          authorization.error || authorization.loading ? '' : (authorization.mode ?? INHERIT_VALUE)
+        }
+      >
+        <option value="" disabled>
+          Unknown
+        </option>
+        <option value={INHERIT_VALUE}>Use default</option>
+        <ModeOptions />
+      </Select>
+    </div>
+  )
+}
+
+export function AgentAccessSection({
+  projectPath: selectedProjectPath,
+}: {
+  readonly projectPath?: string | null
+}) {
   const settings = usePreferencesStore((s) => s.settings)
   const setDefaultAuthorizationMode = usePreferencesStore((s) => s.setDefaultAuthorizationMode)
-  const projectAuthorization = useProjectAuthorizationDefault(settings.projectPath)
+  const projectPath = selectedProjectPath === undefined ? settings.projectPath : selectedProjectPath
+  const projectAuthorization = useProjectAuthorizationDefault(projectPath)
   const [savingGlobal, setSavingGlobal] = useState(false)
   const [savingProject, setSavingProject] = useState(false)
   const [modeError, setModeError] = useState<string | null>(null)
@@ -92,17 +165,24 @@ export function AgentAccessSection() {
 
   /** `null` clears the override, so the project inherits the global default again. */
   function handleProjectChange(mode: AgentAuthorizationMode | null) {
-    if (!settings.projectPath || mode === projectAuthorization.mode || savingProject) return
+    if (
+      !projectPath ||
+      projectAuthorization.loading ||
+      projectAuthorization.error ||
+      mode === projectAuthorization.mode ||
+      savingProject
+    )
+      return
 
     setModeError(null)
     setSavingProject(true)
     api
-      .setProjectPreferences(settings.projectPath, { authorizationMode: mode })
+      .setProjectPreferences(projectPath, { authorizationMode: mode })
       .then(() => {
         projectAuthorization.setMode(mode)
         // The composer names the mode in force for inheriting sessions, so it has to be told the
         // project default moved or it keeps naming the old one while runs use the new one.
-        invalidateProjectAuthorizationDefault(settings.projectPath)
+        invalidateProjectAuthorizationDefault(projectPath)
       })
       .catch((err: unknown) => {
         logger.warn('Failed to update project authorization mode', { error: String(err) })
@@ -117,7 +197,7 @@ export function AgentAccessSection() {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-base font-semibold text-text-primary">Agent access</h3>
+      <h3 className="text-sm font-semibold text-text-primary">Agent access</h3>
 
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
         <div className="flex min-h-14 items-center justify-between gap-4 border-b border-border px-5 py-3">
@@ -141,37 +221,24 @@ export function AgentAccessSection() {
           </Select>
         </div>
 
-        <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium text-text-primary">Current project</span>
-            <span className="text-xs text-text-tertiary">
-              {settings.projectPath
-                ? projectAuthorization.mode
-                  ? 'This project overrides the default above.'
-                  : 'This project uses the default above.'
-                : 'Open a project to give it its own access mode.'}
-            </span>
-          </div>
-          <Select
-            aria-label="Current project access mode"
-            disabled={!settings.projectPath || projectAuthorization.loading || savingProject}
-            onChange={(event) => {
-              const raw = event.currentTarget.value
-              if (raw === INHERIT_VALUE) {
-                handleProjectChange(null)
-                return
-              }
-              if (isAgentAuthorizationMode(raw)) {
-                handleProjectChange(raw)
-              }
-            }}
-            value={projectAuthorization.mode ?? INHERIT_VALUE}
-          >
-            <option value={INHERIT_VALUE}>Use default</option>
-            <ModeOptions />
-          </Select>
-        </div>
+        <ProjectAuthorizationControls
+          projectPath={projectPath}
+          authorization={projectAuthorization}
+          saving={savingProject}
+          onChange={handleProjectChange}
+        />
       </div>
+
+      {projectAuthorization.error ? (
+        <div role="alert" className="flex items-center gap-2 text-xs text-error-text">
+          <span>
+            Could not load this project’s access mode. Its current permissions are unknown.
+          </span>
+          <Button size="xs" variant="secondary" onClick={projectAuthorization.retry}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {modeError ? (
         <p className="text-xs text-error-text" role="alert">
@@ -179,7 +246,7 @@ export function AgentAccessSection() {
         </p>
       ) : null}
 
-      <AuthorizationGrantsCard projectPath={settings.projectPath} />
+      <AuthorizationGrantsCard projectPath={projectPath} />
     </div>
   )
 }

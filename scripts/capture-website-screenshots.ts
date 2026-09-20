@@ -1,12 +1,16 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
+import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { expect, type ElectronApplication, type Page } from '@playwright/test'
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import { launchOpenWaggleElectron } from './playwright-electron-launcher'
 import {
+  HIVE_QUEEN_TITLE,
   PROJECT_NAME,
+  seedHiveExample,
   seedMarketingSession,
   THREAD_LIST_MATCHER,
   THREAD_TITLE,
@@ -23,16 +27,23 @@ const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screensh
 const WINDOW_WIDTH_PX = 1600
 const WINDOW_HEIGHT_PX = 1000
 const UI_SETTLE_DELAY_MS = 350
+const GIT_READY_TIMEOUT_MS = 120_000
+const execFileAsync = promisify(execFile)
 const HERO_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hero-screenshot.png')
 const CODING_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-coding-agent.png')
 const GIT_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-git-workflow.png')
 const EXTENSIBLE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-extensible.png')
 const SESSION_TREE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'session-tree-panel.png')
+const HIVE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hive-sessions.png')
 
-async function launchApp(userDataDir: string): Promise<{ app: ElectronApplication; page: Page }> {
+async function launchApp(
+  userDataDir: string,
+  projectPath: string,
+): Promise<{ app: ElectronApplication; page: Page }> {
   console.info('[website-shots] launching app')
   const app = await launchOpenWaggleElectron({
-    cwd: ROOT_DIR,
+    cwd: projectPath,
+    appPath: ROOT_DIR,
     userDataDir,
     hidden: true,
   })
@@ -51,9 +62,13 @@ async function launchApp(userDataDir: string): Promise<{ app: ElectronApplicatio
   return { app, page }
 }
 
-async function restartApp(currentApp: ElectronApplication, userDataDir: string) {
+async function restartApp(
+  currentApp: ElectronApplication,
+  userDataDir: string,
+  projectPath: string,
+) {
   await currentApp.close()
-  return launchApp(userDataDir)
+  return launchApp(userDataDir, projectPath)
 }
 
 async function configureProject(page: Page, projectPath: string) {
@@ -72,17 +87,42 @@ async function configureProject(page: Page, projectPath: string) {
   )
 }
 
-async function createProjectAlias(userDataDir: string) {
-  const projectLinksDir = path.join(userDataDir, 'projects')
-  const aliasedProjectPath = path.join(projectLinksDir, PROJECT_NAME)
-  await fs.mkdir(projectLinksDir, { recursive: true })
-  await fs.rm(aliasedProjectPath, { recursive: true, force: true }).catch(() => undefined)
-  await fs.symlink(ROOT_DIR, aliasedProjectPath, 'dir')
-  return aliasedProjectPath
-}
-
 async function waitForUi(page: Page) {
   await page.waitForTimeout(UI_SETTLE_DELAY_MS)
+}
+
+async function waitForGitStatus(page: Page) {
+  const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
+  await diffToggle.waitFor({ timeout: GIT_READY_TIMEOUT_MS })
+  await expect(diffToggle).toHaveAttribute('data-git-status-state', 'ready', {
+    timeout: GIT_READY_TIMEOUT_MS,
+  })
+}
+
+async function createScreenshotProject(root: string) {
+  await fs.mkdir(root, { recursive: true })
+  await execFileAsync('git', ['init', '--initial-branch=main'], { cwd: root })
+  const readmePath = path.join(root, 'README.md')
+  await fs.writeFile(readmePath, '# OpenWaggle screenshot fixture\n', 'utf8')
+  await execFileAsync('git', ['add', 'README.md'], { cwd: root })
+  await execFileAsync(
+    'git',
+    [
+      '-c',
+      'user.name=OpenWaggle Screenshot Fixture',
+      '-c',
+      'user.email=screenshots@openwaggle.local',
+      'commit',
+      '-m',
+      'chore: seed screenshot fixture',
+    ],
+    { cwd: root },
+  )
+  await fs.writeFile(
+    readmePath,
+    '# OpenWaggle screenshot fixture\n\nDocument the pending release review.\n',
+    'utf8',
+  )
 }
 
 async function openThread(page: Page, threadTitle: string) {
@@ -98,6 +138,7 @@ async function captureHeroScreenshot(page: Page) {
   await page.getByRole('button', { name: 'New session' }).first().click()
   await waitForUi(page)
   await page.locator('header').click()
+  await waitForGitStatus(page)
   await waitForUi(page)
   await page.screenshot({ path: HERO_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
 }
@@ -105,14 +146,17 @@ async function captureHeroScreenshot(page: Page) {
 async function captureCodingScreenshot(page: Page) {
   console.info('[website-shots] capturing coding screenshot')
   await openThread(page, THREAD_TITLE)
+  await waitForGitStatus(page)
   await page.screenshot({ path: CODING_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
 }
 
 async function captureGitScreenshot(page: Page) {
   console.info('[website-shots] capturing git screenshot')
   await openThread(page, THREAD_TITLE)
+  await waitForGitStatus(page)
   await page.getByRole('button', { name: 'Toggle diff panel' }).click()
   await page.getByRole('button', { name: /Stage all/ }).waitFor()
+  await page.locator('.diff-chrome').waitFor({ timeout: GIT_READY_TIMEOUT_MS })
   await waitForUi(page)
   await page.screenshot({ path: GIT_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
 }
@@ -129,7 +173,7 @@ async function captureExtensibleScreenshot(page: Page) {
 /**
  * The Session Tree panel, used by the session-tree documentation page.
  *
- * Captured here rather than by hand so all five images are reproducible from one command and
+ * Captured here rather than by hand so all documentation images are reproducible from one command and
  * cannot drift apart as the UI changes.
  */
 async function captureSessionTreeScreenshot(page: Page) {
@@ -137,35 +181,94 @@ async function captureSessionTreeScreenshot(page: Page) {
   await openThread(page, THREAD_TITLE)
   await page.getByRole('button', { name: 'Toggle Session Tree' }).click()
   await page.getByRole('region', { name: 'Session Tree' }).waitFor()
+  await waitForGitStatus(page)
   await waitForUi(page)
   await page.screenshot({ path: SESSION_TREE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
   await page.getByRole('button', { name: 'Toggle Session Tree' }).click()
   await waitForUi(page)
 }
 
+/** The Queen, Worker sidebar rows, and reciprocal Hive navigation used by the Hive guide. */
+async function captureHiveScreenshot(page: Page, qaEvidenceDir: string) {
+  console.info('[website-shots] capturing Hive screenshot')
+  await page.getByText(HIVE_QUEEN_TITLE, { exact: true }).first().click()
+  await page.locator('header').getByText('Queen', { exact: true }).waitFor()
+  await page.getByRole('button', { name: /^(Open|Hide) Session Summary$/ }).waitFor()
+  const openSummary = page.getByRole('button', { name: 'Open Session Summary' })
+  if (await openSummary.isVisible()) await openSummary.click()
+  await page.getByRole('complementary', { name: 'Session Summary' }).waitFor()
+  const hive = page.getByRole('region', { name: 'Hive' })
+  await hive.waitFor()
+
+  const expandButton = hive.getByRole('button', { name: 'Expand Hive' })
+  if (await expandButton.isVisible()) await expandButton.click()
+
+  await hive.getByText('Verify queue and steering behavior').waitFor()
+  await waitForGitStatus(page)
+  await waitForUi(page)
+  await page.screenshot({ path: HIVE_SCREENSHOT_PATH, animations: 'disabled', scale: 'css' })
+  await fs.copyFile(HIVE_SCREENSHOT_PATH, path.join(qaEvidenceDir, 'queen-session-summary.png'))
+
+  await hive.getByRole('button', { name: /Open Worker Session: Verify queue and steering behavior/ }).click()
+  await page.locator('header').getByText('Worker', { exact: true }).waitFor()
+  await page.getByRole('button', { name: /^(Open|Hide) Session Summary$/ }).waitFor()
+  const openWorkerSummary = page.getByRole('button', { name: 'Open Session Summary' })
+  if (await openWorkerSummary.isVisible()) await openWorkerSummary.click()
+  const workerHive = page.getByRole('region', { name: 'Hive' })
+  await workerHive.waitFor()
+  const expandWorkerHive = workerHive.getByRole('button', { name: 'Expand Hive' })
+  if (await expandWorkerHive.isVisible()) await expandWorkerHive.click()
+  await page.screenshot({ path: path.join(qaEvidenceDir, 'worker-parent-navigation.png'), animations: 'disabled', scale: 'css' })
+  await workerHive.getByRole('button', { name: /Open Queen Session: Prepare the Sessions release/ }).waitFor()
+  await waitForUi(page)
+  await workerHive.getByRole('button', { name: /Open Queen Session: Prepare the Sessions release/ }).click()
+  await page.locator('header').getByText('Queen', { exact: true }).waitFor()
+}
+
 async function main() {
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-website-shots-'))
-  const projectPath = await createProjectAlias(userDataDir)
+  const qaEvidenceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-hive-qa-'))
+  console.info('[website-shots] Hive QA evidence', qaEvidenceDir)
+  const requestedProjectPath = path.join(userDataDir, PROJECT_NAME)
   await fs.mkdir(SCREENSHOT_OUTPUT_DIR, { recursive: true })
+  await createScreenshotProject(requestedProjectPath)
+  const projectPath = await fs.realpath(requestedProjectPath)
 
   let currentApp: ElectronApplication | null = null
 
   try {
-    let launched = await launchApp(userDataDir)
+    let launched = await launchApp(userDataDir, projectPath)
     currentApp = launched.app
 
     await configureProject(launched.page, projectPath)
     await seedMarketingSession(userDataDir, projectPath)
+    await seedHiveExample(userDataDir, projectPath)
 
     console.info('[website-shots] restarting app to pick up seeded state')
-    launched = await restartApp(launched.app, userDataDir)
+    launched = await restartApp(launched.app, userDataDir, projectPath)
     currentApp = launched.app
+    const qaErrors: string[] = []
+    launched.page.on('pageerror', (error) => qaErrors.push(error.message))
+    launched.page.on('console', (message) => {
+      if (message.type() === 'error') qaErrors.push(message.text())
+    })
+    const runtime = await launched.page.evaluate(() => ({
+      hasApi: typeof window.api.getSessionDetail === 'function',
+      isElectron: navigator.userAgent.includes('Electron'),
+    }))
+    if (!runtime.hasApi || !runtime.isElectron) {
+      throw new Error('Hive screenshot QA did not launch the Electron app with its preload API.')
+    }
 
+    await captureHiveScreenshot(launched.page, qaEvidenceDir)
     await captureHeroScreenshot(launched.page)
     await captureCodingScreenshot(launched.page)
     await captureGitScreenshot(launched.page)
     await captureSessionTreeScreenshot(launched.page)
     await captureExtensibleScreenshot(launched.page)
+    if (qaErrors.length > 0) {
+      throw new Error(`Screenshot QA observed console errors: ${qaErrors.join(' | ')}`)
+    }
     console.info('[website-shots] screenshot capture complete')
   } finally {
     await currentApp?.close().catch(() => undefined)

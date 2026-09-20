@@ -11,6 +11,7 @@ const {
   checkForUpdatesMock,
   installUpdateMock,
   updateSettingsMock,
+  getCliShimStatusMock,
 } = vi.hoisted(() => ({
   getAppVersionMock: vi.fn(),
   getUpdateStatusMock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   checkForUpdatesMock: vi.fn(),
   installUpdateMock: vi.fn(),
   updateSettingsMock: vi.fn(),
+  getCliShimStatusMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -28,8 +30,11 @@ vi.mock('@/shared/lib/ipc', () => ({
     checkForUpdates: checkForUpdatesMock,
     installUpdate: installUpdateMock,
     updateSettings: updateSettingsMock,
+    getCliShimStatus: getCliShimStatusMock,
   },
 }))
+
+vi.mock('../sections/AgentAccessSection', () => ({ AgentAccessSection: () => null }))
 
 import { usePreferencesStore } from '../../state/preferences-store'
 import { GeneralSection } from '../sections/GeneralSection'
@@ -54,6 +59,13 @@ describe('GeneralSection', () => {
     checkForUpdatesMock.mockReset()
     installUpdateMock.mockReset()
     updateSettingsMock.mockReset()
+    getCliShimStatusMock.mockReset()
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: true,
+    })
     setCompactionThresholdPercentMock.mockReset()
     setCompactionThresholdPercentMock.mockResolvedValue(undefined)
     usePreferencesStore.setState({
@@ -76,6 +88,70 @@ describe('GeneralSection', () => {
     await waitFor(() => {
       expect(screen.getByText(/OpenWaggle v0\.2\.0/)).toBeInTheDocument()
     })
+  })
+
+  it('explains a CLI path conflict without offering separate install controls', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'conflict',
+      commandPath: '/tmp/openwaggle',
+      onPath: true,
+      detail: 'Another file already uses this path. OpenWaggle will not replace it.',
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('/tmp/openwaggle')
+    expect(screen.getByRole('alert')).toHaveTextContent('will not replace it')
+    expect(screen.queryByRole('button', { name: 'Install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  })
+
+  it('explains when the bundled CLI did not become available', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'not-installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: false,
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('command is not installed')
+    expect(screen.getByRole('alert')).toHaveTextContent('/tmp/openwaggle')
+  })
+
+  it('hides the passive packaged-CLI notice in a source build', async () => {
+    getCliShimStatusMock.mockResolvedValue(null)
+    render(<GeneralSection />)
+
+    await waitFor(() => expect(getCliShimStatusMock).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a stalled automatic setup instead of leaving the notice blank', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'unavailable',
+      commandPath: null,
+      onPath: false,
+      detail: 'CLI setup is still running. Reopen Settings to check again.',
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('CLI setup is still running')
+  })
+
+  it('explains when the CLI is installed but cannot be found on PATH', async () => {
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: false,
+      detail: 'Existing OpenWaggle app link. Re-run the app installer if the app moves.',
+    })
+    render(<GeneralSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('OpenWaggle process PATH')
+    expect(screen.getByRole('alert')).toHaveTextContent('Your terminal may differ')
   })
 
   it('offers the global automatic compaction threshold as a compact number stepper', () => {
@@ -127,6 +203,7 @@ describe('GeneralSection', () => {
   it('renders the "About & Updates" section heading', () => {
     render(<GeneralSection />)
     expect(screen.getByText('About & Updates')).toBeInTheDocument()
+    expect(screen.queryByText('Agent definitions')).not.toBeInTheDocument()
   })
 
   it('persists the in-app browser destination from the accessible link setting', async () => {

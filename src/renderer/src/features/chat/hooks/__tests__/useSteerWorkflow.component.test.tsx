@@ -1,271 +1,215 @@
-// @vitest-environment jsdom
-
-import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { AgentSendPayload, AgentSteerDeliveryResult } from '@shared/types/agent'
 import { SessionId } from '@shared/types/brand'
-import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import type { SessionControlSteeringReceipt } from '@shared/types/session-control'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { useOptimisticSteerStore } from '../../state/optimistic-steer-store'
 import { useSteerWorkflow } from '../useSteerWorkflow'
 
-const SESSION_ID = SessionId('session-1')
-const PAYLOAD: AgentSendPayload = {
-  text: 'Continue with the implementation',
-  thinkingLevel: 'medium',
-  attachments: [],
-}
-
-const EXTENSION_CONTRIBUTIONS: ExtensionContributionRegistryView = {
-  projectPaths: ['/tmp/project'],
-  entries: [
-    {
-      extensionId: 'sample.extension',
-      extensionName: 'Sample Extension',
-      extensionVersion: '1.0.0',
-      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
-      packagePath: '/tmp/sample-extension',
-      manifestPath: '/tmp/sample-extension/openwaggle.extension.json',
-      projectPaths: ['/tmp/project'],
-      appliesToAllRequestedProjects: true,
-      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
-      contributionId: 'sample.run',
-      title: 'Run sample slash command',
-      label: 'Run sample slash command',
-      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
-      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
-      eligibility: {
-        runtimeEnabled: true,
-        enabled: true,
-        trusted: true,
-        sdkCompatible: true,
-        updateAvailable: false,
-        disabledProjectPaths: [],
-      },
-      diagnostics: [],
-      contentHash: 'content-hash-1',
-    },
-  ],
-}
-
-function createDeps(isCompacting: boolean) {
-  const preview = {
-    clear: vi.fn(),
-    setDurableContent: vi.fn(),
-    setDeliveryState: vi.fn(),
+function deferred() {
+  let resolve: (receipt?: SessionControlSteeringReceipt) => void = () => {
+    throw new Error('Not initialized')
   }
-  async function withDeferredSnapshotRefresh<T>(operation: () => Promise<T>): Promise<T> {
-    return operation()
-  }
-  return {
-    deps: {
-      activeSessionId: SESSION_ID,
-      extensionContributions: EXTENSION_CONTRIBUTIONS,
-      isCompacting,
-      steer: vi
-        .fn()
-        .mockResolvedValue({ delivery: 'queued', durableText: 'Continue with the implementation' }),
-      previewSteeredUserTurn: vi.fn().mockReturnValue(preview),
-      withDeferredSnapshotRefresh,
-      showToast: vi.fn(),
-    },
-    preview,
-  }
-}
-
-function deferredPromise() {
-  let resolve!: () => void
-  const promise = new Promise<AgentSteerDeliveryResult>((settle) => {
-    resolve = () => settle({ delivery: 'queued', durableText: 'Continue with the implementation' })
+  const promise = new Promise<SessionControlSteeringReceipt>((settle) => {
+    resolve = (
+      receipt = { delivery: 'queued', durableTextSha256: 'a'.repeat(64), minimumCreatedOrder: 1 },
+    ) => settle(receipt)
   })
   return { promise, resolve }
 }
 
-describe('useSteerWorkflow', () => {
+function setup() {
+  return {
+    activeSessionId: SessionId('session-1'),
+    followUps: ['follow-up-1', 'follow-up-2', 'first', 'second'].map((id) => ({
+      id,
+      text: `Text for ${id}`,
+      attachmentCount: 0,
+      createdAt: 1,
+      deliveryState: 'pending' as const,
+    })),
+    isCompacting: true,
+    previewSteeredUserTurn: vi.fn(() => ({
+      clear: vi.fn(),
+      setDurableContent: vi.fn(),
+      setReceipt: vi.fn(),
+      setDeliveryState: vi.fn(),
+    })),
+    promoteFollowUp: vi.fn(
+      async (_id: string): Promise<SessionControlSteeringReceipt> => ({
+        delivery: 'queued',
+        durableTextSha256: 'a'.repeat(64),
+        minimumCreatedOrder: 1,
+      }),
+    ),
+    withDeferredSnapshotRefresh: <T,>(operation: () => Promise<T>) => operation(),
+    showToast: vi.fn(),
+  }
+}
+
+describe('useSteerWorkflow with the durable Host queue', () => {
   beforeEach(() => {
-    useMessageQueueStore.setState({ queues: new Map() })
+    useOptimisticSteerStore.setState({ pendingPromotions: new Map() })
   })
 
-  it('hands an explicit steer to main during compaction and keeps its preview pending', async () => {
-    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
-    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
-    if (!queued) throw new Error('Expected queued message')
-    const setup = createDeps(true)
-    const delivery = deferredPromise()
-    setup.deps.steer.mockReturnValueOnce(delivery.promise)
-    const { result, rerender } = renderHook(
-      ({ isCompacting }) =>
-        useSteerWorkflow({
-          ...setup.deps,
-          isCompacting,
-        }),
-      { initialProps: { isCompacting: true } },
-    )
-
-    let steerPromise!: Promise<void>
+  it('previews a pending promotion without withdrawing its durable queue item', async () => {
+    const deps = setup()
+    const gate = deferred()
+    deps.promoteFollowUp.mockReturnValueOnce(gate.promise)
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    let operation: Promise<void> | undefined
     act(() => {
-      steerPromise = result.current.handleSteer(queued.id)
+      operation = result.current.handleSteer('follow-up-2')
     })
-
-    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
-    expect(setup.deps.previewSteeredUserTurn).toHaveBeenCalledWith(
-      PAYLOAD,
+    expect(deps.previewSteeredUserTurn).toHaveBeenCalledWith(
+      { text: 'Text for follow-up-2', attachments: [], thinkingLevel: 'off' },
       'waiting-for-compaction',
     )
-    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
-    expect(result.current.isSteering).toBe(true)
-
-    rerender({ isCompacting: false })
-
+    expect(useOptimisticSteerStore.getState().pendingPromotions.get(deps.activeSessionId)).toEqual([
+      'follow-up-2',
+    ])
+    expect(deps.followUps).toHaveLength(4)
+    const preview = deps.previewSteeredUserTurn.mock.results[0]?.value
+    expect(preview?.clear).not.toHaveBeenCalled()
     await act(async () => {
-      delivery.resolve()
-      await steerPromise
+      gate.resolve()
+      await operation
     })
-    await waitFor(() => expect(setup.preview.setDeliveryState).toHaveBeenCalledWith('sending'))
+    expect(preview?.clear).not.toHaveBeenCalled()
+    expect(preview?.setReceipt).toHaveBeenLastCalledWith({
+      delivery: 'queued',
+      durableTextSha256: 'a'.repeat(64),
+      minimumCreatedOrder: 1,
+    })
+    expect(preview?.setDeliveryState).toHaveBeenCalledWith('sending')
+    expect(useOptimisticSteerStore.getState().pendingPromotions.has(deps.activeSessionId)).toBe(
+      false,
+    )
+  })
+
+  it('clears the preview for a handled extension command that produces no user node', async () => {
+    const deps = setup()
+    deps.promoteFollowUp.mockResolvedValueOnce({ delivery: 'handled' })
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    await act(() => result.current.handleSteer('follow-up-1'))
+    expect(deps.previewSteeredUserTurn.mock.results[0]?.value.clear).toHaveBeenCalledOnce()
+  })
+
+  it('does not infer delivery from a historical success without a recorded receipt', async () => {
+    const deps = setup()
+    deps.promoteFollowUp.mockResolvedValueOnce({ delivery: 'unavailable' })
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    await act(() => result.current.handleSteer('follow-up-1'))
+    const preview = deps.previewSteeredUserTurn.mock.results[0]?.value
+    expect(preview?.clear).not.toHaveBeenCalled()
+    expect(preview?.setReceipt).toHaveBeenCalledExactlyOnceWith(null)
+    expect(preview?.setDeliveryState).toHaveBeenCalledWith('sending')
+  })
+
+  it('restores local queue visibility and clears the preview on Host refusal', async () => {
+    const deps = setup()
+    deps.promoteFollowUp.mockRejectedValueOnce(new Error('Run ended'))
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    await act(() => result.current.handleSteer('follow-up-1'))
+    expect(deps.previewSteeredUserTurn.mock.results[0]?.value.clear).toHaveBeenCalledOnce()
+    expect(useOptimisticSteerStore.getState().pendingPromotions.has(deps.activeSessionId)).toBe(
+      false,
+    )
+    expect(deps.followUps).toHaveLength(4)
+  })
+
+  it('deduplicates clicks and keeps pending visibility scoped to the originating Session', async () => {
+    const deps = setup()
+    const gate = deferred()
+    deps.promoteFollowUp.mockReturnValueOnce(gate.promise)
+    const { result, rerender } = renderHook(
+      ({ sessionId }) => useSteerWorkflow({ ...deps, activeSessionId: sessionId }),
+      { initialProps: { sessionId: deps.activeSessionId } },
+    )
+    let operation: Promise<void> | undefined
+    act(() => {
+      operation = result.current.handleSteer('follow-up-1')
+      void result.current.handleSteer('follow-up-1')
+    })
+    expect(deps.promoteFollowUp).toHaveBeenCalledOnce()
+    rerender({ sessionId: SessionId('other-session') })
+    expect(result.current.isSteering).toBe(false)
+    await act(async () => {
+      gate.resolve()
+      await operation
+    })
+    expect(useOptimisticSteerStore.getState().pendingPromotions.size).toBe(0)
+  })
+
+  it('promotes the selected Follow-up through Session Control without copying its payload', async () => {
+    const deps = setup()
+    const gate = deferred()
+    deps.promoteFollowUp.mockReturnValueOnce(gate.promise)
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    let operation: Promise<void> | undefined
+    act(() => {
+      operation = result.current.handleSteer('follow-up-2')
+    })
+    expect(deps.promoteFollowUp).toHaveBeenCalledWith('follow-up-2')
+    expect(result.current.isSteering).toBe(true)
+    await act(async () => {
+      gate.resolve()
+      await operation
+    })
     expect(result.current.isSteering).toBe(false)
   })
 
-  it('does not lose an in-flight steer when the chat surface unmounts', async () => {
-    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
-    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
-    if (!queued) throw new Error('Expected queued message')
-    const setup = createDeps(true)
-    const delivery = deferredPromise()
-    setup.deps.steer.mockReturnValueOnce(delivery.promise)
-    const { result, unmount } = renderHook(() => useSteerWorkflow(setup.deps))
-
-    let steerPromise!: Promise<void>
+  it('keeps steering busy until every concurrent promotion settles', async () => {
+    const deps = setup()
+    const first = deferred()
+    const second = deferred()
+    deps.promoteFollowUp.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    let firstOperation: Promise<void> | undefined
+    let secondOperation: Promise<void> | undefined
     act(() => {
-      steerPromise = result.current.handleSteer(queued.id)
+      firstOperation = result.current.handleSteer('first')
+      secondOperation = result.current.handleSteer('second')
+    })
+    await act(async () => {
+      first.resolve()
+      await firstOperation
+    })
+    expect(result.current.isSteering).toBe(true)
+    await act(async () => {
+      second.resolve()
+      await secondOperation
+    })
+    expect(result.current.isSteering).toBe(false)
+  })
+
+  it('reports a refused promotion and leaves queue ownership with the Host', async () => {
+    const deps = setup()
+    deps.promoteFollowUp.mockRejectedValueOnce(new Error('Run ended'))
+    const { result } = renderHook(() => useSteerWorkflow(deps))
+    await act(() => result.current.handleSteer('follow-up-1'))
+    expect(deps.showToast).toHaveBeenCalledWith(expect.stringContaining('Could not steer'))
+    expect(result.current.isSteering).toBe(false)
+  })
+
+  it('does not cancel an accepted promotion when the user navigates away', async () => {
+    const deps = setup()
+    const gate = deferred()
+    deps.promoteFollowUp.mockReturnValueOnce(gate.promise)
+    const { result, unmount } = renderHook(() => useSteerWorkflow(deps))
+    let operation: Promise<void> | undefined
+    act(() => {
+      operation = result.current.handleSteer('follow-up-1')
     })
     unmount()
-
-    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
-    await act(async () => {
-      delivery.resolve()
-      await steerPromise
-    })
-    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
+    gate.resolve()
+    await expect(operation).resolves.toBeUndefined()
+    expect(deps.promoteFollowUp).toHaveBeenCalledTimes(1)
   })
 
-  it('delivers an explicit steer immediately when compaction is not running', async () => {
-    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
-    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
-    if (!queued) throw new Error('Expected queued message')
-    const setup = createDeps(false)
-    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
-
-    await act(async () => {
-      await result.current.handleSteer(queued.id)
-    })
-
-    expect(setup.deps.previewSteeredUserTurn).toHaveBeenCalledWith(PAYLOAD, 'sending')
-    expect(setup.deps.steer).toHaveBeenCalledWith(PAYLOAD)
-  })
-
-  it('reconciles an expanded slash command with Pi canonical queued text', async () => {
-    const slashPayload = { ...PAYLOAD, text: '/skill:review-pr' }
-    useMessageQueueStore.getState().enqueue(SESSION_ID, slashPayload)
-    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
-    if (!queued) throw new Error('Expected queued message')
-    const setup = createDeps(false)
-    setup.deps.steer.mockResolvedValueOnce({
-      delivery: 'queued',
-      durableText: 'Expanded review skill',
-    })
-    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
-
-    await act(async () => {
-      await result.current.handleSteer(queued.id)
-    })
-
-    expect(setup.preview.setDurableContent).toHaveBeenCalledWith('Expanded review skill')
-  })
-
-  it('clears a command preview when Pi handles it before the steering queue', async () => {
-    const commandPayload = { ...PAYLOAD, text: '/registered-command' }
-    useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
-    const queued = useMessageQueueStore.getState().queues.get(SESSION_ID)?.[0]
-    if (!queued) throw new Error('Expected queued command')
-    const setup = createDeps(false)
-    setup.deps.steer.mockResolvedValueOnce({ delivery: 'handled' })
-    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
-
-    await act(async () => {
-      await result.current.handleSteer(queued.id)
-    })
-
-    expect(setup.preview.clear).toHaveBeenCalledOnce()
-    expect(setup.preview.setDurableContent).not.toHaveBeenCalled()
-    expect(useMessageQueueStore.getState().queues.get(SESSION_ID) ?? []).toHaveLength(0)
-    expect(setup.deps.showToast).not.toHaveBeenCalled()
-  })
-
-  it.each(['/compact focus on decisions', '/fork', '/clone'])(
-    'keeps renderer-owned command %s queued instead of steering it as model text',
-    async (text) => {
-      const commandPayload = { ...PAYLOAD, text }
-      useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
-      const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
-      const queued = original?.[0]
-      if (!queued) throw new Error('Expected queued command')
-      const setup = createDeps(false)
-      const { result } = renderHook(() => useSteerWorkflow(setup.deps))
-
-      await act(async () => {
-        await result.current.handleSteer(queued.id)
-      })
-
-      expect(setup.deps.steer).not.toHaveBeenCalled()
-      expect(setup.deps.previewSteeredUserTurn).not.toHaveBeenCalled()
-      expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
-      expect(setup.deps.showToast).toHaveBeenCalledWith(
-        'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
-      )
-    },
-  )
-
-  it('keeps an extension command queued instead of steering it as model text', async () => {
-    const commandPayload = { ...PAYLOAD, text: '/sample.run with arguments' }
-    useMessageQueueStore.getState().enqueue(SESSION_ID, commandPayload)
-    const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
-    const queued = original?.[0]
-    if (!queued) throw new Error('Expected queued extension command')
-    const setup = createDeps(false)
-    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
-
-    await act(async () => {
-      await result.current.handleSteer(queued.id)
-    })
-
-    expect(setup.deps.steer).not.toHaveBeenCalled()
-    expect(setup.deps.previewSteeredUserTurn).not.toHaveBeenCalled()
-    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
-    expect(setup.deps.showToast).toHaveBeenCalledWith(
-      'This command cannot steer an active turn. Leave it queued to run after the turn finishes.',
-    )
-  })
-
-  it('restores the exact queued message at its original position when native steer fails', async () => {
-    const before = { ...PAYLOAD, text: 'before' }
-    const after = { ...PAYLOAD, text: 'after' }
-    useMessageQueueStore.getState().enqueue(SESSION_ID, before)
-    useMessageQueueStore.getState().enqueue(SESSION_ID, PAYLOAD)
-    useMessageQueueStore.getState().enqueue(SESSION_ID, after)
-    const original = useMessageQueueStore.getState().queues.get(SESSION_ID)
-    const queued = original?.[1]
-    if (!queued) throw new Error('Expected queued message')
-    const setup = createDeps(false)
-    setup.deps.steer.mockRejectedValueOnce(new Error('steer unavailable'))
-    const { result } = renderHook(() => useSteerWorkflow(setup.deps))
-
-    await act(async () => {
-      await result.current.handleSteer(queued.id)
-    })
-
-    expect(setup.preview.clear).toHaveBeenCalledOnce()
-    expect(useMessageQueueStore.getState().queues.get(SESSION_ID)).toEqual(original)
-    expect(setup.deps.showToast).toHaveBeenCalled()
+  it('does nothing when no Session is selected', async () => {
+    const deps = setup()
+    const { result } = renderHook(() => useSteerWorkflow({ ...deps, activeSessionId: null }))
+    await act(() => result.current.handleSteer('follow-up-1'))
+    expect(deps.promoteFollowUp).not.toHaveBeenCalled()
   })
 })

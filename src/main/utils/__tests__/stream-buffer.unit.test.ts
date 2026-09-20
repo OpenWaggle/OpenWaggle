@@ -7,6 +7,7 @@ import {
   listStreamBuffers,
   setWorktreeLaunchSnapshot,
   startStreamBuffer,
+  startStreamBufferFromAgentStart,
 } from '../stream-buffer'
 
 const SESSION_ID = SessionId('session-stream-buffer')
@@ -59,6 +60,33 @@ describe('stream-buffer', () => {
     expect(getStreamBuffer(SESSION_ID)).toBeNull()
   })
 
+  it('creates remote Waggle buffers before model attribution and enriches them later', () => {
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: `waggle-${SESSION_ID}`,
+      timestamp: 100,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: '',
+      mode: 'waggle',
+      startedAt: 100,
+    })
+
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: `waggle-${SESSION_ID}`,
+      timestamp: 101,
+      model: MODEL,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: MODEL,
+      mode: 'waggle',
+      startedAt: 100,
+    })
+  })
+
   it('keeps worktree launch progress in the reconnectable run snapshot', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
 
@@ -76,148 +104,6 @@ describe('stream-buffer', () => {
       startedAt: STARTED_AT.getTime(),
       updatedAt: STARTED_AT.getTime(),
       details: ['Creating ow/session-session-stream-buffer from main'],
-    })
-  })
-
-  it('keeps the active automatic compaction lifecycle reconnectable', () => {
-    startStreamBuffer(SESSION_ID, MODEL, 'classic')
-    const compactionStart = {
-      type: 'compaction_start' as const,
-      reason: 'threshold' as const,
-      timestamp: 10,
-    }
-
-    applyEventToStreamBuffer(SESSION_ID, compactionStart)
-
-    expect(listStreamBuffers()[0]).toMatchObject({ activityEvents: [compactionStart] })
-    expect(getStreamBuffer(SESSION_ID)).toMatchObject({ activityEvents: [compactionStart] })
-  })
-
-  it('keeps a completed threshold compaction reconnectable while the run continues', () => {
-    startStreamBuffer(SESSION_ID, MODEL, 'classic')
-    const compactionStart = {
-      type: 'compaction_start' as const,
-      reason: 'threshold' as const,
-      timestamp: 10,
-    }
-    const compactionEnd = {
-      type: 'compaction_end' as const,
-      reason: 'threshold' as const,
-      result: {},
-      aborted: false,
-      willRetry: false,
-      timestamp: 11,
-    }
-
-    applyEventToStreamBuffer(SESSION_ID, compactionStart)
-    applyEventToStreamBuffer(SESSION_ID, compactionEnd)
-
-    expect(listStreamBuffers()[0]).toMatchObject({
-      activityEvents: [compactionStart, compactionEnd],
-    })
-    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
-      activityEvents: [compactionStart, compactionEnd],
-    })
-  })
-
-  it('keeps earlier completed compactions when another compaction starts', () => {
-    startStreamBuffer(SESSION_ID, MODEL, 'classic')
-    const firstStart = {
-      type: 'compaction_start' as const,
-      reason: 'threshold' as const,
-      timestamp: 10,
-    }
-    const firstEnd = {
-      type: 'compaction_end' as const,
-      reason: 'threshold' as const,
-      result: { entryId: 'compaction-entry-1' },
-      aborted: false,
-      willRetry: false,
-      timestamp: 11,
-    }
-    const secondStart = {
-      type: 'compaction_start' as const,
-      reason: 'threshold' as const,
-      timestamp: 20,
-    }
-
-    applyEventToStreamBuffer(SESSION_ID, firstStart)
-    applyEventToStreamBuffer(SESSION_ID, firstEnd)
-    applyEventToStreamBuffer(SESSION_ID, secondStart)
-
-    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
-      activityEvents: [firstStart, firstEnd, secondStart],
-    })
-  })
-
-  it('keeps the retry phase linked to the automatic compaction that triggered it', () => {
-    startStreamBuffer(SESSION_ID, MODEL, 'classic')
-    const compactionStart = {
-      type: 'compaction_start' as const,
-      reason: 'threshold' as const,
-      timestamp: 10,
-    }
-    const compactionEnd = {
-      type: 'compaction_end' as const,
-      reason: 'threshold' as const,
-      result: {},
-      aborted: false,
-      willRetry: true,
-      errorMessage: 'temporary failure',
-      timestamp: 11,
-    }
-    const retryStart = {
-      type: 'auto_retry_start' as const,
-      attempt: 1,
-      maxAttempts: 3,
-      delayMs: 500,
-      errorMessage: 'temporary failure',
-      timestamp: 12,
-    }
-
-    applyEventToStreamBuffer(SESSION_ID, compactionStart)
-    applyEventToStreamBuffer(SESSION_ID, compactionEnd)
-    applyEventToStreamBuffer(SESSION_ID, retryStart)
-
-    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
-      activityEvents: [compactionStart, compactionEnd, retryStart],
-    })
-  })
-
-  it('preserves completed compaction history after automatic retry ends', () => {
-    startStreamBuffer(SESSION_ID, MODEL, 'classic')
-    const compactionStart = {
-      type: 'compaction_start' as const,
-      reason: 'threshold' as const,
-      timestamp: 10,
-    }
-    const compactionEnd = {
-      type: 'compaction_end' as const,
-      reason: 'threshold' as const,
-      result: { entryId: 'compaction-entry-1' },
-      aborted: false,
-      willRetry: false,
-      timestamp: 11,
-    }
-    applyEventToStreamBuffer(SESSION_ID, compactionStart)
-    applyEventToStreamBuffer(SESSION_ID, compactionEnd)
-    applyEventToStreamBuffer(SESSION_ID, {
-      type: 'auto_retry_start',
-      attempt: 1,
-      maxAttempts: 3,
-      delayMs: 500,
-      errorMessage: 'temporary failure',
-      timestamp: 12,
-    })
-    applyEventToStreamBuffer(SESSION_ID, {
-      type: 'auto_retry_end',
-      success: true,
-      attempt: 1,
-      timestamp: 13,
-    })
-
-    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
-      activityEvents: [compactionStart, compactionEnd],
     })
   })
 
@@ -288,6 +174,33 @@ describe('stream-buffer', () => {
         },
       ],
     })
+  })
+
+  it('accounts for long text streams without serializing the accumulated payload per delta', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
+
+    for (let index = 0; index < 10_000; index += 1) {
+      applyEventToStreamBuffer(SESSION_ID, {
+        type: 'message_update',
+        messageId: 'assistant-message-1',
+        role: 'assistant',
+        timestamp: index,
+        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'ab' },
+      })
+    }
+
+    const serializedObjects = stringifySpy.mock.calls.filter(
+      ([value]) => typeof value === 'object' && value !== null,
+    )
+    const serializedStrings = stringifySpy.mock.calls
+      .map(([value]) => value)
+      .filter((value): value is string => typeof value === 'string')
+    expect(serializedObjects).toHaveLength(1)
+    expect(Math.max(...serializedStrings.map((value) => value.length))).toBeLessThanOrEqual(3)
+    expect(getStreamBuffer(SESSION_ID)?.parts).toEqual([
+      { type: 'text', text: 'ab'.repeat(10_000) },
+    ])
   })
 
   it('resets buffered parts when a new assistant message starts', () => {

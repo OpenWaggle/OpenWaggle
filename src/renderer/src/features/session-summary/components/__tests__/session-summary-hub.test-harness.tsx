@@ -141,6 +141,7 @@ export function gitState(
 type HubProps = {
   readonly activeSession?: SessionDetail | null
   readonly messageCount?: number
+  readonly hiveAvailable?: boolean
   readonly autoHidden?: boolean
   readonly rightSidebarOpen?: boolean
   readonly onOpenResources?: (target: SessionResourceBrowserTarget) => void
@@ -163,6 +164,7 @@ export function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
         input={{
           session: props.activeSession === undefined ? session() : props.activeSession,
           messageCount: props.messageCount ?? 1,
+          hiveAvailable: props.hiveAvailable ?? false,
           autoHidden: props.autoHidden ?? false,
           rightSidebarOpen: props.rightSidebarOpen ?? false,
           onOpenDiff: vi.fn(),

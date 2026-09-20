@@ -121,6 +121,8 @@ Selecting a skill or Waggle preset replaces only the active slash token. Existin
 
 Press `Cmd+K` / `Ctrl+K` for the centered application palette. It includes new sessions, compaction, projects, recent sessions, session operations, settings, view toggles, extension actions, feedback, file search, and content search. Prompt skills and Waggle presets remain in the composer-native `/` menu. You can also type `/compact` directly when you want to include custom compaction instructions.
 
+The composer commands `/compact`, `/fork`, and `/clone` require an idle Session. If a Run is active, wait for it to finish and submit the command again. OpenWaggle keeps your draft and attachments when it refuses to queue one of these commands. Ordinary messages, skill prompts, and Pi extension commands can still be queued as Follow-ups.
+
 Use `Cmd+P` / `Ctrl+P` to go directly to fuzzy project file search. Opening a result shows the project explorer and file on the right. Text files support autosave with external-change detection; Markdown and HTML support safe previews, while images and PDFs render in place. Content-search results open at the matching line.
 
 ## Error Handling

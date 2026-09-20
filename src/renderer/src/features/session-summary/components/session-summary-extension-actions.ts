@@ -6,7 +6,7 @@ import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
   ExtensionSessionSummaryRowView,
-} from '@shared/types/extensions'
+} from '@shared/types/extension-contribution-registry'
 import type { JsonObject } from '@shared/types/json'
 import type { SessionResource } from '@shared/types/session-resource'
 import { useEffect, useRef, useState } from 'react'

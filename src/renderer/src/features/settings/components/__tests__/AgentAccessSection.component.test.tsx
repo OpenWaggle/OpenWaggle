@@ -8,12 +8,16 @@ const {
   listAuthorizationGrantsMock,
   revokeAuthorizationMock,
   updateSettingsMock,
+  manageAccessProfilesMock,
+  getCliShimStatusMock,
 } = vi.hoisted(() => ({
   getProjectPreferencesMock: vi.fn(),
   setProjectPreferencesMock: vi.fn(),
   listAuthorizationGrantsMock: vi.fn(),
   revokeAuthorizationMock: vi.fn(),
   updateSettingsMock: vi.fn(),
+  manageAccessProfilesMock: vi.fn(),
+  getCliShimStatusMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -23,11 +27,14 @@ vi.mock('@/shared/lib/ipc', () => ({
     listAuthorizationGrants: listAuthorizationGrantsMock,
     revokeAuthorization: revokeAuthorizationMock,
     updateSettings: updateSettingsMock,
+    manageAccessProfiles: manageAccessProfilesMock,
+    getCliShimStatus: getCliShimStatusMock,
   },
 }))
 
 import { usePreferencesStore } from '@/features/settings/state'
 import { AgentAccessSection } from '../sections/AgentAccessSection'
+import { PermissionsSection } from '../sections/PermissionsSection'
 
 const PROJECT = '/tmp/project'
 
@@ -62,6 +69,12 @@ describe('AgentAccessSection', () => {
     listAuthorizationGrantsMock.mockResolvedValue([])
     revokeAuthorizationMock.mockResolvedValue(undefined)
     updateSettingsMock.mockResolvedValue(undefined)
+    getCliShimStatusMock.mockResolvedValue({
+      management: 'user-shim',
+      state: 'not-installed',
+      commandPath: '/tmp/openwaggle',
+      onPath: true,
+    })
     setProjectPath(PROJECT)
   })
 
@@ -71,7 +84,7 @@ describe('AgentAccessSection', () => {
     getProjectPreferencesMock.mockResolvedValue({ authorizationMode: 'ask-for-approval' })
     render(<AgentAccessSection />)
 
-    const select = screen.getByRole('combobox', { name: 'Current project access mode' })
+    const select = screen.getByRole('combobox', { name: 'Selected project access mode' })
     await waitFor(() => {
       expect(select).toHaveValue('ask-for-approval')
     })
@@ -85,15 +98,63 @@ describe('AgentAccessSection', () => {
     })
   })
 
+  it('lets the user inspect permissions for a named project without CLI or Hive controls', async () => {
+    const initial = usePreferencesStore.getState().settings
+    usePreferencesStore.setState({
+      settings: { ...initial, recentProjects: [PROJECT, '/tmp/another-project'] },
+    })
+    render(<PermissionsSection />)
+
+    expect(screen.getByRole('button', { name: 'Project: project' })).toBeInTheDocument()
+    expect(screen.queryByText('OpenWaggle CLI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Multi-agent sessions')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'another-project (/tmp/another-project)' }))
+
+    await waitFor(() => {
+      expect(getProjectPreferencesMock).toHaveBeenCalledWith('/tmp/another-project')
+      expect(listAuthorizationGrantsMock).toHaveBeenCalledWith('/tmp/another-project')
+    })
+  })
+
   it('shows a project with no override as using the default', async () => {
     render(<AgentAccessSection />)
 
     await waitFor(() => {
       expect(screen.getByText('This project uses the default above.')).toBeInTheDocument()
     })
-    expect(screen.getByRole('combobox', { name: 'Current project access mode' })).toHaveValue(
+    expect(screen.getByRole('combobox', { name: 'Selected project access mode' })).toHaveValue(
       'inherit',
     )
+  })
+
+  it('does not claim a project inherits the default when its access mode cannot be read', async () => {
+    getProjectPreferencesMock.mockRejectedValue(new Error('host unavailable'))
+    render(<AgentAccessSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load this project’s access mode',
+    )
+    expect(screen.getByRole('combobox', { name: 'Selected project access mode' })).toBeDisabled()
+    expect(screen.queryByText('This project uses the default above.')).not.toBeInTheDocument()
+  })
+
+  it('does not claim no saved approvals when their read fails, and can retry', async () => {
+    listAuthorizationGrantsMock
+      .mockRejectedValueOnce(new Error('host unavailable'))
+      .mockResolvedValueOnce([listIssuesGrant])
+    render(<AgentAccessSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load saved approvals')
+    expect(
+      screen.queryByText(
+        'This project has no saved approvals. Approvals you keep will appear here.',
+      ),
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading approvals' }))
+
+    expect(await screen.findByText('github-issues')).toBeInTheDocument()
+    expect(listAuthorizationGrantsMock).toHaveBeenCalledTimes(2)
   })
 
   it('lists a saved approval with its requester, capability and resource', async () => {

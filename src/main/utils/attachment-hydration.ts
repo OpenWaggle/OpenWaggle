@@ -2,10 +2,8 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
-import { extractAttachmentText } from '../ipc/attachment-text-extraction'
 import { resolvePreparedAttachmentCapability } from './attachment-registry'
-
-const ATTACHMENT_HYDRATION_CONCURRENCY = 2
+import { extractAttachmentText } from './attachment-text-extraction'
 
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
@@ -13,8 +11,11 @@ function contentSha256(bytes: Uint8Array) {
 
 async function hydrateAttachmentSource(
   attachment: PreparedAttachment,
+  validateCapability: boolean,
 ): Promise<HydratedAttachment> {
-  const preparedAttachment = await resolvePreparedAttachmentCapability(attachment)
+  const preparedAttachment = validateCapability
+    ? await resolvePreparedAttachmentCapability(attachment)
+    : attachment
   const needsBinarySource = preparedAttachment.kind === 'image' || preparedAttachment.kind === 'pdf'
   if (!needsBinarySource && preparedAttachment.extractedText) {
     return { ...preparedAttachment, source: null }
@@ -66,26 +67,12 @@ async function hydrateAttachmentSource(
 export async function hydrateAttachmentSources(
   attachments: readonly PreparedAttachment[],
 ): Promise<HydratedAttachment[]> {
-  const hydrated: HydratedAttachment[] = []
-  let nextIndex = 0
-  let firstFailure: unknown
+  // Independent per-attachment reads; Promise.all preserves input order.
+  return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, true)))
+}
 
-  async function worker() {
-    while (firstFailure === undefined) {
-      const index = nextIndex
-      nextIndex += 1
-      const attachment = attachments[index]
-      if (!attachment) return
-      try {
-        hydrated[index] = await hydrateAttachmentSource(attachment)
-      } catch (cause) {
-        firstFailure ??= cause
-      }
-    }
-  }
-
-  const workerCount = Math.min(ATTACHMENT_HYDRATION_CONCURRENCY, attachments.length)
-  await Promise.all(Array.from({ length: workerCount }, worker))
-  if (firstFailure !== undefined) throw firstFailure
-  return hydrated
+export async function hydrateTrustedAttachmentSources(
+  attachments: readonly PreparedAttachment[],
+): Promise<HydratedAttachment[]> {
+  return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, false)))
 }

@@ -25,6 +25,7 @@ import {
 } from './appearance-preferences-actions'
 import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
 import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
+import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
 
 const logger = createRendererLogger('preferences')
 const MAX_FAVORITE_MODELS = 100
@@ -197,6 +198,7 @@ export function createPreferencesActions(
 ): PreferencesActions {
   return {
     ...createBrowserAndScalarPreferencesActions(set),
+    ...createProjectHivePreferencesActions(set, get),
     ...createAppearancePreferencesActions(set, get),
     loadSettings: () => loadSettings(set, get),
     retryLoad: async () => {
@@ -232,7 +234,7 @@ export function createPreferencesActions(
       if (!normalized) return
       const { settings } = get()
       const recentProjects = appendRecentProject(settings.recentProjects, normalized)
-      await api.updateSettings({ recentProjects })
+      assertSettingsUpdateSucceeded(await api.updateSettings({ recentProjects }))
       mergeSettings(set, { recentProjects })
     },
     removeRecentProject: async (path) => {

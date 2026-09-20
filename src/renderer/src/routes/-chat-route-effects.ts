@@ -43,10 +43,12 @@ export function useChatRouteEffects({
   const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
+  const hasActiveSession = activeSession !== null
+  const hasDraftSession = draftSession !== null
 
   useEffect(() => {
     if (routeSessionId === null) {
-      if (draftSession === null && activeSessionId !== null && activeSession !== null) {
+      if (!hasDraftSession && activeSessionId !== null && hasActiveSession) {
         void navigate({
           to: '/sessions/$sessionId',
           params: { sessionId: String(activeSessionId) },
@@ -57,7 +59,7 @@ export function useChatRouteEffects({
       return
     }
 
-    if (draftSession !== null) {
+    if (hasDraftSession) {
       void navigate({ to: '/', replace: true })
       return
     }
@@ -71,17 +73,23 @@ export function useChatRouteEffects({
     if (activeSessionId !== routeSessionId) {
       setActiveSession(routeSessionId)
     }
-    useSessionStatusStore.getState().markVisited(routeSessionId)
   }, [
-    activeSession,
     activeSessionId,
     diffOpen,
-    draftSession,
+    hasActiveSession,
+    hasDraftSession,
     navigate,
     routeSessionId,
     routeSessionMissing,
     setActiveSession,
   ])
+
+  const visitedSessionId = !hasDraftSession && !routeSessionMissing ? routeSessionId : null
+  useEffect(() => {
+    // Host receipt events reload Session detail. Only navigation marks a visit,
+    // otherwise each fresh detail would persist another receipt indefinitely.
+    if (visitedSessionId !== null) useSessionStatusStore.getState().markVisited(visitedSessionId)
+  }, [visitedSessionId])
 
   const routeSessionTreeId = routeSessionId ? SessionId(String(routeSessionId)) : null
   const routeBranchId = branchId ? SessionBranchId(branchId) : null
@@ -106,6 +114,7 @@ export function useChatRouteEffects({
 
   const routeProjectPath = routeSessionDetail?.projectPath ?? null
   const nextProjectPath = draftSession?.projectPath ?? routeProjectPath ?? projectPath
+  const workingPath = resolveSessionWorkingDir(activeSession, nextProjectPath)
 
   useEffect(() => {
     if (draftSession === null && routeProjectPath !== null && routeProjectPath !== projectPath) {
@@ -117,7 +126,7 @@ export function useChatRouteEffects({
     // Status follows the active session's working tree (its worktree in worktree mode);
     // the branch list is repository-level. resolveSessionWorkingDir is the sole producer
     // of a WorkingPath, so status can never be fed a bare repository path here.
-    void refreshGitStatus(resolveSessionWorkingDir(activeSession, nextProjectPath))
+    void refreshGitStatus(workingPath)
     void refreshGitBranches(nextProjectPath === null ? null : RepositoryPath(nextProjectPath))
-  }, [activeSession, nextProjectPath, refreshGitBranches, refreshGitStatus])
+  }, [workingPath, nextProjectPath, refreshGitBranches, refreshGitStatus])
 }

@@ -32,16 +32,16 @@ function queen(activeDirectWorkerCount: number): SessionSummary {
     updatedAt: 1000,
     lineage: {
       role: 'queen' as const,
-      parentSessionId: null,
       directWorkerCount: 1,
       activeDirectWorkerCount,
       agentDefinitionName: 'Coordinator',
-      delegationState: null,
     },
   }
 }
 
-function worker(state: 'working' | 'accepted' | 'needs_attention'): SessionSummary {
+function worker(
+  state: 'working' | 'ready_for_review' | 'accepted' | 'needs_attention',
+): SessionSummary {
   return {
     id: SessionId('worker'),
     title: 'Worker session',
@@ -53,7 +53,6 @@ function worker(state: 'working' | 'accepted' | 'needs_attention'): SessionSumma
       parentSessionId: SessionId('queen'),
       directWorkerCount: 0,
       activeDirectWorkerCount: 0,
-      agentDefinitionName: null,
       delegationState: state,
     },
   }
@@ -105,6 +104,45 @@ describe('HiveSummarySection', () => {
     )
   })
 
+  it('shows a completed submission in Review rather than Active', async () => {
+    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(0), [worker('ready_for_review')]))
+    renderHive('queen')
+
+    expect(await screen.findByText('0 active · 1 total')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Review Hive sessions')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Active Hive sessions')).toBeNull()
+    expect(screen.getByText('Ready for review')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse Hive' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('moves a Worker from Active through Review to Done as delegation settles', async () => {
+    getSessionHiveRelations.mockResolvedValue(hiveRelations(queen(1), [worker('working')]))
+    const view = renderHive('queen')
+    expect(await screen.findByLabelText('Active Hive sessions')).toBeInTheDocument()
+
+    act(() => {
+      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
+        pages: [hiveRelations(queen(0), [worker('ready_for_review')])],
+        pageParams: [undefined],
+      })
+    })
+    expect(await screen.findByLabelText('Review Hive sessions')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Active Hive sessions')).toBeNull()
+    expect(screen.getByText('0 active · 1 total')).toBeInTheDocument()
+
+    act(() => {
+      view.client.setQueryData(queryKeys.sessionHive(SessionId('queen')), {
+        pages: [hiveRelations(queen(0), [worker('accepted')])],
+        pageParams: [undefined],
+      })
+    })
+    expect(await screen.findByLabelText('Done Hive sessions')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Review Hive sessions')).toBeNull()
+  })
+
   it('does not show Hive information for an unrelated opened session', async () => {
     getSessionHiveRelations.mockResolvedValue(hiveRelations(null))
     renderHive('another-session')
@@ -128,8 +166,10 @@ describe('HiveSummarySection', () => {
     renderHive('queen', onNavigateSession)
     fireEvent.click(await screen.findByRole('button', { name: /Hive/ }))
 
+    expect(screen.queryByText('Archived worker')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand archived Workers' }))
     expect(await screen.findByLabelText('Archived Hive sessions')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Archived.*Archived worker/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Open Worker Session: Archived worker/ }))
     expect(onNavigateSession).toHaveBeenCalledWith('archived-worker')
   })
 
@@ -168,8 +208,14 @@ describe('HiveSummarySection', () => {
     actions.archive(liveWorker.id)
 
     await waitFor(() => expect(archiveSession).toHaveBeenCalledWith(liveWorker.id))
+    expect(
+      await screen.findByRole('button', { name: 'Expand archived Workers' }),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand archived Workers' }))
     expect(await screen.findByLabelText('Archived Hive sessions')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Archived.*Worker session/ })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Open Worker Session: Worker session/ }),
+    ).toBeInTheDocument()
     expect(screen.queryByLabelText('Done Hive sessions')).toBeNull()
     expect(unregisterBrowserPreviewOwner).toHaveBeenCalledWith(liveWorker.id)
     expect(showToast).not.toHaveBeenCalled()
@@ -182,7 +228,7 @@ describe('HiveSummarySection', () => {
     const onNavigateSession = vi.fn()
     renderHive('worker', onNavigateSession)
 
-    const parent = await screen.findByRole('button', { name: /Parent.*Queen session/ })
+    const parent = await screen.findByRole('button', { name: /Open Queen Session: Queen session/ })
     fireEvent.click(parent)
     expect(onNavigateSession).toHaveBeenCalledWith('queen')
   })
@@ -198,7 +244,7 @@ describe('HiveSummarySection', () => {
       'aria-expanded',
       'true',
     )
-    const parent = await screen.findByRole('button', { name: /Parent.*Queen session/ })
+    const parent = await screen.findByRole('button', { name: /Open Queen Session: Queen session/ })
     fireEvent.click(parent)
     expect(onNavigateSession).toHaveBeenCalledWith('queen')
   })
@@ -233,7 +279,7 @@ describe('HiveSummarySection', () => {
     })
     act(() => vi.advanceTimersByTime(0))
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    screen.getByRole('button', { name: /Done.*Worker session/ }).focus()
+    screen.getByRole('button', { name: /Open Worker Session: Worker session/ }).focus()
     act(() => vi.advanceTimersByTime(2_499))
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     act(() => vi.advanceTimersByTime(1))

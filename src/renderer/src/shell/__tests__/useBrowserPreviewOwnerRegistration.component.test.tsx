@@ -167,6 +167,53 @@ describe('useBrowserPreviewOwnerRegistration', () => {
     unmount()
   })
 
+  it('keeps the next owner unavailable until navigation cleanup and registration settle', async () => {
+    const registered = new Set<string>()
+    let finishUnregister: (() => void) | undefined
+    const pendingUnregister = new Promise<void>((resolve) => {
+      finishUnregister = resolve
+    })
+    api.registerBrowserPreviewOwner.mockImplementation(async (ownerKey: string) => {
+      registered.add(ownerKey)
+    })
+    api.unregisterBrowserPreviewOwner.mockImplementation(async (ownerKey: string) => {
+      if (ownerKey === 'session-1') await pendingUnregister
+      registered.delete(ownerKey)
+    })
+    api.setCurrentBrowserPreview.mockImplementation(async (ownerKey: string) => {
+      if (!registered.has(ownerKey)) {
+        throw new Error('Browser-preview owner is not registered to this renderer.')
+      }
+    })
+    const { rerender, unmount } = renderHook(
+      ({ ownerKey }: { ownerKey: string }) => useBrowserPreviewOwnerRegistration(ownerKey),
+      { initialProps: { ownerKey: 'session-1' } },
+    )
+    try {
+      await waitFor(() =>
+        expect(api.setCurrentBrowserPreview).toHaveBeenCalledWith('session-1', null),
+      )
+      rerender({ ownerKey: 'session-2' })
+      await waitFor(() =>
+        expect(api.unregisterBrowserPreviewOwner).toHaveBeenCalledWith('session-1'),
+      )
+      expect(api.registerBrowserPreviewOwner).not.toHaveBeenCalledWith('session-2')
+      await expect(api.setCurrentBrowserPreview('session-2', null)).rejects.toThrow(
+        'Browser-preview owner is not registered to this renderer.',
+      )
+      await act(async () => {
+        finishUnregister?.()
+        await pendingUnregister
+      })
+      await waitFor(() => expect(registered).toEqual(new Set(['session-2'])))
+      await expect(api.setCurrentBrowserPreview('session-2', null)).resolves.toBeUndefined()
+    } finally {
+      finishUnregister?.()
+      unmount()
+      await waitFor(() => expect(registered.size).toBe(0))
+    }
+  })
+
   it('releases completed background runs before registering the next Session', async () => {
     useBackgroundRunStore.getState().addActiveRun(SessionId('session-1'))
     const { rerender, unmount } = renderHook(

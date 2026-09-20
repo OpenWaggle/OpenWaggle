@@ -19,11 +19,20 @@ function descriptor(value: unknown): McpAppDescriptor | null {
   if (!isRecord(value)) return null
   const serverInstanceId = string(value.serverInstanceId)
   const serverLabel = string(value.serverLabel)
+  const serverConfigHash = string(value.serverConfigHash)
   const toolHandle = string(value.toolHandle)
   const toolName = string(value.toolName)
   const toolTitle = string(value.toolTitle)
   const resourceUri = string(value.resourceUri)
-  if (!serverInstanceId || !serverLabel || !toolHandle || !toolName || !toolTitle || !resourceUri) {
+  if (
+    !serverInstanceId ||
+    !serverLabel ||
+    !serverConfigHash ||
+    !toolHandle ||
+    !toolName ||
+    !toolTitle ||
+    !resourceUri
+  ) {
     return null
   }
   const allowedNetworkDomains = Array.isArray(value.allowedNetworkDomains)
@@ -32,6 +41,7 @@ function descriptor(value: unknown): McpAppDescriptor | null {
   return {
     serverInstanceId,
     serverLabel,
+    serverConfigHash,
     toolHandle,
     toolName,
     toolTitle,

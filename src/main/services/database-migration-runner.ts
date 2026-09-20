@@ -46,12 +46,16 @@ export function runMigrations(migrations: readonly AppMigration[] = APP_MIGRATIO
 
       // A column that is already present means the change landed under a different ledger id, so the
       // ALTER would fail and take boot with it. Record the migration and move on.
-      const skip = migration.skipIfColumn
+      const skip =
+        migration.skipIfColumns ??
+        (migration.skipIfColumn
+          ? { table: migration.skipIfColumn.table, columns: [migration.skipIfColumn.column] }
+          : undefined)
       if (skip) {
         const columns = yield* sql<{ name: string }>`
         SELECT name FROM pragma_table_info(${skip.table})
       `
-        if (columns.some((column) => column.name === skip.column)) {
+        if (skip.columns.every((name) => columns.some((column) => column.name === name))) {
           yield* sql`
           INSERT INTO _migrations (id, name, applied_at)
           VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})

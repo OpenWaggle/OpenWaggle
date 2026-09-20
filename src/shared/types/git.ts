@@ -300,6 +300,7 @@ export const GIT_WORKTREE_ERROR_CODES = [
    * not retry or silently adopt it.
    */
   'branch-checked-out-elsewhere',
+  'workspace-bound',
   'dirty-worktree',
   'not-found',
   'unknown',

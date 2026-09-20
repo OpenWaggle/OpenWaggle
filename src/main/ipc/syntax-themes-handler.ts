@@ -10,9 +10,8 @@ import {
   parseSyntaxThemeSource,
   removeInstalledSyntaxTheme,
 } from '../adapters/syntax-theme-import'
+import { authorizeWorkspaceProject } from '../application/workspace-project-authorization'
 import { browserWindowFromWebContents, showOpenDialog } from '../desktop-ui'
-import { WorkspaceProjectAuthorization } from '../ports/workspace-project-authorization'
-import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const IMPORT_PREVIEW_TTL_MS = 10 * 60 * 1_000
@@ -59,13 +58,9 @@ export function registerSyntaxThemeHandlers() {
   typedHandle('syntax-themes:list', (_event, rawProjectPath) =>
     Effect.gen(function* () {
       const projectPath = rawProjectPath
-        ? yield* Effect.gen(function* () {
-            const validatedPath = yield* validateRequiredProjectPath(
-              decodeUnknownOrThrow(nonEmptyStringSchema, rawProjectPath),
-            )
-            const authorization = yield* WorkspaceProjectAuthorization
-            return yield* authorization.authorize(validatedPath)
-          })
+        ? yield* authorizeWorkspaceProject(
+            decodeUnknownOrThrow(nonEmptyStringSchema, rawProjectPath),
+          )
         : null
       return yield* Effect.tryPromise(() =>
         listInstalledSyntaxThemes(resourcesDirectory(), projectPath),

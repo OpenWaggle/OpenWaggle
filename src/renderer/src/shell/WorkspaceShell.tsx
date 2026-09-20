@@ -9,6 +9,7 @@ import { Header } from '@/shell/Header'
 import { ToastOverlay } from '@/shell/ToastOverlay'
 import { useUIStore } from '@/shell/ui-store'
 import { useAutoUpdater } from '@/shell/useAutoUpdater'
+import { useDesktopNativeAdmissionNotice } from './useDesktopNativeAdmissionNotice'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
 import { WorkspaceRightPanel } from './WorkspaceRightPanel'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
@@ -49,6 +50,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useTerminalActivityMonitor()
   useSetupActionTerminalReconciliation()
   useAutoUpdater()
+  useDesktopNativeAdmissionNotice()
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
   const commandSurface = useUIStore((s) => s.commandSurface)
 

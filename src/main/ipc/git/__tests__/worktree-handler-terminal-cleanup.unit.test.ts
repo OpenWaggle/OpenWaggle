@@ -1,14 +1,21 @@
 import type { GitWorktreeMutationResult } from '@shared/types/git'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as EffectModule from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { GitWorktreeService } from '../../../ports/git-worktree-service'
+import { SessionWorkspaceResourceRepository } from '../../../ports/session-workspace-resource-repository'
 import { TerminalService } from '../../../ports/terminal-service'
 
 type WorktreeRemoveHandler = (
   event: unknown,
   projectPath: unknown,
   payload: unknown,
-) => EffectModule.Effect<GitWorktreeMutationResult, unknown, TerminalService>
+) => EffectModule.Effect<
+  GitWorktreeMutationResult,
+  unknown,
+  TerminalService | GitWorktreeService | SessionWorkspaceResourceRepository
+>
 
 const handlers = new Map<string, WorktreeRemoveHandler>()
 
@@ -21,6 +28,9 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('../../typed-ipc', () => ({
+  hostHandle: vi.fn((channel: string, handler: WorktreeRemoveHandler) => {
+    handlers.set(channel, handler)
+  }),
   typedHandle: vi.fn((channel: string, handler: WorktreeRemoveHandler) => {
     handlers.set(channel, handler)
   }),
@@ -32,7 +42,7 @@ vi.mock('../worktree-service', () => ({
   removeGitWorktree: mocks.removeGitWorktree,
 }))
 
-vi.mock('../status-cache', () => ({
+vi.mock('../../../services/git-status-cache', () => ({
   invalidateGitStatusCache: (path?: string) => {
     mocks.statusInvalidations.push(path)
   },
@@ -117,7 +127,30 @@ async function invokeRemove(payload: unknown): Promise<GitWorktreeMutationResult
   const handler = handlers.get('git:worktrees:remove')
   if (!handler) throw new Error('the worktree remove handler was not registered')
   return runPromise(
-    EffectModule.provide(handler({}, PROJECT_PATH, payload), RecordingTerminalServiceLayer),
+    EffectModule.provide(
+      handler({}, PROJECT_PATH, payload),
+      Layer.mergeAll(
+        RecordingTerminalServiceLayer,
+        Layer.succeed(GitWorktreeService, {
+          create: () => EffectModule.dieMessage('not used'),
+          remove: (projectPath, input) =>
+            EffectModule.promise(() => mocks.removeGitWorktree(projectPath, input)),
+        }),
+        Layer.succeed(
+          SessionWorkspaceResourceRepository,
+          fromPartial<SessionWorkspaceResourceRepository['Type']>({
+            listManagedWorktreeRemovalCandidates: () => EffectModule.succeed([]),
+            admitManagedWorktreeRemoval: () =>
+              EffectModule.succeed({
+                status: 'reserved',
+                resourceId: 'removal-resource',
+                createdReservation: true,
+              }),
+            finalizeManagedWorktreeRemoval: () => EffectModule.void,
+          }),
+        ),
+      ),
+    ),
   )
 }
 

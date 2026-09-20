@@ -81,6 +81,26 @@ describe('settings store updates', () => {
     })
   })
 
+  it('persists Agent definition toggles independently and durably', async () => {
+    const {
+      flushSettingsStoreForTests,
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateAgentDefinitionToggleDurably,
+    } = await loadSettingsModule()
+    await updateAgentDefinitionToggleDurably('/tmp/repo', 'reviewer', false)
+    await updateAgentDefinitionToggleDurably('/tmp/repo', 'scout', true)
+    await flushSettingsStoreForTests()
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().agentDefinitionTogglesByProject).toEqual({
+      '/tmp/repo': { reviewer: false, scout: true },
+    })
+    expect(getSettings().skillTogglesByProject).toEqual({})
+  })
+
   it('roundtrips valid thinkingLevel through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ thinkingLevel: 'max' })

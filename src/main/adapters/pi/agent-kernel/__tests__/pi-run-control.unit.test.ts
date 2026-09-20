@@ -4,6 +4,7 @@ import { modelFromReference, payload } from './run-orchestration.test-utils'
 
 function nativeSteering() {
   return {
+    sessionManager: { getEntries: () => [] },
     steer: vi.fn(
       async (
         text: string,
@@ -51,6 +52,7 @@ describe('Pi native run control', () => {
     expect(result).toEqual({
       delivery: 'queued',
       durableText: 'Expanded review skill',
+      minimumCreatedOrder: 0,
     })
   })
 
@@ -80,6 +82,7 @@ describe('Pi native run control', () => {
       isCompacting: false,
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
+      sessionManager: { getEntries: () => [] },
       steer: vi.fn(async () => 'Expanded review skill'),
     }
     const control = createPiRunControl(session, new AbortController().signal)
@@ -87,7 +90,11 @@ describe('Pi native run control', () => {
     const result = await control.steer(payload('/skill:review-pr'))
 
     expect(session.steer).toHaveBeenCalledWith('/skill:review-pr', undefined)
-    expect(result).toEqual({ delivery: 'queued', durableText: 'Expanded review skill' })
+    expect(result).toEqual({
+      delivery: 'queued',
+      durableText: 'Expanded review skill',
+      minimumCreatedOrder: 0,
+    })
   })
 
   it('returns the accepted steer text even when an older queued steer drains concurrently', async () => {
@@ -97,6 +104,7 @@ describe('Pi native run control', () => {
       isStreaming: true,
       model: modelFromReference('openai/gpt-5.5'),
       getSteeringMessages: () => steeringMessages,
+      sessionManager: { getEntries: () => [] },
       steer: vi.fn(async () => {
         await Promise.resolve()
         steeringMessages.shift()
@@ -108,7 +116,11 @@ describe('Pi native run control', () => {
 
     const result = await control.steer(payload('/skill:review-pr'))
 
-    expect(result).toEqual({ delivery: 'queued', durableText: 'Expanded review skill' })
+    expect(result).toEqual({
+      delivery: 'queued',
+      durableText: 'Expanded review skill',
+      minimumCreatedOrder: 0,
+    })
   })
 
   it('waits for compaction and fails closed if the run is cancelled', async () => {
@@ -184,6 +196,7 @@ describe('Pi native run control', () => {
     expect(result).toEqual({
       delivery: 'queued',
       durableText: 'Explain the selected service',
+      minimumCreatedOrder: 0,
     })
   })
 
@@ -221,6 +234,7 @@ describe('Pi native run control', () => {
     expect(result).toEqual({
       delivery: 'queued',
       durableText: 'Expanded review skill',
+      minimumCreatedOrder: 0,
     })
   })
 

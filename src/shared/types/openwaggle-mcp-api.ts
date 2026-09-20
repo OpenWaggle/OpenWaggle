@@ -45,7 +45,13 @@ export interface OpenWaggleMcpApi {
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
   removeMcpServer(input: McpRemoveServerInput): Promise<McpSettingsView>
   authorizeMcpServer(input: McpAuthorizeServerInput): Promise<McpAuthorizeServerResult>
-  logoutMcpServer(input: McpAuthorizeServerInput): Promise<{ loggedOut: true }>
+  logoutMcpServer(input: McpAuthorizeServerInput): Promise<{
+    removedSecrets: readonly string[]
+    retainedSharedSecrets: readonly string[]
+    retainedUnverifiedSecrets: readonly string[]
+    unreadableSources: readonly string[]
+    oauthRemoved: boolean
+  }>
   addMcpServer(input: McpAddServerInput): Promise<McpSettingsView>
   previewMcpImports(input: McpImportPreviewInput): Promise<McpImportPreview>
   applyMcpImports(input: McpImportApplyInput): Promise<McpImportApplyResult>
