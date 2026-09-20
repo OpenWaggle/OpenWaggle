@@ -18,13 +18,14 @@ export function useAgentDefinitions(projectPath: string | null) {
     : (items[0]?.name ?? null)
   const previewQuery = useQuery(agentDefinitionPreviewQueryOptions(projectPath, selectedName))
   const toggleMutation = useMutation({
-    mutationFn: (input: { readonly name: string; readonly enabled: boolean }) => {
-      if (!projectPath) throw new Error('Select a project to update agents.')
-      return api.setAgentDefinitionEnabled(projectPath, input.name, input.enabled)
-    },
-    onSuccess: () =>
+    mutationFn: (input: {
+      readonly projectPath: string
+      readonly name: string
+      readonly enabled: boolean
+    }) => api.setAgentDefinitionEnabled(input.projectPath, input.name, input.enabled),
+    onSuccess: (_result, input) =>
       queryClient.invalidateQueries({
-        queryKey: queryKeys.agentDefinitions(projectPath),
+        queryKey: queryKeys.agentDefinitions(input.projectPath),
         exact: true,
       }),
   })
@@ -36,7 +37,10 @@ export function useAgentDefinitions(projectPath: string | null) {
     previewMarkdown: previewQuery.data?.markdown ?? '',
     isLoading: listQuery.isPending,
     isPreviewLoading: previewQuery.isPending,
-    error: listQuery.error ?? previewQuery.error ?? toggleMutation.error,
+    error:
+      listQuery.error ??
+      previewQuery.error ??
+      (toggleMutation.variables?.projectPath === projectPath ? toggleMutation.error : null),
     refresh: async () => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.agentDefinitions(projectPath),
@@ -48,7 +52,8 @@ export function useAgentDefinitions(projectPath: string | null) {
       })
     },
     toggleAgent: (name: string, enabled: boolean) => {
-      toggleMutation.mutate({ name, enabled })
+      if (!projectPath) return
+      toggleMutation.mutate({ projectPath, name, enabled })
     },
   }
 }
