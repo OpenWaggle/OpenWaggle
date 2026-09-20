@@ -6,7 +6,6 @@ import * as Effect from 'effect/Effect'
 import { cleanupSessionRun } from '../agent/session-cleanup'
 import { resolveEffectiveAuthorizationMode } from '../application/agent-authorization-mode'
 import { grantPendingAuthorizationsForSession } from '../application/agent-loop-interaction-broker'
-import { dismissInterruptedAgentRun } from '../application/agent-run-service'
 import {
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
@@ -145,6 +144,13 @@ function registerSessionDetailsReadHandlers() {
       return yield* repo.getTurnDiff(id, turnId)
     }),
   )
+
+  typedHandle('sessions:turn-diff-files:get', (_event, id: SessionId, turnId: string) =>
+    Effect.gen(function* () {
+      const repo = yield* SessionProjectionRepository
+      return yield* repo.getTurnDiffFiles(id, turnId)
+    }),
+  )
 }
 
 /**
@@ -212,10 +218,6 @@ function registerSessionCreationHandlers() {
     'sessions:clone-to-new',
     (_event, sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId) =>
       cloneAgentSessionToNewSession({ sessionId, model, targetNodeId }),
-  )
-
-  typedHandle('sessions:dismiss-interrupted-run', (_event, sessionId: SessionId, runId: string) =>
-    dismissInterruptedAgentRun({ sessionId, runId }),
   )
 }
 

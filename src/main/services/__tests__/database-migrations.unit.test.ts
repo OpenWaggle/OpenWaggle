@@ -20,6 +20,7 @@ const AUTHORIZATION_MIGRATION_ID = 25
 const BEFORE_AUTHORIZATION_ID = AUTHORIZATION_MIGRATION_ID - 1
 const WORKTREE_SETUP_MIGRATION_ID = 26
 const WORKTREE_SETUP_RECEIPT_MIGRATION_ID = 27
+const TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID = 28
 
 interface ColumnInfo {
   readonly name: string
@@ -302,5 +303,19 @@ describe('Session worktree Setup dispatch migration', () => {
     )
 
     expect(pending).toEqual([])
+  })
+
+  it('adds a nullable started_at column to turn_checkpoints for fold durations', async () => {
+    const columns = await withDatabase((sql) =>
+      Effect.gen(function* () {
+        yield* applyMigrations(sql, TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID)
+        return yield* sql<{ name: string; notnull: number }>`
+          PRAGMA table_info(turn_checkpoints)
+        `
+      }),
+    )
+
+    const startedAt = columns.find((column) => column.name === 'started_at')
+    expect(startedAt).toMatchObject({ notnull: 0 })
   })
 })

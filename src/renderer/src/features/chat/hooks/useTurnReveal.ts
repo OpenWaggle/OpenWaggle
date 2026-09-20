@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import { useMemo } from 'react'
 import { useDiffScopeStore, useSessionTurns } from '@/features/diff-panel'
 
@@ -23,12 +24,28 @@ export function useTurnReveal(
     () => new Set(turns.flatMap((turn) => (turn.anchorNodeId ? [turn.anchorNodeId] : []))),
     [turns],
   )
+  const turnDurationsByAnchorMessageId = useMemo(() => {
+    const durations = new Map<string, number>()
+    for (const turn of turns) {
+      if (!turn.anchorNodeId || turn.startedAt === undefined || turn.startedAt === null) continue
+      const durationMs = turn.createdAt - turn.startedAt
+      if (durationMs > 0) durations.set(turn.anchorNodeId, durationMs)
+    }
+    return durations
+  }, [turns])
+  const turnsByAnchorNodeId = useMemo(() => {
+    const byAnchor = new Map<string, TurnCheckpointSummary>()
+    for (const turn of turns) {
+      if (turn.anchorNodeId) byAnchor.set(turn.anchorNodeId, turn)
+    }
+    return byAnchor
+  }, [turns])
 
-  function handleViewTurnDiff(messageId: string) {
+  function handleViewTurnDiff(messageId: string, filePath?: string) {
     if (!activeSessionId) return
     const turn = turns.find((candidate) => candidate.anchorNodeId === messageId)
     if (!turn) return
-    useDiffScopeStore.getState().selectTurn(String(activeSessionId), turn.turnId)
+    useDiffScopeStore.getState().selectTurn(String(activeSessionId), turn.turnId, filePath)
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId: String(activeSessionId) },
@@ -36,5 +53,10 @@ export function useTurnReveal(
     })
   }
 
-  return { turnAnchorMessageIds, handleViewTurnDiff }
+  return {
+    turnAnchorMessageIds,
+    turnDurationsByAnchorMessageId,
+    turnsByAnchorNodeId,
+    handleViewTurnDiff,
+  }
 }

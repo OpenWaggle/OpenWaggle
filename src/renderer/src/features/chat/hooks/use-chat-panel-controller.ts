@@ -49,7 +49,6 @@ export function useChatPanelSections(): ChatPanelSections {
     clearDraftBranchForSession,
     slashCommandMenuOpen,
     draftBranch,
-    handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
     loadSessions,
@@ -220,11 +219,7 @@ export function useChatPanelSections(): ChatPanelSections {
     void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
   }
 
-  const { turnAnchorMessageIds, handleViewTurnDiff } = useTurnReveal(
-    activeSessionId,
-    navigate,
-    messages.length,
-  )
+  const reveal = useTurnReveal(activeSessionId, navigate, messages.length)
 
   const transcript = useTranscriptSection({
     messages,
@@ -246,12 +241,10 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSelectProjectPath,
     handleSendText: (content) => sendStarterPrompt({ content, model, handleSendText, showToast }),
     openSettings,
-    handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage: (messageId: string) =>
       void sessionCopy.forkMessageToNewSession(messageId),
-    handleViewTurnDiff,
-    turnAnchorMessageIds,
+    ...reveal,
     userDidSend,
     onUserDidSendConsumed: () => setUserDidSend(false),
     streamSignalVersion,

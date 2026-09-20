@@ -800,6 +800,24 @@ _Avoid_: pin number (implies a number stored on the pin), session shortcut (any 
 
 **Transcript window** is the slice of a session's rows the chat builds on open: the newest 40. **Load earlier** expands it by 100 rows. The window is not a scroll position and is never persisted; it resets to the newest rows whenever the open session changes. See `docs/adr/0022-transcript-opens-from-its-newest-end.md`.
 
+### Turn presentation
+
+**Turn settle**:
+The edge at which a turn stops being active — completed or interrupted — and its transcript presentation collapses.
+_Avoid_: run completion, turn end (reads as lifecycle only, not presentation)
+
+**Turn fold**:
+The single quiet transcript row that stands in for a settled turn's work — expandable back to the full turn. A turn that produced no work gets no fold row. It never stands in for an Authorization history entry, a pending interaction, an error, the Worktree launch trace, or a compaction row; those stay visible. A Waggle invocation folds per agent turn, each fold carrying its agent colour, with the Turn divider pill remaining the turn header above it.
+_Avoid_: run summary, "Completed in" (replaced phrasing), phase breakdown (deleted with the run summary), interrupted-run notice (replaced by the fold's You-stopped label), collapse row, turn divider
+
+**Changed files card**:
+The card under a settled turn's terminal message listing that Turn diff's changed files with per-file and total insertions and deletions; it auto-expands for the most recently settled turn when small and otherwise stays collapsed, and opens the Turn diff from its rows.
+_Avoid_: diff button (the hover affordance it replaces), diff card
+
+**Turn diff view**:
+The diff panel opened at Turn diff scope, optionally focused on one changed file — the only surface where OpenWaggle renders file diffs. Its transcript entry point is the Changed files card.
+_Avoid_: inline tool diff (deleted; tool rows never embed diff fragments), transcript diff
+
 ### Sidebar row vocabulary
 
 **Session row state**:

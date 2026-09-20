@@ -4,12 +4,13 @@ import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
-import type { RepositoryPath, SessionBranchId, SessionId, WorkingPath } from '@shared/types/brand'
+import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
@@ -38,11 +39,13 @@ export interface ChatTranscriptSectionState {
   onRetryText: (content: string) => Promise<void>
   onOpenSettings: () => void
   onDismissError: (errorId: string | null) => void
-  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
-  onViewTurnDiff: (messageId: string) => void
+  onViewTurnDiff: (messageId: string, filePath?: string) => void
   readonly turnAnchorMessageIds: ReadonlySet<string>
+  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0033). */
+  readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
+  onToggleTurnFold: (turnKey: string) => void
 }
 
 export interface ChatComposerSectionState {

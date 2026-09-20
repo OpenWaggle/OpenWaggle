@@ -3,7 +3,6 @@ import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { Spinner } from '@/shared/ui/Spinner'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
-import { RunSummary } from './RunSummary'
 
 function CorePhaseIndicator({
   label,
@@ -27,23 +26,9 @@ export function StatusRow({
   row,
   extensions,
 }: {
-  readonly row: Extract<ChatRow, { readonly type: 'phase-indicator' | 'run-summary' }>
+  readonly row: Extract<ChatRow, { readonly type: 'phase-indicator' }>
   readonly extensions: ChatRowRenderContext['extensions']
 }) {
-  if (row.type === 'run-summary') {
-    return (
-      <ExtensionAgentLoopSurface
-        fallback={<RunSummary phases={row.phases} totalMs={row.totalMs} />}
-        input={{
-          surface: 'status',
-          status: { label: 'Run complete', detail: formatElapsed(row.totalMs), tone: 'success' },
-        }}
-        projectPaths={extensions.projectPaths}
-        registry={extensions.registry}
-      />
-    )
-  }
-
   return (
     <ExtensionAgentLoopSurface
       fallback={<CorePhaseIndicator elapsedMs={row.elapsedMs} label={row.label} />}

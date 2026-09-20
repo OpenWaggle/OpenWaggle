@@ -8,9 +8,8 @@ import { GitBranch, GitCompare } from 'lucide-react'
 import React from 'react'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
-import { useMessageCollapse } from '../hooks/useMessageCollapse'
+import { getLastRenderableTextPartIndex } from '../lib/message-bubble-utils'
 import { AgentLabel } from './AgentLabel'
-import { CollapsibleDetails } from './CollapsibleDetails'
 import { StreamingText } from './StreamingText'
 import { ToolCallRouter } from './ToolCallRouter'
 
@@ -154,6 +153,8 @@ interface AssistantMessageBubbleProps {
   waggle?: WaggleInfo
   presentation?: {
     readonly hideAgentLabel?: boolean
+    /** Terminal message of a folded turn: render only its final text part. */
+    readonly turnFolded?: boolean
   }
   actions?: {
     readonly onBranchFromMessage?: (messageId: string) => void
@@ -173,9 +174,13 @@ export function AssistantMessageBubble({
   const isRunActive = run?.isRunActive
   const assistantModel = run?.assistantModel
   const hideAgentLabel = presentation?.hideAgentLabel
+  const turnFolded = presentation?.turnFolded === true
   const onBranchFromMessage = actions?.onBranchFromMessage
   const onViewTurnDiff = actions?.onViewTurnDiff
-  const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
+  // ADR 0033: the turn fold owns collapsing. While active or in an expanded
+  // turn every part renders; a folded terminal message renders only its final text.
+  const renderAllParts = !turnFolded || !!isStreaming || !!isRunActive
+  const lastRenderableTextPartIndex = getLastRenderableTextPartIndex(message.parts)
 
   const { toolResults, messageToolCallIds } = collectMessageToolState(message)
 
@@ -203,18 +208,8 @@ export function AssistantMessageBubble({
         ) : null}
 
         {message.parts.map((part, i) => {
-          const divider =
-            collapse.canCollapseDetails && i === collapse.lastRenderableTextPartIndex ? (
-              <CollapsibleDetails
-                key={`${message.id}-divider`}
-                showDetails={collapse.showDetails}
-                collapseLabel={collapse.collapseLabel}
-                onToggle={collapse.toggleDetails}
-              />
-            ) : null
-
           const content =
-            !collapse.renderAllParts && i !== collapse.lastRenderableTextPartIndex
+            !renderAllParts && i !== lastRenderableTextPartIndex
               ? null
               : matchBy(part, 'type')
                   .with('text', (value) =>
@@ -259,12 +254,9 @@ export function AssistantMessageBubble({
                   )
                   .otherwise(() => null)
 
-          if (divider !== null || content !== null) {
+          if (content !== null) {
             return (
-              <React.Fragment key={`${message.id}-part-${String(i)}`}>
-                {divider}
-                {content}
-              </React.Fragment>
+              <React.Fragment key={`${message.id}-part-${String(i)}`}>{content}</React.Fragment>
             )
           }
           return null

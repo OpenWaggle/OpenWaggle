@@ -68,10 +68,11 @@ function buildRowContext({
   onForkFromMessage,
   onViewTurnDiff,
   turnAnchorMessageIds,
+  onToggleTurnFold,
+  turnsByAnchorNodeId,
   onOpenSettings,
   onRetryText,
   onDismissError,
-  onDismissInterruptedRun,
 }: Pick<
   ChatTranscriptSectionState,
   | 'activeSessionId'
@@ -81,22 +82,30 @@ function buildRowContext({
   | 'onForkFromMessage'
   | 'onViewTurnDiff'
   | 'turnAnchorMessageIds'
+  | 'onToggleTurnFold'
+  | 'turnsByAnchorNodeId'
   | 'onOpenSettings'
   | 'onRetryText'
   | 'onDismissError'
-  | 'onDismissInterruptedRun'
 >): ChatRowRenderContext {
   const extensions = { registry: extensionRegistry, projectPaths: extensionProjectPaths }
   return {
     runtime: { sessionId: activeSessionId, extensions },
     extensions,
-    actions: { onBranchFromMessage, onForkFromMessage, onViewTurnDiff, turnAnchorMessageIds },
+    turnsByAnchorNodeId,
+    actions: {
+      onBranchFromMessage,
+      onForkFromMessage,
+      onViewTurnDiff,
+      turnAnchorMessageIds,
+      onToggleTurnFold,
+      onOpenTurnDiff: onViewTurnDiff,
+    },
     onOpenSettings,
     onRetry: (content) => {
       void onRetryText(content)
     },
     onDismissError,
-    onDismissInterruptedRun,
   }
 }
 

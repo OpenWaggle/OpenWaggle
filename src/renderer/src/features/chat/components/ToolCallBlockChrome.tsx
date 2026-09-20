@@ -6,7 +6,6 @@ import { Button } from '@/shared/ui/Button'
 import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useChatDisplayText } from './ChatDisplayPathContext'
 import type { ToolCallViewModel } from './ToolCallBlock'
-import { UnifiedDiffView } from './ToolCallBlockParts'
 
 interface ToolCallHeaderProps {
   readonly expanded: boolean
@@ -148,11 +147,6 @@ export function CollapsedToolPreview({
   }
   return (
     <>
-      {view.inlineDiffVisible && view.diff && (
-        <div className="ml-5 mt-1">
-          <UnifiedDiffView diff={view.diff} compact />
-        </div>
-      )}
       {view.liveOutputPreview && <ToolPreview text={view.liveOutputPreview} tone="muted" />}
       {view.failedOutputPreview && <ToolPreview text={view.failedOutputPreview} tone="error" />}
     </>

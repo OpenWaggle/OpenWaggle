@@ -86,7 +86,6 @@ function createSection(
     onRetryText: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
     onDismissError: vi.fn(),
-    onDismissInterruptedRun: vi.fn(),
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
     onViewTurnDiff: vi.fn(),

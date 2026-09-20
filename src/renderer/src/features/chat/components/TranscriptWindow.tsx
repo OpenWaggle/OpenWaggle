@@ -23,7 +23,7 @@ function getChatRowKey(row: ChatRow) {
   return matchBy(row, 'type')
     .with('message', (value) => `message:${value.message.id}`)
     .with('waggle-turn', (value) => value.id)
-    .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
+    .with('turn-fold', (value) => `turn-fold:${value.turnKey}`)
     .with('worktree-launch', (value) => `worktree-launch:${value.id}`)
     .with(
       'agent-loop-custom-message',
@@ -37,7 +37,6 @@ function getChatRowKey(row: ChatRow) {
     .with('compaction-summary', (value) => `compaction:${value.id}`)
     .with('compaction-status', (value) => `compaction-status:${value.id}`)
     .with('phase-indicator', (value) => `phase:${value.label}`)
-    .with('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
     .with('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)
     .exhaustive()
 }

@@ -75,21 +75,15 @@ export function makeBrokerPackage() {
   })
 }
 
+const { GLOBAL_KIND, PROJECT_KIND } = OPENWAGGLE_EXTENSION.SCOPE
+
 function scopesMatch(
   left: DiscoveredExtensionPackage['scope'],
   right: DiscoveredExtensionPackage['scope'],
 ) {
-  if (left.kind !== right.kind) {
-    return false
-  }
-
-  if (left.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return true
-  }
-
-  return (
-    right.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND && left.projectPath === right.projectPath
-  )
+  if (left.kind !== right.kind) return false
+  if (left.kind === GLOBAL_KIND) return true
+  return right.kind === PROJECT_KIND && left.projectPath === right.projectPath
 }
 
 function isVisiblePackage(
@@ -97,10 +91,10 @@ function isVisiblePackage(
   projectPath: string | null | undefined,
 ) {
   return (
-    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND ||
+    extensionPackage.scope.kind === GLOBAL_KIND ||
     (projectPath !== null &&
       projectPath !== undefined &&
-      extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
+      extensionPackage.scope.kind === PROJECT_KIND &&
       extensionPackage.scope.projectPath === projectPath)
   )
 }
@@ -110,11 +104,7 @@ function makeLoggerLayer(capturedLogs: CapturedLog[]) {
     debug: () => Effect.void,
     info: (namespace, message, data) =>
       Effect.sync(() => {
-        capturedLogs.push({
-          namespace,
-          message,
-          ...(data !== undefined ? { data } : {}),
-        })
+        capturedLogs.push({ namespace, message, ...(data !== undefined ? { data } : {}) })
       }),
     warn: () => Effect.void,
     error: () => Effect.void,
@@ -164,11 +154,7 @@ function makeBrokerLayer(input: {
     }),
     Layer.succeed(ExtensionManagerService, {
       listPackages: ({ projectPath }) =>
-        Effect.succeed(
-          input.packages.filter((extensionPackage) =>
-            isVisiblePackage(extensionPackage, projectPath),
-          ),
-        ),
+        Effect.succeed(input.packages.filter((p) => isVisiblePackage(p, projectPath))),
     }),
     Layer.succeed(ExtensionLifecycleRepository, {
       get: (key) =>
@@ -178,6 +164,7 @@ function makeBrokerLayer(input: {
               lifecycle.extensionId === key.extensionId && scopesMatch(lifecycle.scope, key.scope),
           ) ?? null,
         ),
+
       list: (scope) =>
         Effect.succeed(input.lifecycles.filter((lifecycle) => scopesMatch(lifecycle.scope, scope))),
       upsert: () => Effect.void,
@@ -186,10 +173,10 @@ function makeBrokerLayer(input: {
       get: (key) =>
         Effect.succeed(
           projectOverrides.find(
-            (projectOverride) =>
-              projectOverride.extensionId === key.extensionId &&
-              scopesMatch(projectOverride.scope, key.scope) &&
-              projectOverride.projectPath === key.projectPath,
+            (o) =>
+              o.extensionId === key.extensionId &&
+              scopesMatch(o.scope, key.scope) &&
+              o.projectPath === key.projectPath,
           ) ?? null,
         ),
       upsert: () => Effect.void,
@@ -197,9 +184,7 @@ function makeBrokerLayer(input: {
     Layer.succeed(SessionProjectionRepository, {
       get: () => Effect.sync(() => makeSessionDetail(PROJECT_PATH)),
       getOptional: (id) =>
-        Effect.succeed(
-          input.sessionDetail && input.sessionDetail.id === id ? input.sessionDetail : null,
-        ),
+        Effect.succeed(input.sessionDetail?.id === id ? input.sessionDetail : null),
       list: () => Effect.succeed([]),
       listDetails: () => Effect.succeed([]),
       create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
@@ -212,6 +197,7 @@ function makeBrokerLayer(input: {
       setAuthorizationMode: () => Effect.void,
       listTurnCheckpoints: () => Effect.succeed([]),
       getTurnDiff: () => Effect.succeed(null),
+      getTurnDiffFiles: () => Effect.succeed([]),
       setTurnCheckpointAnchor: () => Effect.void,
       ...PINNED_SESSION_REPOSITORY_STUB,
     }),
@@ -219,11 +205,7 @@ function makeBrokerLayer(input: {
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: (sessionId) =>
-        Effect.succeed(
-          input.sessionTree && input.sessionTree.session.id === sessionId
-            ? input.sessionTree
-            : null,
-        ),
+        Effect.succeed(input.sessionTree?.session.id === sessionId ? input.sessionTree : null),
       getWorkspace: () => Effect.succeed(null),
       persistSnapshot: () => Effect.void,
       updateRuntime: () => Effect.void,
@@ -308,7 +290,7 @@ export function makeBrokerHarness(input: {
   return {
     run: (invocation: ExtensionInvokeInput) =>
       Effect.runPromise(
-        invokeExtensionCapability(invocation, { now: () => TIMESTAMP }).pipe(Effect.provide(layer)),
+        Effect.provide(invokeExtensionCapability(invocation, { now: () => TIMESTAMP }), layer),
       ),
     storageItems: () => storageItems.map((item) => item),
     reconciledProjectPaths: () => reconciledProjectPaths.map((projectPath) => projectPath),

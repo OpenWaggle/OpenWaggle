@@ -212,10 +212,6 @@ export interface IpcCoreInvokeChannelMap {
     args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
     return: SessionCopyToNewResult
   }
-  'sessions:dismiss-interrupted-run': {
-    args: [sessionId: SessionId, runId: string]
-    return: undefined
-  }
   'sessions:delete': {
     args: [id: SessionId]
     return: undefined

@@ -210,10 +210,3 @@ export function reconcileInterruptedAgentRuns() {
     }
   })
 }
-
-export function dismissInterruptedAgentRun(input: ActiveRunIdentity) {
-  return Effect.gen(function* () {
-    const sessionRepo = yield* SessionRepository
-    yield* sessionRepo.clearActiveRun(input)
-  })
-}

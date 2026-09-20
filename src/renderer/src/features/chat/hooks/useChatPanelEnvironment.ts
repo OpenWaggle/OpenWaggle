@@ -1,11 +1,9 @@
-import type { SessionBranchId } from '@shared/types/brand'
 import { useNavigate } from '@tanstack/react-router'
 import { useChat } from '@/features/chat/hooks/useChat'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessionNav } from '@/features/sessions/hooks'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
-import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { useUIStore } from '@/shell/ui-store'
 
@@ -68,34 +66,12 @@ export function useChatPanelEnvironment() {
     }
   }
 
-  function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId) {
-    const sessionId = chat.activeSessionId
-    if (!sessionId) return
-    if (typeof api.dismissInterruptedSessionRun !== 'function') {
-      showToast('Update OpenWaggle to dismiss interrupted run notices.')
-      return
-    }
-    void api
-      .dismissInterruptedSessionRun(sessionId, runId)
-      .then(() =>
-        Promise.all([
-          loadSessions(),
-          chat.refreshSession(sessionId),
-          refreshSessionWorkspace(sessionId, { branchId }),
-        ]),
-      )
-      .catch((error: unknown) => {
-        showToast(error instanceof Error ? error.message : String(error))
-      })
-  }
-
   return {
     activeWorkspace,
     chat,
     clearDraftBranchForSession,
     slashCommandMenuOpen,
     draftBranch,
-    handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
     loadSessions,

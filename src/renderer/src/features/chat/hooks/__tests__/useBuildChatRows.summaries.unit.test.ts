@@ -153,16 +153,32 @@ describe('buildChatRows compaction summaries', () => {
 })
 
 describe('buildChatRows interrupted runs', () => {
-  it('places an interrupted run notice before transcript messages', () => {
+  it('marks the settled fold row as interrupted instead of appending a notice row', () => {
     const rows = buildChatRows({
-      messages: [createUserMessage('user-1', 'continue from last run')],
+      messages: [
+        createUserMessage('user-1', 'continue from last run'),
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'tool-a',
+              name: 'bash',
+              arguments: '{}',
+              state: 'output-available',
+            },
+            { type: 'text', content: 'Partial progress before the stop.' },
+          ],
+        },
+      ],
       isLoading: false,
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
       sessionId: 'session-interrupted',
       waggleMetadataLookup: {},
-      phase: { current: null, completed: [], totalElapsedMs: 0 },
+      phase: { current: null, completed: [], totalElapsedMs: 4000 },
       interruptedRun: {
         runId: 'run-interrupted-1',
         sessionId: SessionId('session-interrupted'),
@@ -173,12 +189,12 @@ describe('buildChatRows interrupted runs', () => {
       },
     })
 
-    expect(rows[0]).toMatchObject({
-      type: 'interrupted-run',
-      runId: 'run-interrupted-1',
-      branchId: SessionBranchId('session-interrupted:main'),
+    expect(rows.some((row) => row.type === 'interrupted-run')).toBe(false)
+    expect(rows[1]).toMatchObject({
+      type: 'turn-fold',
+      interrupted: true,
+      label: 'You stopped after 4s',
     })
-    expect(rows[1]).toMatchObject({ type: 'message' })
   })
 })
 

@@ -167,7 +167,6 @@ function transcriptParams(): TranscriptSectionParams {
     handleSelectProjectPath: vi.fn(),
     handleSendText: vi.fn(),
     openSettings: vi.fn(),
-    handleDismissInterruptedRun: vi.fn(),
     handleBranchFromMessage: vi.fn(),
     handleForkFromMessage: vi.fn(),
     userDidSend: false,

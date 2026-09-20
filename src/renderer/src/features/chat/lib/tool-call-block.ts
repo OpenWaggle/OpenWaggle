@@ -8,7 +8,6 @@ export const JSON_STRINGIFY_SPACES = 2
 export const LONG_ARGUMENT_PREVIEW_CHARS = 120
 export const LONG_ARGUMENT_MAX_HEIGHT_PX = 200
 export const RESULT_MAX_HEIGHT_PX = 300
-export const INLINE_DIFF_LINE_LIMIT = 32
 export const OUTPUT_PREVIEW_LINES = 6
 export const LINE_SPLIT_SEPARATOR = '\n'
 export const HIGHLIGHT_MAX_CHARS = 80_000

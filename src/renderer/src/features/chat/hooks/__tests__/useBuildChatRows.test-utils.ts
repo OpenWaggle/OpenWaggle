@@ -100,6 +100,7 @@ function createAssistantTerminalToolMessage(
 function getAssistantMessageRows(
   messages: UIMessage[],
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>> = {},
+  expandedTurnKeys: ReadonlySet<string> = new Set(),
 ) {
   const rows = buildChatRows({
     messages,
@@ -111,6 +112,7 @@ function getAssistantMessageRows(
 
     waggleMetadataLookup,
     phase: { current: null, completed: [], totalElapsedMs: 0 },
+    expandedTurnKeys,
   })
 
   return rows.filter(

@@ -186,6 +186,7 @@ function createConfiguredWaggleExtension(input: {
 }
 
 export async function runPiWaggle(input: PiWaggleKernelRunInput) {
+  const startedAt = Date.now()
   const projectPath = input.workingPath
   const waggleSessionId = randomUUID()
   const runtimeConfig = resolveWaggleRuntimeConfig({
@@ -271,6 +272,11 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       }),
     buildErrorMessages: buildPiRunAssistantMessages,
   })
-  await captureTurnCheckpoint({ session: input.session, projectPath, runId: input.runId })
+  await captureTurnCheckpoint({
+    session: input.session,
+    projectPath,
+    runId: input.runId,
+    startedAt,
+  })
   return result
 }
