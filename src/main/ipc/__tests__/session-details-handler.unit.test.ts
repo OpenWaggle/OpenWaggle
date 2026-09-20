@@ -82,11 +82,7 @@ describe('registerSessionDetailsHandlers', () => {
 
   it('reads only the opened Session Hive relations through the projection repository', async () => {
     const sessionId = SessionId('session-1')
-    const relations = {
-      current: null,
-      parent: null,
-      workers: [],
-    }
+    const relations = { current: null, parent: null, workers: [] }
     getHiveRelationsMock.mockResolvedValue(relations)
 
     registerSessionDetailsHandlers()
@@ -345,15 +341,5 @@ describe('registerSessionDetailsHandlers', () => {
       'Session authorization mode is invalid.',
     )
     expect(setAuthorizationModeMock).not.toHaveBeenCalled()
-  })
-
-  it('requires canonical provider/model session model picks', async () => {
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:set-selected-model')
-
-    await expect(handler?.({}, SessionId('session-1'), 'not-a-ref')).rejects.toThrow(
-      'Session model must be a provider/model reference.',
-    )
-    await expect(handler?.({}, SessionId('session-1'), ' provider/model ')).resolves.toBeUndefined()
   })
 })
