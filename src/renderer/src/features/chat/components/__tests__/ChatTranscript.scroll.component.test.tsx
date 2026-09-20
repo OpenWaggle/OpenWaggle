@@ -74,6 +74,8 @@ function createSection(
     worktreePath: null,
     recentProjects: [],
     activeSessionId: null,
+    turnsByAnchorNodeId: new Map(),
+    onToggleTurnFold: () => {},
     chatRows: [createMessageChatRow(defaultMessage)],
     extensionRegistry: null,
     extensionProjectPaths: [],

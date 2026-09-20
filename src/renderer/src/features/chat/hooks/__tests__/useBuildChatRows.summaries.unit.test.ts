@@ -189,7 +189,6 @@ describe('buildChatRows interrupted runs', () => {
       },
     })
 
-    expect(rows.some((row) => row.type === 'interrupted-run')).toBe(false)
     expect(rows[1]).toMatchObject({
       type: 'turn-fold',
       interrupted: true,

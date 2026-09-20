@@ -181,18 +181,18 @@ describe('applyTurnFolds', () => {
   it('folds a settled Waggle turn as one agent-colored unit inside its section', () => {
     const waggleMeta: WaggleMessageMetadata = fromPartial({
       agentLabel: 'Scout',
-      agentColor: 'cyan',
+      agentColor: 'emerald',
       turnNumber: 2,
       agentIndex: 0,
     })
     const waggleRow: ChatRow = {
       type: 'waggle-turn',
       id: 'waggle-turn:s:2:0:a1',
-      agentColor: 'cyan',
+      agentColor: 'emerald',
       turnDividerProps: {
         turnNumber: 2,
         agentLabel: 'Scout',
-        agentColor: 'cyan',
+        agentColor: 'emerald',
       },
       messages: [
         { ...messageRow(assistantMessage('a1', [toolCallPart('t1')])), waggleMeta },
@@ -210,7 +210,7 @@ describe('applyTurnFolds', () => {
     expect(foldedWaggle.foldRow).toMatchObject({
       type: 'turn-fold',
       label: 'Worked for 12s',
-      agentColor: 'cyan',
+      agentColor: 'emerald',
     })
     expect(foldedWaggle.messages).toHaveLength(2)
     expect(foldedWaggle.messages[0]?.turnPresentation).toBeUndefined()
@@ -309,15 +309,15 @@ describe('applyTurnFolds', () => {
   it('keeps an expanded waggle turn fully rendered with its fold row present', () => {
     const waggleMeta: WaggleMessageMetadata = fromPartial({
       agentLabel: 'Scout',
-      agentColor: 'cyan',
+      agentColor: 'emerald',
       turnNumber: 1,
       agentIndex: 0,
     })
     const waggleRow: ChatRow = {
       type: 'waggle-turn',
       id: 'waggle-turn:s:1:0:wa1',
-      agentColor: 'cyan',
-      turnDividerProps: { turnNumber: 1, agentLabel: 'Scout', agentColor: 'cyan' },
+      agentColor: 'emerald',
+      turnDividerProps: { turnNumber: 1, agentLabel: 'Scout', agentColor: 'emerald' },
       messages: [
         { ...messageRow(assistantMessage('wa1', [toolCallPart('wt1')])), waggleMeta },
         { ...messageRow(assistantMessage('wa2', [textPart('Waggle output.')])), waggleMeta },

@@ -91,6 +91,8 @@ function createSection(): ChatTranscriptSectionState {
     worktreePath: null,
     recentProjects: [],
     activeSessionId: SessionId('session-1'),
+    turnsByAnchorNodeId: new Map(),
+    onToggleTurnFold: () => {},
     chatRows: [
       {
         type: 'message',

@@ -53,6 +53,8 @@ function createSection(): ChatTranscriptSectionState {
     worktreePath: null,
     recentProjects: [],
     activeSessionId: SessionId(SESSION),
+    turnsByAnchorNodeId: new Map(),
+    onToggleTurnFold: () => {},
     chatRows: rows,
     extensionRegistry: null,
     extensionProjectPaths: ['/repo'],

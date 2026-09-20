@@ -153,6 +153,7 @@ function transcriptParams(
     onUserDidSendConsumed: vi.fn(),
     handleViewTurnDiff: vi.fn(),
     turnAnchorMessageIds: new Set<string>(),
+    turnsByAnchorNodeId: new Map(),
     compactionStatus: null,
     ...overrides,
   }

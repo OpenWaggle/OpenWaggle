@@ -147,6 +147,7 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
 
 function transcriptParams(): TranscriptSectionParams {
   return {
+    turnsByAnchorNodeId: new Map(),
     messages: [],
     customMessages: [],
     interactionEvents: [],
