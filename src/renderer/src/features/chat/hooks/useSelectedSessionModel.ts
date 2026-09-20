@@ -9,6 +9,7 @@ import { createRendererLogger } from '@/shared/lib/logger'
 import {
   clearDesiredSessionModel,
   markDesiredSessionModel,
+  reconcileSessionModelPick,
   runExclusiveSessionModelWrite,
 } from '@/shared/lib/session-model-pick'
 
@@ -64,22 +65,30 @@ export function useSelectedSessionModel(): {
             model: String(model),
             error: String(error),
           })
-          // Drop this pick's guard so the reload writes the persisted row; a newer pick's guard
-          // stays and keeps its optimistic value through the reload.
+          // Drop this pick's guard so the rollback writes the persisted row; a newer pick's
+          // guard stays and keeps its optimistic value through the rollback.
           clearDesiredSessionModel(sessionKey, pickGeneration)
-          // Converge inside the queue, so a newer pick cannot start from a cache this failed
-          // write is about to overwrite.
           try {
             const fresh = await api.getSessionDetail(sessionId)
             if (fresh) {
               useChatStore.getState().upsertSession(fresh)
+              // Roll the summary back directly from the fresh row: the async list refresh is
+              // best-effort and can itself fail, which would keep the rejected model there.
+              useSessionStore.setState((s) => ({
+                sessions: s.sessions.map((summary) =>
+                  String(summary.id) === sessionKey
+                    ? { ...summary, selectedModel: fresh.selectedModel }
+                    : summary,
+                ),
+              }))
               refreshSessionStoreForSession(sessionId, useChatStore.getState().activeSessionId)
             } else {
               await useChatStore.getState().refreshSession(sessionId)
             }
           } catch (reloadError) {
             // The write and the reload both failed (same outage): restore the pre-pick detail and
-            // summary so nothing keeps a model that was never persisted.
+            // summary so nothing keeps a model that was never persisted. Both pass through the
+            // desired-pick guard, so a newer pick's optimistic value survives this rollback.
             logger.warn('Reloading after a failed model pick failed; restoring pre-pick state', {
               model: String(model),
               error: String(reloadError),
@@ -88,7 +97,7 @@ export function useSelectedSessionModel(): {
             useSessionStore.setState((s) => ({
               sessions: s.sessions.map((summary) =>
                 String(summary.id) === sessionKey
-                  ? { ...summary, selectedModel: session?.selectedModel }
+                  ? reconcileSessionModelPick({ ...summary, selectedModel: session?.selectedModel })
                   : summary,
               ),
             }))
