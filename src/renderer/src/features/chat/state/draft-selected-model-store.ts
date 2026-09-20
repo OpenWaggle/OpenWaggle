@@ -26,12 +26,17 @@ export const useDraftSelectedModelStore = create<DraftSelectedModelState>()((set
     }),
 }))
 
+/** Read the explicit pre-first-send pick without touching it, so it survives the send's awaits. */
+export function snapshotDraftSelectedModel(projectPath: string): SupportedModelId | undefined {
+  return useDraftSelectedModelStore.getState().byProjectPath[projectPath]
+}
+
 /** Persist an explicit draft model choice before the first task is dispatched. */
 export async function flushDraftSelectedModelToSession(
   projectPath: string,
   sessionId: SessionId,
+  override: SupportedModelId | undefined,
 ): Promise<void> {
-  const override = useDraftSelectedModelStore.getState().byProjectPath[projectPath]
   if (override === undefined) return
 
   try {

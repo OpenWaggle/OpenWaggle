@@ -22,12 +22,16 @@ export function useSelectedSessionModel(): {
   const draftProjectPath = useChatStore((s) => s.draftSession?.projectPath ?? null)
   const fallbackModel = usePreferencesStore((s) => s.settings.selectedModel)
 
-  const projectPath = activeSession?.projectPath ?? draftProjectPath
+  // Draft picks apply only while no session is active: the draft is the composer's target until
+  // the first send creates the session, whose own row (or the global default) takes over. A pick
+  // made in an abandoned draft must not leak into an existing session that never picked.
   const draftModel = useDraftSelectedModelStore((s) =>
-    projectPath ? s.byProjectPath[projectPath] : undefined,
+    activeSession === null && draftProjectPath ? s.byProjectPath[draftProjectPath] : undefined,
   )
 
-  const selectedModel = activeSession?.selectedModel ?? draftModel ?? fallbackModel
+  const selectedModel = activeSession
+    ? (activeSession.selectedModel ?? fallbackModel)
+    : (draftModel ?? fallbackModel)
 
   const setSelectedModel = async (model: SupportedModelId) => {
     const state = useChatStore.getState()

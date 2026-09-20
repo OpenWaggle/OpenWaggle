@@ -7,7 +7,10 @@ import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
-import { flushDraftSelectedModelToSession } from '@/features/chat/state/draft-selected-model-store'
+import {
+  flushDraftSelectedModelToSession,
+  snapshotDraftSelectedModel,
+} from '@/features/chat/state/draft-selected-model-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
 import { flushDraftWorktreePlanToSession, snapshotDraftWorktreePlan } from '@/features/git'
@@ -57,11 +60,14 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
+      // Snapshot before createSession: the user can start another draft and pick a different model
+      // while the creation is pending, and that pick belongs to the new draft, not this send.
+      const draftModel = snapshotDraftSelectedModel(projectPath)
       const sessionId = await createSession(projectPath)
       try {
         await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        await flushDraftSelectedModelToSession(projectPath, sessionId)
+        await flushDraftSelectedModelToSession(projectPath, sessionId, draftModel)
         /*
          * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
          * the send had succeeded: a review submitted as a session's first message was cleared and never
@@ -86,11 +92,13 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
+      // Same snapshot-before-create as the classic path above.
+      const draftModel = snapshotDraftSelectedModel(projectPath)
       const sessionId = await createSession(projectPath)
       try {
         await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        await flushDraftSelectedModelToSession(projectPath, sessionId)
+        await flushDraftSelectedModelToSession(projectPath, sessionId, draftModel)
         startWaggleCollaboration(sessionId, config)
         /*
          * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
