@@ -8,6 +8,7 @@ import type {
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { reconcileSessionModelPick } from '@/shared/lib/session-model-pick'
 
 const logger = createRendererLogger('session-store')
 
@@ -59,7 +60,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   async loadSessions() {
     try {
       const sessions = await api.listSessions()
-      set({ sessions, error: null })
+      // A pick whose write is still in flight wins over a list read before that write landed.
+      set({ sessions: sessions.map(reconcileSessionModelPick), error: null })
     } catch (err) {
       handleStoreError(err, 'load sessions', (error) => set({ error }))
     }

@@ -6,6 +6,7 @@ import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
+import { reconcileSessionModelPick } from '@/shared/lib/session-model-pick'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import {
   handleStoreError,
@@ -193,17 +194,19 @@ function refreshMissingSessionTree(wasActiveSession: boolean) {
 }
 
 function upsertSession(session: SessionDetail, set: ChatSet) {
+  // A pick whose write is still in flight wins over a row a refresh read before that write landed.
+  const reconciled = reconcileSessionModelPick(session)
   set((state) => {
     const sessionById = new Map(state.sessionById)
     const missingSessionIds = new Set(state.missingSessionIds)
-    sessionById.set(session.id, session)
-    missingSessionIds.delete(session.id)
+    sessionById.set(reconciled.id, reconciled)
+    missingSessionIds.delete(reconciled.id)
     return {
       sessionById,
       missingSessionIds,
-      sessions: mergeSummary(state.sessions, toSummary(session)),
-      draftSession: state.activeSessionId === session.id ? null : state.draftSession,
-      activeSession: state.activeSessionId === session.id ? session : state.activeSession,
+      sessions: mergeSummary(state.sessions, toSummary(reconciled)),
+      draftSession: state.activeSessionId === reconciled.id ? null : state.draftSession,
+      activeSession: state.activeSessionId === reconciled.id ? reconciled : state.activeSession,
       error: null,
     }
   })
