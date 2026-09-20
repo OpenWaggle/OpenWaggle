@@ -39,6 +39,17 @@ function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>): 
   return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect))
 }
 
+function revisionGateArgs(channel: string) {
+  const project = { kind: 'value' as const, value: '/project' }
+  const name = { kind: 'value' as const, value: 'reviewer' }
+  if (channel === 'agent-definitions:list-display') return [project]
+  if (channel === 'agent-definitions:get-preview') return [project, name]
+  if (channel === 'agent-definitions:set-enabled') {
+    return [project, name, { kind: 'value' as const, value: false }]
+  }
+  return []
+}
+
 describe('Host UI request dispatcher', () => {
   it.each(HOST_UI_REVISION_11_REQUIRED_CHANNELS)(
     'requires revision 11 before executing %s',
@@ -52,7 +63,7 @@ describe('Host UI request dispatcher', () => {
               contractVersion: 1,
               requestId: 'old-project-actions-client',
               channel,
-              args: [],
+              args: revisionGateArgs(channel),
             },
           }),
         ),

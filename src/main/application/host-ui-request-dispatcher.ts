@@ -62,7 +62,7 @@ import { authorizeHostUiWorkspaceProject } from './workspace-project-authorizati
 
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
-const PROJECT_ACTIONS_PROTOCOL_REVISION = 11
+const HOST_UI_REVISION_11 = 11
 
 function oneInput<A, E, R>(
   args: readonly unknown[],
@@ -183,13 +183,13 @@ function dispatchHostUiChannel(
     return dispatchHostUiSkillsOperation(channel, args)
   }
   if (isHostUiAgentDefinitionChannel(channel)) {
+    if (negotiatedRevision !== undefined && negotiatedRevision < HOST_UI_REVISION_11) {
+      return invalidHostUiInput('Agent definitions require Local Session protocol revision 11.')
+    }
     return dispatchHostUiAgentDefinitionOperation(channel, args)
   }
   if (isHostUiProjectActionChannel(channel)) {
-    if (
-      negotiatedRevision !== undefined &&
-      negotiatedRevision < PROJECT_ACTIONS_PROTOCOL_REVISION
-    ) {
+    if (negotiatedRevision !== undefined && negotiatedRevision < HOST_UI_REVISION_11) {
       return invalidHostUiInput('Project actions require Local Session protocol revision 11.')
     }
     return dispatchHostUiProjectActionOperation(channel, args)
