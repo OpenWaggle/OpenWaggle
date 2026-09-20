@@ -74,10 +74,11 @@ export function useSelectedSessionModel(): {
               useChatStore.getState().upsertSession(fresh)
               // Roll the summary back directly from the fresh row: the async list refresh is
               // best-effort and can itself fail, which would keep the rejected model there.
+              // Reconciled, so a newer pick's optimistic summary survives this rollback.
               useSessionStore.setState((s) => ({
                 sessions: s.sessions.map((summary) =>
                   String(summary.id) === sessionKey
-                    ? { ...summary, selectedModel: fresh.selectedModel }
+                    ? reconcileSessionModelPick({ ...summary, selectedModel: fresh.selectedModel })
                     : summary,
                 ),
               }))
