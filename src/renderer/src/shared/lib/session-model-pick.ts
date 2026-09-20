@@ -37,3 +37,20 @@ export function reconcileSessionModelPick<T extends SessionModelCarrier>(session
   if (!desired || session.selectedModel === desired.model) return session
   return { ...session, selectedModel: desired.model }
 }
+
+/** One settled model write at a time per session, so overlapping writes reconcile in order. */
+const pickQueues = new Map<string, Promise<void>>()
+
+/** Serializes per-session model writes (picker picks and first-send draft flushes alike). */
+export async function runExclusiveSessionModelWrite(
+  sessionKey: string,
+  task: () => Promise<void>,
+): Promise<void> {
+  const previous = pickQueues.get(sessionKey) ?? Promise.resolve()
+  const current = previous.then(task, task)
+  pickQueues.set(
+    sessionKey,
+    current.catch(() => undefined),
+  )
+  await current
+}

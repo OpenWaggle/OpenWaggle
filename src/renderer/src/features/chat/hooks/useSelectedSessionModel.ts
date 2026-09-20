@@ -6,22 +6,13 @@ import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { clearDesiredSessionModel, markDesiredSessionModel } from '@/shared/lib/session-model-pick'
+import {
+  clearDesiredSessionModel,
+  markDesiredSessionModel,
+  runExclusiveSessionModelWrite,
+} from '@/shared/lib/session-model-pick'
 
 const logger = createRendererLogger('session-model')
-
-/** One settled pick at a time per session, so overlapping writes reconcile in dispatch order. */
-const pickQueues = new Map<string, Promise<void>>()
-
-async function runExclusive(sessionKey: string, task: () => Promise<void>): Promise<void> {
-  const previous = pickQueues.get(sessionKey) ?? Promise.resolve()
-  const current = previous.then(task, task)
-  pickQueues.set(
-    sessionKey,
-    current.catch(() => undefined),
-  )
-  await current
-}
 
 /**
  * The model of the session the composer is acting on — stored per session in the database, never
@@ -65,7 +56,7 @@ export function useSelectedSessionModel(): {
           String(summary.id) === sessionKey ? { ...summary, selectedModel: model } : summary,
         ),
       }))
-      await runExclusive(sessionKey, async () => {
+      await runExclusiveSessionModelWrite(sessionKey, async () => {
         try {
           await api.setSessionSelectedModel(sessionId, model)
         } catch (error) {

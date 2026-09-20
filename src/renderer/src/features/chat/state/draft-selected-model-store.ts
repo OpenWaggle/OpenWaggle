@@ -2,7 +2,11 @@ import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
-import { clearDesiredSessionModel, markDesiredSessionModel } from '@/shared/lib/session-model-pick'
+import {
+  clearDesiredSessionModel,
+  markDesiredSessionModel,
+  runExclusiveSessionModelWrite,
+} from '@/shared/lib/session-model-pick'
 import { useChatStore } from './chat-store'
 
 interface DraftModelOverride {
@@ -58,26 +62,31 @@ export async function flushDraftSelectedModelToSession(
   if (override === undefined) return
 
   const sessionKey = String(sessionId)
-  const pickGeneration = markDesiredSessionModel(sessionKey, override.model)
-  try {
-    await api.setSessionSelectedModel(sessionId, override.model)
-  } catch (error) {
-    // The row stays inheriting, so drop the pick rather than diverge: the composer, a retried
-    // dispatch, and a reload would otherwise disagree about this session's model. The failure
-    // propagates, aborting the first send with the draft preserved for the user to retry.
-    clearDesiredSessionModel(sessionKey, pickGeneration)
+  // The picker stays enabled once createSession activates the session, so a newer pick can be
+  // queued behind or ahead of this flush; the shared per-session queue orders them, and the
+  // guard keeps the newest pick through any refresh that read the row earlier.
+  await runExclusiveSessionModelWrite(sessionKey, async () => {
+    const pickGeneration = markDesiredSessionModel(sessionKey, override.model)
+    try {
+      await api.setSessionSelectedModel(sessionId, override.model)
+    } catch (error) {
+      // The row stays inheriting, so drop the pick rather than diverge: the composer, a retried
+      // dispatch, and a reload would otherwise disagree about this session's model. The failure
+      // propagates, aborting the first send with the draft preserved for the user to retry.
+      clearDesiredSessionModel(sessionKey, pickGeneration)
+      useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
+      throw error
+    }
+    // createSession already replaced the draft with an active SessionDetail that carries no pick.
+    // Mirror the persisted model into it before clearing the override, otherwise the picker, Waggle
+    // status, and the usage snapshot fall back to the global default until the run refresh lands.
+    const chat = useChatStore.getState()
+    const created = chat.activeSession
+    if (created && String(created.id) === String(sessionId)) {
+      chat.upsertSession({ ...created, selectedModel: override.model })
+    }
     useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
-    throw error
-  }
-  // createSession already replaced the draft with an active SessionDetail that carries no pick.
-  // Mirror the persisted model into it before clearing the override, otherwise the picker, Waggle
-  // status, and the usage snapshot fall back to the global default until the run refresh lands.
-  const chat = useChatStore.getState()
-  const created = chat.activeSession
-  if (created && String(created.id) === String(sessionId)) {
-    chat.upsertSession({ ...created, selectedModel: override.model })
-  }
-  useDraftSelectedModelStore.getState().clearOverride(projectPath, override.generation)
-  // The pick guard stays: a refresh that read the row before the write can still land later, and
-  // it must not restore the pre-pick value. A newer pick replaces the guard; a failure clears it.
+    // The pick guard stays: a refresh that read the row before the write can still land later, and
+    // it must not restore the pre-pick value. A newer pick replaces the guard; a failure clears it.
+  })
 }
