@@ -134,7 +134,10 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
     if (previewQuery.error) {
       return describeSkillsError(previewQuery.error, 'Failed to load skill preview.')
     }
-    if (toggleSkillMutation.error) {
+    if (
+      toggleSkillMutation.variables?.nextProjectPath === projectPath &&
+      toggleSkillMutation.error
+    ) {
       return describeSkillsError(toggleSkillMutation.error, 'Failed to update skill state.')
     }
     return null

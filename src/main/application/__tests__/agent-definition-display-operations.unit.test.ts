@@ -6,10 +6,7 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  SessionProjectionRepository,
-  type SessionProjectionRepositoryShape,
-} from '../../ports/session-projection-repository'
+import { SessionRepository, type SessionRepositoryShape } from '../../ports/session-repository'
 import { SettingsService, type SettingsServiceShape } from '../../services/settings-service'
 import {
   getAgentDefinitionPreviewOperation,
@@ -54,8 +51,8 @@ function layer(projectPath: string, canonicalProjectPath: string, setEnabled = v
       }),
     ),
     Layer.succeed(
-      SessionProjectionRepository,
-      fromPartial<SessionProjectionRepositoryShape>({ list: () => Effect.succeed([]) }),
+      SessionRepository,
+      fromPartial<SessionRepositoryShape>({ hasActiveProjectPath: () => Effect.succeed(false) }),
     ),
   )
 }

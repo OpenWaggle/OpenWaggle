@@ -106,6 +106,7 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'onWorkspaceFilesChanged',
   'listSessionsByIds',
   'listSessionCatalogPage',
+  'listSessionProjectPage',
   'listHiveSessionCatalogPage',
   'getSessionDetail',
   'listTurnCheckpoints',

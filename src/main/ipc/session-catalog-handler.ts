@@ -8,6 +8,9 @@ export function registerSessionCatalogHandlers() {
   typedHandle('sessions:list-page', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:list-page', args),
   )
+  typedHandle('sessions:list-projects', (_event, ...args) =>
+    dispatchHostBackedSessionGuiOperation('sessions:list-projects', args),
+  )
   typedHandle('sessions:list-hive-page', (_event, ...args) =>
     dispatchHostBackedSessionGuiOperation('sessions:list-hive-page', args),
   )

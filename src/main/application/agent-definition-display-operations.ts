@@ -2,7 +2,7 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import { listAgentDefinitions, previewAgentDefinition } from '../agents/agent-definition-catalog'
 import { agentDefinitionTogglesForProject } from '../agents/agent-definition-toggle-settings'
-import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { authorizeAgentDefinitionUiCommand } from './agent-definition-ui-authority'
 
@@ -11,7 +11,7 @@ const agentNameSchema = Schema.String.pipe(Schema.minLength(1))
 function authorizedProject(rawProjectPath: string) {
   return Effect.gen(function* () {
     const settings = yield* (yield* SettingsService).get()
-    const sessions = yield* (yield* SessionProjectionRepository).list()
+    const repository = yield* SessionRepository
     const command = yield* Effect.promise(() =>
       authorizeAgentDefinitionUiCommand({
         senderId: 0,
@@ -19,8 +19,9 @@ function authorizedProject(rawProjectPath: string) {
         knownProjectPaths: [
           ...(settings.projectPath ? [settings.projectPath] : []),
           ...settings.recentProjects,
-          ...sessions.map((session) => session.projectPath),
         ].filter((projectPath): projectPath is string => typeof projectPath === 'string'),
+        isKnownProjectPath: (requestedPath, canonicalPath) =>
+          Effect.runPromise(repository.hasActiveProjectPath([requestedPath, canonicalPath])),
       }),
     )
     return command.projectPath

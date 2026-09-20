@@ -125,8 +125,15 @@ function AgentPreview({
 }
 
 export function AgentDefinitionsPanel() {
-  const { projectPath, projects, displayNames, setSelectedProject, openFolder, folderError } =
-    useResourceProject()
+  const {
+    projectPath,
+    projects,
+    displayNames,
+    setSelectedProject,
+    openFolder,
+    folderError,
+    loadProjectsPage,
+  } = useResourceProject()
   const agents = useAgentDefinitions(projectPath)
 
   const selected = agents.items.find((item) => item.name === agents.selectedName) ?? null
@@ -145,6 +152,7 @@ export function AgentDefinitionsPanel() {
             displayNames={displayNames}
             onSelect={setSelectedProject}
             onOpenFolder={() => void openFolder()}
+            loadProjectsPage={loadProjectsPage}
           />
           <Button
             disabled={!projectPath}

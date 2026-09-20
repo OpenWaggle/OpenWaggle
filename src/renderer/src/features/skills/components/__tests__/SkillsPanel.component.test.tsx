@@ -135,7 +135,7 @@ describe('SkillsPanel markdown safety', () => {
     renderPanel('')
 
     fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'other-project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'other-project (/tmp/other-project)' }))
 
     expect(screen.getByRole('button', { name: 'Project: other-project' })).toBeInTheDocument()
     expect(screen.getByText('Other Skill')).toBeInTheDocument()

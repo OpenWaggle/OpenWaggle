@@ -13,6 +13,7 @@ import {
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
   listSessionCatalogPage,
+  listSessionProjectPage,
   listSessionsByIds,
 } from './host-ui-session-catalog-operations'
 import {
@@ -66,6 +67,7 @@ function dispatchSessionOperation(channel: HostBackedSessionGuiChannel, args: re
     .with('sessions:set-authorization-mode', () => setAuthorizationMode(args))
     .with('sessions:list-by-ids', () => listSessionsByIds(args))
     .with('sessions:list-page', () => listSessionCatalogPage(args))
+    .with('sessions:list-projects', () => listSessionProjectPage(args))
     .with('sessions:list-hive-page', () => listHiveSessionCatalogPage(args))
     .with('sessions:list-archived-branches', () => listArchivedSessionBranchCatalogPage(args))
     .with('sessions:get-tree', () => getSessionTree(args))

@@ -16,9 +16,11 @@ export const SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID = 54
 export const SESSION_HOST_DISCOVERY_TERM_MIGRATION_NAME = 'session-host-native-discovery-signatures'
 export const SESSION_HOST_DESKTOP_FENCE_MIGRATION_ID = 55
 export const SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID = 56
-export const SESSION_HOST_FRESH_REVISION = 'fresh-v14'
+export const SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID = 57
+export const SESSION_HOST_FRESH_REVISION = 'fresh-v15'
 export const SESSION_HOST_CUTOVER_REVISION = 'session-host-v2'
 
 // Older binaries must fail closed when a newer migration has touched the target.
 // Newer binaries may still open the baseline and apply their remaining migrations.
-export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID = SESSION_HOST_BROWSER_ATTACHMENT_MIGRATION_ID
+export const SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID =
+  SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID

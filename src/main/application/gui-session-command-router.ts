@@ -29,6 +29,7 @@ const REPLAY_SAFE_HOST_UI_CHANNELS = new Set<HostBackedGuiChannel>([
   'sessions:get-detail',
   'sessions:list-by-ids',
   'sessions:list-page',
+  'sessions:list-projects',
   'sessions:list-hive-page',
   'sessions:list-archived-branches',
   'sessions:get-tree',

@@ -30,17 +30,51 @@ export function listAgentDefinitionImportSources(senderId: number): readonly str
   return [...(selectedSourcesBySender.get(senderId) ?? [])]
 }
 
-export async function authorizeAgentDefinitionUiCommand(input: {
+async function knownProjectsInclude(
+  knownProjectPaths: readonly string[],
+  canonicalProjectPath: string,
+) {
+  const canonicalKnownProjects = await Promise.all(
+    knownProjectPaths.map(async (candidate) => {
+      try {
+        return await fs.realpath(candidate)
+      } catch {
+        return null
+      }
+    }),
+  )
+  return canonicalKnownProjects.includes(canonicalProjectPath)
+}
+
+interface AgentDefinitionUiCommandInput {
   readonly senderId: number
   readonly command: unknown
   readonly knownProjectPaths: readonly string[]
+  readonly isKnownProjectPath?: (requestedPath: string, canonicalPath: string) => Promise<boolean>
   readonly selectedSourcePaths?: readonly string[]
   readonly resolveRefreshSourcePath?: (
     projectPath: string,
     name: string,
     scope?: AgentDefinitionScope,
   ) => Promise<string | undefined>
-}): Promise<AgentDefinitionManagementCommand> {
+}
+
+async function assertKnownProject(
+  input: AgentDefinitionUiCommandInput,
+  requestedPath: string,
+  canonicalPath: string,
+) {
+  if (
+    !(await knownProjectsInclude(input.knownProjectPaths, canonicalPath)) &&
+    !(await input.isKnownProjectPath?.(requestedPath, canonicalPath))
+  ) {
+    throw new Error('Agent definitions may only be managed for an OpenWaggle project.')
+  }
+}
+
+export async function authorizeAgentDefinitionUiCommand(
+  input: AgentDefinitionUiCommandInput,
+): Promise<AgentDefinitionManagementCommand> {
   const command = decodeUnknownExactOrThrow(agentDefinitionManagementCommandSchema, input.command)
   const canonicalProjectPath = await canonicalExistingPath(command.projectPath, 'Agent project')
   const selectedSourcePaths = input.selectedSourcePaths
@@ -52,18 +86,7 @@ export async function authorizeAgentDefinitionUiCommand(input: {
         ),
       )
     : selectedSourcesBySender.get(input.senderId)
-  const canonicalKnownProjects = await Promise.all(
-    input.knownProjectPaths.map(async (candidate) => {
-      try {
-        return await fs.realpath(candidate)
-      } catch {
-        return null
-      }
-    }),
-  )
-  if (!canonicalKnownProjects.includes(canonicalProjectPath)) {
-    throw new Error('Agent definitions may only be managed for an OpenWaggle project.')
-  }
+  await assertKnownProject(input, command.projectPath, canonicalProjectPath)
 
   if (command.operation === 'write' && command.document.import) {
     throw new Error('Import provenance is managed by OpenWaggle and cannot be written by the UI.')

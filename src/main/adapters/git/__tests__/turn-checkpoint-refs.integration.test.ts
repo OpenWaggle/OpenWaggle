@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { turnCheckpointRef } from '@shared/utils/turn-checkpoint-ref'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { deleteSessionTurnCheckpointRefs } from '../turn-checkpoint-refs'
 
 const execFileAsync = promisify(execFile)
@@ -77,6 +77,17 @@ describe('deleteSessionTurnCheckpointRefs', { timeout: 15_000 }, () => {
   it('does nothing when the session never captured a checkpoint', async () => {
     const repository = await createRepository()
     await expect(deleteSessionTurnCheckpointRefs(repository, 'sess-never-ran')).resolves.toEqual([])
+  })
+
+  it('completes deletion for a non-Git project with no checkpoint refs', async () => {
+    const folder = await mkdtemp(path.join(tmpdir(), 'openwaggle-checkpoint-refs-plain-'))
+    repositoryPath = folder
+    const beforeDelete = vi.fn(async () => undefined)
+
+    await expect(
+      deleteSessionTurnCheckpointRefs(folder, 'sess-plain', beforeDelete),
+    ).resolves.toEqual([])
+    expect(beforeDelete).toHaveBeenCalledWith([])
   })
 
   it('leaves the complete ref namespace intact when Git cannot prepare the atomic deletion', async () => {

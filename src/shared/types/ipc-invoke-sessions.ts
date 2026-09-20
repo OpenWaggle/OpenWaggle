@@ -7,6 +7,7 @@ import type {
   SessionCopyToNewResult,
   SessionDetail,
   SessionNavigateTreeOptions,
+  SessionProjectPage,
   SessionSummary,
   SessionTree,
   SessionTreeUiStatePatch,
@@ -46,6 +47,10 @@ export interface IpcSessionInvokeChannelMap {
   'sessions:list-page': {
     args: [archived: boolean, limit: number, cursor?: string]
     return: SessionCatalogPage
+  }
+  'sessions:list-projects': {
+    args: [limit: number, cursor?: string, search?: string]
+    return: SessionProjectPage
   }
   'sessions:list-hive-page': {
     args: [sessionId: SessionId, limit: number, cursor?: string]

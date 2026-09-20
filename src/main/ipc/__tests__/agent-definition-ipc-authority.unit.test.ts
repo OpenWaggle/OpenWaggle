@@ -41,6 +41,31 @@ describe('Agent definition IPC authority', () => {
     ).rejects.toThrow('OpenWaggle project')
   })
 
+  it('authorizes an older Session project through a bounded exact-path lookup', async () => {
+    const lookedUp: string[][] = []
+    const canonicalProjectPath = await fs.realpath(projectPath)
+    await expect(
+      authorizeAgentDefinitionIpcCommand({
+        senderId: SENDER_ID,
+        command: { operation: 'list', projectPath },
+        knownProjectPaths: [],
+        isKnownProjectPath: async (requestedPath, canonicalPath) => {
+          lookedUp.push([requestedPath, canonicalPath])
+          return canonicalPath === canonicalProjectPath
+        },
+      }),
+    ).resolves.toMatchObject({ projectPath: canonicalProjectPath })
+    expect(lookedUp).toEqual([[projectPath, canonicalProjectPath]])
+    await expect(
+      authorizeAgentDefinitionIpcCommand({
+        senderId: SENDER_ID,
+        command: { operation: 'list', projectPath },
+        knownProjectPaths: [],
+        isKnownProjectPath: async () => false,
+      }),
+    ).rejects.toThrow('OpenWaggle project')
+  })
+
   it('rejects an import path that was not selected by this renderer', async () => {
     await expect(
       authorizeAgentDefinitionIpcCommand({

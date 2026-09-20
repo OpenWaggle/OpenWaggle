@@ -6,11 +6,13 @@ import type {
 } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { SessionRepository } from '../ports/session-repository'
+import { SettingsService } from '../services/settings-service'
 import { listPendingAgentLoopInteractions } from './agent-loop-interaction-broker'
 import { invalid, requireArgCount, validateSessionId } from './host-ui-session-operation-validation'
 
 const MAX_LIMIT = 500
 const MAX_CURSOR_LENGTH = 4096
+const MAX_PROJECT_SEARCH_LENGTH = 256
 const MAX_IDS = 100
 const TWO_ARGUMENTS = 2
 const THREE_ARGUMENTS = 3
@@ -84,6 +86,33 @@ export function listSessionCatalogPage(args: readonly unknown[]) {
     return attachCatalogPendingInteractions(
       yield* repository.listCatalogPage(args[0], limit, cursor),
     )
+  })
+}
+
+export function listSessionProjectPage(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    if (args.length < 1 || args.length > THREE_ARGUMENTS) {
+      return yield* invalid('Expected 1 to 3 arguments.')
+    }
+    const limit = yield* validateLimit(args[0])
+    const cursor = yield* validateCursor(args[1])
+    const rawSearch = args[TWO_ARGUMENTS]
+    if (
+      rawSearch !== undefined &&
+      (typeof rawSearch !== 'string' || rawSearch.length > MAX_PROJECT_SEARCH_LENGTH)
+    ) {
+      return yield* invalid('Project search must be at most 256 characters.')
+    }
+    const repository = yield* SessionRepository
+    const search = rawSearch?.trim()
+    const displayNames = (yield* (yield* SettingsService).get()).projectDisplayNames
+    const normalizedSearch = search?.normalize('NFC').toLowerCase()
+    const matchingDisplayNamePaths = normalizedSearch
+      ? Object.entries(displayNames)
+          .filter(([, label]) => label.normalize('NFC').toLowerCase().includes(normalizedSearch))
+          .map(([path]) => path)
+      : []
+    return yield* repository.listProjectPage(limit, cursor, search, matchingDisplayNamePaths)
   })
 }
 

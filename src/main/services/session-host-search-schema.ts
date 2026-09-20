@@ -5,6 +5,7 @@ import {
 } from './session-host-discovery-search-schema'
 import { SESSION_DISCOVERY_SEMANTIC_SCHEMA_STATEMENTS } from './session-host-discovery-semantic-schema'
 import { SESSION_NODE_SEARCH_ROW_SCHEMA_STATEMENTS } from './session-host-node-search-row-schema'
+import { SESSION_PROJECT_CATALOG_GENERATION_SCHEMA_STATEMENTS } from './session-host-project-catalog-generation-schema'
 import { SESSION_TRANSCRIPT_SEMANTIC_SCHEMA_STATEMENTS } from './session-host-transcript-semantic-schema'
 import { SESSION_TRANSCRIPT_TERM_SCHEMA_STATEMENTS } from './session-host-transcript-term-schema'
 import { sessionTranscriptSearchContentSql } from './session-transcript-search-content-sql'
@@ -113,6 +114,7 @@ export const SESSION_SEARCH_TARGET_SCHEMA_STATEMENTS = [
   CREATE INDEX idx_sessions_project_catalog_cursor
   ON sessions (project_path, archived, updated_at DESC, id DESC)
   `,
+  ...SESSION_PROJECT_CATALOG_GENERATION_SCHEMA_STATEMENTS,
   `
   CREATE INDEX idx_sessions_exact_id_nocase
   ON sessions (id COLLATE NOCASE)

@@ -7,6 +7,7 @@ import type {
   SessionCatalogPage,
   SessionNode,
   SessionNodeKind,
+  SessionProjectPage,
   SessionSummary,
   SessionTree,
   SessionTreeUiStatePatch,
@@ -80,6 +81,15 @@ export interface SessionRepositoryShape {
     limit: number,
     cursor?: string,
   ) => Effect.Effect<SessionCatalogPage, SessionProjectionRepositoryError>
+  readonly listProjectPage: (
+    limit: number,
+    cursor?: string,
+    search?: string,
+    matchingDisplayNamePaths?: readonly string[],
+  ) => Effect.Effect<SessionProjectPage, SessionProjectionRepositoryError>
+  readonly hasActiveProjectPath: (
+    paths: readonly string[],
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
   readonly listByIds: (
     sessionIds: readonly SessionId[],
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>

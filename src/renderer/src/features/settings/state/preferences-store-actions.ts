@@ -234,7 +234,7 @@ export function createPreferencesActions(
       if (!normalized) return
       const { settings } = get()
       const recentProjects = appendRecentProject(settings.recentProjects, normalized)
-      await api.updateSettings({ recentProjects })
+      assertSettingsUpdateSucceeded(await api.updateSettings({ recentProjects }))
       mergeSettings(set, { recentProjects })
     },
     removeRecentProject: async (path) => {

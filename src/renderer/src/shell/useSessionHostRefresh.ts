@@ -1,10 +1,11 @@
 import { SessionId } from '@shared/types/brand'
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { sessionFollowUpQueueOptions, type useChat } from '@/features/chat/hooks'
 import type { useSessions } from '@/features/sessions/hooks'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { invalidateExtensionContributionsQueries } from '@/queries/extensions'
+import { queryKeys } from '@/queries/query-keys'
 import { api } from '@/shared/lib/ipc'
 
 const SESSION_QUERY_ROOT_SEGMENTS = 2
@@ -22,6 +23,7 @@ interface PendingSessionHostRefresh {
   readonly sessionIds: Set<string>
   readonly queueSessionIds: Set<string>
   catalog: boolean
+  archivedBranches: boolean
   relationshipMayHaveChanged: boolean
   scheduled: boolean
 }
@@ -43,6 +45,7 @@ function takePendingSessionHostRefresh(
   const refreshActiveSession = activeSessionId ? pending.sessionIds.has(activeSessionId) : false
   const refresh = {
     catalog: pending.catalog,
+    archivedBranches: pending.archivedBranches,
     catalogSessionIds: [...pending.sessionIds].map(SessionId),
     queueSessionIds: [...pending.queueSessionIds],
     refreshActiveSession,
@@ -51,11 +54,31 @@ function takePendingSessionHostRefresh(
     ),
   }
   pending.catalog = false
+  pending.archivedBranches = false
   pending.relationshipMayHaveChanged = false
   pending.scheduled = false
   pending.sessionIds.clear()
   pending.queueSessionIds.clear()
   return refresh
+}
+
+function invalidateSessionHostQueries(
+  queryClient: QueryClient,
+  refresh: ReturnType<typeof takePendingSessionHostRefresh>,
+) {
+  for (const sessionId of refresh.queueSessionIds) {
+    void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
+  }
+  if (refresh.archivedBranches) {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionBranches, exact: true })
+  }
+}
+
+function invalidateSessionHostResyncQueries(queryClient: QueryClient) {
+  const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(0, SESSION_QUERY_ROOT_SEGMENTS)
+  void queryClient.invalidateQueries({ queryKey })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionBranches, exact: true })
+  void invalidateExtensionContributionsQueries(queryClient)
 }
 
 export function useSessionHostRefresh(input: {
@@ -82,6 +105,7 @@ export function useSessionHostRefresh(input: {
     sessionIds: new Set(),
     queueSessionIds: new Set(),
     catalog: false,
+    archivedBranches: false,
     relationshipMayHaveChanged: false,
     scheduled: false,
   })
@@ -97,9 +121,7 @@ export function useSessionHostRefresh(input: {
     const flush = () => {
       if (!active) return
       const refresh = takePendingSessionHostRefresh(pendingRefresh.current, activeSessionId)
-      for (const sessionId of refresh.queueSessionIds) {
-        void queryClient.invalidateQueries(sessionFollowUpQueueOptions(SessionId(sessionId)))
-      }
+      invalidateSessionHostQueries(queryClient, refresh)
       if (refresh.catalog) {
         useSessionStatusStore.getState().noteHostTerminalCountChange()
         void refreshCatalogSessions(refresh.catalogSessionIds)
@@ -131,6 +153,9 @@ export function useSessionHostRefresh(input: {
       if (event.payload.kind === 'session-list-changed' && event.payload.change === 'deleted') {
         pendingRefresh.current.relationshipMayHaveChanged = true
       }
+      if (event.payload.kind === 'session-list-changed') {
+        pendingRefresh.current.archivedBranches = true
+      }
       pendingRefresh.current.sessionIds.add(sessionId)
       if (
         event.payload.kind === 'session-state-changed' ||
@@ -145,6 +170,7 @@ export function useSessionHostRefresh(input: {
       active = false
       pendingRefresh.current.scheduled = false
       pendingRefresh.current.catalog = false
+      pendingRefresh.current.archivedBranches = false
       pendingRefresh.current.relationshipMayHaveChanged = false
       pendingRefresh.current.sessionIds.clear()
       pendingRefresh.current.queueSessionIds.clear()
@@ -154,12 +180,7 @@ export function useSessionHostRefresh(input: {
   useEffect(() => {
     return api.onSessionHostResyncRequired(() => {
       useSessionStatusStore.getState().noteHostTerminalCountChange()
-      const queryKey = sessionFollowUpQueueOptions(null).queryKey.slice(
-        0,
-        SESSION_QUERY_ROOT_SEGMENTS,
-      )
-      void queryClient.invalidateQueries({ queryKey })
-      void invalidateExtensionContributionsQueries(queryClient)
+      invalidateSessionHostResyncQueries(queryClient)
       void loadChatSessions()
       void loadSessionTrees()
       if (activeSessionId) {

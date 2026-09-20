@@ -5,6 +5,7 @@ import { AgentDefinitionsPanel } from '../AgentDefinitionsPanel'
 const state = vi.hoisted(() => ({
   toggleAgent: vi.fn(),
   selectAgent: vi.fn(),
+  listSessionProjectPage: vi.fn(),
   selectFolder: vi.fn(async () => '/tmp/new-project'),
   pushRecentProject: vi.fn(async (path: string) => {
     state.settings.recentProjects = [...state.settings.recentProjects, path]
@@ -12,8 +13,15 @@ const state = vi.hoisted(() => ({
   settings: {
     projectPath: '/tmp/project',
     recentProjects: ['/tmp/other-project'],
-    projectDisplayNames: { '/tmp/other-project': 'Other project' },
+    projectDisplayNames: {
+      '/tmp/other-project': 'Other project',
+      '/tmp/display-name-only': 'Not a known project',
+    },
   },
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: { listSessionProjectPage: state.listSessionProjectPage },
 }))
 
 vi.mock('@/features/sessions/hooks', () => ({
@@ -59,6 +67,7 @@ describe('Agents read-only browser', () => {
     state.toggleAgent.mockClear()
     state.selectFolder.mockClear()
     state.pushRecentProject.mockClear()
+    state.listSessionProjectPage.mockReset().mockResolvedValue({ paths: [] })
     state.settings.recentProjects = ['/tmp/other-project']
   })
 
@@ -83,7 +92,10 @@ describe('Agents read-only browser', () => {
     render(<AgentDefinitionsPanel />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Other project' }))
+    expect(
+      screen.queryByRole('button', { name: 'Not a known project (/tmp/display-name-only)' }),
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Other project (/tmp/other-project)' }))
     expect(screen.getByRole('button', { name: 'Project: Other project' })).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Disable explorer' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch', { name: 'Disable explorer' }))
@@ -91,7 +103,7 @@ describe('Agents read-only browser', () => {
     expect(state.settings.projectPath).toBe('/tmp/project')
 
     fireEvent.click(screen.getByRole('button', { name: 'Project: Other project' }))
-    fireEvent.click(screen.getByRole('button', { name: 'session-project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'session-project (/tmp/session-project)' }))
     expect(screen.getByRole('button', { name: 'Project: session-project' })).toBeInTheDocument()
   })
 
@@ -104,6 +116,21 @@ describe('Agents read-only browser', () => {
       expect(screen.getByRole('button', { name: 'Project: new-project' })).toBeInTheDocument()
     })
     expect(state.pushRecentProject).toHaveBeenCalledWith('/tmp/new-project')
+    expect(state.settings.projectPath).toBe('/tmp/project')
+  })
+
+  it('browses an older project returned by the Host instead of the loaded Session slice', async () => {
+    state.listSessionProjectPage.mockResolvedValue({ paths: ['/tmp/ancient-project'] })
+    render(<AgentDefinitionsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+    const olderProject = await screen.findByRole('button', {
+      name: 'ancient-project (/tmp/ancient-project)',
+    })
+    fireEvent.click(olderProject)
+
+    expect(state.listSessionProjectPage).toHaveBeenCalledWith(100, undefined, '')
+    expect(screen.getByRole('button', { name: 'Project: ancient-project' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Disable explorer' })).toBeInTheDocument()
     expect(state.settings.projectPath).toBe('/tmp/project')
   })
 })

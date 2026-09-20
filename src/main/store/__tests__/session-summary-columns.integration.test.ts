@@ -10,6 +10,7 @@ import {
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
   listSessionCatalogPage,
+  listSessionProjectPage,
 } from '../sessions/session-catalog'
 import { listSessions } from '../sessions/session-list'
 import { getSessionTree } from '../sessions/session-tree'
@@ -61,6 +62,32 @@ const WORKTREE_PATH = '/wt/openwaggle/session-under-test'
  * fails here rather than in the UI.
  */
 describe('session summary columns survive the live SQL path', () => {
+  it('keyset-pages distinct project paths without relying on the loaded Session slice', async () => {
+    await createSession({ projectPath: '/repo/alpha', piSessionId: 'pi-alpha' })
+    await createSession({ projectPath: '/repo/alpha', piSessionId: 'pi-alpha-two' })
+    await createSession({ projectPath: '/repo/bravo', piSessionId: 'pi-bravo' })
+    await createSession({ projectPath: '/repo/charlie', piSessionId: 'pi-charlie' })
+    const archived = await createSession({
+      projectPath: '/repo/archived',
+      piSessionId: 'pi-archived',
+    })
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`UPDATE sessions SET archived = 1 WHERE id = ${archived.id}`
+      }),
+    )
+
+    const first = await listSessionProjectPage(2)
+    expect(first).toEqual({ paths: ['/repo/alpha', '/repo/bravo'], nextCursor: '/repo/bravo' })
+    await expect(listSessionProjectPage(2, first.nextCursor)).resolves.toEqual({
+      paths: ['/repo/charlie'],
+    })
+    await expect(listSessionProjectPage(2, undefined, 'CHAR')).resolves.toEqual({
+      paths: ['/repo/charlie'],
+    })
+  })
+
   it('carries environmentMode and worktreePath through listSessions', async () => {
     const session = await createSession({
       projectPath: '/repo/openwaggle',

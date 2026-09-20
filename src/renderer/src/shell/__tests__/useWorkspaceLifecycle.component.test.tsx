@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '@/features/sessions/state'
+import { queryKeys } from '@/queries/query-keys'
 import { useUIStore } from '../ui-store'
 import {
   getWorkspaceLifecycleMocks,
@@ -122,7 +123,11 @@ describe('useWorkspaceLifecycle', () => {
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
     expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
-    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(2)
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.archivedSessionBranches,
+      exact: true,
+    })
     expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
       initialCountRevision + 1,
     )
@@ -180,6 +185,10 @@ describe('useWorkspaceLifecycle', () => {
 
     expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['extensionContributions'],
+    })
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.archivedSessionBranches,
+      exact: true,
     })
   })
 

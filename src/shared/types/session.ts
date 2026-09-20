@@ -89,6 +89,12 @@ export interface SessionCatalogPage {
   readonly nextCursor?: string
 }
 
+/** Distinct Session project paths, ordered by path for bounded Settings discovery. */
+export interface SessionProjectPage {
+  readonly paths: readonly string[]
+  readonly nextCursor?: string
+}
+
 /** A focused Session, its parent, and one keyset page of its direct Workers. */
 export interface HiveSessionCatalogPage {
   readonly context: readonly SessionSummary[]

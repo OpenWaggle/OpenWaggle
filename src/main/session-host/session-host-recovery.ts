@@ -1,4 +1,4 @@
-import { access, copyFile, rename, rm, stat } from 'node:fs/promises'
+import { access, copyFile, link, mkdtemp, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -101,17 +101,25 @@ export async function restorePreCutoverDatabase(
   const restoredSourceArtifact = restoredSourceArtifactPath(paths, now)
   let activePreserved = false
   try {
-    await access(paths.legacyDatabasePath).then(
-      () => {
-        throw new Error(`Legacy database path is already occupied: ${paths.legacyDatabasePath}`)
-      },
-      () => undefined,
-    )
+    if ((await fileStatus(paths.legacyDatabasePath)).exists) {
+      throw new Error(`Legacy database path is already occupied: ${paths.legacyDatabasePath}`)
+    }
     checkpoint(paths.databasePath)
     await rename(paths.databasePath, preservedActivePath)
     activePreserved = true
-    await copyFile(paths.recoveryDatabasePath, paths.legacyDatabasePath)
+    let legacyInstalled = false
     try {
+      const stagingDirectory = await mkdtemp(
+        path.join(path.dirname(paths.legacyDatabasePath), '.openwaggle-restore-'),
+      )
+      try {
+        const stagedSourcePath = path.join(stagingDirectory, 'source.sqlite')
+        await copyFile(paths.recoveryDatabasePath, stagedSourcePath)
+        await link(stagedSourcePath, paths.legacyDatabasePath)
+        legacyInstalled = true
+      } finally {
+        await rm(stagingDirectory, { recursive: true, force: true })
+      }
       const result = await runSessionHostCutover(
         {
           sourceDatabasePath: paths.legacyDatabasePath,
@@ -124,7 +132,7 @@ export async function restorePreCutoverDatabase(
       await rm(restoredSourceArtifact, { force: true })
       return { status: 'restored' as const, preservedActivePath, migration: result }
     } catch (error) {
-      await rm(paths.legacyDatabasePath, { force: true })
+      if (legacyInstalled) await rm(paths.legacyDatabasePath, { force: true })
       await rm(paths.databasePath, { force: true })
       await rename(preservedActivePath, paths.databasePath)
       activePreserved = false

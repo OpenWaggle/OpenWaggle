@@ -118,6 +118,7 @@ describe('registerSessionsHandlers', () => {
     expect(channels).toEqual([
       'sessions:list-by-ids',
       'sessions:list-page',
+      'sessions:list-projects',
       'sessions:list-hive-page',
       'sessions:list-archived-branches',
       'sessions:get-tree',

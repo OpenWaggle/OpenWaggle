@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useProject } from '@/features/sessions/hooks'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { api } from '@/shared/lib/ipc'
+
+const PROJECT_PAGE_SIZE = 100
 
 /** A Settings browser can inspect another project without changing the active Session. */
 export function useResourceProject() {
@@ -14,16 +17,12 @@ export function useResourceProject() {
   const [folderError, setFolderError] = useState<string | null>(null)
   const projects = [
     ...new Set(
-      [
-        activeProject,
-        ...recentProjects,
-        ...Object.keys(displayNames),
-        ...sessions.map((session) => session.projectPath),
-      ].filter((path): path is string => typeof path === 'string' && path.trim().length > 0),
+      [activeProject, ...recentProjects, ...sessions.map((session) => session.projectPath)].filter(
+        (path): path is string => typeof path === 'string' && path.trim().length > 0,
+      ),
     ),
   ]
-  const projectPath =
-    selectedProject && projects.includes(selectedProject) ? selectedProject : (projects[0] ?? null)
+  const projectPath = selectedProject ?? projects[0] ?? null
 
   async function openFolder() {
     try {
@@ -37,5 +36,14 @@ export function useResourceProject() {
     }
   }
 
-  return { projects, projectPath, displayNames, setSelectedProject, openFolder, folderError }
+  return {
+    projects,
+    projectPath,
+    displayNames,
+    setSelectedProject,
+    openFolder,
+    folderError,
+    loadProjectsPage: (cursor?: string, search?: string) =>
+      api.listSessionProjectPage(PROJECT_PAGE_SIZE, cursor, search),
+  }
 }

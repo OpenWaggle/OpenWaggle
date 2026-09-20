@@ -11,9 +11,11 @@ export {
   restoreSessionBranch,
 } from './sessions/branch-operations'
 export {
+  hasActiveSessionProjectPath,
   listArchivedSessionBranchCatalogPage,
   listHiveSessionCatalogPage,
   listSessionCatalogPage,
+  listSessionProjectPage,
   listSessionsByIds,
 } from './sessions/session-catalog'
 export { listArchivedSessionBranches, listSessions } from './sessions/session-list'

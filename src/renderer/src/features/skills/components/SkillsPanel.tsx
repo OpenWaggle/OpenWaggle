@@ -35,6 +35,7 @@ function SkillsPanelHeader({
           displayNames={project.displayNames}
           onSelect={project.setSelectedProject}
           onOpenFolder={() => void project.openFolder()}
+          loadProjectsPage={project.loadProjectsPage}
         />
         <Button
           disabled={!project.projectPath}

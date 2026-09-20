@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect'
 import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic-catalog-loader'
 import { resolveAgentDefinition } from '../agents/agent-definition-catalog'
 import { executeAgentDefinitionManagement } from '../agents/agent-definition-management'
-import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { authorizeAgentDefinitionUiCommand } from './agent-definition-ui-authority'
 
@@ -38,7 +38,7 @@ export function manageHostUiAgentDefinitions(
   const execute = dependencies.execute ?? executeAgentDefinitionManagement
   const resolve = dependencies.resolve ?? resolveAgentDefinition
   return Effect.gen(function* () {
-    const sessions = yield* (yield* SessionProjectionRepository).list()
+    const repository = yield* SessionRepository
     const settings = yield* (yield* SettingsService).get()
     const authorized = yield* Effect.promise(() =>
       authorize({
@@ -48,8 +48,9 @@ export function manageHostUiAgentDefinitions(
         knownProjectPaths: [
           ...(settings.projectPath ? [settings.projectPath] : []),
           ...settings.recentProjects,
-          ...sessions.map((session) => session.projectPath),
         ].filter((projectPath): projectPath is string => typeof projectPath === 'string'),
+        isKnownProjectPath: (requestedPath, canonicalPath) =>
+          Effect.runPromise(repository.hasActiveProjectPath([requestedPath, canonicalPath])),
         resolveRefreshSourcePath: async (projectPath, name, scope) => {
           const definition = await resolve({ projectPath, name, ...(scope ? { scope } : {}) })
           return definition.import?.sourcePath

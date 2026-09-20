@@ -29,6 +29,14 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       repositoryOperation('listSessionCatalogPage', () =>
         deps.store.listSessionCatalogPage(archived, limit, cursor),
       ),
+    listProjectPage: (limit, cursor, search, matchingDisplayNamePaths) =>
+      repositoryOperation('listSessionProjectPage', () =>
+        deps.store.listSessionProjectPage(limit, cursor, search, matchingDisplayNamePaths),
+      ),
+    hasActiveProjectPath: (paths) =>
+      repositoryOperation('hasActiveSessionProjectPath', () =>
+        deps.store.hasActiveSessionProjectPath(paths),
+      ),
     listByIds: (sessionIds) =>
       repositoryOperation('listSessionsByIds', () => deps.store.listSessionsByIds(sessionIds)),
     listHiveCatalogPage: (sessionId, limit, cursor) =>
@@ -65,6 +73,8 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
     SessionRepositoryShape,
     | 'list'
     | 'listCatalogPage'
+    | 'listProjectPage'
+    | 'hasActiveProjectPath'
     | 'listByIds'
     | 'listHiveCatalogPage'
     | 'listArchivedBranchCatalogPage'

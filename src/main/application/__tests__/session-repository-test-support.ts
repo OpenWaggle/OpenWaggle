@@ -4,6 +4,8 @@ import type { SessionRepositoryShape } from '../../ports/session-repository'
 /** Empty catalog behavior for tests that exercise unrelated SessionRepository capabilities. */
 export const emptySessionCatalogMethods = {
   listCatalogPage: () => Effect.succeed({ sessions: [] }),
+  listProjectPage: () => Effect.succeed({ paths: [] }),
+  hasActiveProjectPath: () => Effect.succeed(false),
   listByIds: () => Effect.succeed([]),
   listHiveCatalogPage: () => Effect.succeed({ context: [], workers: [] }),
   listArchivedBranchCatalogPage: () => Effect.succeed({ sessions: [] }),
@@ -13,6 +15,8 @@ export const emptySessionCatalogMethods = {
 } satisfies Pick<
   SessionRepositoryShape,
   | 'listCatalogPage'
+  | 'listProjectPage'
+  | 'hasActiveProjectPath'
   | 'listByIds'
   | 'listHiveCatalogPage'
   | 'listArchivedBranchCatalogPage'

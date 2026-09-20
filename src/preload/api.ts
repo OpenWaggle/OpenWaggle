@@ -111,6 +111,7 @@ export const api: OpenWaggleApi = {
   activateSessionResourceOwner: send('sessions:resources:activate-owner'),
   listSessionsByIds: invoke('sessions:list-by-ids'),
   listSessionCatalogPage: invoke('sessions:list-page'),
+  listSessionProjectPage: invoke('sessions:list-projects'),
   listHiveSessionCatalogPage: invoke('sessions:list-hive-page'),
   getSessionDetail: invoke('sessions:get-detail'),
   listSessionResources: invoke('sessions:resources:list'),

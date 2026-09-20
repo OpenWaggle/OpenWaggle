@@ -9,6 +9,7 @@ import { repairSessionHostMigrationLedger } from '../session-host-ledger-repair'
 import {
   SESSION_HOST_BASELINE_MIGRATION_ID,
   SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
+  SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID,
 } from '../session-host-schema-identity'
 
 const oldHiveRows = [
@@ -144,6 +145,7 @@ describe('Session Host migration identity compatibility', () => {
         yield* runAppDatabaseMigrations
         yield* sql`INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at) VALUES ('kept', 'pi-kept', 'Pre-Summary worker', 1, 2)`
         yield* sql`DELETE FROM _migrations WHERE id BETWEEN 28 AND 48`
+        yield* sql`DELETE FROM _migrations WHERE id = ${SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID}`
         yield* sql`UPDATE _migrations SET id = id - 21, applied_at = 'pre-summary-host' WHERE id >= 49`
 
         expect(
@@ -159,13 +161,22 @@ describe('Session Host migration identity compatibility', () => {
         expect(ledger.map(({ id, name }) => ({ id, name }))).toEqual(
           APP_MIGRATIONS.filter((row) => row.id >= 26).map(({ id, name }) => ({ id, name })),
         )
-        expect(ledger.filter((row) => row.id >= SESSION_HOST_BASELINE_MIGRATION_ID)).toEqual(
+        expect(
+          ledger.filter(
+            (row) =>
+              row.id >= SESSION_HOST_BASELINE_MIGRATION_ID &&
+              row.id < SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID,
+          ),
+        ).toEqual(
           preSummaryHostRows.map((row) => ({
             id: row.id + 21,
             name: row.name,
             applied_at: 'pre-summary-host',
           })),
         )
+        expect(
+          ledger.find((row) => row.id === SESSION_HOST_PROJECT_CATALOG_GENERATION_MIGRATION_ID),
+        ).toMatchObject({ name: 'session-host-project-catalog-generation' })
         expect(yield* sql`SELECT title FROM sessions WHERE id = 'kept'`).toEqual([
           { title: 'Pre-Summary worker' },
         ])

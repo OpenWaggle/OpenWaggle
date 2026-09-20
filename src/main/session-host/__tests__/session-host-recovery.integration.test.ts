@@ -109,4 +109,32 @@ describe('Session Host explicit recovery', () => {
       recovery: { exists: false },
     })
   })
+
+  it('restores the active database when copying the recovery source fails', async () => {
+    const paths = pathsFor(temporaryRoot)
+    seedEmptyLegacyDatabase(paths.legacyDatabasePath)
+    await runSessionHostCutover(
+      {
+        sourceDatabasePath: paths.legacyDatabasePath,
+        targetDatabasePath: paths.databasePath,
+        recoveryDatabasePath: paths.recoveryDatabasePath,
+      },
+      Date.now(),
+      fakeEmbeddingModel,
+    )
+    await fs.rm(paths.recoveryDatabasePath)
+    await fs.mkdir(paths.recoveryDatabasePath)
+
+    await expect(restorePreCutoverDatabase(paths, 3_000, fakeEmbeddingModel)).rejects.toThrow()
+    await expect(sessionHostRecoveryStatus(paths)).resolves.toMatchObject({
+      active: { exists: true, schema: { compatible: true } },
+    })
+    await expect(fs.access(paths.legacyDatabasePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(
+      fs.access(path.join(paths.stateRoot, 'session-host.before-restore-3000.sqlite')),
+    ).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(
+      (await fs.readdir(temporaryRoot)).some((name) => name.startsWith('.openwaggle-restore-')),
+    ).toBe(false)
+  })
 })

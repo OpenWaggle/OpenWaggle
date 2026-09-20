@@ -1,9 +1,11 @@
 import { SessionId } from '@shared/types/brand'
 import { HOST_BACKED_GUI_CHANNELS } from '@shared/types/host-ui-protocol'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionRepository } from '../../ports/session-repository'
+import { SettingsService } from '../../services/settings-service'
 import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const { dispatchLocalSessionCommandMock } = vi.hoisted(() => ({
@@ -27,6 +29,7 @@ import {
 } from '../host-ui-session-operation-dispatcher'
 
 const EXPECTED_SESSION_CHANNELS = [
+  'sessions:list-projects',
   'sessions:get-detail',
   'sessions:create',
   'sessions:fork-to-new',
@@ -119,6 +122,57 @@ describe('Host-backed Session GUI operation dispatcher', () => {
     expect(HOST_BACKED_GUI_CHANNELS.filter(isHostBackedSessionGuiChannel)).toEqual(
       EXPECTED_SESSION_CHANNELS,
     )
+  })
+
+  it('validates and dispatches a bounded project catalog page', async () => {
+    const settingsService = SettingsService.of({
+      get: () =>
+        Effect.succeed({
+          ...DEFAULT_SETTINGS,
+          projectDisplayNames: { '/projects/renamed': 'Older project' },
+        }),
+      update: () => Effect.void,
+      initialize: () => Effect.void,
+      flushForTests: () => Effect.void,
+    })
+    const repository = SessionRepository.of({
+      ...sessionRepository,
+      listProjectPage: (limit, cursor, search, matchingDisplayNamePaths) =>
+        Effect.succeed({
+          paths: [
+            `/projects/${String(limit)}-${search ?? ''}-${matchingDisplayNamePaths?.join('|') ?? ''}`,
+          ],
+          nextCursor: cursor,
+        }),
+    })
+    const effect = dispatchHostBackedSessionGuiOperation('sessions:list-projects', [
+      25,
+      '/before',
+      ' older ',
+    ]).pipe(
+      Effect.provideService(SessionRepository, repository),
+      Effect.provideService(SettingsService, settingsService),
+    )
+    await expect(runWithoutRequirements(effect)).resolves.toEqual({
+      paths: ['/projects/25-older-/projects/renamed'],
+      nextCursor: '/before',
+    })
+    await expect(
+      runWithoutRequirements(
+        dispatchHostBackedSessionGuiOperation('sessions:list-projects', [501]).pipe(
+          Effect.provideService(SessionRepository, repository),
+        ),
+      ),
+    ).rejects.toThrow('Session page limit must be an integer from 1 to 500.')
+    await expect(
+      runWithoutRequirements(
+        dispatchHostBackedSessionGuiOperation('sessions:list-projects', [
+          25,
+          undefined,
+          'x'.repeat(257),
+        ]).pipe(Effect.provideService(SessionRepository, repository)),
+      ),
+    ).rejects.toThrow('Project search must be at most 256 characters.')
   })
 
   it('dispatches archived branch catalog pages with a bounded cursor', async () => {

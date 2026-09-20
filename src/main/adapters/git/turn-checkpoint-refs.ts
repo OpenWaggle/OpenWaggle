@@ -69,12 +69,16 @@ export async function deleteSessionTurnCheckpointRefs(
   beforeDelete?: (refs: readonly CheckpointRefSnapshot[]) => Promise<void>,
 ): Promise<readonly CheckpointRefSnapshot[]> {
   const namespace = turnCheckpointSessionNamespace(sessionId)
-  const listed = await runGit(projectPath, [
-    'for-each-ref',
-    '--format=%(refname) %(objectname)',
-    namespace,
-  ])
+  const listed = await runGit(
+    projectPath,
+    ['for-each-ref', '--format=%(refname) %(objectname)', namespace],
+    { env: { LC_ALL: 'C' } },
+  )
   if (listed.code !== 0) {
+    if (listed.stderr.includes('not a git repository')) {
+      await beforeDelete?.([])
+      return []
+    }
     throw new Error(
       listed.stderr.trim() || `Could not list turn checkpoint refs for Session ${sessionId}.`,
     )
