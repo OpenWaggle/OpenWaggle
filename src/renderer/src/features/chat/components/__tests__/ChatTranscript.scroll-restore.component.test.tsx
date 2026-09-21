@@ -55,6 +55,7 @@ function createSection(): ChatTranscriptSectionState {
     activeSessionId: SessionId(SESSION),
     turnsByAnchorNodeId: new Map(),
     onToggleTurnFold: () => {},
+    onDismissInterruptedRun: () => {},
     chatRows: rows,
     extensionRegistry: null,
     extensionProjectPaths: ['/repo'],

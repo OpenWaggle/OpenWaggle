@@ -57,6 +57,7 @@ function createSection(rowCount: number, sessionId = 'session-1'): ChatTranscrip
     activeSessionId: SessionId(sessionId),
     turnsByAnchorNodeId: new Map(),
     onToggleTurnFold: () => {},
+    onDismissInterruptedRun: () => {},
     chatRows: rows,
     extensionRegistry: null,
     extensionProjectPaths: [PROJECT_PATH],

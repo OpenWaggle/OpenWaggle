@@ -93,6 +93,7 @@ function createSection(): ChatTranscriptSectionState {
     activeSessionId: SessionId('session-1'),
     turnsByAnchorNodeId: new Map(),
     onToggleTurnFold: () => {},
+    onDismissInterruptedRun: () => {},
     chatRows: [
       {
         type: 'message',

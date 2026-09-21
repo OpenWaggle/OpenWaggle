@@ -76,6 +76,7 @@ function createSection(
     activeSessionId: null,
     turnsByAnchorNodeId: new Map(),
     onToggleTurnFold: () => {},
+    onDismissInterruptedRun: () => {},
     chatRows: [createMessageChatRow(defaultMessage)],
     extensionRegistry: null,
     extensionProjectPaths: [],
