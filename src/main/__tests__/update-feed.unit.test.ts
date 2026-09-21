@@ -10,21 +10,18 @@ function response(releases: readonly { readonly tag_name: string }[]) {
 }
 
 describe('update feed selection', () => {
-  it.each([
-    ['stable', 'latest'],
-    ['alpha', 'alpha'],
-  ] as const)('keeps %s on the native GitHub provider', async (channel, feedChannel) => {
+  it('keeps Stable on the native GitHub provider', async () => {
     const setFeedURL = vi.fn()
     const fetchReleases = vi.fn()
 
-    await configureUpdaterFeed({ setFeedURL }, channel, fetchReleases)
+    await configureUpdaterFeed({ setFeedURL }, 'stable', fetchReleases)
 
     expect(fetchReleases).not.toHaveBeenCalled()
     expect(setFeedURL).toHaveBeenCalledWith({
       provider: 'github',
       owner: 'OpenWaggle',
       repo: 'OpenWaggle',
-      channel: feedChannel,
+      channel: 'latest',
     })
   })
 
@@ -57,6 +54,26 @@ describe('update feed selection', () => {
     })
   })
 
+  it('finds an eligible Alpha feed beyond the GitHub Atom window', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      tag_name: `v0.5.0-rc.${100 - index}`,
+    }))
+    const fetchReleases = vi
+      .fn()
+      .mockResolvedValueOnce(response(firstPage))
+      .mockResolvedValueOnce(response([{ tag_name: 'v0.5.0-alpha.9' }]))
+    const setFeedURL = vi.fn()
+
+    await configureUpdaterFeed({ setFeedURL }, 'alpha', fetchReleases)
+
+    expect(fetchReleases).toHaveBeenCalledTimes(2)
+    expect(setFeedURL).toHaveBeenLastCalledWith({
+      provider: 'generic',
+      url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-alpha.9/',
+      channel: 'alpha',
+    })
+  })
+
   it('selects the highest Beta-eligible semantic version and excludes Alpha and RC', async () => {
     const fetchReleases = vi
       .fn()
@@ -76,6 +93,28 @@ describe('update feed selection', () => {
     expect(setFeedURL).toHaveBeenLastCalledWith(
       expect.objectContaining({
         url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-beta.10/',
+      }),
+    )
+  })
+
+  it('selects the highest Alpha-eligible semantic version and excludes RC', async () => {
+    const fetchReleases = vi
+      .fn()
+      .mockResolvedValue(
+        response([
+          { tag_name: 'v0.6.0-rc.2' },
+          { tag_name: 'v0.5.0-alpha.8' },
+          { tag_name: 'v0.5.0-beta.2' },
+          { tag_name: 'v0.4.1' },
+        ]),
+      )
+    const setFeedURL = vi.fn()
+
+    await configureUpdaterFeed({ setFeedURL }, 'alpha', fetchReleases)
+
+    expect(setFeedURL).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.5.0-beta.2/',
       }),
     )
   })

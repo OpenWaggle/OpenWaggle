@@ -10,6 +10,7 @@ const {
   mockBroadcastToWindows,
   mockCheckForUpdatesFn,
   mockConfigureUpdaterFeed,
+  mockCancelDownload,
   mockQuitAndInstall,
   autoUpdaterRef,
 } = vi.hoisted(() => {
@@ -22,8 +23,9 @@ const {
     mockIsDev: { value: false },
     mockBuildChannel,
     mockBroadcastToWindows: vi.fn(),
-    mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
+    mockCheckForUpdatesFn: vi.fn<() => Promise<unknown>>(() => Promise.resolve()),
     mockConfigureUpdaterFeed: vi.fn(),
+    mockCancelDownload: vi.fn(),
     mockQuitAndInstall: vi.fn(),
     autoUpdaterRef,
   }
@@ -68,7 +70,8 @@ vi.mock('../utils/broadcast', () => ({
   broadcastToWindows: (...args: unknown[]) => mockBroadcastToWindows(...args),
 }))
 
-vi.mock('../update-feed', () => ({
+vi.mock('../update-feed', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../update-feed')>()),
   configureUpdaterFeed: (...args: unknown[]) => mockConfigureUpdaterFeed(...args),
 }))
 
@@ -103,6 +106,7 @@ describe('updater service', () => {
     mockBroadcastToWindows.mockReset()
     mockCheckForUpdatesFn.mockReset()
     mockConfigureUpdaterFeed.mockReset()
+    mockCancelDownload.mockReset()
     mockQuitAndInstall.mockReset()
     mockCheckForUpdatesFn.mockResolvedValue(undefined)
     emitter().removeAllListeners()
@@ -145,6 +149,8 @@ describe('updater service', () => {
 
   describe('installUpdate', () => {
     it('calls quitAndInstall with correct arguments', () => {
+      initAutoUpdater('stable')
+      emitter().emit('update-downloaded', { version: '1.2.3' })
       installUpdate()
       expect(mockQuitAndInstall).toHaveBeenCalledWith(false, true)
     })
@@ -190,6 +196,48 @@ describe('updater service', () => {
       await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1_000)
       expect(mockConfigureUpdaterFeed).toHaveBeenLastCalledWith(expect.anything(), 'stable')
       expect(readChannel).toHaveBeenCalledTimes(2)
+    })
+
+    it('cancels and invalidates an Alpha download when switching to Stable', async () => {
+      mockCheckForUpdatesFn.mockResolvedValueOnce({
+        isUpdateAvailable: true,
+        updateInfo: { version: '0.5.0-alpha.1' },
+        cancellationToken: { cancel: mockCancelDownload },
+        downloadPromise: Promise.resolve([]),
+      })
+      initAutoUpdater('alpha')
+
+      checkForUpdates('alpha')
+      await Promise.resolve()
+      await Promise.resolve()
+
+      checkForUpdates('stable')
+
+      expect(mockCancelDownload).toHaveBeenCalledOnce()
+      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+    })
+
+    it('invalidates an already downloaded Alpha update when switching to Stable', () => {
+      initAutoUpdater('alpha')
+      emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
+      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(true)
+
+      checkForUpdates('stable')
+
+      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(getUpdateStatus()).not.toEqual({ type: 'downloaded', version: '0.5.0-alpha.1' })
+      installUpdate()
+      expect(mockQuitAndInstall).not.toHaveBeenCalled()
+      mockBroadcastToWindows.mockClear()
+
+      emitter().emit('update-available', { version: '0.5.0-alpha.1' })
+      emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
+
+      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(mockBroadcastToWindows).not.toHaveBeenCalledWith(
+        'updater:status-changed',
+        expect.objectContaining({ type: expect.stringMatching(/available|downloaded/u) }),
+      )
     })
 
     it('does not register listeners for dev channel builds', () => {
@@ -259,13 +307,9 @@ describe('updater service', () => {
       })
     })
 
-    it('uses "unknown" version when download starts before an available event', () => {
+    it('ignores download progress before a channel-eligible available event', () => {
       emitter().emit('download-progress', { percent: 10.0 })
-      expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
-        type: 'downloading',
-        version: 'unknown',
-        percent: 10,
-      })
+      expect(mockBroadcastToWindows).not.toHaveBeenCalled()
     })
 
     it('broadcasts downloaded status with version on update-downloaded event', () => {

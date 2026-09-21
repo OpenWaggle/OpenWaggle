@@ -5,7 +5,7 @@ import { type UpdateChannel, updaterFeedChannel } from '@shared/types/update-cha
 import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'
-import { configureUpdaterFeed } from './update-feed'
+import { configureUpdaterFeed, isVersionEligibleForChannel } from './update-feed'
 import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('updater')
@@ -18,6 +18,9 @@ let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
 let currentChannel: UpdateChannel = 'stable'
 let readAuthoritativeChannel: (() => Promise<UpdateChannel>) | null = null
+let checkGeneration = 0
+let activeUpdateCancellation: { cancel: () => void } | null = null
+let activeUpdateVersion: string | null = null
 
 function configureUpdateChannel(channel: UpdateChannel) {
   currentChannel = channel
@@ -43,14 +46,48 @@ function logUpdateCheckError(error: unknown) {
   })
 }
 
+function runUpdaterCheck(generation: number) {
+  void autoUpdater
+    .checkForUpdates()
+    .then((result) => {
+      if (!result?.isUpdateAvailable) return
+      if (generation !== checkGeneration) {
+        result.cancellationToken?.cancel()
+        return
+      }
+      activeUpdateCancellation = result.cancellationToken ?? null
+      void result.downloadPromise?.catch(logUpdateCheckError)
+    })
+    .catch(logUpdateCheckError)
+}
+
 function checkConfiguredChannel(channel: UpdateChannel) {
+  const channelChanged = channel !== currentChannel
+  if (channelChanged) {
+    activeUpdateCancellation?.cancel()
+    activeUpdateCancellation = null
+    activeUpdateVersion = null
+    autoUpdater.autoInstallOnAppQuit = false
+    if (
+      currentStatus.type === 'available' ||
+      currentStatus.type === 'downloading' ||
+      currentStatus.type === 'downloaded'
+    ) {
+      setStatus({ type: 'idle' })
+    }
+  }
   configureUpdateChannel(channel)
+  const generation = ++checkGeneration
   const configured = configureUpdaterFeed(autoUpdater, channel)
-  if (configured) {
-    void configured.then(() => autoUpdater.checkForUpdates()).catch(logUpdateCheckError)
+  if (!configured) {
+    runUpdaterCheck(generation)
     return
   }
-  void autoUpdater.checkForUpdates().catch(logUpdateCheckError)
+  void configured
+    .then(() => {
+      if (generation === checkGeneration) runUpdaterCheck(generation)
+    })
+    .catch(logUpdateCheckError)
 }
 
 export function checkForUpdates(channel?: UpdateChannel): void {
@@ -66,6 +103,13 @@ export function checkForUpdates(channel?: UpdateChannel): void {
 }
 
 export function installUpdate(): void {
+  if (
+    currentStatus.type !== 'downloaded' ||
+    !isVersionEligibleForChannel(currentStatus.version, currentChannel)
+  ) {
+    logger.warn('Ignoring install request without a channel-eligible downloaded update')
+    return
+  }
   autoUpdater.quitAndInstall(false, true)
 }
 
@@ -90,29 +134,56 @@ export function initAutoUpdater(
   })
 
   autoUpdater.on('update-available', (info) => {
+    if (!isVersionEligibleForChannel(info.version, currentChannel)) {
+      activeUpdateVersion = null
+      autoUpdater.autoInstallOnAppQuit = false
+      logger.warn('Ignoring update available for a superseded channel', {
+        channel: currentChannel,
+        version: info.version,
+      })
+      return
+    }
+    activeUpdateVersion = info.version
     logger.info('Update available', { version: info.version })
     setStatus({ type: 'available', version: info.version })
   })
 
   autoUpdater.on('update-not-available', () => {
+    activeUpdateVersion = null
     logger.info('No update available')
     setStatus({ type: 'not-available' })
   })
 
   autoUpdater.on('download-progress', (progress) => {
+    if (!activeUpdateVersion) return
     setStatus({
       type: 'downloading',
-      version: currentStatus.type === 'available' ? currentStatus.version : 'unknown',
+      version: activeUpdateVersion,
       percent: Math.round(progress.percent),
     })
   })
 
   autoUpdater.on('update-downloaded', (info) => {
+    if (!isVersionEligibleForChannel(info.version, currentChannel)) {
+      activeUpdateCancellation = null
+      activeUpdateVersion = null
+      autoUpdater.autoInstallOnAppQuit = false
+      logger.warn('Ignoring update downloaded for a superseded channel', {
+        channel: currentChannel,
+        version: info.version,
+      })
+      return
+    }
+    activeUpdateCancellation = null
+    activeUpdateVersion = null
+    autoUpdater.autoInstallOnAppQuit = true
     logger.info('Update downloaded', { version: info.version })
     setStatus({ type: 'downloaded', version: info.version })
   })
 
   autoUpdater.on('error', (error) => {
+    activeUpdateCancellation = null
+    activeUpdateVersion = null
     logger.error('Auto-updater error', { message: error.message })
     setStatus({ type: 'error', message: error.message })
   })
@@ -127,6 +198,10 @@ export function initAutoUpdater(
 }
 
 export function disposeAutoUpdater(): void {
+  checkGeneration += 1
+  activeUpdateCancellation?.cancel()
+  activeUpdateCancellation = null
+  activeUpdateVersion = null
   readAuthoritativeChannel = null
   if (checkInterval) {
     clearInterval(checkInterval)

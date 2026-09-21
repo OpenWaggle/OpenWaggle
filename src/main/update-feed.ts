@@ -17,7 +17,7 @@ type FeedConfiguration =
   | {
       readonly provider: 'generic'
       readonly url: string
-      readonly channel: 'beta'
+      readonly channel: Exclude<UpdateChannel, 'stable'>
     }
 
 interface UpdateFeedTarget {
@@ -67,14 +67,28 @@ function compareReleaseVersions(left: ParsedReleaseVersion, right: ParsedRelease
   return channelDifference === 0 ? left.sequence - right.sequence : channelDifference
 }
 
-function newestBetaRelease(tags: readonly string[]) {
+function isEligibleReleaseChannel(
+  releaseChannel: ParsedReleaseVersion['channel'],
+  updateChannel: UpdateChannel,
+) {
+  if (releaseChannel === 'stable') return true
+  if (releaseChannel === 'rc' || updateChannel === 'stable') return false
+  return updateChannel === 'alpha' || releaseChannel === 'beta'
+}
+
+export function isVersionEligibleForChannel(version: string, channel: UpdateChannel) {
+  const parsed = parseReleaseVersion(version)
+  return parsed !== undefined && isEligibleReleaseChannel(parsed.channel, channel)
+}
+
+function newestEligibleRelease(tags: readonly string[], channel: Exclude<UpdateChannel, 'stable'>) {
   let selected: ParsedReleaseVersion | undefined
   for (const tag of tags) {
     const parsed = parseReleaseVersion(tag)
-    if (!parsed || (parsed.channel !== 'stable' && parsed.channel !== 'beta')) continue
+    if (!parsed || !isEligibleReleaseChannel(parsed.channel, channel)) continue
     if (!selected || compareReleaseVersions(parsed, selected) > 0) selected = parsed
   }
-  if (!selected) throw new Error('No Beta-eligible OpenWaggle release is available.')
+  if (!selected) throw new Error(`No ${channel}-eligible OpenWaggle release is available.`)
   return selected.tag
 }
 
@@ -108,14 +122,14 @@ export function configureUpdaterFeed(
     repo: 'OpenWaggle',
     channel: updaterFeedChannel(channel),
   })
-  if (channel !== 'beta') return
+  if (channel === 'stable') return
 
   return fetchAllReleaseTags(fetchReleases).then((tags) => {
-    const tag = newestBetaRelease(tags)
+    const tag = newestEligibleRelease(tags, channel)
     updater.setFeedURL({
       provider: 'generic',
       url: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
-      channel: 'beta',
+      channel,
     })
   })
 }
