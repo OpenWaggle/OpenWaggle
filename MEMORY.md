@@ -816,6 +816,12 @@ Workspace deletion cascades preparation secrets and action records, then drains 
 cleanup queue. Disk cleanup failures remain queued and must not block Host startup or other owners.
 Action copy buttons use the existing Electron clipboard bridge; the browser clipboard API is denied
 by the renderer permission policy. Copied task invocations must quote literal arguments for the shell.
+Final local Session deletion retires its Workspace resource only after all durable bindings,
+including archived Sessions, are gone; stop finite runs as well as services before that cascade.
+Setup capture must use the ordinary action shell resolver and shell-native exit handlers, including
+fish, so configured shell syntax and explicit successful exits preserve exported environment.
+Fresh local Sessions need Summary availability from configured preparation, before a snapshot or
+run exists, or users cannot reach explicit setup.
 
 The September 2026 native action verification reproduced a SQLite worker teardown abort on pristine
 main with transitive better-sqlite3 12.11.1. Root and Effect SQLite now share 13.0.3, which includes the

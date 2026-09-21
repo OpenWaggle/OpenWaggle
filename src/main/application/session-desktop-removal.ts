@@ -19,6 +19,7 @@ function toError(error: unknown) {
 export function withSessionDesktopRemoval<A, E, R>(
   sessionId: SessionId,
   operation: Effect.Effect<A, E, R>,
+  intent: 'archive' | 'delete' = 'archive',
 ) {
   return Effect.acquireUseRelease(
     Effect.try({ try: () => acquireSessionRemovalAdmission(sessionId), catch: toError }),
@@ -51,7 +52,7 @@ export function withSessionDesktopRemoval<A, E, R>(
                     operation: 'deleteOwner',
                     ownerKey: sessionId,
                   })
-                  return yield* withSessionActionRelease(sessionId, operation)
+                  return yield* withSessionActionRelease(sessionId, operation, 'before', intent)
                 }),
               )
             }),

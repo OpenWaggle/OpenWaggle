@@ -72,6 +72,18 @@ async function executablePath(command: string, environment: Readonly<Record<stri
   )
 }
 
+export async function resolveActionShell(environment: Readonly<Record<string, string>>) {
+  for (const candidate of existingShells({ environment })) {
+    try {
+      return await executablePath(candidate.command, environment)
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Runner unavailable:')) continue
+      throw error
+    }
+  }
+  throw new Error('No supported shell is available for this action.')
+}
+
 async function processCommand(
   invocation: ResolvedActionInvocation,
   environment: Readonly<Record<string, string>>,
@@ -93,29 +105,20 @@ async function processCommand(
       ],
     }
   }
-  for (const candidate of existingShells({ environment })) {
-    let command: string
-    try {
-      command = await executablePath(candidate.command, environment)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Runner unavailable:')) continue
-      throw error
+  const command = await resolveActionShell(environment)
+  const name = basename(command).toLowerCase()
+  if (name === 'cmd.exe') return { command, args: ['/d', '/s', '/c', invocation.command] }
+  if (name.includes('powershell') || name === 'pwsh' || name === 'pwsh.exe')
+    return {
+      command,
+      args: [
+        '-NoLogo',
+        '-NonInteractive',
+        '-Command',
+        `${invocation.command}\nif (-not $?) { exit 1 }; exit $LASTEXITCODE`,
+      ],
     }
-    const name = basename(command).toLowerCase()
-    if (name === 'cmd.exe') return { command, args: ['/d', '/s', '/c', invocation.command] }
-    if (name.includes('powershell') || name === 'pwsh' || name === 'pwsh.exe')
-      return {
-        command,
-        args: [
-          '-NoLogo',
-          '-NonInteractive',
-          '-Command',
-          `${invocation.command}\nif (-not $?) { exit 1 }; exit $LASTEXITCODE`,
-        ],
-      }
-    return { command, args: ['-c', invocation.command] }
-  }
-  throw new Error('No supported shell is available for this action.')
+  return { command, args: ['-c', invocation.command] }
 }
 
 export function createActionProcessRunner(appVersion: string): ActionProcessRunner {

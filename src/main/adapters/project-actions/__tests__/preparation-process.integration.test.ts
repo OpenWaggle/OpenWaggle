@@ -1,9 +1,29 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getSessionHostChildEnv } from '../../../env'
 import { createActionProcessRunner } from '../action-process'
 import { createPreparationExecutor } from '../preparation-process'
+
+const shellCases = [
+  {
+    shell: '/bin/bash',
+    command: `source ./setup-env; values=(bash value); export OW_SELECTED_SHELL=\${values[0]}; exit 0`,
+    value: 'bash',
+  },
+  {
+    shell: '/bin/zsh',
+    command: `source ./setup-env; values=(zsh value); export OW_SELECTED_SHELL=\${values[1]}; exit 0`,
+    value: 'zsh',
+  },
+  {
+    shell: getSessionHostChildEnv().OPENWAGGLE_QA_FISH ?? '/usr/bin/fish',
+    command: 'set -gx OW_SELECTED_SHELL fish; exit 0',
+    value: 'fish',
+  },
+]
 
 describe.skipIf(process.platform === 'win32')('real preparation environment capture', () => {
   let directory = ''
@@ -13,6 +33,39 @@ describe.skipIf(process.platform === 'win32')('real preparation environment capt
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true })
   })
+  it.for(shellCases)(
+    'captures setup through the configured $value shell',
+    async ({ shell, command, value }, context) => {
+      if (!existsSync(shell)) context.skip()
+      await writeFile(join(directory, 'setup-env'), 'export OW_SOURCED_VALUE=loaded\n')
+      const execute = createPreparationExecutor(
+        createActionProcessRunner('test'),
+        directory,
+        'test',
+      )
+      try {
+        const input = {
+          workspace: { workspaceId: 'shell', projectPath: directory, workspacePath: directory },
+          environment: { SHELL: shell },
+          captureEnvironment: true,
+          onOutput: () => {},
+        }
+        const result = await execute({
+          ...input,
+          invocation: { type: 'command', command, directory: '.' },
+        })
+        expect(result).toMatchObject({ exitCode: 0, environment: { OW_SELECTED_SHELL: value } })
+        if (value !== 'fish') expect(result.environment.OW_SOURCED_VALUE).toBe('loaded')
+        const failed = await execute({
+          ...input,
+          invocation: { type: 'command', command: 'exit 9', directory: '.' },
+        })
+        expect(failed).toEqual({ exitCode: 9, environment: input.environment })
+      } finally {
+        await execute.shutdown()
+      }
+    },
+  )
   it('captures successful shell exports, including an explicit exit, without publishing failed exports', async () => {
     const execute = createPreparationExecutor(createActionProcessRunner('test'), directory, 'test')
     const input = {

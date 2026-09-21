@@ -143,6 +143,18 @@ export const SqliteSessionWorkspaceResourceRepositoryLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     return SessionWorkspaceResourceRepository.of({
+      countBindings: (workspaceId, excludingSessionId) =>
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count
+          FROM session_workspace_bindings
+          WHERE workspace_id = ${workspaceId}
+            AND (${excludingSessionId ?? null} IS NULL OR session_id != ${excludingSessionId ?? null})`
+          return rows[0]?.count ?? 0
+        }).pipe(
+          Effect.mapError(
+            (cause) => new Error('Failed to inspect durable Workspace bindings.', { cause }),
+          ),
+        ),
       countActiveBindings: (workspaceId, excludingSessionId) =>
         Effect.gen(function* () {
           const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count

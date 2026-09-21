@@ -26,6 +26,10 @@ export type ManagedWorktreeRemovalAdmission =
 
 export interface SessionWorkspaceResourceRepositoryShape {
   readonly getById: (workspaceId: string) => Effect.Effect<SessionWorkspaceResource | null, Error>
+  readonly countBindings: (
+    workspaceId: string,
+    excludingSessionId?: SessionId,
+  ) => Effect.Effect<number, Error>
   readonly countActiveBindings: (
     workspaceId: string,
     excludingSessionId?: SessionId,

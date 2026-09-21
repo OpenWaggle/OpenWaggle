@@ -43,6 +43,7 @@ function workspaceRepository(input: {
   }[]
 }) {
   return SessionWorkspaceResourceRepository.of({
+    countBindings: () => Effect.succeed(0),
     countActiveBindings: () => Effect.succeed(0),
     countManagedWorktreeBindings: () => Effect.succeed(0),
     listManagedWorktreeRemovalCandidates: () => Effect.succeed(input.candidates ?? []),
