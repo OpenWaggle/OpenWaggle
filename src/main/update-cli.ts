@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
 import {
   UPDATE_CHANNELS,
   type UpdateChannel,
@@ -11,12 +12,12 @@ import {
 } from '@shared/types/update-channel'
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import { executeHostUi } from './application/configured-host-ui-client'
 import { writeCliStdout } from './cli-stdout'
 import { launchExternalApplication } from './desktop-ui'
 import { getEnvWithOverrides } from './env'
 import { createLocalSessionCliClientInput } from './local-session-cli-client'
 import { hasFlag, option, parseMcpCliArguments } from './mcp-cli-arguments'
+import { executeLocalSessionCommand } from './session-host/local-session-client'
 
 const EXIT = { SUCCESS: 0, FAILURE: 1, USAGE: 2 } as const
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1_000
@@ -215,19 +216,29 @@ async function readAndUpdateChannel(
   requested: UpdateChannel | undefined,
 ) {
   const client = await createLocalSessionCliClientInput(parsed)
-  const settings = await executeHostUi({ client, channel: 'settings:get', args: [] })
-  const channel = requested ?? settings.updateChannel
-  if (requested && requested !== settings.updateChannel) {
-    const result = await executeHostUi({
-      client,
-      channel: 'settings:update',
-      args: [{ updateChannel: requested }],
-    })
-    if (!result || typeof result !== 'object' || !('ok' in result) || result.ok !== true) {
-      throw new Error('OpenWaggle could not save the update channel.')
-    }
+  const result = await executeLocalSessionCommand({
+    ...client,
+    payload: requested
+      ? {
+          contract: 'local-update-v1',
+          request: {
+            contractVersion: LOCAL_UPDATE_CONTRACT_VERSION,
+            operation: 'set-channel',
+            channel: requested,
+          },
+        }
+      : {
+          contract: 'local-update-v1',
+          request: {
+            contractVersion: LOCAL_UPDATE_CONTRACT_VERSION,
+            operation: 'get-channel',
+          },
+        },
+  })
+  if (result.contract !== 'local-update-v1') {
+    throw new Error('Session Host returned a mismatched update channel response.')
   }
-  return channel
+  return result.response.updateChannel
 }
 
 export async function runUpdateCli(args: readonly string[]) {

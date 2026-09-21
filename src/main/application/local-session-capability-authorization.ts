@@ -22,6 +22,7 @@ type CapabilityAuthorizedPayload = Exclude<
       | 'session-waggle-cancel-v1'
       | 'host-ui-v1'
       | 'desktop-service-v1'
+      | 'local-update-v1'
   }
 >
 

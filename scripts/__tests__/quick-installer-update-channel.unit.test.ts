@@ -36,6 +36,28 @@ esac`
   return result.stdout.trim()
 }
 
+async function resolveDefaultAcrossPages(source: string, pages: readonly unknown[]) {
+  const script = `${releaseResolution(source)}
+page_one="$1"
+page_two="$2"
+curl() {
+  case "$*" in
+    *'&page=1') printf '%s' "$page_one" ;;
+    *'&page=2') printf '%s' "$page_two" ;;
+    *) return 1 ;;
+  esac
+}
+resolve_default_channel "$(fetch_release_pages https://example.test/releases)"`
+  const result = await execFileAsync('bash', [
+    '-c',
+    script,
+    'installer-pagination-test',
+    JSON.stringify(pages[0] ?? []),
+    JSON.stringify(pages[1] ?? []),
+  ])
+  return result.stdout.trim()
+}
+
 describe('quick installer update channel', () => {
   it('defaults to Alpha before the first stable release and Stable afterwards', async () => {
     const source = await fs.readFile('scripts/install.sh', 'utf8')
@@ -69,5 +91,15 @@ describe('quick installer update channel', () => {
 
     await expect(resolveRelease(source, 'tag', releases, 'beta')).resolves.toBe('v0.4.0')
     await expect(resolveRelease(source, 'tag', releases, 'alpha')).resolves.toBe('v0.4.0')
+  })
+
+  it('searches later GitHub pages before deciding that no Stable release exists', async () => {
+    const source = await fs.readFile('scripts/install.sh', 'utf8')
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      tag_name: `v0.5.0-alpha.${100 - index}`,
+    }))
+    const secondPage = [{ tag_name: 'v0.4.0' }]
+
+    await expect(resolveDefaultAcrossPages(source, [firstPage, secondPage])).resolves.toBe('stable')
   })
 })

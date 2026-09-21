@@ -7,14 +7,10 @@ import {
   LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
 } from '@shared/types/local-session-profile'
 import {
-  LOCAL_SESSION_COMPACTION_REVISION,
-  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
   LOCAL_SESSION_MAX_CLIENT_VERSION_LENGTH,
   LOCAL_SESSION_MAX_SUPPORTED_REVISIONS,
   LOCAL_SESSION_PROTOCOL_NAME,
-  LOCAL_SESSION_STEERING_RECEIPT_REVISION,
   LOCAL_SESSION_SUBSCRIPTION_SESSION_LIMIT,
-  LOCAL_SESSION_WAGGLE_REVISION,
   type LocalSessionClientFrame,
   type LocalSessionClientHello,
   type LocalSessionCommandPayload,
@@ -22,10 +18,11 @@ import {
 } from '@shared/types/local-session-protocol'
 import { desktopServiceRequestSchema } from './desktop-service'
 import { hostUiV1RequestSchema } from './host-ui-protocol'
-import { requiredHostUiRevision } from './local-session-command-revision'
+import { requiredLocalSessionCommandRevision } from './local-session-command-revision'
 import { localSessionNegotiationResultSchema } from './local-session-negotiation'
 import { localSessionProfileAuthoritySchema } from './local-session-profile'
 import { localSessionProfileManagementRequestSchema } from './local-session-profile-management'
+import { localUpdateRequestSchema } from './local-update'
 import { sessionControlMutationRequestSchema } from './session-control'
 import {
   sessionInputIdSchema,
@@ -213,6 +210,10 @@ export const localSessionCommandPayloadSchema: Schema.Schema<LocalSessionCommand
       request: hostUiV1RequestSchema,
     }),
     Schema.Struct({
+      contract: Schema.Literal('local-update-v1'),
+      request: localUpdateRequestSchema,
+    }),
+    Schema.Struct({
       contract: Schema.Literal('local-compaction-v1'),
       request: Schema.Struct({
         requestId: sessionInputIdSchema,
@@ -264,34 +265,7 @@ export function decodeLocalSessionCommandPayload(value: unknown) {
 
 export function decodeLocalSessionCommandPayloadForRevision(value: unknown, revision: number) {
   const payload = decodeLocalSessionCommandPayload(value)
-  if (
-    payload.contract === 'desktop-service-v1' &&
-    revision < LOCAL_SESSION_DESKTOP_SERVICE_REVISION
-  ) {
-    throw new Error(
-      `This command requires Local Session protocol revision ${LOCAL_SESSION_DESKTOP_SERVICE_REVISION}.`,
-    )
-  }
-  if (
-    payload.contract === 'session-control-v2' &&
-    (payload.request.command.operation === 'steer' ||
-      payload.request.command.operation === 'promote') &&
-    revision < LOCAL_SESSION_STEERING_RECEIPT_REVISION
-  ) {
-    throw new Error(
-      `This command requires Local Session protocol revision ${LOCAL_SESSION_STEERING_RECEIPT_REVISION}.`,
-    )
-  }
-  const requiredRevision =
-    payload.contract === 'host-ui-v1'
-      ? requiredHostUiRevision(payload.request.channel)
-      : payload.contract === 'local-compaction-v1' ||
-          payload.contract === 'local-compaction-cancel-v1'
-        ? LOCAL_SESSION_COMPACTION_REVISION
-        : payload.contract === 'session-waggle-v1' ||
-            payload.contract === 'session-waggle-cancel-v1'
-          ? LOCAL_SESSION_WAGGLE_REVISION
-          : undefined
+  const requiredRevision = requiredLocalSessionCommandRevision(payload)
   if (requiredRevision !== undefined && revision < requiredRevision) {
     throw new Error(`This command requires Local Session protocol revision ${requiredRevision}.`)
   }

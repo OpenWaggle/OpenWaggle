@@ -7,7 +7,7 @@ DEFAULT_REPO="OpenWaggle/OpenWaggle"
 REPO="${OPENWAGGLE_INSTALL_REPO:-${DEFAULT_REPO}}"
 RELEASE_TAG="${OPENWAGGLE_RELEASE_TAG:-}"
 REQUESTED_CHANNEL="${OPENWAGGLE_CHANNEL:-}"
-RELEASES_API_URL="${OPENWAGGLE_RELEASES_API_URL:-https://api.github.com/repos/${REPO}/releases?per_page=100}"
+RELEASES_API_URL="${OPENWAGGLE_RELEASES_API_URL:-https://api.github.com/repos/${REPO}/releases}"
 RELEASE_API_URL="${OPENWAGGLE_RELEASE_API_URL:-}"
 READY_MESSAGE="Ready to waggle"
 READY_TYPE_DELAY_SECONDS="0.045"
@@ -21,6 +21,29 @@ error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 extract_release_tags() {
   printf '%s' "$1" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | \
     sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+}
+
+release_page_url() {
+  local base_url="$1"
+  local page="$2"
+  case "${base_url}" in
+    *\?*) printf '%s&per_page=100&page=%s\n' "${base_url}" "${page}" ;;
+    *) printf '%s?per_page=100&page=%s\n' "${base_url}" "${page}" ;;
+  esac
+}
+
+fetch_release_pages() {
+  local base_url="$1"
+  local page=1
+  local page_json
+  local tag_count
+  while true; do
+    page_json="$(curl -fsSL "$(release_page_url "${base_url}" "${page}")")" || return 1
+    printf '%s\n' "${page_json}"
+    tag_count="$(extract_release_tags "${page_json}" | wc -l | tr -d '[:space:]')"
+    [ "${tag_count}" -lt 100 ] && return 0
+    page=$((page + 1))
+  done
 }
 
 release_matches_channel() {
@@ -304,7 +327,8 @@ else
     ''|stable|beta|alpha) ;;
     *) error "Invalid channel '${REQUESTED_CHANNEL}'. Use stable, beta, or alpha." ;;
   esac
-  RELEASES_JSON="$(curl -fsSL "${RELEASES_API_URL}")" || error "Failed to list releases. Is the repo public?"
+  RELEASES_JSON="$(fetch_release_pages "${RELEASES_API_URL}")" || \
+    error "Failed to list releases. Is the repo public?"
   CHANNEL="${REQUESTED_CHANNEL:-$(resolve_default_channel "${RELEASES_JSON}")}"
   RELEASE_TAG="$(resolve_release_tag "${RELEASES_JSON}" "${CHANNEL}")" || \
     error "No ${CHANNEL} release is available."

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   checkForUpdatesMock,
-  executeHostUiMock,
+  executeLocalSessionCommandMock,
   quitAndInstallMock,
   writeCliStdoutMock,
   createClientMock,
@@ -29,7 +29,7 @@ const {
   }
   return {
     checkForUpdatesMock: vi.fn(),
-    executeHostUiMock: vi.fn(),
+    executeLocalSessionCommandMock: vi.fn(),
     quitAndInstallMock: vi.fn(),
     writeCliStdoutMock: vi.fn(() => Promise.resolve()),
     createClientMock: vi.fn(() => Promise.resolve({ clientKind: 'cli' })),
@@ -46,7 +46,9 @@ vi.mock('electron-updater', () => ({
     quitAndInstall: quitAndInstallMock,
   }),
 }))
-vi.mock('../application/configured-host-ui-client', () => ({ executeHostUi: executeHostUiMock }))
+vi.mock('../session-host/local-session-client', () => ({
+  executeLocalSessionCommand: executeLocalSessionCommandMock,
+}))
 vi.mock('../local-session-cli-client', () => ({
   createLocalSessionCliClientInput: createClientMock,
 }))
@@ -61,10 +63,16 @@ describe('update CLI', () => {
     updater.allowPrerelease = false
     updater.allowDowngrade = false
     updater.autoDownload = true
-    executeHostUiMock.mockImplementation(({ channel }: { readonly channel: string }) => {
-      if (channel === 'settings:get') return Promise.resolve({ updateChannel: 'stable' })
-      return Promise.resolve({ ok: true })
-    })
+    executeLocalSessionCommandMock.mockImplementation(
+      ({ payload }: { readonly payload: { readonly request: { readonly operation: string } } }) =>
+        Promise.resolve({
+          contract: 'local-update-v1',
+          response: {
+            contractVersion: 1,
+            updateChannel: payload.request.operation === 'set-channel' ? 'alpha' : 'stable',
+          },
+        }),
+    )
     checkForUpdatesMock.mockResolvedValue(null)
   })
 
@@ -92,8 +100,13 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
 
-    expect(executeHostUiMock).toHaveBeenCalledWith(
-      expect.objectContaining({ channel: 'settings:update', args: [{ updateChannel: 'alpha' }] }),
+    expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          contract: 'local-update-v1',
+          request: { contractVersion: 1, operation: 'set-channel', channel: 'alpha' },
+        },
+      }),
     )
     expect(updater.channel).toBe('alpha')
     expect(updater.allowPrerelease).toBe(true)
@@ -105,9 +118,9 @@ describe('update CLI', () => {
   })
 
   it('uses the saved GUI channel when no CLI override is provided', async () => {
-    executeHostUiMock.mockImplementation(({ channel }: { readonly channel: string }) => {
-      if (channel === 'settings:get') return Promise.resolve({ updateChannel: 'beta' })
-      return Promise.resolve({ ok: true })
+    executeLocalSessionCommandMock.mockResolvedValue({
+      contract: 'local-update-v1',
+      response: { contractVersion: 1, updateChannel: 'beta' },
     })
 
     await expect(runUpdateCli(['--check'])).resolves.toEqual({
@@ -116,8 +129,13 @@ describe('update CLI', () => {
     })
 
     expect(updater.channel).toBe('beta')
-    expect(executeHostUiMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ channel: 'settings:update' }),
+    expect(executeLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          contract: 'local-update-v1',
+          request: { contractVersion: 1, operation: 'get-channel' },
+        },
+      }),
     )
     expect(writeCliStdoutMock).toHaveBeenCalledWith(
       'OpenWaggle is up to date on the beta channel.\n',
