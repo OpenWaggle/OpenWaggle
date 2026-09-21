@@ -274,12 +274,6 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     resetRunUiState(params)
   }
 
-  async function steer(payload: AgentSendPayload) {
-    if (!sessionId) throw new Error('No active session is available for steering.')
-    const result = await api.steerAgent(sessionId, payload)
-    return result.delivery
-  }
-
   return {
     runActions: {
       flushDeferredSessionSnapshot,
@@ -288,6 +282,5 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     withDeferredSnapshotRefresh,
     sendUserPayload,
     stop,
-    steer,
   }
 }

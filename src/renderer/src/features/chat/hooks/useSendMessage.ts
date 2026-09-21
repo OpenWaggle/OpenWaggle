@@ -1,21 +1,17 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionWorktreePlan } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { FirstSendFailed, MessageNotDelivered } from '@/features/chat/lib'
 import { createOptimisticUserMessage } from '@/features/chat/lib/useAgentChat.utils'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { useChatStore } from '@/features/chat/state/chat-store'
 import { flushDraftAuthorizationModeToSession } from '@/features/chat/state/draft-authorization-mode-store'
-import {
-  applyDraftSelectedModelToSession,
-  flushDraftSelectedModelToSession,
-  snapshotDraftSelectedModel,
-  undoDraftSelectedModelPromotion,
-} from '@/features/chat/state/draft-selected-model-store'
 import { withInlineVisualizationContext } from '@/features/chat/state/inline-visualization-state'
 import { useOptimisticUserMessageStore } from '@/features/chat/state/optimistic-user-message-store'
-import { flushDraftWorktreePlanToSession, snapshotDraftWorktreePlan } from '@/features/git'
+import { snapshotDraftWorktreePlan } from '@/features/git'
 import { useWaggleStore } from '@/features/waggle/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -26,7 +22,10 @@ interface SendMessageDeps {
   readonly activeSessionId: SessionId | null
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
-  readonly createSession: (projectPath: string) => Promise<SessionId>
+  readonly createSession: (
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+  ) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendMessageToSession: (
     sessionId: SessionId,
@@ -41,6 +40,27 @@ interface SendMessageHandlers {
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendText: (content: string) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
+}
+
+function sessionWorktreePlan(
+  snapshot: ReturnType<typeof snapshotDraftWorktreePlan>,
+): SessionWorktreePlan | undefined {
+  const environmentMode = snapshot?.plan.envMode
+  if (!snapshot || !environmentMode) return undefined
+  return {
+    environmentMode,
+    baseRef: snapshot.plan.baseRef ?? null,
+    startFromOrigin: snapshot.plan.startFromOrigin ?? false,
+  }
+}
+
+function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed {
+  return error instanceof FirstSendFailed
+    ? error
+    : new FirstSendFailed(
+        error instanceof Error ? error : new Error(String(error)),
+        String(sessionId),
+      )
 }
 
 /** Pure factory — testable without React. */
@@ -62,31 +82,18 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
-      // Snapshot before createSession: the user can start another draft and pick a different model
-      // while the creation is pending, and that pick belongs to the new draft, not this send.
-      const draftModel = snapshotDraftSelectedModel(projectPath)
-      const sessionId = await createSession(projectPath)
-      // Promote before the awaited setup: the hook resolves the active session now, so the
-      // global default would be dispatched by a parallel submit during the setup window.
-      const promotionGeneration = applyDraftSelectedModelToSession(sessionId, draftModel)
-      let modelPersisted = false
+      const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
-        await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        await flushDraftSelectedModelToSession(projectPath, sessionId, draftModel)
-        modelPersisted = true
-        /*
-         * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
-         * the send had succeeded: a review submitted as a session's first message was cleared and never
-         * restored, because the promise that would have signalled the failure was dropped.
-         */
-        await sendMessageToSession(sessionId, payload, null)
       } catch (error) {
-        if (!modelPersisted && promotionGeneration !== undefined) {
-          undoDraftSelectedModelPromotion(sessionId, promotionGeneration)
-        }
         throw firstSendFailure(error, sessionId)
       }
+      /*
+       * Awaited, and its failure propagates. Dispatching this fire-and-forget meant the caller was told
+       * the send had succeeded: a review submitted as a session's first message was cleared and never
+       * restored, because the promise that would have signalled the failure was dropped.
+       */
+      await sendMessageToSession(sessionId, payload, null)
       return
     }
     await sendMessage(withInlineVisualizationContext(activeSessionId, payload))
@@ -102,30 +109,20 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
         throw new Error('Select a project before sending.')
       }
       const worktreePlan = snapshotDraftWorktreePlan(projectPath)
-      // Same snapshot-before-create as the classic path above.
-      const draftModel = snapshotDraftSelectedModel(projectPath)
-      const sessionId = await createSession(projectPath)
-      const promotionGeneration = applyDraftSelectedModelToSession(sessionId, draftModel)
-      let modelPersisted = false
+      const sessionId = await createSession(projectPath, sessionWorktreePlan(worktreePlan))
       try {
-        await flushDraftWorktreePlanToSession(worktreePlan, sessionId)
         await flushDraftAuthorizationModeToSession(projectPath, sessionId)
-        await flushDraftSelectedModelToSession(projectPath, sessionId, draftModel)
-        modelPersisted = true
-        startWaggleCollaboration(sessionId, config)
-        /*
-         * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
-         * fire-and-forget the caller was told the send had succeeded, so a review submitted as a waggle session's
-         * first message was cleared and never restored, and the rejection surfaced as an unhandled error instead
-         * of reaching the caller that was holding the work.
-         */
-        await sendMessageToSession(sessionId, payload, config)
       } catch (error) {
-        if (!modelPersisted && promotionGeneration !== undefined) {
-          undoDraftSelectedModelPromotion(sessionId, promotionGeneration)
-        }
         throw firstSendFailure(error, sessionId)
       }
+      startWaggleCollaboration(sessionId, config)
+      /*
+       * Awaited, and its failure propagates - the same reason the classic path does it. Dispatched
+       * fire-and-forget the caller was told the send had succeeded, so a review submitted as a waggle session's
+       * first message was cleared and never restored, and the rejection surfaced as an unhandled error instead
+       * of reaching the caller that was holding the work.
+       */
+      await sendMessageToSession(sessionId, payload, config)
       return
     }
     await sendWaggleMessage(withInlineVisualizationContext(activeSessionId, payload), config)
@@ -134,21 +131,15 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   return { handleSend, handleSendText, handleSendWaggle }
 }
 
-function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed {
-  return error instanceof FirstSendFailed
-    ? error
-    : new FirstSendFailed(
-        error instanceof Error ? error : new Error(String(error)),
-        String(sessionId),
-      )
-}
-
 interface UseSendMessageOptions {
   readonly activeSessionId: SessionId | null
   readonly model: SupportedModelId | undefined
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
-  readonly createSession: (projectPath: string) => Promise<SessionId>
+  readonly createSession: (
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+  ) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
@@ -162,10 +153,13 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     payload: AgentSendPayload,
     config: WaggleConfig | null,
   ) {
-    // The composer send gate blocks empty models with a toast; this is a backstop for
-    // callers that bypass it.
-    if (!model) {
-      throw new Error('Select a model before sending.')
+    const executionModel =
+      useChatStore.getState().sessionById.get(sessionId)?.executionModel ?? model
+    if (!executionModel) {
+      throw new FirstSendFailed(
+        new Error('Created Session has no execution model.'),
+        String(sessionId),
+      )
     }
     const optimisticUserMessage = createOptimisticUserMessage(payload)
     useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
@@ -173,7 +167,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, {
       payload,
       waggleConfig: config,
-      model,
+      model: executionModel,
     })
 
     try {
@@ -185,10 +179,14 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
        * message was cleared on a failure that looked exactly like success.
        */
       const report = config
-        ? await api.sendWaggleMessage(sessionId, payload, model, config)
-        : await api.sendMessage(sessionId, payload, model)
+        ? await api.sendWaggleMessage(sessionId, payload, executionModel, config)
+        : await api.sendMessage(sessionId, payload, executionModel)
       if (report.outcome === 'delivered') {
-        useBackgroundRunStore.getState().setFirstSendRecovery(sessionId, null)
+        /*
+         * Session Host reports command acceptance before its supervised Run performs worktree birth or
+         * reaches Pi. Keep the exact payload until terminal reconciliation sees durable transcript history;
+         * otherwise an asynchronous launch failure leaves the recovery controls with nothing to replay.
+         */
         return
       }
       /*

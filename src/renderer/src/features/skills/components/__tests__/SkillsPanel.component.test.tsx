@@ -1,5 +1,5 @@
 import type { SkillCatalogResult } from '@shared/types/standards'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillsPanel } from '../SkillsPanel'
 
@@ -23,30 +23,61 @@ const mockState = vi.hoisted(() => {
   return {
     previewMarkdown: '',
     catalog,
+    projectPath: '/tmp/project',
+    recentProjects: ['/tmp/other-project'],
+    selectedSkillProject: '',
   }
 })
 
 vi.mock('@/features/sessions/hooks/useProject', () => ({
   useProject: () => ({
-    projectPath: '/tmp/project',
+    projectPath: mockState.projectPath,
     selectFolder: vi.fn(),
     setProjectPath: vi.fn(),
   }),
 }))
 
+vi.mock('@/features/sessions/state', () => ({
+  useSessionStore: (selector: (value: { sessions: { projectPath: string }[] }) => unknown) =>
+    selector({ sessions: [] }),
+}))
+
+vi.mock('@/features/settings/state', () => ({
+  usePreferencesStore: (
+    selector: (value: {
+      settings: { recentProjects: string[]; projectDisplayNames: Record<string, string> }
+      pushRecentProject: () => Promise<void>
+    }) => unknown,
+  ) =>
+    selector({
+      settings: { recentProjects: mockState.recentProjects, projectDisplayNames: {} },
+      pushRecentProject: vi.fn(async () => {}),
+    }),
+}))
+
 vi.mock('@/features/skills/hooks/useSkills', () => ({
-  useSkills: () => ({
-    standardsStatus: { agents: 'found' as const, agentsPath: '/tmp/project/AGENTS.md' },
-    catalog: mockState.catalog,
-    selectedSkillId: 'skill-one',
-    previewMarkdown: mockState.previewMarkdown,
-    isLoading: false,
-    isPreviewLoading: false,
-    error: null,
-    refresh: vi.fn(),
-    selectSkill: vi.fn(),
-    toggleSkill: vi.fn(),
-  }),
+  useSkills: (projectPath: string) => {
+    mockState.selectedSkillProject = projectPath
+    return {
+      standardsStatus: { agents: 'found' as const, agentsPath: '/tmp/project/AGENTS.md' },
+      catalog:
+        projectPath === '/tmp/project'
+          ? mockState.catalog
+          : {
+              ...mockState.catalog,
+              projectPath,
+              skills: [{ ...mockState.catalog.skills[0], id: 'other-skill', name: 'Other Skill' }],
+            },
+      selectedSkillId: projectPath === '/tmp/project' ? 'skill-one' : 'other-skill',
+      previewMarkdown: mockState.previewMarkdown,
+      isLoading: false,
+      isPreviewLoading: false,
+      error: null,
+      refresh: vi.fn(),
+      selectSkill: vi.fn(),
+      toggleSkill: vi.fn(),
+    }
+  },
 }))
 
 function renderPanel(previewMarkdown: string) {
@@ -57,6 +88,8 @@ function renderPanel(previewMarkdown: string) {
 describe('SkillsPanel markdown safety', () => {
   beforeEach(() => {
     mockState.previewMarkdown = ''
+    mockState.projectPath = '/tmp/project'
+    mockState.recentProjects = ['/tmp/other-project']
   })
 
   it('renders allowed links and blocks unsafe protocols', () => {
@@ -96,5 +129,17 @@ describe('SkillsPanel markdown safety', () => {
 
     expect(screen.getAllByText('AGENTS.md')).toHaveLength(2)
     expect(screen.queryByText('/tmp/project/AGENTS.md')).toBeNull()
+  })
+
+  it('browses another project without changing the active project', () => {
+    renderPanel('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project: project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'other-project (/tmp/other-project)' }))
+
+    expect(screen.getByRole('button', { name: 'Project: other-project' })).toBeInTheDocument()
+    expect(screen.getByText('Other Skill')).toBeInTheDocument()
+    expect(mockState.selectedSkillProject).toBe('/tmp/other-project')
+    expect(mockState.projectPath).toBe('/tmp/project')
   })
 })

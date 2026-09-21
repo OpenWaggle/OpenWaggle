@@ -1,7 +1,7 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import type * as Effect from 'effect/Effect'
 
-export interface AppMigration {
+export interface DatabaseMigrationDefinition {
   readonly id: number
   readonly name: string
   readonly statements: readonly string[]

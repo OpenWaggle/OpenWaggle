@@ -149,12 +149,31 @@ export function resolveSidebarRowState(input: {
 
 /** True when any of a session's conversation branches holds an interrupted run. */
 export function sessionHasInterruptedRun(session: SessionSummary) {
-  return session.branches?.some((branch) => branch.interruptedRun) ?? false
+  if (session.branches?.some((branch) => branch.interruptedRun)) return true
+  const status = session.latestRun?.status
+  return (
+    status === 'interrupted' ||
+    status === 'interrupted-by-host-loss' ||
+    status === 'interrupted-by-interaction-timeout'
+  )
 }
 
 export interface SidebarStateCount {
   readonly state: SidebarRowState
   readonly count: number
+}
+
+export function mergeExactTerminalCounts(
+  counts: readonly SidebarStateCount[],
+  exact: { readonly completed?: number; readonly error?: number },
+) {
+  const byState = new Map(counts.map((count) => [count.state, count.count]))
+  if (exact.completed !== undefined) byState.set('completed', exact.completed)
+  if (exact.error !== undefined) byState.set('error', exact.error)
+  return [...byState.entries()]
+    .filter(([, count]) => count > 0)
+    .map(([state, count]) => ({ state, count }))
+    .sort((left, right) => ROW_STATE_META[left.state].rank - ROW_STATE_META[right.state].rank)
 }
 
 /**
@@ -167,11 +186,14 @@ export function buildSidebarStateCounts(
   sessions: readonly SessionSummary[],
   stateOf: (session: SessionSummary) => SidebarRowState,
 ): readonly SidebarStateCount[] {
-  const counts = new Map<SidebarRowState, number>()
+  return buildSidebarStateCountsFromStates(
+    sessions.flatMap((session) => (session.archived === true ? [] : [stateOf(session)])),
+  )
+}
 
-  for (const session of sessions) {
-    if (session.archived === true) continue
-    const state = stateOf(session)
+export function buildSidebarStateCountsFromStates(states: Iterable<SidebarRowState>) {
+  const counts = new Map<SidebarRowState, number>()
+  for (const state of states) {
     if (ROW_STATE_META[state].shortLabel === '') continue
     counts.set(state, (counts.get(state) ?? 0) + 1)
   }

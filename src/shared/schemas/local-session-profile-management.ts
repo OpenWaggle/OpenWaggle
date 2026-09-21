@@ -1,0 +1,166 @@
+import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
+import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
+import {
+  isLocalSessionProfileCredential,
+  LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH,
+} from '@shared/types/local-session-profile'
+import {
+  LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
+  type LocalSessionProfileManagementRequest,
+  type LocalSessionProfileManagementResponse,
+  type LocalSessionProfileUiCommand,
+} from '@shared/types/local-session-profile-management'
+import {
+  localSessionProfileCapabilitiesSchema,
+  localSessionProfileManagementEnvelopeSchema,
+  localSessionProfileScopeSchema,
+} from './local-session-profile'
+import { sessionInputIdSchema } from './session-input'
+
+const authorizationCeilingSchema = Schema.Literal(...AGENT_AUTHORIZATION_MODES)
+const profileNameSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.maxLength(LOCAL_SESSION_PROFILE_NAME_MAX_LENGTH),
+  Schema.filter((value) => value.trim() === value || 'Profile names must be trimmed.'),
+)
+const profileCredentialSchema = Schema.String.pipe(
+  Schema.filter(
+    (value) =>
+      isLocalSessionProfileCredential(value) ||
+      'Profile credentials must be 43-character base64url values.',
+  ),
+)
+
+const profilePolicyFields = {
+  capabilities: localSessionProfileCapabilitiesSchema,
+  scope: localSessionProfileScopeSchema,
+  authorizationCeiling: authorizationCeilingSchema,
+  managementEnvelope: Schema.optional(localSessionProfileManagementEnvelopeSchema),
+}
+
+const commandSchema = Schema.Union(
+  Schema.Struct({ operation: Schema.Literal('list') }),
+  Schema.Struct({
+    operation: Schema.Literal('create'),
+    name: profileNameSchema,
+    credential: profileCredentialSchema,
+    ...profilePolicyFields,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('update'),
+    profileName: profileNameSchema,
+    ...profilePolicyFields,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('rotate'),
+    profileName: profileNameSchema,
+    credential: profileCredentialSchema,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('revoke'),
+    profileName: profileNameSchema,
+  }),
+)
+
+export const localSessionProfileUiCommandSchema: Schema.Schema<LocalSessionProfileUiCommand> =
+  Schema.Union(
+    Schema.Struct({ operation: Schema.Literal('list') }),
+    Schema.Struct({
+      operation: Schema.Literal('create'),
+      name: profileNameSchema,
+      ...profilePolicyFields,
+    }),
+    Schema.Struct({
+      operation: Schema.Literal('update'),
+      profileName: profileNameSchema,
+      ...profilePolicyFields,
+    }),
+    Schema.Struct({
+      operation: Schema.Literal('rotate'),
+      profileName: profileNameSchema,
+    }),
+    Schema.Struct({
+      operation: Schema.Literal('revoke'),
+      profileName: profileNameSchema,
+    }),
+  )
+
+const profileSummarySchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  ...profilePolicyFields,
+  revokedAt: Schema.NullOr(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  lastAuthenticatedAt: Schema.NullOr(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
+  createdAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+  updatedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+})
+
+const outcomeSchema = Schema.Union(
+  Schema.Struct({
+    operation: Schema.Literal('list'),
+    effect: Schema.Literal('profiles-listed'),
+    profiles: Schema.Array(profileSummarySchema),
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('create'),
+    effect: Schema.Literal('profile-created'),
+    profile: profileSummarySchema,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('update'),
+    effect: Schema.Literal('profile-updated'),
+    profile: profileSummarySchema,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('rotate'),
+    effect: Schema.Literal('profile-rotated'),
+    profile: profileSummarySchema,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('revoke'),
+    effect: Schema.Literal('profile-revoked'),
+    profile: profileSummarySchema,
+    interruptedRuns: Schema.Array(
+      Schema.Struct({ sessionId: Schema.String, runId: Schema.String }),
+    ),
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('list', 'create', 'update', 'rotate', 'revoke'),
+    effect: Schema.Literal('rejected'),
+    code: Schema.String,
+    profileName: Schema.optional(Schema.String),
+  }),
+)
+
+export const localSessionProfileManagementRequestSchema: Schema.Schema<LocalSessionProfileManagementRequest> =
+  Schema.Struct({
+    contractVersion: Schema.Literal(LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION),
+    requestId: sessionInputIdSchema,
+    idempotencyKey: sessionInputIdSchema,
+    command: commandSchema,
+  })
+
+export const localSessionProfileManagementResponseSchema: Schema.Schema<LocalSessionProfileManagementResponse> =
+  Schema.Struct({
+    contractVersion: Schema.Literal(LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION),
+    requestId: Schema.String,
+    idempotencyKey: Schema.String,
+    replayed: Schema.Boolean,
+    outcome: outcomeSchema,
+  })
+
+export function decodeLocalSessionProfileManagementRequest(value: unknown) {
+  return decodeUnknownExactOrThrow(localSessionProfileManagementRequestSchema, value)
+}
+
+export function decodeLocalSessionProfileManagementResponse(value: unknown) {
+  return decodeUnknownExactOrThrow(localSessionProfileManagementResponseSchema, value)
+}
+
+export function decodeLocalSessionProfileManagementOutcome(value: unknown) {
+  return decodeUnknownExactOrThrow(outcomeSchema, value)
+}
+
+export function decodeLocalSessionProfileUiCommand(value: unknown) {
+  return decodeUnknownExactOrThrow(localSessionProfileUiCommandSchema, value)
+}

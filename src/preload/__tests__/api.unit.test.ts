@@ -39,19 +39,6 @@ describe('preload api surface contract', () => {
     )
   })
 
-  it('reads Hive relations only for the requested Session through typed IPC', async () => {
-    const sessionId = SessionId('session-1')
-    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
-      current: null,
-      parent: null,
-      workers: [],
-    })
-
-    await api.getSessionHiveRelations(sessionId)
-
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith('sessions:get-hive-relations', sessionId)
-  })
-
   it('updates the resource capability owner whenever the displayed Session changes', () => {
     api.activateSessionResourceOwner(SessionId('session-1'))
     api.activateSessionResourceOwner(null)
@@ -318,6 +305,8 @@ describe('preload api surface contract', () => {
     const EVENT_METHODS = [
       'onAgentEvent',
       'onAgentPhase',
+      'onSessionHostEvent',
+      'onSessionHostResyncRequired',
       'onRunCompleted',
       'onPrepareAttachmentFromTextProgress',
       'onTerminalEvent',

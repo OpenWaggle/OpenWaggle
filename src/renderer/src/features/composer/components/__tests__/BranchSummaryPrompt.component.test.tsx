@@ -10,6 +10,7 @@ const SOURCE_NODE_ID = SessionNodeId('node-1')
 function openPrompt() {
   useBranchSummaryStore.getState().openPrompt({
     sessionId: SESSION_ID,
+    projectPath: null,
     sourceNodeId: SOURCE_NODE_ID,
     restoreSelection: { branchId: null, nodeId: null },
     previousComposerText: 'existing prompt',

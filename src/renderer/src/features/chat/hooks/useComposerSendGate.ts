@@ -51,7 +51,7 @@ export function useComposerSendGate(input: UseComposerSendGateInput): {
     strip.sendPlan.kind === 'blocked' || strip.sendPlan.kind === 'worktree-missing'
       ? strip.sendPlan.reason
       : null
-  const guardedSend = (payload: AgentSendPayload): Promise<void> | false => {
+  const guardedSend = (payload: AgentSendPayload) => {
     if (sendBlockedReason !== null) {
       input.onToast(sendBlockedReason)
       return false

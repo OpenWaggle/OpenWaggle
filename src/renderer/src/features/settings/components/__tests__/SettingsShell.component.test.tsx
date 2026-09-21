@@ -23,6 +23,19 @@ vi.mock('@/shell/useFullscreen', () => ({
   useFullscreen: () => fullscreenMock(),
 }))
 
+vi.mock('@/features/agent-definitions/components', () => ({
+  AgentDefinitionsPanel: () => <div>Agents browser</div>,
+}))
+vi.mock('@/features/skills/components', () => ({
+  SkillsPanel: () => <div>Skills browser</div>,
+}))
+vi.mock('../sections/MultiAgentAccessCard', () => ({
+  MultiAgentAccessCard: () => <div>Hive controls</div>,
+}))
+vi.mock('../sections/PermissionsSection', () => ({
+  PermissionsSection: () => <div>Permissions controls</div>,
+}))
+
 vi.mock('../sections/GeneralSection', () => ({ GeneralSection: () => <div>General settings</div> }))
 vi.mock('../sections/WaggleSection', () => ({ WaggleSection: () => <div>Waggle settings</div> }))
 vi.mock('../sections/ExtensionsSection', () => ({
@@ -48,6 +61,8 @@ describe('settings shell components', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Waggle Mode/ }))
     fireEvent.click(screen.getByRole('button', { name: /Extensions/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Skills$/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Agents$/ }))
     fireEvent.click(screen.getByRole('button', { name: /General/ }))
 
     expect(screen.queryByRole('button', { name: /Git/ })).not.toBeInTheDocument()
@@ -61,7 +76,15 @@ describe('settings shell components', () => {
       to: '/settings/$tab',
       params: { tab: 'extensions' },
     })
-    expect(navigateMock).toHaveBeenNthCalledWith(3, { to: '/settings' })
+    expect(navigateMock).toHaveBeenNthCalledWith(3, {
+      to: '/settings/$tab',
+      params: { tab: 'skills' },
+    })
+    expect(navigateMock).toHaveBeenNthCalledWith(4, {
+      to: '/settings/$tab',
+      params: { tab: 'agents' },
+    })
+    expect(navigateMock).toHaveBeenNthCalledWith(5, { to: '/settings' })
   })
 
   it('keeps active and inactive nav items in the same layout position', () => {
@@ -85,6 +108,24 @@ describe('settings shell components', () => {
       to: '/sessions/$sessionId',
       params: { sessionId: 'session-1' },
     })
+  })
+
+  it('renders resource browsers inside their Settings tabs', () => {
+    const view = render(<SettingsPage activeTab="skills" />)
+    expect(screen.getByText('Skills browser')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Skills$/ })).toBeInTheDocument()
+    view.unmount()
+    render(<SettingsPage activeTab="agents" />)
+    expect(screen.getByText('Agents browser')).toBeInTheDocument()
+    expect(screen.getByText('Hive controls')).toBeInTheDocument()
+    expect(screen.queryByText('Permissions controls')).not.toBeInTheDocument()
+  })
+
+  it('keeps permissions separate from agent orchestration', () => {
+    render(<SettingsPage activeTab="permissions" />)
+    expect(screen.getByText('Permissions controls')).toBeInTheDocument()
+    expect(screen.queryByText('Hive controls')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Permissions' })).toBeInTheDocument()
   })
 
   it('renders AppSettingsView through the panel boundary', () => {

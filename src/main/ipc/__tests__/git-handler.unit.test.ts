@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../typed-ipc', () => ({
+  hostHandle: vi.fn(),
   typedHandle: vi.fn(),
 }))
 

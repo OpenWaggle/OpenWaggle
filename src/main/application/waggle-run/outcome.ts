@@ -7,7 +7,7 @@ import type { PersistedRunResourceNodes } from '../session-resource-node-mapping
 
 const logger = createLogger('waggle-run-outcome')
 
-export function validationErrorOutcome() {
+export function waggleValidationErrorOutcome() {
   return {
     outcome: 'validation-error' as const,
     message: 'Invalid Waggle mode configuration',
@@ -15,7 +15,7 @@ export function validationErrorOutcome() {
   }
 }
 
-export function notFoundOutcome() {
+export function waggleSessionNotFoundOutcome() {
   const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
   return {
     outcome: 'not-found' as const,
@@ -24,7 +24,7 @@ export function notFoundOutcome() {
   }
 }
 
-export function noProjectOutcome() {
+export function waggleNoProjectOutcome() {
   return {
     outcome: 'no-project' as const,
     message: 'Please select a project folder before starting Waggle mode.',
@@ -32,7 +32,7 @@ export function noProjectOutcome() {
   }
 }
 
-export function noInheritedModelOutcome() {
+export function waggleNoInheritedModelOutcome() {
   return {
     outcome: 'validation-error' as const,
     message: 'Select a model before starting Waggle mode.',

@@ -1,14 +1,23 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseLabel } from '@shared/types/phase'
+import type { SessionSummary } from '@shared/types/session'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
-import { create } from 'zustand'
+import { create, type StateCreator } from 'zustand'
+import { createSessionReadReceiptWriter } from './session-read-receipt-writer'
 
 interface SessionStatusState {
   statuses: Map<SessionId, SessionStatus>
   /** When a terminal status (completed/error) was recorded */
   completedAt: Map<SessionId, number>
+  /** Source timestamp of the latest status projection, used to reject stale catalog pages. */
+  statusUpdatedAt: Map<SessionId, number>
   /** When the user last visited (navigated to) a session */
   lastVisitedAt: Map<SessionId, number>
+  /** Advances after a terminal read receipt reaches the Host. */
+  terminalReceiptRevision: number
+  /** Advances when the Host signals that its terminal counts may have changed. */
+  hostTerminalCountRevision: number
   /**
    * What the agent is doing right now, per session.
    *
@@ -19,110 +28,276 @@ interface SessionStatusState {
    */
   phases: Map<SessionId, AgentPhaseLabel>
 
-  setStatus: (id: SessionId, status: SessionStatus) => void
+  setStatus: (id: SessionId, status: SessionStatus, sourceUpdatedAt: number) => void
+  markWaggleRunning: (id: SessionId) => void
+  markRunCompleted: (id: SessionId) => void
+  hydratePersistedStatuses: (sessions: readonly SessionSummary[]) => void
   clearStatus: (id: SessionId) => void
   getStatus: (id: SessionId) => SessionStatus
   setPhase: (id: SessionId, phase: AgentPhaseLabel | null) => void
   getPhase: (id: SessionId) => AgentPhaseLabel | null
   markVisited: (id: SessionId) => void
   markUnread: (id: SessionId) => void
+  noteHostTerminalCountChange: () => void
 }
 
-export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
-  statuses: new Map<SessionId, SessionStatus>(),
-  completedAt: new Map<SessionId, number>(),
-  lastVisitedAt: new Map<SessionId, number>(),
-  phases: new Map<SessionId, AgentPhaseLabel>(),
+function updateStatusState(
+  state: SessionStatusState,
+  id: SessionId,
+  status: SessionStatus,
+  updatedAt: number,
+  sourceUpdatedAt = updatedAt,
+) {
+  const previousUpdatedAt = state.statusUpdatedAt.get(id)
+  if (previousUpdatedAt !== undefined && previousUpdatedAt > sourceUpdatedAt) return state
+  const next: Partial<SessionStatusState> = {}
 
-  setStatus(id: SessionId, status: SessionStatus) {
-    set((state) => {
-      const next: Partial<SessionStatusState> = {}
+  if (previousUpdatedAt !== sourceUpdatedAt) {
+    const statusUpdatedAt = new Map(state.statusUpdatedAt)
+    statusUpdatedAt.set(id, sourceUpdatedAt)
+    next.statusUpdatedAt = statusUpdatedAt
+  }
+  if (state.statuses.get(id) !== status) {
+    const statuses = new Map(state.statuses)
+    if (status === 'idle') statuses.delete(id)
+    else statuses.set(id, status)
+    next.statuses = statuses
+  }
 
-      // Update statuses map
-      if (state.statuses.get(id) !== status) {
-        const nextStatuses = new Map(state.statuses)
-        if (status === 'idle') {
-          nextStatuses.delete(id)
-        } else {
-          nextStatuses.set(id, status)
-        }
-        next.statuses = nextStatuses
-      }
+  const isTerminal = TERMINAL_STATUSES.has(status)
+  if (isTerminal) {
+    const completedAt = new Map(state.completedAt)
+    completedAt.set(id, updatedAt)
+    next.completedAt = completedAt
+  }
+  if (!isTerminal && state.completedAt.has(id)) {
+    const completedAt = new Map(state.completedAt)
+    completedAt.delete(id)
+    next.completedAt = completedAt
+  }
+  if (isTerminal && state.phases.has(id)) {
+    const phases = new Map(state.phases)
+    phases.delete(id)
+    next.phases = phases
+  }
+  return Object.keys(next).length === 0 ? state : { ...state, ...next }
+}
 
-      // Update completedAt based on status category
-      const isTerminal = TERMINAL_STATUSES.has(status)
-      if (isTerminal) {
-        // Terminal -> record completion time
-        const nextCompleted = new Map(state.completedAt)
-        nextCompleted.set(id, Date.now())
-        next.completedAt = nextCompleted
-      }
-      if (!isTerminal && state.completedAt.has(id)) {
-        // Live or idle -> clear completion (session is active again or reset)
-        const nextCompleted = new Map(state.completedAt)
-        nextCompleted.delete(id)
-        next.completedAt = nextCompleted
-      }
+function statusForPersistedSession(session: SessionSummary): SessionStatus {
+  if (session.pendingInteractionAt !== undefined) return 'awaiting-input'
+  if (!session.latestRun) return 'idle'
+  return match(session.latestRun.status)
+    .with('starting', () => 'connecting' as const)
+    .with('active', 'stopping', () => 'working' as const)
+    .with('completed', () => 'completed' as const)
+    .with('failed', () => 'error' as const)
+    .with(
+      'interrupted',
+      'interrupted-by-host-loss',
+      'interrupted-by-interaction-timeout',
+      () => 'idle' as const,
+    )
+    .exhaustive()
+}
 
-      // A finished run has no current phase, so a stale label never outlives it.
-      if (isTerminal && state.phases.has(id)) {
-        const nextPhases = new Map(state.phases)
-        nextPhases.delete(id)
-        next.phases = nextPhases
-      }
+interface HydrationMaps {
+  readonly statuses: Map<SessionId, SessionStatus>
+  readonly completedAt: Map<SessionId, number>
+  readonly statusUpdatedAt: Map<SessionId, number>
+  readonly lastVisitedAt: Map<SessionId, number>
+  readonly phases: Map<SessionId, AgentPhaseLabel>
+}
 
-      // If nothing changed, bail
-      if (Object.keys(next).length === 0) return state
-      return { ...state, ...next }
-    })
-  },
+function hydrateReceipt(maps: HydrationMaps, session: SessionSummary) {
+  const persistedVisitedAt = session.treeUiState?.lastVisitedAt
+  if (persistedVisitedAt === undefined || maps.lastVisitedAt.has(session.id)) return false
+  maps.lastVisitedAt.set(session.id, persistedVisitedAt)
+  return true
+}
 
-  clearStatus(id: SessionId) {
-    set((state) => {
-      if (!state.statuses.has(id) && !state.phases.has(id)) return state
-      const next = new Map(state.statuses)
-      next.delete(id)
-      const nextCompleted = new Map(state.completedAt)
-      nextCompleted.delete(id)
-      const nextPhases = new Map(state.phases)
-      nextPhases.delete(id)
-      return { statuses: next, completedAt: nextCompleted, phases: nextPhases }
-    })
-  },
+function updateProjectedStatus(
+  maps: HydrationMaps,
+  session: SessionSummary,
+  status: SessionStatus,
+  projectedAt: number,
+) {
+  let changed = false
+  const currentStatus = maps.statuses.get(session.id) ?? 'idle'
+  if (currentStatus !== status) {
+    if (status === 'idle') maps.statuses.delete(session.id)
+    else maps.statuses.set(session.id, status)
+    changed = true
+  }
+  if (maps.statusUpdatedAt.get(session.id) !== projectedAt) {
+    maps.statusUpdatedAt.set(session.id, projectedAt)
+    changed = true
+  }
+  return changed
+}
 
-  getStatus(id: SessionId) {
-    return get().statuses.get(id) ?? 'idle'
-  },
+function updateProjectedCompletion(
+  maps: HydrationMaps,
+  sessionId: SessionId,
+  status: SessionStatus,
+  projectedAt: number,
+) {
+  if (!TERMINAL_STATUSES.has(status)) return maps.completedAt.delete(sessionId)
+  let changed = false
+  if (maps.completedAt.get(sessionId) !== projectedAt) {
+    maps.completedAt.set(sessionId, projectedAt)
+    changed = true
+  }
+  return maps.phases.delete(sessionId) || changed
+}
 
-  setPhase(id: SessionId, phase: AgentPhaseLabel | null) {
-    set((state) => {
-      const current = state.phases.get(id) ?? null
-      if (current === phase) return state
-      const nextPhases = new Map(state.phases)
-      if (phase === null) nextPhases.delete(id)
-      else nextPhases.set(id, phase)
-      return { phases: nextPhases }
-    })
-  },
+function hydratePersistedSession(maps: HydrationMaps, session: SessionSummary) {
+  let changed = hydrateReceipt(maps, session)
+  const pendingClearedAt =
+    session.pendingInteractionAt === undefined && maps.statuses.get(session.id) === 'awaiting-input'
+      ? (session.pendingInteractionSnapshotAt ?? 0)
+      : 0
+  const projectedAt = Math.max(
+    session.latestRun?.updatedAt ?? 0,
+    session.pendingInteractionAt ?? 0,
+    pendingClearedAt,
+  )
+  if (projectedAt === 0 || (maps.statusUpdatedAt.get(session.id) ?? -1) > projectedAt) {
+    return changed
+  }
+  const status = statusForPersistedSession(session)
+  changed = updateProjectedStatus(maps, session, status, projectedAt) || changed
+  return updateProjectedCompletion(maps, session.id, status, projectedAt) || changed
+}
 
-  getPhase(id: SessionId) {
-    return get().phases.get(id) ?? null
-  },
+function hydratePersistedState(state: SessionStatusState, sessions: readonly SessionSummary[]) {
+  const maps: HydrationMaps = {
+    statuses: new Map(state.statuses),
+    completedAt: new Map(state.completedAt),
+    statusUpdatedAt: new Map(state.statusUpdatedAt),
+    lastVisitedAt: new Map(state.lastVisitedAt),
+    phases: new Map(state.phases),
+  }
+  let changed = false
+  for (const session of sessions) changed = hydratePersistedSession(maps, session) || changed
+  return changed ? { ...state, ...maps } : state
+}
 
-  markVisited(id: SessionId) {
-    set((state) => {
-      const nextVisited = new Map(state.lastVisitedAt)
-      nextVisited.set(id, Date.now())
-      return { lastVisitedAt: nextVisited }
-    })
-  },
+function clearStatusState(state: SessionStatusState, id: SessionId) {
+  if (
+    !state.statuses.has(id) &&
+    !state.completedAt.has(id) &&
+    !state.statusUpdatedAt.has(id) &&
+    !state.phases.has(id)
+  ) {
+    return state
+  }
+  const statuses = new Map(state.statuses)
+  const completedAt = new Map(state.completedAt)
+  const statusUpdatedAt = new Map(state.statusUpdatedAt)
+  const phases = new Map(state.phases)
+  statuses.delete(id)
+  completedAt.delete(id)
+  statusUpdatedAt.delete(id)
+  phases.delete(id)
+  return { ...state, statuses, completedAt, statusUpdatedAt, phases }
+}
 
-  markUnread(id: SessionId) {
-    set((state) => {
-      const completed = state.completedAt.get(id) ?? Date.now()
-      const nextVisited = new Map(state.lastVisitedAt)
-      nextVisited.set(id, completed - 1)
-      return { lastVisitedAt: nextVisited }
-    })
-  },
-}))
+function updatePhaseState(state: SessionStatusState, id: SessionId, phase: AgentPhaseLabel | null) {
+  if ((state.phases.get(id) ?? null) === phase) return state
+  const phases = new Map(state.phases)
+  if (phase === null) phases.delete(id)
+  else phases.set(id, phase)
+  return { ...state, phases }
+}
+
+function updateVisitedState(
+  state: SessionStatusState,
+  id: SessionId,
+  visitedAt: number | undefined,
+) {
+  const lastVisitedAt = new Map(state.lastVisitedAt)
+  if (visitedAt === undefined) lastVisitedAt.delete(id)
+  else lastVisitedAt.set(id, visitedAt)
+  return { ...state, lastVisitedAt }
+}
+
+const createSessionStatusState: StateCreator<SessionStatusState> = (set, get) => {
+  const markReadReceipt = createSessionReadReceiptWriter({
+    getValue: (id) => get().lastVisitedAt.get(id),
+    setValue: (id, value) => set((state) => updateVisitedState(state, id, value)),
+    isTerminal: (id) => TERMINAL_STATUSES.has(get().statuses.get(id) ?? 'idle'),
+    noteTerminalReceiptSettled: () =>
+      set((state) => ({ terminalReceiptRevision: state.terminalReceiptRevision + 1 })),
+  })
+
+  return {
+    statuses: new Map<SessionId, SessionStatus>(),
+    completedAt: new Map<SessionId, number>(),
+    statusUpdatedAt: new Map<SessionId, number>(),
+    lastVisitedAt: new Map<SessionId, number>(),
+    terminalReceiptRevision: 0,
+    hostTerminalCountRevision: 0,
+    phases: new Map<SessionId, AgentPhaseLabel>(),
+
+    setStatus(id: SessionId, status: SessionStatus, sourceUpdatedAt: number) {
+      set((state) => updateStatusState(state, id, status, sourceUpdatedAt))
+    },
+
+    markWaggleRunning(id: SessionId) {
+      set((state) => {
+        const sourceUpdatedAt = state.statusUpdatedAt.get(id) ?? 0
+        return updateStatusState(state, id, 'waggle-running', sourceUpdatedAt)
+      })
+    },
+
+    markRunCompleted(id: SessionId) {
+      set((state) => {
+        if (TERMINAL_STATUSES.has(state.statuses.get(id) ?? 'idle')) return state
+        // The completion broadcast has no durable outcome or timestamp. Keep the last
+        // source timestamp so a later Host catalog projection can correct failures and
+        // interruptions, while using wall time only for the unread indicator.
+        return updateStatusState(
+          state,
+          id,
+          'completed',
+          Date.now(),
+          state.statusUpdatedAt.get(id) ?? 0,
+        )
+      })
+    },
+
+    hydratePersistedStatuses(sessions) {
+      set((state) => hydratePersistedState(state, sessions))
+    },
+
+    clearStatus(id: SessionId) {
+      set((state) => clearStatusState(state, id))
+    },
+
+    getStatus(id: SessionId) {
+      return get().statuses.get(id) ?? 'idle'
+    },
+
+    setPhase(id: SessionId, phase: AgentPhaseLabel | null) {
+      set((state) => updatePhaseState(state, id, phase))
+    },
+
+    getPhase(id: SessionId) {
+      return get().phases.get(id) ?? null
+    },
+
+    markVisited(id: SessionId) {
+      markReadReceipt(id, Date.now())
+    },
+
+    markUnread(id: SessionId) {
+      markReadReceipt(id, 0)
+    },
+
+    noteHostTerminalCountChange() {
+      set((state) => ({ hostTerminalCountRevision: state.hostTerminalCountRevision + 1 }))
+    },
+  }
+}
+
+export const useSessionStatusStore = create<SessionStatusState>(createSessionStatusState)

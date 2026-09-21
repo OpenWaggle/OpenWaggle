@@ -1,9 +1,12 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionDetail, SessionSummary, SessionWorktreePlan } from '@shared/types/session'
 
 export interface DraftSessionState {
   readonly projectPath: string | null
+  readonly selectedModel?: SupportedModelId
+  readonly isMaterializing?: boolean
 }
 
 export interface ChatState {
@@ -16,8 +19,9 @@ export interface ChatState {
   error: string | null
 
   loadSessions: () => Promise<void>
-  createSession: (projectPath: string) => Promise<SessionId>
+  createSession: (projectPath: string, worktreePlan?: SessionWorktreePlan) => Promise<SessionId>
   startDraftSession: (projectPath?: string | null) => void
+  setDraftSelectedModel: (model: SupportedModelId) => void
   setActiveSessionId: (id: SessionId | null) => void
   setActiveSession: (id: SessionId | null) => void
   refreshSession: (id: SessionId) => Promise<void>

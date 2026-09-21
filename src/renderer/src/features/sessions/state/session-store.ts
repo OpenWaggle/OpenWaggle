@@ -1,6 +1,5 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type {
-  SessionSummary,
   SessionTree,
   SessionWorkspace,
   SessionWorkspaceSelection,
@@ -8,7 +7,10 @@ import type {
 import { create } from 'zustand'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { reconcileSessionModelPick } from '@/shared/lib/session-model-pick'
+import {
+  createSessionCatalogState,
+  type SessionCatalogState,
+} from './session-catalog-store-actions'
 
 const logger = createRendererLogger('session-store')
 
@@ -26,13 +28,11 @@ export interface DraftBranchState {
   readonly sourceNodeId: SessionNodeId
 }
 
-interface SessionState {
-  sessions: readonly SessionSummary[]
+interface SessionState extends SessionCatalogState {
   activeSessionTree: SessionTree | null
   activeWorkspace: SessionWorkspace | null
   draftBranch: DraftBranchState | null
   error: string | null
-  loadSessions: () => Promise<void>
   refreshSessionTree: (sessionId: SessionId | null) => Promise<void>
   refreshSessionWorkspace: (
     sessionId: SessionId | null,
@@ -51,21 +51,11 @@ interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
-  sessions: [],
+  ...createSessionCatalogState(set, get),
   activeSessionTree: null,
   activeWorkspace: null,
   draftBranch: null,
   error: null,
-
-  async loadSessions() {
-    try {
-      const sessions = await api.listSessions()
-      // A pick whose write is still in flight wins over a list read before that write landed.
-      set({ sessions: sessions.map(reconcileSessionModelPick), error: null })
-    } catch (err) {
-      handleStoreError(err, 'load sessions', (error) => set({ error }))
-    }
-  },
 
   async refreshSessionTree(sessionId) {
     latestTreeRequestId += 1

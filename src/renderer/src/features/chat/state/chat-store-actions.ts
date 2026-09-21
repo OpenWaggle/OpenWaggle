@@ -1,12 +1,11 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
 import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
-import { reconcileSessionModelPick } from '@/shared/lib/session-model-pick'
 import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import {
   handleStoreError,
@@ -24,70 +23,78 @@ import {
   invalidateDraftMaterialization,
   recordDraftMaterialization,
 } from './draft-session-materialization'
-import { useMessageQueueStore } from './message-queue-store'
 
 type ChatSet = (partial: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void
 type ChatGet = () => ChatState
 
-function setError(set: ChatSet) {
-  return (error: string) => set({ error })
+const latestSessionRefresh = new Map<SessionId, number>()
+const latestSessionMutation = new Map<SessionId, number>()
+let latestSessionLoad = 0
+
+function sessionMutationVersion(id: SessionId) {
+  return latestSessionMutation.get(id) ?? 0
 }
 
+function markSessionMutation(id: SessionId) {
+  latestSessionMutation.set(id, sessionMutationVersion(id) + 1)
+}
+
+const setError = (set: ChatSet) => (error: string) => set({ error })
+
 async function loadSessions(set: ChatSet, get: ChatGet) {
+  latestSessionLoad += 1
+  const loadRequestId = latestSessionLoad
   try {
-    const all = await api.listSessionDetails()
-    const sessionById = new Map<SessionId, SessionDetail>()
-    const sessions: SessionSummary[] = []
-
-    for (const session of all) {
-      // A pick whose write is still in flight wins over a detail a reload read before it landed.
-      const reconciled = reconcileSessionModelPick(session)
-      sessionById.set(reconciled.id, reconciled)
-      const summary = toSummary(reconciled)
-      if (summary.title !== 'New session' || (summary.messageCount ?? 0) > 0) {
-        sessions.push(summary)
-      }
-    }
-
-    const activeSessionId = get().activeSessionId
-    const activeSession = activeSessionId ? (sessionById.get(activeSessionId) ?? null) : null
-    const missingSessionIds = new Set(get().missingSessionIds)
-    for (const session of all) {
-      missingSessionIds.delete(session.id)
-    }
-    if (activeSessionId && !activeSession) {
-      missingSessionIds.add(activeSessionId)
-    }
+    const sessionStore = useSessionStore.getState()
+    await sessionStore.loadSessions()
+    if (loadRequestId !== latestSessionLoad) return
+    const current = get()
+    const sessions = useSessionStore.getState().sessions
+    const activeSessionId = current.activeSessionId
+    const activeSession = activeSessionId
+      ? (current.sessionById.get(activeSessionId) ?? current.activeSession)
+      : null
 
     set({
-      sessions,
-      sessionById,
-      missingSessionIds,
-      draftSession: activeSession ? null : get().draftSession,
-      activeSessionId: activeSession ? activeSessionId : null,
+      sessions: [...sessions],
+      draftSession: activeSessionId ? null : current.draftSession,
       activeSession,
       error: null,
     })
-    void useSessionStore.getState().loadSessions()
+    if (activeSessionId && !activeSession && !current.missingSessionIds.has(activeSessionId)) {
+      void get().refreshSession(activeSessionId)
+    }
   } catch (err) {
+    if (loadRequestId !== latestSessionLoad) return
     handleStoreError(err, 'load sessions', setError(set))
   }
 }
 
-async function createSession(projectPath: string, set: ChatSet, get: ChatGet) {
+async function createSession(
+  projectPath: string,
+  set: ChatSet,
+  get: ChatGet,
+  worktreePlan?: SessionWorktreePlan,
+) {
   const initial = get()
   const generation = draftMaterializationGeneration()
   const createsCurrentDraft =
     initial.activeSessionId === null &&
     (initial.draftSession === null || initial.draftSession.projectPath === projectPath)
+  const selectedModel = createsCurrentDraft ? initial.draftSession?.selectedModel : undefined
+  if (createsCurrentDraft && initial.draftSession)
+    set({ draftSession: { ...initial.draftSession, isMaterializing: true } })
   try {
-    const session = await api.createSession(projectPath)
+    const session = selectedModel
+      ? await api.createSession(projectPath, worktreePlan, selectedModel)
+      : worktreePlan
+        ? await api.createSession(projectPath, worktreePlan)
+        : await api.createSession(projectPath)
     const shouldActivate =
       generation === draftMaterializationGeneration() &&
       get().activeSessionId === initial.activeSessionId
-    if (createsCurrentDraft && shouldActivate) {
+    if (createsCurrentDraft && shouldActivate)
       recordDraftMaterialization(projectPath, session.id, generation)
-    }
     get().upsertSession(session)
     if (!shouldActivate) {
       void useSessionStore.getState().loadSessions()
@@ -105,6 +112,13 @@ async function createSession(projectPath: string, set: ChatSet, get: ChatGet) {
     void useSessionStore.getState().refreshSessionsAndTree(toSessionId(session.id))
     return session.id
   } catch (err) {
+    if (generation === draftMaterializationGeneration()) {
+      set((state) => {
+        if (state.draftSession?.projectPath !== projectPath) return {}
+        const { isMaterializing: _materializing, ...draftSession } = state.draftSession
+        return { draftSession }
+      })
+    }
     handleStoreError(err, 'create session', setError(set))
     throw err
   }
@@ -126,8 +140,11 @@ function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
 }
 
 async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
+  const requestId = (latestSessionRefresh.get(id) ?? 0) + 1
+  latestSessionRefresh.set(id, requestId)
   try {
     const session = await api.getSessionDetail(id)
+    if (latestSessionRefresh.get(id) !== requestId) return
     const wasActiveSession = isSameSessionId(get().activeSessionId, id)
     if (!session) {
       removeMissingSession(id, set)
@@ -137,6 +154,7 @@ async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
     get().upsertSession(session)
     refreshSessionStoreForSession(id, get().activeSessionId)
   } catch (err) {
+    if (latestSessionRefresh.get(id) !== requestId) return
     handleStoreError(err, 'refresh session', setError(set))
   }
 }
@@ -171,6 +189,7 @@ async function setSessionAuthorizationMode(
 }
 
 function removeMissingSession(id: SessionId, set: ChatSet) {
+  markSessionMutation(id)
   set((state) => {
     const sessionById = new Map(state.sessionById)
     const missingSessionIds = new Set(state.missingSessionIds)
@@ -196,19 +215,20 @@ function refreshMissingSessionTree(wasActiveSession: boolean) {
 }
 
 function upsertSession(session: SessionDetail, set: ChatSet) {
-  // A pick whose write is still in flight wins over a row a refresh read before that write landed.
-  const reconciled = reconcileSessionModelPick(session)
+  markSessionMutation(session.id)
   set((state) => {
     const sessionById = new Map(state.sessionById)
     const missingSessionIds = new Set(state.missingSessionIds)
-    sessionById.set(reconciled.id, reconciled)
-    missingSessionIds.delete(reconciled.id)
+    sessionById.set(session.id, session)
+    missingSessionIds.delete(session.id)
     return {
       sessionById,
       missingSessionIds,
-      sessions: mergeSummary(state.sessions, toSummary(reconciled)),
-      draftSession: state.activeSessionId === reconciled.id ? null : state.draftSession,
-      activeSession: state.activeSessionId === reconciled.id ? reconciled : state.activeSession,
+      sessions: session.archived
+        ? removeSummary(state.sessions, session.id)
+        : mergeSummary(state.sessions, toSummary(session)),
+      draftSession: state.activeSessionId === session.id ? null : state.draftSession,
+      activeSession: state.activeSessionId === session.id ? session : state.activeSession,
       error: null,
     }
   })
@@ -220,7 +240,6 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
   try {
     await api.deleteSession(id)
-    useMessageQueueStore.getState().disposeQueue(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
     await deleteWorkspaceOwner(String(id))
@@ -240,6 +259,7 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 }
 
 function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: ChatGet) {
+  markSessionMutation(id)
   set((state) => {
     const existing = state.sessionById.get(id)
     if (!existing) {
@@ -271,7 +291,8 @@ function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: Cha
 export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
   return {
     loadSessions: () => loadSessions(set, get),
-    createSession: (projectPath) => createSession(projectPath, set, get),
+    createSession: (projectPath, worktreePlan) =>
+      createSession(projectPath, set, get, worktreePlan),
     startDraftSession: (projectPath = null) => {
       invalidateDraftMaterialization()
       const state = get()
@@ -280,6 +301,12 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
       prepareDraftWorktreePlan(previousProjectPath, projectPath)
       set({ activeSessionId: null, activeSession: null, draftSession: { projectPath } })
     },
+    setDraftSelectedModel: (model) =>
+      set((state) =>
+        state.draftSession && !state.draftSession.isMaterializing
+          ? { draftSession: { ...state.draftSession, selectedModel: model } }
+          : {},
+      ),
     setActiveSessionId: (id) => get().setActiveSession(id),
     setActiveSession: (id) => setActiveSession(id, set, get),
     refreshSession: (id) => refreshSession(id, set, get),

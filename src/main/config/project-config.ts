@@ -1,25 +1,25 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import {
-  decodeUnknownOrThrow,
-  parseJsonUnknown,
-  type SchemaType,
-  safeDecodeUnknown,
-} from '@shared/schema'
+import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { decodeUnknownOrThrow, parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import {
   type AgentAuthorizationScopeKey,
   authorizationScopeKeysMatch,
   type ScopedAuthorizationGrant,
 } from '@shared/types/agent-authorization-grants'
-import type { JsonObject } from '@shared/types/json'
-import type { ProjectAction } from '@shared/types/project-actions'
-import type { ThinkingLevel } from '@shared/types/settings'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
+import {
+  type ParsedProjectSettingsFile,
+  type ProjectConfig,
+  type ProjectPreferences,
+  type ProjectPreferencesUpdate,
+  parseProjectConfig,
+} from './project-config-parsing'
 import { enqueueProjectConfigWrite } from './project-config-write-queue'
+
+export type { ProjectConfig, ProjectPreferences, ProjectPreferencesUpdate }
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -27,29 +27,6 @@ const PROJECT_SETTINGS_FILE_NAME = 'settings.json'
 const EMPTY_SETTINGS_JSON = '{}\n'
 
 const logger = createLogger('project-config')
-
-export interface ProjectPreferences {
-  readonly model?: string
-  readonly thinkingLevel?: ThinkingLevel
-  readonly authorizationMode?: AgentAuthorizationMode
-}
-
-/** A preference write, where `null` deletes the key and `undefined` leaves it alone. */
-export interface ProjectPreferencesUpdate {
-  readonly model?: string | null
-  readonly thinkingLevel?: ThinkingLevel | null
-  readonly authorizationMode?: AgentAuthorizationMode | null
-}
-
-export interface ProjectConfig {
-  readonly preferences?: ProjectPreferences
-  readonly authorizationGrants?: readonly ScopedAuthorizationGrant[]
-  readonly pi?: JsonObject
-  readonly actions?: readonly ProjectAction[]
-}
-
-const EMPTY_CONFIG: ProjectConfig = {}
-type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
 
 function getConfigDirectoryPath(projectPath: string) {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR)
@@ -76,6 +53,9 @@ async function readValidatedProjectSettings(
 ) {
   try {
     const raw = await readFile(filePath, 'utf-8')
+    if (options.strict && raw.trim().length === 0) {
+      throw new Error('Empty project settings file cannot be used for permission-sensitive reads.')
+    }
     const parsedJson = parseSettingsJson(raw)
     const validated = safeDecodeUnknown(projectSettingsFileSchema, parsedJson)
     if (!validated.success) {
@@ -89,6 +69,19 @@ async function readValidatedProjectSettings(
     return validated.data
   } catch (error) {
     if (isEnoent(error)) {
+      if (options.strict) {
+        try {
+          await lstat(filePath)
+          throw new Error('Project settings file exists but cannot be read.', { cause: error })
+        } catch (fileError) {
+          if (!isEnoent(fileError)) throw fileError
+        }
+        const directory = await lstat(dirname(filePath)).catch((directoryError: unknown) => {
+          if (isEnoent(directoryError)) return null
+          throw directoryError
+        })
+        if (directory?.isSymbolicLink()) await stat(dirname(filePath))
+      }
       return null
     }
     if (options.strict) {
@@ -109,6 +102,15 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
     logLabel: '.openwaggle/settings.json',
   })
 
+  return parseProjectConfig(settings)
+}
+
+/** Permission-sensitive callers must distinguish absence from an unreadable or invalid file. */
+export async function loadProjectConfigStrict(projectPath: string): Promise<ProjectConfig> {
+  const settings = await readValidatedProjectSettings(getProjectSettingsPath(projectPath), {
+    strict: true,
+    logLabel: '.openwaggle/settings.json',
+  })
   return parseProjectConfig(settings)
 }
 
@@ -196,12 +198,7 @@ export async function getProjectPreferences(
 export async function getProjectPreferencesStrict(
   projectPath: string,
 ): Promise<ProjectPreferences | undefined> {
-  const settings = await readValidatedProjectSettings(getProjectSettingsPath(projectPath), {
-    logLabel: '.openwaggle/settings.json',
-    strict: true,
-  })
-
-  return parseProjectConfig(settings).preferences
+  return (await loadProjectConfigStrict(projectPath)).preferences
 }
 
 /**
@@ -235,7 +232,7 @@ export async function setProjectPreferences(
 export async function listProjectAuthorizationGrants(
   projectPath: string,
 ): Promise<readonly ScopedAuthorizationGrant[]> {
-  const config = await loadProjectConfig(projectPath)
+  const config = await loadProjectConfigStrict(projectPath)
   return config.authorizationGrants ?? []
 }
 
@@ -286,38 +283,4 @@ export async function revokeProjectAuthorization(
     }
     return { ...next, authorizationGrants: remaining }
   })
-}
-
-function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
-  const preferences = parseProjectPreferences(settings)
-  const grants = settings?.authorizationGrants ?? []
-  const actions = settings?.actions ?? []
-
-  if (!preferences && grants.length === 0 && actions.length === 0 && !settings?.pi) {
-    return EMPTY_CONFIG
-  }
-
-  return {
-    ...(preferences ? { preferences } : {}),
-    ...(grants.length > 0 ? { authorizationGrants: grants } : {}),
-    ...(settings?.pi ? { pi: settings.pi } : {}),
-    ...(actions.length > 0 ? { actions } : {}),
-  }
-}
-
-function parseProjectPreferences(
-  settings: ParsedProjectSettingsFile | null,
-): ProjectPreferences | undefined {
-  const model = settings?.preferences?.model
-  const thinkingLevel = settings?.preferences?.thinkingLevel
-  const authorizationMode = settings?.preferences?.authorizationMode
-  if (!model && !thinkingLevel && !authorizationMode) {
-    return undefined
-  }
-
-  return {
-    ...(model ? { model } : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
-    ...(authorizationMode ? { authorizationMode } : {}),
-  }
 }

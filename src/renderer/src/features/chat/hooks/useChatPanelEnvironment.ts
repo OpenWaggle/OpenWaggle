@@ -1,6 +1,5 @@
 import type { SessionBranchId } from '@shared/types/brand'
 import { useNavigate } from '@tanstack/react-router'
-import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useChat } from '@/features/chat/hooks/useChat'
 import { useGit } from '@/features/git/hooks'
 import { useProject, useSessionNav } from '@/features/sessions/hooks'
@@ -27,11 +26,14 @@ export function useChatPanelEnvironment() {
   const slashCommandMenuOpen = useUIStore((s) => s.slashCommandMenuOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const showToast = useUIStore((s) => s.showToast)
-  const model = useSelectedSessionModel().selectedModel
+  const preferredModel = usePreferencesStore((s) => s.settings.selectedModel)
   const thinkingLevel = usePreferencesStore((s) => s.settings.thinkingLevel)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()
   const chat = useChat()
+  const model = chat.activeSessionId
+    ? chat.activeSession?.executionModel
+    : (chat.draftSession?.selectedModel ?? preferredModel)
   const git = useGit()
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const loadSessions = useSessionStore((state) => state.loadSessions)
@@ -69,6 +71,16 @@ export function useChatPanelEnvironment() {
     }
   }
 
+  async function handleSelectSession(sessionId: Parameters<typeof chat.setActiveSession>[0]) {
+    if (!sessionId) return
+    try {
+      await sessionNav.handleSelectSession(sessionId)
+      void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
+    } catch (error) {
+      reportNavigationError('Failed to open Hive Session', error, showToast)
+    }
+  }
+
   function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId) {
     const sessionId = chat.activeSessionId
     if (!sessionId) return
@@ -99,6 +111,7 @@ export function useChatPanelEnvironment() {
     handleDismissInterruptedRun,
     handleOpenProject,
     handleSelectProjectPath,
+    handleSelectSession,
     loadSessions,
     model,
     navigate,

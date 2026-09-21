@@ -2,16 +2,11 @@ import { SessionId } from '@shared/types/brand'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChessQueen, ChevronDown, ChevronRight, Pickaxe } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import {
-  HIVE_DELEGATION_LABELS,
-  type HiveDelegationState,
-  type HiveSession,
-} from '@/queries/session-hive-contract'
 import { sessionHiveRelationsQueryOptions } from '@/queries/session-hive-relations'
 import { Button } from '@/shared/ui/Button'
-import { hiveStateNeedsAttention, hiveSummaryModel } from '../model/session-hive-summary'
+import { hiveSummaryModel } from '../model/session-hive-summary'
 import { useSessionSummaryUIStore } from '../state/session-summary-ui-store'
-import { SessionSummaryPaginatedList } from './SessionSummaryPrimitives'
+import { HiveArchivedWorkers, HiveSessionRow, HiveWorkerGroup } from './HiveSummaryWorkers'
 
 const HIVE_COMPLETION_COLLAPSE_DELAY_MS = 2_500
 
@@ -102,35 +97,10 @@ export function HiveSummarySection({
     onNavigateSession(targetSessionId)
   }
 
-  const Icon = model.lineage.role === 'queen' ? ChessQueen : Pickaxe
-  const { activeWorkers, doneWorkers, activeCount, totalCount } = model
+  const { activeWorkers, reviewWorkers, doneWorkers, historicalWorkers } = model
   return (
     <section ref={expansion.sectionRef} className="border-t border-border" aria-label="Hive">
-      <div className="sticky top-0 z-10 bg-bg-secondary/95 backdrop-blur">
-        <Button
-          ref={expansion.triggerRef}
-          variant="unstyled"
-          className="flex h-10 w-full items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
-          aria-controls={contentId}
-          aria-expanded={expansion.expanded}
-          onClick={expansion.toggleExpanded}
-        >
-          {expansion.expanded ? (
-            <ChevronDown aria-hidden="true" className="size-3.5" />
-          ) : (
-            <ChevronRight aria-hidden="true" className="size-3.5" />
-          )}
-          <Icon aria-hidden="true" className="size-3.5 text-accent" />
-          <span className="flex-1 text-sm font-medium text-text-primary">Hive</span>
-          {totalCount > 0 ? (
-            <span
-              className={model.attention ? 'text-xs text-warning' : 'text-xs text-text-tertiary'}
-            >
-              {activeCount} active · {totalCount} total
-            </span>
-          ) : null}
-        </Button>
-      </div>
+      <HiveSummaryHeader model={model} expansion={expansion} contentId={contentId} />
       <div
         id={contentId}
         aria-hidden={!expansion.expanded}
@@ -151,8 +121,7 @@ export function HiveSummarySection({
             {model.parent ? (
               <HiveSessionRow
                 label="Parent"
-                title={model.parent.title}
-                state={model.parent.lineage?.delegationState ?? null}
+                session={model.parent}
                 onClick={() => navigateSession(String(model.parent?.id))}
               />
             ) : null}
@@ -163,15 +132,25 @@ export function HiveSummarySection({
               onNavigateSession={navigateSession}
             />
             <HiveWorkerGroup
+              label="Review"
+              workers={reviewWorkers}
+              rowLabel="Worker"
+              onNavigateSession={navigateSession}
+            />
+            <HiveWorkerGroup
               label="Done"
               workers={doneWorkers}
               rowLabel="Done"
               onNavigateSession={navigateSession}
             />
             <HiveWorkerGroup
-              label="Archived"
+              label="Historical"
+              workers={historicalWorkers}
+              rowLabel="Past Worker"
+              onNavigateSession={navigateSession}
+            />
+            <HiveArchivedWorkers
               workers={model.archivedWorkers}
-              rowLabel="Archived"
               onNavigateSession={navigateSession}
             />
             <HivePageControls
@@ -188,6 +167,44 @@ export function HiveSummarySection({
         </div>
       </div>
     </section>
+  )
+}
+
+function HiveSummaryHeader({
+  model,
+  expansion,
+  contentId,
+}: {
+  readonly model: NonNullable<ReturnType<typeof hiveSummaryModel>>
+  readonly expansion: ReturnType<typeof useHiveExpansion>
+  readonly contentId: string
+}) {
+  const Icon = model.lineage.role === 'queen' ? ChessQueen : Pickaxe
+  return (
+    <div className="sticky top-0 z-10 flex h-10 items-center gap-2 bg-bg-secondary/95 px-3 backdrop-blur">
+      <Icon aria-hidden="true" className="size-3.5 text-accent" />
+      <span className="flex-1 text-sm font-medium text-text-primary">Hive</span>
+      {model.totalCount > 0 ? (
+        <span className={model.attention ? 'text-xs text-warning' : 'text-xs text-text-tertiary'}>
+          {model.activeCount} active · {model.totalCount} total
+        </span>
+      ) : null}
+      <Button
+        ref={expansion.triggerRef}
+        variant="unstyled"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
+        aria-label={expansion.expanded ? 'Collapse Hive' : 'Expand Hive'}
+        aria-controls={contentId}
+        aria-expanded={expansion.expanded}
+        onClick={expansion.toggleExpanded}
+      >
+        {expansion.expanded ? (
+          <ChevronDown aria-hidden="true" className="size-3.5" />
+        ) : (
+          <ChevronRight aria-hidden="true" className="size-3.5" />
+        )}
+      </Button>
+    </div>
   )
 }
 
@@ -215,72 +232,5 @@ function HivePageControls({
         {error ? 'Retry Hive' : 'Load more workers'}
       </Button>
     </>
-  )
-}
-
-function HiveWorkerGroup({
-  label,
-  workers,
-  rowLabel,
-  onNavigateSession,
-}: {
-  readonly label: string
-  readonly workers: readonly HiveSession[]
-  readonly rowLabel: string
-  readonly onNavigateSession: (sessionId: string) => void
-}) {
-  if (workers.length === 0) return null
-  return (
-    <fieldset aria-label={`${label} Hive sessions`} className="m-0 min-w-0 border-0 p-0">
-      <div className="px-2 pb-0.5 pt-1 text-xs font-medium uppercase tracking-wide text-text-muted">
-        {label}
-      </div>
-      <SessionSummaryPaginatedList
-        items={workers}
-        getKey={(worker) => worker.id}
-        renderItem={(worker) => (
-          <HiveSessionRow
-            label={rowLabel}
-            title={worker.title}
-            state={worker.lineage?.delegationState ?? null}
-            onClick={() => onNavigateSession(String(worker.id))}
-          />
-        )}
-      />
-    </fieldset>
-  )
-}
-
-function HiveSessionRow({
-  label,
-  title,
-  state,
-  onClick,
-}: {
-  readonly label: string
-  readonly title: string
-  readonly state: HiveDelegationState | null
-  readonly onClick: () => void
-}) {
-  return (
-    <Button
-      variant="unstyled"
-      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-bg-hover"
-      onClick={onClick}
-    >
-      <Pickaxe aria-hidden="true" className="size-3.5 text-text-tertiary" />
-      <span className="text-xs text-text-tertiary">{label}</span>
-      <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">{title}</span>
-      {state ? (
-        <span
-          className={
-            hiveStateNeedsAttention(state) ? 'text-xs text-warning' : 'text-xs text-text-tertiary'
-          }
-        >
-          {HIVE_DELEGATION_LABELS[state]}
-        </span>
-      ) : null}
-      <ChevronRight aria-hidden="true" className="size-3 text-text-muted" />
-    </Button>
   )
 }

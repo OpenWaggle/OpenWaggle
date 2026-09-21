@@ -3,7 +3,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import { generateDisplayName } from '@shared/types/llm'
 import { isInheritedWaggleModelBinding, type WaggleAgentSlot } from '@shared/types/waggle'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
-import { useSelectedSessionModel } from '@/features/chat/hooks'
+import { useComposerModel } from '@/features/composer/hooks'
 import { AGENT_BG } from '@/features/waggle/lib/agent-colors'
 import { useWaggleStore } from '@/features/waggle/state/waggle-store'
 import { cn } from '@/shared/lib/cn'
@@ -30,7 +30,7 @@ function displayModelForAgent(
 }
 
 export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {
-  const selectedModel = useSelectedSessionModel().selectedModel
+  const selectedModel = useComposerModel().model
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)

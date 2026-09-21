@@ -1,5 +1,11 @@
 import { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const apiMocks = vi.hoisted(() => ({ updateSessionTreeUiState: vi.fn() }))
+
+vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
+
 import { useSessionStatusStore } from '../session-status-store'
 
 const ID_A = SessionId('session-a')
@@ -7,10 +13,15 @@ const ID_B = SessionId('session-b')
 
 describe('session-status-store', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+    apiMocks.updateSessionTreeUiState.mockResolvedValue(undefined)
     useSessionStatusStore.setState({
       statuses: new Map(),
       completedAt: new Map(),
+      statusUpdatedAt: new Map(),
       lastVisitedAt: new Map(),
+      terminalReceiptRevision: 0,
+      hostTerminalCountRevision: 0,
       phases: new Map(),
     })
   })
@@ -24,7 +35,7 @@ describe('session-status-store', () => {
       const now = 1000
       vi.spyOn(Date, 'now').mockReturnValue(now)
 
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
       expect(useSessionStatusStore.getState().statuses.get(ID_A)).toBe('completed')
       expect(useSessionStatusStore.getState().completedAt.get(ID_A)).toBe(now)
@@ -34,7 +45,7 @@ describe('session-status-store', () => {
       const now = 2000
       vi.spyOn(Date, 'now').mockReturnValue(now)
 
-      useSessionStatusStore.getState().setStatus(ID_A, 'error')
+      useSessionStatusStore.getState().setStatus(ID_A, 'error', Date.now())
 
       expect(useSessionStatusStore.getState().statuses.get(ID_A)).toBe('error')
       expect(useSessionStatusStore.getState().completedAt.get(ID_A)).toBe(now)
@@ -42,39 +53,56 @@ describe('session-status-store', () => {
 
     it('clears completedAt when setting a live status', () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
       expect(useSessionStatusStore.getState().completedAt.has(ID_A)).toBe(true)
 
-      useSessionStatusStore.getState().setStatus(ID_A, 'working')
+      useSessionStatusStore.getState().setStatus(ID_A, 'working', Date.now())
       expect(useSessionStatusStore.getState().completedAt.has(ID_A)).toBe(false)
     })
 
     it('clears completedAt when setting idle', () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'error')
+      useSessionStatusStore.getState().setStatus(ID_A, 'error', Date.now())
       expect(useSessionStatusStore.getState().completedAt.has(ID_A)).toBe(true)
 
-      useSessionStatusStore.getState().setStatus(ID_A, 'idle')
+      useSessionStatusStore.getState().setStatus(ID_A, 'idle', Date.now())
       expect(useSessionStatusStore.getState().completedAt.has(ID_A)).toBe(false)
       expect(useSessionStatusStore.getState().statuses.has(ID_A)).toBe(false)
     })
   })
 
   describe('markVisited', () => {
-    it('sets lastVisitedAt to current time', () => {
+    it('sets and persists lastVisitedAt to current time', () => {
       const now = 5000
       vi.spyOn(Date, 'now').mockReturnValue(now)
 
       useSessionStatusStore.getState().markVisited(ID_A)
 
       expect(useSessionStatusStore.getState().lastVisitedAt.get(ID_A)).toBe(now)
+      expect(apiMocks.updateSessionTreeUiState).toHaveBeenCalledWith(ID_A, {
+        lastVisitedAt: now,
+      })
+    })
+
+    it('refreshes terminal counts if the status turns terminal before receipt persistence', async () => {
+      const persisted = Promise.withResolvers<void>()
+      apiMocks.updateSessionTreeUiState.mockReturnValueOnce(persisted.promise)
+
+      useSessionStatusStore.getState().markVisited(ID_A)
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', 1)
+      expect(useSessionStatusStore.getState().terminalReceiptRevision).toBe(0)
+
+      persisted.resolve()
+      await vi.waitFor(() =>
+        expect(useSessionStatusStore.getState().terminalReceiptRevision).toBe(1),
+      )
     })
   })
 
   describe('markUnread', () => {
-    it('sets lastVisitedAt to completedAt - 1 when completedAt exists', () => {
+    it('sets lastVisitedAt to the unread sentinel when completedAt exists', async () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
       vi.spyOn(Date, 'now').mockReturnValue(2000)
       useSessionStatusStore.getState().markVisited(ID_A)
@@ -86,23 +114,125 @@ describe('session-status-store', () => {
       const lastVisited = useSessionStatusStore.getState().lastVisitedAt.get(ID_A)
 
       expect(completedAt).toBe(1000)
-      expect(lastVisited).toBe(999) // completedAt - 1
+      expect(lastVisited).toBe(0)
+      await vi.waitFor(() =>
+        expect(apiMocks.updateSessionTreeUiState).toHaveBeenLastCalledWith(ID_A, {
+          lastVisitedAt: 0,
+        }),
+      )
     })
 
-    it('uses Date.now() - 1 when completedAt does not exist', () => {
+    it('uses the durable unread sentinel when completedAt does not exist', () => {
       const now = 3000
       vi.spyOn(Date, 'now').mockReturnValue(now)
 
       useSessionStatusStore.getState().markUnread(ID_B)
 
-      expect(useSessionStatusStore.getState().lastVisitedAt.get(ID_B)).toBe(now - 1)
+      expect(useSessionStatusStore.getState().lastVisitedAt.get(ID_B)).toBe(0)
+    })
+  })
+
+  describe('persisted Session hydration', () => {
+    function summary(
+      id: SessionId,
+      input: Pick<SessionSummary, 'latestRun' | 'pendingInteractionAt' | 'treeUiState'>,
+    ): SessionSummary {
+      return {
+        id,
+        title: String(id),
+        projectPath: '/repo',
+        createdAt: 1,
+        updatedAt: input.latestRun?.updatedAt ?? 1,
+        ...input,
+      }
+    }
+
+    it('rebuilds terminal status and read receipt after a renderer close and reopen', () => {
+      useSessionStatusStore.getState().hydratePersistedStatuses([
+        summary(ID_A, {
+          latestRun: { status: 'completed', updatedAt: 100 },
+          treeUiState: {
+            sessionId: ID_A,
+            expandedNodeIds: [],
+            expandedNodeIdsTouched: false,
+            branchesSidebarCollapsed: false,
+            lastVisitedAt: 150,
+            updatedAt: 150,
+          },
+        }),
+      ])
+      expect(useSessionStatusStore.getState()).toMatchObject({
+        statuses: new Map([[ID_A, 'completed']]),
+        completedAt: new Map([[ID_A, 100]]),
+        lastVisitedAt: new Map([[ID_A, 150]]),
+      })
+
+      useSessionStatusStore.setState({
+        statuses: new Map(),
+        completedAt: new Map(),
+        statusUpdatedAt: new Map(),
+        lastVisitedAt: new Map(),
+        phases: new Map(),
+      })
+      useSessionStatusStore.getState().hydratePersistedStatuses([
+        summary(ID_A, {
+          latestRun: { status: 'failed', updatedAt: 200 },
+          treeUiState: {
+            sessionId: ID_A,
+            expandedNodeIds: [],
+            expandedNodeIdsTouched: false,
+            branchesSidebarCollapsed: false,
+            lastVisitedAt: 150,
+            updatedAt: 150,
+          },
+        }),
+      ])
+
+      expect(useSessionStatusStore.getState().statuses.get(ID_A)).toBe('error')
+      expect(useSessionStatusStore.getState().completedAt.get(ID_A)).toBe(200)
+      expect(useSessionStatusStore.getState().lastVisitedAt.get(ID_A)).toBe(150)
+    })
+
+    it('restores active and pending-interaction state without relying on bridge broadcasts', () => {
+      useSessionStatusStore.getState().hydratePersistedStatuses([
+        summary(ID_A, {
+          latestRun: { status: 'active', updatedAt: 100 },
+          pendingInteractionAt: 120,
+          treeUiState: null,
+        }),
+        summary(ID_B, {
+          latestRun: { status: 'active', updatedAt: 110 },
+          treeUiState: null,
+        }),
+      ])
+
+      expect(useSessionStatusStore.getState().statuses).toEqual(
+        new Map([
+          [ID_A, 'awaiting-input'],
+          [ID_B, 'working'],
+        ]),
+      )
+    })
+
+    it('does not let a stale catalog page replace a newer live event', () => {
+      useSessionStatusStore.getState().setStatus(ID_A, 'working', 300)
+
+      useSessionStatusStore.getState().hydratePersistedStatuses([
+        summary(ID_A, {
+          latestRun: { status: 'completed', updatedAt: 200 },
+          treeUiState: null,
+        }),
+      ])
+
+      expect(useSessionStatusStore.getState().statuses.get(ID_A)).toBe('working')
+      expect(useSessionStatusStore.getState().completedAt.has(ID_A)).toBe(false)
     })
   })
 
   describe('terminal seen/unseen logic', () => {
     it('terminal status is unseen when no visit recorded', () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
       const state = useSessionStatusStore.getState()
       const completedAt = state.completedAt.get(ID_A)
@@ -115,7 +245,7 @@ describe('session-status-store', () => {
 
     it('terminal status becomes seen after visit', () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
       vi.spyOn(Date, 'now').mockReturnValue(2000)
       useSessionStatusStore.getState().markVisited(ID_A)
@@ -134,7 +264,7 @@ describe('session-status-store', () => {
 
     it('markUnread makes a seen terminal status unseen again', () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'error')
+      useSessionStatusStore.getState().setStatus(ID_A, 'error', Date.now())
 
       vi.spyOn(Date, 'now').mockReturnValue(2000)
       useSessionStatusStore.getState().markVisited(ID_A)
@@ -155,7 +285,7 @@ describe('session-status-store', () => {
   describe('clearStatus', () => {
     it('removes both status and completedAt', () => {
       vi.spyOn(Date, 'now').mockReturnValue(1000)
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
       useSessionStatusStore.getState().clearStatus(ID_A)
 
@@ -202,21 +332,21 @@ describe('session-status-store', () => {
     // A finished run is not doing anything, so a stale label must not outlive it.
     it('drops the phase when a run reaches a terminal status', () => {
       useSessionStatusStore.getState().setPhase(ID_A, 'Executing')
-      useSessionStatusStore.getState().setStatus(ID_A, 'completed')
+      useSessionStatusStore.getState().setStatus(ID_A, 'completed', Date.now())
 
       expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
     })
 
     it('drops the phase on error too', () => {
       useSessionStatusStore.getState().setPhase(ID_A, 'Debugging')
-      useSessionStatusStore.getState().setStatus(ID_A, 'error')
+      useSessionStatusStore.getState().setStatus(ID_A, 'error', Date.now())
 
       expect(useSessionStatusStore.getState().getPhase(ID_A)).toBeNull()
     })
 
     it('keeps the phase while a run is still working', () => {
       useSessionStatusStore.getState().setPhase(ID_A, 'Planning')
-      useSessionStatusStore.getState().setStatus(ID_A, 'working')
+      useSessionStatusStore.getState().setStatus(ID_A, 'working', Date.now())
 
       expect(useSessionStatusStore.getState().getPhase(ID_A)).toBe('Planning')
     })

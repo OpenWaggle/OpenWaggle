@@ -60,9 +60,6 @@ describe('useUIStore — extra coverage', () => {
 
   describe('setActiveView', () => {
     it('sets each route-projected view', () => {
-      useUIStore.getState().setActiveView('skills')
-      expect(useUIStore.getState().activeView).toBe('skills')
-
       useUIStore.getState().setActiveView('settings')
       expect(useUIStore.getState().activeView).toBe('settings')
 

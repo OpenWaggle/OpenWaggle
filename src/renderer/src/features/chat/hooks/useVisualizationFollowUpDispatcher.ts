@@ -5,13 +5,13 @@ import {
   deliverVisualizationFollowUp,
   registerVisualizationFollowUpDispatcher,
 } from '@/features/chat/components/inline-visualization-host'
-import { useMessageQueueStore } from '@/features/chat/state'
 import type { AgentChatStatus } from './useAgentChat.types'
 
 export function useVisualizationFollowUpDispatcher(input: {
   readonly sessionId: SessionId | null
   readonly status: AgentChatStatus
   readonly send: (payload: AgentSendPayload) => Promise<void>
+  readonly enqueue: (payload: AgentSendPayload) => Promise<void>
 }) {
   useEffect(() => {
     if (!input.sessionId) return
@@ -21,9 +21,8 @@ export function useVisualizationFollowUpDispatcher(input: {
         isIdle: input.status === 'ready' || input.status === 'error',
         payload,
         send: input.send,
-        enqueue: (queuedPayload) =>
-          useMessageQueueStore.getState().enqueue(sessionId, queuedPayload),
+        enqueue: input.enqueue,
       }),
     )
-  }, [input.send, input.sessionId, input.status])
+  }, [input.enqueue, input.send, input.sessionId, input.status])
 }

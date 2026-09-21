@@ -2,6 +2,8 @@ import { lookup } from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { FetchLike } from '@modelcontextprotocol/client'
 import { Agent } from 'undici'
+import { limitMcpResponseBytes } from './response-byte-limit'
+import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_REDIRECTS = 5
@@ -72,8 +74,8 @@ for (const [network, prefix] of [
   blockedIpv6Addresses.addSubnet(network, prefix, 'ipv6')
 }
 
-function isLoopbackHostname(hostname: string) {
-  const normalized = hostname.toLowerCase()
+export function isLoopbackMcpHostname(hostname: string) {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
 }
 
@@ -98,7 +100,7 @@ export function normalizeMcpAllowedHosts(values: readonly string[]) {
   )
 }
 
-function isAllowedHostname(allowedHosts: ReadonlySet<string>, hostname: string) {
+export function isAllowedMcpHostname(allowedHosts: ReadonlySet<string>, hostname: string) {
   const normalized = hostname.toLowerCase()
   if (allowedHosts.has(normalized)) return true
   for (const allowed of allowedHosts) {
@@ -114,13 +116,21 @@ function isPrivateAddress(address: string) {
   return true
 }
 
-function isLoopbackAddress(address: string) {
-  const normalized = address.toLowerCase().split('%')[0] ?? ''
-  if (isIP(normalized) === IP_FAMILY_V4) return normalized.startsWith('127.')
-  if (isIP(normalized) === IP_FAMILY_V6) {
-    return normalized === '::1' || normalized.startsWith('::ffff:127.')
+function privateNetworkPermitted(input: {
+  readonly allowInsecurePrivateNetwork: boolean
+  readonly allowLoopback?: boolean
+  readonly url: URL
+}) {
+  return (
+    input.allowInsecurePrivateNetwork ||
+    (input.allowLoopback !== false && isLoopbackMcpHostname(input.url.hostname))
+  )
+}
+
+function assertLoopbackAllowed(url: URL, allowLoopback: boolean | undefined) {
+  if (allowLoopback === false && isLoopbackMcpHostname(url.hostname)) {
+    throw new Error(`MCP loopback target is not permitted: ${url.hostname}.`)
   }
-  return false
 }
 
 export async function validateMcpNetworkTarget(input: {
@@ -134,8 +144,9 @@ export async function validateMcpNetworkTarget(input: {
   if (input.url.username || input.url.password) {
     throw new Error('MCP network URLs cannot contain credentials.')
   }
+  assertLoopbackAllowed(input.url, input.allowLoopback)
   assertSecureMcpProtocol(input.url, input.websocket === true)
-  if (!isAllowedHostname(input.allowedHosts, input.url.hostname)) {
+  if (!isAllowedMcpHostname(input.allowedHosts, input.url.hostname)) {
     throw new Error(`MCP redirect target is not allowlisted: ${input.url.hostname}.`)
   }
 
@@ -145,16 +156,15 @@ export async function validateMcpNetworkTarget(input: {
   })
   if (addresses.length === 0)
     throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
-  const permitsPrivate =
-    input.allowInsecurePrivateNetwork ||
-    (input.allowLoopback !== false && isLoopbackHostname(input.url.hostname))
+  assertResolvedLoopbackAllowed(input.url.hostname, addresses, input.allowLoopback)
+  const permitsPrivate = privateNetworkPermitted(input)
   if (!permitsPrivate && addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error(
       `MCP hostname resolves to a private or reserved address: ${input.url.hostname}.`,
     )
   }
   if (
-    isLoopbackHostname(input.url.hostname) &&
+    isLoopbackMcpHostname(input.url.hostname) &&
     addresses.some(({ address }) => !isLoopbackAddress(address))
   ) {
     throw new Error(`Loopback MCP hostname resolved outside loopback: ${input.url.hostname}.`)
@@ -199,11 +209,11 @@ function dispatcherFor(target: ValidatedMcpNetworkTarget, dispatchers: Map<strin
 
 export type SecureMcpFetch = FetchLike & { readonly close: () => Promise<void> }
 
-function assertSecureMcpProtocol(url: URL, websocket: boolean) {
+export function assertSecureMcpProtocol(url: URL, websocket: boolean) {
   const secureProtocol = websocket ? 'wss:' : 'https:'
   if (url.protocol === secureProtocol) return
   const loopbackProtocol = websocket ? 'ws:' : 'http:'
-  if (url.protocol === loopbackProtocol && isLoopbackHostname(url.hostname)) return
+  if (url.protocol === loopbackProtocol && isLoopbackMcpHostname(url.hostname)) return
   throw new Error(
     `MCP network connections require ${secureProtocol} except for explicit loopback URLs.`,
   )
@@ -238,6 +248,7 @@ export function createSecureMcpFetch(input: {
   readonly allowPublicRedirects?: boolean
   readonly allowInsecurePrivateNetwork?: boolean
   readonly allowLoopback?: boolean
+  readonly maxResponseBytes?: number
   readonly fetchFn?: PinnedFetch
   readonly resolveHostname?: HostnameResolver
 }): SecureMcpFetch {
@@ -268,7 +279,12 @@ export function createSecureMcpFetch(input: {
           ...(input.resolveHostname ? { resolveHostname: input.resolveHostname } : {}),
         })
         const response = await (input.fetchFn ?? pinnedFetch)(url, init, target)
-        if (!REDIRECT_STATUSES.has(response.status)) return response
+        if (!REDIRECT_STATUSES.has(response.status)) {
+          return input.maxResponseBytes === undefined
+            ? response
+            : limitMcpResponseBytes(response, input.maxResponseBytes)
+        }
+        void response.body?.cancel().catch(() => undefined)
         if (redirectCount === MAX_REDIRECTS) throw new Error('MCP HTTP redirect limit exceeded.')
         const location = response.headers.get('location')
         if (!location) throw new Error('MCP HTTP redirect did not include a Location header.')

@@ -1,12 +1,13 @@
-import type { AgentSendPayload, AgentSendReport } from '@shared/types/agent'
+import type { AgentSendReport } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
-import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useOptimisticUserMessageStore } from '../../state/optimistic-user-message-store'
+import { recordPendingInteractionEvent } from './pending-interaction-test-state'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 
@@ -25,9 +26,11 @@ const {
   upsertSessionMock,
   useChatStoreMock,
   agentEventHandlers,
+  pendingInteractionsBySessionId,
   runCompletedHandlers,
 } = vi.hoisted(() => {
   const agentEventHandlers: Array<(payload: unknown) => void> = []
+  const pendingInteractionsBySessionId = new Map<string, readonly unknown[]>()
   const runCompletedHandlers: Array<(payload: unknown) => void> = []
   const runRenderSnapshots = new Map<
     string,
@@ -96,10 +99,20 @@ const {
       sendMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       sendWaggleMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
       cancelAgent: vi.fn(async (): Promise<void> => undefined),
-      steerAgent: vi.fn(async () => ({
-        preserved: true,
-        delivery: { delivery: 'queued' as const, durableText: 'Steered message' },
-      })),
+      querySessionControl: vi.fn(
+        async (request: {
+          readonly requestId: string
+          readonly query: { readonly sessionId: string }
+        }) => ({
+          contractVersion: 2,
+          requestId: request.requestId,
+          outcome: {
+            operation: 'requests-list',
+            sessionId: request.query.sessionId,
+            requests: pendingInteractionsBySessionId.get(request.query.sessionId) ?? [],
+          },
+        }),
+      ),
       respondAgentInteraction: vi.fn(async () => ({
         ok: true,
         interactionId: 'interaction-1',
@@ -116,6 +129,7 @@ const {
     upsertSessionMock,
     useChatStoreMock,
     agentEventHandlers,
+    pendingInteractionsBySessionId,
     runCompletedHandlers,
   }
 })
@@ -135,6 +149,12 @@ vi.mock('@/features/chat/state/chat-store', () => ({
 const { useAgentChat } = await import('../useAgentChat')
 
 function emitAgentEvent(payload: AgentEventPayload) {
+  if (
+    payload.event.type !== 'agent_interaction_request' ||
+    payload.event.interaction.kind !== 'notify'
+  ) {
+    recordPendingInteractionEvent(pendingInteractionsBySessionId, payload)
+  }
   // WorkspaceShell owns the durable session-scoped event listener in production. This focused hook
   // harness mirrors that listener while still delivering the event to useAgentChat's stream logic.
   useAgentLoopEventStore.getState().applyEvent(payload.sessionId, payload.event)
@@ -147,89 +167,6 @@ function emitRunCompleted(payload: unknown) {
   for (const handler of runCompletedHandlers) {
     handler(payload)
   }
-}
-
-function createSession(): SessionDetail {
-  return {
-    id: SessionId('session-1'),
-    title: 'SessionDetail',
-    projectPath: '/tmp/project',
-    createdAt: 1,
-    updatedAt: 1,
-    messages: [
-      {
-        id: MessageId('msg-1'),
-        role: 'assistant',
-        createdAt: 1,
-        parts: [
-          {
-            type: 'tool-call',
-            toolCall: {
-              id: ToolCallId('tool-1'),
-              name: 'write',
-              args: { path: 'file.txt' },
-              state: 'input-complete',
-            },
-          },
-        ],
-      },
-    ],
-  }
-}
-
-function createSessionWithMessages(
-  updatedAt: number,
-  messages: SessionDetail['messages'],
-): SessionDetail {
-  return {
-    id: SessionId('session-1'),
-    title: 'SessionDetail',
-    projectPath: '/tmp/project',
-    createdAt: 1,
-    updatedAt,
-    messages,
-  }
-}
-
-function createSessionWithId(id: SessionId): SessionDetail {
-  return {
-    id,
-    title: `Session ${String(id)}`,
-    projectPath: '/tmp/project',
-    createdAt: 1,
-    updatedAt: 1,
-    messages: [],
-  }
-}
-
-function createSessionWithIdAndMessages(
-  id: SessionId,
-  updatedAt: number,
-  messages: SessionDetail['messages'],
-): SessionDetail {
-  return {
-    id,
-    title: `Session ${String(id)}`,
-    projectPath: `/tmp/${String(id)}`,
-    createdAt: 1,
-    updatedAt,
-    messages,
-  }
-}
-
-const SEND_PAYLOAD: AgentSendPayload = {
-  text: 'Hello world',
-  thinkingLevel: 'medium',
-  attachments: [],
-}
-
-function createDeferred<T>() {
-  let resolveValue = (_value: T) => {}
-  const promise = new Promise<T>((resolve) => {
-    resolveValue = resolve
-  })
-
-  return { promise, resolve: resolveValue }
 }
 
 export function installUseAgentChatTestLifecycle() {
@@ -253,7 +190,21 @@ export function installUseAgentChatTestLifecycle() {
     apiMock.sendWaggleMessage.mockResolvedValue(DELIVERED_REPORT)
     apiMock.cancelAgent.mockReset()
     apiMock.cancelAgent.mockResolvedValue(undefined)
-    apiMock.steerAgent.mockReset()
+    apiMock.querySessionControl.mockReset()
+    apiMock.querySessionControl.mockImplementation(
+      async (request: {
+        readonly requestId: string
+        readonly query: { readonly sessionId: string }
+      }) => ({
+        contractVersion: 2 as const,
+        requestId: request.requestId,
+        outcome: {
+          operation: 'requests-list' as const,
+          sessionId: request.query.sessionId,
+          requests: pendingInteractionsBySessionId.get(request.query.sessionId) ?? [],
+        },
+      }),
+    )
     apiMock.respondAgentInteraction.mockReset()
     apiMock.respondAgentInteraction.mockResolvedValue({
       ok: true,
@@ -270,6 +221,7 @@ export function installUseAgentChatTestLifecycle() {
     upsertSessionMock.mockReset()
     useChatStoreMock.mockClear()
     agentEventHandlers.length = 0
+    pendingInteractionsBySessionId.clear()
     runCompletedHandlers.length = 0
     useAgentLoopEventStore.setState({ sessionsById: new Map() })
     useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
@@ -277,19 +229,21 @@ export function installUseAgentChatTestLifecycle() {
 }
 
 export {
-  apiMock,
   createDeferred,
   createSession,
   createSessionWithId,
   createSessionWithIdAndMessages,
   createSessionWithMessages,
+  SEND_PAYLOAD,
+} from './useAgentChat.test-fixtures'
+export {
+  apiMock,
   emitAgentEvent,
   emitRunCompleted,
   firstSendRecoveryCalls,
   getRunRenderSnapshotMock,
   hasActiveRunMock,
   runRenderSnapshots,
-  SEND_PAYLOAD,
   setRunRenderMessagesMock,
   useAgentChat,
 }

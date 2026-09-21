@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useChat, useSelectedSessionModel } from '@/features/chat/hooks'
+import { useChat } from '@/features/chat/hooks'
 import { isSelectableModel, useProviderStore } from '@/features/providers/state'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
 import { useProject, useSessions } from '@/features/sessions/hooks'
@@ -14,8 +14,14 @@ export function useGlobalCommandActions() {
   const navigate = useNavigate()
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const { refreshSessionWorkspace } = useSessions()
-  const { sessions, activeSessionId, setActiveSession, startDraftSession, refreshSession } =
-    useChat()
+  const {
+    sessions,
+    activeSession,
+    activeSessionId,
+    setActiveSession,
+    startDraftSession,
+    refreshSession,
+  } = useChat()
   const close = useUIStore((state) => state.closeCommandSurface)
   const openCommandSurface = useUIStore((state) => state.openCommandSurface)
   const requestChatCommand = useUIStore((state) => state.requestChatCommand)
@@ -34,7 +40,7 @@ export function useGlobalCommandActions() {
   const showToast = useUIStore((state) => state.showToast)
   const toggleSessionSummaryPanel = useSessionSummaryUIStore((state) => state.togglePanel)
   const settings = usePreferencesStore((state) => state.settings)
-  const sessionModel = useSelectedSessionModel().selectedModel
+  const sessionModel = activeSession?.executionModel
   const providerModels = useProviderStore((s) => s.providerModels)
   const catalogHydrated = useProviderStore((s) => s.catalogHydrated)
   const sessionId = activeSessionId ? String(activeSessionId) : null
@@ -139,7 +145,7 @@ export function useGlobalCommandActions() {
       return
     }
     if (target === 'skills') {
-      void navigate({ to: '/skills' })
+      void navigate({ to: '/settings/$tab', params: { tab: 'skills' } })
       return
     }
     void navigate({

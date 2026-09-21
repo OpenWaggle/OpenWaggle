@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useSelectedSessionModel } from '@/features/chat/hooks'
+import { useComposerModel } from '@/features/composer/hooks'
 import { useFeedback } from '@/features/feedback/hooks/useFeedback'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { Button } from '@/shared/ui/Button'
@@ -12,7 +12,7 @@ export function FeedbackModal() {
   const errorContext = useUIStore((s) => s.feedbackErrorContext)
 
   const lastUserMessage: string | null = null
-  const activeModel: string | null = useSelectedSessionModel().selectedModel ?? null
+  const activeModel: string | null = useComposerModel().model ?? null
   const activeProvider: string | null = null
 
   const fb = useFeedback(errorContext, lastUserMessage, activeModel, activeProvider)

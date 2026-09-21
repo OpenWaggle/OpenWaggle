@@ -1,7 +1,11 @@
 export { useChatPanelSections } from './use-chat-panel-controller'
 export { useBackgroundRunMonitor } from './useBackgroundRunMonitor'
 export { useChat } from './useChat'
-export { useSelectedSessionModel } from './useSelectedSessionModel'
+export {
+  type SessionFollowUpQueueItem,
+  sessionFollowUpQueueOptions,
+  useSessionFollowUpQueue,
+} from './useSessionFollowUpQueue'
 export {
   reconcileDurableSetupActionEvents,
   reconcileLiveSetupActionTerminals,

@@ -43,11 +43,11 @@ describe('useUIStore integration', () => {
   })
 
   it('stores route projections for the active view and settings tab', () => {
-    useUIStore.getState().setActiveView('skills')
-    useUIStore.getState().setActiveSettingsTab('connections')
+    useUIStore.getState().setActiveView('settings')
+    useUIStore.getState().setActiveSettingsTab('skills')
 
-    expect(useUIStore.getState().activeView).toBe('skills')
-    expect(useUIStore.getState().activeSettingsTab).toBe('connections')
+    expect(useUIStore.getState().activeView).toBe('settings')
+    expect(useUIStore.getState().activeSettingsTab).toBe('skills')
   })
 
   it('showToast sets message and auto-dismisses after the toast delay', () => {

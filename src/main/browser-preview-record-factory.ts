@@ -9,6 +9,7 @@ interface BrowserPreviewRecordInput {
   readonly canonicalUrl: string
   readonly owner: BrowserPreviewOwnerRecord
   readonly onOwnerEventFailure: () => void
+  readonly onCreated: (record: BrowserPreviewRecord) => void
 }
 
 export function createBrowserPreviewRecord(
@@ -25,41 +26,46 @@ export function createBrowserPreviewRecord(
   const view = new WebContentsView({
     webPreferences: browserPreviewWebPreferences(input.profileId),
   })
+  const record: BrowserPreviewRecord = {
+    previewId: input.previewId,
+    ownerKey: input.ownerKey,
+    profileId: input.profileId,
+    view,
+    owner,
+    state: {
+      previewId: input.previewId,
+      ownerKey: input.ownerKey,
+      profileId: input.profileId,
+      url: canonicalUrl,
+      title: '',
+      loading: true,
+      canGoBack: false,
+      canGoForward: false,
+      error: null,
+      audioMuted: input.audioMuted ?? false,
+      audible: false,
+      favicon: null,
+      controller: { kind: 'human' },
+      controls,
+    },
+    bounds: input.visible ? input.bounds : null,
+    loadGeneration: 0,
+    disposed: false,
+    claimedShortcutKeys: new Set(),
+    onOwnerEventFailure,
+    removeListeners: [],
+  }
   try {
+    options.onCreated(record)
     view.webContents.setIgnoreMenuShortcuts(true)
     view.webContents.setZoomFactor(controls.zoomFactor)
     view.webContents.setAudioMuted(input.audioMuted ?? false)
     installPreviewSessionPolicy(view.webContents.session)
-    return {
-      previewId: input.previewId,
-      ownerKey: input.ownerKey,
-      profileId: input.profileId,
-      view,
-      owner,
-      state: {
-        previewId: input.previewId,
-        ownerKey: input.ownerKey,
-        profileId: input.profileId,
-        url: canonicalUrl,
-        title: '',
-        loading: true,
-        canGoBack: false,
-        canGoForward: false,
-        error: null,
-        audioMuted: input.audioMuted ?? false,
-        audible: false,
-        favicon: null,
-        controller: { kind: 'human' },
-        controls,
-      },
-      bounds: input.visible ? input.bounds : null,
-      loadGeneration: 0,
-      disposed: false,
-      claimedShortcutKeys: new Set(),
-      onOwnerEventFailure,
-      removeListeners: [],
-    }
+    return record
   } catch (error) {
+    // No visible/control registry accepted this record. Native retries must not remove
+    // a later successful preview that reuses its renderer-local preview identifier.
+    record.disposed = true
     try {
       if (!view.webContents.isDestroyed()) view.webContents.close()
     } catch {

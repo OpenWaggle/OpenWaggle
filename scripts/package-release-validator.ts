@@ -3,6 +3,10 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { validatePackageReleasePipelines } from './package-release-validator-pipeline'
 import { validatePackageReleaseProvenance } from './package-release-validator-provenance'
+import {
+  SESSION_PERFORMANCE_WORKFLOW_PATH,
+  validateSessionPerformanceCiPolicy,
+} from './release-ci-performance-policy'
 import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
 import { validateReleasePleaseRuntimeContract } from './release-please-runtime-contract'
 
@@ -256,6 +260,7 @@ export async function validatePackageReleaseFiles(
   const [
     workflowText,
     ciWorkflowText,
+    performanceWorkflowText,
     contextSource,
     promoteSource,
     promotionSource,
@@ -266,6 +271,7 @@ export async function validatePackageReleaseFiles(
   ] = await Promise.all([
     readFile(path.join(projectRoot, WORKFLOW_PATH), 'utf8'),
     readFile(path.join(projectRoot, CI_WORKFLOW_PATH), 'utf8'),
+    readFile(path.join(projectRoot, SESSION_PERFORMANCE_WORKFLOW_PATH), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-context.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-promote.ts'), 'utf8'),
     readFile(path.join(projectRoot, 'scripts/package-release-promotion.ts'), 'utf8'),
@@ -283,6 +289,7 @@ export async function validatePackageReleaseFiles(
     workflowText,
   }, violations)
   validatePackageReleaseProvenance(provenanceSource, violations)
+  violations.push(...validateSessionPerformanceCiPolicy(performanceWorkflowText))
   return { violations }
 }
 

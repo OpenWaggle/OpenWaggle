@@ -1,9 +1,4 @@
-import type {
-  AgentSendPayload,
-  AgentSendReport,
-  AgentSteerDeliveryResult,
-  PreparedAttachment,
-} from './agent'
+import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
 import type {
   AgentLoopInteractionResponseInput,
@@ -36,10 +31,13 @@ import type { OpenWaggleAuthorizationGrantApi } from './openwaggle-api-authoriza
 import type { OpenWaggleFeedbackApi } from './openwaggle-api-feedback'
 import type { OpenWaggleGitApi } from './openwaggle-api-git'
 import type { OpenWaggleProjectConfigApi } from './openwaggle-api-project'
+import type { OpenWaggleSessionCatalogApi } from './openwaggle-api-session-catalog'
+import type { OpenWaggleSessionControlApi } from './openwaggle-api-session-control'
 import type { OpenWaggleSessionResourceApi } from './openwaggle-api-session-resources'
 import type { OpenWaggleUpdaterApi } from './openwaggle-api-updater'
 import type { OpenWaggleWaggleApi } from './openwaggle-api-waggle'
 import type { OpenWaggleBrowserPreviewApi } from './openwaggle-browser-preview-api'
+import type { OpenWaggleDesktopApi } from './openwaggle-desktop-api'
 import type { OpenWaggleExtensionApi } from './openwaggle-extension-api'
 import type { OpenWaggleMcpApi } from './openwaggle-mcp-api'
 import type { OpenWaggleTerminalApi } from './openwaggle-terminal-api'
@@ -48,11 +46,10 @@ import type { AgentPhaseState } from './phase'
 import type {
   PinnedSession,
   PinnedSessionMove,
+  SessionCatalogPage,
   SessionCopyToNewResult,
   SessionDetail,
-  SessionHiveRelations,
   SessionNavigateTreeOptions,
-  SessionSummary,
   SessionTree,
   SessionTreeFilterMode,
   SessionTreeUiStatePatch,
@@ -73,6 +70,7 @@ type SessionTitleUpdatedHandler = (payload: IpcEventPayload<'sessions:title-upda
 
 export interface OpenWaggleApi
   extends OpenWaggleAuthorizationGrantApi,
+    OpenWaggleDesktopApi,
     OpenWaggleBrowserPreviewApi,
     OpenWaggleTerminalApi,
     OpenWaggleFeedbackApi,
@@ -83,6 +81,8 @@ export interface OpenWaggleApi
     OpenWaggleMcpApi,
     OpenWaggleSessionResourceApi,
     OpenWaggleWaggleApi,
+    OpenWaggleSessionCatalogApi,
+    OpenWaggleSessionControlApi,
     OpenWaggleWorkspaceFilesApi {
   // Agent
   sendMessage(
@@ -91,10 +91,6 @@ export interface OpenWaggleApi
     model: SupportedModelId,
   ): Promise<AgentSendReport>
   cancelAgent(sessionId?: SessionId): Promise<void>
-  steerAgent(
-    sessionId: SessionId,
-    payload: AgentSendPayload,
-  ): Promise<{ preserved: boolean; delivery: AgentSteerDeliveryResult }>
   respondAgentInteraction(
     input: AgentLoopInteractionResponseInput,
   ): Promise<AgentLoopInteractionSubmitResult>
@@ -115,6 +111,10 @@ export interface OpenWaggleApi
   ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
+  onSessionHostEvent(callback: (payload: IpcEventPayload<'session-host:event'>) => void): () => void
+  onSessionHostResyncRequired(
+    callback: (payload: IpcEventPayload<'session-host:resync-required'>) => void,
+  ): () => void
   onWorktreeLaunch(callback: (payload: WorktreeLaunchEventPayload) => void): () => void
 
   // Settings
@@ -142,10 +142,7 @@ export interface OpenWaggleApi
   saveInlineVisualizationDownload(input: InlineVisualizationDownloadInput): Promise<boolean>
 
   // Sessions
-  listSessions(limit?: number): Promise<SessionSummary[]>
-  listSessionDetails(limit?: number): Promise<SessionDetail[]>
   getSessionDetail(id: SessionId): Promise<SessionDetail | null>
-  getSessionHiveRelations(id: SessionId): Promise<SessionHiveRelations>
   listTurnCheckpoints(id: SessionId): Promise<TurnCheckpointSummary[]>
   getTurnDiff(id: SessionId, turnId: string): Promise<TurnDiff | null>
   /** Every Pinned session in Manual order, archived ones included (issue #97). */
@@ -154,7 +151,11 @@ export interface OpenWaggleApi
   unpinSession(id: SessionId): Promise<void>
   /** Reposition one pin between the neighbours it should land between. */
   movePinnedSession(move: PinnedSessionMove): Promise<void>
-  createSession(projectPath: string): Promise<SessionDetail>
+  createSession(
+    projectPath: string,
+    worktreePlan?: SessionWorktreePlan,
+    model?: SupportedModelId,
+  ): Promise<SessionDetail>
   forkSessionToNew(
     sessionId: SessionId,
     model: SupportedModelId,
@@ -169,12 +170,9 @@ export interface OpenWaggleApi
   deleteSession(id: SessionId): Promise<void>
   archiveSession(id: SessionId): Promise<void>
   unarchiveSession(id: SessionId): Promise<void>
-  listArchivedSessions(): Promise<SessionSummary[]>
   updateSessionTitle(id: SessionId, title: string): Promise<void>
-  setSessionWorktreePlan(id: SessionId, plan: SessionWorktreePlan): Promise<void>
   setSessionAuthorizationMode(id: SessionId, mode: AgentAuthorizationMode | null): Promise<void>
-  setSessionSelectedModel(id: SessionId, model: SupportedModelId): Promise<void>
-  listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
+  listArchivedSessionBranches(limit: number, cursor?: string): Promise<SessionCatalogPage>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
     sessionId: SessionId,

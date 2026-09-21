@@ -56,6 +56,12 @@ describe('SessionSummaryHub', () => {
     expect(listSessionResources).not.toHaveBeenCalled()
   })
 
+  it('opens the Hub for a newly spawned Worker before its first message', () => {
+    renderHub({ messageCount: 0, hiveAvailable: true })
+    expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()
+    expect(useSessionSummaryUIStore.getState().panels['session-1']?.available).toBe(true)
+  })
+
   it('appears after the first message with environment actions', async () => {
     renderHub()
     expect(screen.getByRole('complementary', { name: 'Session Summary' })).toBeInTheDocument()

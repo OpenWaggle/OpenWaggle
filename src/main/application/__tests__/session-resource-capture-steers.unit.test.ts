@@ -118,4 +118,37 @@ describe('accepted steer resource capture', () => {
 
     expect(upserts).toEqual([])
   })
+
+  it('captures a Host steer link from its durable user turn without a transient payload', async () => {
+    const upserts: UpsertSessionResourceInput[] = []
+    await Effect.runPromise(
+      captureSuccessfulRunResources({
+        sessionId: SessionId('session-1'),
+        runId: 'run-host-steer',
+        payload: { text: 'Start', thinkingLevel: 'medium', attachments: [] },
+        messages: [
+          {
+            id: MessageId('initial-user'),
+            role: 'user',
+            parts: [{ type: 'text', text: 'Start' }],
+            createdAt: 1000,
+          },
+          {
+            id: MessageId('host-steer'),
+            role: 'user',
+            parts: [{ type: 'text', text: 'Check [the spec](https://example.test/spec)' }],
+            createdAt: 2000,
+          },
+        ],
+        nodeIdByMessageId: { 'host-steer': 'durable-steer-node' },
+      }).pipe(Effect.provide(sessionResourceTestLayer(upserts))),
+    )
+
+    expect(upserts).toContainEqual(
+      expect.objectContaining({
+        kind: 'link',
+        occurrence: expect.objectContaining({ nodeId: 'durable-steer-node', actor: 'user' }),
+      }),
+    )
+  })
 })

@@ -8,6 +8,7 @@ import { DENSE_MENU_ITEM_CLASS, MENU_SECTION_LABEL_CLASS } from '@/shared/ui/men
 import { Popover } from '@/shared/ui/Popover'
 
 interface ComposerAttachButtonProps {
+  readonly disabled?: boolean
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 
@@ -40,13 +41,17 @@ function AddMenuItem({
 }
 
 /** The composer + menu, routing every entry through the existing native draft flow. */
-export function ComposerAttachButton({ fileInputRef }: ComposerAttachButtonProps) {
+export function ComposerAttachButton({
+  fileInputRef,
+  disabled: contextDisabled,
+}: ComposerAttachButtonProps) {
   const [open, setOpen] = useState(false)
   const { projectPath } = useProject()
   const setSlashMenuFilter = useComposerStore((state) => state.setSlashMenuFilter)
-  const disabled = !projectPath
+  const disabled = contextDisabled || !projectPath
 
   function invoke(invocation: '@' | '/', filter: 'all' | 'skills' | 'waggle' = 'all') {
+    if (disabled) return
     setOpen(false)
     setSlashMenuFilter(filter)
     insertComposerInvocation(invocation)
@@ -56,7 +61,7 @@ export function ComposerAttachButton({ fileInputRef }: ComposerAttachButtonProps
     <Popover
       className="w-72 p-1"
       onOpenChange={setOpen}
-      open={open}
+      open={open && !disabled}
       placement="top-start"
       role="menu"
       trigger={({ toggle }) => (
@@ -78,6 +83,7 @@ export function ComposerAttachButton({ fileInputRef }: ComposerAttachButtonProps
         icon={<Paperclip aria-hidden="true" className="size-4" />}
         label="Attach files"
         onSelect={() => {
+          if (disabled) return
           setOpen(false)
           fileInputRef.current?.click()
         }}

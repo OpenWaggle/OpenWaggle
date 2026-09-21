@@ -193,7 +193,7 @@ describe('terminal input dispatcher', () => {
     expect(replacement.generation).toBe('input-generation-1')
   })
 
-  it('stages already queued input as soon as an open is in flight', async () => {
+  it('waits for the native attach identity before staging already queued input', async () => {
     const writer = vi
       .fn<TerminalInputWriter>()
       .mockImplementation(async (_owner, _id, data, id) => accepted(data, id, 'queued'))
@@ -202,9 +202,13 @@ describe('terminal input dispatcher', () => {
 
     expect(writer).not.toHaveBeenCalled()
     client.markOpening()
+    client.markReady(READY)
+    expect(writer).not.toHaveBeenCalled()
+    client.markOpen(AWAITING_PROMPT, 0, 'native-record-1')
 
     await vi.waitFor(() => expect(writer).toHaveBeenCalledOnce())
     expect(writer.mock.calls[0]?.[2]).toBe('typed-during-open')
-    expect(client.snapshot()).toMatchObject({ queuedChunks: 0, waiting: true })
+    expect(writer.mock.calls[0]?.[3].incarnation).toBe('native-record-1')
+    expect(client.snapshot().queuedChunks).toBe(0)
   })
 })

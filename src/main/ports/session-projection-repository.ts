@@ -8,14 +8,10 @@
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SupportedModelId } from '@shared/types/llm'
 import type {
-  EstablishSessionLineageInput,
   PinnedSession,
   PinnedSessionMove,
-  SessionDelegationState,
   SessionDetail,
-  SessionHiveRelations,
   SessionSummary,
   SessionWorktreePlan,
 } from '@shared/types/session'
@@ -28,9 +24,6 @@ export interface SessionProjectionRepositoryShape {
   readonly getOptional: (
     id: SessionId,
   ) => Effect.Effect<SessionDetail | null, SessionProjectionRepositoryError>
-  readonly getHiveRelations: (
-    id: SessionId,
-  ) => Effect.Effect<SessionHiveRelations, SessionProjectionRepositoryError>
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
@@ -44,19 +37,10 @@ export interface SessionProjectionRepositoryShape {
     readonly piSessionFile?: string
     readonly environmentMode?: SessionEnvironmentMode
     readonly authorizationMode?: AgentAuthorizationMode
-    /** The copied session keeps its source's explicit pick instead of falling back to the default. */
-    readonly selectedModel?: SupportedModelId
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
-  /** Preflight before runtime teardown. Delete still revalidates eligibility transactionally. */
-  readonly getDeletionBlocker: (
-    id: SessionId,
-  ) => Effect.Effect<string | null, SessionProjectionRepositoryError>
-  /** Fence Hive writes while deletion eligibility is checked and existing work is stopped. */
-  readonly withDeletionFence: <A, E, R>(
-    id: SessionId,
-    operation: Effect.Effect<A, E, R>,
-  ) => Effect.Effect<A, E | SessionProjectionRepositoryError, R>
   readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Resume crash-interrupted Session deletions before the Host starts accepting clients. */
+  readonly recoverPendingDeletions?: () => Effect.Effect<void, never>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listArchived: () => Effect.Effect<
@@ -80,18 +64,6 @@ export interface SessionProjectionRepositoryShape {
   readonly setAuthorizationMode: (
     id: SessionId,
     mode: AgentAuthorizationMode | null,
-  ) => Effect.Effect<void, SessionProjectionRepositoryError>
-  /** Pins this session's model choice so it stops tracking the global default. */
-  readonly setSelectedModel: (
-    id: SessionId,
-    model: SupportedModelId,
-  ) => Effect.Effect<void, SessionProjectionRepositoryError>
-  readonly establishLineage: (
-    input: EstablishSessionLineageInput,
-  ) => Effect.Effect<void, SessionProjectionRepositoryError>
-  readonly setDelegationState: (
-    id: SessionId,
-    state: SessionDelegationState,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listTurnCheckpoints: (
     id: SessionId,

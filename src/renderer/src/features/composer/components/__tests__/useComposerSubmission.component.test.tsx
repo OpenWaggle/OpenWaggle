@@ -8,6 +8,10 @@ import { useComposerSubmission } from '../../hooks/useComposerSubmission'
 import { markSessionResourceAttachmentsSubmitted } from '../../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../../state/composer-store'
 
+const discardPreparedAttachment = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+
+vi.mock('@/shared/lib/ipc', () => ({ api: { discardPreparedAttachment } }))
+
 const image: PreparedAttachment = {
   id: 'session-image',
   kind: 'image',
@@ -48,6 +52,7 @@ describe('composer Session image submission ownership', () => {
   beforeEach(() => {
     markSessionResourceAttachmentsSubmitted(useComposerStore.getState().attachments)
     useComposerStore.getState().reset()
+    discardPreparedAttachment.mockClear()
     usePreferencesStore.setState((state) => ({
       settings: { ...state.settings, selectedModel: SupportedModelId('test/model') },
     }))
@@ -65,6 +70,42 @@ describe('composer Session image submission ownership', () => {
     expect(onSend).toHaveBeenCalledOnce()
     expect(useComposerStore.getState().input).toBe('Describe this')
     expect(useComposerStore.getState().attachments).toEqual([image])
+  })
+
+  it('discards a retained image when removed after a custom branch summary', () => {
+    const onSend = vi.fn(async () => undefined)
+    const { result } = renderSubmission({ onSend, clearOnSubmit: false })
+
+    act(() => result.current.handleSubmit())
+    expect(onSend).toHaveBeenCalledOnce()
+    expect(useComposerStore.getState().attachments).toEqual([image])
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+
+    act(() => useComposerStore.getState().removeAttachment(image.id))
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(image)
+  })
+
+  it('keeps draft-owned images after a failed custom branch summary', async () => {
+    let rejectSend: (cause: Error) => void = () => undefined
+    const onSend = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSend = reject
+        }),
+    )
+    const { result } = renderSubmission({
+      onSend,
+      clearOnSubmit: false,
+      onSendFailure: () => ({ kind: 'discard' }),
+    })
+
+    act(() => result.current.handleSubmit())
+    await act(async () => rejectSend(new Error('Summary failed')))
+
+    expect(useComposerStore.getState().attachments).toEqual([image])
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+    act(() => useComposerStore.getState().removeAttachment(image.id))
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(image)
   })
 
   it('restores a refused asynchronous send so its image can be retried', async () => {

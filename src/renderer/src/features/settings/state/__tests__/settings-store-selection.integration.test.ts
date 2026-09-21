@@ -38,6 +38,15 @@ describe('preferences-store selection integration', () => {
     })
   })
 
+  it('does not expose a newly opened project when the Host rejects persistence', async () => {
+    apiMock.updateSettings.mockResolvedValueOnce({ ok: false, error: 'Host rejected project' })
+
+    await expect(usePreferencesStore.getState().pushRecentProject('/repo/new')).rejects.toThrow(
+      'Host rejected project',
+    )
+    expect(usePreferencesStore.getState().settings.recentProjects).not.toContain('/repo/new')
+  })
+
   it('tracks recent projects in first-added order with dedupe and max size', async () => {
     const entries = [
       '/tmp/repo-1',

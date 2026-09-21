@@ -1,0 +1,232 @@
+import { describe, expect, it, vi } from 'vitest'
+import {
+  decodeFloat32Vector,
+  encodeFloat32Vector,
+  SessionFlatVectorIndex,
+} from '../session-flat-vector-index'
+
+describe('Session flat vector index', () => {
+  it('ranks exact cosine matches deterministically and applies authorization before limiting', () => {
+    const index = new SessionFlatVectorIndex()
+    index.replace([
+      { sessionId: 'b', vector: new Float32Array([1, 0]) },
+      { sessionId: 'a', vector: new Float32Array([1, 0]) },
+      { sessionId: 'c', vector: new Float32Array([0, 1]) },
+    ])
+
+    expect(index.search(new Float32Array([1, 0]), 2)).toEqual([
+      { sessionId: 'a', similarity: 1 },
+      { sessionId: 'b', similarity: 1 },
+    ])
+    expect(index.search(new Float32Array([1, 0]), 2, new Set(['c']))).toEqual([
+      { sessionId: 'c', similarity: 0 },
+    ])
+    expect(index.search(new Float32Array([1, 0]), 2, undefined, new Set(['a']))).toEqual([
+      { sessionId: 'b', similarity: 1 },
+      { sessionId: 'c', similarity: 0 },
+    ])
+  })
+
+  it('round-trips vectors through the SQLite BLOB representation', () => {
+    const vector = new Float32Array([0.25, -0.5, 1])
+    const encoded = encodeFloat32Vector(vector)
+    const decoded = decodeFloat32Vector(encoded, 3)
+    expect([...decoded]).toEqual([...vector])
+    expect(decoded.buffer).toBe(encoded.buffer)
+  })
+
+  it('copies only an unaligned SQLite BLOB view', () => {
+    const source = new Float32Array([0.25, -0.5])
+    const backing = new ArrayBuffer(source.byteLength + 1)
+    const unaligned = new Uint8Array(backing, 1, source.byteLength)
+    unaligned.set(new Uint8Array(source.buffer))
+
+    const decoded = decodeFloat32Vector(unaligned, source.length)
+
+    expect([...decoded]).toEqual([...source])
+    expect(decoded.buffer).not.toBe(backing)
+  })
+
+  it('reconciles records removed from the durable projection', () => {
+    const index = new SessionFlatVectorIndex()
+    index.upsert({ sessionId: 'keep', vector: new Float32Array([1, 0]) })
+    index.upsert({ sessionId: 'deleted', vector: new Float32Array([0, 1]) })
+
+    index.retainOnly(new Set(['keep']))
+
+    expect(index.size).toBe(1)
+    expect(index.search(new Float32Array([0, 1]), 2).map((match) => match.sessionId)).toEqual([
+      'keep',
+    ])
+  })
+
+  it('rejects records beyond its structural capacity without mutating the loaded snapshot', () => {
+    const index = new SessionFlatVectorIndex(2)
+    index.replace([
+      { sessionId: 'a', vector: new Float32Array([1, 0]) },
+      { sessionId: 'b', vector: new Float32Array([0, 1]) },
+    ])
+
+    expect(() => index.upsert({ sessionId: 'c', vector: new Float32Array([0.5, 0.5]) })).toThrow(
+      'Vector index record limit exceeded.',
+    )
+    expect(() =>
+      index.replace([
+        { sessionId: 'c', vector: new Float32Array([1, 0]) },
+        { sessionId: 'd', vector: new Float32Array([0, 1]) },
+        { sessionId: 'e', vector: new Float32Array([0.5, 0.5]) },
+      ]),
+    ).toThrow('Vector index record limit exceeded.')
+    expect(index.size).toBe(2)
+    expect(index.search(new Float32Array([1, 0]), 2).map((match) => match.sessionId)).toEqual([
+      'a',
+      'b',
+    ])
+  })
+
+  it('retains only the best bounded matches while scanning the authorized corpus', () => {
+    const index = new SessionFlatVectorIndex()
+    index.replace(
+      Array.from({ length: 100 }, (_, itemIndex) => ({
+        sessionId: `session-${String(itemIndex).padStart(3, '0')}`,
+        vector: new Float32Array([itemIndex, 100 - itemIndex]),
+      })),
+    )
+
+    expect(index.search(new Float32Array([1, 0]), 3).map((match) => match.sessionId)).toEqual([
+      'session-099',
+      'session-098',
+      'session-097',
+    ])
+    expect(index.search(new Float32Array([1, 0]), 0)).toEqual([])
+  })
+
+  it('yields to the event loop during a bounded exact scan', async () => {
+    const index = new SessionFlatVectorIndex()
+    index.replace(
+      Array.from({ length: 100 }, (_, itemIndex) => ({
+        sessionId: `session-${itemIndex}`,
+        vector: new Float32Array([itemIndex + 1, 100 - itemIndex]),
+      })),
+    )
+    let eventLoopAdvanced = false
+    setImmediate(() => {
+      eventLoopAdvanced = true
+    })
+
+    const matches = await index.searchCooperatively({
+      query: new Float32Array([1, 0]),
+      limit: 3,
+      yieldEveryRecords: 10,
+    })
+
+    expect(eventLoopAdvanced).toBe(true)
+    expect(matches).toEqual(index.search(new Float32Array([1, 0]), 3))
+  })
+
+  it('stops an exact scan after cancellation is observed at a cooperative yield', async () => {
+    const index = new SessionFlatVectorIndex()
+    const records = Array.from({ length: 100 }, (_, itemIndex) => ({
+      sessionId: `session-${itemIndex}`,
+      vector: new Float32Array([itemIndex + 1, 100 - itemIndex]),
+    }))
+    index.replace(records)
+    const allowedSessionIds = new Set(records.map((record) => record.sessionId))
+    const has = allowedSessionIds.has.bind(allowedSessionIds)
+    const controller = new AbortController()
+    let inspectedRecords = 0
+    vi.spyOn(allowedSessionIds, 'has').mockImplementation((sessionId) => {
+      inspectedRecords += 1
+      if (inspectedRecords === 4) controller.abort(new Error('stop exact scan'))
+      return has(sessionId)
+    })
+
+    await expect(
+      index.searchCooperatively({
+        query: new Float32Array([1, 0]),
+        limit: 3,
+        allowedSessionIds,
+        yieldEveryRecords: 1,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop exact scan')
+    expect(inspectedRecords).toBe(4)
+  })
+
+  it('groups transcript chunks by their authorized Session before applying the result limit', () => {
+    const index = new SessionFlatVectorIndex()
+    index.replace([
+      { sessionId: 'node-a1', groupId: 'session-a', vector: new Float32Array([1, 0]) },
+      { sessionId: 'node-a2', groupId: 'session-a', vector: new Float32Array([0.9, 0.1]) },
+      { sessionId: 'node-b1', groupId: 'session-b', vector: new Float32Array([0.8, 0.2]) },
+      { sessionId: 'node-c1', groupId: 'session-c', vector: new Float32Array([0, 1]) },
+    ])
+
+    expect(
+      index.searchGrouped(new Float32Array([1, 0]), 2, new Set(['session-a', 'session-b'])),
+    ).toEqual([
+      { sessionId: 'session-a', similarity: 1, matchedRecordId: 'node-a1' },
+      {
+        sessionId: 'session-b',
+        similarity: expect.any(Number),
+        matchedRecordId: 'node-b1',
+      },
+    ])
+  })
+
+  it('stops a grouped exact scan after cancellation is observed at a cooperative yield', async () => {
+    const index = new SessionFlatVectorIndex()
+    const records = Array.from({ length: 100 }, (_, itemIndex) => ({
+      sessionId: `node-${itemIndex}`,
+      groupId: `session-${itemIndex % 10}`,
+      vector: new Float32Array([itemIndex + 1, 100 - itemIndex]),
+    }))
+    index.replace(records)
+    const allowedGroupIds = new Set(records.map((record) => record.groupId))
+    const has = allowedGroupIds.has.bind(allowedGroupIds)
+    const controller = new AbortController()
+    let inspectedRecords = 0
+    vi.spyOn(allowedGroupIds, 'has').mockImplementation((groupId) => {
+      inspectedRecords += 1
+      if (inspectedRecords === 4) controller.abort(new Error('stop grouped scan'))
+      return has(groupId)
+    })
+
+    await expect(
+      index.searchGroupedCooperatively({
+        query: new Float32Array([1, 0]),
+        limit: 3,
+        allowedGroupIds,
+        yieldEveryRecords: 1,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop grouped scan')
+    expect(inspectedRecords).toBe(4)
+  })
+
+  it('keeps concurrent worst-case bounded scans deterministic at the 50k node cap', async () => {
+    const index = new SessionFlatVectorIndex()
+    index.replace(
+      Array.from({ length: 50_000 }, (_, itemIndex) => ({
+        sessionId: `node-${String(itemIndex).padStart(5, '0')}`,
+        groupId: `session-${String(itemIndex % 1_000).padStart(4, '0')}`,
+        vector: new Float32Array([itemIndex + 1, 50_000 - itemIndex]),
+      })),
+    )
+    const allowed = new Set(
+      Array.from({ length: 1_000 }, (_, index) => `session-${String(index).padStart(4, '0')}`),
+    )
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, async () =>
+        index.searchGrouped(new Float32Array([1, 0]), 5, allowed),
+      ),
+    )
+
+    expect(index.size).toBe(50_000)
+    expect(results.every((result) => result.length === 5)).toBe(true)
+    expect(results.every((result) => JSON.stringify(result) === JSON.stringify(results[0]))).toBe(
+      true,
+    )
+  })
+})

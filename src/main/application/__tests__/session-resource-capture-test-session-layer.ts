@@ -3,11 +3,13 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionRepository } from '../../ports/session-repository'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export function sessionResourceTestSessionLayer(sessionWorkingPath?: string) {
   return Layer.succeed(
     SessionRepository,
     SessionRepository.of({
+      ...emptySessionCatalogMethods,
       list: () => Effect.succeed([]),
       listArchivedBranches: () => Effect.succeed([]),
       getTree: () => Effect.succeed(null),

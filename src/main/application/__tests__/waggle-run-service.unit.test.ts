@@ -23,6 +23,10 @@ import {
   TestLayer,
   waggleConfig,
 } from './waggle-run-service.test-harness'
+import {
+  HOST_RESOLVED_ATTACHMENT,
+  HOST_RESOLVED_PUBLIC_ATTACHMENT,
+} from './waggle-run-service-attachment-test-fixture'
 
 function runInput(config: WaggleConfig, runId: string, model = selectedModel) {
   return {
@@ -178,6 +182,24 @@ describe('executeWaggleRun', () => {
     expect(persistSnapshotMock).toHaveBeenCalledOnce()
     expect(persistSnapshotMock.mock.calls[0]?.[0].nodes[0]?.metadataJson).toContain('Architect')
     expect(clearActiveRunMock).toHaveBeenCalledWith({ sessionId, runId: 'run-waggle-1' })
+  })
+
+  it('uses immutable Host-resolved attachments without consulting the GUI capability registry', async () => {
+    const result = await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-host-attachment'),
+        payload: {
+          text: 'Review the immutable evidence.',
+          thinkingLevel: 'medium',
+          attachments: [HOST_RESOLVED_PUBLIC_ATTACHMENT],
+        },
+        hydratedAttachments: [HOST_RESOLVED_ATTACHMENT],
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result.outcome).toBe('success')
+    const [kernelInput] = runMock.mock.calls[0] ?? []
+    expect(kernelInput.payload.attachments).toEqual([HOST_RESOLVED_ATTACHMENT])
   })
 
   it('forwards first-send worktree launch progress to the Pi kernel', async () => {

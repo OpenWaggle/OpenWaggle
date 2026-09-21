@@ -2,8 +2,10 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionDetail, SessionHiveRelations, SessionSummary } from '@shared/types/session'
+import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
+import { sessionIdsForQuery } from '../sessions/hydration'
+import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
@@ -13,22 +15,6 @@ import {
   logSessionHydrationFailure,
 } from './message-hydration'
 import type { SessionNodeRow, SessionRow, SessionSummaryRow } from './types'
-
-/** Main's Session Summary lineage fields, hydrating only when the query marks them present. */
-function lineageFields(row: SessionSummaryRow) {
-  return row.lineage_present === 1
-    ? {
-        lineage: {
-          role: row.lineage_role,
-          parentSessionId: row.parent_session_id ? SessionId(row.parent_session_id) : null,
-          directWorkerCount: row.direct_worker_count,
-          activeDirectWorkerCount: row.active_direct_worker_count,
-          agentDefinitionName: row.agent_definition_name,
-          delegationState: row.delegation_state,
-        },
-      }
-    : {}
-}
 
 /**
  * The detail-side summary shape, which carries `messageCount` and deliberately omits the
@@ -48,8 +34,6 @@ function hydrateSessionDetailSummary(row: SessionSummaryRow) {
     archived: row.archived === 1 ? true : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    ...(row.selected_model ? { selectedModel: SupportedModelId(row.selected_model) } : {}),
-    ...lineageFields(row),
   }
 }
 
@@ -75,8 +59,8 @@ function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly Session
       ...(isAgentAuthorizationMode(sessionRow.authorization_mode_override)
         ? { authorizationMode: sessionRow.authorization_mode_override }
         : {}),
-      ...(sessionRow.selected_model
-        ? { selectedModel: SupportedModelId(sessionRow.selected_model) }
+      ...(sessionRow.execution_model_id
+        ? { executionModel: SupportedModelId(sessionRow.execution_model_id) }
         : {}),
     }
   } catch (error) {
@@ -92,25 +76,27 @@ function isSessionDetail(session: SessionDetail | null) {
 function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
   return sql<SessionRow>`
     SELECT
-      id,
-      pi_session_id,
-      pi_session_file,
-      project_path,
-      title,
-      archived,
-      waggle_config_json,
-      created_at,
-      updated_at,
-      last_active_node_id,
-      last_active_branch_id,
-      environment_mode,
-      worktree_path,
-      worktree_base_ref,
-      worktree_start_from_origin,
-      authorization_mode_override,
-      selected_model
+      sessions.id,
+      sessions.pi_session_id,
+      sessions.pi_session_file,
+      sessions.project_path,
+      sessions.title,
+      sessions.archived,
+      sessions.waggle_config_json,
+      sessions.created_at,
+      sessions.updated_at,
+      sessions.last_active_node_id,
+      sessions.last_active_branch_id,
+      sessions.environment_mode,
+      sessions.worktree_path,
+      sessions.worktree_base_ref,
+      sessions.worktree_start_from_origin,
+      sessions.authorization_mode_override,
+      json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id
     FROM sessions
-    WHERE id = ${id}
+    LEFT JOIN session_execution_profiles
+      ON session_execution_profiles.session_id = sessions.id
+    WHERE sessions.id = ${id}
     LIMIT 1
   `
 }
@@ -136,50 +122,6 @@ function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
   `
 }
 
-/** Shared summary projection: message count plus the Hive lineage fields (main's Session Summary). */
-function summaryColumns(sql: SqlClient.SqlClient) {
-  return sql<never>`
-    s.id,
-    s.title,
-    s.project_path,
-    s.archived,
-    s.created_at,
-    s.updated_at,
-    s.selected_model,
-    (
-      SELECT COUNT(*)
-      FROM session_nodes sn
-      WHERE sn.session_id = s.id
-        AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
-    ) AS message_count,
-    CASE
-      WHEN sl.session_id IS NOT NULL OR EXISTS (
-        SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
-      ) THEN 1
-      ELSE 0
-    END AS lineage_present,
-    CASE
-      WHEN sl.parent_session_id IS NOT NULL THEN 'worker'
-      WHEN EXISTS (
-        SELECT 1 FROM session_lineage child WHERE child.parent_session_id = s.id
-      ) THEN 'queen'
-      ELSE 'independent'
-    END AS lineage_role,
-    sl.parent_session_id,
-    (
-      SELECT COUNT(*) FROM session_lineage child WHERE child.parent_session_id = s.id
-    ) AS direct_worker_count,
-    (
-      SELECT COUNT(*)
-      FROM session_lineage child
-      WHERE child.parent_session_id = s.id
-        AND child.delegation_state NOT IN ('accepted', 'cancelled')
-    ) AS active_direct_worker_count,
-    sl.agent_definition_name,
-    sl.delegation_state
-  `
-}
-
 function summaryCountSql(
   sql: SqlClient.SqlClient,
   archived: number,
@@ -188,9 +130,19 @@ function summaryCountSql(
 ) {
   return sql<SessionSummaryRow>`
     SELECT
-      ${summaryColumns(sql)}
+      s.id,
+      s.title,
+      s.project_path,
+      s.archived,
+      s.created_at,
+      s.updated_at,
+      (
+        SELECT COUNT(*)
+        FROM session_nodes sn
+        WHERE sn.session_id = s.id
+          AND sn.pi_entry_type = ${MESSAGE_ENTRY_TYPE}
+      ) AS message_count
     FROM sessions s
-    LEFT JOIN session_lineage sl ON sl.session_id = s.id
     WHERE s.archived = ${archived}
     ORDER BY s.updated_at DESC
     LIMIT ${limit ?? -1}
@@ -213,42 +165,12 @@ export async function listArchivedSessions(): Promise<SessionSummary[]> {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 1, null)
-      return rows.map(hydrateSessionDetailSummary)
-    }),
-  )
-}
-
-/** Returns the bounded summaries used by one opened Session's Hive section. */
-export async function getSessionHiveRelations(id: SessionId): Promise<SessionHiveRelations> {
-  return runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<SessionSummaryRow>`
-        WITH hive_session_ids(id) AS (
-          VALUES (${id})
-          UNION
-          SELECT parent_session_id FROM session_lineage
-          WHERE session_id = ${id}
-            AND parent_session_id IS NOT NULL
-          UNION
-          SELECT session_id FROM session_lineage
-          WHERE parent_session_id = ${id}
-        )
-        SELECT
-          ${summaryColumns(sql)}
-        FROM sessions s
-        INNER JOIN hive_session_ids hive ON hive.id = s.id
-        LEFT JOIN session_lineage sl ON sl.session_id = s.id
-        ORDER BY s.updated_at DESC, s.id ASC
-      `
-      const summaries = rows.map(hydrateSessionDetailSummary)
-      const current = summaries.find((summary) => summary.id === id) ?? null
-      const parentId = current?.lineage?.parentSessionId ?? null
-      return {
-        current,
-        parent: parentId ? (summaries.find((summary) => summary.id === parentId) ?? null) : null,
-        workers: summaries.filter((summary) => summary.lineage?.parentSessionId === id),
-      }
+      const sessions = rows.map(hydrateSessionDetailSummary)
+      if (sessions.length === 0) return sessions
+      return attachSessionLineage(
+        sessions,
+        yield* loadSessionLineageRows(sql, sessionIdsForQuery(sessions)),
+      )
     }),
   )
 }
@@ -257,24 +179,6 @@ export async function listSessionDetails(limit?: number, offset = 0): Promise<Se
   const summaries = await listSessionSummaries(limit, offset)
   const sessions = await Promise.all(summaries.map((summary) => getSessionDetail(summary.id)))
   return sessions.filter(isSessionDetail)
-}
-
-export async function listSessionWorkspaceRoots(): Promise<
-  readonly { readonly projectPath: string | null; readonly worktreePath: string | null }[]
-> {
-  return runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<{
-        readonly project_path: string | null
-        readonly worktree_path: string | null
-      }>`SELECT project_path, worktree_path FROM sessions`
-      return rows.map((row) => ({
-        projectPath: row.project_path,
-        worktreePath: row.worktree_path,
-      }))
-    }),
-  )
 }
 
 export async function getSessionDetail(id: SessionId): Promise<SessionDetail | null> {
@@ -289,6 +193,107 @@ export async function getSessionDetail(id: SessionId): Promise<SessionDetail | n
 
       const nodeRows = yield* selectSessionNodeRows(sql, id)
       return hydrateSessionDetail(sessionRow, nodeRows)
+    }),
+  )
+}
+
+export async function getSessionAuthorizationBoundary(id: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{
+        readonly execution_ceiling: 'yolo' | 'ask-for-approval'
+        readonly grant_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly grant_revoked_at: number | null
+        readonly profile_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly profile_revoked_at: number | null
+      }>`
+        SELECT
+          execution.authorization_ceiling AS execution_ceiling,
+          grants.authorization_ceiling AS grant_ceiling,
+          grants.revoked_at AS grant_revoked_at,
+          profiles.authorization_ceiling AS profile_ceiling,
+          profiles.revoked_at AS profile_revoked_at
+        FROM session_execution_profiles AS execution
+        LEFT JOIN derived_child_management_grants AS grants
+          ON grants.child_session_id = execution.session_id
+        LEFT JOIN session_client_profiles AS profiles
+          ON execution.authority_origin_caller_id = ${'profile:'} || profiles.id
+        WHERE execution.session_id = ${id}
+        LIMIT 1
+      `
+      return rows[0] ?? null
+    }),
+  )
+}
+
+function callerSourceSessionId(callerId: string) {
+  const prefix = 'session-agent:'
+  if (!callerId.startsWith(prefix)) return undefined
+  const lastSeparator = callerId.lastIndexOf(':')
+  return lastSeparator > prefix.length ? callerId.slice(prefix.length, lastSeparator) : undefined
+}
+
+export async function getSessionCallerAuthorizationBoundary(callerId: string) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      if (callerId.startsWith('profile:')) {
+        const profileId = callerId.slice('profile:'.length)
+        const rows = yield* sql<{
+          readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
+          readonly revoked_at: number | null
+        }>`
+          SELECT authorization_ceiling, revoked_at
+          FROM session_client_profiles WHERE id = ${profileId} LIMIT 1
+        `
+        const row = rows[0]
+        return row
+          ? { authorizationCeiling: row.authorization_ceiling, revoked: row.revoked_at !== null }
+          : { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
+      }
+
+      const sourceSessionId = callerSourceSessionId(callerId)
+      if (!sourceSessionId) return null
+      const rows = yield* sql<{
+        readonly execution_ceiling: 'yolo' | 'ask-for-approval'
+        readonly grant_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly grant_revoked_at: number | null
+        readonly parent_session_id: string | null
+        readonly profile_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly profile_revoked_at: number | null
+      }>`
+        SELECT execution.authorization_ceiling AS execution_ceiling,
+          COALESCE(lineage.parent_session_id, historical.parent_session_id)
+            AS parent_session_id,
+          grants.authorization_ceiling AS grant_ceiling,
+          grants.revoked_at AS grant_revoked_at,
+          profiles.authorization_ceiling AS profile_ceiling,
+          profiles.revoked_at AS profile_revoked_at
+        FROM session_execution_profiles AS execution
+        LEFT JOIN session_spawn_lineage AS lineage
+          ON lineage.child_session_id = execution.session_id
+        LEFT JOIN session_lineage AS historical
+          ON historical.session_id = execution.session_id
+        LEFT JOIN derived_child_management_grants AS grants
+          ON grants.child_session_id = execution.session_id
+        LEFT JOIN session_client_profiles AS profiles
+          ON execution.authority_origin_caller_id = ${'profile:'} || profiles.id
+        WHERE execution.session_id = ${sourceSessionId}
+        LIMIT 1
+      `
+      const row = rows[0]
+      if (!row) return { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
+      const missingWorkerGrant = row.parent_session_id !== null && row.grant_ceiling === null
+      const revoked =
+        missingWorkerGrant || row.grant_revoked_at !== null || row.profile_revoked_at !== null
+      const authorizationCeiling =
+        row.execution_ceiling === 'ask-for-approval' ||
+        row.grant_ceiling === 'ask-for-approval' ||
+        row.profile_ceiling === 'ask-for-approval'
+          ? ('ask-for-approval' as const)
+          : ('yolo' as const)
+      return { authorizationCeiling, revoked }
     }),
   )
 }

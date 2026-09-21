@@ -1,7 +1,6 @@
 import type { ModelDisplayInfo, SupportedModelId } from '@shared/types/llm'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
-import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useProviderStore } from '@/features/providers/state/provider-store'
 import { usePreferencesStore } from '@/features/settings/state'
 
@@ -9,7 +8,7 @@ interface SelectedModelThinkingLevelInput {
   readonly providerModels: readonly {
     readonly models: readonly ModelDisplayInfo[]
   }[]
-  readonly selectedModel: SupportedModelId | undefined
+  readonly selectedModel: SupportedModelId
   readonly requestedThinkingLevel: ThinkingLevel
 }
 
@@ -23,9 +22,9 @@ interface SelectedModelThinkingLevel {
 
 function findSelectedModel(
   providerModels: SelectedModelThinkingLevelInput['providerModels'],
-  selectedModel: SupportedModelId | undefined,
+  selectedModel: SupportedModelId,
 ) {
-  const selectedModelId = selectedModel?.trim() ?? ''
+  const selectedModelId = selectedModel.trim()
   if (!selectedModelId) {
     return null
   }
@@ -68,10 +67,22 @@ export function resolveSelectedModelThinkingLevel(
   }
 }
 
-export function useSelectedModelThinkingLevel(): SelectedModelThinkingLevel {
-  const selectedModel = useSelectedSessionModel().selectedModel
+export function useSelectedModelThinkingLevel(
+  selectedModelOverride?: SupportedModelId | null,
+): SelectedModelThinkingLevel {
+  const preferredModel = usePreferencesStore((state) => state.settings.selectedModel)
   const requestedThinkingLevel = usePreferencesStore((state) => state.settings.thinkingLevel)
   const providerModels = useProviderStore((state) => state.providerModels)
+  if (selectedModelOverride === null) {
+    return {
+      requestedThinkingLevel,
+      effectiveThinkingLevel: requestedThinkingLevel,
+      availableThinkingLevels: [],
+      capabilitiesKnown: false,
+      isAdjustedForModel: false,
+    }
+  }
+  const selectedModel = selectedModelOverride ?? preferredModel
 
   return resolveSelectedModelThinkingLevel({
     providerModels,

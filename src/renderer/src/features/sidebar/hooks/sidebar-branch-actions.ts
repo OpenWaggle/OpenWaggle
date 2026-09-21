@@ -27,8 +27,7 @@ interface SidebarBranchActionDeps {
     sessionId: SessionId | null,
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
-  readonly selectedModel: SupportedModelId | undefined
-  /** The global settings default — the fallback for a target session that never picked. */
+  /** The global settings default — the fallback for a historical session without a profile. */
   readonly defaultModel: SupportedModelId
   readonly sessions: readonly SessionSummary[]
   readonly showToast: (message: string) => void
@@ -68,46 +67,49 @@ function refreshBranchWorkspace(
   })
 }
 
-function switchSessionBranch(
+async function switchSessionBranch(
   deps: SidebarBranchActionDeps,
   sessionId: string,
   branch: SessionBranch,
 ) {
   const targetSessionId = SessionId(sessionId)
-  // Validate the target session's resolved model before any navigation state changes, so a
-  // disabled or pruned pick cannot strand the route on a failed branch transition.
-  const targetSession = deps.sessions.find((item) => String(item.id) === sessionId)
-  const targetModel = targetSession?.selectedModel ?? deps.defaultModel
-  if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, targetModel)) {
-    deps.showToast('Select a model before switching branches.')
-    return
+  try {
+    const cached = useChatStore.getState().sessionById.get(targetSessionId)
+    const targetModel =
+      cached?.executionModel ??
+      (await api.getSessionDetail(targetSessionId))?.executionModel ??
+      deps.defaultModel
+    if (!isModelActionable(usePreferencesStore.getState().settings.enabledModels, targetModel)) {
+      deps.showToast('Select a model before switching branches.')
+      return
+    }
+    const { headNodeId, targetBranchId } = navigateToSessionBranch(deps, sessionId, branch)
+
+    useBranchSummaryStore.getState().clearPrompt()
+    if (deps.activeSessionId) deps.clearDraftBranchForSession(deps.activeSessionId)
+    deps.clearDraftBranchForSession(targetSessionId)
+    useChatStore.getState().setActiveSession(targetSessionId)
+
+    if (!headNodeId) return
+
+    const targetNodeId = SessionNodeId(headNodeId)
+    try {
+      await api.navigateSessionTree(targetSessionId, targetModel, targetNodeId, {
+        summarize: false,
+      })
+    } finally {
+      refreshBranchWorkspace(deps, targetSessionId, targetBranchId, targetNodeId)
+    }
+  } catch (error) {
+    deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
   }
-  const { headNodeId, targetBranchId } = navigateToSessionBranch(deps, sessionId, branch)
-
-  useBranchSummaryStore.getState().clearPrompt()
-  if (deps.activeSessionId) deps.clearDraftBranchForSession(deps.activeSessionId)
-  deps.clearDraftBranchForSession(targetSessionId)
-  useChatStore.getState().setActiveSession(targetSessionId)
-
-  if (!headNodeId) return
-
-  const targetNodeId = SessionNodeId(headNodeId)
-  // Switching branches must not retarget the run to whatever model the last-touched session used:
-  // resolve the target session's own pick, falling back to the global default (deps.defaultModel,
-  // not deps.selectedModel — that is the active session's resolved model, not this target's).
-  void api
-    .navigateSessionTree(targetSessionId, targetModel, targetNodeId, { summarize: false })
-    .catch((error: unknown) => {
-      deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
-    })
-    .finally(() => refreshBranchWorkspace(deps, targetSessionId, targetBranchId, targetNodeId))
 }
 
 function navigateToMainBranchAfterArchive(deps: SidebarBranchActionDeps, sessionId: string) {
   const session = deps.sessions.find((item) => String(item.id) === sessionId)
   const mainBranch = session?.branches?.find((branch) => branch.isMain)
   if (mainBranch) {
-    switchSessionBranch(deps, sessionId, mainBranch)
+    void switchSessionBranch(deps, sessionId, mainBranch)
     return
   }
 
@@ -146,7 +148,7 @@ export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
         })
     },
     select(sessionId: string, branch: SessionBranch) {
-      switchSessionBranch(deps, sessionId, branch)
+      void switchSessionBranch(deps, sessionId, branch)
     },
     toggle(sessionId: SessionId, collapsed: boolean) {
       void api

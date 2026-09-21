@@ -165,12 +165,22 @@ const config: object[] = [
     },
   },
   {
+    // The Effect DI composition root wires every service layer plus the bundled
+    // provider/OAuth registrations; it legitimately runs a little over the default.
+    files: ['src/main/runtime.ts'],
+    rules: {
+      'max-lines': ['error', { max: 340, skipBlankLines: true, skipComments: false }],
+    },
+  },
+  {
     // Relocated from e2e/support (which lint never covered). QA seed + website
     // screenshot fixtures: fixture data, not production code.
     files: ['scripts/support/**/*.ts'],
     rules: {
       'max-lines': 'off',
       'max-lines-per-function': 'off',
+      complexity: 'off',
+      'openwaggle/no-inline-magic-numbers': 'off',
       'openwaggle/prefer-inferred-internal-return-types': 'off',
     },
   },

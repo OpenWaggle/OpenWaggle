@@ -1,11 +1,13 @@
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { grantPendingAuthorizationsForSession } from '../agent-loop-authorization-grants'
 import {
   clearAgentLoopInteractionBrokerForTests,
   failAgentLoopInteraction,
-  grantPendingAuthorizationsForSession,
+  listPendingAgentLoopInteractions,
+  registerAgentLoopInteractionDeadline,
   requestAgentLoopInteraction,
   submitAgentLoopInteractionResponse,
 } from '../agent-loop-interaction-broker'
@@ -56,6 +58,8 @@ describe('agent-loop interaction broker', () => {
   beforeEach(() => {
     clearAgentLoopInteractionBrokerForTests()
   })
+
+  afterEach(() => vi.useRealTimers())
 
   it('emits pending and resolved events while resolving Pi confirm responses', async () => {
     const emitted: AgentTransportEvent[] = []
@@ -116,6 +120,45 @@ describe('agent-loop interaction broker', () => {
     expect(emitted.filter((event) => event.type === 'agent_interaction_resolved')).toHaveLength(1)
   })
 
+  it('lists pending requests and enforces the response versus approval channel', async () => {
+    const pending = requestAgentLoopInteraction({
+      interaction: { ...confirmInteraction(), purpose: 'authorization' },
+      onEvent: () => undefined,
+    })
+
+    expect(listPendingAgentLoopInteractions(sessionId)).toMatchObject([
+      { interactionId: 'confirm-1', purpose: 'authorization' },
+    ])
+    expect(
+      submitAgentLoopInteractionResponse(
+        {
+          sessionId,
+          runId: 'run-1',
+          interactionId: 'confirm-1',
+          kind: 'confirm',
+          response: { kind: 'confirm', accepted: true },
+        },
+        'response',
+      ),
+    ).toMatchObject({ ok: false, error: { code: 'interaction-mismatch' } })
+    expect(listPendingAgentLoopInteractions(sessionId)).toHaveLength(1)
+
+    expect(
+      submitAgentLoopInteractionResponse(
+        {
+          sessionId,
+          runId: 'run-1',
+          interactionId: 'confirm-1',
+          kind: 'confirm',
+          response: { kind: 'confirm', accepted: true },
+        },
+        'approval',
+      ),
+    ).toMatchObject({ ok: true })
+    await expect(pending).resolves.toMatchObject({ accepted: true })
+    expect(listPendingAgentLoopInteractions(sessionId)).toHaveLength(0)
+  })
+
   it('resolves with the Pi dismissed fallback when the run aborts', async () => {
     const emitted: AgentTransportEvent[] = []
     const abortController = new AbortController()
@@ -168,6 +211,29 @@ describe('agent-loop interaction broker', () => {
         error: { code: 'custom-renderer-unavailable' },
       },
     ])
+  })
+
+  it('interrupts the exact Run when its configured parked-interaction deadline expires', async () => {
+    vi.useFakeTimers()
+    const emitted: AgentTransportEvent[] = []
+    const onTimeout = vi.fn()
+    registerAgentLoopInteractionDeadline({ runId: 'run-1', timeoutMs: 5000, onTimeout })
+    const pending = requestAgentLoopInteraction({
+      interaction: confirmInteraction(),
+      onEvent: (event) => emitted.push(event),
+    })
+    const rejected = expect(pending).rejects.toThrow('interaction deadline expired')
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    await rejected
+    expect(onTimeout).toHaveBeenCalledOnce()
+    expect(listPendingAgentLoopInteractions(sessionId)).toHaveLength(0)
+    expect(emitted.at(-1)).toMatchObject({
+      type: 'agent_interaction_resolved',
+      status: 'errored',
+      error: { code: 'interaction-timeout' },
+    })
   })
 })
 

@@ -4,6 +4,12 @@ import type {
   ExtensionFactory,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
+import {
+  createBashToolDefinition,
+  createPowerShellToolDefinition,
+  defineTool,
+  type ToolDefinition,
+} from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -15,7 +21,6 @@ import {
   extractPiAssistantTerminalError,
   getPiAssistantStopReason,
 } from '../pi-run-result'
-import { buildPiPromptInput, PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE } from '../pi-runtime-input'
 import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
@@ -40,6 +45,8 @@ import {
 import { createSessionManagerForSession } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 
+export { promptPiSession } from './run-prompt'
+
 export interface PiRunSessionRuntime {
   readonly model: PiModel
   readonly session: AgentSession
@@ -51,11 +58,14 @@ interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInpu
   readonly runId: AgentKernelRunInput['runId']
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
+  readonly runAuthorizationOverride?: AgentKernelRunInput['runAuthorizationOverride']
+  readonly authorityCallerId?: AgentKernelRunInput['authorityCallerId']
   readonly compactionThresholdPercent: AgentKernelRunInput['compactionThresholdPercent']
   readonly signal: AgentKernelRunInput['signal']
   readonly onEvent: AgentKernelRunInput['onEvent']
   readonly onControlAvailable?: AgentKernelRunInput['onControlAvailable']
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
@@ -87,6 +97,14 @@ async function createPiSessionForRun(input: {
   readonly thinkingLevel: ThinkingLevel
   readonly openWaggleUi: OpenWaggleAgentSessionOptions['openWaggleUi']
 }) {
+  const markAgentRun = (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => ({
+    ...context,
+    env: { ...context.env, OPENWAGGLE_AGENT_RUN: '1' },
+  })
+  const customTools: ToolDefinition[] = [
+    defineTool(createBashToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
+    defineTool(createPowerShellToolDefinition(input.services.cwd, { spawnHook: markAgentRun })),
+  ]
   const hasExistingMessages = input.sessionManager.buildSessionContext().messages.length > 0
   const result = hasExistingMessages
     ? await createOpenWaggleAgentSessionFromServices({
@@ -94,6 +112,7 @@ async function createPiSessionForRun(input: {
         model: input.model,
         sessionManager: input.sessionManager,
         openWaggleUi: input.openWaggleUi,
+        customTools,
       })
     : await createOpenWaggleAgentSessionFromServices({
         services: input.services,
@@ -101,6 +120,7 @@ async function createPiSessionForRun(input: {
         thinkingLevel: input.thinkingLevel,
         sessionManager: input.sessionManager,
         openWaggleUi: input.openWaggleUi,
+        customTools,
       })
 
   if (hasExistingMessages) {
@@ -118,6 +138,7 @@ export async function createPiRunSessionRuntime(
     modelReference: input.modelReference,
     compactionThresholdPercent: input.compactionThresholdPercent,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
     ...(input.trustedExtensionFactories
       ? { trustedExtensionFactories: [...input.trustedExtensionFactories] }
@@ -141,7 +162,12 @@ export async function createPiRunSessionRuntime(
     // Deliberately the session's project, not `input.projectPath`: the latter is the run cwd, which
     // for a worktree session is the worktree. Authorization state belongs to the repository.
     authorizationProjectPath: input.session.projectPath,
-    resolveAuthorizationMode: () => resolveEffectiveAuthorizationMode(input.session.id),
+    resolveAuthorizationMode: () =>
+      resolveEffectiveAuthorizationMode(
+        input.session.id,
+        input.runAuthorizationOverride,
+        input.authorityCallerId,
+      ),
     signal: input.signal,
     onEvent: input.onEvent,
   }
@@ -225,29 +251,6 @@ async function abortPreCancelledRun(session: AgentSession, warning: string) {
     sessionSnapshot: projectPiSessionSnapshot(session),
     aborted: true,
   } satisfies AgentKernelRunResult
-}
-
-export async function promptPiSession(
-  session: AgentSession,
-  model: PiModel,
-  payload: HydratedAgentSendPayload,
-) {
-  const promptInput = buildPiPromptInput(model, payload)
-  if (promptInput.visualizationContext) {
-    await session.sendCustomMessage(
-      {
-        customType: PI_VISUALIZATION_CONTEXT_CUSTOM_TYPE,
-        content: promptInput.visualizationContext,
-        display: false,
-        details: { source: 'openwaggle', kind: 'inline-visualization-context' },
-      },
-      { deliverAs: 'nextTurn', triggerTurn: false },
-    )
-  }
-  await session.prompt(
-    promptInput.text,
-    promptInput.images.length > 0 ? { images: [...promptInput.images] } : undefined,
-  )
 }
 
 export async function runSubscribedPiOperation(input: {

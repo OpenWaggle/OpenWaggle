@@ -18,6 +18,7 @@ import {
   sessionServiceSettingsLayer,
 } from './agent-session-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const persistSnapshotMock = vi.fn()
 const forkSessionMock = vi.fn()
@@ -34,7 +35,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       return id === forkedSession.id ? forkedSession : session
     }),
   getOptional: () => Effect.succeed(session),
-  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: (input) =>
@@ -42,7 +42,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
       createProjectionMock(input)
       return forkedSession
     }),
-  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -50,7 +49,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   updateTitle: () => Effect.void,
   setWorktreePlan: () => Effect.void,
   setAuthorizationMode: () => Effect.void,
-  setSelectedModel: () => Effect.void,
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   setTurnCheckpointAnchor: () => Effect.void,
@@ -58,6 +56,7 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () =>
@@ -233,8 +232,6 @@ describe('agent session copy commands', () => {
       piSessionFile: '/tmp/pi-session-forked.jsonl',
       // Inherited from the source session, so the fork keeps its isolation.
       environmentMode: 'worktree',
-      // The copy pins the model the kernel actually used.
-      selectedModel: SupportedModelId('openai/gpt-5.4'),
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('pi-session-forked'),
@@ -273,32 +270,6 @@ describe('agent session copy commands', () => {
       expect.objectContaining({
         targetNodeId: 'current-node',
         position: 'at',
-      }),
-    )
-  })
-
-  it('pins the model the copy was actually created with', async () => {
-    // The source row can lag the live pick (an optimistic pick whose write is still in flight),
-    // and the kernel reconstructs the copy with input.model — persisting the stale row value
-    // made the copy display and send with a model the kernel never used.
-    forkSessionMock.mockResolvedValue({
-      cancelled: false,
-      piSessionId: 'pi-session-forked',
-      piSessionFile: '/tmp/pi-session-forked.jsonl',
-      sessionSnapshot: { activeNodeId: 'current-node', nodes: [] },
-    })
-
-    await Effect.runPromise(
-      cloneAgentSessionToNewSession({
-        sessionId: SessionId('session-1'),
-        model: SupportedModelId('openai/gpt-5.4'),
-        targetNodeId: SessionNodeId('current-node'),
-      }).pipe(Effect.provide(TestLayer)),
-    )
-
-    expect(createProjectionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        selectedModel: SupportedModelId('openai/gpt-5.4'),
       }),
     )
   })

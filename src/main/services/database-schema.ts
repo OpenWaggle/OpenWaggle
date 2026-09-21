@@ -55,6 +55,10 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   ON session_nodes (session_id, created_order)
   `,
   `
+  CREATE INDEX IF NOT EXISTS idx_session_nodes_active_branch_created_order
+  ON session_nodes (session_id, branch_hint_id, created_order)
+  `,
+  `
   CREATE TABLE IF NOT EXISTS session_branches (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -100,6 +104,10 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     runtime_json TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_active_runs_status_session
+  ON session_active_runs (status, session_id)
   `,
 ] as const
 
@@ -176,14 +184,6 @@ export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
   ALTER TABLE sessions
   ADD COLUMN authorization_mode_override TEXT
     CHECK (authorization_mode_override IN ('yolo', 'ask-for-approval'))
-  `,
-] as const
-
-/** Model explicitly picked for one session; NULL keeps inheriting the global default. */
-export const SESSION_SELECTED_MODEL_MIGRATION_STATEMENTS = [
-  `
-  ALTER TABLE sessions
-  ADD COLUMN selected_model TEXT
   `,
 ] as const
 

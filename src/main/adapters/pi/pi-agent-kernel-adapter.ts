@@ -34,6 +34,8 @@ import {
 import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
 import { runPiAgentKernel } from './pi-agent-kernel-run'
 
+export { prepareMcpTurn } from './pi-agent-kernel-run'
+
 const logger = createLogger('pi-agent-kernel')
 
 function toAgentKernelError(error: unknown) {
@@ -79,13 +81,8 @@ function loadPiRuntimeExtensionIsolationInput(
   input: AgentKernelSessionInput,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
 ): Effect.Effect<PiRuntimeExtensionIsolationInput> {
-  return Effect.gen(function* () {
-    const enabledOpenWaggleExtensionPackages = yield* loadEnabledOpenWaggleExtensionPackages(
-      input,
-      extensionSelectionServices,
-    )
-
-    return {
+  return loadEnabledOpenWaggleExtensionPackages(input, extensionSelectionServices).pipe(
+    Effect.map((enabledOpenWaggleExtensionPackages) => ({
       enabledOpenWaggleExtensionPackages,
       recordOpenWaggleExtensionRuntimeFailure: (selection, error, operation) =>
         recordRuntimeLoadFailure({
@@ -95,11 +92,9 @@ function loadPiRuntimeExtensionIsolationInput(
           logger,
           operation,
         }),
-    }
-  })
+    })),
+  )
 }
-
-export { prepareMcpTurn } from './pi-agent-kernel-run'
 
 export const PiAgentKernelLive = Layer.effect(
   AgentKernelService,

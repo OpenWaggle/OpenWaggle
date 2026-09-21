@@ -8,6 +8,7 @@ import type { ReactElement } from 'react'
 import { type Mock, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state'
 import { useSessionSummaryUIStore } from '@/features/session-summary'
+import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useUIStore } from '@/shell/ui-store'
 import type { ChatPanelSections } from '../../model'
@@ -107,6 +108,7 @@ export function setupChatPanelSessionSummaryHarness() {
   vi.stubGlobal('ResizeObserver', TestResizeObserver)
   localStorage.clear()
   useSessionSummaryUIStore.setState({ panels: {} })
+  useSessionStore.setState(useSessionStore.getInitialState())
   usePreferencesStore.setState({
     ...usePreferencesStore.getInitialState(),
     settings: {

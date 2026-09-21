@@ -42,17 +42,14 @@ interface DraftBranchComposerInput {
   readonly sessionId: SessionId
   readonly sourceNodeId: SessionNodeId
   readonly fallbackText: string
+  readonly projectPath: string | null
 }
 
-function draftBranchComposerContextKey(
-  params: BranchSummaryWorkflowParams,
-  sessionId: SessionId,
-  sourceNodeId: SessionNodeId,
-) {
+function draftBranchComposerContextKey(prompt: BranchSummaryPromptState) {
   return buildComposerDraftContextKey({
-    projectPath: params.activeWorkspace?.tree.session.projectPath ?? params.projectPath,
-    sessionId,
-    draftSourceNodeId: sourceNodeId,
+    projectPath: prompt.projectPath,
+    sessionId: prompt.sessionId,
+    draftSourceNodeId: prompt.sourceNodeId,
   })
 }
 
@@ -74,15 +71,13 @@ function routeToSessionSelection(
 
 function isCurrentBranchSummaryPrompt(prompt: BranchSummaryPromptState) {
   const currentPrompt = useBranchSummaryStore.getState().prompt
-  const currentWorkspace = useSessionStore.getState().activeWorkspace
+  const currentDraft = useSessionStore.getState().draftBranch
   const currentSessionId = useChatStore.getState().activeSessionId
   return (
-    currentPrompt?.sessionId === prompt.sessionId &&
-    currentPrompt.sourceNodeId === prompt.sourceNodeId &&
-    currentPrompt.previousComposerText === prompt.previousComposerText &&
-    currentPrompt.draftComposerText === prompt.draftComposerText &&
-    currentPrompt.mode === 'summarizing' &&
-    currentWorkspace?.tree.session.id === prompt.sessionId &&
+    currentPrompt === prompt &&
+    prompt.mode === 'summarizing' &&
+    currentDraft?.sessionId === prompt.sessionId &&
+    currentDraft.sourceNodeId === prompt.sourceNodeId &&
     String(currentSessionId) === String(prompt.sessionId)
   )
 }
@@ -98,11 +93,12 @@ function restoreBranchSummaryChoice(
   useBranchSummaryStore.getState().restoreChoice()
 }
 
-function switchComposerToDraftBranch(
-  params: BranchSummaryWorkflowParams,
-  input: DraftBranchComposerInput,
-) {
-  const contextKey = draftBranchComposerContextKey(params, input.sessionId, input.sourceNodeId)
+function switchComposerToDraftBranch(input: DraftBranchComposerInput) {
+  const contextKey = buildComposerDraftContextKey({
+    projectPath: input.projectPath,
+    sessionId: input.sessionId,
+    draftSourceNodeId: input.sourceNodeId,
+  })
   const appliedDraft = useComposerStore.getState().switchScopedDraftContext(contextKey, {
     input: input.fallbackText,
     attachments: [],
@@ -127,7 +123,9 @@ function applySummarizedBranchDraft(
   prompt: BranchSummaryPromptState,
 ) {
   const workspace = useSessionStore.getState().activeWorkspace
-  if (!workspace) return null
+  if (workspace?.tree.session.id !== prompt.sessionId) {
+    throw new Error('The summarized branch workspace is not available. Please try again.')
+  }
 
   const contextKey = buildComposerDraftContextKey({
     projectPath: workspace.tree.session.projectPath,
@@ -136,14 +134,13 @@ function applySummarizedBranchDraft(
     activeNodeId: workspace.activeNodeId,
   })
   const sourceAttachments = useComposerStore.getState().attachments
-  const appliedDraft = useComposerStore.getState().switchScopedDraftContext(
-    contextKey,
-    {
-      input: prompt.draftComposerText,
-      attachments: sourceAttachments,
-    },
-    { input: prompt.draftComposerText, attachments: sourceAttachments },
-  )
+  const appliedDraft = useComposerStore
+    .getState()
+    .switchScopedDraftContext(
+      contextKey,
+      { input: prompt.draftComposerText, attachments: sourceAttachments },
+      { input: prompt.draftComposerText, attachments: sourceAttachments },
+    )
   const attachments = [
     ...new Map(
       [...appliedDraft.attachments, ...sourceAttachments].map((attachment) => [
@@ -165,9 +162,7 @@ function applySummarizedBranchDraft(
   if (!exceedsCount && exceedsSize) {
     params.showToast('Your draft exceeds the 20 MB attachment limit. Remove some before retrying.')
   }
-  useComposerStore
-    .getState()
-    .clearScopedDraft(draftBranchComposerContextKey(params, prompt.sessionId, prompt.sourceNodeId))
+  useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
   setComposerTextValue(appliedDraft.input)
   return workspace
 }
@@ -191,15 +186,15 @@ async function finishBranchSummary(
   params: BranchSummaryWorkflowParams,
   prompt: BranchSummaryPromptState,
 ) {
-  useBranchSummaryStore.getState().clearPrompt()
-  params.clearDraftBranchForSession(prompt.sessionId)
   await refreshAfterBranchSummary(params, prompt)
-  if (String(useChatStore.getState().activeSessionId) !== String(prompt.sessionId)) return
+  if (!isCurrentBranchSummaryPrompt(prompt)) return
 
   const workspace = applySummarizedBranchDraft(params, prompt)
+  useBranchSummaryStore.getState().clearPrompt()
+  params.clearDraftBranchForSession(prompt.sessionId)
   routeToSessionSelection(params, prompt.sessionId, {
-    branchId: workspace?.activeBranchId ?? null,
-    nodeId: workspace?.activeNodeId ?? null,
+    branchId: workspace.activeBranchId,
+    nodeId: workspace.activeNodeId,
   })
 }
 
@@ -214,11 +209,13 @@ async function materializeBranchSummaryAction(
   params: BranchSummaryWorkflowParams,
   customInstructions?: string,
 ) {
+  const initialPrompt = useBranchSummaryStore.getState().prompt
+  if (!initialPrompt) return
+
+  const previousMode = initialPrompt.mode
+  useBranchSummaryStore.getState().startSummarizing()
   const prompt = useBranchSummaryStore.getState().prompt
   if (!prompt) return
-
-  const previousMode = prompt.mode
-  useBranchSummaryStore.getState().startSummarizing()
 
   try {
     const navigation = await navigateWithBranchSummary(params, prompt, customInstructions)
@@ -267,7 +264,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
       const prompt = useBranchSummaryStore.getState().prompt
       if (!prompt) return
       const restoreContextKey = buildComposerDraftContextKey({
-        projectPath: params.activeWorkspace?.tree.session.projectPath ?? params.projectPath,
+        projectPath: prompt.projectPath,
         sessionId: prompt.sessionId,
         activeBranchId: prompt.restoreSelection.branchId,
         activeNodeId: prompt.restoreSelection.nodeId,
@@ -279,11 +276,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
           { input: prompt.previousComposerText, attachments: [] },
           { input: '', attachments: [] },
         )
-      useComposerStore
-        .getState()
-        .clearScopedDraft(
-          draftBranchComposerContextKey(params, prompt.sessionId, prompt.sourceNodeId),
-        )
+      useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
       useBranchSummaryStore.getState().clearPrompt()
       params.clearDraftBranchForSession(prompt.sessionId)
       setComposerTextValue(appliedDraft.input)
@@ -303,7 +296,7 @@ export function useBranchSummaryWorkflow(params: BranchSummaryWorkflowParams) {
       setComposerTextValue('')
     },
     switchComposerToDraftBranch(input: DraftBranchComposerInput) {
-      return switchComposerToDraftBranch(params, input)
+      return switchComposerToDraftBranch(input)
     },
   }
 }

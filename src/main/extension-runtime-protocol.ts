@@ -2,6 +2,7 @@ import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { parseJsonUnknown } from '@shared/schema'
+import type { ExtensionRuntimeModuleAccessInput } from '@shared/types/extensions'
 import { app, net, protocol } from 'electron'
 import {
   getContentHashRelativePaths,
@@ -13,10 +14,8 @@ import {
   calculateContentHash,
   resolveSafePackageFilePath,
 } from './adapters/extensions/package-files'
-import {
-  type ExtensionRuntimeModuleAccessInput,
-  isExtensionRuntimeModuleAccessAllowed,
-} from './application/extension-runtime-module-access-service'
+import { isExtensionRuntimeModuleAccessAllowed } from './application/extension-runtime-module-access-service'
+import { invokeConfiguredHostUiRaw } from './application/local-session-command-dispatcher'
 import { runAppEffect } from './runtime'
 import { isPathInside } from './utils/paths'
 
@@ -237,7 +236,11 @@ function parseExtensionModuleRequest(requestUrl: string) {
   }
 }
 
-function defaultExtensionRuntimeModuleAccessChecker(input: ExtensionRuntimeModuleAccessInput) {
+export async function defaultExtensionRuntimeModuleAccessChecker(
+  input: ExtensionRuntimeModuleAccessInput,
+) {
+  const remote = await invokeConfiguredHostUiRaw('extensions:authorize-runtime-module', [input])
+  if (remote.handled) return remote.result === true
   return runAppEffect(isExtensionRuntimeModuleAccessAllowed(input))
 }
 

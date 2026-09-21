@@ -92,6 +92,7 @@ const config = {
     // the channel, not just the packaged bundle icon (docs/adr/0032).
     { from: channelIcon, to: 'icon.png' },
     { from: 'build/openwaggle-docs', to: 'openwaggle-docs' },
+    { from: 'build/session-embedding-model', to: 'session-embedding-model' },
   ],
   mac: {
     // Local builds: skip codesigning (no Apple Developer ID).

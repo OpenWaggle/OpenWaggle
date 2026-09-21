@@ -2,6 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   getSettingsMock,
@@ -12,6 +13,13 @@ import {
   typedHandleMock,
   updateSettingsMock,
 } from './settings-handler.test-harness'
+
+function getRegisteredSettingsUpdateHandler(registerSettingsHandlers: () => void) {
+  registerSettingsHandlers()
+  const handler = getTypedEffectInvokeHandler('settings:update')
+  expect(handler).toBeDefined()
+  return handler
+}
 
 describe('registerSettingsHandlers', () => {
   let registerSettingsHandlers: Awaited<
@@ -59,12 +67,23 @@ describe('registerSettingsHandlers', () => {
     })
   })
 
+  describe('settings:set-enabled-models', () => {
+    it('persists string model refs and preserves invalid-payload behavior', async () => {
+      registerSettingsHandlers()
+      const handler = getTypedEffectInvokeHandler('settings:set-enabled-models')
+
+      await expect(handler?.({}, ['openai/gpt-5.4'])).resolves.toBeUndefined()
+      expect(updateSettingsMock).toHaveBeenCalledWith({ enabledModels: ['openai/gpt-5.4'] })
+
+      updateSettingsMock.mockClear()
+      await expect(handler?.({}, ['openai/gpt-5.4', 42])).resolves.toBeUndefined()
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('settings:update', () => {
     it('validates and applies a valid settings update', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { thinkingLevel: 'high' })
       expect(result).toEqual({ ok: true })
@@ -74,11 +93,41 @@ describe('registerSettingsHandlers', () => {
       )
     })
 
-    it('rejects an invalid settings payload and returns error', async () => {
-      registerSettingsHandlers()
+    it('validates and applies every Session Host policy setting', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+      const patch = {
+        sessionHostParentConcurrencyLimit: 8,
+        sessionHostParentConcurrencyLimitsByProject: { '/project': 12 },
+        sessionHostRunCeiling: 24,
+        sessionHostIdleGracePeriodMs: 0,
+        multiAgentEnabled: false,
+        multiAgentEnabledByProject: { '/project': true },
+      }
 
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      await expect(handler?.({}, patch)).resolves.toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(patch))
+    })
+
+    it('rejects invalid Session Host policy settings', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+      for (const patch of [
+        { sessionHostParentConcurrencyLimit: 0 },
+        { sessionHostParentConcurrencyLimitsByProject: { '/project': -1 } },
+        { sessionHostRunCeiling: 1.5 },
+        { sessionHostIdleGracePeriodMs: -1 },
+        { multiAgentEnabled: 'yes' },
+        { multiAgentEnabledByProject: { '/project': 'yes' } },
+      ]) {
+        await expect(handler?.({}, patch)).resolves.toEqual({
+          ok: false,
+          error: expect.any(String),
+        })
+      }
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects an invalid settings payload and returns error', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { thinkingLevel: 'invalid-mode' })
       expect(result).toEqual({ ok: false, error: expect.any(String) })
@@ -136,10 +185,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('converts selectedModel canonical ref to SupportedModelId', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       await handler?.({}, { selectedModel: 'openai/gpt-4.1-mini' })
 
@@ -149,10 +195,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('passes empty selectedModel through so the settings store can clear stale selections', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       await handler?.({}, { selectedModel: '' })
 
@@ -162,10 +205,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('converts favoriteModels canonical refs to SupportedModelId array', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       await handler?.(
         {},
@@ -180,10 +220,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('accepts projectPath as null', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { projectPath: null })
       expect(result).toEqual({ ok: true })
@@ -197,10 +234,7 @@ describe('registerSettingsHandlers', () => {
       const projectPath = await mkdtemp(join(tmpdir(), 'openwaggle-settings-project-'))
       const canonicalProjectPath = await realpath(projectPath)
       tempProjectPaths.push(canonicalProjectPath)
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { projectPath })
 
@@ -209,10 +243,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('does not reconcile trusted main extensions for unrelated settings updates', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.({}, { thinkingLevel: 'high' })
 
@@ -221,10 +252,7 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('accepts skillTogglesByProject update', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
 
       const result = await handler?.(
         {},
@@ -236,6 +264,84 @@ describe('registerSettingsHandlers', () => {
       )
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
+    })
+
+    it('validates and applies appearance and session-default settings', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+
+      const update = {
+        defaultSessionEnvironmentMode: 'worktree',
+        diffSyntaxTheme: 'pierre-dark-vibrant',
+        syntaxThemeSelections: {
+          light: 'bundled:github-light',
+          dark: 'bundled:github-dark',
+          'high-contrast-light': 'bundled:github-light-high-contrast',
+          'high-contrast-dark': 'bundled:github-dark-high-contrast',
+        },
+        diffView: 'split',
+        diffWrapLines: true,
+        appearancePreferences: {
+          ...DEFAULT_SETTINGS.appearancePreferences,
+          typography: {
+            ...DEFAULT_SETTINGS.appearancePreferences.typography,
+            interfaceFontFamily: 'Inter, system-ui, sans-serif',
+            codeFontSize: 14,
+          },
+          motion: 'reduced',
+        },
+      } as const
+
+      const result = await handler?.({}, update)
+
+      expect(result).toEqual({ ok: true })
+      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining(update))
+    })
+
+    it('rejects incomplete syntax theme selections', async () => {
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+      const result = await handler?.(
+        {},
+        {
+          syntaxThemeSelections: {
+            light: 'bundled:github-light',
+            dark: 'bundled:github-dark',
+          },
+        },
+      )
+
+      expect(result).toEqual({ ok: false, error: expect.any(String) })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects duplicate shortcut bindings without replacing existing customizations', async () => {
+      const currentSettings = {
+        ...DEFAULT_SETTINGS,
+        shortcutBindings: {
+          ...DEFAULT_SHORTCUT_BINDINGS,
+          'diff.toggle': null,
+          'sidebar.toggle': { key: 'D', mod: true },
+          'terminal.toggle': { key: 'T', mod: true, shift: true },
+        },
+      }
+      getSettingsMock.mockReturnValue(currentSettings)
+      const handler = getRegisteredSettingsUpdateHandler(registerSettingsHandlers)
+      const result = await handler?.(
+        {},
+        {
+          shortcutBindings: {
+            ...currentSettings.shortcutBindings,
+            'diff.toggle': DEFAULT_SHORTCUT_BINDINGS['diff.toggle'],
+          },
+        },
+      )
+
+      expect(result).toEqual({ ok: false, error: expect.stringContaining('already assigned') })
+      expect(updateSettingsMock).not.toHaveBeenCalled()
+      expect(currentSettings.shortcutBindings['terminal.toggle']).toEqual({
+        key: 'T',
+        mod: true,
+        shift: true,
+      })
     })
   })
 })

@@ -3,7 +3,7 @@ import {
   authorizationScopeKeyId,
   type ScopedAuthorizationGrant,
 } from '@shared/types/agent-authorization-grants'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
@@ -12,11 +12,15 @@ const logger = createRendererLogger('agent-access-grants')
 
 function useProjectAuthorizationGrants(projectPath: string | null) {
   const [grants, setGrants] = useState<readonly ScopedAuthorizationGrant[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(projectPath))
+  const [error, setError] = useState(false)
+  const [retryRevision, setRetryRevision] = useState(0)
 
-  const reload = useCallback(() => {
+  useEffect(() => {
     if (!projectPath || typeof api.listAuthorizationGrants !== 'function') {
       setGrants([])
+      setError(false)
+      setLoading(false)
       return
     }
 
@@ -25,15 +29,23 @@ function useProjectAuthorizationGrants(projectPath: string | null) {
     // a grant that is listed but belongs somewhere else.
     let cancelled = false
     setLoading(true)
+    setError(false)
     api
       .listAuthorizationGrants(projectPath)
       .then((next) => {
-        if (!cancelled) setGrants(next)
+        if (!cancelled) {
+          setGrants(next)
+          setError(false)
+        }
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        logger.warn('Failed to load authorization grants', { error: String(err) })
+        logger.warn('Failed to load authorization grants', {
+          error: String(err),
+          attempt: retryRevision + 1,
+        })
         setGrants([])
+        setError(true)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -42,11 +54,9 @@ function useProjectAuthorizationGrants(projectPath: string | null) {
     return () => {
       cancelled = true
     }
-  }, [projectPath])
+  }, [projectPath, retryRevision])
 
-  useEffect(reload, [reload])
-
-  return { grants, loading, reload }
+  return { grants, loading, error, reload: () => setRetryRevision((revision) => revision + 1) }
 }
 
 function grantDescription(grant: ScopedAuthorizationGrant) {
@@ -117,7 +127,7 @@ function AuthorizationGrantRow({
 }
 
 export function AuthorizationGrantsCard({ projectPath }: { readonly projectPath: string | null }) {
-  const { grants, loading, reload } = useProjectAuthorizationGrants(projectPath)
+  const { grants, loading, error, reload } = useProjectAuthorizationGrants(projectPath)
 
   return (
     <div className="space-y-2">
@@ -133,6 +143,16 @@ export function AuthorizationGrantsCard({ projectPath }: { readonly projectPath:
           <p className="px-5 py-3 text-xs text-text-tertiary">
             Open a project to see what it has approved.
           </p>
+        ) : error ? (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 px-5 py-3 text-xs text-error-text"
+          >
+            <span>Could not load saved approvals. Existing approvals may still be in effect.</span>
+            <Button size="xs" variant="secondary" onClick={reload}>
+              Retry loading approvals
+            </Button>
+          </div>
         ) : loading ? (
           <p className="px-5 py-3 text-xs text-text-tertiary">Loading saved approvals…</p>
         ) : grants.length === 0 ? (

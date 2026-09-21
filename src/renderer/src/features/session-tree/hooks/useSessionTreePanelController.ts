@@ -1,9 +1,9 @@
 import type { SessionNode } from '@shared/types/session'
 import { useDeferredValue, useReducer, useRef, useState } from 'react'
+import { useChatStore } from '@/features/chat/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
-import { reconcileSessionModelPick } from '@/shared/lib/session-model-pick'
 import { useUIStore } from '@/shell/ui-store'
 import { isSessionTreeFilterMode } from '../constants'
 import type {
@@ -40,14 +40,14 @@ export function useSessionTreePanelController(
   const treeRowsRef = useRef<HTMLDivElement>(null)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
+  const activeSession = useChatStore((state) => state.activeSession)
   const fallbackModel = usePreferencesStore((s) => s.settings.selectedModel)
   const showToast = useUIStore((state) => state.showToast)
   const tree = activeWorkspace?.tree ?? null
-  // The tree acts on its own session, which can lag the active one while the workspace refreshes:
-  // resolve the model from the tree's session row (guard-reconciled), not the active session's.
-  const treeSessionModel = tree
-    ? (reconcileSessionModelPick(tree.session).selectedModel ?? fallbackModel)
-    : undefined
+  const treeSessionModel =
+    tree && activeSession?.id === tree.session.id
+      ? (activeSession.executionModel ?? fallbackModel)
+      : undefined
   const filter = useSessionTreeFilterMode(tree?.session.projectPath ?? null, showToast)
   const rows = buildSessionTreePanelRows({
     tree,

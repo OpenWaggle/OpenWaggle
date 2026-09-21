@@ -31,6 +31,7 @@ export interface PiProjectRuntimeIsolationOptions {
   readonly modelReference: string
   readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
@@ -127,6 +128,7 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
     compactionThresholdPercent:
       options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
+    ...(options.skillAllowlist ? { skillAllowlist: options.skillAllowlist } : {}),
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
     ...(options.trustedExtensionFactories
       ? { trustedExtensionFactories: options.trustedExtensionFactories }
@@ -160,6 +162,7 @@ export async function createIsolatedPiProjectRuntime(input: {
         compactionThresholdPercent:
           input.options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
         ...(input.options.skillToggles ? { skillToggles: input.options.skillToggles } : {}),
+        ...(input.options.skillAllowlist ? { skillAllowlist: input.options.skillAllowlist } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths.length > 0
           ? { enabledOpenWaggleExtensionPackagePaths }
           : {}),

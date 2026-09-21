@@ -12,6 +12,17 @@ Current-checkout mode.
 
 ## Opening The Terminal
 
+Terminal shells belong to the desktop app, while agent sessions belong to the background
+Session Host. Closing a client does not interrupt an agent run. A terminal-dependent project
+action or browser operation does require an attached desktop; the CLI does not create an
+invisible terminal as a fallback.
+
+Use a normal app quit when possible so OpenWaggle can confirm that terminal processes and browser
+previews have closed. If a previous desktop exits without confirming cleanup, a later launch
+shows a **Desktop tools are paused** notice. Sessions and conversation retrieval remain available,
+but terminal/browser admission and destructive operations that depend on their cleanup stay
+blocked. Restarting the app does not erase that uncertainty or automatically kill old processes.
+
 Use `Cmd+J` on macOS or `Ctrl+J` on Windows/Linux. The terminal button in the header and the global
 command palette can also open it.
 

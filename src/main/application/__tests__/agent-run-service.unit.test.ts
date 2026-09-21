@@ -21,6 +21,7 @@ import {
   runServiceSessionTree,
 } from './agent-run-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const runMock = vi.fn()
 const updateTitleMock = vi.fn()
@@ -43,11 +44,9 @@ let projectionTree: SessionTree = runServiceSessionTree
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(projectionSession),
   getOptional: () => Effect.succeed(projectionSession),
-  getHiveRelations: () => Effect.succeed({ current: null, parent: null, workers: [] }),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
-  getDeletionBlocker: () => Effect.succeed(null),
   delete: () => Effect.void,
   archive: () => Effect.void,
   unarchive: () => Effect.void,
@@ -58,7 +57,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
     }),
   setWorktreePlan: () => Effect.void,
   setAuthorizationMode: () => Effect.void,
-  setSelectedModel: () => Effect.void,
   listTurnCheckpoints: () => Effect.succeed([]),
   getTurnDiff: () => Effect.succeed(null),
   setTurnCheckpointAnchor: () => Effect.void,
@@ -78,6 +76,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(projectionTree),

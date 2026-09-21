@@ -1,10 +1,8 @@
-import type { TerminalInputReleaseResult, TerminalReadinessSnapshot } from '@shared/types/terminal'
+import type { TerminalInputReleaseResult } from '@shared/types/terminal'
 import {
-  applyTerminalReadiness,
   clearTerminalInputError,
   deleteTerminalInputStateIfUnused,
   emitTerminalInputState,
-  normalizePendingInputBytes,
   setTerminalInputError,
   type TerminalInputDispatcherContext,
   type TerminalInputState,
@@ -32,8 +30,13 @@ const PROJECT_ACTION_CAPACITY_ERROR =
   'The Project Action command was not sent because terminal input capacity is full.'
 const PROJECT_ACTION_PENDING_ERROR = 'Another Project Action is already pending in this terminal.'
 
-function inactiveResult(): TerminalInputEnqueueResult {
-  return { status: 'rejected', reason: 'inactive', error: INACTIVE_INPUT_ERROR }
+function inactiveResult(state?: TerminalInputState): TerminalInputEnqueueResult {
+  return {
+    status: 'rejected',
+    reason: 'inactive',
+    error:
+      state?.errorKind === 'retired' ? (state.error ?? INACTIVE_INPUT_ERROR) : INACTIVE_INPUT_ERROR,
+  }
 }
 
 function capacityResult(state: TerminalInputState, error: string): TerminalInputEnqueueResult {
@@ -49,7 +52,7 @@ export function enqueueTerminalInput(
   state: TerminalInputState,
   data: string,
 ): TerminalInputEnqueueResult {
-  if (state.disposed) return inactiveResult()
+  if (state.disposed || state.errorKind === 'retired') return inactiveResult(state)
   if (data.length === 0) return { status: 'accepted' }
   const remainingBytes = Math.max(
     0,
@@ -72,7 +75,7 @@ export function enqueueTerminalProjectAction(
   data: string,
   executionId: string,
 ): Promise<TerminalProjectActionEnqueueResult> {
-  if (state.disposed) return Promise.resolve(inactiveResult())
+  if (state.disposed || state.errorKind === 'retired') return Promise.resolve(inactiveResult(state))
   if (hasQueuedTerminalProjectAction(state.queue)) {
     return Promise.resolve({
       status: 'rejected',
@@ -136,6 +139,7 @@ export function enqueueTerminalInputAsync(
   state: TerminalInputState,
   resolveData: () => Promise<string>,
 ): Promise<TerminalInputEnqueueResult> {
+  if (state.disposed || state.errorKind === 'retired') return Promise.resolve(inactiveResult(state))
   if (state.pendingOperations >= context.maxPendingOperations) {
     return Promise.resolve(capacityResult(state, OPERATION_CAPACITY_ERROR))
   }
@@ -151,11 +155,12 @@ export function enqueueTerminalInputAsync(
     try {
       data = await resolveData()
     } catch (error) {
-      if (!state.disposed && state.operationVersion === operationVersion) {
-        removeTerminalInputPlaceholder(state.queue, placeholder)
-        recordOperationError(state, error)
-        void drainTerminalInput(context, state)
+      if (state.disposed || state.operationVersion !== operationVersion) {
+        return inactiveResult()
       }
+      removeTerminalInputPlaceholder(state.queue, placeholder)
+      recordOperationError(state, error)
+      void drainTerminalInput(context, state)
       throw error
     }
     if (state.disposed || state.operationVersion !== operationVersion) {
@@ -180,7 +185,9 @@ export function enqueueTerminalInputAsync(
     return { status: 'accepted' }
   })
   const finalized = operation.finally(() => {
-    state.pendingOperations = Math.max(0, state.pendingOperations - 1)
+    if (state.operationVersion === operationVersion) {
+      state.pendingOperations = Math.max(0, state.pendingOperations - 1)
+    }
     deleteTerminalInputStateIfUnused(context, state)
   })
   state.operationTail = finalized.then(
@@ -190,63 +197,12 @@ export function enqueueTerminalInputAsync(
   return finalized
 }
 
-export function markTerminalInputOpen(
-  context: TerminalInputDispatcherContext,
-  state: TerminalInputState,
-  readiness: TerminalReadinessSnapshot | null,
-  pendingInputBytes: number,
-) {
-  state.open = true
-  state.openVersion += 1
-  const applied = readiness === null || applyTerminalReadiness(state, readiness)
-  if (applied && readiness?.phase === 'ready') {
-    state.remotePendingBytes = 0
-    if (state.errorKind !== 'capacity' && state.errorKind !== 'operation') {
-      clearTerminalInputError(state)
-    }
-  }
-  if (applied && readiness !== null && readiness.phase !== 'ready') {
-    state.remotePendingBytes = normalizePendingInputBytes(pendingInputBytes)
-    if (state.errorKind === 'transport') clearTerminalInputError(state)
-  }
-  emitTerminalInputState(state)
-  void drainTerminalInput(context, state)
-}
-
-/** Enable transport staging without claiming that the shell or prompt is ready. */
-export function markTerminalInputOpening(
-  context: TerminalInputDispatcherContext,
-  state: TerminalInputState,
-) {
-  state.open = true
-  state.openVersion += 1
-  state.readiness = null
-  if (state.errorKind === 'transport') clearTerminalInputError(state)
-  emitTerminalInputState(state)
-  void drainTerminalInput(context, state)
-}
-
-export function markTerminalInputReady(
-  context: TerminalInputDispatcherContext,
-  state: TerminalInputState,
-  readiness: TerminalReadinessSnapshot,
-) {
-  if (readiness.phase !== 'ready' || !applyTerminalReadiness(state, readiness)) return
-  state.open = true
-  state.openVersion += 1
-  state.remotePendingBytes = 0
-  if (state.errorKind !== 'capacity' && state.errorKind !== 'operation') {
-    clearTerminalInputError(state)
-  }
-  emitTerminalInputState(state)
-  void drainTerminalInput(context, state)
-}
-
 export function applyTerminalInputRelease(
   context: TerminalInputDispatcherContext,
   state: TerminalInputState,
   result: TerminalInputReleaseResult,
 ) {
+  if (state.errorKind === 'retired') return
   if (result.status === 'terminal-not-open') {
     state.open = false
     state.openVersion += 1
@@ -271,6 +227,7 @@ export function retryTerminalInput(
   context: TerminalInputDispatcherContext,
   state: TerminalInputState,
 ) {
+  if (state.errorKind === 'retired') return
   clearTerminalInputError(state)
   emitTerminalInputState(state)
   void drainTerminalInput(context, state)

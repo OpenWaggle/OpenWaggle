@@ -308,12 +308,11 @@ export function resetTerminalPaneHarness() {
   usePreferencesStore.setState({ settings: DEFAULT_SETTINGS, isLoaded: true, loadError: null })
 }
 
-function attachResult() {
-  return {
-    history: '',
-    outputBytes: 0,
-    outputGeneration: 1,
-    readiness: { phase: 'ready' as const, generation: 1 },
-    running: true,
-  }
-}
+const attachResult = () => ({
+  inputIncarnation: 'native-record-1',
+  history: '',
+  outputBytes: 0,
+  outputGeneration: 1,
+  readiness: { phase: 'ready' as const, generation: 1 },
+  running: true,
+})

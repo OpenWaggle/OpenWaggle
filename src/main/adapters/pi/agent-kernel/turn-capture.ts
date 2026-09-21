@@ -4,7 +4,9 @@ import path from 'node:path'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { turnCheckpointRef } from '@shared/utils/turn-checkpoint-ref'
+import { parseTurnDiffFilesFromUnifiedDiff } from '@shared/utils/turn-diff-parse'
 import { createLogger } from '../../../logger'
+import { recordDelegationTurnWrites } from '../../../store/delegation-write-observer'
 import {
   getLatestSnapshotRef,
   pruneTurnCheckpoints,
@@ -50,6 +52,14 @@ export async function captureTurnCheckpoint(input: {
       diff,
       snapshotRef,
     })
+    if (input.session.environmentMode === 'worktree') {
+      const files = parseTurnDiffFilesFromUnifiedDiff(diff)
+      await recordDelegationTurnWrites({
+        workerSessionId: sessionId,
+        runId: input.runId,
+        paths: files.map((file) => file.path),
+      })
+    }
     const pruned = await pruneTurnCheckpoints(sessionId, MAX_CHECKPOINTS_PER_SESSION)
     await deleteTurnCheckpointRefs(input.projectPath, String(sessionId), pruned)
   } catch (error) {

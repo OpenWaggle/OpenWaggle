@@ -1,6 +1,5 @@
 import type { ThinkingLevel } from '@shared/types/settings'
 import { Check, ChevronDown, Ellipsis } from 'lucide-react'
-import { useSelectedSessionModel } from '@/features/chat/hooks'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -9,6 +8,7 @@ import { Button } from '@/shared/ui/Button'
 import { DENSE_MENU_ITEM_CLASS } from '@/shared/ui/menu-styles'
 import { Popover } from '@/shared/ui/Popover'
 import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
+import { useComposerModel } from '../hooks/useComposerModel'
 import {
   getThinkingButtonLabel,
   getThinkingButtonTitle,
@@ -20,8 +20,9 @@ export function ThinkingLevelMenu() {
   const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
   const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
-  const thinking = useSelectedModelThinkingLevel()
-  const hasSelectedModel = (useSelectedSessionModel().selectedModel ?? '').trim().length > 0
+  const composerModel = useComposerModel().model
+  const thinking = useSelectedModelThinkingLevel(composerModel ?? null)
+  const hasSelectedModel = Boolean(composerModel?.trim())
   const canOpenThinkingMenu =
     thinking.capabilitiesKnown && thinking.availableThinkingLevels.length > 0
   const selectedModelOnlySupportsOff =

@@ -7,8 +7,8 @@ import { useSessionSummaryHubController } from './use-session-summary-hub-contro
 export type { SessionSummaryHubInput } from './session-summary-hub-types'
 
 export function SessionSummaryHub({ input }: { readonly input: SessionSummaryHubInput }) {
-  const { session, messageCount } = input
-  if (!session || messageCount === 0) return null
+  const { session, messageCount, hiveAvailable } = input
+  if (!session || (messageCount === 0 && !hiveAvailable)) return null
   return <AvailableSessionSummaryHub input={input} />
 }
 
