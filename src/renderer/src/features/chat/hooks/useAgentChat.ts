@@ -44,7 +44,7 @@ const EMPTY_AGENT_INTERACTION_EVENTS: AgentChatReturn['agentInteractionEvents'] 
 export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
-  model: SupportedModelId,
+  model: SupportedModelId | undefined,
   _thinkingLevel: ThinkingLevel,
 ): AgentChatReturn {
   const upsertSession = useChatStore((state) => state.upsertSession)

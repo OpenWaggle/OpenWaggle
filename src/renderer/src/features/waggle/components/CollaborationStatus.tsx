@@ -1,8 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import { generateDisplayName } from '@shared/types/llm'
 import { isInheritedWaggleModelBinding, type WaggleAgentSlot } from '@shared/types/waggle'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
-import { usePreferencesStore } from '@/features/settings/state'
+import { useComposerModel } from '@/features/composer/hooks'
 import { AGENT_BG } from '@/features/waggle/lib/agent-colors'
 import { useWaggleStore } from '@/features/waggle/state/waggle-store'
 import { cn } from '@/shared/lib/cn'
@@ -20,13 +21,16 @@ function turnCountLabel(turnCount: number) {
   return `${String(turnCount)} ${turnCount === SINGLE_TURN_COUNT ? 'turn' : 'turns'}`
 }
 
-function displayModelForAgent(agent: WaggleAgentSlot, inheritedModel: string) {
+function displayModelForAgent(
+  agent: WaggleAgentSlot,
+  inheritedModel: SupportedModelId | undefined,
+) {
   if (!isInheritedWaggleModelBinding(agent.model)) return generateDisplayName(agent.model)
-  return inheritedModel.trim() ? generateDisplayName(inheritedModel) : 'Select model'
+  return inheritedModel?.trim() ? generateDisplayName(inheritedModel) : 'Select model'
 }
 
 export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const selectedModel = useComposerModel().model
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)

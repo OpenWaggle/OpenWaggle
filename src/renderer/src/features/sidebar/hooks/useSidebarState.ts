@@ -60,10 +60,11 @@ export function useSidebarState() {
   const project = useProject()
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const projectDisplayNames = usePreferencesStore((s) => s.settings.projectDisplayNames)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const defaultModel = usePreferencesStore((s) => s.settings.selectedModel)
   const setProjectDisplayName = usePreferencesStore((s) => s.setProjectDisplayName)
   const removeProjectReferences = usePreferencesStore((s) => s.removeProjectReferences)
   const chat = useChat()
+  const selectedModel = chat.activeSession?.executionModel
   const sessions = useSessions()
   const git = useGit()
   const isFullscreen = useFullscreen()
@@ -196,7 +197,7 @@ export function useSidebarState() {
     pinnedRows,
     pinnedSortMenuOpen,
     pinnedSortMode,
-    preferences: { removeProjectReferences, selectedModel, setProjectDisplayName },
+    preferences: { removeProjectReferences, selectedModel, defaultModel, setProjectDisplayName },
     project,
     projectExpandedByPath,
     sessionGroups,

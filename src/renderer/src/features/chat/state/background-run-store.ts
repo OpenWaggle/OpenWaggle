@@ -39,7 +39,7 @@ interface ActiveRunRenderSnapshot {
 export interface FirstSendRecovery {
   readonly payload: AgentSendPayload
   readonly waggleConfig: WaggleConfig | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
 }
 
 interface BackgroundRunState {

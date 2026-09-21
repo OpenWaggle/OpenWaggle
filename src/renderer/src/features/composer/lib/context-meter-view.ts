@@ -19,16 +19,17 @@ interface ContextMeterValueInput {
 
 export function buildContextUsageRequestKey(
   sessionId: string | null,
-  model: SupportedModelId,
+  model: SupportedModelId | undefined,
   sessionVersion: string,
 ) {
-  return sessionId ? `${sessionId}:${model}:${sessionVersion}` : ''
+  return sessionId && model ? `${sessionId}:${model}:${sessionVersion}` : ''
 }
 
 export function findContextWindow(
   providerModels: readonly ProviderInfo[],
-  modelRef: SupportedModelId,
+  modelRef: SupportedModelId | undefined,
 ) {
+  if (!modelRef) return null
   for (const group of providerModels) {
     const contextWindow = group.models.find((model) => model.id === modelRef)?.contextWindow
     if (contextWindow) return contextWindow

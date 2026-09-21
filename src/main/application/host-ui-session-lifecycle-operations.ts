@@ -15,6 +15,7 @@ import {
   requireArgCount,
   requiredString,
   requireOptionalArgCount,
+  validateOptionalModel,
   validateSessionId,
   validateSessionNodeId,
   validateWorktreePlan,
@@ -47,10 +48,11 @@ export function mutateLocalUiSession(
 
 export function createSession(args: readonly unknown[]) {
   return Effect.gen(function* () {
-    yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
+    yield* requireOptionalArgCount(args, 1, THREE_ARGUMENTS)
     const projectPath = yield* requiredString(args[0], 'Project path')
     const normalizedProjectPath = yield* validateRequiredProjectPath(projectPath)
     const worktreePlan = yield* validateWorktreePlan(args[1])
+    const model = yield* validateOptionalModel(args[TWO_ARGUMENTS])
     const settings = yield* (yield* SettingsService).get()
     const environmentMode = worktreePlan?.environmentMode ?? settings.defaultSessionEnvironmentMode
     const result = yield* dispatchLocalSessionCommand({
@@ -74,6 +76,7 @@ export function createSession(args: readonly unknown[]) {
                       : {}),
                   }
                 : { mode: 'local' },
+            ...(model ? { specialization: { modelId: model } } : {}),
           },
         },
       },

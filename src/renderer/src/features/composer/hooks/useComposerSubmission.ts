@@ -121,7 +121,7 @@ export function useComposerSubmission({
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
   const selectedModel = useComposerModel().model
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel)
+  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel(selectedModel ?? null)
 
   function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
     if (snapshot && !isCurrentComposerDraft(snapshot)) {

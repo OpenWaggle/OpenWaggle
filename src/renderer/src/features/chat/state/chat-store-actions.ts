@@ -39,9 +39,7 @@ function markSessionMutation(id: SessionId) {
   latestSessionMutation.set(id, sessionMutationVersion(id) + 1)
 }
 
-function setError(set: ChatSet) {
-  return (error: string) => set({ error })
-}
+const setError = (set: ChatSet) => (error: string) => set({ error })
 
 async function loadSessions(set: ChatSet, get: ChatGet) {
   latestSessionLoad += 1
@@ -83,16 +81,20 @@ async function createSession(
   const createsCurrentDraft =
     initial.activeSessionId === null &&
     (initial.draftSession === null || initial.draftSession.projectPath === projectPath)
+  const selectedModel = createsCurrentDraft ? initial.draftSession?.selectedModel : undefined
+  if (createsCurrentDraft && initial.draftSession)
+    set({ draftSession: { ...initial.draftSession, isMaterializing: true } })
   try {
-    const session = worktreePlan
-      ? await api.createSession(projectPath, worktreePlan)
-      : await api.createSession(projectPath)
+    const session = selectedModel
+      ? await api.createSession(projectPath, worktreePlan, selectedModel)
+      : worktreePlan
+        ? await api.createSession(projectPath, worktreePlan)
+        : await api.createSession(projectPath)
     const shouldActivate =
       generation === draftMaterializationGeneration() &&
       get().activeSessionId === initial.activeSessionId
-    if (createsCurrentDraft && shouldActivate) {
+    if (createsCurrentDraft && shouldActivate)
       recordDraftMaterialization(projectPath, session.id, generation)
-    }
     get().upsertSession(session)
     if (!shouldActivate) {
       void useSessionStore.getState().loadSessions()
@@ -110,6 +112,13 @@ async function createSession(
     void useSessionStore.getState().refreshSessionsAndTree(toSessionId(session.id))
     return session.id
   } catch (err) {
+    if (generation === draftMaterializationGeneration()) {
+      set((state) => {
+        if (state.draftSession?.projectPath !== projectPath) return {}
+        const { isMaterializing: _materializing, ...draftSession } = state.draftSession
+        return { draftSession }
+      })
+    }
     handleStoreError(err, 'create session', setError(set))
     throw err
   }
@@ -292,6 +301,12 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
       prepareDraftWorktreePlan(previousProjectPath, projectPath)
       set({ activeSessionId: null, activeSession: null, draftSession: { projectPath } })
     },
+    setDraftSelectedModel: (model) =>
+      set((state) =>
+        state.draftSession && !state.draftSession.isMaterializing
+          ? { draftSession: { ...state.draftSession, selectedModel: model } }
+          : {},
+      ),
     setActiveSessionId: (id) => get().setActiveSession(id),
     setActiveSession: (id) => setActiveSession(id, set, get),
     refreshSession: (id) => refreshSession(id, set, get),
