@@ -190,21 +190,27 @@ function createDownloadWaiter() {
   return { promise, cancel }
 }
 
+function abandonDownloadWaiter(waiter: ReturnType<typeof createDownloadWaiter> | null) {
+  if (!waiter) return
+  waiter.cancel()
+  void waiter.promise.catch(() => undefined)
+}
+
 async function updateFromChannel(channel: UpdateChannel, checkOnly: boolean) {
   await configureUpdater(channel, checkOnly)
   const downloaded = checkOnly ? null : createDownloadWaiter()
   const result = await autoUpdater.checkForUpdates().catch((error: unknown) => {
-    downloaded?.cancel()
+    abandonDownloadWaiter(downloaded)
     throw error
   })
   if (!result?.isUpdateAvailable) {
-    downloaded?.cancel()
+    abandonDownloadWaiter(downloaded)
     await writeCliStdout(`OpenWaggle is up to date on the ${channel} channel.\n`)
     return { exitCode: EXIT.SUCCESS, updaterOwnsExit: false }
   }
   const version = result.updateInfo.version
   if (!isVersionEligibleForChannel(version, channel)) {
-    downloaded?.cancel()
+    abandonDownloadWaiter(downloaded)
     autoUpdater.autoInstallOnAppQuit = false
     result.cancellationToken?.cancel()
     void result.downloadPromise?.catch(() => undefined)

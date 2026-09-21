@@ -238,4 +238,28 @@ describe('update CLI', () => {
       updaterOwnsExit: false,
     })
   })
+
+  it('does not leave the download waiter rejection unhandled when a check fails', async () => {
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      checkForUpdatesMock.mockImplementation(() => {
+        const errorRegistration = updater.once.mock.calls.find(([event]) => event === 'error')
+        const errorListener = errorRegistration?.[1]
+        if (typeof errorListener === 'function') errorListener(new Error('download failed'))
+        return Promise.reject(new Error('metadata failed'))
+      })
+
+      await expect(runUpdateCli([])).resolves.toEqual({
+        exitCode: 1,
+        updaterOwnsExit: false,
+      })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
+  })
 })
