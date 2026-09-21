@@ -94,7 +94,8 @@ are available only through `--version` or `OPENWAGGLE_RELEASE_TAG`; they are not
 update channel. On a first launch with no saved preference, an Alpha or Beta build starts on its
 matching channel; Stable remains the default otherwise. The app confirms each switch into Alpha
 and checks a newly selected channel immediately. OpenWaggle never downgrades automatically when
-channels change.
+channels change, and **Restart to update** re-reads the shared channel before installing an
+already-downloaded release.
 
 ## System Requirements
 

@@ -16,11 +16,7 @@ export function registerUpdaterHandlers(): void {
     }),
   )
 
-  typedHandle('updater:install', () =>
-    Effect.sync(() => {
-      installUpdate()
-    }),
-  )
+  typedHandle('updater:install', () => Effect.promise(() => installUpdate()))
 
   typedHandle('updater:get-status', () => Effect.sync(() => getUpdateStatus()))
 

@@ -10,17 +10,24 @@ function response(releases: readonly { readonly tag_name: string }[]) {
 }
 
 describe('update feed selection', () => {
-  it('keeps Stable on the native GitHub provider', async () => {
+  it('selects Stable semantically when a newer prerelease is mislabelled', async () => {
     const setFeedURL = vi.fn()
-    const fetchReleases = vi.fn()
+    const fetchReleases = vi
+      .fn()
+      .mockResolvedValue(
+        response([
+          { tag_name: 'v0.5.0-alpha.2' },
+          { tag_name: 'v0.4.1' },
+          { tag_name: 'v0.5.0-beta.1' },
+        ]),
+      )
 
     await configureUpdaterFeed({ setFeedURL }, 'stable', fetchReleases)
 
-    expect(fetchReleases).not.toHaveBeenCalled()
-    expect(setFeedURL).toHaveBeenCalledWith({
-      provider: 'github',
-      owner: 'OpenWaggle',
-      repo: 'OpenWaggle',
+    expect(fetchReleases).toHaveBeenCalledOnce()
+    expect(setFeedURL).toHaveBeenLastCalledWith({
+      provider: 'generic',
+      url: 'https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.4.1/',
       channel: 'latest',
     })
   })

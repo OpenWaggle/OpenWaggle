@@ -176,12 +176,43 @@ export function checkForUpdates(channel?: UpdateChannel): void {
     })
 }
 
-export function installUpdate(): void {
-  if (
-    currentStatus.type !== 'downloaded' ||
-    !isVersionEligibleForChannel(currentStatus.version, currentChannel)
-  ) {
+export async function installUpdate(): Promise<void> {
+  if (currentStatus.type !== 'downloaded') {
     logger.warn('Ignoring install request without a channel-eligible downloaded update')
+    return
+  }
+  const requestedVersion = currentStatus.version
+  const requestGeneration = updateCheckRequestGeneration
+  autoUpdater.autoInstallOnAppQuit = false
+  let authoritativeChannel = currentChannel
+  if (readAuthoritativeChannel) {
+    try {
+      authoritativeChannel = await readAuthoritativeChannel()
+    } catch (error) {
+      logUpdateCheckError(error)
+      setStatus({ type: 'error', message: updateCheckErrorMessage(error) })
+      return
+    }
+  }
+  if (
+    requestGeneration !== updateCheckRequestGeneration ||
+    currentStatus.type !== 'downloaded' ||
+    currentStatus.version !== requestedVersion
+  ) {
+    logger.warn('Ignoring install request after updater state changed')
+    return
+  }
+  if (authoritativeChannel !== currentChannel) {
+    checkGeneration += 1
+    activeUpdateCancellation?.cancel()
+    activeUpdateCancellation = null
+    activeUpdateVersion = null
+    acceptUpdaterEvents = false
+    configureUpdateChannel(authoritativeChannel)
+  }
+  if (!isVersionEligibleForChannel(requestedVersion, authoritativeChannel)) {
+    setStatus({ type: 'not-available' })
+    logger.warn('Ignoring install request for an update outside the authoritative channel')
     return
   }
   autoUpdater.quitAndInstall(false, true)

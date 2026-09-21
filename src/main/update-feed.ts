@@ -17,7 +17,7 @@ type FeedConfiguration =
   | {
       readonly provider: 'generic'
       readonly url: string
-      readonly channel: Exclude<UpdateChannel, 'stable'>
+      readonly channel: ReturnType<typeof updaterFeedChannel>
     }
 
 interface UpdateFeedTarget {
@@ -81,7 +81,7 @@ export function isVersionEligibleForChannel(version: string, channel: UpdateChan
   return parsed !== undefined && isEligibleReleaseChannel(parsed.channel, channel)
 }
 
-function newestEligibleRelease(tags: readonly string[], channel: Exclude<UpdateChannel, 'stable'>) {
+function newestEligibleRelease(tags: readonly string[], channel: UpdateChannel) {
   let selected: ParsedReleaseVersion | undefined
   for (const tag of tags) {
     const parsed = parseReleaseVersion(tag)
@@ -122,14 +122,12 @@ export function configureUpdaterFeed(
     repo: 'OpenWaggle',
     channel: updaterFeedChannel(channel),
   })
-  if (channel === 'stable') return
-
   return fetchAllReleaseTags(fetchReleases).then((tags) => {
     const tag = newestEligibleRelease(tags, channel)
     updater.setFeedURL({
       provider: 'generic',
       url: `https://github.com/OpenWaggle/OpenWaggle/releases/download/${encodeURIComponent(tag)}/`,
-      channel,
+      channel: updaterFeedChannel(channel),
     })
   })
 }

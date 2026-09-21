@@ -46,6 +46,7 @@ describe('updater-handler', () => {
     handlers.clear()
     mockCheckForUpdates.mockReset()
     mockInstallUpdate.mockReset()
+    mockInstallUpdate.mockResolvedValue(undefined)
     mockGetUpdateStatus.mockReset()
     mockAppGetVersion.mockReset()
     mockAppGetVersion.mockReturnValue('0.1.0')

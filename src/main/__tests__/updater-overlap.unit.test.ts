@@ -1,18 +1,25 @@
 import type { BuildChannel } from '@shared/types/build-identity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { broadcastMock, buildChannel, checkForUpdatesMock, configureUpdaterFeedMock, updaterRef } =
-  vi.hoisted(() => {
-    const updaterRef: { current: import('node:events').EventEmitter | null } = { current: null }
-    const buildChannel: { value: BuildChannel } = { value: 'alpha' }
-    return {
-      broadcastMock: vi.fn(),
-      buildChannel,
-      checkForUpdatesMock: vi.fn<() => Promise<unknown>>(),
-      configureUpdaterFeedMock: vi.fn(),
-      updaterRef,
-    }
-  })
+const {
+  broadcastMock,
+  buildChannel,
+  checkForUpdatesMock,
+  configureUpdaterFeedMock,
+  quitAndInstallMock,
+  updaterRef,
+} = vi.hoisted(() => {
+  const updaterRef: { current: import('node:events').EventEmitter | null } = { current: null }
+  const buildChannel: { value: BuildChannel } = { value: 'alpha' }
+  return {
+    broadcastMock: vi.fn(),
+    buildChannel,
+    checkForUpdatesMock: vi.fn<() => Promise<unknown>>(),
+    configureUpdaterFeedMock: vi.fn(),
+    quitAndInstallMock: vi.fn(),
+    updaterRef,
+  }
+})
 
 vi.mock('@electron-toolkit/utils', () => ({ is: { dev: false } }))
 vi.mock('@shared/build-identity-runtime', () => ({
@@ -29,7 +36,7 @@ vi.mock('electron-updater', async () => {
     autoInstallOnAppQuit: true,
     logger: null,
     checkForUpdates: () => checkForUpdatesMock(),
-    quitAndInstall: vi.fn(),
+    quitAndInstall: quitAndInstallMock,
   })
   updaterRef.current = updater
   return { autoUpdater: updater }
@@ -58,6 +65,7 @@ describe('updater overlapping checks', () => {
     vi.useFakeTimers()
     checkForUpdatesMock.mockReset()
     configureUpdaterFeedMock.mockReset()
+    quitAndInstallMock.mockReset()
     broadcastMock.mockReset()
     updaterRef.current?.removeAllListeners()
     disposeAutoUpdater()
@@ -237,5 +245,18 @@ describe('updater overlapping checks', () => {
       false,
       true,
     )
+  })
+
+  it('re-reads the authoritative channel before installing a downloaded update', async () => {
+    const readChannel = vi.fn().mockResolvedValue('stable')
+    initAutoUpdater('alpha', readChannel)
+    updaterRef.current?.emit('update-downloaded', { version: '0.5.0-alpha.1' })
+
+    await installUpdate()
+
+    expect(readChannel).toHaveBeenCalledOnce()
+    expect(quitAndInstallMock).not.toHaveBeenCalled()
+    expect(Reflect.get(updaterRef.current ?? {}, 'autoInstallOnAppQuit')).toBe(false)
+    expect(getUpdateStatus()).toEqual({ type: 'not-available' })
   })
 })
